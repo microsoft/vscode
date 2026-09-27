@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import product from '../../../../../platform/product/common/product.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 
@@ -18,13 +17,13 @@ const automationEnabledProperty = configurationRegistry.getConfigurationProperti
 suite('Automations Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('registers Automations on all builds with channel-specific defaults and automatic experiments', () => {
+	test('registers Automations as enabled by default on all builds with automatic experiments', () => {
 		assert.deepStrictEqual({
 			default: automationEnabledProperty.default,
 			included: automationEnabledProperty.included,
 			experiment: automationEnabledProperty.experiment,
 		}, {
-			default: product.quality !== 'stable',
+			default: true,
 			included: undefined,
 			experiment: { mode: 'auto' },
 		});

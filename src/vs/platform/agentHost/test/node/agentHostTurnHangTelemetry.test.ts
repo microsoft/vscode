@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -13,6 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -29,7 +32,11 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
+import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
@@ -45,6 +52,7 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/
 import { AgentHostTurnTracker, IAgentHostTurnTracker, TURN_ACTIVITY_NONE, TURN_HANG_THRESHOLD_MS } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
@@ -215,6 +223,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			requestWorkspaceTrust: async () => true,
 		}));
 		const sharedLocalTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		const worktreeIsolation = createNoopWorktreeIsolation();
 		const services = new ServiceCollection(
 			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
@@ -223,11 +232,18 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			[IAgentHostCheckpointService, checkpointService],
 			[IAgentHostGitStateService, createNoopGitStateService()],
 			[IAgentHostStateManager, stateManager],
+			[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
+			[IFileService, disposables.add(new FileService(logService))],
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
-			[IAgentHostWorktreeIsolation, createNoopWorktreeIsolation()],
+			[IAgentHostWorktreeIsolation, worktreeIsolation],
+			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionDataService, worktreeIsolation)],
 			[IAgentHostClientConnectionService, clientConnections],
+			[IAgentHostPeerChatPersistenceService, {
+				_serviceBrand: undefined,
+				setArchived: async () => { },
+			}],
 			[ISessionWorkspaceConversionService, {
 				_serviceBrand: undefined,
 				requestSessionWorkspaceUpdate: () => { },
@@ -265,8 +281,37 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 
 	teardown(() => {
 		disposables.clear();
+		sinon.restore();
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const provider of ['codex', 'copilot', 'claude']) {
+		test(`keeps immutable hang context scoped to Codex for ${provider}`, async () => {
+			sinon.stub(agent, 'id').value(provider);
+			const now = 1_000_000;
+			const snapshot = getCodexAccountTelemetryContext(
+				{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' },
+				{ usedPercent: 42.4, windowDurationMins: 10080, resetsAt: now / 1000 + 1 }, now, now);
+			await runWithFakedTimers({ startTime: now }, async () => {
+				setupSession();
+				agent.captureTurnTelemetryContext = () => ({ codex: snapshot });
+				startTurn('turn');
+				agent.captureTurnTelemetryContext = () => { throw new Error('Unexpected context read after admission'); };
+				await timeout(TURN_HANG_THRESHOLD_MS + 1);
+				fire({ type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+			});
+			const expected = provider === 'codex' ? snapshot : {};
+			assert.deepStrictEqual(telemetry.events.map(event => ({
+				name: event.eventName,
+				context: Object.fromEntries(Object.entries(event.data as object).filter(([key]) => key.startsWith('chatgpt'))),
+			})), [
+				{ name: 'agentHost.userMessageSent', context: {} },
+				{ name: 'agentHost.turnHung', context: expected },
+				{ name: 'agentHost.turnCompleted', context: expected },
+				{ name: 'agentHost.hungTurnCompleted', context: {} },
+			]);
+		});
+	}
 
 	test('reports noProgress for a turn that starts and is never heard from again', async () => {
 		await runWithFakedTimers({}, async () => {
@@ -378,6 +423,30 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			toolSourceKind: 'agentHost',
 			inFlightToolCallCount: 1,
 		}]);
+	});
+
+	test('Fusion phase progress does not count as an in-flight tool for hang classification', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-fusion');
+			fire({
+				type: ActionType.ChatToolCallStart, turnId: 'turn-fusion',
+				toolCallId: 'fusion:workflow:phase', toolName: 'hydrafusion_phase', displayName: 'Main pass',
+				_meta: { toolKind: 'fusionPhase' },
+			});
+			fire({
+				type: ActionType.ChatToolCallReady, turnId: 'turn-fusion', toolCallId: 'fusion:workflow:phase',
+				invocationMessage: 'Main pass', confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: { toolKind: 'fusionPhase' },
+			});
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().map(event => ({
+			hangReason: event.data.hangReason,
+			toolId: event.data.toolId,
+			inFlightToolCallCount: event.data.inFlightToolCallCount,
+		})), [{ hangReason: 'stalledAfterProgress', toolId: undefined, inFlightToolCallCount: 0 }]);
 	});
 
 	test('tags a silent long-running tool call as runningTool, then reports a real stall once it completes', async () => {

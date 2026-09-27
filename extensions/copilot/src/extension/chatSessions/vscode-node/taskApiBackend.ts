@@ -294,6 +294,7 @@ export class TaskApiBackend implements CloudAgentBackend {
 						title: task.name ?? '',
 						state: task.state,
 						createdAt: task.created_at,
+						updatedAt: task.updated_at,
 						completedAt: task.state === 'completed' ? (task.updated_at ?? task.created_at) : undefined,
 						pullArtifact: taskToPullArtifactRef(task),
 						diffRefs: taskToDiffRefs(task, resolvedRepo),

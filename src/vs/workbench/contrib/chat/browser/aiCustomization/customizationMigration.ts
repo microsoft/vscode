@@ -12,7 +12,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
-import { getCustomizationMigrationTargetType, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
@@ -39,6 +39,10 @@ export interface IMigratedCustomizationsResult {
 	readonly unsupportedHeaderKeys: readonly string[];
 	readonly migratedCustomizations: readonly IMigratedCustomization[];
 	readonly migratedSources: readonly IMigratedCustomizationSource[];
+}
+
+export interface IMigratedCustomizationsWithFailureReasonsResult extends IMigratedCustomizationsResult {
+	readonly failureReasons: readonly FileCustomizationMigrationFailureReason[];
 }
 
 export type CustomizationMigrationTargetFolders = ReadonlyMap<PromptsType, ReadonlyMap<PromptsStorage, ICustomizationSourceFolder>>;
@@ -109,7 +113,7 @@ export async function migrateCustomizations(
 	customizations: readonly MigratableConfiguration[],
 	targetFolders: CustomizationMigrationTargetFolders,
 	fileService: IFileService,
-	onMigrationError?: (error: Error) => void,
+	onMigrationError?: (error: Error, reasons: readonly FileCustomizationMigrationFailureReason[]) => void,
 	options?: ICustomizationMigrationOptions,
 ): Promise<IMigratedCustomizationsResult> {
 	const reservedSkillNames = new Map<string, Set<string>>();
@@ -133,10 +137,12 @@ export async function migrateCustomizations(
 		const writtenTargetUris: URI[] = [];
 		const migratedSourceCustomizations: IMigratedCustomization[] = [];
 		const sourceUnsupportedHeaderKeys = new Set<string>();
+		let failureReason = FileCustomizationMigrationFailureReason.SourceReadFailed;
 
 		try {
 			const content = (await fileService.readFile(sourceCustomization.uri)).value.toString();
 			for (const customization of sourceCustomizations) {
+				failureReason = FileCustomizationMigrationFailureReason.TargetResolutionFailed;
 				const targetType = getCustomizationMigrationTargetType(customization);
 				const targetFolder = targetFolders.get(targetType)?.get(customization.storage);
 				if (!targetFolder) {
@@ -146,7 +152,9 @@ export async function migrateCustomizations(
 				let targetUri: URI;
 				let migratedContent = content;
 				if (customization.type === PromptsType.prompt) {
+					failureReason = FileCustomizationMigrationFailureReason.ConversionFailed;
 					const migratedPrompt = migratePromptFileToSkill(customization, content);
+					failureReason = FileCustomizationMigrationFailureReason.TargetResolutionFailed;
 					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedSkillNames);
 					const skillName = await getAvailableMigratedSkillName(targetFolder.uri, migratedPrompt.skillName, reservedNamesForFolder, fileService);
 					const migratedSkill = skillName === migratedPrompt.skillName ? migratedPrompt : migratePromptFileToSkill(customization, content, skillName);
@@ -164,6 +172,7 @@ export async function migrateCustomizations(
 					targetUri = await getAvailableMigratedFileUri(targetFolder.uri, customization, reservedNamesForFolder, fileService);
 				}
 
+				failureReason = FileCustomizationMigrationFailureReason.TargetWriteFailed;
 				await fileService.createFolder(targetFolder.uri);
 				if (customization.type === PromptsType.skill) {
 					const sourceFolder = dirname(customization.uri);
@@ -182,6 +191,7 @@ export async function migrateCustomizations(
 			}
 
 			if (deleteOriginalFiles) {
+				failureReason = FileCustomizationMigrationFailureReason.SourceDeleteFailed;
 				const sourceToDelete = sourceCustomization.type === PromptsType.skill ? dirname(sourceCustomization.uri) : sourceCustomization.uri;
 				await fileService.del(sourceToDelete, { recursive: sourceCustomization.type === PromptsType.skill });
 			}
@@ -198,9 +208,15 @@ export async function migrateCustomizations(
 			const migrationError = error instanceof Error ? error : new Error(String(error));
 			const rollbackErrors = await rollbackMigrationTargets(writtenTargetUris, fileService);
 			failedCustomizationFileNames.push(basename(sourceCustomization.uri));
-			onMigrationError?.(rollbackErrors.length > 0
-				? new AggregateError([migrationError, ...rollbackErrors], `Failed to migrate and roll back ${basename(sourceCustomization.uri)}`)
-				: migrationError);
+			const failureReasons = rollbackErrors.length > 0
+				? [failureReason, FileCustomizationMigrationFailureReason.RollbackFailed]
+				: [failureReason];
+			onMigrationError?.(
+				rollbackErrors.length > 0
+					? new AggregateError([migrationError, ...rollbackErrors], `Failed to migrate and roll back ${basename(sourceCustomization.uri)}`)
+					: migrationError,
+				failureReasons,
+			);
 		}
 	}
 

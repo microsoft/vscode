@@ -20,6 +20,7 @@ export interface OTelConfig {
 	readonly otlpEndpoint: string;
 	readonly otlpProtocol: 'grpc' | 'http/json' | 'http/protobuf';
 	readonly captureContent: boolean;
+	readonly captureIdentity: boolean;
 	/**
 	 * Maximum size (in characters) for free-form content attributes (prompts,
 	 * tool args, etc.). A value of `0` disables truncation entirely (the
@@ -70,7 +71,7 @@ function parseResourceAttributes(raw: string | undefined): Record<string, string
  * For gRPC: returns origin (scheme://host:port).
  * For HTTP: returns full href.
  */
-function parseOtlpEndpoint(raw: string | undefined, protocol: 'grpc' | 'http'): string | undefined {
+export function parseOtlpEndpoint(raw: string | undefined, protocol: 'grpc' | 'http'): string | undefined {
 	if (!raw) {
 		return undefined;
 	}
@@ -89,6 +90,7 @@ export interface OTelConfigInput {
 	settingExporterType?: OTelExporterType;
 	settingOtlpEndpoint?: string;
 	settingCaptureContent?: boolean;
+	settingCaptureIdentity?: boolean;
 	settingMaxAttributeSizeChars?: number;
 	settingOutfile?: string;
 	settingDbSpanExporter?: boolean;
@@ -98,6 +100,7 @@ export interface OTelConfigInput {
 	policyExporterType?: OTelExporterType;
 	policyOtlpEndpoint?: string;
 	policyCaptureContent?: boolean;
+	policyCaptureIdentity?: boolean;
 	policyOutfile?: string;
 	/** Enterprise-managed OTLP wire protocol (raw `telemetry.protocol`). */
 	policyProtocol?: string;
@@ -226,6 +229,11 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 		?? input.settingCaptureContent
 		?? false;
 
+	const captureIdentity = input.policyCaptureIdentity
+		?? envBool(env['COPILOT_OTEL_CAPTURE_IDENTITY'])
+		?? input.settingCaptureIdentity
+		?? false;
+
 	// Max attribute size in characters: env > setting > default(0 = unlimited).
 	const maxAttributeSizeChars = parseMaxAttributeSizeChars(env['COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS'])
 		?? input.settingMaxAttributeSizeChars
@@ -270,6 +278,7 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 		otlpEndpoint,
 		otlpProtocol,
 		captureContent,
+		captureIdentity,
 		maxAttributeSizeChars: maxAttributeSizeChars < 0 ? 0 : maxAttributeSizeChars,
 		fileExporterPath,
 		dbSpanExporter,
@@ -292,6 +301,7 @@ function createDisabledConfig(input: OTelConfigInput): OTelConfig {
 		otlpEndpoint: '',
 		otlpProtocol: 'http/json' as const,
 		captureContent: false,
+		captureIdentity: false,
 		maxAttributeSizeChars: 0,
 		dbSpanExporter: false,
 		logLevel: 'info' as const,

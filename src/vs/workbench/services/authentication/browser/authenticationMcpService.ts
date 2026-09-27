@@ -16,7 +16,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IActivityService, NumberBadge } from '../../activity/common/activity.js';
 import { IAuthenticationMcpAccessService } from './authenticationMcpAccessService.js';
 import { IAuthenticationMcpUsageService } from './authenticationMcpUsageService.js';
-import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, AuthenticationSessionAccount } from '../common/authentication.js';
+import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions } from '../common/authentication.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -86,7 +86,7 @@ export interface IAuthenticationMcpService {
 	 * @param scopes
 	 */
 	removeSessionPreference(providerId: string, mcpServerId: string, scopes: string[]): void;
-	selectSession(providerId: string, mcpServerId: string, mcpServerName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
+	selectSession(providerId: string, mcpServerId: string, mcpServerName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
 	requestSessionAccess(providerId: string, mcpServerId: string, mcpServerName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;
 	requestNewSession(providerId: string, scopes: string[], mcpServerId: string, mcpServerName: string): Promise<void>;
 }
@@ -339,7 +339,7 @@ export class AuthenticationMcpService extends Disposable implements IAuthenticat
 	/**
 	 * This function should be used only when there are sessions to disambiguate.
 	 */
-	async selectSession(providerId: string, mcpServerId: string, mcpServerName: string, scopes: string[], availableSessions: AuthenticationSession[]): Promise<AuthenticationSession> {
+	async selectSession(providerId: string, mcpServerId: string, mcpServerName: string, scopes: string[], availableSessions: readonly AuthenticationSession[], options: IAuthenticationProviderSessionOptions = {}): Promise<AuthenticationSession> {
 		const allAccounts = await this._authenticationService.getAccounts(providerId);
 		if (!allAccounts.length) {
 			throw new Error('No accounts available');
@@ -385,7 +385,7 @@ export class AuthenticationMcpService extends Disposable implements IAuthenticat
 				if (!session) {
 					const account = quickPick.selectedItems[0].account;
 					try {
-						session = await this._authenticationService.createSession(providerId, scopes, { account });
+						session = await this._authenticationService.createSession(providerId, scopes, { ...options, account });
 					} catch (e) {
 						reject(e);
 						return;

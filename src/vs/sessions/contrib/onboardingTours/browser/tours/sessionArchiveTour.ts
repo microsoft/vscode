@@ -31,7 +31,7 @@ export function createSessionArchiveTour(targetId: string, wording: ChatSessionA
 					advanceOnTargetClick: 'advanceOnly',
 					hideNext: false,
 					placement: 'right',
-					missingTarget: { kind: 'abort' },
+					missingTarget: { kind: 'wait', timeoutMs: 2000, onTimeout: 'abort' },
 					onBeforeShow,
 				}],
 			},

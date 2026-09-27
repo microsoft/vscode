@@ -171,6 +171,17 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(auto?.metadata.detail, undefined, 'discountPercent 0 → no detail');
 	});
 
+	test('tags HydraFusion as a research preview and describes its routing', async () => {
+		const provider = createProvider();
+		provider.updateModels([makeModel('hydrafusion'), makeModel('gpt-5')]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(infos.map(m => [m.metadata.id, m.metadata.detail, m.metadata.tooltip]), [
+			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.'],
+			['gpt-5', undefined, undefined],
+		]);
+	});
+
 	test('carries picker category, price category, and promo from model metadata', async () => {
 		const provider = createProvider();
 		provider.updateModels([
@@ -240,7 +251,7 @@ suite('AgentHostLanguageModelProvider', () => {
 	});
 
 	/** A catalogue stub standing in for the workbench's CAPI-backed Copilot models. */
-	function catalogue(models: readonly { id: string; maxInputTokens?: number; maxOutputTokens?: number; multiplierNumeric?: number; category?: string; contextSizes?: number[]; vendor?: string }[]) {
+	function catalogue(models: readonly { id: string; maxInputTokens?: number; maxOutputTokens?: number; maxContextWindowTokens?: number; multiplierNumeric?: number; category?: string; contextSizes?: number[]; vendor?: string }[]) {
 		const onDidChange = store.add(new Emitter<string>());
 		const byIdentifier = new Map<string, ILanguageModelChatMetadata>(models.map(model => [
 			`catalogue:${model.vendor ?? 'copilot'}:${model.id}`,
@@ -250,6 +261,7 @@ suite('AgentHostLanguageModelProvider', () => {
 				vendor: model.vendor ?? 'copilot',
 				maxInputTokens: model.maxInputTokens,
 				maxOutputTokens: model.maxOutputTokens,
+				maxContextWindowTokens: model.maxContextWindowTokens,
 				multiplierNumeric: model.multiplierNumeric,
 				category: model.category,
 				...(model.contextSizes ? {
@@ -317,15 +329,15 @@ suite('AgentHostLanguageModelProvider', () => {
 
 	test('fills token counts and pricing from the catalogue, but never over the host', async () => {
 		const { catalogue: known } = catalogue([
-			{ id: 'claude-opus-5', maxInputTokens: 264_000, maxOutputTokens: 64_000, multiplierNumeric: 5, category: 'powerful' },
-			{ id: 'host-wins', maxInputTokens: 111, multiplierNumeric: 9, category: 'lightweight' },
+			{ id: 'claude-opus-5', maxInputTokens: 264_000, maxOutputTokens: 64_000, maxContextWindowTokens: 300_000, multiplierNumeric: 5, category: 'powerful' },
+			{ id: 'host-wins', maxInputTokens: 111, maxContextWindowTokens: 1000, multiplierNumeric: 9, category: 'lightweight' },
 			// A model reached over a direct third-party transport must not take Copilot's prices.
 			{ id: 'claude-opus-5', vendor: 'anthropic', maxInputTokens: 999, multiplierNumeric: 42 },
 		]);
 		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'copilot', known));
 		provider.updateModels([
 			{ ...makeModel('claude-opus-5'), provider: 'copilot' },
-			{ ...makeModel('host-wins'), provider: 'copilot', maxPromptTokens: 222, _meta: { multiplierNumeric: 1, category: 'versatile' } },
+			{ ...makeModel('host-wins'), provider: 'copilot', maxPromptTokens: 222, maxContextWindow: 250, _meta: { multiplierNumeric: 1, category: 'versatile' } },
 			{ ...makeModel('claude-opus-5'), provider: 'anthropic', _meta: { modelGroupId: 'anthropic' } },
 		]);
 
@@ -335,13 +347,14 @@ suite('AgentHostLanguageModelProvider', () => {
 				group: info.metadata.modelGroup?.id,
 				maxInputTokens: info.metadata.maxInputTokens,
 				maxOutputTokens: info.metadata.maxOutputTokens,
+				maxContextWindowTokens: info.metadata.maxContextWindowTokens,
 				multiplierNumeric: info.metadata.multiplierNumeric,
 				category: info.metadata.category,
 			})),
 			[
-				{ group: 'copilot', maxInputTokens: 264_000, maxOutputTokens: 64_000, multiplierNumeric: 5, category: 'powerful' },
-				{ group: 'copilot', maxInputTokens: 222, maxOutputTokens: 0, multiplierNumeric: 1, category: 'versatile' },
-				{ group: 'anthropic', maxInputTokens: 0, maxOutputTokens: 0, multiplierNumeric: undefined, category: undefined },
+				{ group: 'copilot', maxInputTokens: 264_000, maxOutputTokens: 64_000, maxContextWindowTokens: 300_000, multiplierNumeric: 5, category: 'powerful' },
+				{ group: 'copilot', maxInputTokens: 222, maxOutputTokens: 0, maxContextWindowTokens: 250, multiplierNumeric: 1, category: 'versatile' },
+				{ group: 'anthropic', maxInputTokens: 0, maxOutputTokens: 0, maxContextWindowTokens: undefined, multiplierNumeric: undefined, category: undefined },
 			]
 		);
 	});
@@ -366,6 +379,36 @@ suite('AgentHostLanguageModelProvider', () => {
 			// Every catalogue change republishes: a price refresh that leaves ids and windows
 			// untouched still has to reach the picker.
 			{ afterOwnVendor: 0, afterCatalogue: 1, afterSecondCatalogueChange: 2 }
+		);
+	});
+
+	test('derives missing input limits from the host window without overriding explicit limits', async () => {
+		const { catalogue: known } = catalogue([
+			{ id: 'total-window', maxInputTokens: 200_000, maxOutputTokens: 8_000 },
+		]);
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot', known));
+		provider.updateModels([
+			{ ...makeModel('total-window'), provider: 'copilot', maxContextWindow: 108_000 },
+			{ ...makeModel('explicit-limits'), maxContextWindow: 108_000, maxPromptTokens: 50_000, maxOutputTokens: 8_000 },
+			{ ...makeModel('zero-input'), maxContextWindow: 108_000, maxPromptTokens: 0, maxOutputTokens: 8_000 },
+			{ ...makeModel('zero-window'), maxContextWindow: 0 },
+			makeModel('unknown-window'),
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(
+			infos.map(info => ({
+				id: info.metadata.id,
+				maxInputTokens: info.metadata.maxInputTokens,
+				maxOutputTokens: info.metadata.maxOutputTokens,
+			})),
+			[
+				{ id: 'total-window', maxInputTokens: 100_000, maxOutputTokens: 8_000 },
+				{ id: 'explicit-limits', maxInputTokens: 50_000, maxOutputTokens: 8_000 },
+				{ id: 'zero-input', maxInputTokens: 0, maxOutputTokens: 8_000 },
+				{ id: 'zero-window', maxInputTokens: 0, maxOutputTokens: 0 },
+				{ id: 'unknown-window', maxInputTokens: 0, maxOutputTokens: 0 },
+			]
 		);
 	});
 

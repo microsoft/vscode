@@ -27,7 +27,6 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { isAssistedPermissionsEnabled, isPermissionLevelVisible } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
 import { IChatPhoneInputPresenter } from '../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
@@ -96,12 +95,11 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		const provider = this._getProvider(session.providerId);
 		const schema = provider?.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.AutoApprove];
 		const values = schema?.type === 'string' && Array.isArray(schema.enum) ? schema.enum : [];
-		const assistedPermissionsEnabled = isAssistedPermissionsEnabled(this._configurationService);
 		return [
 			ChatPermissionLevel.Default,
 			ChatPermissionLevel.Assisted,
 			ChatPermissionLevel.AutoApprove,
-		].filter(level => values.includes(level) && isPermissionLevelVisible(level, assistedPermissionsEnabled));
+		].filter(level => values.includes(level));
 	}
 
 	/** Agent-host sessions seed their default approval level from this setting. */
@@ -249,9 +247,6 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	}
 
 	async setPermissionLevel(level: ChatPermissionLevel): Promise<void> {
-		if (!isPermissionLevelVisible(level, isAssistedPermissionsEnabled(this._configurationService))) {
-			return;
-		}
 		const session = this._session.get();
 		if (!session) {
 			return;

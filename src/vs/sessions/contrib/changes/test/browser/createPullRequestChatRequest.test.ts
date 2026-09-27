@@ -13,13 +13,11 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ChatInteractivity, IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { createPullRequestMessage, CreatePullRequestChatRequest } from '../../browser/createPullRequestChatRequest.js';
-import { ISessionPullRequestContext, ISessionPullRequestCreation, ISessionPullRequestOptions } from '../../common/pullRequestCreation.js';
+import { ISessionPullRequestChatOptions, ISessionPullRequestContext, ISessionPullRequestCreation } from '../../common/pullRequestCreation.js';
 
 suite('CreatePullRequestChatRequest', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const options: ISessionPullRequestOptions = {
-		title: 'Edited PR title',
-		description: '## Summary\nPreserve "user edits".',
+	const options: ISessionPullRequestChatOptions = {
 		draft: false,
 		agentMerge: false,
 	};
@@ -33,7 +31,7 @@ suite('CreatePullRequestChatRequest', () => {
 		const requests: { session: ISession; chat: IChat; options: ISendRequestOptions }[] = [];
 		const validatedContexts: ISessionPullRequestContext[] = [];
 		const creation = new class extends mock<ISessionPullRequestCreation>() {
-			override async prepareChatRequest(query: string, options: ISessionPullRequestOptions): Promise<ISendRequestOptions> {
+			override async prepareChatRequest(query: string, options: ISessionPullRequestChatOptions): Promise<ISendRequestOptions> {
 				calls.push('prepare');
 				if (options.expectedContext) {
 					validatedContexts.push(options.expectedContext);
@@ -64,11 +62,11 @@ suite('CreatePullRequestChatRequest', () => {
 		return { request: instantiationService.createInstance(CreatePullRequestChatRequest), creation, validatedContexts, session, chat, calls, requests };
 	}
 
-	test('manual prompt includes exact user details without automation instructions', () => {
+	test('chat prompt asks the agent to generate details without requiring form text', () => {
 		assert.strictEqual(createPullRequestMessage(options), [
 			'Create a pull request ready for review for this session\'s changes.',
 			'Commit any uncommitted changes and push the source branch as needed.',
-			`Use the following title and description exactly (provided as JSON):\n${JSON.stringify({ title: options.title, description: options.description }, undefined, 2)}`,
+			'Generate a title and description that summarize the changes.',
 			'Do not merge the pull request or enable GitHub auto-merge.',
 		].join('\n\n'));
 	});
@@ -76,6 +74,23 @@ suite('CreatePullRequestChatRequest', () => {
 	const expectedContext: ISessionPullRequestContext = {
 		workingDirectory: 'file:///repo', repository: 'microsoft/vscode', branchName: 'feature/test', baseBranchName: 'main',
 	};
+
+	test('sends to the chat whose changes the pull request is created from', async () => {
+		const fixture = setup();
+		const peerChat = upcastPartial<IChat>({
+			resource: URI.parse('agent-host-copilotcli:/original-session#peer'),
+			isArchived: constObservable(false),
+			interactivity: constObservable(ChatInteractivity.Full),
+		});
+
+		await fixture.request.send(fixture.session, options, fixture.creation);
+		await fixture.request.send(fixture.session, options, fixture.creation, peerChat);
+
+		assert.deepStrictEqual(fixture.requests.map(request => request.chat.resource.toString()), [
+			fixture.chat.resource.toString(),
+			peerChat.resource.toString(),
+		]);
+	});
 
 	test('validates prepared identity before sending and carries the branch constraints in the message', async () => {
 		const fixture = setup();
