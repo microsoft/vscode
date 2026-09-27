@@ -233,7 +233,7 @@ export interface ICopilotSessionLauncher {
 }
 
 type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'> & {
-	readonly rpc?: Pick<CopilotClient['rpc'], 'account'>;
+	readonly rpc: Pick<CopilotClient['rpc'], 'account' | 'sandbox'>;
 };
 
 interface ICopilotSessionLaunchBase {
