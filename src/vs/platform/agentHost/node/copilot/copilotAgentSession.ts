@@ -32,7 +32,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { getCopilotHomePath } from '../../common/copilotHome.js';
+import { getCopilotHomePath, getCopilotMcpConfigurationPath } from '../../../environment/common/copilotHome.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { AutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
@@ -51,6 +51,7 @@ import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSea
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
+import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
@@ -66,7 +67,7 @@ import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent 
 import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
-import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
@@ -78,7 +79,7 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
+import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
@@ -99,6 +100,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
+import { getCopilotCustomizationCommandHandler } from './copilotCustomizationCommandDisplay.js';
 import { renderCopilotSlashCommandOutput, type CopilotSlashCommandResult, type RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 import { CopilotSandboxPolicyDisplay } from './copilotSandboxPolicyDisplay.js';
 import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
@@ -233,6 +235,21 @@ function normalizeMcpServerUrl(value: string): string | undefined {
 	url.hash = '';
 	url.pathname = url.pathname.replace(/\/+$/, '');
 	return url.href;
+}
+
+/**
+ * Names of launched MCP servers that reach GitHub, whose tools Agent Merge turns deny. SDK-discovered plugin servers
+ * count regardless of launch enablement because the runtime can enable them later and resolves their name collisions.
+ */
+function getAgentMergeRestrictedMcpServerNames(plan: CopilotSessionLaunchPlan): ReadonlySet<string> {
+	const launchedServers = [
+		...Object.entries(toSessionConfigMcpServers(plan)),
+		...plan.snapshot.plugins.flatMap(plugin => plugin.mcpServers.filter(server => !isMcpServerExplicitlyProjected(server)).map(server => [server.name, server.configuration] as const)),
+	];
+	return new Set([
+		GITHUB_MCP_SERVER_NAME,
+		...launchedServers.filter(([name, server]) => isAgentMergeRestrictedMcpServer(name, server)).map(([name]) => name),
+	]);
 }
 
 type IMappedSessionEvents = { turns: Turn[]; subagentTurnsByToolCallId: ReadonlyMap<string, Turn[]> };
@@ -594,6 +611,8 @@ interface IMcpLifecycleLogInfo {
 	readonly pluginName?: string;
 	readonly pluginVersion?: string;
 }
+
+type McpServer = Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>>['servers'][number];
 
 class DirectUsageAccumulator {
 	private readonly _tokenTotalsByModel = new Map<string, Mutable<ITurnTokenTotal>>();
@@ -970,7 +989,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _developmentErrorInjectionEnabled: boolean;
 	private _dropLateRootTurnEvents = false;
 	private _agentMergeTurn = false;
-	private readonly _mcpServerNames: ReadonlySet<string>;
+	/** MCP servers whose tools Agent Merge turns deny because they expose GitHub. */
+	private readonly _agentMergeRestrictedMcpServerNames: ReadonlySet<string>;
 	/** Monotonic 0-based ordinal assigned to each turn as it starts, for numeric `turnIndex` telemetry parity. */
 	private _nextTurnOrdinal = 0;
 	/**
@@ -1010,6 +1030,10 @@ export class CopilotAgentSession extends Disposable {
 			this._idleWaiters.delete(waiter);
 			waiter.complete(false);
 		}
+	}
+
+	markConnectorConfigurationChanged(): void {
+		this._requiresConnectorConfigurationRefresh = true;
 	}
 
 	/**
@@ -1173,6 +1197,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingClientToolCalls = new PendingRequestRegistry<ToolResultObject>();
 	/** One-shot SDK callbacks, keyed by request id; answering one delivers a token but does not confirm acceptance. */
 	private readonly _pendingMcpAuthRequests = new PendingRequestRegistry<McpAuthResult | null | undefined, IPendingMcpAuthRequest>();
+	private _requiresConnectorConfigurationRefresh = false;
 	/**
 	 * Retains challenge metadata and its latest callback id so token delivery can report Starting.
 	 * Connected and needs-auth statuses remain the final lifecycle authority.
@@ -1325,7 +1350,7 @@ export class CopilotAgentSession extends Disposable {
 		const sandboxPolicyDisplay = this._instantiationService.createInstance(CopilotSandboxPolicyDisplay, this.sessionId, this._storageUri);
 		this._slashCommandProvider = new CopilotSlashCommandProvider(
 			() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands),
-			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) },
+			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command) },
 			this._logService,
 		);
 		this._onDidSessionProgress = options.onDidSessionProgress;
@@ -1347,11 +1372,7 @@ export class CopilotAgentSession extends Disposable {
 		this._repoInfoTelemetry = this._register(this._instantiationService.createInstance(AgentHostRepoInfoTelemetry, this._telemetryReporter));
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
-		this._mcpServerNames = new Set([
-			GITHUB_MCP_SERVER_NAME,
-			...Object.keys(this._appliedSnapshot.mcpServers),
-			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
-		]);
+		this._agentMergeRestrictedMcpServerNames = getAgentMergeRestrictedMcpServerNames(this._launchPlan);
 		this._appliedPluginSources = new Set(this._appliedSnapshot.plugins.flatMap(plugin => plugin.sourceUri ? [plugin.sourceUri.toString()] : []));
 		this._appliedPluginDirectories = this._appliedSnapshot.plugins.flatMap(plugin => plugin.pluginDir?.scheme === Schemas.file ? [plugin.pluginDir] : []);
 		const disabledMcpServers = new Set([
@@ -2297,6 +2318,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	get requiresMcpLaunchConfigurationRefresh(): boolean {
+		if (this._requiresConnectorConfigurationRefresh) {
+			return true;
+		}
 		this._markMcpLaunchConfigurationDirty();
 		return this._mcpLaunchConfigurationDirty;
 	}
@@ -3199,8 +3223,20 @@ export class CopilotAgentSession extends Disposable {
 				try {
 					result = await this._wrapper.session.rpc.commands.invoke(invocation);
 				} catch (err) {
+					const message = getErrorMessage(err);
+					const commandErrorPrefix = 'Request session.commands.invoke failed with message: ';
+					const commandError = message.startsWith(commandErrorPrefix)
+						? new Error(message.slice(commandErrorPrefix.length), { cause: err })
+						: err instanceof Error ? err : new Error(message, { cause: err });
+					const errorOutput = await runtimeSlashCommand.getErrorOutput?.(slashCommand.rest, commandError);
+					if (errorOutput) {
+						this._logService.trace(`[Copilot:${this.sessionId}] rpc.commands.invoke(${slashCommand.command}) returned command guidance`);
+						this._emitMarkdownDelta(renderCopilotSlashCommandOutput(errorOutput), undefined, true);
+						this._completeActiveTurn(true);
+						return;
+					}
 					this._logService.error(err, `[Copilot:${this.sessionId}] rpc.commands.invoke(${slashCommand.command}) failed`);
-					throw err;
+					throw commandError;
 				}
 				const output = await runtimeSlashCommand.getOutput?.(slashCommand.rest, result);
 				const renderedOutput = output ? renderCopilotSlashCommandOutput(output) : undefined;
@@ -4611,14 +4647,12 @@ export class CopilotAgentSession extends Disposable {
 		return buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths());
 	}
 
-	/**
-	 * Grants the generated directory once a script has been materialized for
-	 * this instance and keeps it for the instance lifetime, so a command that
-	 * already holds the path can still read it after a clear. Sessions that
-	 * never configure a script see no policy change.
-	 */
+	/** Keeps the generated script readable until disposal, even after its configuration is cleared. */
 	private _sandboxExtraReadonlyPaths(): readonly string[] {
-		return this._shellInitScriptMaterialized ? [this._shellInitScriptDirectory().fsPath] : [];
+		return getVSCodeSandboxReadRoots({
+			sessionDataDirectory: this._sessionDataService.getSessionDataDir(this._ownerSessionUri),
+			shellInitDirectory: this._shellInitScriptMaterialized ? this._shellInitScriptDirectory() : undefined,
+		}).map(root => root.fsPath);
 	}
 
 	/**
@@ -5341,7 +5375,7 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			const restriction = this._agentMergeTurn
 				? getAgentMergeGitHubToolRestriction(input.toolName, input.toolArgs)
-				?? (isCopilotMcpToolName(input.toolName, this._mcpServerNames) ? AGENT_MERGE_GITHUB_TOOL_RESTRICTION : undefined)
+				?? (isCopilotMcpToolName(input.toolName, this._agentMergeRestrictedMcpServerNames) ? AGENT_MERGE_GITHUB_TOOL_RESTRICTION : undefined)
 				: undefined;
 			if (restriction) {
 				this._logService.warn(`[Copilot:${this.sessionId}] Denying restricted Agent Merge tool: ${input.toolName}`);
@@ -6884,7 +6918,11 @@ export class CopilotAgentSession extends Disposable {
 				this._lastMcpAuthRequirements.set(e.data.serverName, { ...requirement, acceptsTokenCompletion: false });
 			}
 			this._logMcpServerLifecycle({ name: e.data.serverName, status: e.data.status, error: e.data.error, origin: 'statusChanged' });
-			const server = this._toSdkMcpServer(e.data.serverName, e.data.status, e.data.error);
+			const server = this._toSdkMcpServer({
+				name: e.data.serverName,
+				status: e.data.status,
+				error: e.data.error,
+			});
 			if (!server) {
 				this._mcpCustomizations.remove(e.data.serverName);
 				return;
@@ -6964,8 +7002,7 @@ export class CopilotAgentSession extends Disposable {
 				this._lastMcpAuthRequirements.delete(serverName);
 			}
 		}
-		const sdkServers = servers
-			.map(s => ({ ...this._toSdkMcpServer(s.name, s.status, s.error), source: s.source }));
+		const sdkServers = servers.map(server => this._toSdkMcpServer(server));
 		this._mcpCustomizations.applyAll(sdkServers);
 	}
 
@@ -7029,7 +7066,11 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._lastLoggedMcpStatus.set(server.name, server.status);
 
-		const state = this._toSdkMcpServer(server.name, server.status, server.error).state;
+		const state = this._toSdkMcpServer({
+			name: server.name,
+			status: server.status,
+			error: server.error,
+		}).state;
 		const attributes: Record<string, OtelAttributeValue> = {
 			mcpEvent: server.origin,
 			mcpServer: server.name,
@@ -7094,13 +7135,24 @@ export class CopilotAgentSession extends Disposable {
 	 * Translates SDK status, preserving actionable authentication while a callback is pending.
 	 * Only a callback-free SDK `pending` update can replace a retained challenge with starting.
 	 */
-	private _toSdkMcpServer(name: string, status: SdkMcpServerStatus, error?: string): ISdkMcpServer {
-		const hasPendingAuthentication = this._hasPendingMcpAuthentication(name);
+	private _toSdkMcpServer(server: McpServer): ISdkMcpServer {
+		const hasPendingAuthentication = this._hasPendingMcpAuthentication(server.name);
+		const source = server.source !== undefined
+			? {
+				source: server.source,
+				sourceUri: server.source === 'user'
+					? URI.file(getCopilotMcpConfigurationPath(this._environmentService.userHome.fsPath, process.env)).toString()
+					: null,
+			}
+			: {};
 		return {
-			name,
-			state: this._translateSdkMcpStatus(name, status, error, hasPendingAuthentication),
-			...(status === 'pending' && !hasPendingAuthentication ? { allowAuthRequiredToStarting: true } : {}),
-			enabled: status !== 'disabled',
+			name: server.name,
+			state: this._translateSdkMcpStatus(server.name, server.status, server.error, hasPendingAuthentication),
+			...(server.status === 'pending' && !hasPendingAuthentication ? { allowAuthRequiredToStarting: true } : {}),
+			enabled: server.status !== 'disabled',
+			...source,
+			pluginName: server.sourcePlugin,
+			pluginVersion: server.sourcePluginVersion,
 		};
 	}
 

@@ -1575,8 +1575,9 @@ export function updateSaveButtonState(
 	sessionsManagementService: ISessionsManagementService,
 	providerAvailable = true,
 	originalProviderId?: string,
+	requireName = true,
 ): void {
-	validation.nameError = state.name.trim() === ''
+	validation.nameError = requireName && state.name.trim() === ''
 		? localize('automation.form.nameRequired', "Name is required.")
 		: undefined;
 	validation.promptError = getPrompt().trim() === ''

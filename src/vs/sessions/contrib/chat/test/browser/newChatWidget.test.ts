@@ -31,6 +31,7 @@ import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { IChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
+import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -151,10 +152,22 @@ const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, 
 const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
-const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => void;
+const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => string | undefined;
+const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
 const getWelcomeName = Reflect.get(NewChatWidget.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
 const getFirstName = Reflect.get(NewChatWidget.prototype, '_getFirstName') as (name: string | undefined) => string | undefined;
 const takeNextWelcomePhraseIndex = Reflect.get(NewChatWidget, '_takeNextWelcomePhraseIndex') as () => number;
+
+interface IWelcomeAnnouncementHarness {
+	_welcomePhraseAnnounced: boolean;
+	readonly accessibilityService: {
+		isScreenReaderOptimized(): boolean;
+		status(message: string): void;
+	};
+	readonly configurationService: {
+		getValue<T>(key: string): T;
+	};
+}
 const refreshGitHubProfileName = Reflect.get(NewChatWidget.prototype, '_refreshGitHubProfileName') as (this: {
 	_githubProfileAccountKey: string | undefined;
 	readonly _githubProfileName: ReturnType<typeof observableValue<string | undefined>>;
@@ -846,6 +859,35 @@ suite('NewChatWidget', () => {
 			hidden: true,
 			hiddenText: '',
 		});
+	});
+
+	test('announces the welcome phrase once and identifies the opt-out setting', () => {
+		const announcements: string[] = [];
+		const createHarness = (screenReaderOptimized: boolean, announcementEnabled: boolean): IWelcomeAnnouncementHarness => ({
+			_welcomePhraseAnnounced: false,
+			accessibilityService: {
+				isScreenReaderOptimized: () => screenReaderOptimized,
+				status: message => announcements.push(message),
+			},
+			configurationService: {
+				getValue: <T>(key: string): T => {
+					assert.strictEqual(key, AccessibilityVerbositySettingId.NewSessionWelcome);
+					return announcementEnabled as T;
+				},
+			},
+		});
+
+		const enabledHarness = createHarness(true, true);
+		announceWelcomeMessage.call(enabledHarness, 'What are we building?', false);
+		announceWelcomeMessage.call(enabledHarness, 'What are we building?', true);
+		announceWelcomeMessage.call(enabledHarness, 'What are we building, Megan?', true);
+		announceWelcomeMessage.call(createHarness(false, true), 'What’s the move?', true);
+		announceWelcomeMessage.call(createHarness(true, false), 'Let’s cook', true);
+		announceWelcomeMessage.call(createHarness(true, true), undefined, true);
+
+		assert.deepStrictEqual(announcements, [
+			'What are we building?\nTo disable this announcement, set accessibility.verbosity.newSessionWelcome to false.',
+		]);
 	});
 
 	test('uses only the first configured or GitHub name', () => {

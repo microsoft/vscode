@@ -971,6 +971,65 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('fetch updates the selected remote branch with a narrowed fetch refspec', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		const remotePath = join(dir, 'remote.git');
+		const remoteName = 'team/origin';
+		const publisherPath = join(dir, 'publisher');
+		cp.execFileSync('git', ['init', '--bare', '-q', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['remote', 'add', remoteName, remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', 'release'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', remoteName, 'main', 'release'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['fetch', '-q', remoteName, `refs/heads/main:refs/remotes/${remoteName}/main`], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', '--replace-all', `remote.${remoteName}.fetch`, `+refs/heads/release:refs/remotes/${remoteName}/release`], { cwd: dir, env, stdio: 'pipe' });
+		const staleRemoteCommit = cp.execFileSync('git', ['rev-parse', `${remoteName}/main`], { cwd: dir, env, encoding: 'utf8' }).trim();
+
+		cp.execFileSync('git', ['clone', '-q', '--branch', 'main', remotePath, publisherPath], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(publisherPath, 'remote-latest.txt'), 'latest');
+		cp.execFileSync('git', ['add', 'remote-latest.txt'], { cwd: publisherPath, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'remote latest'], { cwd: publisherPath, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', 'origin', 'main'], { cwd: publisherPath, env, stdio: 'pipe' });
+		const latestRemoteCommit = cp.execFileSync('git', ['--git-dir', remotePath, 'rev-parse', 'refs/heads/main'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const branch = await svc!.getBranch(URI.file(dir), `${remoteName}/main`);
+		if (branch?.kind !== GitRefType.RemoteHead) {
+			throw new Error(`Expected ${remoteName}/main to resolve to a remote branch`);
+		}
+
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.fetch(URI.file(dir), branch);
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: `${remoteName}/main`,
+				newBranchName: 'agents/test-remote-start-point',
+				track: false,
+			});
+
+			assert.deepStrictEqual({
+				resolvedBranch: branch,
+				remoteWasAhead: staleRemoteCommit !== latestRemoteCommit,
+				fetchedRemoteCommit: cp.execFileSync('git', ['rev-parse', `${remoteName}/main`], { cwd: dir, env, encoding: 'utf8' }).trim(),
+				worktreeCommit: cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+				hasLatestFile: existsSync(join(wtPath, 'remote-latest.txt')),
+			}, {
+				resolvedBranch: {
+					ref: `refs/remotes/${remoteName}/main`,
+					name: `${remoteName}/main`,
+					remote: remoteName,
+					kind: GitRefType.RemoteHead,
+				},
+				remoteWasAhead: true,
+				fetchedRemoteCommit: latestRemoteCommit,
+				worktreeCommit: latestRemoteCommit,
+				hasLatestFile: true,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(wtPath);
+		}
+	});
+
 	(hasGit ? test : test.skip)('removeWorktree preserves dirty work unless forced', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');

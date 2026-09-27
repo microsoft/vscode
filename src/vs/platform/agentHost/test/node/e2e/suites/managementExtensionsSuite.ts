@@ -74,6 +74,14 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 		});
 	}
 
+	async function collectPopulatedDebugLogs(kind: 'archive' | 'directory'): Promise<DebugLogsArtifactResult> {
+		return retry(async () => {
+			const artifact = await collectDebugLogs(kind);
+			assert.ok(artifact.entries.some(entry => isAgentHostProcessLog(entry.path)), 'the asynchronous process logger has not created its file yet');
+			return artifact;
+		}, 50, 100);
+	}
+
 	async function readDebugLogsChunk(resource: string, position: number): Promise<DebugLogsChunkResult> {
 		return context.client.call<DebugLogsChunkResult>(ReadAgentHostDebugLogsChunkExtensionMethod, {
 			resource,
@@ -136,7 +144,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 
 	conformanceTest(context, 'host-wide debug archive has a readable manifest and zip payload', async function () {
 		await initializeClient('debug-archive');
-		const artifact = await collectDebugLogs('archive');
+		const artifact = await collectPopulatedDebugLogs('archive');
 		const payload = await readDebugLogsArtifact(artifact.resource, artifact.size);
 
 		assertSafeManifest(artifact);
@@ -153,7 +161,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 
 	conformanceTest(context, 'host-wide debug directory streams every manifest entry', async function () {
 		await initializeClient('debug-directory');
-		const artifact = await collectDebugLogs('directory');
+		const artifact = await collectPopulatedDebugLogs('directory');
 		assertSafeManifest(artifact);
 
 		const sizes = await Promise.all(artifact.entries.map(async entry => {

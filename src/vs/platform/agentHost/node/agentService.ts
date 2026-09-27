@@ -105,7 +105,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -1466,7 +1466,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor {
 		return {
-			isActiveAgentTitleGenerationEnabled: () => this._isActiveAgentTitleGenerationEnabled(),
 			getAutomaticTitleGenerationStrategy: session => this._titleController.getAutomaticTitleGenerationStrategy(session),
 			canConvertWorkspace: session => this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion === true
 				&& readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta),
@@ -1504,10 +1503,6 @@ export class AgentService extends Disposable implements IAgentService {
 				_meta: withSessionSpawnDepth(this._stateManager.getSessionSummary(session.toString())?._meta, depth),
 			}),
 		};
-	}
-
-	private _isActiveAgentTitleGenerationEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true;
 	}
 
 	/** Dependency surface for the artifact server-tool group. */
@@ -3473,20 +3468,25 @@ export class AgentService extends Disposable implements IAgentService {
 		this._retryInitialProviderMigrationsInBackground(provider =>
 			visibleProviders.has(provider)
 			&& !providersWithEligibleCatalogs.has(provider));
-		const fallbackProviders = new Map<AgentProvider, IAgent>();
+		const fallbackProviders = new Map<AgentProvider, { agent: IAgent; sessionCount: number }>();
 		for (const result of catalogResults) {
-			if (!result || result.central.eligible || result.central.chatBacking || fallbackProviders.has(result.registeredSession.provider)) {
+			if (!result || result.central.eligible || result.central.chatBacking) {
+				continue;
+			}
+			const fallback = fallbackProviders.get(result.registeredSession.provider);
+			if (fallback) {
+				fallback.sessionCount++;
 				continue;
 			}
 			const agent = this._providerService.getProvider(result.registeredSession.provider);
 			if (agent?.prewarmSessionMetadata) {
-				fallbackProviders.set(result.registeredSession.provider, agent);
+				fallbackProviders.set(result.registeredSession.provider, { agent, sessionCount: 1 });
 			}
 		}
 		const prewarmDisposables: IDisposable[] = [];
-		await Promise.all([...fallbackProviders.values()].map(async agent => {
+		await Promise.all([...fallbackProviders.values()].map(async ({ agent, sessionCount }) => {
 			try {
-				prewarmDisposables.push(await agent.prewarmSessionMetadata!());
+				prewarmDisposables.push(await agent.prewarmSessionMetadata!(sessionCount));
 			} catch (err) {
 				this._logService.warn(`[AgentService] listSessions: failed to prewarm metadata for provider ${agent.id}`, err);
 			}
@@ -4437,12 +4437,9 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.seedDefaultChatTurns(summary.resource, importedTurns);
 			state.activeClients = config.activeClient ? [config.activeClient] : [];
 
-			// Refine the placeholder title into one generated from the imported
-			// conversation. Imports seed pre-existing turns, so
-			// the normal first-message title generation never fires; without this
-			// the session would keep showing the raw first-message clip while
-			// sibling sessions show clean generated titles — making imports look
-			// like a different kind of session.
+			// Keep the imported fallback title and record the imported turn count
+			// as the deferred boundary. The first new successful response can then
+			// refine the title without treating imported history as a new turn.
 			if (importedTurns.length > 0) {
 				this._sideEffects.generateForkedTitle(summary.resource, undefined, importedTurns, importedTitle);
 			}
@@ -4555,6 +4552,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
 		return this._worktree.reconcileDetachedWorktrees(scope, activeHandles);
+	}
+
+	async refreshCopilotConnectorSessions(): Promise<void> {
+		await Promise.all(this._providerService.getProviders().map(provider => provider.refreshConnectorSessions?.()));
 	}
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {

@@ -79,10 +79,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
-			return content.includes('press Tab to reach Set Welcome Name');
+			return {
+				nameEditing: content.includes('Press Tab to reach Set Welcome Name'),
+				announcementSetting: content.includes('set accessibility.verbosity.newSessionWelcome to false'),
+			};
 		});
 
-		assert.deepStrictEqual(snapshots, [false, true]);
+		assert.deepStrictEqual(snapshots, [
+			{ nameEditing: false, announcementSetting: false },
+			{ nameEditing: true, announcementSetting: true },
+		]);
 	});
 
 	test('describes automatic external session adoption', () => {

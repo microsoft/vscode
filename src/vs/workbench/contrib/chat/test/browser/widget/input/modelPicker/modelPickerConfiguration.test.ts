@@ -13,6 +13,7 @@ import { ITelemetryService } from '../../../../../../../../platform/telemetry/co
 import { ModelPickerConfiguration } from '../../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
 import { getModelConfigChoices, IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../../common/languageModels.js';
+import { NullLanguageModelsService } from '../../../../common/languageModels.js';
 
 /**
  * Builds a model whose schema advertises a Thinking Effort and a Context Size
@@ -125,15 +126,16 @@ function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: R
 	const controller = new ModelPickerConfiguration({
 		getSelectedModel: () => model,
 		getConfigurationAccess: () => access,
+		getChatSessionId: () => undefined,
 		isDisabled: () => false,
 		shouldShowCacheBreakHint: () => false,
 		getCacheBreakLearnMoreLink: () => undefined,
 		dismissCacheBreakHint: () => { },
-	}, actionWidgetService, { publicLog2: () => { } } as unknown as ITelemetryService);
+	}, actionWidgetService, { publicLog2: () => { } } as unknown as ITelemetryService, new NullLanguageModelsService());
 	const button = document.createElement('a');
 
 	controller.renderButton(button, false, false, showModelDetails);
-	controller.show(button);
+	controller.show(button, undefined, { entryPoint: 'configuration', inputMethod: 'mouse' });
 
 	return {
 		label: button.textContent,

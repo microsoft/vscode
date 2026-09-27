@@ -123,6 +123,7 @@ class TestGitService implements IAgentHostGitService {
 		this.calls.push('hasUpstream');
 		return this.upstream;
 	}
+	async fetch(): Promise<void> { }
 	async pull(): Promise<void> { }
 	async push(_workingDirectory: URI, options: IPushOptions): Promise<void> {
 		this.onMutation?.('push');

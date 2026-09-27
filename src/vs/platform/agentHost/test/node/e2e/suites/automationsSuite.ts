@@ -17,6 +17,7 @@ import { supportsAgentHostAutonomousAutomations } from '../../../../common/meta/
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import type { FetchAutomationRunsResult, InitializeResult, ListAutomationTriggerDefinitionsResult, RunAutomationResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { AutomationOperation, type AutomationDefinition, type AutomationEntry } from '../../../../common/state/protocol/state.js';
+import { AutomationRunStatus } from '../../../../common/state/protocol/channels-automation-run/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type AutomationRemovedAction, type AutomationRunPrimarySessionChangedAction, type AutomationSetAction } from '../../../../common/state/sessionActions.js';
 import type { AhpNotification } from '../../../../common/state/sessionProtocol.js';
@@ -35,11 +36,8 @@ const GATED_OPERATIONS = [AutomationOperation.Update, AutomationOperation.Remove
 /**
  * The host-owned automation catalogue, exercised entirely over AHP.
  *
- * Everything here stays on the host side of the model boundary: an automation
- * is only a durable definition until something starts a run, and no test here
- * runs one. Every definition is therefore manual-only (`triggers: []`), which
- * also keeps the host's cron scheduler — which reads the real clock and has no
- * injectable seam — out of the suite.
+ * Manual-only definitions keep clock-driven scheduling out of these scenarios.
+ * Conformance runs use host-local commands or a deliberately unavailable provider.
  */
 export function defineAutomationsTests(context: IAgentHostE2ETestContext): void {
 	const { config } = context;
@@ -364,6 +362,214 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 		}, {
 			created: { title: 'Survives restart', operations: GATED_OPERATIONS },
 			restored: { title: 'Survives restart', operations: GATED_OPERATIONS },
+		});
+	});
+
+	async function prepareRunDefinition(prefix: string, provider = config.provider): Promise<{ resource: string; definition: AutomationDefinition }> {
+		await initializeRoot(prefix);
+		await context.client.call('authenticate', {
+			channel: ROOT_STATE_URI,
+			resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+			token: config.githubToken ?? resolveGitHubToken(),
+		});
+		await openAutomationGates();
+		await subscribeCatalog();
+		const workspace = await mkdtemp(join(tmpdir(), 'ahp-automation-lifecycle-'));
+		context.tempDirs.push(workspace);
+		const resource = automationResource(prefix);
+		const definition: AutomationDefinition = {
+			...buildDefinition(prefix),
+			message: { text: '/rename Automation First Run', origin: { kind: MessageKind.Automation } },
+			session: {
+				provider,
+				workingDirectories: [URI.file(workspace).toString()],
+				config: { isolation: 'folder', ...config.sessionConfig },
+			},
+		};
+		return { resource, definition };
+	}
+
+	function runAutomation(resource: string, requestId: string): Promise<RunAutomationResult> {
+		return context.client.call<RunAutomationResult>('runAutomation', {
+			channel: AUTOMATION_CATALOG_URI, automation: resource, requestId,
+		});
+	}
+
+	async function waitForRun(resource: string, status: AutomationRunStatus, trackSessions = true): Promise<AutomationRunState> {
+		let state: AutomationRunState | undefined;
+		await retry(async () => {
+			const result = await context.client.call<SubscribeResult>('subscribe', { channel: resource });
+			state = result.snapshot!.state as AutomationRunState;
+			for (const session of trackSessions ? state.sessions : []) {
+				if (!context.createdSessions.includes(session)) {
+					context.createdSessions.push(session);
+				}
+			}
+			assert.strictEqual(state.lifecycle.status, status);
+		}, 100, 300);
+		assert.ok(state);
+		return state;
+	}
+
+	async function cancelRun(resource: string): Promise<AutomationRunState> {
+		context.client.dispatch({
+			channel: resource, clientSeq: nextClientSeq(), action: { type: ActionType.AutomationRunCancelRequested },
+		});
+		return waitForRun(resource, AutomationRunStatus.Cancelled);
+	}
+
+	conformanceTest(context, 'automation lifecycle: an unavailable provider defers one run until it is cancelled', async function () {
+		const { resource, definition } = await prepareRunDefinition('automation-deferred', 'unavailable-e2e-provider');
+		await createAutomation(resource, definition);
+		const first = await runAutomation(resource, generateUuid());
+		const pending = await waitForRun(first.resource, AutomationRunStatus.Pending);
+		const repeated = await runAutomation(resource, generateUuid());
+		const cancelled = await cancelRun(first.resource);
+		assert.deepStrictEqual({
+			repeated,
+			pendingSessions: pending.sessions,
+			cancelledSessions: cancelled.sessions,
+			primarySession: cancelled.primarySession,
+			catalogStatus: entryFor(await subscribeCatalog(), resource)?.runs[0]?.lifecycle.status,
+		}, {
+			repeated: first,
+			pendingSessions: [],
+			cancelledSessions: [],
+			primarySession: undefined,
+			catalogStatus: AutomationRunStatus.Cancelled,
+		});
+	});
+
+	conformanceTest(context, 'automation lifecycle: cancelled request deduplication survives a restart', async function () {
+		const { resource, definition } = await prepareRunDefinition('automation-cancel-restart', 'unavailable-e2e-provider');
+		await createAutomation(resource, definition);
+		const requestId = generateUuid();
+		const first = await runAutomation(resource, requestId);
+		await waitForRun(first.resource, AutomationRunStatus.Pending);
+		const cancelled = await cancelRun(first.resource);
+		await context.restartServer();
+		await initializeRoot('automation-cancel-restored');
+		const repeated = await runAutomation(resource, requestId);
+		const restored = await waitForRun(first.resource, AutomationRunStatus.Cancelled);
+		assert.deepStrictEqual({ repeated, restored }, { repeated: first, restored: cancelled });
+	});
+
+	conformanceTest(context, 'automation lifecycle: removal is rejected while a run is pending and succeeds after cancellation', async function () {
+		const { resource, definition } = await prepareRunDefinition('automation-remove-pending', 'unavailable-e2e-provider');
+		await createAutomation(resource, definition);
+		const run = await runAutomation(resource, generateUuid());
+		await waitForRun(run.resource, AutomationRunStatus.Pending);
+		const seq = nextClientSeq();
+		context.client.dispatch({
+			channel: AUTOMATION_CATALOG_URI, clientSeq: seq, action: { type: ActionType.AutomationRemoved, resource },
+		});
+		const rejected = await context.client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.AutomationRemoved)
+			&& getActionEnvelope(notification).origin?.clientSeq === seq,
+		);
+		assert.match(getActionEnvelope(rejected).rejectionReason ?? '', /operation 'remove' is not available/);
+		assert.ok(entryFor(await subscribeCatalog(), resource));
+		await cancelRun(run.resource);
+		context.client.clearReceived();
+		context.client.dispatch({
+			channel: AUTOMATION_CATALOG_URI, clientSeq: nextClientSeq(), action: { type: ActionType.AutomationRemoved, resource },
+		});
+		await context.client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.AutomationRemoved)
+			&& (getActionEnvelope(notification).action as AutomationRemovedAction).resource === resource
+			&& getActionEnvelope(notification).rejectionReason === undefined,
+		);
+		assert.strictEqual(entryFor(await subscribeCatalog(), resource), undefined);
+	});
+
+	conformanceTest(context, 'automation lifecycle: an unavailable model produces a durable failed run', async function () {
+		const { resource, definition } = await prepareRunDefinition('automation-failed-model');
+		await createAutomation(resource, {
+			...definition,
+			message: {
+				text: 'This request must fail without contacting a model.',
+				origin: { kind: MessageKind.Automation },
+				model: { id: 'unavailable-e2e-model' },
+			},
+		});
+		const run = await runAutomation(resource, generateUuid());
+		const failed = await waitForRun(run.resource, AutomationRunStatus.Failed);
+		assert.strictEqual(failed.lifecycle.status, AutomationRunStatus.Failed);
+		assert.match(failed.lifecycle.error.message, /model/i);
+		for (const session of failed.sessions) {
+			await context.client.call('disposeSession', { channel: session });
+			context.createdSessions.splice(context.createdSessions.indexOf(session), 1);
+		}
+		await context.restartServer();
+		await initializeRoot('automation-failed-restored');
+		assert.deepStrictEqual(await waitForRun(run.resource, AutomationRunStatus.Failed, false), failed);
+	});
+
+	function parityAutomationTest(title: string, run: Mocha.AsyncFunc): void {
+		if (context.tier === 'parity') {
+			test(title, function () {
+				this.timeout(180_000);
+				return run.call(this);
+			});
+		}
+	}
+
+	parityAutomationTest('automation lifecycle: manual execution deduplicates requests after completion', async function () {
+		const { resource, definition } = await prepareRunDefinition('automation-manual');
+		const prompt = 'Reply exactly "AUTOMATION_FIRST".';
+		await createAutomation(resource, {
+			...definition,
+			message: { text: prompt, origin: { kind: MessageKind.Automation } },
+		});
+		const requestId = generateUuid();
+		const run = await runAutomation(resource, requestId);
+		const completed = await waitForRun(run.resource, AutomationRunStatus.Completed);
+		assert.ok(completed.primarySession);
+		const session = await fetchSessionWithChat(context.client, completed.primarySession);
+		const repeated = await runAutomation(resource, requestId);
+		assert.deepStrictEqual({
+			repeated,
+			messages: session.turns.map(turn => turn.message.text),
+			runs: entryFor(await subscribeCatalog(), resource)?.runs.map(run => run.resource),
+		}, {
+			repeated: run,
+			messages: [prompt],
+			runs: [run.resource],
+		});
+	});
+
+	parityAutomationTest('automation lifecycle: updated definitions affect new runs without rewriting completed history', async function () {
+		const { resource, definition } = await prepareRunDefinition('automation-definition-update');
+		const firstPrompt = 'Reply exactly "AUTOMATION_FIRST".';
+		const secondPrompt = 'Reply exactly "AUTOMATION_SECOND".';
+		await createAutomation(resource, {
+			...definition,
+			message: { text: firstPrompt, origin: { kind: MessageKind.Automation } },
+		});
+		const first = await runAutomation(resource, generateUuid());
+		const firstCompleted = await waitForRun(first.resource, AutomationRunStatus.Completed);
+		assert.ok(firstCompleted.primarySession);
+		context.client.clearReceived();
+		context.client.dispatch({
+			channel: AUTOMATION_CATALOG_URI, clientSeq: nextClientSeq(),
+			action: {
+				type: ActionType.AutomationUpdateRequested, resource,
+				changes: { message: { text: secondPrompt, origin: { kind: MessageKind.Automation } } },
+			},
+		});
+		await waitForAutomationSet(resource, entry => entry.definition.message.text === secondPrompt);
+		const second = await runAutomation(resource, generateUuid());
+		const secondCompleted = await waitForRun(second.resource, AutomationRunStatus.Completed);
+		assert.ok(secondCompleted.primarySession);
+		assert.notStrictEqual(second.resource, first.resource);
+		assert.deepStrictEqual({
+			firstMessages: (await fetchSessionWithChat(context.client, firstCompleted.primarySession)).turns.map(turn => turn.message.text),
+			secondMessages: (await fetchSessionWithChat(context.client, secondCompleted.primarySession)).turns.map(turn => turn.message.text),
+			runs: entryFor(await subscribeCatalog(), resource)?.runs.map(run => run.resource),
+		}, {
+			firstMessages: [firstPrompt],
+			secondMessages: [secondPrompt],
+			runs: [second.resource, first.resource],
 		});
 	});
 

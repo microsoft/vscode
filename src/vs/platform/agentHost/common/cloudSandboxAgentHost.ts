@@ -226,6 +226,8 @@ export interface ICloudSandboxConnectionRequest {
 	 * uses it to resolve the repository when minting the token.
 	 */
 	readonly sessionId?: string;
+	/** Reports credential HTTP dispatch or a pending response locally; never sent to the server. */
+	readonly onRequest?: (event: 'issued' | 'waking') => void;
 }
 
 export const ICloudSandboxApiService = createDecorator<ICloudSandboxApiService>('cloudSandboxApiService');
@@ -299,7 +301,7 @@ export class CloudSandboxAuthenticationRequiredError extends Error {
  * so callers can tell a failure that may clear on its own from one that never will.
  */
 export class CloudSandboxRequestError extends Error {
-	constructor(readonly statusCode: number | undefined, message: string) {
+	constructor(readonly statusCode: number | undefined, message: string, readonly retryAfterSeconds?: number) {
 		super(message);
 		this.name = 'CloudSandboxRequestError';
 	}
@@ -335,6 +337,8 @@ export interface ICloudSandboxConnectOptions {
 	readonly sessionId?: string;
 	/** Human-readable display name for the connection. */
 	readonly name: string;
+	/** Caller provenance, not a claim about warm or cold compute. */
+	readonly connectionSource?: 'created' | 'existing';
 }
 
 /**
@@ -358,9 +362,15 @@ export interface ICloudSandboxAgentHostService {
 	 */
 	connect(options: ICloudSandboxConnectOptions, token: CancellationToken): Promise<string>;
 
+	/** Disconnect a sandbox address and discard its staged credentials. */
+	disconnect(address: string): Promise<void>;
+
 	/**
 	 * The sealed GitHub token for a live connection to the given environment, as minted by
 	 * `/connect` and refreshed by `/reconnect`, or `undefined` when there is no connection.
 	 */
 	getSealedGitHubToken(environmentId: string): string | undefined;
+
+	/** Renew a live connection's sealed credential, rejecting missing or reused envelopes while sharing its refresh and retry budget. */
+	refreshSealedGitHubToken(environmentId: string): Promise<string | undefined>;
 }

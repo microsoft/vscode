@@ -570,6 +570,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.chat.experimental.welcomePhrases', "Controls whether rotating welcome phrases are shown above the new-session composer."),
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		[NEW_SESSION_WELCOME_NAME_SETTING]: {
 			type: 'string',

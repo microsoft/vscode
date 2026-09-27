@@ -25,17 +25,35 @@ suite('Chat Accessibility Help', () => {
 			assert.strictEqual(help.includes('When a chat turn is waiting for MCP servers to start, a Skip link may appear. Use Tab to focus Skip and press Enter or Space to continue the turn while those servers start in the background. The current startup message disappears immediately and focus returns to the chat input. New server startups may show another message.'), type !== 'editsView');
 		});
 
-		test(`documents draft copying, preservation, and invitation dismissal in ${type}`, () => {
+		test(`documents Copilot introduction and parallel invitation behavior in ${type}`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
+				introductionModes: help.includes('when the session starts or after the first request is submitted'),
+				introductionPersists: help.includes('sending messages does not dismiss it'),
+				introductionActions: help.includes('let us know, Learn More, Got it!, or Not Helpful'),
+				learnMorePersists: help.includes('Learn More opens documentation without hiding the introduction'),
+				introductionDismissal: help.includes('Not Helpful turns off future introductions'),
 				agentHostOnly: help.includes('When another Agent Host session is running, a new Agent Host chat'),
 				copy: help.includes('copies the current prompt and attachments from that input without sending them or clearing it'),
-				singleOwner: help.includes('Only one chat input shows the invitation at a time'),
+				singleOwner: help.includes('Only one chat input notification is shown at a time'),
 				preserve: help.includes('An existing draft in the Agents Window is kept'),
 				ignore: help.includes('Ignore turns off future invitations'),
 				dismiss: help.includes('only hides the invitation for this chat until the window reloads'),
-				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('chat may show an invitation'),
-			}, { agentHostOnly: true, copy: true, singleOwner: true, preserve: true, ignore: true, dismiss: true, hiddenInAgents: true });
+				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('new Copilot harness chat'),
+			}, {
+				introductionModes: true,
+				introductionPersists: true,
+				introductionActions: true,
+				learnMorePersists: true,
+				introductionDismissal: true,
+				agentHostOnly: true,
+				copy: true,
+				singleOwner: true,
+				preserve: true,
+				ignore: true,
+				dismiss: true,
+				hiddenInAgents: true,
+			});
 		});
 	}
 
@@ -55,6 +73,16 @@ suite('Chat Accessibility Help', () => {
 			subagentTail: help.includes('omitted when subagent pills are the last visible content'),
 			parentTail: help.includes('appears after other content while the response remains in progress'),
 		}, { finished: true, subagentTail: true, parentTail: true });
+	});
+
+	test('documents keyboard access to subagent chats and inline details', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			focus: help.includes('Use Tab to focus a subagent pill'),
+			open: help.includes('Enter or Space to open its chat'),
+			inline: help.includes('Enter or Space expands or collapses its inline details'),
+			status: help.includes('announces its running state and any pending confirmations'),
+		}, { focus: true, open: true, inline: true, status: true });
 	});
 
 	test('documents the Copilot tab switch and independent provider navigation', () => {
@@ -87,10 +115,11 @@ suite('Chat Accessibility Help', () => {
 			visibility: help.includes('on the hovered, selected, or keyboard-focused model'),
 			inlinePreferences: help.includes('In Auto mode, use Up and Down Arrow to focus an "Optimize for" preference'),
 			hydra: help.includes('HydraFusion, when available, is an alternative routing choice'),
+			hydraDescription: help.includes('press Right Arrow to open its description and focus Learn more'),
 			activation: help.includes('Enter or Space applies the preference and keeps the picker open'),
 			autoEntry: help.includes('both the Auto name and preference readout in the chat input open these routing choices'),
 			noAutoDetails: help.includes('Auto has no separate details page'),
-		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, inlinePreferences: true, hydra: true, activation: true, autoEntry: true, noAutoDetails: true });
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, inlinePreferences: true, hydra: true, hydraDescription: true, activation: true, autoEntry: true, noAutoDetails: true });
 	});
 
 	test('documents keyboard search in the model picker', () => {
@@ -283,6 +312,21 @@ suite('Chat Accessibility Help', () => {
 		}, {
 			agentView: true,
 			panelChat: false,
+		});
+
+		test('only documents customization migration entry points in panel chat', () => {
+			const keybindingService = new MockKeybindingService();
+			const expectedText = 'notice above the new-chat input';
+
+			assert.deepStrictEqual({
+				panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
+				quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
+				agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(expectedText),
+			}, {
+				panelChat: true,
+				quickChat: false,
+				agentView: false,
+			});
 		});
 	});
 

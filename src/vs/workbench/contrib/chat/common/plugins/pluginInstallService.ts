@@ -64,7 +64,7 @@ export interface IPluginInstallService {
 	 * Clones the marketplace repository (if not already cached) and registers
 	 * the plugin in the marketplace service's installed plugins storage.
 	 */
-	installPlugin(plugin: IMarketplacePlugin): Promise<void>;
+	installPlugin(plugin: IMarketplacePlugin, token?: CancellationToken): Promise<void>;
 
 	/**
 	 * Installs a plugin directly from a source location string. Accepts

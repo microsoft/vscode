@@ -107,7 +107,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			hour: initial?.schedule.scheduleHour ?? 9,
 			minute: initial?.schedule.scheduleMinute ?? 0,
 			day: initial?.schedule.scheduleDay ?? 1,
-			isQuickChat: initialTarget?.kind === 'quickChat',
+			isQuickChat: initialTarget === undefined || initialTarget.kind === 'quickChat',
 			folderUri: initialWorkspaceTarget?.folderUri,
 			providerId: initialTarget?.providerId,
 			sessionTypeId: initialTarget?.sessionTypeId,
@@ -173,7 +173,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				return { kind: 'update', id: existing.id, value: patch };
 			}
 			const create: ICreateAutomationOptions = {
-				name: state.name,
+				name: state.name.trim() ? state.name : deriveAutomationName(prompt),
 				prompt,
 				schedule,
 				target,
@@ -339,7 +339,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					focusFirst = keyboardNavigation.focusFirst;
 					revalidate = () => {
 						const providerAvailable = state.providerId !== undefined && allowedProviders.get().includes(state.providerId);
-						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId);
+						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId, isEdit);
 						handle.showTargetValidationError(validation.sessionTypeError);
 						if (saveInProgress && saveButton) {
 							saveButton.enabled = false;
@@ -362,6 +362,18 @@ export class AutomationDialogService implements IAutomationDialogService {
 			disposables.dispose();
 		}
 	}
+}
+
+function deriveAutomationName(prompt: string): string {
+	const text = prompt.trim().replace(/\s+/g, ' ');
+	const maxLength = 50;
+	const characters = Array.from(text);
+	if (characters.length <= maxLength) {
+		return text;
+	}
+	const prefix = characters.slice(0, maxLength).join('');
+	const wordBoundary = text.lastIndexOf(' ', prefix.length);
+	return wordBoundary > 0 ? text.slice(0, wordBoundary) : prefix;
 }
 
 function createAutomationTarget(state: IFormState, branch: string | undefined): AutomationTarget | undefined {
