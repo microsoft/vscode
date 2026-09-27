@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { GitHubAuthenticationProvider, GitHubAuthenticationProviderFactory, UriEventHandler } from './github';
+import { GitHubSessionEngine, UriEventHandler } from './github';
 import { GitHubEnterpriseAuthenticationProvider } from './githubEnterprise';
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -12,9 +12,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(uriHandler);
 	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
 
-	context.subscriptions.push(new GitHubAuthenticationProvider(context, uriHandler));
+	const github = new GitHubSessionEngine(context, uriHandler);
+	context.subscriptions.push(github);
+	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('github', 'GitHub', github, {
+		supportsMultipleAccounts: true,
+		supportedAuthorizationServers: [vscode.Uri.parse('https://github.com/login/oauth')]
+	}));
 
-	const githubEnterpriseAuthProvider = new GitHubEnterpriseAuthenticationProvider(new GitHubAuthenticationProviderFactory(context, uriHandler));
+	const githubEnterpriseAuthProvider = new GitHubEnterpriseAuthenticationProvider(context, uriHandler);
 	context.subscriptions.push(githubEnterpriseAuthProvider);
 	const updateEnterpriseConfiguration = async () => {
 		const setting = vscode.workspace.getConfiguration().get<string>('github-enterprise.uri');

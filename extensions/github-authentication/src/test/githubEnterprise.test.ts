@@ -7,12 +7,17 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import { Log } from '../common/logger';
-import { AuthProviderType, IGitHubAuthenticationProvider, IGitHubAuthenticationProviderFactory, UriEventHandler } from '../github';
+import * as github from '../github';
 import { GitHubEnterpriseAuthenticationProvider } from '../githubEnterprise';
+import { createTestExtensionContext } from './testExtensionContext';
+import { TestSecretStorage } from './testSecretStorage';
 
-class TestProvider implements IGitHubAuthenticationProvider {
+const EngineConstructor = github.GitHubSessionEngine;
+
+class TestSessionEngine {
 	readonly changes = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 	readonly onDidChangeSessions = this.changes.event;
+	readonly instance = sinon.createStubInstance(EngineConstructor);
 	disposed = false;
 	sessions: vscode.AuthenticationSession[];
 	readonly removals: string[] = [];
@@ -20,6 +25,12 @@ class TestProvider implements IGitHubAuthenticationProvider {
 	readonly creations: vscode.AuthenticationProviderSessionOptions[] = [];
 
 	constructor(readonly uri: vscode.Uri, readonly storageKey: string) {
+		sinon.stub(this.instance, 'onDidChangeSessions').get(() => this.onDidChangeSessions);
+		this.instance.getSessions.callsFake((scopes, options) => this.getSessions(scopes, options ?? {}));
+		this.instance.getCachedSessions.callsFake(() => this.getCachedSessions());
+		this.instance.createSession.callsFake((scopes, options) => this.createSession(scopes, options ?? {}));
+		this.instance.removeSession.callsFake(id => this.removeSession(id));
+		this.instance.dispose.callsFake(() => this.dispose());
 		this.sessions = [{
 			id: 'session',
 			account: { id: '42', label: 'octocat', icon: vscode.Uri.parse('https://avatars.example/42') },
@@ -30,7 +41,7 @@ class TestProvider implements IGitHubAuthenticationProvider {
 		}];
 	}
 
-	async getSessionSnapshot(): Promise<readonly vscode.AuthenticationSession[]> { return this.sessions; }
+	async getCachedSessions(): Promise<readonly vscode.AuthenticationSession[]> { return this.sessions; }
 	async getSessions(_scopes: readonly string[] | undefined, options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
 		this.reads.push(options);
 		return this.sessions;
@@ -51,27 +62,24 @@ class TestProvider implements IGitHubAuthenticationProvider {
 	}
 }
 
-class TestProviderFactory implements IGitHubAuthenticationProviderFactory {
-	readonly engines: TestProvider[] = [];
-	failFor: string | undefined;
-
-	create(uri: vscode.Uri, storageKey: string): TestProvider {
-		if (uri.authority === this.failFor) {
-			throw new Error('Engine initialization failed');
-		}
-		const engine = new TestProvider(uri, storageKey);
-		this.engines.push(engine);
-		return engine;
-	}
-}
-
 suite('GitHub Enterprise provider lifecycle', () => {
 	const a = vscode.Uri.parse('https://a.example');
 	const b = vscode.Uri.parse('https://b.example/Deployment');
 	const disposables: vscode.Disposable[] = [];
+	const constructions = new Map<vscode.ExtensionContext, { engines: TestSessionEngine[]; failFor?: string }>();
 	let registration: sinon.SinonStub;
 
 	setup(() => {
+		sinon.stub(github, 'GitHubSessionEngine').callsFake((context, _uriHandler, uri, storageKey) => {
+			const construction = constructions.get(context);
+			assert.ok(construction && uri && storageKey);
+			if (uri.authority === construction.failFor) {
+				throw new Error('Engine initialization failed');
+			}
+			const engine = new TestSessionEngine(uri, storageKey);
+			construction.engines.push(engine);
+			return engine.instance;
+		});
 		registration = sinon.stub(vscode.authentication, 'registerAuthenticationProvider').callsFake((_id, _label, provider) => provider.onDidChangeSessions(() => { }));
 		sinon.stub(vscode.window, 'showQuickPick').rejects(new Error('Unexpected picker'));
 		const logLevels = new vscode.EventEmitter<vscode.LogLevel>();
@@ -86,12 +94,18 @@ suite('GitHub Enterprise provider lifecycle', () => {
 
 	teardown(() => {
 		disposables.splice(0).reverse().forEach(disposable => disposable.dispose());
+		constructions.clear();
 		sinon.restore();
 	});
 
 	async function create(uri?: vscode.Uri) {
-		const factory = new TestProviderFactory();
-		const provider = new GitHubEnterpriseAuthenticationProvider(factory);
+		const factory: { engines: TestSessionEngine[]; failFor?: string } = { engines: [] };
+		const secrets = new TestSecretStorage();
+		const uriHandler = new github.UriEventHandler();
+		disposables.push(secrets, uriHandler);
+		const context = createTestExtensionContext(disposables, secrets);
+		constructions.set(context, factory);
+		const provider = new GitHubEnterpriseAuthenticationProvider(context, uriHandler);
 		disposables.push(provider);
 		await provider.update(uri);
 		return { provider, factory };
@@ -159,7 +173,7 @@ suite('GitHub Enterprise provider lifecycle', () => {
 			const previous = factory.engines[0].sessions[0];
 			const snapshot = Promise.withResolvers<readonly vscode.AuthenticationSession[]>();
 			const preparing = Promise.withResolvers<void>();
-			sinon.stub(factory.engines[0], 'getSessionSnapshot').callsFake(() => {
+			sinon.stub(factory.engines[0], 'getCachedSessions').callsFake(() => {
 				preparing.resolve();
 				return snapshot.promise;
 			});
@@ -222,7 +236,7 @@ suite('GitHub Enterprise provider lifecycle', () => {
 	});
 
 	test('late logging after engine disposal is harmless', () => {
-		const logger = new Log(AuthProviderType.githubEnterprise, a);
+		const logger = new Log(github.AuthProviderType.githubEnterprise, a);
 		disposables.push(logger);
 		logger.dispose();
 		assert.doesNotThrow(() => logger.info('late operation'));
@@ -231,9 +245,9 @@ suite('GitHub Enterprise provider lifecycle', () => {
 	test('public and enterprise OAuth callbacks with identical scopes stay isolated by host', async () => {
 		const clock = sinon.useFakeTimers();
 		disposables.push(new vscode.Disposable(() => clock.restore()));
-		const handler = new UriEventHandler();
+		const handler = new github.UriEventHandler();
 		const cancellation = new vscode.CancellationTokenSource();
-		const logger = new Log(AuthProviderType.githubEnterprise);
+		const logger = new Log(github.AuthProviderType.githubEnterprise);
 		disposables.push(handler, cancellation, logger);
 		const received: string[] = [];
 		const first = handler.waitForCode(logger, 'repo', 'nonce-a', cancellation.token, vscode.Uri.parse('https://github.com')).then(code => received.push(`public:${code}`));

@@ -7,11 +7,12 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import { activate } from '../extension';
-import { GitHubAuthenticationProviderFactory, IGitHubAuthenticationProvider } from '../github';
+import { GitHubSessionEngine } from '../github';
 import { GitHubEnterpriseAuthenticationProvider } from '../githubEnterprise';
 import { GitHubServer } from '../githubServer';
 import { TestMemento } from './testMemento';
 import { TestSecretStorage } from './testSecretStorage';
+import { createTestExtensionContext } from './testExtensionContext';
 
 const enterpriseUriSetting = 'github-enterprise.uri';
 
@@ -57,28 +58,7 @@ suite('GitHub authentication activation', () => {
 	});
 
 	function context(secrets: TestSecretStorage, state: TestMemento): vscode.ExtensionContext {
-		const extension = vscode.extensions.getExtension('vscode.github-authentication');
-		assert.ok(extension);
-		const storageUri = vscode.Uri.parse('test-storage:/github-authentication');
-		return {
-			subscriptions: disposables,
-			workspaceState: state,
-			globalState: Object.assign(state, { setKeysForSync: () => { } }),
-			secrets,
-			extension,
-			extensionUri: extension.extensionUri,
-			extensionPath: extension.extensionPath,
-			extensionMode: vscode.ExtensionMode.Test,
-			storageUri: undefined,
-			storagePath: undefined,
-			globalStorageUri: storageUri,
-			globalStoragePath: storageUri.fsPath,
-			logUri: storageUri,
-			logPath: storageUri.fsPath,
-			asAbsolutePath: relativePath => vscode.Uri.joinPath(extension.extensionUri, relativePath).fsPath,
-			get environmentVariableCollection(): vscode.GlobalEnvironmentVariableCollection { throw new Error('Unexpected environment access'); },
-			get languageModelAccessInformation(): vscode.LanguageModelAccessInformation { throw new Error('Unexpected language model access'); }
-		};
+		return createTestExtensionContext(disposables, secrets, state);
 	}
 
 	function configure(uri: string) {
@@ -108,7 +88,8 @@ suite('GitHub authentication activation', () => {
 		await secrets.store('github.auth', JSON.stringify([publicSession]));
 		const state = new TestMemento();
 		configure('https://tenant.example/Team');
-		sinon.stub(GitHubAuthenticationProviderFactory.prototype, 'create').throws(new Error('Enterprise initialization failed'));
+		const read = sinon.stub(GitHubSessionEngine.prototype, 'getSessions').callThrough();
+		read.onFirstCall().rejects(new Error('Enterprise initialization failed'));
 
 		await activate(context(secrets, state));
 
@@ -130,8 +111,8 @@ suite('GitHub authentication activation', () => {
 		const secrets = new TestSecretStorage();
 		disposables.push(secrets);
 		configure('https://tenant.example/Team');
-		const factory = sinon.stub(GitHubAuthenticationProviderFactory.prototype, 'create').callThrough();
-		factory.onFirstCall().throws(new Error('Enterprise initialization failed'));
+		const read = sinon.stub(GitHubSessionEngine.prototype, 'getSessions').callThrough();
+		read.onFirstCall().rejects(new Error('Enterprise initialization failed'));
 		const update = sinon.spy(GitHubEnterpriseAuthenticationProvider.prototype, 'update');
 		await activate(context(secrets, new TestMemento()));
 		const publicProvider = providers.get('github');
@@ -143,7 +124,7 @@ suite('GitHub authentication activation', () => {
 			samePublicProvider: providers.get('github') === publicProvider,
 			issuers: registration.lastCall.args[3].supportedAuthorizationServers.map((uri: vscode.Uri) => uri.toString()),
 			errorCount: errors.callCount,
-			attempts: factory.callCount
+			attempts: read.callCount
 		}, { samePublicProvider: true, issuers: ['https://tenant.example/Team/login/oauth'], errorCount: 1, attempts: 2 });
 	});
 
@@ -158,32 +139,23 @@ suite('GitHub authentication activation', () => {
 			const config = configure('https://initial.example');
 			const initialRead = Promise.withResolvers<vscode.AuthenticationSession[]>();
 			const initialStarted = Promise.withResolvers<void>();
-			const engines: { uri: string; disposed: boolean }[] = [];
-			sinon.stub(GitHubAuthenticationProviderFactory.prototype, 'create').callsFake((uri): IGitHubAuthenticationProvider => {
-				const engine = { uri: uri.toString(), disposed: false };
-				engines.push(engine);
-				const changes = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
-				disposables.push(changes);
-				const session: vscode.AuthenticationSession = {
+			for (const uri of new Set(['https://initial.example', ...changes])) {
+				const parsed = vscode.Uri.parse(uri);
+				await secrets.store(`${parsed.authority}${parsed.path}.ghes.auth`, JSON.stringify([{
 					...publicSession,
 					accessToken: 'fake-enterprise-token',
-					authorizationServer: vscode.Uri.joinPath(uri, '/login/oauth')
-				};
-				return {
-					onDidChangeSessions: changes.event,
-					getSessions: () => {
-						initialStarted.resolve();
-						if (engines.indexOf(engine) === 0) {
-							return initialRead.promise;
-						}
-						return replacementFails ? Promise.reject(new Error('Replacement initialization failed')) : Promise.resolve([session]);
-					},
-					getSessionSnapshot: async () => [session],
-					createSession: async () => session,
-					removeSession: async () => { },
-					dispose: () => { engine.disposed = true; }
-				};
+					authorizationServer: vscode.Uri.joinPath(parsed, '/login/oauth')
+				}]));
+			}
+			const read = sinon.stub(GitHubSessionEngine.prototype, 'getSessions').callThrough();
+			const disposed = sinon.spy(GitHubSessionEngine.prototype, 'dispose');
+			read.onFirstCall().callsFake(() => {
+				initialStarted.resolve();
+				return initialRead.promise;
 			});
+			if (replacementFails) {
+				read.onSecondCall().rejects(new Error('Replacement initialization failed'));
+			}
 			const update = sinon.spy(GitHubEnterpriseAuthenticationProvider.prototype, 'update');
 			const activation = activate(context(secrets, new TestMemento()));
 			await initialStarted.promise;
@@ -206,12 +178,12 @@ suite('GitHub authentication activation', () => {
 			}
 			assert.deepStrictEqual({
 				issuers: (await enterpriseProvider.getSessions(undefined, {})).map(session => session.authorizationServer?.toString()),
-				disposed: engines.map(engine => engine.disposed),
+				disposed: disposed.callCount,
 				errors: errors.callCount,
 				updates: update.callCount
 			}, {
 				issuers: replacementFails ? [] : [`${changes[changes.length - 1]}/login/oauth`],
-				disposed: engines.map((_, index) => replacementFails || index !== engines.length - 1),
+				disposed: replacementFails ? 1 + changes.length : changes.length,
 				errors: replacementFails ? 2 : 1,
 				updates: 1 + changes.length
 			});

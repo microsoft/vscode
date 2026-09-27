@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AuthenticationProviderRegistration } from './common/authenticationProviderRegistration';
-import { IGitHubAuthenticationProvider, IGitHubAuthenticationProviderFactory } from './github';
+import { GitHubSessionEngine, UriEventHandler } from './github';
 
 interface EnterpriseHost {
 	readonly uri: vscode.Uri;
 	readonly storageKey: string;
-	readonly provider: IGitHubAuthenticationProvider;
+	readonly engine: GitHubSessionEngine;
 	readonly listener: vscode.Disposable;
 	readonly initialChanges: Map<string, vscode.AuthenticationSession | undefined>;
 }
 
 function disposeHost(host: EnterpriseHost | undefined): void {
 	host?.listener.dispose();
-	host?.provider.dispose();
+	host?.engine.dispose();
 	host?.initialChanges.clear();
 }
 
@@ -43,28 +42,31 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 	private _pendingUpdate: Promise<void> = Promise.resolve();
 	private _configurationError = vscode.l10n.t('Configure github-enterprise.uri before signing in to GitHub Enterprise.');
 
-	constructor(private readonly _providers: IGitHubAuthenticationProviderFactory) { }
+	constructor(
+		private readonly _context: vscode.ExtensionContext,
+		private readonly _uriHandler: UriEventHandler
+	) { }
 
 	update(uri?: vscode.Uri, error?: string): Promise<void> {
 		const update = async () => {
 			try {
 				await this.applyConfiguration(uri, error);
 			} catch (error) {
-				await this.handleUpdateError(error);
+				this.handleUpdateError(error);
 				throw error;
 			}
 		};
 		return this._pendingUpdate = this._pendingUpdate.then(update, update);
 	}
 
-	private async handleUpdateError(error: unknown): Promise<void> {
+	private handleUpdateError(error: unknown): void {
 		this.checkCancellation();
 		if (this._host) {
 			return;
 		}
 		this._configurationError = error instanceof Error ? error.message : String(error);
 		if (!this._registration) {
-			await this.registerProvider();
+			this.registerProvider();
 		}
 	}
 
@@ -77,19 +79,18 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 		const next = uri && this.createHost(uri, `${uri.authority}${uri.path}.ghes.auth`);
 		const cancellation = this._lifetime.token.onCancellationRequested(() => disposeHost(next));
 		try {
-			const initialSessions = next ? await next.provider.getSessions(undefined, {}) : [];
+			const initialSessions = next ? await next.engine.getSessions(undefined, {}) : [];
 			this.checkCancellation();
 			const previous = this._host;
-			const removed = previous ? await previous.provider.getSessionSnapshot() : [];
+			const removed = previous ? await previous.engine.getCachedSessions() : [];
 			this.checkCancellation();
 			const added = next ? reconcileInitialSessions(next, initialSessions) : [];
 			this._host = next;
-			const registered = this.registerProvider();
+			this.registerProvider();
 			disposeHost(previous);
 			if (added.length || removed.length) {
 				this._onDidChangeSessions.fire({ added, removed, changed: [] });
 			}
-			await registered;
 		} catch (error) {
 			disposeHost(next);
 			throw error;
@@ -99,15 +100,15 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 	}
 
 	private createHost(uri: vscode.Uri, storageKey: string): EnterpriseHost {
-		const provider = this._providers.create(uri, storageKey);
+		const engine = new GitHubSessionEngine(this._context, this._uriHandler, uri, storageKey);
 		const initialChanges = new Map<string, vscode.AuthenticationSession | undefined>();
 		return {
 			uri,
 			storageKey,
-			provider,
+			engine,
 			initialChanges,
-			listener: provider.onDidChangeSessions(event => {
-				if (this._host?.provider === provider) {
+			listener: engine.onDidChangeSessions(event => {
+				if (this._host?.engine === engine) {
 					this._onDidChangeSessions.fire(event);
 				} else {
 					event.removed?.forEach(session => initialChanges.set(session.id, undefined));
@@ -119,17 +120,13 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 		};
 	}
 
-	private async registerProvider(): Promise<void> {
+	private registerProvider(): void {
 		this._registration?.dispose();
 		const uri = this._host?.uri;
-		const registration = new AuthenticationProviderRegistration('github-enterprise', uri?.authority ?? 'GitHub Enterprise', this, {
+		this._registration = vscode.authentication.registerAuthenticationProvider('github-enterprise', uri?.authority ?? 'GitHub Enterprise', this, {
 			supportsMultipleAccounts: true,
 			supportedAuthorizationServers: uri ? [vscode.Uri.joinPath(uri, '/login/oauth')] : []
 		});
-		this._registration = registration;
-		if (!await registration.whenRegistered) {
-			throw new vscode.CancellationError();
-		}
 	}
 
 	async getSessions(scopes?: readonly string[], options: vscode.AuthenticationProviderSessionOptions = {}): Promise<vscode.AuthenticationSession[]> {
@@ -137,13 +134,13 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 		if (!host) {
 			return [];
 		}
-		const sessions = await host.provider.getSessions(scopes && [...scopes], options);
+		const sessions = await host.engine.getSessions(scopes && [...scopes], options);
 		return this._host === host ? sessions : [];
 	}
 
 	async createSession(scopes: readonly string[], options: vscode.AuthenticationProviderSessionOptions = {}): Promise<vscode.AuthenticationSession> {
 		const host = this.requireHost();
-		const session = await host.provider.createSession(scopes, options);
+		const session = await host.engine.createSession([...scopes], options);
 		if (this._host !== host) {
 			throw new Error(vscode.l10n.t('The selected GitHub Enterprise instance is no longer configured.'));
 		}
@@ -151,7 +148,7 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 	}
 
 	async removeSession(id: string): Promise<void> {
-		await this.requireHost().provider.removeSession(id);
+		await this.requireHost().engine.removeSession(id);
 	}
 
 	private requireHost(): EnterpriseHost {

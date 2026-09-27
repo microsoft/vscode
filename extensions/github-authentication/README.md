@@ -18,7 +18,7 @@ The `github-enterprise` provider authenticates to the GHE.com or GitHub Enterpri
 
 GitHub.com accounts use the `github` provider and do not need this setting. Account and session IDs, labels, token storage, and Microsoft account links retain their existing behavior.
 
-The enterprise provider owns registration separately from its host-bound authentication engine. Configuration changes and their error states are applied in the same queue, so a failed update cannot overwrite a later one. Session changes received while preparing a replacement are reconciled before notifying consumers. Public GitHub remains available if enterprise initialization fails.
+The enterprise provider directly creates a host-bound session engine. The engine owns token flows, storage, and a side-effect-free cached session inventory; it never registers itself. VS Code's extension host buffers initial session events until registration completes. Configuration changes and their error states are applied in the same queue, and preparation-time session changes are reconciled before publication. Public GitHub remains available if enterprise initialization fails.
 
 ## Session provenance
 
