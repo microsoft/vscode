@@ -35,6 +35,14 @@ function createNullCopilotApiService(): ICopilotApiService {
 	};
 }
 
+class TestLogService extends NullLogService {
+	readonly warnings: string[] = [];
+
+	override warn(message: string): void {
+		this.warnings.push(message);
+	}
+}
+
 suite('WorktreeIsolation', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -80,7 +88,7 @@ suite('WorktreeIsolation', () => {
 	let removeCalls: { worktree: URI; force: boolean }[];
 	let commitCalls: { worktree: URI; message: string }[];
 	let commitError: Error | undefined;
-	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[] }[];
+	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[]; sessionId: string }[];
 	let copyIncludeError: Error | undefined;
 	let branchName: string;
 	let hasUncommittedChanges: boolean;
@@ -115,8 +123,8 @@ suite('WorktreeIsolation', () => {
 				addWorktreeCalls.push(options);
 				mkdirSync(options.path.fsPath, { recursive: true });
 			},
-			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs) => {
-				copyIncludeCalls.push({ repositoryRoot, worktree, globs: [...globs] });
+			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs, sessionId) => {
+				copyIncludeCalls.push({ repositoryRoot, worktree, globs: [...globs], sessionId });
 				if (copyIncludeError) {
 					throw copyIncludeError;
 				}
@@ -132,7 +140,7 @@ suite('WorktreeIsolation', () => {
 		};
 	}
 
-	function createIsolation(disposableStore: Pick<DisposableStore, 'add'>, options?: { readonly branchNameGenerator?: IAgentBranchNameGenerator; readonly gitService?: IAgentHostGitService; readonly sessionDataService?: ISessionDataService }): WorktreeIsolation {
+	function createIsolation(disposableStore: Pick<DisposableStore, 'add'>, options?: { readonly branchNameGenerator?: IAgentBranchNameGenerator; readonly gitService?: IAgentHostGitService; readonly sessionDataService?: ISessionDataService; readonly logService?: NullLogService }): WorktreeIsolation {
 		const branchNameGenerator = options?.branchNameGenerator ?? {
 			_serviceBrand: undefined,
 			generateBranchName: async () => branchName,
@@ -141,7 +149,7 @@ suite('WorktreeIsolation', () => {
 			branchNameGenerator,
 			options?.gitService ?? createGitService(),
 			options?.sessionDataService ?? createSessionDataService(db),
-			new NullLogService(),
+			options?.logService ?? new NullLogService(),
 		));
 	}
 
@@ -326,7 +334,26 @@ suite('WorktreeIsolation', () => {
 	});
 
 	test('uses an explicitly selected remote branch as the worktree start point', async () => {
-		const isolation = createIsolation(disposables);
+		const gitService = createGitService();
+		const operations: string[] = [];
+		gitService.getBranch = async (_root, name) => {
+			operations.push(`resolve:${name}`);
+			return {
+				ref: `refs/remotes/${name}`,
+				name,
+				remote: 'origin',
+				kind: GitRefType.RemoteHead,
+			};
+		};
+		gitService.fetch = async (_root, branch) => {
+			operations.push(`fetch:${branch.remote}:${branch.ref}`);
+		};
+		gitService.addWorktree = async (_root, options) => {
+			operations.push(`add:${options.commitish}`);
+			addWorktreeCalls.push(options);
+			mkdirSync(options.path.fsPath, { recursive: true });
+		};
+		const isolation = createIsolation(disposables, { gitService });
 		await isolation.resolveWorkingDirectory({
 			sessionUri,
 			sessionId,
@@ -341,9 +368,54 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({
 			startPoint: addWorktreeCalls[0]?.commitish,
 			diffBaseBranch: await db.getMetadata('agentHost.diffBaseBranch'),
+			operations,
 		}, {
 			startPoint: 'origin/main',
 			diffBaseBranch: 'origin/main',
+			operations: ['resolve:origin/main', 'fetch:origin:refs/remotes/origin/main', 'add:origin/main'],
+		});
+	});
+
+	test('continues creating the worktree when fetching the selected remote fails', async () => {
+		const gitService = createGitService();
+		const logService = new TestLogService();
+		const operations: string[] = [];
+		gitService.getBranch = async (_root, name) => ({
+			ref: `refs/remotes/${name}`,
+			name,
+			remote: 'origin',
+			kind: GitRefType.RemoteHead,
+		});
+		gitService.fetch = async (_root, branch) => {
+			operations.push(`fetch:${branch.remote}:${branch.ref}`);
+			throw new Error('network unavailable');
+		};
+		gitService.addWorktree = async (_root, options) => {
+			operations.push(`add:${options.commitish}`);
+			addWorktreeCalls.push(options);
+			mkdirSync(options.path.fsPath, { recursive: true });
+		};
+		const isolation = createIsolation(disposables, { gitService, logService });
+
+		const worktree = await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'origin/main',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			worktree: worktree?.toString(),
+			operations,
+			warnings: logService.warnings,
+		}, {
+			worktree: URI.joinPath(worktreesRoot, 'my-feature').toString(),
+			operations: ['fetch:origin:refs/remotes/origin/main', 'add:origin/main'],
+			warnings: [`[AgentHost:s1] Failed to fetch remote 'origin' before creating worktree: network unavailable`],
 		});
 	});
 
@@ -655,7 +727,7 @@ suite('WorktreeIsolation', () => {
 			await timeout(50);
 			options.onProgress?.({ filesDone: 800, filesTotal: 800 });
 		};
-		gitService.copyWorktreeIncludeFiles = async (_root, _worktree, _globs, onProgress) => {
+		gitService.copyWorktreeIncludeFiles = async (_root, _worktree, _globs, _sessionId, onProgress) => {
 			onProgress?.({ filesDone: 1, filesTotal: 4 });
 			onProgress?.({ filesDone: 4, filesTotal: 4 });
 		};
@@ -835,6 +907,7 @@ suite('WorktreeIsolation', () => {
 				repositoryRoot: call.repositoryRoot.toString(),
 				worktree: call.worktree.toString(),
 				globs: call.globs,
+				sessionId: call.sessionId,
 			})),
 			resolvedWorktree: isolation.getResolvedWorktree(sessionId)?.toString(),
 		}, {
@@ -843,6 +916,7 @@ suite('WorktreeIsolation', () => {
 				repositoryRoot: repoRoot.toString(),
 				worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 				globs: includeFiles,
+				sessionId,
 			}],
 			resolvedWorktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 		});

@@ -230,11 +230,12 @@ suite('ActionListWidget', () => {
 		});
 	});
 
-	test('includes badges in accessible labels and clears them when rows are reused', () => {
+	test('includes primary and additional badges in accessible labels and clears them on reuse', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{
 				...action('Assisted permissions'),
 				badge: 'Experimental',
+				additionalBadges: [{ label: 'Org default', className: 'organization-default', tooltip: 'Default for new chats.' }],
 				detail: 'Evaluates risk before running tools',
 			}],
 			listOptions: { showFilter: false },
@@ -248,6 +249,9 @@ suite('ActionListWidget', () => {
 				badgeHidden: badge.ariaHidden,
 				badgeVisible: badge.style.display !== 'none',
 				afterTitle: badge.previousElementSibling?.classList.contains('title'),
+				additionalBadges: Array.from(row.querySelectorAll('.action-item-additional-badges .action-item-badge'), element => ({
+					text: element.textContent, className: element.className,
+				})),
 			};
 		};
 		const initial = readRow();
@@ -255,11 +259,12 @@ suite('ActionListWidget', () => {
 
 		assert.deepStrictEqual({ initial, updated: readRow() }, {
 			initial: {
-				label: 'Assisted permissions, Experimental, Evaluates risk before running tools',
+				label: 'Assisted permissions, Experimental, Org default, Evaluates risk before running tools',
 				badge: 'Experimental',
 				badgeHidden: 'true',
 				badgeVisible: true,
 				afterTitle: true,
+				additionalBadges: [{ text: 'Org default', className: 'action-item-badge organization-default' }],
 			},
 			updated: {
 				label: 'Manual permissions',
@@ -267,8 +272,56 @@ suite('ActionListWidget', () => {
 				badgeHidden: 'true',
 				badgeVisible: false,
 				afterTitle: true,
+				additionalBadges: [],
 			},
 		});
+	});
+
+	test('toolbar labels remain actionable and revert to icons when a row is reused', () => {
+		const selected: string[] = [];
+		let configured = 0;
+		const configure = toAction({ id: 'configure', label: 'Medium', tooltip: 'Configure Model, Medium', class: 'codicon-settings-gear', run: () => { configured++; } });
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('Model'), toolbarLabels: true, toolbarActions: [configure] }],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false, stopToolbarPointerPropagation: true },
+		});
+		const read = () => {
+			const button = widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+			return { label: button.textContent, ariaLabel: button.getAttribute('aria-label'), icon: button.classList.contains('codicon') };
+		};
+		const initial = read();
+		widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!.click();
+		widget.updateItems([{ ...action('Model'), toolbarActions: [configure] }]);
+		assert.deepStrictEqual({ initial, updated: read(), configured, selected }, {
+			initial: { label: 'Medium', ariaLabel: 'Configure Model, Medium', icon: false },
+			updated: { label: '', ariaLabel: 'Configure Model, Medium', icon: true },
+			configured: 1,
+			selected: [],
+		});
+	});
+
+	test('visible toolbar labels are searchable without searching icon-only action labels', () => {
+		const readout = toAction({ id: 'configure', label: 'Medium · 264K', run: () => { } });
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('Model with readout'), toolbarLabels: true, toolbarActions: [readout] },
+				{ ...action('Model with icon'), toolbarActions: [readout] },
+			],
+		});
+		typeFilter(widget, '264k');
+		assert.deepStrictEqual(getVisibleRowText(widget), ['Model with readoutMedium · 264K']);
+	});
+
+	test('section badges are rendered and cleared on reuse', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...separator('Optimize for'), additionalBadges: [{ label: 'Org default', tooltip: 'Default for new chats.' }] }, action('Balance')],
+			listOptions: { showFilter: false },
+		});
+		const read = () => Array.from(widget.domNode.querySelectorAll('.separator .action-item-badge'), badge => badge.textContent);
+		const initial = read();
+		widget.updateItems([separator('Models'), action('A model')]);
+		assert.deepStrictEqual({ initial, updated: read() }, { initial: ['Org default'], updated: [] });
 	});
 
 	test('recycled action icons do not retain a previous fallback or theme color', () => {

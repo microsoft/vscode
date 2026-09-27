@@ -137,6 +137,7 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 	constructor(
 		private readonly _sessionType: string,
 		private readonly _roots: readonly URI[] | undefined,
+		private readonly _windowRemoteAuthority: string | null,
 		private readonly _onDispose: () => void,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IMcpWorkbenchService private readonly _mcpWorkbenchService: IMcpWorkbenchService,
@@ -155,6 +156,7 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 					this._sessionType,
 					this._roots,
 					lazyState.state,
+					this._windowRemoteAuthority,
 				);
 				if (!initialAssessment) {
 					this._completeUpdate(sequence, createEmptySupportSnapshot(this._getCoverage()));

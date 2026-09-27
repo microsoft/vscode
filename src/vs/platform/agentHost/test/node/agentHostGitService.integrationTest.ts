@@ -971,6 +971,65 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('fetch updates the selected remote branch with a narrowed fetch refspec', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		const remotePath = join(dir, 'remote.git');
+		const remoteName = 'team/origin';
+		const publisherPath = join(dir, 'publisher');
+		cp.execFileSync('git', ['init', '--bare', '-q', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['remote', 'add', remoteName, remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', 'release'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', remoteName, 'main', 'release'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['fetch', '-q', remoteName, `refs/heads/main:refs/remotes/${remoteName}/main`], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', '--replace-all', `remote.${remoteName}.fetch`, `+refs/heads/release:refs/remotes/${remoteName}/release`], { cwd: dir, env, stdio: 'pipe' });
+		const staleRemoteCommit = cp.execFileSync('git', ['rev-parse', `${remoteName}/main`], { cwd: dir, env, encoding: 'utf8' }).trim();
+
+		cp.execFileSync('git', ['clone', '-q', '--branch', 'main', remotePath, publisherPath], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(publisherPath, 'remote-latest.txt'), 'latest');
+		cp.execFileSync('git', ['add', 'remote-latest.txt'], { cwd: publisherPath, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'remote latest'], { cwd: publisherPath, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', 'origin', 'main'], { cwd: publisherPath, env, stdio: 'pipe' });
+		const latestRemoteCommit = cp.execFileSync('git', ['--git-dir', remotePath, 'rev-parse', 'refs/heads/main'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const branch = await svc!.getBranch(URI.file(dir), `${remoteName}/main`);
+		if (branch?.kind !== GitRefType.RemoteHead) {
+			throw new Error(`Expected ${remoteName}/main to resolve to a remote branch`);
+		}
+
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.fetch(URI.file(dir), branch);
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: `${remoteName}/main`,
+				newBranchName: 'agents/test-remote-start-point',
+				track: false,
+			});
+
+			assert.deepStrictEqual({
+				resolvedBranch: branch,
+				remoteWasAhead: staleRemoteCommit !== latestRemoteCommit,
+				fetchedRemoteCommit: cp.execFileSync('git', ['rev-parse', `${remoteName}/main`], { cwd: dir, env, encoding: 'utf8' }).trim(),
+				worktreeCommit: cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+				hasLatestFile: existsSync(join(wtPath, 'remote-latest.txt')),
+			}, {
+				resolvedBranch: {
+					ref: `refs/remotes/${remoteName}/main`,
+					name: `${remoteName}/main`,
+					remote: remoteName,
+					kind: GitRefType.RemoteHead,
+				},
+				remoteWasAhead: true,
+				fetchedRemoteCommit: latestRemoteCommit,
+				worktreeCommit: latestRemoteCommit,
+				hasLatestFile: true,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(wtPath);
+		}
+	});
+
 	(hasGit ? test : test.skip)('removeWorktree preserves dirty work unless forced', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
@@ -1203,7 +1262,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				track: false,
 			});
 			const progress: { filesDone: number; filesTotal: number }[] = [];
-			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), ['.env', 'secrets/**', 'partial/*.txt', 'app/**'], sample => progress.push(sample));
+			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), ['.env', 'secrets/**', 'partial/*.txt', 'app/**'], 'include-files-session', sample => progress.push(sample));
 
 			const read = async (relativePath: string) => {
 				try { return await fs.readFile(join(wtPath, relativePath), 'utf8'); } catch { return undefined; }
@@ -1242,6 +1301,69 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			await rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/include-files'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	(hasGit ? test : test.skip)('copyWorktreeIncludeFiles matches patterns with .gitignore semantics', async () => {
+		const dir = initRepo();
+		const logService = new TestLogService();
+		const service = createGitService(disposables, logService);
+		const fs = await import('fs/promises');
+		// Pin case sensitivity so the result does not depend on the platform default.
+		cp.execFileSync('git', ['config', 'core.ignorecase', 'false'], { cwd: dir, env, stdio: 'pipe' });
+
+		await fs.writeFile(join(dir, '.gitignore'), '.env\n*.local\nnode_modules\nlogs/\n*.json\n\\#notes\n');
+		const ignoredFiles = ['.env', 'app/.env', 'root.local', 'app/root.local', 'node_modules/a/index.js', 'pkg/node_modules/b/index.js', 'logs/keep.log', 'logs/skip.log', 'a.json', '{a,b}.json', '#notes'];
+		for (const file of ignoredFiles) {
+			await fs.mkdir(join(dir, file, '..'), { recursive: true });
+			await fs.writeFile(join(dir, file), file);
+		}
+
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		// Characters that are unsafe in a file name must not let the temporary
+		// patterns directory escape `tmpDir`.
+		const sessionId = '../include-files/session';
+		try {
+			await service.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/include-files-gitignore',
+				track: false,
+			});
+			await service.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), [
+				'.env', // unanchored: matches at any depth
+				'/root.local', // anchored to the repository root
+				'node_modules', // no trailing slash: matches the directory contents
+				'logs/*',
+				'!logs/skip.log', // negation
+				'{a,b}.json', // no brace expansion: matches the literal file name
+				'#notes', // comment: matches nothing
+				'a.json\n!x', // line break: dropped
+			], sessionId);
+
+			const copied = ignoredFiles.filter(file => existsSync(join(wtPath, file))).sort();
+
+			assert.deepStrictEqual({
+				copied,
+				lineBreakWarning: logService.warnings.some(warning => warning.includes('Ignoring 1 pattern(s) containing line breaks')),
+				tempDirectoryRemoved: !existsSync(join(tmpdir(), 'agent-host-worktree-include-.._include-files_session')),
+			}, {
+				copied: [
+					'.env',
+					'app/.env',
+					'logs/keep.log',
+					'node_modules/a/index.js',
+					'pkg/node_modules/b/index.js',
+					'root.local',
+					'{a,b}.json',
+				],
+				lineBreakWarning: true,
+				tempDirectoryRemoved: true,
+			});
+		} finally {
+			try { await service.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/include-files-gitignore'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
 });

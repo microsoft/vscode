@@ -12,7 +12,7 @@ import { ChatConfiguration, ChatProgressAnimation, ChatProgressVerbosity } from 
 export const chatProgressConfigurationProperties = {
 	[ChatConfiguration.PersistentProgress]: {
 		type: 'string',
-		default: ChatProgressAnimation.Draw,
+		default: ChatProgressAnimation.Off,
 		enum: Object.values(ChatProgressAnimation),
 		enumItemLabels: [
 			localize('chat.progressAnimation.off.label', "Off"),
@@ -30,7 +30,7 @@ export const chatProgressConfigurationProperties = {
 			localize('chat.progressAnimation.accordion', "Compress the logo pieces toward the center, then open them back up."),
 			localize('chat.progressAnimation.dial', "Rotate the logo in three steps, then pause upright."),
 		],
-		markdownDescription: localize('chat.experimental.persistentProgress', "Keep a working progress indicator with an animated VS Code logo at the bottom until the response finishes. Draw is the default animation. Tool calls follow {0}, and reasoning is separated into collapsible previews that break the tool chain. Standalone tools retain their icons. Completed responses still follow {1}. This replaces inner working progress; terminal activity animations and rich subagent pills are unchanged. Off preserves the original thinking, tool, and progress rendering. Changes apply immediately; reduced motion keeps the indicator visible without animation.", `\`#${ChatConfiguration.PersistentProgressVerbosity}#\``, `\`#${ChatConfiguration.CollapseCompletedResponses}#\``),
+		markdownDescription: localize('chat.experimental.persistentProgress', "Keep a working progress indicator with an animated VS Code logo at the bottom until the response finishes. Off is the default without an experiment; choose an animation to enable the indicator explicitly. Tool calls follow {0}, and reasoning is separated into collapsible previews that break the tool chain. Standalone tools retain their icons. Completed responses still follow {1}. This replaces inner working progress; terminal activity animations and rich subagent pills are unchanged. Changes apply immediately; reduced motion keeps the indicator visible without animation.", `\`#${ChatConfiguration.PersistentProgressVerbosity}#\``, `\`#${ChatConfiguration.CollapseCompletedResponses}#\``),
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},

@@ -507,6 +507,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		elements.message.append(this.markdownPart.domNode);
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
+		progressPart.iconElement.remove();
 		progressPart.domNode.classList.add('chat-terminal-progress-row');
 		this._decoration.update();
 		if (toolInvocation.kind === 'toolInvocation') {

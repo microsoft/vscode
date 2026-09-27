@@ -4,16 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../base/browser/window.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IURLHandler, IURLService } from '../../../../platform/url/common/url.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { IOnboardingTryoutService, parseExternalOnboardingTryoutUri, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../common/onboardingTryout.js';
+import { IOnboardingTryoutService, parseExternalOnboardingTryoutUri } from '../common/onboardingTryout.js';
+import { runOnboardingTryout } from './onboardingTryoutRunner.js';
 
 export class OnboardingTryoutUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
 	static readonly ID = 'workbench.contrib.onboardingTryoutUrlHandler';
@@ -27,6 +31,8 @@ export class OnboardingTryoutUrlHandler extends Disposable implements IWorkbench
 		@IHostService private readonly hostService: IHostService,
 		@IProductService private readonly productService: IProductService,
 		@ICommandService private readonly commandService: ICommandService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._register(urlService.registerHandler(this));
@@ -52,7 +58,7 @@ export class OnboardingTryoutUrlHandler extends Disposable implements IWorkbench
 			}
 		}
 		if (confirmed) {
-			await this.commandService.executeCommand(RUN_ONBOARDING_TRYOUT_COMMAND_ID, id);
+			await runOnboardingTryout(id, CancellationToken.None, this.tryoutService, this.commandService, this.notificationService, this.logService, { source: 'externalLink' });
 		}
 		return true;
 	}

@@ -31,7 +31,7 @@ export const enum SessionConfigKey {
 	Mode = 'mode',
 	/** `'worktreeBranchPrefix'` — host-owned prefix for the worktree branch name. */
 	WorktreeBranchPrefix = 'worktreeBranchPrefix',
-	/** `'worktreeIncludeFiles'` — host-owned glob patterns for files copied into a new worktree. */
+	/** `'worktreeIncludeFiles'` — host-owned `.gitignore`-syntax patterns for git-ignored files copied into a new worktree. */
 	WorktreeIncludeFiles = 'worktreeIncludeFiles',
 	/** `'worktreeBranchTrack'` — host-owned branch tracking preference for programmatic session creation. */
 	WorktreeBranchTrack = 'worktreeBranchTrack',

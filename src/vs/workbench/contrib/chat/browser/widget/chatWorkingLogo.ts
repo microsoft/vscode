@@ -133,7 +133,7 @@ export function getConfiguredProgressAnimation(configurationService: IConfigurat
 	const animation = configurationService.getValue<ChatProgressAnimation | undefined>(ChatConfiguration.PersistentProgress);
 	switch (animation) {
 		case undefined:
-			return ChatProgressAnimation.Draw;
+			return ChatProgressAnimation.Off;
 		case ChatProgressAnimation.Off:
 		case ChatProgressAnimation.Weave:
 		case ChatProgressAnimation.Draw:
