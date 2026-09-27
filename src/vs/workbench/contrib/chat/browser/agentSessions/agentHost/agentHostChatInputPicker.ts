@@ -323,6 +323,7 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.WorktreeBranchTrack,
 	SessionConfigKey.WorktreeCreateNewBranch,
 	SessionConfigKey.WorktreeIncludeFiles,
+	SessionConfigKey.WorktreeSymlinkFolders,
 	SessionConfigKey.ShellInitScripts,
 	SessionConfigKey.SandboxEnabled,
 	ClaudeSessionConfigKey.PermissionMode,

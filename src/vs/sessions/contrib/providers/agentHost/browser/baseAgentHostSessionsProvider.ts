@@ -4534,6 +4534,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (Array.isArray(worktreeIncludeFiles) && worktreeIncludeFiles.length > 0) {
 			config[SessionConfigKey.WorktreeIncludeFiles] = worktreeIncludeFiles;
 		}
+
+		const worktreeSymlinkFolders = this._baseConfigurationService.getValue<string[]>('git.worktreeSymlinkFolders', { resource });
+		if (Array.isArray(worktreeSymlinkFolders) && worktreeSymlinkFolders.length > 0) {
+			config[SessionConfigKey.WorktreeSymlinkFolders] = worktreeSymlinkFolders;
+		}
 		return config;
 	}
 
