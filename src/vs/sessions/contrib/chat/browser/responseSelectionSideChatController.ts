@@ -29,7 +29,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ChatInteractivity, IChat, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IResolvedResponseSelection, resolveResponseSelection } from './responseSelectionResolver.js';
+import { IResolvedResponseSelection, resolveResponseSelection, resolveResponseSelectionFocus } from './responseSelectionResolver.js';
 import { createAndSendSideChat } from './sideChatOrchestration.js';
 
 /**
@@ -75,28 +75,19 @@ function getSelectionHighlight(targetWindow: Window & typeof globalThis): Highli
 	return highlight;
 }
 
-/**
- * Bounding box of the range's *visible* line boxes. `Range.getBoundingClientRect`
- * includes the empty box a line selection leaves at the start of the following
- * block, which would push the affordance a line too far down.
- */
-function getVisibleBoundingRect(range: Range): { top: number; bottom: number; left: number } | undefined {
-	let top = Number.POSITIVE_INFINITY;
-	let bottom = Number.NEGATIVE_INFINITY;
-	let left = Number.POSITIVE_INFINITY;
-	for (const rect of range.getClientRects()) {
-		if (rect.width === 0 || rect.height === 0) {
-			continue;
-		}
-		top = Math.min(top, rect.top);
-		bottom = Math.max(bottom, rect.bottom);
-		left = Math.min(left, rect.left);
+function getVisibleFocusRect(range: Range, focusEdge: IResolvedResponseSelection['focusEdge']): { top: number; bottom: number; left: number } | undefined {
+	if (range.collapsed || range.startContainer.nodeType !== Node.TEXT_NODE || !range.startContainer.isConnected) {
+		return undefined;
 	}
-	if (bottom === Number.NEGATIVE_INFINITY) {
-		const fallback = range.getBoundingClientRect();
-		return fallback.width || fallback.height ? fallback : undefined;
+	const characterRect = Array.from(range.getClientRects()).find(rect => rect.height > 0) ?? range.getBoundingClientRect();
+	if (!characterRect.height) {
+		return undefined;
 	}
-	return { top, bottom, left };
+	return {
+		top: characterRect.top,
+		bottom: characterRect.bottom,
+		left: focusEdge === 'left' ? characterRect.left : characterRect.right,
+	};
 }
 
 /**
@@ -110,6 +101,12 @@ export class ResponseSelectionSideChatController extends Disposable {
 	private readonly _menu: Menu;
 	private readonly _quoteAction: Action;
 	private readonly _chatInteractivity = this._register(new MutableDisposable());
+	private readonly _selectionChangeScheduler: dom.AnimationFrameScheduler;
+	private _pointerSelectionId: number | undefined;
+	private _pointerSelectionChanged = false;
+	private _verticalPlacement: 'above' | 'below' | undefined;
+	private _lastFocusRect: { top: number; bottom: number; left: number } | undefined;
+	private _lastTranscriptBounds: { top: number; bottom: number } | undefined;
 	private _visibleSurface: 'input' | 'menu' | undefined;
 	private _visibleVariant: ResponseSelectionWidgetVariant | undefined;
 	private _resolved: IResolvedResponseSelection | undefined;
@@ -134,6 +131,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 	) {
 		super();
 
+		this._selectionChangeScheduler = this._register(new dom.AnimationFrameScheduler(this._widget.domNode, () => this._applySelectionChange()));
 		this._input = this._register(new FeedbackInputWidget({
 			placeholder: localize('sessions.selectionSideChat.placeholder', "Ask Question"),
 			ariaLabel: localize('sessions.selectionSideChat.ariaLabel', "Ask a question about the selected response text"),
@@ -154,7 +152,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 		const askQuestionAction = this._register(new Action(
 			'sessions.responseSelection.askWithBtw',
-			localize('sessions.responseSelection.askWithBtw', "Ask with /btw"),
+			localize('sessions.responseSelection.askWithBtw', "Ask in a Side Chat"),
 			ThemeIcon.asClassName(Codicon.commentDiscussion),
 			true,
 			() => this._openQuestionInput(),
@@ -208,16 +206,21 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._register(dom.addStandardDisposableListener(this._input.inputElement, 'input', () => {
 			this._input.autoSize();
 			this._input.updateActionEnabled();
+			this._reposition(true, false);
 		}));
 
 		const window = dom.getWindow(this._widget.domNode);
 		this._register(dom.addDisposableListener(window.document, 'selectionchange', () => this._onSelectionChange()));
+		this._register(dom.addDisposableListener(this._widget.transcriptDomNode, 'pointerdown', e => this._beginPointerSelection(e), true));
+		this._register(dom.addDisposableListener(window, 'pointerup', e => this._finishPointerSelection(e.pointerId), true));
+		this._register(dom.addDisposableListener(window, 'pointercancel', e => this._finishPointerSelection(e.pointerId), true));
+		this._register(dom.addDisposableListener(window, 'blur', () => this._finishPointerSelection()));
 		// The transcript is a virtualized list that scrolls by transform, so it
 		// never fires a DOM scroll event; follow its own scroll event instead.
 		// The capture-phase DOM listener additionally covers nested scrollers
 		// (a scrollable code block within a response).
-		this._register(this._widget.onDidScroll(() => this._reposition()));
-		this._register(dom.addDisposableListener(this._widget.domNode, 'scroll', () => this._reposition(), true));
+		this._register(this._widget.onDidScroll(() => this._reposition(true)));
+		this._register(dom.addDisposableListener(this._widget.domNode, 'scroll', () => this._reposition(true), true));
 		this._register(toDisposable(() => this._paintHighlight(undefined)));
 	}
 
@@ -237,7 +240,44 @@ export class ResponseSelectionSideChatController extends Disposable {
 		}
 	}
 
+	private _beginPointerSelection(event: PointerEvent): void {
+		if (event.button !== 0
+			|| event.isPrimary === false
+			|| this._input.isBusy) {
+			return;
+		}
+		this._selectionChangeScheduler.cancel();
+		this._pointerSelectionId = event.pointerId;
+		this._pointerSelectionChanged = false;
+	}
+
+	private _finishPointerSelection(pointerId?: number): void {
+		if (this._pointerSelectionId === undefined
+			|| (pointerId !== undefined && this._pointerSelectionId !== pointerId)) {
+			return;
+		}
+		this._pointerSelectionId = undefined;
+		this._pointerSelectionChanged = false;
+		this._selectionChangeScheduler.schedule();
+	}
+
 	private _onSelectionChange(): void {
+		if (this._pointerSelectionId !== undefined) {
+			this._updateAutoScrollHold();
+			if (!this._pointerSelectionChanged && !this._hasAffordanceFocus()) {
+				this._pointerSelectionChanged = true;
+				this._dismiss();
+			}
+			return;
+		}
+		if (this._selectionChangeScheduler.isScheduled()) {
+			this._updateAutoScrollHold();
+			return;
+		}
+		this._applySelectionChange();
+	}
+
+	private _applySelectionChange(): void {
 		// Reflect the new selection state first: every branch below (including
 		// the early returns) needs the hold to match what is currently selected.
 		this._updateAutoScrollHold();
@@ -354,7 +394,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._input.autoSize();
 		this._input.updateActionEnabled();
 		this._visibleSurface = 'input';
-		this._reposition();
+		this._reposition(true);
 		this._input.inputElement.focus();
 		this._syncHighlight();
 	}
@@ -404,22 +444,31 @@ export class ResponseSelectionSideChatController extends Disposable {
 	 * transcript scroll so the overlay tracks the text it belongs to instead of
 	 * staying pinned where the selection used to be.
 	 */
-	private _reposition(): void {
-		const resolved = this._resolved;
+	private _reposition(preservePlacement = false, dismissIfAnchorMissing = true): void {
+		let resolved = this._resolved;
 		const surface = this._visibleSurface;
 		if (!resolved || !surface) {
 			return;
 		}
-		const selectionRect = getVisibleBoundingRect(resolved.range);
-		if (!selectionRect) {
+		let focusRect = getVisibleFocusRect(resolved.focusRange, resolved.focusEdge);
+		if (!focusRect) {
 			// The transcript is virtualized, so scrolling far enough removes the
 			// selected row. Removing a node re-homes any live range onto the
 			// surviving parent, collapsing it, so the range still looks attached
 			// but no longer covers anything. The anchored text cannot come back
 			// — re-rendering builds new nodes — so dismiss rather than leave the
 			// input pointing at nothing and the transcript pinned forever.
-			this._dismiss();
-			return;
+			const refreshedFocus = resolveResponseSelectionFocus(resolved.range, resolved.direction, this._widget.domNode);
+			if (refreshedFocus) {
+				resolved = this._resolved = { ...resolved, ...refreshedFocus };
+				focusRect = getVisibleFocusRect(resolved.focusRange, resolved.focusEdge);
+			}
+			if (!focusRect) {
+				if (dismissIfAnchorMissing) {
+					this._dismiss();
+				}
+				return;
+			}
 		}
 		const overlay = surface === 'menu' ? this._menuDomNode : this._input.domNode;
 		overlay.style.display = '';
@@ -436,27 +485,36 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 		const minLeft = bounds.left - originRect.left;
 		const maxLeft = Math.max(minLeft, minLeft + bounds.width - overlayWidth);
-		const left = clamp(selectionRect.left - originRect.left, minLeft, maxLeft);
+		const left = clamp(focusRect.left - originRect.left, minLeft, maxLeft);
 
 		const minTop = bounds.top - originRect.top;
-		const maxTop = Math.max(minTop, minTop + bounds.height - overlayHeight);
-		let top: number;
-		if (surface === 'menu') {
-			top = selectionRect.top - originRect.top - overlayHeight - gap;
-			if (top < minTop) {
-				top = selectionRect.bottom - originRect.top + gap;
-			}
-		} else {
-			top = selectionRect.bottom - originRect.top + gap;
-			if (top > maxTop) {
-				// Not enough room below the selection: prefer placing it above instead.
-				const aboveTop = selectionRect.top - originRect.top - overlayHeight - gap;
-				top = aboveTop >= minTop ? aboveTop : maxTop;
-			}
+		const transcriptBottom = minTop + bounds.height;
+		const maxTop = Math.max(minTop, transcriptBottom - overlayHeight);
+		const aboveTop = focusRect.top - originRect.top - overlayHeight - gap;
+		const belowTop = focusRect.bottom - originRect.top + gap;
+		const preferBelow = resolved.direction === 'forward';
+		const aboveFits = aboveTop >= minTop;
+		const belowFits = belowTop <= maxTop;
+		let placement = preservePlacement ? this._verticalPlacement : undefined;
+		const focusMoved = !!this._lastFocusRect
+			&& (Math.abs(this._lastFocusRect.top - focusRect.top) > 0.5
+				|| Math.abs(this._lastFocusRect.bottom - focusRect.bottom) > 0.5
+				|| Math.abs(this._lastFocusRect.left - focusRect.left) > 0.5);
+		const transcriptBoundsMoved = !!this._lastTranscriptBounds
+			&& (Math.abs(this._lastTranscriptBounds.top - minTop) > 0.5
+				|| Math.abs(this._lastTranscriptBounds.bottom - transcriptBottom) > 0.5);
+		if (preservePlacement && (focusMoved || transcriptBoundsMoved)) {
+			placement = undefined;
 		}
-		top = clamp(top, minTop, maxTop);
+		placement ??= preferBelow
+			? (belowFits || !aboveFits ? 'below' : 'above')
+			: (aboveFits || !belowFits ? 'above' : 'below');
+		this._verticalPlacement = placement;
+		this._lastFocusRect = focusRect;
+		this._lastTranscriptBounds = { top: minTop, bottom: transcriptBottom };
+		const top = placement === 'below' ? belowTop : aboveTop;
 
-		overlay.style.top = `${top}px`;
+		overlay.style.top = `${clamp(top, minTop, maxTop)}px`;
 		overlay.style.left = `${left}px`;
 	}
 
@@ -485,7 +543,10 @@ export class ResponseSelectionSideChatController extends Disposable {
 		if (!force && this._input.isBusy) {
 			return;
 		}
+		this._selectionChangeScheduler.cancel();
 		if (force) {
+			this._pointerSelectionId = undefined;
+			this._pointerSelectionChanged = false;
 			// A genuine navigation: bump the generation so a stale submission's completion/error handler no-ops.
 			this._generation++;
 		}
@@ -499,6 +560,9 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._input.clearInput();
 		this._visibleSurface = undefined;
 		this._visibleVariant = undefined;
+		this._verticalPlacement = undefined;
+		this._lastFocusRect = undefined;
+		this._lastTranscriptBounds = undefined;
 		if (hadFocus) {
 			// Hiding the focused affordance would otherwise leave focus stranded on
 			// the body; return it to the transcript it was invoked from.
@@ -531,6 +595,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		// `setChat`; on failure the question and normal controls are restored
 		// below so the user can retry.
 		this._input.setBusy(true, localize('sessions.selectionSideChat.busy', "Asking question…"));
+		this._reposition(true, false);
 		const generation = this._generation;
 		createAndSendSideChat(this._sessionsManagementService, this._sessionsService, this._sessionsPartService, session, chat.resource, resolved.response.requestId, { query }, { text: resolved.text })
 			.then(() => {
@@ -542,6 +607,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 				// chat) normally dismisses this overlay already; clear busy
 				// defensively in case that doesn't happen.
 				this._input.setBusy(false);
+				this._reposition(true, false);
 			})
 			.catch(err => {
 				this._logService.error('[selectionSideChat] Failed to create side chat', err);
@@ -553,6 +619,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 				this._input.inputElement.value = query;
 				this._input.autoSize();
 				this._input.updateActionEnabled();
+				this._reposition(true, false);
 				this._input.inputElement.focus();
 			});
 	}

@@ -21,6 +21,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -217,7 +218,7 @@ suite('Session Artifacts', () => {
 		});
 	});
 
-	test('omits recorded GitHub links from every repository surfaced in pull request and issue pills', () => {
+	test('omits GitHub artifacts surfaced in pull request and issue pills while listing every reference', () => {
 		const { presentation } = createPresentation([
 			{ id: 'created-pr', kind: SessionArtifactKind.PullRequest, label: 'Created', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/OWNER/REPO/pull/50/') },
 			{ id: 'referenced-pr', kind: SessionArtifactKind.PullRequest, label: 'Referenced', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/60') },
@@ -240,7 +241,7 @@ suite('Session Artifacts', () => {
 
 		assert.deepStrictEqual(visibleEntries(presentation), {
 			artifacts: ['gitlab-pr', 'file'],
-			references: [],
+			references: ['referenced-pr', 'referenced-promoted-pr', 'referenced-discovered-pr', 'foreign-pr-reference', 'referenced-issue', 'referenced-promoted-issue'],
 		});
 	});
 
@@ -288,7 +289,7 @@ suite('Session Artifacts', () => {
 		}), entries.map(artifact => [artifact.id, [artifact.id]]));
 	});
 
-	test('keeps GitHub entries out of generic pills before, during and after workspace hydration', () => {
+	test('keeps GitHub artifacts out of generic pills and lists references before, during and after workspace hydration', () => {
 		const pullRequest = URI.parse('https://github.com/owner/repo/pull/50');
 		const reference = URI.parse('https://github.com/owner/repo/pull/60');
 		const issue = URI.parse('https://github.com/owner/repo/issues/7');
@@ -331,13 +332,14 @@ suite('Session Artifacts', () => {
 		session.set(undefined, undefined);
 		const noSession = visible;
 
+		const references = ['duplicate-reference', 'reference'];
 		assert.deepStrictEqual({ withoutWorkspace, withoutGitHubInfo, hydrated, changedGitHubInfo, recordedFile, unmounted, noSession }, {
-			withoutWorkspace: { artifacts: [], references: [] },
-			withoutGitHubInfo: { artifacts: [], references: [] },
-			hydrated: { artifacts: [], references: [] },
-			changedGitHubInfo: { artifacts: [], references: [] },
-			recordedFile: { artifacts: ['file'], references: [] },
-			unmounted: { artifacts: ['file'], references: [] },
+			withoutWorkspace: { artifacts: [], references },
+			withoutGitHubInfo: { artifacts: [], references },
+			hydrated: { artifacts: [], references },
+			changedGitHubInfo: { artifacts: [], references },
+			recordedFile: { artifacts: ['file'], references },
+			unmounted: { artifacts: ['file'], references },
 			noSession: { artifacts: [], references: [] },
 		});
 	});
@@ -369,11 +371,11 @@ suite('Session Artifacts', () => {
 			copied,
 		}, {
 			entries: [
-				['PR #12', ['Copy pull request link']],
-				['Issue #34', ['Copy issue link']],
-				['Commit', ['Copy commit URL']],
-				['Docs', ['Copy website URL']],
-				['index.ts', ['Copy path']],
+				['PR #12', ['Copy Pull Request Link']],
+				['Issue #34', ['Copy Issue Link']],
+				['Commit', ['Copy Commit URL']],
+				['Docs', ['Copy Website URL']],
+				['index.ts', ['Copy Path']],
 				['Chat settings', ['Copy URI']],
 			],
 			copied: [
@@ -419,8 +421,8 @@ suite('Session Artifacts', () => {
 			copied,
 		}, {
 			label: 'Authoritative subject',
-			actionLabels: ['Copy commit URL'],
-			hoverActionLabels: ['Copy commit hash'],
+			actionLabels: ['Copy Commit URL'],
+			hoverActionLabels: ['Copy Commit Hash'],
 			hoverClassName: 'sessions-commit-hover compact',
 			hoverText: 'microsoft/vscodeon Sep 22Authoritative subject @abc123Detailed commit body@octocat committed this change',
 			copied: ['abc123', link.toString(true)],
@@ -453,8 +455,8 @@ suite('Session Artifacts', () => {
 			hoverText: hover?.textContent,
 		}, {
 			label: 'Resolved commit subject',
-			rowActions: ['Copy commit URL'],
-			hoverActions: ['Copy commit hash'],
+			rowActions: ['Copy Commit URL'],
+			hoverActions: ['Copy Commit Hash'],
 			hoverClassName: 'sessions-commit-hover compact',
 			hoverText: 'microsoft/vscodeon Sep 22Resolved commit subject @abc123Resolved commit body@octocat committed this change',
 		});
@@ -651,21 +653,23 @@ suite('Session Artifacts', () => {
 		const withoutSupport = buildSessionArtifactSections(entries, actions, labelService, true, new Set()).flatMap(section => section.entries);
 		const withSupport = buildSessionArtifactSections(entries, { ...actions, remove: async () => { } }, labelService, true, new Set()).flatMap(section => section.entries);
 
-		const byId = (rendered: readonly { readonly id: string; readonly promotedAction?: unknown }[]) =>
-			rendered.map(entry => [entry.id, !!entry.promotedAction]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+		const byId = (rendered: readonly IChatPillEntry[]) =>
+			rendered.map(entry => [entry.id, entry.promotedAction?.hoverLabel]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 		// Expectations derive from the input entries, so a dropped or unrendered
 		// kind fails instead of silently agreeing with whatever was produced.
 		const expected = (removable: boolean) =>
-			entries.map(entry => [entry.id, removable]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+			entries.map(entry => [entry.id, removable ? (entry.isArtifact ? 'Remove Artifact' : 'Remove Reference') : undefined]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 
 		assert.deepStrictEqual({
 			withoutSupport: byId(withoutSupport),
 			withSupport: byId(withSupport),
+			websiteLabels: withSupport.filter(entry => entry.id.startsWith(`${SessionArtifactKind.Website}-`)).map(entry => entry.promotedAction?.label),
 		}, {
 			// No entry of any kind — artifact or reference — gets a remove action without provider support.
 			withoutSupport: expected(false),
-			// Every kind gets a remove action once the provider supports it, regardless of isArtifact.
+			// Every kind gets a remove action once the provider supports it, named for whether it removes an artifact or a reference.
 			withSupport: expected(true),
+			websiteLabels: ['Remove Artifact Site from Session', 'Remove Reference Site from Session'],
 		});
 	});
 

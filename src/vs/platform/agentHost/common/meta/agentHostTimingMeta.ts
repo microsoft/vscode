@@ -6,6 +6,11 @@
 import type { InitializeResult } from '../state/protocol/common/commands.js';
 
 export const AgentHostTimingCapabilityMetaKey = 'vscode.agentHostTiming';
+export const ChatUserInteractionCapability = 'vscode.chatUserInteractionTiming';
+
+export function supportsChatUserInteractionTiming(result: InitializeResult | undefined): boolean {
+	return result?._meta?.[ChatUserInteractionCapability] === true;
+}
 
 /** The host accepts renderer timing diagnostics only when its OTel pipeline is enabled. */
 export function supportsAgentHostTiming(result: InitializeResult | undefined): boolean {

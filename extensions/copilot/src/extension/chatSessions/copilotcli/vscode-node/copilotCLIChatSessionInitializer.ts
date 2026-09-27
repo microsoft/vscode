@@ -6,7 +6,6 @@
 import type { SweCustomAgent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
-import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IPromptsService, ParsedPromptFile } from '../../../../platform/promptFiles/common/promptsService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
@@ -21,10 +20,6 @@ import { COPILOT_CLI_CONTEXT_SIZE_PROPERTY, COPILOT_CLI_REASONING_EFFORT_PROPERT
 import { ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
 import { buildMcpServerMappings, McpServerMappings } from '../../copilotcli/node/mcpHandler';
-
-function isReasoningEffortFeatureEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
-}
 
 export interface SessionInitOptions {
 	isolation?: IsolationMode;
@@ -88,7 +83,6 @@ export class CopilotCLIChatSessionInitializer implements ICopilotCLIChatSessionI
 		@ICopilotCLIAgents private readonly copilotCLIAgents: ICopilotCLIAgents,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	async getOrCreateSession(
@@ -204,7 +198,7 @@ export class CopilotCLIChatSessionInitializer implements ICopilotCLIChatSessionI
 		// Get model from request.
 		const preferredModelInRequest = request?.model?.id ? await this.copilotCLIModels.resolveModel(request.model.id) : undefined;
 		if (preferredModelInRequest) {
-			const reasoningEffort = isReasoningEffortFeatureEnabled(this.configurationService) ? request?.modelConfiguration?.[COPILOT_CLI_REASONING_EFFORT_PROPERTY] : undefined;
+			const reasoningEffort = request?.modelConfiguration?.[COPILOT_CLI_REASONING_EFFORT_PROPERTY];
 			const contextSize = request?.modelConfiguration?.[COPILOT_CLI_CONTEXT_SIZE_PROPERTY];
 			const resolvedModels = await this.copilotCLIModels.getModels();
 			const modelInfo = resolvedModels.find(m => m.id === preferredModelInRequest);

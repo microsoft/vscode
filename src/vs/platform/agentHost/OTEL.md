@@ -12,6 +12,55 @@ This is the architecture and integration reference for OTel in Agent Host sessio
 | SDK | Copilot `TelemetryConfig`, Claude environment, and Codex `otel.*` launch overrides | `@opentelemetry/sdk-node` directly |
 | Persistence | `<userData>/agent-host/otel/agent-host-traces.db` | `<extensionGlobalStorage>/otel/spans.db` |
 
+## User-perceived first progress
+
+`vscode.chat.user_perceived_time_to_first_progress` mirrors the shared
+`chat.userPerceivedTimeToFirstProgress` UI timer, including Chat view and
+Agents-window new-chat submissions. It measures submission through two animation
+frames after meaningful visible **text, reasoning, or tool** progress. Preparation
+indicators are excluded. This is a rendering approximation, not exact physical
+paint or model TTFT. The original timer and product telemetry are unchanged.
+
+Attributes use `vscode.chat.user_interaction.`:
+
+| Attribute | Meaning |
+|---|---|
+| `schemaVersion` | Numeric `1` |
+| `rendererId`, `interactionOrdinal` | Random renderer-lifetime ID and submission-order ordinal starting at 1 (not completion/export order) |
+| `requestId` | Optional opaque request ID; required on success |
+| `result` | `success`, `cancelled`, `error`, `completedWithoutProgress`, `notDispatched`, `queued`, `navigated`, `hidden`, or `disposed` |
+| `requestPhase` | `first`, `followup`, or `unknown` in chat history; not cold/warm process state |
+| `firstProgressKind` | `text`, `reasoning`, or `tool`; success only |
+| `timeToFirstProgress` | Producer-local milliseconds, success only |
+| `timeToTermination` | Producer-local milliseconds, unsuccessful observations only |
+| `windowVisible`, `windowFocused` | Source-window state at observation end; focus loss alone is allowed |
+
+Hiding terminates an observation; it is not paused/resumed. Queued and hidden
+observations are not zero-latency successes. No content, paths, session URIs, or
+remote authorities are exported. Read duration attributes, not span duration.
+These metadata spans have no `gen_ai.operation.name`, token, or cost accounting.
+
+Agent Host transports this allowlisted record using
+`vscode/reportChatUserInteraction`, gated by the independent
+`_meta['vscode.chatUserInteractionTiming']` capability. It uses the existing
+SQLite/OTLP/file diagnostic destinations, without content capture or product
+telemetry opt-in. The host drains the synthetic-span queue before acknowledging.
+The same schema is emitted by the extension-host OTel exporter for local chat;
+Agent Host measurements do not depend on the Copilot extension exporter.
+Observations ending before a response use the submission's session resource for
+routing, including composer session replacement. Unroutable remote observations
+are logged as failed deliveries, never sent to the local extension exporter.
+Observations without a session type or routable host resource, including
+pre-handoff composer terminations, also fail rather than assuming local chat.
+
+The internal `_chat.flushUserInteractionTelemetry` command waits up to 10 seconds
+for active UI observations, then drains renderer deliveries before eval snapshots
+either database. It reports started/completed/failed counts; a timeout does not
+invent a terminal outcome. Crashes, missing destinations, unsupported builds, and
+pre-dispatch observations without a routable Agent Host identity can leave gaps.
+Transport failures are logged, never allowed to fail the chat submission, and
+are not retried. Older hosts never receive the new extension request.
+
 ## First Response Diagnostics
 
 ### Opt-in OTel export contract (version 1)
@@ -171,6 +220,41 @@ The usage sidecar diagnostics are separate from provider OTel and product teleme
 The native SDK's output TTFT includes reasoning and tool-call output, so it is
 not interchangeable with renderer first-response-text latency.
 
+## Sandbox Connection Product Scorecard
+
+The renderer's [cloud sandbox telemetry owner](../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxTelemetry.ts)
+uses ordinary VS Code product telemetry, not provider OTel. Existing telemetry-level
+and administrator controls apply; no additional setting or exporter is needed.
+
+- `cloudSandboxConnectionOutcome`: one `connect` or `recover` outcome (`success`,
+  `failure`, `cancelled`) and `durationMs`. Public connects start before credential
+  minting, waking and sealed-token waits; direct factory dials start at connection
+  setup. `stage` is `credentials` or `connection`. Readiness means authenticated
+  AHP initialization/state restoration, not WebSocket open. Reuse is excluded.
+  Retries, backoff and outer-client replacement stay in the same operation;
+  an initial handshake retry is not a healthy connection drop.
+- `cloudSandboxConnectionHealth`: five-minute aggregate deltas across tracked
+  connections, plus each connection's final delta at teardown. `connectedMs`
+  includes quiet healthy connections and excludes outages. `unexpectedDisconnects`
+  excludes intentional disconnect, cancellation, account/feature teardown and
+  shutdown. `receivedFrames` counts inbound relay frames, including control,
+  malformed, chunk and recovery traffic; it is not unique messages or bytes.
+
+Primary stability measure: `sum(unexpectedDisconnects) / (sum(connectedMs) / 3600000) * 100`
+unexpected disconnects per 100 connected hours. Ready rate is
+`successes / (successes + failures)`, with cancellations shown separately.
+Report successful p50/p95 ready/recovery durations alongside failure and cancellation
+rates; use p99 only with enough samples. Compare like traffic levels and product
+surfaces using existing `commitHash`, `version`, `common.platform`,
+`common.product` and `common.isAgentsWindow` properties (including web Agents).
+
+Both versions need this instrumentation; missing historical measurements cannot
+be reconstructed, and a version comparison alone is not causal proof. Deltas reset
+before reporting, but hard crashes can lose the final partial interval or an
+unfinished outcome; delivery is not exactly once. Browser timer throttling can
+delay summaries. No connection identifiers, credentials, addresses or error text
+are emitted, and the existing request aggregation is unchanged.
+
 ## Sources of Truth
 
 Agent Host owns transport routing, optional interception and persistence, resource normalization, and cross-provider trace context. Each provider owns the telemetry it produces:
@@ -210,7 +294,7 @@ flowchart LR
     codex -. Native logs and metrics .-> sink
 ```
 
-- **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK is constructed with the user's exporter settings unmodified and exports directly. SDK span data is not intercepted; the agent host additionally emits the session-title metadata span described below through the configured exporter.
+- **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK exports directly to the user's destination. For native HTTP trace exporters, a bare base URL is resolved to `/v1/traces` before it is supplied as a signal-specific endpoint. Explicit/custom paths and gRPC endpoints are unchanged; the base destination for other signals is preserved. SDK span data is not intercepted; the agent host additionally emits the session-title metadata span described below through the configured exporter.
 - **DB mode** (`COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED=true`): `AgentHostOTelService` starts a `LocalOtlpHttpReceiver` on `127.0.0.1` with an ephemeral port, then configures every native provider's trace exporter to use that loopback over OTLP/HTTP JSON. For each batch the receiver decodes the body and inserts spans into `OTelSqliteStore` (`onSpans`). If an OTLP/HTTP JSON external endpoint is also configured, the receiver fans the normalized JSON trace body out to an `OtlpHttpForwarder` (`onForward`) so the collector keeps receiving traces alongside the local DB. For OTLP/HTTP protobuf and OTLP/gRPC external protocols, traces remain in SQLite while native logs and metrics still export directly.
 
 ## Native Provider Signal Routing

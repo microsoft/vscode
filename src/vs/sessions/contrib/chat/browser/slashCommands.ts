@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { CompletionContext, CompletionItem, CompletionItemKind } from '../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from '../../../../editor/common/model.js';
 import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
@@ -48,6 +48,7 @@ interface ISessionsSlashCommandData {
 	readonly detail: string;
 	readonly sortText?: string;
 	readonly executeImmediately?: boolean;
+	readonly supportsAgentHost?: boolean;
 	readonly execute: (args: string) => void;
 }
 
@@ -70,7 +71,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 	private readonly _placeholderDecorations: IEditorDecorationsCollection;
 
 	constructor(
-		private readonly _editor: CodeEditorWidget,
+		private readonly _editor: ICodeEditor,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
@@ -147,7 +148,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 
 		const commandName = match[1];
 		const slashCommand = this._slashCommands.find(c => c.command === commandName);
-		if (!slashCommand) {
+		if (!slashCommand || !this._isSlashCommandAvailable(slashCommand)) {
 			return false;
 		}
 
@@ -171,6 +172,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 			detail: localize('slashCommand.agents', "View and manage custom agents"),
 			sortText: 'z3_agents',
 			executeImmediately: true,
+			supportsAgentHost: false,
 			execute: openSection(AICustomizationManagementSection.Agents),
 		});
 		this._slashCommands.push({
@@ -178,6 +180,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 			detail: localize('slashCommand.skills', "View and manage skills"),
 			sortText: 'z3_skills',
 			executeImmediately: true,
+			supportsAgentHost: false,
 			execute: openSection(AICustomizationManagementSection.Skills),
 		});
 		this._slashCommands.push({
@@ -185,6 +188,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 			detail: localize('slashCommand.instructions', "View and manage instructions"),
 			sortText: 'z3_instructions',
 			executeImmediately: true,
+			supportsAgentHost: false,
 			execute: openSection(AICustomizationManagementSection.Instructions),
 		});
 		this._slashCommands.push({
@@ -271,6 +275,9 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 			_debugDisplayName: 'sessionsSlashCommands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+				if (!isEqual(model.uri, uri)) {
+					return null;
+				}
 				const range = this._computeCompletionRanges(model, position, /\/\w*/g);
 				if (!range) {
 					return null;
@@ -283,7 +290,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 				}
 
 				return {
-					suggestions: this._slashCommands.map((c, i): CompletionItem => {
+					suggestions: this._slashCommands.filter(c => this._isSlashCommandAvailable(c)).map((c, i): CompletionItem => {
 						const withSlash = `/${c.command}`;
 						return {
 							label: withSlash,
@@ -305,6 +312,9 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 			_debugDisplayName: 'sessionsPromptSlashCommands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
+				if (!isEqual(model.uri, uri)) {
+					return null;
+				}
 				const activeSession = this.sessionContext.session.get();
 				if (!activeSession) {
 					return null;
@@ -347,6 +357,13 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 				};
 			}
 		}));
+	}
+
+	private _isSlashCommandAvailable(command: ISessionsSlashCommandData): boolean {
+		const activeSession = this.sessionContext.session.get();
+		return command.supportsAgentHost !== false
+			|| !activeSession
+			|| !isAgentHostTarget(getChatSessionType(activeSession.resource));
 	}
 
 	private _computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp): { insert: Range; replace: Range } | undefined {

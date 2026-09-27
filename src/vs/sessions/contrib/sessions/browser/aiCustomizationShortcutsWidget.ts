@@ -19,7 +19,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { CUSTOMIZATION_ITEMS, readCustomizationCount } from './customizationsToolbar.contribution.js';
+import { readTotalCustomizationCount } from './customizationsToolbar.contribution.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -108,19 +108,14 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	private _totalCount() {
-		return derived(reader => {
-			this.harnessService.activeHarness.read(reader);
-			this.harnessService.availableHarnesses.read(reader);
-			const hidden = new Set(this.harnessService.getActiveDescriptor().hiddenSections ?? []);
-			let total = 0;
-			for (const config of CUSTOMIZATION_ITEMS) {
-				if (config.section && hidden.has(config.section)) {
-					continue;
-				}
-				total += readCustomizationCount(config, reader, this.itemsModel, this.mcpServerCountService, this.toolsService, this.toolEnablementService);
-			}
-			return total;
-		});
+		return derived(reader => readTotalCustomizationCount(
+			reader,
+			this.itemsModel,
+			this.mcpServerCountService,
+			this.toolsService,
+			this.toolEnablementService,
+			this.harnessService,
+		));
 	}
 
 	private _render(parent: HTMLElement, options: IAICustomizationShortcutsWidgetOptions | undefined): void {
