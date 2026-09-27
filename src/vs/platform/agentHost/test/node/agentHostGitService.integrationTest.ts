@@ -100,11 +100,32 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.strictEqual(result, undefined);
 	});
 
+	(hasGit ? test : test.skip)('getCurrentBranchName distinguishes a branch from detached HEAD with strict lookup', async () => {
+		const dir = initRepo();
+		const directory = URI.file(dir);
+		const branch = await svc!.getCurrentBranchName(directory, { throwOnError: true });
+		cp.execFileSync('git', ['checkout', '--detach', '-q'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual({
+			branch,
+			detached: await svc!.getCurrentBranchName(directory, { throwOnError: true }),
+		}, { branch: 'main', detached: undefined });
+	});
+
+	(hasGit ? test : test.skip)('getCurrentBranchName throws on failed strict lookup without changing best-effort callers', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-nongit-'));
+		const directory = URI.file(tmpRoot);
+
+		assert.strictEqual(await svc!.getCurrentBranchName(directory), undefined);
+		await assert.rejects(() => svc!.getCurrentBranchName(directory, { throwOnError: true }), /not a git repository/);
+	});
+
 	(hasGit ? test : test.skip)('reports branch, github remote and clean state for a fresh repo', async () => {
 		const dir = initRepo({ remote: 'https://github.com/owner/repo.git' });
 		const result = await svc!.getSessionGitState(URI.file(dir));
 		assert.ok(result, 'expected git state');
 		assert.strictEqual(result.branchName, 'main');
+		assert.strictEqual(result.hasGitRemote, true);
 		assert.strictEqual(result.hasGitHubRemote, true);
 		assert.strictEqual(result.uncommittedChanges, 0);
 		// No upstream configured for the fresh local branch.
@@ -202,7 +223,15 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		const result = await svc!.getSessionGitState(URI.file(dir));
 		assert.ok(result);
 		assert.strictEqual(result.uncommittedChanges, 2);
+		assert.strictEqual(result.hasGitRemote, true);
 		assert.strictEqual(result.hasGitHubRemote, false);
+	});
+
+	(hasGit ? test : test.skip)('reports when a repository has no remote', async () => {
+		const dir = initRepo();
+		const result = await svc!.getSessionGitState(URI.file(dir));
+		assert.ok(result);
+		assert.strictEqual(result.hasGitRemote, false);
 	});
 
 	(hasGit ? test : test.skip)('reports no state at all when the status probe fails', async () => {
@@ -1174,7 +1203,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				track: false,
 			});
 			const progress: { filesDone: number; filesTotal: number }[] = [];
-			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), ['.env', 'secrets/**', 'partial/*.txt', 'app/**'], sample => progress.push(sample));
+			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), ['.env', 'secrets/**', 'partial/*.txt', 'app/**'], 'include-files-session', sample => progress.push(sample));
 
 			const read = async (relativePath: string) => {
 				try { return await fs.readFile(join(wtPath, relativePath), 'utf8'); } catch { return undefined; }
@@ -1213,6 +1242,69 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			await rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/include-files'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	(hasGit ? test : test.skip)('copyWorktreeIncludeFiles matches patterns with .gitignore semantics', async () => {
+		const dir = initRepo();
+		const logService = new TestLogService();
+		const service = createGitService(disposables, logService);
+		const fs = await import('fs/promises');
+		// Pin case sensitivity so the result does not depend on the platform default.
+		cp.execFileSync('git', ['config', 'core.ignorecase', 'false'], { cwd: dir, env, stdio: 'pipe' });
+
+		await fs.writeFile(join(dir, '.gitignore'), '.env\n*.local\nnode_modules\nlogs/\n*.json\n\\#notes\n');
+		const ignoredFiles = ['.env', 'app/.env', 'root.local', 'app/root.local', 'node_modules/a/index.js', 'pkg/node_modules/b/index.js', 'logs/keep.log', 'logs/skip.log', 'a.json', '{a,b}.json', '#notes'];
+		for (const file of ignoredFiles) {
+			await fs.mkdir(join(dir, file, '..'), { recursive: true });
+			await fs.writeFile(join(dir, file), file);
+		}
+
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		// Characters that are unsafe in a file name must not let the temporary
+		// patterns directory escape `tmpDir`.
+		const sessionId = '../include-files/session';
+		try {
+			await service.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/include-files-gitignore',
+				track: false,
+			});
+			await service.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), [
+				'.env', // unanchored: matches at any depth
+				'/root.local', // anchored to the repository root
+				'node_modules', // no trailing slash: matches the directory contents
+				'logs/*',
+				'!logs/skip.log', // negation
+				'{a,b}.json', // no brace expansion: matches the literal file name
+				'#notes', // comment: matches nothing
+				'a.json\n!x', // line break: dropped
+			], sessionId);
+
+			const copied = ignoredFiles.filter(file => existsSync(join(wtPath, file))).sort();
+
+			assert.deepStrictEqual({
+				copied,
+				lineBreakWarning: logService.warnings.some(warning => warning.includes('Ignoring 1 pattern(s) containing line breaks')),
+				tempDirectoryRemoved: !existsSync(join(tmpdir(), 'agent-host-worktree-include-.._include-files_session')),
+			}, {
+				copied: [
+					'.env',
+					'app/.env',
+					'logs/keep.log',
+					'node_modules/a/index.js',
+					'pkg/node_modules/b/index.js',
+					'root.local',
+					'{a,b}.json',
+				],
+				lineBreakWarning: true,
+				tempDirectoryRemoved: true,
+			});
+		} finally {
+			try { await service.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/include-files-gitignore'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
 });

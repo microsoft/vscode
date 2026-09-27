@@ -200,12 +200,6 @@ import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker
 // already-opened chat input. Web-only for the same reason as above.
 import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.js';
 
-// Mobile-aware Copilot permission picker. Replaces the desktop
-// permission picker registration (which the shared contribution
-// skips when `isWeb`), so we get the bottom-sheet sheet on phone
-// without duplicate-registration conflicts.
-import './contrib/providers/copilotChatSessions/browser/mobilePermissionPicker.contribution.js';
-
 // TODO: support agent feedback in web
 import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';
 import '../workbench/contrib/webview/browser/webview.web.contribution.js';

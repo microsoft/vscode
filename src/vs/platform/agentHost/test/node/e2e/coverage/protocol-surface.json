@@ -21,15 +21,14 @@
 		]
 	},
 	"actions": {
-		"covered": 85,
-		"total": 96,
-		"percentage": 88.54,
+		"covered": 88,
+		"total": 98,
+		"percentage": 89.79,
 		"uncovered": [
-			"automationRun/cancelRequested",
 			"automationRun/sessionRemoved",
 			"changeset/fileRemoved",
 			"changeset/fileSet",
-			"chat/inputAnswerChanged",
+			"chat/isArchivedChanged",
 			"chat/reasoning",
 			"chat/toolCallAuthRequired",
 			"chat/toolCallAuthResolved",

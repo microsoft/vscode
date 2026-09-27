@@ -12,6 +12,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
@@ -177,6 +178,22 @@ suite('CreatePullRequestWidget', () => {
 			}, { created: primaryAction === 'create' ? [context] : [], sent: primaryAction === 'sendToChat' ? [context] : [], storedContext: false });
 		});
 	}
+
+	test('prepares and creates for the chat the form was opened from', async () => {
+		const chat = URI.parse('agent-session:/session#peer');
+		const chats: { operation: string; chat: string | undefined }[] = [];
+		const { widget } = createWidget({
+			prepare: async (_token, requestedChat) => { chats.push({ operation: 'prepare', chat: requestedChat?.toString() }); return details; },
+			create: async (_options, requestedChat) => { chats.push({ operation: 'create', chat: requestedChat?.toString() }); },
+		}, undefined, { chat });
+		await widget.ready;
+		submit(widget);
+		await timeout(0);
+		assert.deepStrictEqual(chats, [
+			{ operation: 'prepare', chat: chat.toString() },
+			{ operation: 'create', chat: chat.toString() },
+		]);
+	});
 
 	function chooseMenuAction(label: string): void {
 		const actions = [...document.querySelectorAll<HTMLElement>('.monaco-menu .action-label')];
@@ -1499,14 +1516,14 @@ suite('CreatePullRequestWidget', () => {
 		});
 	}
 
-	for (const change of ['creation', 'branchName', 'baseBranchName'] as const) {
+	for (const change of ['creation', 'chat', 'branchName', 'baseBranchName'] as const) {
 		test(`saved form content is not reused after changing ${change}`, async () => {
 			const { host, anchor, contextView } = createContextView();
 			const creation: ISessionPullRequestCreation = {
 				operationId: 'create-pr', prepare: async () => details,
 				prepareChatRequest: async query => ({ query }), create: async () => assert.fail('Must not create'),
 			};
-			const options = { branchName: details.branchName, baseBranchName: details.baseBranchName };
+			const options = { chat: URI.parse('agent-session:/session'), branchName: details.branchName, baseBranchName: details.baseBranchName };
 			contextView.show(anchor, creation, options);
 			await timeout(0);
 			const title = host.querySelector<HTMLInputElement>('input')!;
@@ -1514,7 +1531,7 @@ suite('CreatePullRequestWidget', () => {
 			title.dispatchEvent(new Event('input', { bubbles: true }));
 			contextView.close();
 			contextView.show(anchor, change === 'creation' ? { ...creation } : creation, {
-				...options, ...(change === 'creation' ? {} : { [change]: 'another-branch' }),
+				...options, ...(change === 'creation' ? {} : change === 'chat' ? { chat: options.chat.with({ fragment: 'peer' }) } : { [change]: 'another-branch' }),
 			});
 			await timeout(0);
 			const newTitle = host.querySelector<HTMLInputElement>('input')!.value;

@@ -17,6 +17,7 @@ import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import type { IExtensionContribution } from '../../common/contributions';
 import { IOTelPolicyRestartRecord, OTelStaleConfigMonitor } from '../common/otelStaleConfigMonitor';
 import { OTEL_SETTINGS_SECTION } from './otelConfigResolver';
+import { recordChatUserInteraction } from './chatUserInteraction';
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
 const STATUS_ACTIVE_COMMAND = 'github.copilot.chat.otel.statusActive';
@@ -52,6 +53,9 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 		this._logEndpointInfo();
 		this._installVisibilityIndicators();
 		this._configureTerminalEnv();
+
+		this._register(vscode.commands.registerCommand('github.copilot.chat.otel.recordUserInteraction',
+			(data: unknown) => recordChatUserInteraction(this._otelService, data)));
 
 		this._register(vscode.commands.registerCommand('github.copilot.chat.otel.flush', async () => {
 			if (!this._otelService.config.enabled) {

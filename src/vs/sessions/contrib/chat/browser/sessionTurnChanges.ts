@@ -70,7 +70,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 				|| !this._isMostRecentChat(owner.session, owner.chat, reader)) {
 				stats = readRequestStats();
 			} else {
-				const changeset = this._changesViewService.activeSessionChangesetsObs.read(reader)
+				const changeset = owner.chat.changesets.read(reader)
 					?.find(candidate => candidate.id === TURN_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
 				if (!changeset) {
 					stats = readRequestStats();

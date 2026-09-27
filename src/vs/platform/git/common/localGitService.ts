@@ -7,7 +7,17 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const ILocalGitService = createDecorator<ILocalGitService>('localGitService');
 
-export interface IGitPullOptions {
+export interface IGitAuthentication {
+	readonly url: string;
+	readonly authorizationHeader: string;
+}
+
+export interface IGitNetworkOptions {
+	readonly authentication?: IGitAuthentication;
+	readonly logErrors?: boolean;
+}
+
+export interface IGitPullOptions extends IGitNetworkOptions {
 	readonly allowHardResetOnDivergence?: boolean;
 }
 
@@ -19,12 +29,13 @@ export interface IGitPullOptions {
 export interface ILocalGitService {
 	readonly _serviceBrand: undefined;
 
-	clone(operationId: string, cloneUrl: string, targetPath: string, ref?: string): Promise<void>;
+	clone(operationId: string, cloneUrl: string, targetPath: string, ref?: string, options?: IGitNetworkOptions): Promise<void>;
 	pull(operationId: string, repoPath: string, options?: IGitPullOptions): Promise<boolean>;
 	checkout(operationId: string, repoPath: string, treeish: string, detached?: boolean): Promise<void>;
 	checkoutCommit(operationId: string, repoPath: string, commit: string): Promise<void>;
 	revParse(repoPath: string, ref: string): Promise<string>;
-	fetch(operationId: string, repoPath: string): Promise<void>;
+	getRemoteUrl(operationId: string, repoPath: string, options?: IGitNetworkOptions): Promise<string>;
+	fetch(operationId: string, repoPath: string, options?: IGitNetworkOptions): Promise<void>;
 	revListCount(repoPath: string, fromRef: string, toRef: string): Promise<number>;
 	cancel(operationId: string): Promise<void>;
 }

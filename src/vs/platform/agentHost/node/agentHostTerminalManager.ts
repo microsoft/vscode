@@ -138,6 +138,7 @@ export interface IAgentHostTerminalManager {
 	createOutputTerminal(uri: string, options: { title: string; claim: TerminalClaim }): void;
 	appendOutputTerminalData(uri: string, data: string): void;
 	resetOutputTerminal(uri: string): void;
+	replaceOutputTerminalData(uri: string, data: string): void;
 	finalizeOutputTerminal(uri: string, exitCode: number | undefined): void;
 }
 
@@ -875,6 +876,25 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		});
 	}
 
+	/** Replace an output-only terminal with its authoritative completed content. */
+	replaceOutputTerminalData(uri: string, data: string): void {
+		const terminal = this._outputTerminals.get(uri);
+		if (!terminal) {
+			return;
+		}
+		terminal.content = data ? [{ type: 'unclassified', value: data }] : [];
+		terminal.contentSize = data.length;
+		this._stateManager.dispatchServerAction(uri, {
+			type: ActionType.TerminalCleared,
+		});
+		if (data) {
+			this._stateManager.dispatchServerAction(uri, {
+				type: ActionType.TerminalData,
+				data,
+			});
+		}
+	}
+
 	/** Record the command's exit on an output-only terminal and notify subscribers. */
 	finalizeOutputTerminal(uri: string, exitCode: number | undefined): void {
 		const terminal = this._outputTerminals.get(uri);
@@ -961,6 +981,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			terminal.store.dispose();
 		}
 		this._terminals.clear();
+		this._outputTerminals.clear();
 		super.dispose();
 	}
 }
