@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/part.css';
-import './media/floatingPanels.css';
 import { Component } from '../common/component.js';
 import { IThemeService, IColorTheme } from '../../platform/theme/common/themeService.js';
 import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from '../../base/browser/dom.js';
@@ -80,7 +79,7 @@ export abstract class Part<MementoType extends object = object> extends Componen
 		this.titleArea = this.createTitleArea(parent, options);
 		this.contentArea = this.createContentArea(parent, options);
 
-		this.partLayout = new PartLayout(this.options, this.contentArea, this.layoutService);
+		this.partLayout = new PartLayout(this.options, this.contentArea);
 
 		this.updateStyles();
 	}
@@ -218,8 +217,6 @@ class PartLayout {
 	private static readonly HEADER_HEIGHT = 35;
 	private static readonly TITLE_HEIGHT = 35;
 	private static readonly FOOTER_HEIGHT = 35;
-	// KEEP IN SYNC WITH: modernUI/browser/media/padding.css
-	private static readonly AREA_HEIGHT_MODERN_UI = 32;
 
 	private headerVisible: boolean = false;
 	private footerVisible: boolean = false;
@@ -227,15 +224,13 @@ class PartLayout {
 	constructor(
 		private options: IPartOptions,
 		private contentArea: HTMLElement | undefined,
-		private layoutService: IWorkbenchLayoutService,
 	) { }
 
 	layout(width: number, height: number): ILayoutContentResult {
 		// Title Size: Width (Fill), Height (Variable).
 		let titleSize: Dimension;
 		if (this.options.hasTitle) {
-			const titleHeight = this.layoutService.isFloatingPanelsEnabled() ? PartLayout.AREA_HEIGHT_MODERN_UI : PartLayout.TITLE_HEIGHT;
-			titleSize = new Dimension(width, Math.min(height, titleHeight));
+			titleSize = new Dimension(width, Math.min(height, PartLayout.TITLE_HEIGHT));
 		} else {
 			titleSize = Dimension.None;
 		}
@@ -243,8 +238,7 @@ class PartLayout {
 		// Header Size: Width (Fill), Height (Variable)
 		let headerSize: Dimension;
 		if (this.headerVisible) {
-			const headerHeight = this.layoutService.isFloatingPanelsEnabled() ? PartLayout.AREA_HEIGHT_MODERN_UI : PartLayout.HEADER_HEIGHT;
-			headerSize = new Dimension(width, Math.min(height, headerHeight));
+			headerSize = new Dimension(width, Math.min(height, PartLayout.HEADER_HEIGHT));
 		} else {
 			headerSize = Dimension.None;
 		}
@@ -252,8 +246,7 @@ class PartLayout {
 		// Footer Size: Width (Fill), Height (Variable)
 		let footerSize: Dimension;
 		if (this.footerVisible) {
-			const footerHeight = this.layoutService.isFloatingPanelsEnabled() ? PartLayout.AREA_HEIGHT_MODERN_UI : PartLayout.FOOTER_HEIGHT;
-			footerSize = new Dimension(width, Math.min(height, footerHeight));
+			footerSize = new Dimension(width, Math.min(height, PartLayout.FOOTER_HEIGHT));
 		} else {
 			footerSize = Dimension.None;
 		}

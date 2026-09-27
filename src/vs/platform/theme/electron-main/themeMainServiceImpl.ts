@@ -388,17 +388,12 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			auxiliaryBarWidth = 0; // technically not true if configured 'visible', but we never store splash per empty window, so we decide on a default here
 		}
 
-		const partBounds = sideBarWidth === partSplash.layoutInfo.sideBarWidth && auxiliaryBarWidth === partSplash.layoutInfo.auxiliaryBarWidth
-			? partSplash.layoutInfo.partBounds
-			: undefined;
-
 		return {
 			...partSplash,
 			layoutInfo: {
 				...partSplash.layoutInfo,
 				sideBarWidth,
-				auxiliaryBarWidth,
-				partBounds
+				auxiliaryBarWidth
 			}
 		};
 	}

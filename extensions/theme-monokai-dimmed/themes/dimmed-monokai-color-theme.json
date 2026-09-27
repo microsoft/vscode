@@ -73,11 +73,6 @@
 		"terminal.inactiveSelectionBackground": "#676b7140",
 		"agentsBottomPanel.border": "#00000000",
 		"agentsCard.border": "#00000000",
-		// modern ui
-		"surface.border": "#00000000",
-		"modernActivityBarItem.activeBackground": "#353535",
-		"modernActivityBarItem.hoverBackground": "#35353566",
-		"modernSash.gripForeground": "#272727",
 	},
 	"tokenColors": [
 		{

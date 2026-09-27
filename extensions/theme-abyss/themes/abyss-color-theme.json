@@ -446,10 +446,6 @@
 		"terminal.ansiBrightMagenta": "#d778ff",
 		"terminal.ansiBrightCyan": "#78ffff",
 		"terminal.ansiBrightWhite": "#ffffff",
-		// modern ui
-		"surface.border": "#2b2b4a",
-		"modernActivityBarItem.activeBackground": "#08286b",
-		"modernActivityBarItem.hoverBackground": "#08286b87",
 	},
 	"semanticHighlighting": true
 }

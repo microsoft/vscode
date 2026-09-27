@@ -26,7 +26,6 @@ import { XtermAddonImporter } from '../../../../terminal/browser/xterm/xtermAddo
 import { TerminalStickyScrollContribution } from '../../browser/terminalStickyScrollContribution.js';
 import '../../../../terminal/browser/media/terminal.css';
 import '../../../../terminal/browser/media/xterm.css';
-import '../../../../modernUI/browser/media/padding.css';
 
 suite('TerminalStickyScrollOverlay', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,7 +37,7 @@ suite('TerminalStickyScrollOverlay', () => {
 		await Promise.all([importer.importAddon('serialize'), importer.importAddon('ligatures')]);
 	});
 
-	async function createOverlay(modernUI: boolean, {
+	async function createOverlay({
 		promptRowCount = 1,
 		show = true,
 		location = 'panel',
@@ -62,7 +61,6 @@ suite('TerminalStickyScrollOverlay', () => {
 			override getViewLocationById() { return location === 'side' ? ViewContainerLocation.Sidebar : ViewContainerLocation.Panel; }
 		});
 		const root = $('.monaco-workbench');
-		root.classList.toggle('modern-ui', modernUI);
 		root.style.setProperty('--vscode-spacing-size80', '8px');
 		root.style.setProperty('--vscode-spacing-size200', '20px');
 		const part = root.appendChild($(location === 'side' ? '.part.sidebar' : '.part.panel'));
@@ -174,140 +172,130 @@ suite('TerminalStickyScrollOverlay', () => {
 		return { raw, contribution, root, pane, element, screen, terminalScreen: raw.screenElement, endMarker, clock, write, layout };
 	}
 
-	for (const modernUI of [false, true]) {
-		suite(modernUI ? 'Modern UI' : 'Classic UI', () => {
-			test('positions the header on its first show', async () => {
-				const { raw, pane, element, screen, terminalScreen } = await createOverlay(modernUI);
-				ok(raw.dimensions);
-				ok(pane.clientHeight % raw.dimensions.css.cell.height !== 0, 'The pane must not fit an integral number of rows');
-				deepStrictEqual({
-					visible: element.classList.contains('visible'),
-					offset: screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top
-				}, {
-					visible: true,
-					offset: 0
-				});
+	suite('Classic UI', () => {
+		test('positions the header on its first show', async () => {
+			const { raw, pane, element, screen, terminalScreen } = await createOverlay();
+			ok(raw.dimensions);
+			ok(pane.clientHeight % raw.dimensions.css.cell.height !== 0, 'The pane must not fit an integral number of rows');
+			deepStrictEqual({
+				visible: element.classList.contains('visible'),
+				offset: screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top
+			}, {
+				visible: true,
+				offset: 0
 			});
+		});
 
-			test('keeps the header aligned after scrolling', async () => {
-				const { raw, screen, terminalScreen, clock } = await createOverlay(modernUI);
-				raw.scrollToLine(11);
-				await clock.tickAsync(100);
-				deepStrictEqual(screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top, 0);
+		test('keeps the header aligned after scrolling', async () => {
+			const { raw, screen, terminalScreen, clock } = await createOverlay();
+			raw.scrollToLine(11);
+			await clock.tickAsync(100);
+			deepStrictEqual(screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top, 0);
+		});
+
+		test('keeps the header aligned after a layout without a row count change', async () => {
+			const { raw, layout, screen, terminalScreen, clock } = await createOverlay();
+			layout(240);
+			await clock.tickAsync(100);
+			deepStrictEqual({
+				rows: raw.rows,
+				offset: screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top
+			}, {
+				rows: 10,
+				offset: 0
 			});
+		});
 
-			test('keeps the header aligned after a layout without a row count change', async () => {
-				const { raw, layout, screen, terminalScreen, clock } = await createOverlay(modernUI);
+		test('pushes a multiline header out by cell heights at the next command', async () => {
+			const { raw, screen, terminalScreen, endMarker, clock } = await createOverlay({ promptRowCount: 3 });
+			raw.scrollToLine(endMarker.line - 1);
+			await clock.tickAsync(100);
+			ok(raw.dimensions);
+			deepStrictEqual({
+				height: screen.getBoundingClientRect().height,
+				offset: screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top
+			}, {
+				height: 3 * raw.dimensions.css.cell.height,
+				offset: -2 * raw.dimensions.css.cell.height
+			});
+		});
+
+		test('cancels the delayed first show when scrolling back to the prompt', async () => {
+			const { raw, element, clock } = await createOverlay({ show: false });
+			const initiallyVisible = element.classList.contains('visible');
+			raw.scrollToTop();
+			await clock.tickAsync(100);
+			deepStrictEqual({
+				initiallyVisible,
+				visible: element.classList.contains('visible')
+			}, {
+				initiallyVisible: false,
+				visible: false
+			});
+		});
+
+		test('keeps the header hidden when laying out the alternate buffer', async () => {
+			const { raw, contribution, element, clock, write } = await createOverlay();
+			await write('\x1b[?1049h');
+			contribution.layout();
+			await clock.tickAsync(100);
+			deepStrictEqual({
+				buffer: raw.buffer.active.type,
+				visible: element.classList.contains('visible')
+			}, {
+				buffer: 'alternate',
+				visible: false
+			});
+		});
+
+		test('cancels a pending show in the alternate buffer and restores it on return', async () => {
+			const { raw, contribution, element, screen, terminalScreen, clock, write } = await createOverlay({ show: false });
+			await write('\x1b[?1049h');
+			contribution.layout();
+			await clock.tickAsync(100);
+			const visibleInAlternateBuffer = element.classList.contains('visible');
+			await write('\x1b[?1049l');
+			raw.scrollToLine(10);
+			await clock.tickAsync(100);
+			deepStrictEqual({
+				visibleInAlternateBuffer,
+				buffer: raw.buffer.active.type,
+				visible: element.classList.contains('visible'),
+				offset: screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top
+			}, {
+				visibleInAlternateBuffer: false,
+				buffer: 'normal',
+				visible: true,
+				offset: 0
+			});
+		});
+
+		for (const location of ['side', 'editor', 'fixed', 'upper split'] as const) {
+			test(`keeps the header aligned in the ${location} terminal`, async () => {
+				const { raw, element, screen, terminalScreen, layout, clock } = await createOverlay({ location });
+				ok(raw.element);
+				ok(raw.element.offsetParent);
+				deepStrictEqual(element.offsetParent, raw.element.offsetParent);
+				const initialOffset = screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top;
 				layout(240);
 				await clock.tickAsync(100);
 				deepStrictEqual({
-					rows: raw.rows,
-					offset: screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top
+					initialOffset,
+					resizedOffset: screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top
 				}, {
-					rows: 10,
-					offset: 0
+					initialOffset: 0,
+					resizedOffset: 0
 				});
 			});
+		}
 
-			test('pushes a multiline header out by cell heights at the next command', async () => {
-				const { raw, screen, terminalScreen, endMarker, clock } = await createOverlay(modernUI, { promptRowCount: 3 });
-				raw.scrollToLine(endMarker.line - 1);
-				await clock.tickAsync(100);
-				ok(raw.dimensions);
-				deepStrictEqual({
-					height: screen.getBoundingClientRect().height,
-					offset: screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top
-				}, {
-					height: 3 * raw.dimensions.css.cell.height,
-					offset: -2 * raw.dimensions.css.cell.height
-				});
-			});
-
-			test('cancels the delayed first show when scrolling back to the prompt', async () => {
-				const { raw, element, clock } = await createOverlay(modernUI, { show: false });
-				const initiallyVisible = element.classList.contains('visible');
-				raw.scrollToTop();
-				await clock.tickAsync(100);
-				deepStrictEqual({
-					initiallyVisible,
-					visible: element.classList.contains('visible')
-				}, {
-					initiallyVisible: false,
-					visible: false
-				});
-			});
-
-			test('keeps the header hidden when laying out the alternate buffer', async () => {
-				const { raw, contribution, element, clock, write } = await createOverlay(modernUI);
-				await write('\x1b[?1049h');
-				contribution.layout();
-				await clock.tickAsync(100);
-				deepStrictEqual({
-					buffer: raw.buffer.active.type,
-					visible: element.classList.contains('visible')
-				}, {
-					buffer: 'alternate',
-					visible: false
-				});
-			});
-
-			test('cancels a pending show in the alternate buffer and restores it on return', async () => {
-				const { raw, contribution, element, screen, terminalScreen, clock, write } = await createOverlay(modernUI, { show: false });
-				await write('\x1b[?1049h');
-				contribution.layout();
-				await clock.tickAsync(100);
-				const visibleInAlternateBuffer = element.classList.contains('visible');
-				await write('\x1b[?1049l');
-				raw.scrollToLine(10);
-				await clock.tickAsync(100);
-				deepStrictEqual({
-					visibleInAlternateBuffer,
-					buffer: raw.buffer.active.type,
-					visible: element.classList.contains('visible'),
-					offset: screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top
-				}, {
-					visibleInAlternateBuffer: false,
-					buffer: 'normal',
-					visible: true,
-					offset: 0
-				});
-			});
-
-			for (const location of ['side', 'editor', 'fixed', 'upper split'] as const) {
-				test(`keeps the header aligned in the ${location} terminal`, async () => {
-					const { raw, element, screen, terminalScreen, layout, clock } = await createOverlay(modernUI, { location });
-					ok(raw.element);
-					ok(raw.element.offsetParent);
-					deepStrictEqual(element.offsetParent, raw.element.offsetParent);
-					const initialOffset = screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top;
-					layout(240);
-					await clock.tickAsync(100);
-					deepStrictEqual({
-						initialOffset,
-						resizedOffset: screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top
-					}, {
-						initialOffset: 0,
-						resizedOffset: 0
-					});
-				});
-			}
-
-			test('keeps the header aligned when toggling Modern UI', async () => {
-				const { root, contribution, screen, terminalScreen, clock } = await createOverlay(modernUI);
-				root.classList.toggle('modern-ui', !modernUI);
-				contribution.layout();
-				await clock.tickAsync(100);
-				deepStrictEqual(screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top, 0);
-			});
-
-			test('keeps fractional font and zoom geometry within one CSS pixel', async () => {
-				const { root, contribution, screen, terminalScreen, clock } = await createOverlay(modernUI, { fontSize: 13.5 });
-				root.style.zoom = '1.25';
-				contribution.layout();
-				await clock.tickAsync(100);
-				const offset = screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top;
-				ok(Math.abs(offset) <= 1, `Header offset: ${offset}px`);
-			});
+		test('keeps fractional font and zoom geometry within one CSS pixel', async () => {
+			const { root, contribution, screen, terminalScreen, clock } = await createOverlay({ fontSize: 13.5 });
+			root.style.zoom = '1.25';
+			contribution.layout();
+			await clock.tickAsync(100);
+			const offset = screen.getBoundingClientRect().top - terminalScreen.getBoundingClientRect().top;
+			ok(Math.abs(offset) <= 1, `Header offset: ${offset}px`);
 		});
-	}
+	});
 });

@@ -75,7 +75,6 @@ import { IAuthenticationUsageService } from '../../../services/authentication/br
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import { getWorkbenchMenuMotionContextMenuOptions } from '../../../browser/actions/menuMotion.js';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -1222,9 +1221,10 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 
 	public showMenu(menuActionGroups: IAction[][]): void {
 		if (this.element) {
+			const anchor = this.element;
 			const actions = this.getActions(menuActionGroups);
 			this.contextMenuService.showContextMenu({
-				...getWorkbenchMenuMotionContextMenuOptions(this.element),
+				getAnchor: () => anchor,
 				getActions: () => actions,
 				actionRunner: this.actionRunner,
 				onHide: () => disposeIfDisposable(actions)

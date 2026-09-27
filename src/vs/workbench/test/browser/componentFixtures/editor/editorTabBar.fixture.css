@@ -7,7 +7,7 @@
 	background-color: var(--modern-ui-editor-tab-hover-background);
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.fixture-hover:not(.active):not(.dirty):not(.sticky):not(:focus-within) > .tab-actions .action-label {
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.fixture-hover:not(.active):not(.dirty):not(.sticky):not(:focus-within) > .tab-actions .action-label {
 	opacity: 1;
 }
 

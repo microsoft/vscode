@@ -209,21 +209,6 @@ function dirtyEditorSpecs(): IEditorSpec[] {
 	];
 }
 
-/**
- * A mix of clean, dirty and sticky tabs used to show `tabActionReserveSpace`:
- * clean tabs collapse to the compact width when the column is not reserved,
- * while the dirty and sticky tabs keep their persistent-indicator column.
- */
-function reserveSpaceEditorSpecs(): IEditorSpec[] {
-	return [
-		{ resource: file('/project/src/app/main.ts'), icon: ThemeIcon.fromId(Codicon.symbolFile.id), sticky: true, pinned: true },
-		{ resource: file('/project/src/app/index.ts'), pinned: true },
-		{ resource: file('/project/README.md'), icon: ThemeIcon.fromId(Codicon.markdown.id), pinned: true },
-		{ resource: file('/project/package.json'), icon: ThemeIcon.fromId(Codicon.json.id), pinned: true, dirty: true, active: true },
-		{ resource: file('/project/src/app/components/button.tsx'), pinned: true },
-	];
-}
-
 /** Sticky (pinned) editors to show the sticky tab styling. */
 function stickyEditorSpecs(): IEditorSpec[] {
 	return [
@@ -429,7 +414,6 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		symbolPath: 'off',
 		icons: options.breadcrumbs?.icons ?? true,
 	});
-	configurationService.setUserConfiguration(LayoutSettings.MODERN_UI, options.modernUI);
 	configurationService.setUserConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, options.editorTabStyle ?? ModernUIEditorTabStyle.Connected);
 
 	const instantiationService = workbenchInstantiationService({
@@ -631,7 +615,6 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 
 function render(modernUI: boolean, options: Omit<IEditorTabBarFixtureOptions, 'modernUI'>): (ctx: ComponentFixtureContext) => void {
 	return (ctx: ComponentFixtureContext) => {
-		ctx.container.classList.toggle('modern-ui', modernUI);
 		renderEditorTabBarFixture(ctx, { ...options, modernUI });
 	};
 }
@@ -679,10 +662,6 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 
 		// tabActionUnpinVisibility (with sticky/compact tabs where the unpin action shows)
 		TabActionUnpinHidden: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionUnpinVisibility: false, pinnedTabSizing: 'normal' }, editors: stickyEditorSpecs() }) }),
-
-		// tabActionReserveSpace (Modern UI: reserved by default; when disabled clean tabs go compact while dirty/sticky still reserve their indicator column)
-		TabActionReserveSpaceOn: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionReserveSpace: true }, editors: reserveSpaceEditorSpecs() }) }),
-		TabActionReserveSpaceOff: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionReserveSpace: false }, editors: reserveSpaceEditorSpecs() }) }),
 
 		// showTabIndex
 		ShowTabIndex: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabIndex: true } }) }),
@@ -779,7 +758,6 @@ function getModernEditorTabColorCustomizations(theme: ComponentFixtureContext['t
 
 function renderThemeColors(options: Omit<IEditorTabBarFixtureOptions, 'modernUI' | 'colorCustomizations'>): (ctx: ComponentFixtureContext) => void {
 	return ctx => {
-		ctx.container.classList.add('modern-ui');
 		renderEditorTabBarFixture(ctx, {
 			...options,
 			modernUI: true,
@@ -847,8 +825,8 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		Minimal: defineComponentFixture({ fileIconTheme: 'vs-minimal', render: render(false, {}) }),
 		None: defineComponentFixture({ fileIconTheme: 'none', render: render(false, {}) }),
 	}),
-	ModernUIOff: defineThemedFixtureGroup(createFixtures(false, ['darkHighContrast'])),
-	ModernUIOn: defineThemedFixtureGroup({
+	Classic: defineThemedFixtureGroup(createFixtures(false, ['darkHighContrast'])),
+	AgentsTabs: defineThemedFixtureGroup({
 		...createFixtures(true, ['darkHighContrast']),
 		Pill: defineComponentFixture({
 			render: render(true, { editorTabStyle: ModernUIEditorTabStyle.Pill }),
@@ -865,7 +843,7 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			themes: ['dark'],
 			additionalThemes: ['darkModern'],
 			expectedVisualDescriptions: [
-				'With Modern UI disabled, the legacy tab strip and inactive tabs retain the theme legacy background instead of adopting the connected-tab strip color.',
+				'The regular workbench uses the legacy tab strip and inactive-tab colors instead of the Agents connected-tab surface.',
 			],
 		}),
 		Connected: defineComponentFixture({

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { IContextMenuDelegate, IContextMenuProvider } from '../../../../browser/contextmenu.js';
 import { $ } from '../../../../browser/dom.js';
-import { contextViewMenuCloseAnimation, CONTEXT_VIEW_MENU_MOTION_CLASS, IContextViewCloseAnimation } from '../../../../browser/ui/contextview/contextview.js';
+import { IContextViewCloseAnimation } from '../../../../browser/ui/contextview/contextview.js';
 import { DropdownMenu } from '../../../../browser/ui/dropdown/dropdown.js';
 import { toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.j
 suite('DropdownMenu', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('applies menu motion by default and preserves overrides', () => {
+	test('preserves menu class and close animation options', () => {
 		const delegates: IContextMenuDelegate[] = [];
 		const contextMenuProvider: IContextMenuProvider = {
 			showContextMenu: delegate => delegates.push(delegate)
@@ -37,7 +37,7 @@ suite('DropdownMenu', () => {
 		disposables.add(new DropdownMenu(overriddenContainer, {
 			contextMenuProvider,
 			actions: [],
-			menuClassName: CONTEXT_VIEW_MENU_MOTION_CLASS,
+			menuClassName: 'custom-animated-menu',
 			closeAnimation: customCloseAnimation
 		})).show();
 
@@ -45,10 +45,10 @@ suite('DropdownMenu', () => {
 			menuClassName: delegate.getMenuClassName?.(),
 			closeAnimation: delegate.closeAnimation
 		})), [{
-			menuClassName: `custom-menu ${CONTEXT_VIEW_MENU_MOTION_CLASS}`,
-			closeAnimation: contextViewMenuCloseAnimation
+			menuClassName: 'custom-menu',
+			closeAnimation: undefined
 		}, {
-			menuClassName: CONTEXT_VIEW_MENU_MOTION_CLASS,
+			menuClassName: 'custom-animated-menu',
 			closeAnimation: customCloseAnimation
 		}]);
 	});

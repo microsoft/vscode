@@ -128,43 +128,6 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		sinon.restore();
 	});
 
-	test('close motion requires modern UI with motion enabled', () => {
-		const clock = sinon.useFakeTimers();
-		const quickpick = store.add(controller.createQuickPick());
-		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
-		const states: { display: string; closing: boolean; inert: boolean; visible: boolean }[] = [];
-		const recordState = () => states.push({
-			display: widget.style.display,
-			closing: widget.classList.contains('quick-input-widget-closing'),
-			inert: widget.inert,
-			visible: controller.isVisible(),
-		});
-
-		fixture.classList.add('modern-ui', 'monaco-reduce-motion');
-		quickpick.show();
-		quickpick.hide();
-		recordState();
-
-		fixture.classList.replace('monaco-reduce-motion', 'monaco-enable-motion');
-		quickpick.show();
-		quickpick.hide();
-		recordState();
-
-		quickpick.show();
-		recordState();
-
-		quickpick.hide();
-		clock.tick(150);
-		recordState();
-
-		assert.deepStrictEqual(states, [
-			{ display: 'none', closing: false, inert: false, visible: false },
-			{ display: '', closing: true, inert: true, visible: false },
-			{ display: '', closing: false, inert: false, visible: true },
-			{ display: 'none', closing: false, inert: false, visible: false },
-		]);
-	});
-
 	test('title bar is hidden when empty', () => {
 		const quickpick = store.add(controller.createQuickPick());
 		const titleBar = fixture.querySelector<HTMLElement>('.quick-input-titlebar')!;
@@ -187,10 +150,9 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.deepStrictEqual(states, ['none', '', '', 'none']);
 	});
 
-	test('overlay picker aligns its input with the anchor and bypasses motion', () => {
+	test('overlay picker aligns its input with the anchor', () => {
 		fixture.style.width = '600px';
 		fixture.style.height = '400px';
-		fixture.classList.add('modern-ui', 'monaco-enable-motion');
 		controller.layout({ width: 600, height: 400 }, 0);
 
 		const anchor = document.createElement('div');
@@ -227,7 +189,6 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			openState,
 			closeState: {
 				display: widget.style.display,
-				closing: widget.classList.contains('quick-input-widget-closing'),
 				inert: widget.inert,
 			},
 		}, {
@@ -238,7 +199,6 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			},
 			closeState: {
 				display: 'none',
-				closing: false,
 				inert: false,
 			},
 		});

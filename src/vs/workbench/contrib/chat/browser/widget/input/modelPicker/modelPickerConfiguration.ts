@@ -13,7 +13,7 @@ import { IActionWidgetService } from '../../../../../../../platform/actionWidget
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
-import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
+import { withChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { getModelConfigChoices, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, getModelConfigValueLabel, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues, whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
 import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
@@ -132,7 +132,7 @@ export class ModelPickerConfiguration {
 				getRole: element => element.kind === ActionListItemKind.Action ? 'menuitemradio' as const : 'separator' as const,
 				getWidgetRole: () => 'menu' as const,
 			},
-			withChatInputPickerMotion({
+			withChatInputPickerOptions({
 				headerText: showCacheBreakHint ? localize('chat.config.cacheBreakHint', "Changing these options mid-session resets the prompt cache and may increase cost.") : undefined,
 				headerIcon: showCacheBreakHint ? Codicon.info : undefined,
 				headerLink: showCacheBreakHint ? this._host.getCacheBreakLearnMoreLink() : undefined,

@@ -230,21 +230,8 @@ export interface IPartsSplash {
 		titleBarBorder: string | undefined;
 		activityBarBackground: string | undefined;
 		activityBarBorder: string | undefined;
-		modernActivityBarBackground: string | undefined;
-		modernActivityBarInactiveBackground: string | undefined;
-		modernActivityBarBorder: string | undefined;
-		modernPanelBorder: string | undefined;
-		modernUIShellBackground: string | undefined;
-		modernUIInactiveShellBackground: string | undefined;
 		sideBarBackground: string | undefined;
 		sideBarBorder: string | undefined;
-		panelBackground: string | undefined;
-		editorGroupBorder: string | undefined;
-		editorBorder: string | undefined;
-		surfaceBackground: string | undefined;
-		surfaceBorder: string | undefined;
-		agentsPanelBackground: string | undefined;
-		agentsPanelBorder: string | undefined;
 		statusBarBackground: string | undefined;
 		statusBarInactiveBackground: string | undefined;
 		statusBarBorder: string | undefined;
@@ -261,27 +248,5 @@ export interface IPartsSplash {
 		statusBarHeight: number;
 		windowBorder: boolean;
 		windowBorderRadius: string | undefined;
-		modernUI: boolean;
-		modernUICompact: boolean;
-		partBounds: {
-			activityBar?: IPartsSplashPartBounds;
-			sideBar: IPartsSplashPartBounds | undefined;
-			auxiliaryBar: IPartsSplashPartBounds | undefined;
-			panel: IPartsSplashPartBounds | undefined;
-			editor: IPartsSplashPartBounds | undefined;
-		} | undefined;
 	} | undefined;
-}
-
-export interface IPartsSplashPartBounds {
-	top: number;
-	left: number;
-	width: number;
-	height: number;
-	outerEdges?: {
-		left: boolean;
-		right: boolean;
-		top: boolean;
-		bottom: boolean;
-	};
 }

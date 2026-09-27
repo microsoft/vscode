@@ -48,7 +48,6 @@ import type { CommandDetectionCapability } from '../../../../../platform/termina
 import { URI } from '../../../../../base/common/uri.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { clamp } from '../../../../../base/common/numbers.js';
-import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 
 const enum RenderConstants {
@@ -57,9 +56,7 @@ const enum RenderConstants {
 
 const enum TerminalScrollbarWidth {
 	/** Default xterm.js vertical scrollbar width. */
-	Default = 14,
-	/** Narrower scrollbar used when the Modern UI Update experiment is enabled. */
-	ModernUI = 10
+	Default = 14
 }
 
 const enum TextBlinkConstants {
@@ -296,7 +293,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
 					XtermTerminal._suggestedRendererType = undefined;
 				}
-				if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier') || e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+				if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
 					this.updateConfig();
 				}
 				if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
@@ -561,14 +558,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.logLevel = vscodeToXtermLogLevel(this._logService.getLevel());
 	}
 
-	/**
-	 * The width, in pixels, of the vertical scrollbar. Narrower under the Modern
-	 * UI Update experiment so it matches the modernized workbench scrollbars.
-	 */
 	get scrollbarWidth(): number {
-		return this._configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true
-			? TerminalScrollbarWidth.ModernUI
-			: TerminalScrollbarWidth.Default;
+		return TerminalScrollbarWidth.Default;
 	}
 
 	/**

@@ -49,7 +49,6 @@ import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '..
 import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
-import { WORKBENCH_MENU_MOTION_CLASS, workbenchMenuCloseAnimation } from '../actions/menuMotion.js';
 import { createCodexAccountMenuActions, ICodexAccountService, shouldShowCodexAccount } from '../../services/agentHost/browser/codexAccountService.js';
 
 export class GlobalCompositeBar extends Disposable {
@@ -224,9 +223,7 @@ abstract class AbstractGlobalActivityActionViewItem extends CompositeBarActionVi
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => event,
 				getActions: () => actions,
-				getMenuClassName: () => WORKBENCH_MENU_MOTION_CLASS,
-				onHide: () => disposables.dispose(),
-				closeAnimation: workbenchMenuCloseAnimation
+				onHide: () => disposables.dispose()
 			});
 		}));
 
@@ -259,10 +256,8 @@ abstract class AbstractGlobalActivityActionViewItem extends CompositeBarActionVi
 			anchorAlignment,
 			anchorAxisAlignment,
 			getActions: () => actions,
-			getMenuClassName: () => WORKBENCH_MENU_MOTION_CLASS,
 			onHide: () => disposables.dispose(),
-			menuActionOptions: { renderShortTitle: true },
-			closeAnimation: workbenchMenuCloseAnimation
+			menuActionOptions: { renderShortTitle: true }
 		});
 
 	}

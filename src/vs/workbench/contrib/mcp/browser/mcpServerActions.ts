@@ -38,7 +38,6 @@ import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOpti
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import Severity from '../../../../base/common/severity.js';
 import { ContributionEnablementState, isContributionDisabled, isContributionEnabled } from '../../chat/common/enablement.js';
-import { getWorkbenchMenuMotionContextMenuOptions } from '../../../browser/actions/menuMotion.js';
 import { McpConfigurationDestination } from './mcpConfigurationDestination.js';
 
 export interface IMcpServerActionChangeEvent extends IActionChangeEvent {
@@ -225,9 +224,10 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 
 	public showMenu(menuActionGroups: IAction[][]): void {
 		if (this.element) {
+			const anchor = this.element;
 			const actions = this.getActions(menuActionGroups);
 			this.contextMenuService.showContextMenu({
-				...getWorkbenchMenuMotionContextMenuOptions(this.element),
+				getAnchor: () => anchor,
 				getActions: () => actions,
 				actionRunner: this.actionRunner,
 				onHide: () => disposeIfDisposable(actions)

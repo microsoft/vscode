@@ -198,22 +198,3 @@
 	padding: 0;
 	justify-content: center;
 }
-
-.modern-ui.monaco-enable-motion .action-widget.action-widget-dropdown.agent-host-mode-permissions-popup {
-	animation-name: agent-host-mode-permissions-open;
-	will-change: opacity;
-}
-
-.modern-ui.monaco-enable-motion .action-widget.action-widget-dropdown.agent-host-mode-permissions-popup.action-widget-dropdown-closing {
-	animation-name: agent-host-mode-permissions-close;
-}
-
-@keyframes agent-host-mode-permissions-open {
-	from { opacity: 0; }
-	to { opacity: 1; }
-}
-
-@keyframes agent-host-mode-permissions-close {
-	from { opacity: var(--action-widget-close-start-opacity, 1); }
-	to { opacity: 0; }
-}

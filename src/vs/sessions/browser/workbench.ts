@@ -1961,14 +1961,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 	}
 
-	isFloatingPanelsEnabled(): boolean {
-		return false; // the agents window has its own floating card design
-	}
-
-	isModernUICompact(): boolean {
-		return false;
-	}
-
 	getLayoutClasses(): string[] {
 		return coalesce([
 			!this.partVisibility.sidebar ? LayoutClasses.SIDEBAR_HIDDEN : undefined,

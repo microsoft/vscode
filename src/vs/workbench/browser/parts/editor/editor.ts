@@ -36,7 +36,6 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: 'multiple',
 	highlightModifiedTabs: false,
 	tabActionLocation: 'right',
-	tabActionReserveSpace: true,
 	tabActionCloseVisibility: true,
 	tabActionUnpinVisibility: true,
 	showTabIndex: false,
@@ -131,7 +130,6 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'wrapTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS.wrapTabs),
 		'scrollToSwitchTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS.scrollToSwitchTabs),
 		'highlightModifiedTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS.highlightModifiedTabs),
-		'tabActionReserveSpace': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS.tabActionReserveSpace),
 		'tabActionCloseVisibility': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS.tabActionCloseVisibility),
 		'tabActionUnpinVisibility': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS.tabActionUnpinVisibility),
 		'showTabIndex': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS.showTabIndex),
@@ -278,7 +276,7 @@ export interface IEditorGroupViewOptions {
 	/** Reserves the enabled group header for an editor even when its breadcrumbs and actions are empty. */
 	readonly reserveHeaderSpace?: (editor: EditorInput | undefined) => boolean;
 
-	/** Uses the modern UI presentation for editor tabs. */
+	/** Uses the Agents window presentation for editor tabs. */
 	readonly useModernUITabs?: boolean;
 }
 

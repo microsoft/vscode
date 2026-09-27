@@ -155,7 +155,7 @@ suite('MultiEditorTabsControl', () => {
 	}
 
 	function connectedGroup(): HTMLElement {
-		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
+		const root = $('.monaco-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs');
 		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size160: 16px; --vscode-spacing-size200: 20px; --vscode-spacing-size280: 28px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-fontSize-body1: 13px; --vscode-fontWeight-regular: 400;';
 		mainWindow.document.body.appendChild(root);
 		disposables.add(toDisposable(() => root.remove()));
@@ -177,7 +177,6 @@ suite('MultiEditorTabsControl', () => {
 
 	test('keeps connected layout current when an Add Tab toolbar follows the editor tabs', async () => {
 		const group = connectedGroup();
-		group.closest('.monaco-workbench')!.classList.remove('modern-ui');
 		const editors = model.getEditors(EditorsOrder.SEQUENTIAL);
 		for (const editor of editors) {
 			model.closeEditor(editor);
@@ -956,9 +955,7 @@ suite('MultiEditorTabsControl', () => {
 		const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
 		const actual = [];
 		const expected = [];
-		for (const compact of [false, true]) {
-			group.closest<HTMLElement>('.monaco-workbench')!.classList.toggle('modern-ui-compact', compact);
-			for (const wrapTabs of [false, true]) {
+		for (const wrapTabs of [false, true]) {
 				const oldOptions = partOptions;
 				partOptions = { ...partOptions, wrapTabs, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
 				control.updateOptions(oldOptions, partOptions);
@@ -975,7 +972,7 @@ suite('MultiEditorTabsControl', () => {
 						const upper = tab.classList.contains('connected-tab-upper-row');
 						const active = index === activeIndex;
 						const radius = active && !upper ? '5px' : '4px';
-						const context = { compact, wrapTabs, activeIndex, index };
+						const context = { wrapTabs, activeIndex, index };
 						actual.push({
 							...context,
 							insets: [surface.left - bounds.left, bounds.right - surface.right, surface.top - bounds.top],
@@ -990,7 +987,6 @@ suite('MultiEditorTabsControl', () => {
 						});
 					}
 				}
-			}
 		}
 		assert.deepStrictEqual(actual, expected);
 	});
@@ -1148,7 +1144,7 @@ suite('MultiEditorTabsControl', () => {
 		]);
 	});
 
-	test('connected tabs reserve separator height without changing classic or shared modern tabs', async () => {
+	test('connected Agents tabs reserve separator height without changing classic or pill tabs', async () => {
 		const readHeight = async () => {
 			control.layout({ container: Dimension.None, available: Dimension.None });
 			await new Promise<void>(resolve => {
@@ -1161,23 +1157,21 @@ suite('MultiEditorTabsControl', () => {
 			const oldOptions = partOptions;
 			partOptions = { ...partOptions, tabHeight };
 			control.updateOptions(oldOptions, partOptions);
-			container.classList.remove('modern-ui', 'modern-ui-tabs', 'modern-ui-connected-editor-tabs');
+			container.classList.remove('modern-ui-tabs', 'modern-ui-connected-editor-tabs');
 			const classic = await readHeight();
 			container.classList.add('modern-ui-tabs');
-			const sharedModern = await readHeight();
-			container.classList.add('modern-ui');
 			const pill = await readHeight();
 			container.classList.add('modern-ui-connected-editor-tabs');
-			heights.push({ tabHeight, classic, sharedModern, pill, connected: await readHeight() });
+			heights.push({ tabHeight, classic, pill, connected: await readHeight() });
 		}
 		assert.deepStrictEqual(heights, [
-			{ tabHeight: 'default', classic: 35, sharedModern: 32, pill: 32, connected: 33 },
-			{ tabHeight: 'compact', classic: 22, sharedModern: 28, pill: 28, connected: 29 },
+			{ tabHeight: 'default', classic: 35, pill: 32, connected: 33 },
+			{ tabHeight: 'compact', classic: 22, pill: 28, connected: 29 },
 		]);
 	});
 
 	test('connected tabs fill row edges without inter-tab gutters', () => {
-		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
+		const root = $('.monaco-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs');
 		root.style.cssText = '--vscode-spacing-size40: 4px; --vscode-spacing-size80: 8px; --vscode-strokeThickness: 1px;';
 		mainWindow.document.body.appendChild(root);
 		disposables.add(toDisposable(() => root.remove()));
@@ -1216,7 +1210,7 @@ suite('MultiEditorTabsControl', () => {
 	});
 
 	test('keeps the connected outline inside the visible scroll area', async () => {
-		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
+		const root = $('.monaco-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs');
 		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-editor-background: #ffffff; --modern-ui-connected-tab-surface: #333333; --modern-ui-editor-tab-custom-active-background: #333333; --modern-ui-editor-tab-custom-active-hover-background: #654321;';
 		mainWindow.document.body.appendChild(root);
 		disposables.add(toDisposable(() => root.remove()));
@@ -1480,7 +1474,7 @@ suite('MultiEditorTabsControl', () => {
 	});
 
 	test('invalidates connected clipping geometry after dirty and capability changes', async () => {
-		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
+		const root = $('.monaco-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs');
 		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size280: 28px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-editor-background: #ffffff; --modern-ui-connected-tab-surface: #333333;';
 		mainWindow.document.body.appendChild(root);
 		disposables.add(toDisposable(() => root.remove()));
@@ -1492,7 +1486,7 @@ suite('MultiEditorTabsControl', () => {
 		content.appendChild(group);
 		group.appendChild(container);
 		const oldOptions = partOptions;
-		partOptions = { ...partOptions, tabSizing: 'fit', tabActionReserveSpace: false, editorActionsLocation: 'hidden' };
+		partOptions = { ...partOptions, tabSizing: 'fit', editorActionsLocation: 'hidden' };
 		control.updateOptions(oldOptions, partOptions);
 		const thirdEditor = disposables.add(new TestFileEditorInput(URI.file('/path/file2.txt'), 'testEditorInput'));
 		model.openEditor(thirdEditor, { pinned: true });

@@ -8,15 +8,10 @@ import { createTestAuxiliaryBarPart } from '../parts/auxiliaryBarTestUtils.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
 
 import '../../../browser/media/part.css';
-import '../../../contrib/modernUI/browser/media/padding.css';
-import '../../../contrib/modernUI/browser/media/fontRamp.css';
-import '../../../contrib/modernUI/browser/media/tabs.css';
-
-function renderTitle({ container, disposableStore }: ComponentFixtureContext, width: number, compact = false): void {
+function renderTitle({ container, disposableStore }: ComponentFixtureContext, width: number): void {
 	container.style.width = `${width}px`;
 	container.style.height = '36px';
-	const root = append(container, $('.monaco-workbench.modern-ui.modern-ui-tabs'));
-	root.classList.toggle('modern-ui-compact', compact);
+	const root = append(container, $('.monaco-workbench'));
 	const element = append(root, $('.part.auxiliarybar'));
 	element.style.width = `${width}px`;
 	element.style.backgroundColor = 'var(--vscode-sideBar-background)';
@@ -37,9 +32,5 @@ export default defineThemedFixtureGroup({ path: 'workbench/' }, {
 	Wide: defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
 		render: ctx => renderTitle(ctx, 360),
-	}),
-	NarrowCompact: defineComponentFixture({
-		additionalThemes: ['darkHighContrast'],
-		render: ctx => renderTitle(ctx, 140, true),
 	}),
 });

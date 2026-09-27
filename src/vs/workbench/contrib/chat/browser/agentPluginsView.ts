@@ -39,7 +39,6 @@ import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPan
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
-import { getWorkbenchMenuMotionContextMenuOptions } from '../../../browser/actions/menuMotion.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { manageExtensionIcon } from '../../extensions/browser/extensionsIcons.js';
@@ -141,12 +140,13 @@ class DropDownActionViewItem extends ActionViewItem {
 		if (!this.element) {
 			return;
 		}
+		const anchor = this.element;
 		const actions = actionGroups.flatMap(group => [...group, new Separator()]);
 		if (actions.length > 0) {
 			actions.pop();
 		}
 		this.contextMenuService.showContextMenu({
-			...getWorkbenchMenuMotionContextMenuOptions(this.element),
+			getAnchor: () => anchor,
 			getActions: () => actions,
 			onHide: () => disposeIfDisposable(actions),
 		});

@@ -9,7 +9,7 @@ import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownOptions, withActionWidgetDropdownMotion } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -32,9 +32,9 @@ export interface IChatInputPickerOptions {
 	readonly listOptions?: IActionListOptions;
 }
 
-export function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
+export function withChatInputPickerOptions(listOptions: IActionListOptions | undefined): IActionListOptions {
 	return {
-		...withActionWidgetDropdownMotion(listOptions),
+		...listOptions,
 		anchorPosition: AnchorPosition.ABOVE,
 	};
 }
@@ -61,9 +61,9 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 			getAnchor: () => this.getAnchorElement(),
 			listOptions: listOptionsProvider
 				? undefined
-				: withChatInputPickerMotion(actionWidgetOptions.listOptions),
+				: withChatInputPickerOptions(actionWidgetOptions.listOptions),
 			listOptionsProvider: listOptionsProvider
-				? { getListOptions: () => withChatInputPickerMotion(listOptionsProvider.getListOptions()) }
+				? { getListOptions: () => withChatInputPickerOptions(listOptionsProvider.getListOptions()) }
 				: undefined,
 		};
 

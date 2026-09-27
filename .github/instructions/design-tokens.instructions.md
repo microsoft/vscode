@@ -111,6 +111,8 @@ The legacy `--vscode-agents-fontWeight-regular` and `--vscode-agents-fontWeight-
 
 Codicons are **only ever 16px or 12px**. There is no in-between size — never use `14px` (or any other value) for a codicon. Pick the base or the compact token:
 
+The classic Activity Bar's primary navigation icons are the sole legacy exception and remain 24px. Do not apply that size to other codicons.
+
 | px | Variable | Use |
 |----|----------|-----|
 | 16 | `--vscode-codiconFontSize` (base) | default icon size |

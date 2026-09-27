@@ -521,7 +521,6 @@
 		"peekViewResult.background": "#F2F8FC",
 		"peekView.border": "#705697",
 		"peekViewResult.matchHighlightBackground": "#93C6D6",
-		"editorGroupHeader.connectedTabsBackground": "#E4E4E4",
 		"tab.inactiveForeground": "#54494B",
 		"tab.unfocusedInactiveForeground": "#54494B",
 		"tab.hoverBackground": "#F2F2F2",
@@ -552,10 +551,7 @@
 		"walkThrough.embeddedEditorBackground": "#00000014",
 		"editorIndentGuide.background": "#aaaaaa60",
 		"editorIndentGuide.activeBackground": "#777777b0",
-		// modern ui
 		"modernEditorTab.hoverForeground": "#54494B",
-		"surface.border": "#00000000",
-		"modernSash.gripForeground": "#705697",
 	},
 	"semanticHighlighting": true
 }

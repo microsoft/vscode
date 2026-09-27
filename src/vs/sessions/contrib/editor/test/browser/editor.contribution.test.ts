@@ -63,9 +63,8 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 suite('Sessions - Editor Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shares the connected tab setting across Agents windows independently of Modern UI', async () => {
+	test('shares the connected tab setting across Agents windows', async () => {
 		const configurationService = new TestConfigurationService({
-			[LayoutSettings.MODERN_UI]: false,
 			[LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE]: ModernUIEditorTabStyle.Connected,
 		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
@@ -88,7 +87,6 @@ suite('Sessions - Editor Contribution', () => {
 		const contribution = store.add(new SessionsTabStyleContribution(configurationService, layoutService, auxiliaryWindowService));
 		const state = () => ({
 			connected: layoutService.containers.map(container => container.classList.contains('modern-ui-connected-editor-tabs')),
-			modernUI: layoutService.containers.map(container => container.classList.contains('modern-ui')),
 			layouts: [layoutService.layoutCount, auxiliaryLayouts],
 		});
 		const update = async (key: string, value: boolean | ModernUIEditorTabStyle) => {
@@ -108,23 +106,20 @@ suite('Sessions - Editor Contribution', () => {
 		const auxiliaryStartup = state();
 		await update(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Pill);
 		const pill = state();
-		await update(LayoutSettings.MODERN_UI, true);
-		const unrelatedSetting = state();
 		await update(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Connected);
 		const connected = state();
 		contribution.dispose();
 
-		assert.deepStrictEqual({ startup, auxiliaryStartup, pill, unrelatedSetting, connected, disposed: state() }, {
-			startup: { connected: [true], modernUI: [false], layouts: [0, 0] },
-			auxiliaryStartup: { connected: [true, true], modernUI: [false, false], layouts: [0, 0] },
-			pill: { connected: [false, false], modernUI: [false, false], layouts: [1, 1] },
-			unrelatedSetting: { connected: [false, false], modernUI: [false, false], layouts: [1, 1] },
-			connected: { connected: [true, true], modernUI: [false, false], layouts: [2, 2] },
-			disposed: { connected: [false, false], modernUI: [false, false], layouts: [2, 2] },
+		assert.deepStrictEqual({ startup, auxiliaryStartup, pill, connected, disposed: state() }, {
+			startup: { connected: [true], layouts: [0, 0] },
+			auxiliaryStartup: { connected: [true, true], layouts: [0, 0] },
+			pill: { connected: [false, false], layouts: [1, 1] },
+			connected: { connected: [true, true], layouts: [2, 2] },
+			disposed: { connected: [false, false], layouts: [2, 2] },
 		});
 	});
 
-	test('registers legacy Modern UI tab color customizations', () => {
+	test('registers Agents tab color customizations', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#000000' });
 		theme.setCustomColors({ [TAB_ACTIVE_BACKGROUND]: '#123456' });
 		const themingRegistry = Registry.as<IThemingRegistry>(ThemeServiceExtensions.ThemingContribution);

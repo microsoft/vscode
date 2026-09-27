@@ -27,16 +27,16 @@ suite('dom', () => {
 	});
 
 	test('findParentWithClass supports multiple required classes', () => {
-		const root = $('div.modern-ui.motion-enabled');
-		const intermediate = $('div.modern-ui');
+		const root = $('div.feature-enabled.motion-enabled');
+		const intermediate = $('div.feature-enabled');
 		const child = $('div');
 		root.appendChild(intermediate).appendChild(child);
 
 		assert.deepStrictEqual({
-			multipleClasses: findParentWithClass(child, ['modern-ui', 'motion-enabled']) === root,
-			singleClass: findParentWithClass(child, 'modern-ui') === intermediate,
-			missingClass: hasParentWithClass(child, ['modern-ui', 'missing']),
-			stoppedBeforeMatch: hasParentWithClass(child, ['modern-ui', 'motion-enabled'], intermediate),
+			multipleClasses: findParentWithClass(child, ['feature-enabled', 'motion-enabled']) === root,
+			singleClass: findParentWithClass(child, 'feature-enabled') === intermediate,
+			missingClass: hasParentWithClass(child, ['feature-enabled', 'missing']),
+			stoppedBeforeMatch: hasParentWithClass(child, ['feature-enabled', 'motion-enabled'], intermediate),
 		}, {
 			multipleClasses: true,
 			singleClass: true,

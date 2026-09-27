@@ -11,7 +11,7 @@ suite('stylelint root-anchored :has() check', () => {
 
 	test('flags root anchors regardless of position in the compound', () => {
 		assert.ok(containsRootAnchoredHas('body:has(.automation-dialog) .context-view.monaco-component'));
-		assert.ok(containsRootAnchoredHas('.monaco-workbench.floating-panels:has(.part.activitybar.compact) .part.statusbar'));
+		assert.ok(containsRootAnchoredHas('.monaco-workbench.experimental-layout:has(.part.activitybar.compact) .part.statusbar'));
 		assert.ok(containsRootAnchoredHas('.modern-ui.monaco-workbench:has(.part.sidebar) .part'));
 		assert.ok(containsRootAnchoredHas('BODY:HAS(.foo)'));
 		assert.ok(containsRootAnchoredHas(':root:has(.foo)'));

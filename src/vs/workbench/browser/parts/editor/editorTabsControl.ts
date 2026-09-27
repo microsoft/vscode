@@ -106,7 +106,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private static readonly EDITOR_TAB_HEIGHT = {
 		normal: 35 as const,
 		compact: 22 as const,
-		// Modern UI multi-tab mode adds 4px top + 4px bottom padding to
+		// The Agents multi-tab presentation adds 4px top + 4px bottom padding to
 		// the tabs-and-actions-container (tabs.css), so the total title-bar height is the
 		// --editor-group-tab-height CSS value (24px / 20px) plus that 8px padding.
 		modernUI: 32 as const,        // 24px tab  + 4px top + 4px bottom padding
@@ -194,7 +194,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected create(parent: HTMLElement): HTMLElement {
 		this.updateTabHeight();
-		this.updateTabActionSpaceReservation();
 		return parent;
 	}
 
@@ -623,10 +622,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected get tabHeight() {
 		const isCompact = this.groupsView.partOptions.tabHeight === 'compact';
-		// In modern multi-tab mode the tabs-and-actions-container gains extra
-		// padding (tabs.css), so the total height differs from the base values.
-		// The `.tabs` class is present only when showTabs === 'multiple'; single-tab
-		// hosts using modern UI tabs opt into the same aligned height.
+		// Agents tabs include vertical padding, and both multi- and single-tab hosts use the aligned height.
 		const usesModernMultiTabHeight = this.parent.classList.contains('tabs') && this.parent.closest('.modern-ui-tabs');
 		if (usesModernMultiTabHeight || this.useModernUITabs) {
 			const height = isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
@@ -658,19 +654,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.parent.parentElement?.classList.toggle('editor-tabs-compact-height', isCompact);
 	}
 
-	private updateTabActionSpaceReservation(): void {
-		this.parent.classList.toggle('tab-actions-reserve-space', this.groupsView.partOptions.tabActionReserveSpace);
-	}
-
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 
 		// Update tab height
 		if (oldOptions.tabHeight !== newOptions.tabHeight) {
 			this.updateTabHeight();
-		}
-
-		if (oldOptions.tabActionReserveSpace !== newOptions.tabActionReserveSpace) {
-			this.updateTabActionSpaceReservation();
 		}
 
 		// Update Editor Actions Toolbar

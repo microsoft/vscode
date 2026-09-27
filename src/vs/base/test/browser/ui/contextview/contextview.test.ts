@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { $, getDomNodePagePosition, getWindow } from '../../../../browser/dom.js';
-import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, ContextView, ContextViewDOMPosition, IDelegate } from '../../../../browser/ui/contextview/contextview.js';
+import { $, getDomNodePagePosition } from '../../../../browser/dom.js';
+import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, ContextView, ContextViewDOMPosition, IDelegate } from '../../../../browser/ui/contextview/contextview.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ContextView', () => {
@@ -81,7 +81,7 @@ suite('ContextView', () => {
 	test('hide() delays render disposal for close animations', () => {
 		const clock = sinon.useFakeTimers();
 		const container = $('.container');
-		container.classList.add('modern-ui', 'monaco-enable-motion');
+		container.classList.add('supports-close-animation');
 		const contextView = new ContextView(container, ContextViewDOMPosition.ABSOLUTE);
 
 		let disposeCount = 0;
@@ -95,7 +95,7 @@ suite('ContextView', () => {
 			closeAnimation: {
 				className: 'closing',
 				duration: 100,
-				requiredAncestorClasses: ['modern-ui', 'monaco-enable-motion']
+				requiredAncestorClasses: ['supports-close-animation']
 			}
 		};
 
@@ -247,32 +247,4 @@ suite('ContextView', () => {
 		container.remove();
 	});
 
-	test('menu motion does not retain a containing block for submenus (#326248)', () => {
-		const container = $('.container');
-		container.classList.add('modern-ui', 'monaco-enable-motion');
-		document.body.appendChild(container);
-
-		const surface = $('.monaco-scrollable-element');
-		const contextView = new ContextView(container, ContextViewDOMPosition.ABSOLUTE);
-		contextView.show({
-			getAnchor: () => ({ x: 0, y: 0 }),
-			render: view => {
-				view.appendChild(surface);
-				return null;
-			}
-		});
-		contextView.getViewElement().classList.add(CONTEXT_VIEW_MENU_MOTION_CLASS);
-
-		const style = getWindow(surface).getComputedStyle(surface);
-		assert.deepStrictEqual({
-			animationFillMode: style.animationFillMode,
-			willChange: style.willChange
-		}, {
-			animationFillMode: 'backwards',
-			willChange: 'opacity'
-		});
-
-		contextView.dispose();
-		container.remove();
-	});
 });

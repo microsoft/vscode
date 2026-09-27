@@ -992,8 +992,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Gesture Support
 		const gestureDisposable = Gesture.addTarget(tabContainer);
 
-		// Modern UI fill and shoulder masks. Real elements leave the tab's
-		// pseudo-elements available for drop-target indicators.
+		// Real fill and shoulder elements leave pseudo-elements available for drop-target indicators.
 		const tabFillContainer = $('.tab-fill', { 'aria-hidden': true });
 		tabContainer.appendChild(tabFillContainer);
 		const tabConnectedEdgeContainer = $('.tab-connected-edge', { 'aria-hidden': true });

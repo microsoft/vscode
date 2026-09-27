@@ -54,12 +54,12 @@ suite('AgentSessionsListDelegate', () => {
 		});
 	});
 
-	test('reads current Modern UI heights', () => {
-		let itemHeight = AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT;
-		let sectionHeight = AgentSessionsListDelegate.SPACED_SECTION_HEIGHT;
+	test('reads supplied heights', () => {
+		let itemHeight = 52;
+		let sectionHeight = 30;
 		const delegate = new AgentSessionsListDelegate(undefined, undefined, () => itemHeight, () => sectionHeight);
 
-		const modernUI = {
+		const supplied = {
 			item: delegate.getHeight(session),
 			section: delegate.getHeight(section),
 		};
@@ -68,13 +68,13 @@ suite('AgentSessionsListDelegate', () => {
 		sectionHeight = AgentSessionsListDelegate.SECTION_HEIGHT;
 
 		assert.deepStrictEqual({
-			modernUI,
+			supplied,
 			defaultUI: {
 				item: delegate.getHeight(session),
 				section: delegate.getHeight(section),
 			},
 		}, {
-			modernUI: {
+			supplied: {
 				item: 52,
 				section: 30,
 			},

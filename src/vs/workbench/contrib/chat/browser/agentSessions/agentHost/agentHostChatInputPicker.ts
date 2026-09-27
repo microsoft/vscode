@@ -52,7 +52,7 @@ import { SessionType } from '../../../common/chatSessionsService.js';
 import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
+import { withChatInputPickerOptions } from '../../widget/input/chatInputPickerActionItem.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
@@ -912,7 +912,7 @@ export class AgentHostChatInputPicker extends Disposable {
 				getWidgetAriaLabel: () => localize('agentHostChatInputPicker.ariaLabel', "{0} Picker", ctx.schema.title),
 				...getModePermissionsPickerAccessibilityProvider<IConfigPickerItem | IAction>(!!permissions),
 			},
-			withChatInputPickerMotion({
+			withChatInputPickerOptions({
 				...getConfigPickerListOptions(this._property),
 				...(permissions ? getModePermissionsPickerOptions(openPermissions, initialFocusItemId) : {}),
 				...(showFilter

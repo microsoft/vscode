@@ -14,9 +14,9 @@ import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/lis
 import { CheckBoxAccessibleState } from '../../../../base/browser/ui/list/listView.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
-import { IActionListCloseAnimation, IActionListDelegate, IActionListItem, IActionListOptions } from '../../browser/actionList.js';
+import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../browser/actionList.js';
 import { IActionWidgetService } from '../../browser/actionWidget.js';
-import { ACTION_WIDGET_DROPDOWN_MOTION_CLASS, ActionWidgetDropdown, actionWidgetDropdownCloseAnimation, IActionWidgetDropdownAction, withActionWidgetDropdownMotion } from '../../browser/actionWidgetDropdown.js';
+import { ActionWidgetDropdown, IActionWidgetDropdownAction } from '../../browser/actionWidgetDropdown.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../actions/browser/actionWidgetDropdownActionViewItem.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -95,35 +95,6 @@ suite('ActionWidgetDropdown', () => {
 		dropdown.show();
 
 		assert.deepStrictEqual(actionWidgetService.capturedBadges, [undefined, 'Experimental']);
-	});
-
-	test('applies motion defaults idempotently and preserves overrides', () => {
-		const customCloseAnimation: IActionListCloseAnimation = {
-			className: 'custom-closing',
-			duration: 42
-		};
-
-		assert.deepStrictEqual({
-			defaults: withActionWidgetDropdownMotion(undefined),
-			overrides: withActionWidgetDropdownMotion({
-				className: `custom ${ACTION_WIDGET_DROPDOWN_MOTION_CLASS}`,
-				widgetClassName: 'custom-widget',
-				closeAnimation: customCloseAnimation,
-				showFilter: true
-			})
-		}, {
-			defaults: {
-				className: ACTION_WIDGET_DROPDOWN_MOTION_CLASS,
-				widgetClassName: ACTION_WIDGET_DROPDOWN_MOTION_CLASS,
-				closeAnimation: actionWidgetDropdownCloseAnimation
-			},
-			overrides: {
-				className: `custom ${ACTION_WIDGET_DROPDOWN_MOTION_CLASS}`,
-				widgetClassName: `custom-widget ${ACTION_WIDGET_DROPDOWN_MOTION_CLASS}`,
-				closeAnimation: customCloseAnimation,
-				showFilter: true
-			}
-		});
 	});
 
 	test('uses navigation semantics without checked and focuses the requested action', () => {

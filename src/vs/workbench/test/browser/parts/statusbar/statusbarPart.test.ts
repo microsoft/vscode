@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -13,7 +13,6 @@ import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/
 import { TestContextService, TestStorageService } from '../../../common/workbenchTestServices.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MainStatusbarPart } from '../../../../browser/parts/statusbar/statusbarPart.js';
-import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextMenuService, TestHostService, TestLayoutService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_INACTIVE_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND } from '../../../../common/theme.js';
@@ -48,39 +47,12 @@ suite('StatusbarPart', () => {
 	});
 
 	class TestMainStatusbarPart extends MainStatusbarPart {
-		updateStylesCalls = 0;
 		windowHasFocus = true;
 
 		protected override hasWindowFocus(): boolean {
 			return this.windowHasFocus;
 		}
 
-		override updateStyles(): void {
-			this.updateStylesCalls++;
-			super.updateStyles();
-		}
-	}
-
-	class TestFloatingPanelsLayoutService extends TestLayoutService {
-		floatingPanelsEnabled = false;
-		modernUICompact = false;
-
-		override isFloatingPanelsEnabled(): boolean {
-			return this.floatingPanelsEnabled;
-		}
-
-		override isModernUICompact(): boolean {
-			return this.modernUICompact;
-		}
-	}
-
-	function fireConfigChange(configurationService: TestConfigurationService, key: string): void {
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.DEFAULT,
-			affectedKeys: new Set([key]),
-			change: { keys: [key], overrides: [] },
-			affectsConfiguration: candidate => candidate === key,
-		});
 	}
 
 	function createFocusTestPart(hostService: TestHostService, windowHasFocus: boolean): { part: TestMainStatusbarPart; container: HTMLElement } {
@@ -99,7 +71,6 @@ suite('StatusbarPart', () => {
 			new TestLayoutService(),
 			new TestContextMenuService(),
 			store.add(new ContextKeyService(configurationService)),
-			configurationService,
 			hostService,
 		));
 		part.windowHasFocus = windowHasFocus;
@@ -155,77 +126,6 @@ suite('StatusbarPart', () => {
 		});
 	});
 
-	test('configuration changes update styles only after the part is created', () => {
-		const configurationService = new TestConfigurationService();
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() { });
-		const contextKeyService = store.add(new ContextKeyService(configurationService));
-		const part = store.add(new TestMainStatusbarPart(
-			instantiationService,
-			new TestThemeService(),
-			new TestContextService(),
-			store.add(new TestStorageService()),
-			new TestLayoutService(),
-			new TestContextMenuService(),
-			contextKeyService,
-			configurationService,
-			new TestHostService(),
-		));
-
-		fireConfigChange(configurationService, LayoutSettings.MODERN_UI);
-		const beforeCreate = part.updateStylesCalls;
-		part.create(document.createElement('div'));
-		const afterCreate = part.updateStylesCalls;
-		fireConfigChange(configurationService, 'unrelated.setting');
-		const afterUnrelatedChange = part.updateStylesCalls;
-		fireConfigChange(configurationService, LayoutSettings.MODERN_UI);
-
-		assert.deepStrictEqual({
-			beforeCreate,
-			afterCreate,
-			afterUnrelatedChange,
-			afterModernUIChange: part.updateStylesCalls,
-		}, {
-			beforeCreate: 0,
-			afterCreate: 1,
-			afterUnrelatedChange: 1,
-			afterModernUIChange: 2,
-		});
-	});
-
-	test('modern UI reserves compact vertical status bar padding', () => {
-		const configurationService = new TestConfigurationService();
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() { });
-		const contextKeyService = store.add(new ContextKeyService(configurationService));
-		const layoutService = new TestFloatingPanelsLayoutService();
-		const part = store.add(new TestMainStatusbarPart(
-			instantiationService,
-			new TestThemeService(),
-			new TestContextService(),
-			store.add(new TestStorageService()),
-			layoutService,
-			new TestContextMenuService(),
-			contextKeyService,
-			configurationService,
-			new TestHostService(),
-		));
-
-		const defaultConstraints = { minimumHeight: part.minimumHeight, maximumHeight: part.maximumHeight };
-		layoutService.floatingPanelsEnabled = true;
-		const modernUIConstraints = { minimumHeight: part.minimumHeight, maximumHeight: part.maximumHeight };
-		layoutService.modernUICompact = true;
-		const compactModernUIConstraints = { minimumHeight: part.minimumHeight, maximumHeight: part.maximumHeight };
-
-		assert.deepStrictEqual({ defaultConstraints, modernUIConstraints, compactModernUIConstraints }, {
-			defaultConstraints: { minimumHeight: 22, maximumHeight: 22 },
-			modernUIConstraints: { minimumHeight: 28, maximumHeight: 28 },
-			compactModernUIConstraints: { minimumHeight: 26, maximumHeight: 26 },
-		});
-	});
-
 	test('uses the inactive background when the window loses focus', () => {
 		const configurationService = new TestConfigurationService();
 		const instantiationService = store.add(new TestInstantiationService());
@@ -246,7 +146,6 @@ suite('StatusbarPart', () => {
 			new TestLayoutService(),
 			new TestContextMenuService(),
 			contextKeyService,
-			configurationService,
 			hostService,
 		));
 		const container = document.createElement('div');
@@ -298,7 +197,6 @@ suite('StatusbarPart', () => {
 				new TestLayoutService(),
 				new TestContextMenuService(),
 				store.add(new ContextKeyService(configurationService)),
-				configurationService,
 				hostService,
 			));
 			const container = document.createElement('div');

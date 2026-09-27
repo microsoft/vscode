@@ -971,26 +971,6 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		}, { showCount: 1, initialFocusItem: 'agentHostPermissions.assisted', permissionsExpanded: 'true' });
 	});
 
-	test('the combined editor popup fades without changing its geometry', () => {
-		const { container, widget } = createPermissionsWidget();
-		const host = dom.append(document.body, dom.$('.modern-ui.monaco-enable-motion'));
-		store.add(toDisposable(() => host.remove()));
-		dom.append(host, container);
-		container.style.width = '260px';
-		container.classList.add('action-widget-dropdown', 'agent-host-mode-permissions-popup');
-		widget.layout(widget.computeListHeight(), 260);
-		const animation = container.getAnimations()[0];
-		assert.ok(animation);
-		animation.pause();
-		const widths = [0, 125, 250].map(time => {
-			animation.currentTime = time;
-			return container.getBoundingClientRect().width;
-		});
-		widget.focusNext();
-		widths.push(container.getBoundingClientRect().width);
-		assert.deepStrictEqual(widths, Array(4).fill(widths[0]));
-	});
-
 	test('live config refreshes preserve the popup anchor buttons', () => {
 		const { modePicker, modeContainer, config } = setup();
 		dom.append(document.body, modeContainer);

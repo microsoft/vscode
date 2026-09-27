@@ -10,7 +10,7 @@ import { MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BA
 import { ColorThemeData } from '../common/colorThemeData.js';
 
 /**
- * Resolves the tab color to emit as a Modern UI variable, or `undefined` to leave the CSS default in place.
+ * Resolves the tab color to emit for the Agents tab presentation, or `undefined` to leave the CSS default in place.
  *
  * When `relatedLegacyColorIds` are passed, `legacyColorId`'s default definition in the color registry is assumed
  * to derive from them (e.g. `tab.unfocusedInactiveForeground` derives transitively from `tab.inactiveForeground`

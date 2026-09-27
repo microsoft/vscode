@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Modern UI module: "Notifications and Dialogs".
- *
- * Shared notification and dialog presentation used by the regular workbench
- * and the Agents window. Shell-specific notification insets are customizable
+ * Notification and dialog presentation used by the Agents window.
+ * Shell-specific notification insets are customizable
  * through the properties used below.
  *
  * All rules are gated behind the module-specific
@@ -34,14 +32,14 @@
 }
 
 /*
- * Reposition the notification center to sit within the Modern UI outer gutter:
+ * Reposition the notification center to sit within the Agents window outer gutter:
  * an 8px horizontal inset, and a bottom inset that clears the 28px status bar
  * plus the same 8px gutter (36px total). `!important` is required to win over the base
  * positioning rules (which vary with the status bar) and, for `top-right`, over
  * the inline `top` offset the notification controller applies in JS.
  *
  * `top-right` uses a fixed 35px — the height of the custom title bar
- * (DEFAULT_CUSTOM_TITLEBAR_HEIGHT), which the Modern UI experiment always shows
+ * (DEFAULT_CUSTOM_TITLEBAR_HEIGHT), which the Agents window always shows
  * — so the center tucks directly beneath it.
  */
 .modern-ui-notifications-dialogs.monaco-workbench > .notifications-center {

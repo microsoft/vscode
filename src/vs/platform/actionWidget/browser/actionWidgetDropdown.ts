@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveElement, isHTMLElement } from '../../../base/browser/dom.js';
-import { CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES, CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION } from '../../../base/browser/ui/contextview/contextview.js';
 import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../base/browser/ui/dropdown/dropdown.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { IAction } from '../../../base/common/actions.js';
@@ -14,35 +13,8 @@ import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { ActionListItemKind, IActionListCloseAnimation, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListItemInlineToggle, IActionListOptions } from './actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListItemInlineToggle, IActionListOptions } from './actionList.js';
 import { IActionWidgetService } from './actionWidget.js';
-
-export const ACTION_WIDGET_DROPDOWN_MOTION_CLASS = 'action-widget-dropdown';
-export const ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS = 'action-widget-dropdown-closing';
-
-export const actionWidgetDropdownCloseAnimation: IActionListCloseAnimation = {
-	className: ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS,
-	duration: CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION,
-	requiredAncestorClasses: CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES,
-};
-
-export function withActionWidgetDropdownMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
-	const classNames = listOptions?.className?.split(/\s+/).filter(Boolean) ?? [];
-	if (!classNames.includes(ACTION_WIDGET_DROPDOWN_MOTION_CLASS)) {
-		classNames.push(ACTION_WIDGET_DROPDOWN_MOTION_CLASS);
-	}
-	const widgetClassNames = listOptions?.widgetClassName?.split(/\s+/).filter(Boolean) ?? [];
-	if (!widgetClassNames.includes(ACTION_WIDGET_DROPDOWN_MOTION_CLASS)) {
-		widgetClassNames.push(ACTION_WIDGET_DROPDOWN_MOTION_CLASS);
-	}
-
-	return {
-		...listOptions,
-		className: classNames.join(' '),
-		widgetClassName: widgetClassNames.join(' '),
-		closeAnimation: listOptions?.closeAnimation ?? actionWidgetDropdownCloseAnimation,
-	};
-}
 
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number; showHeader?: boolean };
@@ -315,7 +287,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 		super.show();
 
-		const listOptions = withActionWidgetDropdownMotion(this._options.listOptions ?? this._options.listOptionsProvider?.getListOptions());
+		const listOptions = this._options.listOptions ?? this._options.listOptionsProvider?.getListOptions();
 		this.actionWidgetService.show<IActionWidgetDropdownAction>(
 			this._options.label ?? '',
 			false,
@@ -327,7 +299,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			accessibilityProvider,
 			{
 				...listOptions,
-				initialFocusItemId: this._options.getInitialFocusActionId?.() ?? listOptions.initialFocusItemId,
+				initialFocusItemId: this._options.getInitialFocusActionId?.() ?? listOptions?.initialFocusItemId,
 			}
 		);
 	}

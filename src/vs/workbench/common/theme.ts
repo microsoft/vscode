@@ -223,7 +223,6 @@ export const EDITOR_GROUP_HEADER_TABS_BACKGROUND = registerColor('editorGroupHea
 	hcLight: null
 }, localize('tabsContainerBackground', "Background color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
 
-export const EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND = registerColor('editorGroupHeader.connectedTabsBackground', EDITOR_GROUP_HEADER_TABS_BACKGROUND, localize('connectedTabsContainerBackground', "Background color of connected tabs in editor group title headers. Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_TABS_BORDER = registerColor('editorGroupHeader.tabsBorder', null, localize('tabsContainerBorder', "Border color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
 
@@ -668,42 +667,6 @@ export const SIDE_BAR_STICKY_SCROLL_BORDER = registerColor('sideBarStickyScroll.
 
 export const SIDE_BAR_STICKY_SCROLL_SHADOW = registerColor('sideBarStickyScroll.shadow', scrollbarShadow, localize('sideBarStickyScrollShadow', "Shadow color of sticky scroll in the side bar."));
 
-// < --- Surface --- >
-
-// Generic framed container surfaces ("cards"). Used by the modern workbench
-// layout to frame the floating parts (side bar, panel, auxiliary bar, editor).
-// Defaults mirror the agent sessions window's panel treatment so the look is
-// shared, but themes can target these tokens independently.
-
-export const SURFACE_BACKGROUND = registerColor('surface.background', {
-	dark: SIDE_BAR_BACKGROUND,
-	light: editorBackground,
-	hcDark: SIDE_BAR_BACKGROUND,
-	hcLight: SIDE_BAR_BACKGROUND
-}, localize('surfaceBackground', "Background color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
-
-export const SURFACE_FOREGROUND = registerColor('surface.foreground', SIDE_BAR_FOREGROUND, localize('surfaceForeground', "Foreground color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
-
-export const SURFACE_BORDER = registerColor('surface.border', {
-	dark: opaque(transparent(foreground, 0.15), SURFACE_BACKGROUND),
-	light: opaque(transparent(foreground, 0.15), SURFACE_BACKGROUND),
-	hcDark: contrastBorder,
-	hcLight: contrastBorder
-}, localize('surfaceBorder', "Border color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
-
-export const EDITOR_BORDER = registerColor('editor.border', SURFACE_BORDER, localize('editorBorder', "Border color of the editor surface in the modern layout."));
-
-export const MODERN_PANEL_BORDER = registerColor('modernPanel.border', SURFACE_BORDER, localize('modernPanelBorder', "Border color of the panel surface when the modern UI is enabled."));
-
-// Dark and light themes use `foreground` at 40% alpha.
-// High contrast themes keep the foreground opaque so the grips stay legible.
-export const MODERN_SASH_GRIP_FOREGROUND = registerColor('modernSash.gripForeground', {
-	dark: transparent(foreground, 0.4),
-	light: transparent(foreground, 0.4),
-	hcDark: foreground,
-	hcLight: foreground
-}, localize('modernSashGripForeground', "Color of the grip handles marking the resizable boundaries between workbench parts when the modern UI is enabled."));
-
 // < --- Modern Tabs --- >
 
 export const MODERN_TAB_ACTIVE_BACKGROUND = registerColor('modernTab.activeBackground', listInactiveSelectionBackground, localize('modernTabActiveBackground', "Background color of active tabs when the modern tab style is enabled."));
@@ -736,30 +699,6 @@ export const MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND = registerColor('m
 
 export const MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND = registerColor('modernEditorTab.selectedActionBackground', opaque(TAB_SELECTED_BACKGROUND, editorBackground), localize('modernEditorTabSelectedActionBackground', "Opaque background color of tab actions on selected editor tabs when the modern tab style is enabled."));
 
-// < --- Modern Activity Bar --- >
-
-export const MODERN_ACTIVITY_BAR_BACKGROUND = registerColor('modernActivityBar.background', ACTIVITY_BAR_BACKGROUND, localize('modernActivityBarBackground', "Background color of the Activity bar in the default side position when the modern UI is enabled."));
-
-export const MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND = registerColor('modernActivityBar.inactiveBackground', MODERN_ACTIVITY_BAR_BACKGROUND, localize('modernActivityBarInactiveBackground', "Background color of the Activity bar in an inactive window when it is in the default side position and the modern UI is enabled."));
-
-const DEPRECATED_MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('modernActivityBar.activeBackground', null, localize('modernActivityBarActiveBackground', "Background color of active Activity bar items in the default side position when the modern UI is enabled."), false, localize('modernActivityBarActiveBackgroundDeprecated', "'modernActivityBar.activeBackground' is deprecated. Use 'modernActivityBarItem.activeBackground' instead."));
-
-const DEPRECATED_MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND = registerColor('modernActivityBar.activeForeground', null, localize('modernActivityBarActiveForeground', "Foreground color of active Activity bar items in the default side position when the modern UI is enabled."), false, localize('modernActivityBarActiveForegroundDeprecated', "'modernActivityBar.activeForeground' is deprecated. Use 'modernActivityBarItem.activeForeground' instead."));
-
-const DEPRECATED_MODERN_ACTIVITY_BAR_HOVER_BACKGROUND = registerColor('modernActivityBar.hoverBackground', null, localize('modernActivityBarHoverBackground', "Background color of Activity bar items in the default side position when hovering and the modern UI is enabled."), false, localize('modernActivityBarHoverBackgroundDeprecated', "'modernActivityBar.hoverBackground' is deprecated. Use 'modernActivityBarItem.hoverBackground' instead."));
-
-const DEPRECATED_MODERN_ACTIVITY_BAR_HOVER_FOREGROUND = registerColor('modernActivityBar.hoverForeground', null, localize('modernActivityBarHoverForeground', "Foreground color of Activity bar items in the default side position when hovering and the modern UI is enabled."), false, localize('modernActivityBarHoverForegroundDeprecated', "'modernActivityBar.hoverForeground' is deprecated. Use 'modernActivityBarItem.hoverForeground' instead."));
-
-export const MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND = registerColor('modernActivityBarItem.activeBackground', oneOf(DEPRECATED_MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND), localize('modernActivityBarItemActiveBackground', "Background color of active Activity bar items in the default side position when the modern UI is enabled."));
-
-export const MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND = registerColor('modernActivityBarItem.activeForeground', oneOf(DEPRECATED_MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_TAB_ACTIVE_FOREGROUND), localize('modernActivityBarItemActiveForeground', "Foreground color of active Activity bar items in the default side position when the modern UI is enabled."));
-
-export const MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND = registerColor('modernActivityBarItem.hoverBackground', oneOf(DEPRECATED_MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND), localize('modernActivityBarItemHoverBackground', "Background color of Activity bar items in the default side position when hovering and the modern UI is enabled."));
-
-export const MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND = registerColor('modernActivityBarItem.hoverForeground', oneOf(DEPRECATED_MODERN_ACTIVITY_BAR_HOVER_FOREGROUND, MODERN_TAB_HOVER_FOREGROUND), localize('modernActivityBarItemHoverForeground', "Foreground color of Activity bar items in the default side position when hovering and the modern UI is enabled."));
-
-export const MODERN_ACTIVITY_BAR_BORDER = registerColor('modernActivityBar.border', SURFACE_BORDER, localize('modernActivityBarBorder', "Border color of the Activity bar in the default side position when the modern UI is enabled."));
-
 // < --- Title Bar --- >
 
 export const TITLE_BAR_ACTIVE_FOREGROUND = registerColor('titleBar.activeForeground', {
@@ -789,10 +728,6 @@ export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBar.inactiveBac
 	hcDark: null,
 	hcLight: null,
 }, localize('titleBarInactiveBackground', "Title bar background when the window is inactive."));
-
-export const MODERN_UI_SHELL_BACKGROUND = registerColor('modernUI.shellBackground', TITLE_BAR_ACTIVE_BACKGROUND, localize('modernUIShellBackground', "Background color of the shell visible around floating workbench surfaces when the modern UI is enabled."));
-
-export const MODERN_UI_INACTIVE_SHELL_BACKGROUND = registerColor('modernUI.inactiveShellBackground', TITLE_BAR_INACTIVE_BACKGROUND, localize('modernUIInactiveShellBackground', "Background color of the shell visible around floating workbench surfaces when the window is inactive and the modern UI is enabled."));
 
 export const TITLE_BAR_BORDER = registerColor('titleBar.border', {
 	dark: null,

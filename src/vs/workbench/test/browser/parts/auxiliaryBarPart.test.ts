@@ -11,10 +11,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { createTestAuxiliaryBarPart } from './auxiliaryBarTestUtils.js';
 
 import '../../../browser/media/part.css';
-import '../../../contrib/modernUI/browser/media/padding.css';
-import '../../../contrib/modernUI/browser/media/fontRamp.css';
-import '../../../contrib/modernUI/browser/media/tabs.css';
-
 suite('Auxiliary Bar - Responsive title actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let root: HTMLElement;
@@ -27,7 +23,7 @@ suite('Auxiliary Bar - Responsive title actions', () => {
 
 	teardown(() => root.remove());
 
-	for (const presentation of ['', 'modern-ui modern-ui-tabs', 'modern-ui modern-ui-tabs modern-ui-compact']) {
+	for (const presentation of ['']) {
 		test(`overflows New Chat before Settings and restores them in reverse order (${presentation || 'standard'})`, () => {
 			root.className = `monaco-workbench ${presentation}`;
 			const container = append(root, $('.part.auxiliarybar'));

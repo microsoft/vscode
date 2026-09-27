@@ -209,10 +209,11 @@ function renderSessionHierarchy(ctx: ComponentFixtureContext, withApproval = fal
 		},
 	});
 	const childHeight = new AgentSessionsListDelegate(approvalModel).getHeight(child);
+	const parentHeight = 52;
 
-	container.classList.add('monaco-workbench', 'modern-ui');
+	container.classList.add('monaco-workbench');
 	container.style.width = '350px';
-	container.style.height = `${AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT + childHeight}px`;
+	container.style.height = `${parentHeight + childHeight}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 
 	const viewer = document.createElement('div');
@@ -237,13 +238,13 @@ function renderSessionHierarchy(ctx: ComponentFixtureContext, withApproval = fal
 	};
 
 	const parentNode = wrapAsTreeNode(parent);
-	const parentRow = createRow(0, AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT);
+	const parentRow = createRow(0, parentHeight);
 	parentRow.row.setAttribute('aria-expanded', 'true');
 	const parentTemplate = sessionRenderer.renderTemplate(parentRow.contents);
 	sessionRenderer.renderElement(parentNode, 0, parentTemplate);
 
 	const childNode = wrapAsTreeNode(child);
-	const childRow = createRow(AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT, childHeight);
+	const childRow = createRow(parentHeight, childHeight);
 	const childTemplate = chatRenderer.renderTemplate(childRow.contents);
 	chatRenderer.renderElement(childNode, 0, childTemplate);
 

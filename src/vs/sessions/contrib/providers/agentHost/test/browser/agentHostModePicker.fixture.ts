@@ -54,7 +54,7 @@ import '../../../../../browser/media/style.css';
 async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean; readonly newChat?: boolean; readonly compact?: boolean; readonly combined?: boolean; readonly phoneWidth?: number } = {}): Promise<void> {
 	const { editor = false, openMode = false, newChat = false, compact = false, combined = true, phoneWidth } = options;
 	const { container, disposableStore, theme } = context;
-	container.classList.add('monaco-workbench', 'interactive-session', 'modern-ui', 'monaco-enable-motion');
+	container.classList.add('monaco-workbench', 'interactive-session');
 	if (!editor) {
 		container.classList.add('agent-sessions-workbench');
 	}

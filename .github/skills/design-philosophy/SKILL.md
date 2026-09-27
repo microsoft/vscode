@@ -259,7 +259,7 @@ Chrome that used to carry a permanent fill now reads transparent at rest and onl
 
 **Write in sentence case.** Labels, buttons, menus, and messages capitalize the first word and proper nouns only - *"Start new session,"* not *"Start New Session."* It's calmer, friendlier, and quicker to scan. Report it as *"this is Title Case - make it sentence case,"* a tone fix, not a reword.
 
-> **⚠️ Known conflict - reconcile later.** This sentence-case guidance is the intended modern-UI direction, but it **contradicts** the repo-wide coding guideline that mandates title-style capitalization for command labels, buttons, and menu items (see [coding-guidelines.instructions.md](../../instructions/coding-guidelines.instructions.md), "UI labels"). The two conventions have not yet been reconciled. Until they are, **follow the existing title-case rule for shipped, non-experimental UI**, and apply sentence case only within surfaces that have explicitly adopted the modern UI direction. TODO: agree a single casing convention and update whichever doc loses.
+> **⚠️ Known conflict - reconcile later.** This sentence-case guidance **contradicts** the repo-wide coding guideline that mandates title-style capitalization for command labels, buttons, and menu items (see [coding-guidelines.instructions.md](../../instructions/coding-guidelines.instructions.md), "UI labels"). The two conventions have not yet been reconciled. Until they are, **follow the existing title-case rule for shipped UI**, and apply sentence case only within surfaces that have explicitly adopted it. TODO: agree a single casing convention and update whichever doc loses.
 
 - **Serves:** *The interface explains itself* (3).
 

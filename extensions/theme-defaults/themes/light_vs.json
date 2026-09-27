@@ -5,7 +5,6 @@
 		"checkbox.border": "#919191",
 		"editor.background": "#FFFFFF",
 		"editor.foreground": "#000000",
-		"editorGroupHeader.connectedTabsBackground": "#E8E8E8",
 		"editor.inactiveSelectionBackground": "#E5EBF1",
 		"editorIndentGuide.background1": "#D3D3D3",
 		"editorIndentGuide.activeBackground1": "#939393",
@@ -42,13 +41,6 @@
 		"agentsNewSessionButton.border": "#D8D8D8",
 		"agentsChatInput.border": "#D8D8D8",
 		"agentsPanel.border": "#00000000",
-		// modern ui
-		"surface.border": "#F3F3F3",
-		"modernActivityBarItem.activeBackground": "#e4e6f122",
-		"modernActivityBarItem.hoverBackground": "#E8E8E822",
-		"modernActivityBarItem.activeForeground": "#FFF",
-		"modernActivityBarItem.hoverForeground": "#FFF",
-		"modernActivityBar.border": "#2C2C2C",
 		"titleBar.inactiveBackground": "#E5E5E5"
 	},
 	"tokenColors": [
