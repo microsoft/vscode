@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { registerWindow } from '../../../../base/browser/dom.js';
+import { getWindowId, registerWindow } from '../../../../base/browser/dom.js';
 import { ensureCodeWindow, mainWindow } from '../../../../base/browser/window.js';
 import { timeout } from '../../../../base/common/async.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
@@ -50,6 +50,11 @@ suite('FontMeasurements', () => {
 		return { auxiliaryWindow, registration };
 	}
 
+	function hasCache(fontMeasurements: FontMeasurementsImpl, targetWindow: Window): boolean {
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect cache presence without allocating a cache through the public API.
+		return fontMeasurements['_cache'].has(getWindowId(targetWindow));
+	}
+
 	test('releases readings for unregistered windows without invalidating the main window', () => {
 		const fontMeasurements = store.add(new FontMeasurementsImpl());
 		const { auxiliaryWindow, registration } = createAuxiliaryWindow();
@@ -61,11 +66,11 @@ suite('FontMeasurements', () => {
 		registration.dispose();
 
 		assert.deepStrictEqual({
-			closed: fontMeasurements.serializeFontInfo(auxiliaryWindow),
+			closedCache: hasCache(fontMeasurements, auxiliaryWindow),
 			live: fontMeasurements.serializeFontInfo(mainWindow),
 			liveCachePreserved: fontMeasurements.readFontInfo(mainWindow, options) === mainFont,
 		}, {
-			closed: [],
+			closedCache: false,
 			live: [mainFont],
 			liveCachePreserved: true,
 		});
@@ -83,9 +88,9 @@ suite('FontMeasurements', () => {
 		registration.dispose();
 		clock.tick(5000);
 
-		assert.deepStrictEqual({ changes, serialized: fontMeasurements.serializeFontInfo(auxiliaryWindow) }, {
+		assert.deepStrictEqual({ changes, cached: hasCache(fontMeasurements, auxiliaryWindow) }, {
 			changes: 0,
-			serialized: [],
+			cached: false,
 		});
 	});
 
