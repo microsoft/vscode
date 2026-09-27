@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellation } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { raceCancellation, Sequencer } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -26,7 +26,8 @@ import { createNewSessionViewV2ParallelWorkTour } from './tours/newSessionViewV2
 
 /** Keeps the banner handoff ahead of automatic onboarding, then introduces the running session. */
 export class ParallelWorkOnboarding extends Disposable {
-	private readonly _pending = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _pending = this._register(new MutableDisposable());
+	private readonly _runs = new Sequencer();
 
 	constructor(
 		@IOnboardingScenarioService private readonly _onboardingService: IOnboardingScenarioService,
@@ -42,25 +43,39 @@ export class ParallelWorkOnboarding extends Disposable {
 	}
 
 	async runWithHandoff(handoff: () => Promise<void>, resolveSession: () => Promise<ISession | undefined>, token: CancellationToken): Promise<void> {
+		const cancellation = new CancellationTokenSource(token);
+		const pending = toDisposable(() => cancellation.dispose(true));
+		this._pending.value = pending;
+		const handoffContext = NewSessionOnboardingHandoffContext.bindTo(this._contextKeyService);
+		handoffContext.set(true);
+		try {
+			await this._runs.queue(() => this._runWithHandoff(handoff, resolveSession, cancellation.token));
+		} finally {
+			if (this._pending.value === pending || this._store.isDisposed) {
+				this._pending.clear();
+				handoffContext.reset();
+			}
+		}
+	}
+
+	private async _runWithHandoff(handoff: () => Promise<void>, resolveSession: () => Promise<ISession | undefined>, token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested) {
+			return;
+		}
 		if (!this._isEnabled() || this._onboardingService.hasBeenShown(NEW_SESSION_ONBOARDING_SEEN_KEY)) {
-			await handoff();
+			await raceCancellation(handoff(), token);
 			return;
 		}
 
 		const store = new DisposableStore();
-		this._pending.value = store;
-		const handoffContext = NewSessionOnboardingHandoffContext.bindTo(this._contextKeyService);
-		handoffContext.set(true);
-		store.add(toDisposable(() => handoffContext.reset()));
-		store.add(token.onCancellationRequested(() => store.dispose()));
 		try {
-			await handoff();
+			await raceCancellation(handoff(), token);
 			await raceCancellation(this._lifecycleService.when(LifecyclePhase.Eventually), token);
 			if (store.isDisposed || token.isCancellationRequested || !this._canShow()) {
 				return;
 			}
 
-			const session = await resolveSession();
+			const session = await raceCancellation(resolveSession(), token);
 			if (store.isDisposed || token.isCancellationRequested || !this._canShow()) {
 				return;
 			}
@@ -72,8 +87,8 @@ export class ParallelWorkOnboarding extends Disposable {
 			const target = store.add(new MutableDisposable());
 			const scenario = createNewSessionViewV2ParallelWorkTour(getSessionOnboardingTargetId(session), async () => {
 				target.clear();
-				const view = await this._viewsService.openView<SessionsView>(SessionsViewId);
-				if (store.isDisposed) {
+				const view = await raceCancellation(this._viewsService.openView<SessionsView>(SessionsViewId), token);
+				if (store.isDisposed || token.isCancellationRequested) {
 					return;
 				}
 				view?.setExpanded(true);
@@ -83,15 +98,12 @@ export class ParallelWorkOnboarding extends Disposable {
 				target.value = view.sessionsControl.revealSessionForOnboarding(session);
 			});
 			store.add(onboardingScenarioRegistry.register(scenario));
-			const outcome = await this._onboardingService.runScenario(scenario.id);
+			const outcome = await this._onboardingService.runScenario(scenario.id, token);
 			if (outcome === OnboardingOutcome.Aborted) {
 				this._onboardingService.reset(scenario.id);
 			}
 		} finally {
 			store.dispose();
-			if (this._pending.value === store) {
-				this._pending.clear();
-			}
 		}
 	}
 

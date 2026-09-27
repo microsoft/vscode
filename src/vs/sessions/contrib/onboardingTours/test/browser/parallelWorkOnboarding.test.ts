@@ -8,7 +8,7 @@ import { $, addDisposableListener, EventType } from '../../../../../base/browser
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -208,6 +208,152 @@ suite('ParallelWorkOnboarding', () => {
 		await running;
 		assert.deepStrictEqual({ presented: h.presented, pending: h.pending(), events: h.events }, { presented: [], pending: false, events: [] });
 	});
+
+	test('cancels a queued tour before registering its replacement', async () => {
+		const h = createHarness();
+		const blockerId = 'parallelWork.blocker';
+		const blocked = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		const targets: string[] = [];
+		const replacement = createTestSession('Replacement session', { status: SessionStatus.InProgress }).session;
+		store.add(onboardingScenarioRegistry.register({
+			id: blockerId,
+			trigger: { kind: 'command', commandId: 'noop' },
+			presentation: { kind: SPOTLIGHT_PRESENTATION_KIND, payload: undefined },
+		}));
+		h.setPresentation({
+			kind: SPOTLIGHT_PRESENTATION_KIND,
+			async run(scenario) {
+				if (scenario.id === blockerId) {
+					blocked.complete();
+					await finish.p;
+				} else {
+					const payload = scenario.presentation.payload as ISpotlightPayload;
+					targets.push(payload.steps[0].targetId);
+					await payload.steps[0].onBeforeShow?.();
+				}
+				return { outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 0, stepCount: 1 };
+			},
+		});
+		const blocker = h.onboarding.runScenario(blockerId);
+		await blocked.p;
+		const cancellation = store.add(new CancellationTokenSource());
+		let firstFinished = false;
+		const first = h.runner.runWithHandoff(h.handoff, h.resolveSession, cancellation.token).then(() => { firstFinished = true; });
+		await timeout(0);
+		cancellation.cancel();
+		const second = h.runner.runWithHandoff(h.handoff, async () => replacement, CancellationToken.None);
+		await timeout(0);
+		const whileBlocked = { firstFinished, pending: h.pending(), targets: [...targets] };
+		finish.complete();
+		await Promise.all([blocker, first, second]);
+
+		assert.deepStrictEqual({ whileBlocked, targets, presented: h.presented, pending: h.pending() }, {
+			whileBlocked: { firstFinished: true, pending: true, targets: [] },
+			targets: [getSessionOnboardingTargetId(replacement)],
+			presented: [blockerId, NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID],
+			pending: false,
+		});
+	});
+
+	test('waits for a superseded presentation to clean up before releasing its target or starting a replacement', async () => {
+		const h = createHarness();
+		const started = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		const targets: string[] = [];
+		const replacement = createTestSession('Replacement session', { status: SessionStatus.InProgress }).session;
+		h.setPresentation({
+			kind: SPOTLIGHT_PRESENTATION_KIND,
+			async run(scenario, context) {
+				const payload = scenario.presentation.payload as ISpotlightPayload;
+				targets.push(payload.steps[0].targetId);
+				await payload.steps[0].onBeforeShow?.();
+				const presentationStore = new DisposableStore();
+				try {
+					if (targets.length === 1) {
+						presentationStore.add(context.onAbort(() => h.events.push('abort')));
+						started.complete();
+						await finish.p;
+						h.events.push('cleanup');
+						return { outcome: OnboardingOutcome.Aborted, shown: true, dismissReason: OnboardingDismissReason.Aborted, lastStepIndex: 0, stepCount: 3 };
+					}
+					return { outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 0, stepCount: 3 };
+				} finally {
+					presentationStore.dispose();
+				}
+			},
+		});
+		const cancellation = store.add(new CancellationTokenSource());
+		const first = h.runner.runWithHandoff(h.handoff, h.resolveSession, cancellation.token);
+		await started.p;
+		cancellation.cancel();
+		const second = h.runner.runWithHandoff(h.handoff, async () => replacement, CancellationToken.None);
+		await timeout(0);
+		const duringCleanup = { events: [...h.events], pending: h.pending() };
+		finish.complete();
+		await Promise.all([first, second]);
+
+		assert.deepStrictEqual({ duringCleanup, targets, events: h.events, pending: h.pending() }, {
+			duringCleanup: { events: ['handoff', 'resolve', 'expanded:true', 'reveal:Running session', 'abort'], pending: true },
+			targets: [getSessionOnboardingTargetId(h.session), getSessionOnboardingTargetId(replacement)],
+			events: ['handoff', 'resolve', 'expanded:true', 'reveal:Running session', 'abort', 'cleanup', 'released', 'handoff', 'expanded:true', 'reveal:Replacement session', 'released'],
+			pending: false,
+		});
+	});
+
+	for (const cancelBy of ['token', 'disposal']) {
+		test(`removes the spotlight and restores focus before releasing its reveal on ${cancelBy} cancellation`, () => runWithFakedTimers({ startTime: 1 }, async () => {
+			const h = createHarness();
+			const container = $('div');
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const input = $('input');
+			container.appendChild(input);
+			input.focus();
+			const row = $('button');
+			row.textContent = h.session.title.get();
+			container.appendChild(row);
+			const releases: { overlay: boolean; focused: boolean }[] = [];
+			h.setReveal(() => {
+				const target = markOnboardingTarget(row, getSessionOnboardingTargetId(h.session));
+				return toDisposable(() => {
+					releases.push({ overlay: !!container.querySelector('.spotlight-callout'), focused: mainWindow.document.activeElement === input });
+					target.dispose();
+				});
+			});
+			const presentation = store.add(new SpotlightPresentation(
+				new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
+				new TestHostService(), h.context,
+			));
+			const shown = new DeferredPromise<void>();
+			h.setPresentation({
+				kind: presentation.kind,
+				run: (scenario, context) => presentation.run(scenario, {
+					...context,
+					onDidShow: () => { context.onDidShow?.(); shown.complete(); },
+				}),
+			});
+			const cancellation = store.add(new CancellationTokenSource());
+			const running = h.runner.runWithHandoff(h.handoff, h.resolveSession, cancellation.token);
+			await shown.p;
+			if (cancelBy === 'token') {
+				cancellation.cancel();
+			} else {
+				h.runner.dispose();
+			}
+			await timeout(0);
+			const afterCancellation = { overlay: !!container.querySelector('.spotlight-callout'), target: row.hasAttribute('data-onboarding-id') };
+			container.querySelector('.spotlight-callout')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+			await running;
+
+			assert.deepStrictEqual({ afterCancellation, releases, pending: h.pending(), seen: h.onboarding.hasBeenShown(NEW_SESSION_ONBOARDING_SEEN_KEY) }, {
+				afterCancellation: { overlay: false, target: false },
+				releases: [{ overlay: false, focused: true }],
+				pending: false,
+				seen: false,
+			});
+		}));
+	}
 
 	test('reports a missing session without marking the tour seen', async () => {
 		const h = createHarness();
