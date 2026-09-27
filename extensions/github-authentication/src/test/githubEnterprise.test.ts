@@ -153,6 +153,50 @@ suite('GitHub Enterprise provider lifecycle', () => {
 		});
 	});
 
+	for (const change of ['removed', 'changed', 'added'] as const) {
+		test(`reconciles replacement sessions ${change} during preparation`, async () => {
+			const { provider, factory } = await create(a);
+			const previous = factory.engines[0].sessions[0];
+			const snapshot = Promise.withResolvers<readonly vscode.AuthenticationSession[]>();
+			const preparing = Promise.withResolvers<void>();
+			sinon.stub(factory.engines[0], 'getSessionSnapshot').callsFake(() => {
+				preparing.resolve();
+				return snapshot.promise;
+			});
+			const events: vscode.AuthenticationProviderAuthenticationSessionsChangeEvent[] = [];
+			disposables.push(provider.onDidChangeSessions(event => events.push(event)));
+			const update = provider.update(b);
+			await preparing.promise;
+			const replacement = factory.engines[1];
+			const original = replacement.sessions[0];
+			const changed = { ...original, accessToken: 'changed-token' };
+			const added = { ...original, id: 'added-session', account: { id: 'other', label: 'other' } };
+			switch (change) {
+				case 'removed':
+					replacement.sessions = [];
+					replacement.changes.fire({ added: [], changed: [], removed: [original] });
+					break;
+				case 'changed':
+					replacement.sessions = [changed];
+					replacement.changes.fire({ added: [], changed: [changed], removed: [] });
+					break;
+				case 'added':
+					replacement.sessions = [original, added];
+					replacement.changes.fire({ added: [added], changed: [], removed: [] });
+					break;
+			}
+			snapshot.resolve([previous]);
+			await update;
+			assert.deepStrictEqual({
+				events,
+				sessions: await provider.getSessions()
+			}, {
+				events: [{ added: replacement.sessions, removed: [previous], changed: [] }],
+				sessions: replacement.sessions
+			});
+		});
+	}
+
 	test('an unconfigured provider has empty reads and actionable interactive errors', async () => {
 		const { provider } = await create();
 		await provider.update(undefined, 'Invalid enterprise configuration');

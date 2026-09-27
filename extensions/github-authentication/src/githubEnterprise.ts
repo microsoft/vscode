@@ -12,11 +12,26 @@ interface EnterpriseHost {
 	readonly storageKey: string;
 	readonly provider: IGitHubAuthenticationProvider;
 	readonly listener: vscode.Disposable;
+	readonly initialChanges: Map<string, vscode.AuthenticationSession | undefined>;
 }
 
 function disposeHost(host: EnterpriseHost | undefined): void {
 	host?.listener.dispose();
 	host?.provider.dispose();
+	host?.initialChanges.clear();
+}
+
+function reconcileInitialSessions(host: EnterpriseHost, sessions: readonly vscode.AuthenticationSession[]): vscode.AuthenticationSession[] {
+	const current = new Map(sessions.map(session => [session.id, session]));
+	for (const [id, session] of host.initialChanges) {
+		if (session) {
+			current.set(id, session);
+		} else {
+			current.delete(id);
+		}
+	}
+	host.initialChanges.clear();
+	return [...current.values()];
 }
 
 export class GitHubEnterpriseAuthenticationProvider implements vscode.AuthenticationProvider, vscode.Disposable {
@@ -31,8 +46,26 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 	constructor(private readonly _providers: IGitHubAuthenticationProviderFactory) { }
 
 	update(uri?: vscode.Uri, error?: string): Promise<void> {
-		const update = () => this.applyConfiguration(uri, error);
+		const update = async () => {
+			try {
+				await this.applyConfiguration(uri, error);
+			} catch (error) {
+				await this.handleUpdateError(error);
+				throw error;
+			}
+		};
 		return this._pendingUpdate = this._pendingUpdate.then(update, update);
+	}
+
+	private async handleUpdateError(error: unknown): Promise<void> {
+		this.checkCancellation();
+		if (this._host) {
+			return;
+		}
+		this._configurationError = error instanceof Error ? error.message : String(error);
+		if (!this._registration) {
+			await this.registerProvider();
+		}
 	}
 
 	private async applyConfiguration(uri: vscode.Uri | undefined, error: string | undefined): Promise<void> {
@@ -44,25 +77,19 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 		const next = uri && this.createHost(uri, `${uri.authority}${uri.path}.ghes.auth`);
 		const cancellation = this._lifetime.token.onCancellationRequested(() => disposeHost(next));
 		try {
-			const added = next ? await next.provider.getSessions(undefined, {}) : [];
+			const initialSessions = next ? await next.provider.getSessions(undefined, {}) : [];
 			this.checkCancellation();
 			const previous = this._host;
 			const removed = previous ? await previous.provider.getSessionSnapshot() : [];
 			this.checkCancellation();
+			const added = next ? reconcileInitialSessions(next, initialSessions) : [];
 			this._host = next;
-			this._registration?.dispose();
-			const registration = new AuthenticationProviderRegistration('github-enterprise', uri?.authority ?? 'GitHub Enterprise', this, {
-				supportsMultipleAccounts: true,
-				supportedAuthorizationServers: uri ? [vscode.Uri.joinPath(uri, '/login/oauth')] : []
-			});
-			this._registration = registration;
+			const registered = this.registerProvider();
 			disposeHost(previous);
 			if (added.length || removed.length) {
 				this._onDidChangeSessions.fire({ added, removed, changed: [] });
 			}
-			if (!await registration.whenRegistered) {
-				throw new vscode.CancellationError();
-			}
+			await registered;
 		} catch (error) {
 			disposeHost(next);
 			throw error;
@@ -73,16 +100,36 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 
 	private createHost(uri: vscode.Uri, storageKey: string): EnterpriseHost {
 		const provider = this._providers.create(uri, storageKey);
+		const initialChanges = new Map<string, vscode.AuthenticationSession | undefined>();
 		return {
 			uri,
 			storageKey,
 			provider,
+			initialChanges,
 			listener: provider.onDidChangeSessions(event => {
 				if (this._host?.provider === provider) {
 					this._onDidChangeSessions.fire(event);
+				} else {
+					event.removed?.forEach(session => initialChanges.set(session.id, undefined));
+					for (const session of [...event.added ?? [], ...event.changed ?? []]) {
+						initialChanges.set(session.id, session);
+					}
 				}
 			})
 		};
+	}
+
+	private async registerProvider(): Promise<void> {
+		this._registration?.dispose();
+		const uri = this._host?.uri;
+		const registration = new AuthenticationProviderRegistration('github-enterprise', uri?.authority ?? 'GitHub Enterprise', this, {
+			supportsMultipleAccounts: true,
+			supportedAuthorizationServers: uri ? [vscode.Uri.joinPath(uri, '/login/oauth')] : []
+		});
+		this._registration = registration;
+		if (!await registration.whenRegistered) {
+			throw new vscode.CancellationError();
+		}
 	}
 
 	async getSessions(scopes?: readonly string[], options: vscode.AuthenticationProviderSessionOptions = {}): Promise<vscode.AuthenticationSession[]> {

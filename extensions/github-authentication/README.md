@@ -18,7 +18,7 @@ The `github-enterprise` provider authenticates to the GHE.com or GitHub Enterpri
 
 GitHub.com accounts use the `github` provider and do not need this setting. Account and session IDs, labels, token storage, and Microsoft account links retain their existing behavior.
 
-The enterprise provider owns registration separately from its host-bound authentication engine. Changing the configured instance releases the retired engine and notifies consumers after the replacement registration is ready. Public GitHub remains available if enterprise initialization fails. A superseded startup failure does not replace a newer configured instance with an error state.
+The enterprise provider owns registration separately from its host-bound authentication engine. Configuration changes and their error states are applied in the same queue, so a failed update cannot overwrite a later one. Session changes received while preparing a replacement are reconciled before notifying consumers. Public GitHub remains available if enterprise initialization fails.
 
 ## Session provenance
 

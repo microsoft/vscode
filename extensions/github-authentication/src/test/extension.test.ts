@@ -147,11 +147,12 @@ suite('GitHub authentication activation', () => {
 		}, { samePublicProvider: true, issuers: ['https://tenant.example/Team/login/oauth'], errorCount: 1, attempts: 2 });
 	});
 
-	for (const changes of [
-		['https://replacement.example'],
-		['https://replacement.example', 'https://initial.example'],
+	for (const { changes, replacementFails } of [
+		{ changes: ['https://replacement.example'], replacementFails: false },
+		{ changes: ['https://replacement.example', 'https://initial.example'], replacementFails: false },
+		{ changes: ['https://replacement.example'], replacementFails: true },
 	]) {
-		test(`an initial failure cannot retire a newer successful update (${changes.join(' -> ')})`, async () => {
+		test(`initial failure preserves the latest configuration ${replacementFails ? 'error' : 'session'} (${changes.join(' -> ')})`, async () => {
 			const secrets = new TestSecretStorage();
 			disposables.push(secrets);
 			const config = configure('https://initial.example');
@@ -168,14 +169,16 @@ suite('GitHub authentication activation', () => {
 					accessToken: 'fake-enterprise-token',
 					authorizationServer: vscode.Uri.joinPath(uri, '/login/oauth')
 				};
-				const sessions = engines.length === 1 ? initialRead.promise : Promise.resolve([session]);
 				return {
 					onDidChangeSessions: changes.event,
 					getSessions: () => {
 						initialStarted.resolve();
-						return sessions;
+						if (engines.indexOf(engine) === 0) {
+							return initialRead.promise;
+						}
+						return replacementFails ? Promise.reject(new Error('Replacement initialization failed')) : Promise.resolve([session]);
 					},
-					getSessionSnapshot: () => sessions,
+					getSessionSnapshot: async () => [session],
 					createSession: async () => session,
 					removeSession: async () => { },
 					dispose: () => { engine.disposed = true; }
@@ -191,18 +194,25 @@ suite('GitHub authentication activation', () => {
 			const latestUpdate = update.lastCall.returnValue;
 			initialRead.reject(new Error('Superseded initialization failed'));
 			await activation;
-			await latestUpdate;
+			if (replacementFails) {
+				await assert.rejects(latestUpdate, /Replacement initialization failed/);
+			} else {
+				await latestUpdate;
+			}
 			const enterpriseProvider = providers.get('github-enterprise');
 			assert.ok(enterpriseProvider);
+			if (replacementFails) {
+				await assert.rejects(Promise.resolve(enterpriseProvider.createSession(['repo'], {})), /Replacement initialization failed/);
+			}
 			assert.deepStrictEqual({
 				issuers: (await enterpriseProvider.getSessions(undefined, {})).map(session => session.authorizationServer?.toString()),
 				disposed: engines.map(engine => engine.disposed),
 				errors: errors.callCount,
 				updates: update.callCount
 			}, {
-				issuers: [`${changes[changes.length - 1]}/login/oauth`],
-				disposed: engines.map((_, index) => index !== engines.length - 1),
-				errors: 0,
+				issuers: replacementFails ? [] : [`${changes[changes.length - 1]}/login/oauth`],
+				disposed: engines.map((_, index) => replacementFails || index !== engines.length - 1),
+				errors: replacementFails ? 2 : 1,
 				updates: 1 + changes.length
 			});
 		});
