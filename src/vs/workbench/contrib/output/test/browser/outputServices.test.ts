@@ -51,6 +51,24 @@ suite('OutputService channel disposal', () => {
 		return ref;
 	}
 
+	for (const removeFromRegistry of [false, true]) {
+		test(`does not retain disposal listeners after ${removeFromRegistry ? 'registry removal' : 'channel disposal'}`, () => {
+			registerChannel();
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect service-owned registrations without exposing test-only API.
+			const registrations = service['_store']['_toDispose'];
+			const initialRegistrations = [...registrations];
+			for (let i = 0; i < 3; i++) {
+				const channel = registerChannel();
+				if (removeFromRegistry) {
+					registry.removeChannel(channel.id);
+				} else {
+					channel.dispose();
+				}
+			}
+			assert.deepStrictEqual([...registrations], initialRegistrations);
+		});
+	}
+
 	test('disposed channels become collectible while the service remains alive', async function () {
 		if (typeof globalThis.gc !== 'function') {
 			this.skip(); // Run the Electron suite with --js-flags=--expose-gc.
