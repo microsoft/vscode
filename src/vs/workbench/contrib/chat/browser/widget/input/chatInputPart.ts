@@ -521,6 +521,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatToolConfirmationCarouselContainer!: HTMLElement;
 	private chatInputNotificationContainer!: HTMLElement;
 	private chatGoalBannerContainer!: HTMLElement;
+	private chatCustomizationMigrationNoticeContainer!: HTMLElement;
 	private persistentContentContainer!: HTMLElement;
 	private sessionArchiveNudgeContainer: HTMLElement | undefined;
 	private sessionArchiveNudgeOptions: IChatSessionArchiveNudgeOptions | undefined;
@@ -543,6 +544,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
+	}
+
+	get customizationMigrationNoticeContainerElement(): HTMLElement {
+		return this.chatCustomizationMigrationNoticeContainer;
+	}
+
+	setCustomizationMigrationNoticeVisible(visible: boolean): void {
+		setChatInputStackSlot(this.chatCustomizationMigrationNoticeContainer, visible ? ChatInputStackSlot.Standalone : ChatInputStackSlot.Empty);
 	}
 
 	get inputToolbarElement(): HTMLElement {
@@ -3230,6 +3239,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
 					dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),
 					dom.h(`.${chatInputStackClass}`, [
+						dom.h(`.chat-customization-migration-notice-container.${chatInputStackSlotClass}@chatCustomizationMigrationNoticeContainer`),
 						dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
 						dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),
 						dom.h(`.dictation-onboarding-container.${chatInputStackSlotClass}@dictationOnboardingContainer`),
@@ -3265,6 +3275,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),
 				dom.h(`.interactive-input-followups.${chatInputSurfaceStackSlotClass}@followupsContainer`),
 				dom.h(`.${chatInputStackClass}`, [
+					dom.h(`.chat-customization-migration-notice-container.${chatInputStackSlotClass}@chatCustomizationMigrationNoticeContainer`),
 					dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
 					dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),
 					dom.h(`.dictation-onboarding-container.${chatInputStackSlotClass}@dictationOnboardingContainer`),
@@ -3294,6 +3305,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.persistentContentContainer = elements.persistentContentContainer;
 		this.sessionArchiveNudgeContainer = elements.sessionArchiveNudgeContainer;
 		this.chatInputOverlay = dom.$('.chat-input-overlay');
+		this.chatCustomizationMigrationNoticeContainer = elements.chatCustomizationMigrationNoticeContainer;
 		container.append(this.container);
 		this.container.append(this.chatInputOverlay);
 		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
@@ -3676,6 +3688,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						getActiveSessionProvider: () => {
 							return this.getActiveSessionTypeForDelegation();
 						},
+						getSessionResource: () => this._currentSessionResourceObservable.get(),
 						getPendingDelegationTarget: () => {
 							return this._pendingDelegationTarget;
 						},
@@ -3883,6 +3896,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						getActiveSessionProvider: () => {
 							return this.getActiveSessionTypeForDelegation();
 						},
+						getSessionResource: () => this._currentSessionResourceObservable.get(),
 						getPendingDelegationTarget: () => {
 							return this._pendingDelegationTarget;
 						},

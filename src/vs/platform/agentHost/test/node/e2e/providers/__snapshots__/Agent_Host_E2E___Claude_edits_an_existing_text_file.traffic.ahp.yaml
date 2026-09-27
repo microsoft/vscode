@@ -30,13 +30,6 @@ rounds:
           type: chat/changesetsChanged
       - channel: ${chat_0}
         action:
-          type: chat/responsePart
-          turnId: ${turn_0}
-          part:
-            kind: markdown
-            content: I'll read the file first, then replace its contents.
-      - channel: ${chat_0}
-        action:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
@@ -67,7 +60,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: '`edit.txt` now contains exactly `AFTER_VALUE` with no trailing newline.'
+            content: 'I replaced the contents of `edit.txt`: it held `BEFORE_VALUE` and now contains exactly `AFTER_VALUE` with no trailing newline. I used the file tools only, with no shell commands.'
       - channel: ${chat_0}
         action:
           type: chat/turnComplete

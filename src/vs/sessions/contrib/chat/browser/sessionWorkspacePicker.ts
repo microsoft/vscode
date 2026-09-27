@@ -12,10 +12,11 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { disposableTimeout, Limiter, RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
-import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -225,7 +226,7 @@ export class WorkspacePicker extends Disposable {
 	private _selectionOrigin = WorkspaceSelectionOrigin.None;
 	private _selectionGeneration = 0;
 	private _sessionRestoreGeneration = 0;
-	private _sessionRestoreState: { readonly generation: number; readonly selectionGeneration: number; state: WorkspaceSessionFallbackState } | undefined;
+	private readonly _sessionRestoreState = observableValue<{ readonly generation: number; readonly selectionGeneration: number; readonly state: WorkspaceSessionFallbackState } | undefined>(this, undefined);
 	private readonly _sessionWorkspaceFallback: SessionWorkspaceFallback | undefined;
 
 	/**
@@ -399,7 +400,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	get selectionSnapshot(): IWorkspaceSelectionSnapshot {
-		const restoreState = this._sessionRestoreState;
+		const restoreState = this._sessionRestoreState.get();
 		return {
 			folderUri: this._selectedFolderUri,
 			origin: this._selectionOrigin,
@@ -2191,6 +2192,18 @@ export class WorkspacePicker extends Disposable {
 		return this._restoreAutomaticSelection();
 	}
 
+	/** Waits for history and the latest session-workspace lookup and reports whether both completed successfully. */
+	async whenWorkspaceRestored(token: CancellationToken): Promise<boolean> {
+		if (!this._userHasPicked) {
+			await waitForState(this.recentWorkspacesService.historyLoadState, state => state !== 'loading', undefined, token);
+			while (!this._userHasPicked && this._sessionRestoreState.get()?.state === 'pending') {
+				await waitForState(this._sessionRestoreState, state => state?.state !== 'pending', undefined, token);
+			}
+		}
+		return this.recentWorkspacesService.historyLoadState.get() === 'loaded'
+			&& this._sessionRestoreState.get()?.state === 'completed';
+	}
+
 	private _restoreAutomaticSelection(): boolean {
 		if (this._userHasPicked || !this._canRestoreWorkspace()) {
 			return false;
@@ -2222,10 +2235,11 @@ export class WorkspacePicker extends Disposable {
 		}
 		const restoreGeneration = ++this._sessionRestoreGeneration;
 		const selectionGeneration = this._selectionGeneration;
-		this._sessionRestoreState = { generation: restoreGeneration, selectionGeneration, state: 'pending' };
-		const restoreState = this._sessionRestoreState;
+		this._sessionRestoreState.set({ generation: restoreGeneration, selectionGeneration, state: 'pending' }, undefined);
 		void this._sessionWorkspaceFallback.findWorkspace().then(restored => {
-			restoreState.state = 'completed';
+			if (this._sessionRestoreState.get()?.generation === restoreGeneration) {
+				this._sessionRestoreState.set({ generation: restoreGeneration, selectionGeneration, state: 'completed' }, undefined);
+			}
 			if (restoreGeneration !== this._sessionRestoreGeneration
 				|| selectionGeneration !== this._selectionGeneration
 				|| this._userHasPicked
@@ -2257,7 +2271,9 @@ export class WorkspacePicker extends Disposable {
 			this._onDidSelectWorkspace.fire(this._selectedFolderUri);
 			this._watchForConnectionFailure(restored);
 		}).catch(error => {
-			restoreState.state = 'error';
+			if (this._sessionRestoreState.get()?.generation === restoreGeneration) {
+				this._sessionRestoreState.set({ generation: restoreGeneration, selectionGeneration, state: 'error' }, undefined);
+			}
 			onUnexpectedError(error);
 		});
 	}

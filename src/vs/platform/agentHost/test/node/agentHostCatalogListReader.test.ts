@@ -17,16 +17,33 @@ import type { IRegisteredSession } from '../../node/agentSessionRegistry.js';
 class TestCatalogDatabase extends AgentHostDatabase {
 	catalog: IAgentHostDatabaseSessionV2 | undefined;
 	readError: Error | undefined;
+	batchReadError: Error | undefined;
+	readonly singleReadErrors = new Map<string, Error>();
+	singleReads = 0;
+	batchReads = 0;
+	batchSessions: readonly string[] | undefined;
 
 	constructor() {
 		super(':memory:');
 	}
 
-	override async getSessionV2(): Promise<IAgentHostDatabaseSessionV2 | undefined> {
-		if (this.readError) {
-			throw this.readError;
+	override async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
+		this.singleReads++;
+		const error = this.readError ?? this.singleReadErrors.get(session);
+		if (error) {
+			throw error;
 		}
-		return this.catalog;
+		return this.catalog?.session === session ? this.catalog : undefined;
+	}
+
+	override async listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+		this.batchReads++;
+		this.batchSessions = sessions;
+		const error = this.readError ?? this.batchReadError;
+		if (error) {
+			throw error;
+		}
+		return this.catalog && (!sessions || sessions.includes(this.catalog.session)) ? [this.catalog] : [];
 	}
 }
 
@@ -174,6 +191,80 @@ suite('AgentHostCatalogListReader', () => {
 				...(chat.archived === true ? { archived: true } : {}),
 			})),
 			catalogChats: data.chats,
+		});
+	});
+
+	test('reads multiple registered sessions with one catalog query', async () => {
+		const database = createDatabase();
+		const missing: IRegisteredSession = {
+			...registered,
+			session: AgentSession.uri('copilot', 'missing'),
+		};
+
+		const { results } = await new AgentHostCatalogListReader(database).readMany([registered, missing]);
+
+		assert.deepStrictEqual({
+			eligible: results.map(result => result.eligible),
+			singleReads: database.singleReads,
+			batchReads: database.batchReads,
+			batchSessions: database.batchSessions,
+		}, {
+			eligible: [true, false],
+			singleReads: 0,
+			batchReads: 1,
+			batchSessions: [registered.session.toString(), missing.session.toString()],
+		});
+	});
+
+	test('skips the catalog query for an empty candidate list', async () => {
+		const database = createDatabase();
+
+		const result = await new AgentHostCatalogListReader(database).readMany([]);
+
+		assert.deepStrictEqual({
+			result,
+			singleReads: database.singleReads,
+			batchReads: database.batchReads,
+		}, {
+			result: { results: [] },
+			singleReads: 0,
+			batchReads: 0,
+		});
+	});
+
+	test('recovers individual rows with bounded reads when the bulk query fails', async () => {
+		const database = createDatabase();
+		const missing: IRegisteredSession = {
+			...registered,
+			session: AgentSession.uri('copilot', 'missing'),
+		};
+		const failed: IRegisteredSession = {
+			...registered,
+			session: AgentSession.uri('copilot', 'failed'),
+		};
+		database.batchReadError = new Error('bulk failed');
+		database.singleReadErrors.set(failed.session.toString(), new Error('row failed'));
+
+		const result = await new AgentHostCatalogListReader(database).readMany([registered, missing, failed]);
+
+		assert.deepStrictEqual({
+			eligible: result.results.map(entry => entry.eligible),
+			errors: result.results.map(entry => entry.eligible || entry.chatBacking ? undefined : entry.error?.message),
+			bulkReadError: result.bulkReadError?.message,
+			fallbackReadCount: result.bulkReadError ? result.fallbackReadCount : undefined,
+			fallbackRecoveredRowCount: result.bulkReadError ? result.fallbackRecoveredRowCount : undefined,
+			fallbackReadFailureCount: result.bulkReadError ? result.fallbackReadFailureCount : undefined,
+			singleReads: database.singleReads,
+			batchReads: database.batchReads,
+		}, {
+			eligible: [true, false, false],
+			errors: [undefined, undefined, 'row failed'],
+			bulkReadError: 'bulk failed',
+			fallbackReadCount: 3,
+			fallbackRecoveredRowCount: 1,
+			fallbackReadFailureCount: 1,
+			singleReads: 3,
+			batchReads: 1,
 		});
 	});
 

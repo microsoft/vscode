@@ -219,7 +219,7 @@ export interface IAgentHostDatabase extends IDisposable {
 	/** Whether the current v2 registry contains no identities. */
 	isSessionV2RegistryEmpty(): Promise<boolean>;
 	getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined>;
-	listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]>;
+	listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]>;
 	/** Lists catalog receipts without materializing payloads, for startup scans. */
 	listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]>;
 	/** Marks one cached payload dirty and returns the marker repair must compare-and-set. */
@@ -1179,12 +1179,16 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return row ? { ...this._toSessionV2Receipt(row), payload: row.payload as string } : undefined;
 	}
 
-	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+	async listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+		if (sessions?.length === 0) {
+			return [];
+		}
 		const rows = await all(await this._ensureDatabase(), this._selectVerifiedSessionsV2(
 			`sessions_v2.*, COALESCE(CAST((
 				SELECT value FROM metadata WHERE key = '${sessionsV2PayloadDirtyKeyPrefix}' || sessions_v2.session_uri
 			) AS INTEGER), 0) AS payload_dirty`,
-		), []);
+			sessions?.length,
+		), sessions ?? []);
 		return rows.map(row => ({ ...this._toSessionV2Receipt(row), payload: row.payload as string }));
 	}
 
@@ -1594,10 +1598,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		}
 	}
 
-	private _selectVerifiedSessionsV2(columns: string): string {
+	private _selectVerifiedSessionsV2(columns: string, sessionCount?: number): string {
 		return `SELECT ${columns}
 			FROM sessions_v2
 			WHERE sessions_v2.verified = 1
+				${sessionCount === undefined ? '' : `AND sessions_v2.session_uri IN (${new Array(sessionCount).fill('?').join(',')})`}
 				AND NOT EXISTS (
 					SELECT 1 FROM metadata
 					WHERE key = 'sessionTombstone:' || sessions_v2.session_uri AND value = 'true'

@@ -517,6 +517,9 @@ export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 /** Root config key forwarded from the renderer for the GitHub MCP server. */
 export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled';
 
+/** Root config key forwarded from the renderer for Copilot connector discovery. */
+export const AgentHostMcpConnectorsEnabledConfigKey = 'mcpConnectorsEnabled';
+
 /**
  * Independently synchronized proxy settings retain their VS Code `http.*`
  * names, matching other flat namespaced root keys such as `agentMerge.*`.
@@ -547,10 +550,6 @@ const agentHostProxyConfigDefinition = {
 	}),
 };
 export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefinition);
-
-/** Root config key forwarded from the renderer for active-agent title generation. */
-export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGeneration';
-export const AgentHostDeferredTitleGenerationConfigKey = 'deferredTitleGeneration';
 
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
@@ -877,16 +876,10 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.githubMcpServerEnabled.description', "Whether agent sessions include a GitHub MCP server by default."),
 		default: true,
 	}),
-	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
+	[AgentHostMcpConnectorsEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.activeAgentTitleGeneration.title', "Active Agent Title Generation"),
-		description: localize('agentHost.config.activeAgentTitleGeneration.description', "Whether the active agent names sessions and chats with rename tools instead of immediate utility-model title generation. Deferred title generation takes precedence. Changes apply to new sessions."),
-		default: false,
-	}),
-	[AgentHostDeferredTitleGenerationConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.deferredTitleGeneration.title', "Deferred Title Generation"),
-		description: localize('agentHost.config.deferredTitleGeneration.description', "Seed titles immediately and refine them in the background if the first response turn completes successfully, without asking the active agent to name chats. Explicit rename tools remain available. Overrides active agent title generation for new sessions; existing sessions and their chats retain their strategy."),
+		title: localize('agentHost.config.mcpConnectorsEnabled.title', "Copilot Connectors"),
+		description: localize('agentHost.config.mcpConnectorsEnabled.description', "Whether Copilot agent sessions expose MCP servers provided by connected Copilot Connectors."),
 		default: false,
 	}),
 	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({

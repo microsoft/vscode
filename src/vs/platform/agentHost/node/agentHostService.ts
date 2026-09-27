@@ -70,6 +70,10 @@ export class AgentHostProcessManager extends Disposable {
 		}
 	}
 
+	start(): Promise<void> {
+		return this._ensureStarted();
+	}
+
 	private _ensureStarted(): Promise<void> {
 		if (this._wasQuitRequested || this._store.isDisposed) {
 			return Promise.reject(new Error('Agent Host process manager is shutting down.'));

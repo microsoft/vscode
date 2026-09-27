@@ -96,6 +96,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.embeddedMcpDetail = { setMigratable: migratable => states.push(migratable) };
 		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.McpServers, [{
 			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
 			id: 'server-id',
 			name: 'server',
 			sourceUri,
@@ -236,7 +237,7 @@ suite('aiCustomizationManagementEditor', () => {
 		recordMigrationActivity(category: ICustomizationMigrationCategory, context: { storage: PromptsStorage; key: string; label: string }, items: ICustomizationMigrationDashboardActivity['items']): void;
 		chooseCustomizationMigrationDestination(destination: ICustomizationMigrationDashboardDestination): Promise<void>;
 		updateContentVisibility(): void;
-		selectSectionById(section: AICustomizationManagementSection): void;
+		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void;
 		rebuildVisibleSections(): void;
 		updateContributedSectionEnablement(): void;
 		setVisible(visible: boolean): void;
@@ -534,6 +535,21 @@ suite('aiCustomizationManagementEditor', () => {
 			noneEnabled: { widget: undefined, selected: undefined, disposed: 1, sections: [AICustomizationManagementSection.Agents] },
 			reenabled: { created: 2, visible: true },
 		});
+	});
+
+	test('plugin marketplace deep links open plugin-filtered Discover only when its source is enabled', async () => {
+		const { editor, configuration } = createGatedSectionEditor();
+		const queries: string[] = [];
+		Object.assign(editor, {
+			welcomePage: {
+				setSearchQuery(query: string) { queries.push(query); },
+			},
+		});
+		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
+		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
+		assert.deepStrictEqual(queries, ['@type:plugin']);
 	});
 
 	test('a contributed section with no source settings remains hidden', () => {
@@ -953,6 +969,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const editor = createTestEditor();
 		const serverA: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
 			id: 'mcp.config.ws0.server',
 			name: 'server',
 			sourceUri: URI.file('/workspace-a/.vscode/mcp.json'),
@@ -1052,6 +1069,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const editor = createTestEditor();
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
 			id: 'mcp.config.ws0.server',
 			name: 'server',
 			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
@@ -1249,6 +1267,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.activeMigrationStorage = PromptsStorage.local;
 		editor.workspaceService.activeProjectRoot.set(URI.file('/workspace'), undefined);
 		editor.mcpServerMigrationExclusions = [{
+			storage: PromptsStorage.local,
 			id: 'unsupported',
 			name: 'Unsupported server',
 			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
@@ -1349,6 +1368,7 @@ suite('aiCustomizationManagementEditor', () => {
 		}));
 		const candidate: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
 			id: 'migratable',
 			name: 'Migratable server',
 			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
@@ -1361,6 +1381,7 @@ suite('aiCustomizationManagementEditor', () => {
 			new Map([[CustomizationMigrationCategoryId.McpServers, [candidate]]]),
 			new Map(),
 			[{
+				storage: PromptsStorage.local,
 				id: 'unsupported',
 				name: 'Unsupported server',
 				sourceUri: URI.file('/workspace/.vscode/mcp.json'),
@@ -1585,6 +1606,7 @@ suite('aiCustomizationManagementEditor', () => {
 	test('keeps a new context loading when its first refresh is superseded', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const serverA: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
 			id: 'server-a',
 			name: 'server-a',
 			sourceUri: URI.file('/workspace-a/.vscode/mcp.json'),
@@ -2101,6 +2123,7 @@ suite('aiCustomizationManagementEditor', () => {
 		}));
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
 			id: 'mcp.config.ws0.server',
 			name: 'server',
 			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
@@ -2163,6 +2186,7 @@ suite('aiCustomizationManagementEditor', () => {
 		}));
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
 			id: 'mcp.config.ws0.server',
 			name: 'server',
 			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
@@ -2309,13 +2333,27 @@ suite('aiCustomizationManagementEditor', () => {
 		};
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers, id: 'server', name: 'server',
+			storage: PromptsStorage.local,
 			sourceUri: URI.file('/workspace/.vscode/mcp.json'), targetUri: URI.file('/workspace/.mcp.json'),
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 		};
+		const userServer: IMcpServerCustomizationMigrationCandidate = {
+			...server,
+			id: 'userServer',
+			storage: PromptsStorage.user,
+			sourceUri: URI.file('/profile/mcp.json'),
+			targetUri: URI.file('/home/.copilot/mcp-config.json'),
+		};
+		editor.mcpServerMigrationExclusions = [{
+			...userServer,
+			id: 'excluded',
+			reason: McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration,
+			details: ['Requires user interaction.'],
+		}];
 		editor.customizationsByMigrationCategory = new Map([
 			[CustomizationMigrationCategoryId.PromptFiles, [profile, workspace]],
 			[CustomizationMigrationCategoryId.UserData, [{ ...profile, type: PromptsType.agent }]],
-			[CustomizationMigrationCategoryId.McpServers, [server]],
+			[CustomizationMigrationCategoryId.McpServers, [server, userServer]],
 			[CustomizationMigrationCategoryId.ConfiguredLocations, [configuredProfile, configuredWorkspace]],
 		]);
 		editor.activeMigrationStorage = PromptsStorage.user;
@@ -2332,10 +2370,10 @@ suite('aiCustomizationManagementEditor', () => {
 			mcpProfile: editor.getMigrationCandidates(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers), PromptsStorage.user),
 		}, {
 			scopes: [
-				{ label: 'Your profile', count: 3, skipped: false, categories: [['Prompts to skills', '1 prompt'], ['User Data', '1 agent'], ['Custom location settings', '1 customization']] },
+				{ label: 'Your profile', count: 4, skipped: false, categories: [['Prompts to skills', '1 prompt'], ['User Data', '1 agent'], ['Custom location settings', '1 customization'], ['MCP Servers', '1 migratable · 1 not migratable']] },
 				{ label: 'vscode', count: 3, skipped: true, categories: [['Prompts to skills', '1 prompt'], ['Custom location settings', '1 customization'], ['MCP Servers', '1 migratable · 0 not migratable']] },
 			],
-			profile: [profile], workspace: [workspace], all: [profile, workspace], mcpProfile: [],
+			profile: [profile], workspace: [workspace], all: [profile, workspace], mcpProfile: [userServer],
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
@@ -2350,6 +2388,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.layoutSidebar = () => { };
 		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.McpServers, [{
 			type: CustomizationMigrationType.McpServers, id: 'server', name: 'server',
+			storage: PromptsStorage.local,
 			sourceUri: URI.file('/workspace/.vscode/mcp.json'), targetUri: URI.file('/workspace/.mcp.json'),
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 		}]);
@@ -2371,6 +2410,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const editor = createTestEditor(undefined, configuration);
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers, id: 'server', name: 'server',
+			storage: PromptsStorage.local,
 			sourceUri: URI.file('/workspace/.vscode/mcp.json'), targetUri: URI.file('/workspace/.mcp.json'),
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 		};
@@ -2403,6 +2443,38 @@ suite('aiCustomizationManagementEditor', () => {
 			profile: [],
 			reopenedWorkspace: [['server']],
 			migrationCompleted: [[CustomizationMigrationType.McpServers, 2, 1, 1, [McpServerCustomizationMigrationFailureReason.TargetConflict], 'migration-flow-id']],
+		});
+
+		test('records user MCP migration activity in the profile even when the workspace is skipped', async () => {
+			const editor = createTestEditor(undefined, createConfigurationServiceStub({
+				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+			}));
+			const server: IMcpServerCustomizationMigrationCandidate = {
+				type: CustomizationMigrationType.McpServers,
+				storage: PromptsStorage.user,
+				id: 'user',
+				name: 'server',
+				sourceUri: URI.file('/profile/mcp.json'),
+				targetUri: URI.file('/home/.copilot/mcp-config.json'),
+				projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+			};
+			editor.migrationWorkspaceSkipped = true;
+			editor.dialogService = { confirm: async () => ({ confirmed: true }) };
+			editor.refreshCustomizationMigrationInfo = async () => { };
+			editor.customizationMigrationService = { migrateMcpServers: async () => ({ migratedCount: 1, failures: [] }) };
+			await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers), [server]);
+			assert.deepStrictEqual({
+				user: editor.getMigrationActivityState(PromptsStorage.user).activity.map(entry => ({
+					storage: entry.storage,
+					scopeLabel: entry.scopeLabel,
+					items: entry.items.map(item => [item.sourceLabel, item.targetLabel]),
+				})),
+				workspace: editor.getMigrationActivityState(PromptsStorage.local).activity,
+			}, {
+				user: [{ storage: PromptsStorage.user, scopeLabel: 'Your profile', items: [['/profile/mcp.json', '/home/.copilot/mcp-config.json']] }],
+				workspace: [],
+			});
+			editor.editorPreviewDisposables.dispose();
 		});
 		reopened.editorPreviewDisposables.dispose();
 		editor.editorPreviewDisposables.dispose();
