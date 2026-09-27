@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { joinPath } from '../../../base/common/resources.js';
@@ -25,6 +26,8 @@ interface IAhpLogMeta {
 
 export interface IAhpJsonlLoggerOptions {
 	readonly logsHome: URI;
+	/** Stable identity shared by every transport connection to the same logical host. */
+	readonly logId: string;
 	readonly connectionId: string;
 	readonly transport: string;
 	readonly maxFileSizeBytes?: number;
@@ -32,6 +35,8 @@ export interface IAhpJsonlLoggerOptions {
 }
 
 const AHP_LOG_DIR = 'ahp';
+const AHP_LOG_FILE_PREFIX = 'ahp';
+const AHP_LOG_FILE_EXTENSION = '.jsonl';
 const DEFAULT_MAX_FILE_SIZE_BYTES = 75 * 1024 * 1024;
 const DEFAULT_MAX_FILES = 5;
 // Cap the size of any single coalesced writeFile to avoid producing huge
@@ -76,7 +81,7 @@ export class AhpJsonlLogger extends Disposable {
 		this._directory = joinPath(this._options.logsHome, AHP_LOG_DIR);
 		// Truncate connectionId to avoid filesystem filename length limits (e.g. 255 on ext4/APFS)
 		const safeConnectionId = sanitizeFilePart(this._options.connectionId).slice(0, 64);
-		this._baseName = `ahp-${toFileTimestamp(new Date())}-${safeConnectionId}.jsonl`;
+		this._baseName = `${getAhpLogFilePrefix(this._options.logId)}${toFileTimestamp(new Date())}-${safeConnectionId}${AHP_LOG_FILE_EXTENSION}`;
 		this._maxFileSizeBytes = this._options.maxFileSizeBytes ?? DEFAULT_MAX_FILE_SIZE_BYTES;
 		this._maxFiles = this._options.maxFiles ?? DEFAULT_MAX_FILES;
 		this._currentFile = joinPath(this._directory, this._baseName);
@@ -195,8 +200,8 @@ export class AhpJsonlLogger extends Disposable {
 		if (segment === 0) {
 			return joinPath(this._directory, this._baseName);
 		}
-		const currentBaseName = this._baseName.slice(0, -'.jsonl'.length);
-		return joinPath(this._directory, `${currentBaseName}.${segment}.jsonl`);
+		const currentBaseName = this._baseName.slice(0, -AHP_LOG_FILE_EXTENSION.length);
+		return joinPath(this._directory, `${currentBaseName}.${segment}${AHP_LOG_FILE_EXTENSION}`);
 	}
 
 	private async _getFileSize(resource: URI): Promise<number> {
@@ -210,6 +215,11 @@ export class AhpJsonlLogger extends Disposable {
 
 export function getAhpLogByteLength(text: string): number {
 	return VSBuffer.fromString(text).byteLength;
+}
+
+/** Tests whether a JSONL filename belongs to the given logical Agent Host connection. */
+export function isAhpLogFileFor(logId: string, name: string): boolean {
+	return name.startsWith(getAhpLogFilePrefix(logId)) && name.endsWith(AHP_LOG_FILE_EXTENSION);
 }
 
 export function stringifyAhpLogEntry(value: unknown): string {
@@ -254,6 +264,12 @@ function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 
 function toFileTimestamp(date: Date): string {
 	return date.toISOString().replace(/[:.]/g, '-');
+}
+
+function getAhpLogFilePrefix(logId: string): string {
+	const hash = new StringSHA1();
+	hash.update(logId);
+	return `${AHP_LOG_FILE_PREFIX}-${hash.digest()}-`;
 }
 
 function sanitizeFilePart(value: string): string {

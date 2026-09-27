@@ -50,7 +50,7 @@
 
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
-import { extractDomainPattern, normalizeDomain } from '../../networkFilter/common/domainMatcher.js';
+import { normalizeDomainPattern } from '../../networkFilter/common/domainMatcher.js';
 import { buildManagedFamilyRule, buildManagedRule, ManagedRuleFamily } from './agentHostManagedRules.js';
 import { getGlobalConfigurationValue, inspectValue } from './agentHostConfigurationSync.js';
 import { ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, type AgentHostTerminalAutoApproveRules, type AgentHostTerminalAutoApproveRuleValue } from './agentHostSchema.js';
@@ -153,7 +153,7 @@ function contributeNetworkDomainRules(configurationService: IConfigurationServic
 		// as a full URL or with a port blocks the whole host; passing the raw text
 		// through would emit a narrower URL pattern and leave the rest of that host
 		// reachable.
-		const domain = normalizeDomain(extractDomainPattern(pattern), true);
+		const domain = normalizeDomainPattern(pattern);
 		if (!domain) {
 			continue;
 		}

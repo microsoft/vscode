@@ -20,6 +20,7 @@ import {
 	type ITunnelSocketFactory,
 } from '../../common/tunnelAgentHostConnector.js';
 import type { ITunnelDuplexStream, ITunnelMessageSocket, ITunnelSocketCloseEvent } from '../../common/tunnelMessageSocket.js';
+import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 
 class FakeStream implements ITunnelDuplexStream {
 	on(_event: 'data', _listener: (data: Uint8Array) => void): this;
@@ -104,6 +105,10 @@ class FakeSocket implements ITunnelMessageSocket {
 		this.closeCalls++;
 	}
 
+	fireClose(event: ITunnelSocketCloseEvent): void {
+		this._onDidClose.fire(event);
+	}
+
 	dispose(): void {
 		this.disposeCalls++;
 		this._onDidReceiveMessage.dispose();
@@ -149,17 +154,22 @@ class FakeSocketFactory implements ITunnelSocketFactory {
 }
 
 class FakeLogService implements ITunnelAgentHostConnectorLogService {
-	info(_message: string): void {
+	readonly infoMessages: string[] = [];
+	readonly warnMessages: string[] = [];
+
+	info(message: string): void {
+		this.infoMessages.push(message);
 	}
 
-	warn(_message: string): void {
+	warn(message: string): void {
+		this.warnMessages.push(message);
 	}
 }
 
-function createConnector(tunnel: ITunnelDescriptor, relayClient: FakeRelayClient, socketFactory: FakeSocketFactory): { connector: TunnelAgentHostConnector; relayClientFactory: FakeRelayClientFactory } {
+function createConnector(tunnel: ITunnelDescriptor, relayClient: FakeRelayClient, socketFactory: FakeSocketFactory, logService = new FakeLogService()): { connector: TunnelAgentHostConnector; relayClientFactory: FakeRelayClientFactory } {
 	const relayClientFactory = new FakeRelayClientFactory(tunnel, relayClient);
 	return {
-		connector: new TunnelAgentHostConnector(relayClientFactory, socketFactory, new FakeLogService()),
+		connector: new TunnelAgentHostConnector(relayClientFactory, socketFactory, logService),
 		relayClientFactory,
 	};
 }
@@ -174,6 +184,49 @@ suite('TunnelAgentHostConnector', () => {
 			'LPJNul-wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ',
 			'a-Vv_dDaSd407TSoKmBuY8Jrx1w_cDjpHarRcBiCPpxc',
 		]);
+	});
+
+	test('reports relay phase failure and releases the relay without changing the rejection', async () => {
+		const events: IConnectionDiagnosticEvent[] = [];
+		const failure = new Error('Relay authorization rejected');
+		const pending = new DeferredPromise<void>();
+		const relay = new FakeRelayClient(pending.p);
+		const socket = new FakeSocket();
+		const { connector } = createConnector({ tunnelId: 'test', clusterId: 'cluster', labels: ['protocolv5'] }, relay, new FakeSocketFactory(socket));
+		try {
+			const connect = connector.connect('private-token', 'github', 'test', 'cluster', event => events.push(event));
+			const rejected = assert.rejects(connect, error => error === failure);
+			await pending.error(failure);
+			await rejected;
+			assert.deepStrictEqual({
+				phases: events.map(event => `${event.phase}:${event.outcome}`),
+				error: events.at(-1)?.error?.message,
+				disposed: relay.disposeCalls,
+				tokenLeaked: JSON.stringify(events).includes('private-token'),
+			}, {
+				phases: ['tunnel.lookup:started', 'tunnel.lookup:succeeded', 'relay.create:started', 'relay.create:succeeded', 'relay.connect:started', 'relay.connect:failed'],
+				error: 'Relay authorization rejected',
+				disposed: 1,
+				tokenLeaked: false,
+			});
+		} finally {
+			connector.dispose();
+			socket.dispose();
+		}
+	});
+
+	test('captures observed relay close code and redacts its reason', async () => {
+		const events: IConnectionDiagnosticEvent[] = [];
+		const socket = new FakeSocket();
+		const { connector } = createConnector({ tunnelId: 'test', clusterId: 'cluster', labels: ['protocolv5'] }, new FakeRelayClient(), new FakeSocketFactory(socket));
+		try {
+			await connector.connect('private-token', 'github', 'test', 'cluster', event => events.push(event));
+			socket.fireClose({ code: 1011, reason: 'token=private-value' });
+			const close = events.find(event => event.phase === 'relay.closed');
+			assert.deepStrictEqual({ detail: close?.detail, outcome: close?.outcome }, { detail: 'code=1011; reason=token=[redacted]', outcome: 'info' });
+		} finally {
+			connector.dispose();
+		}
 	});
 
 	test('uses the legacy root route for v5 and the gateway route for v6', async () => {
@@ -288,6 +341,59 @@ suite('TunnelAgentHostConnector', () => {
 			socketDisposeCalls: 1,
 			relayDisposeCalls: 1,
 		});
+	});
+
+	test('logs the underlying error when a relay socket fails without a close code', async () => {
+		const logService = new FakeLogService();
+		const socket = new FakeSocket();
+		const { connector } = createConnector(
+			{ tunnelId: 'failed', clusterId: 'cluster', labels: ['protocolv5'] },
+			new FakeRelayClient(),
+			new FakeSocketFactory(socket),
+			logService,
+		);
+		try {
+			const { connectionId } = await connector.connect('token', 'github', 'failed', 'cluster');
+			logService.infoMessages.length = 0;
+			const error = new Error('WebSocket frame payload length 104857601 exceeds the configured limit of 104857600.');
+			socket.fireClose({ error });
+
+			assert.deepStrictEqual({
+				info: logService.infoMessages,
+				warn: logService.warnMessages,
+			}, {
+				info: [],
+				warn: [`[TunnelAgentHost] WebSocket relay closed for connection ${connectionId}; code=undefined, reason=(empty), error=${error.message}`],
+			});
+		} finally {
+			connector.dispose();
+		}
+	});
+
+	test('logs normal relay socket closes without a warning', async () => {
+		const logService = new FakeLogService();
+		const socket = new FakeSocket();
+		const { connector } = createConnector(
+			{ tunnelId: 'closed', clusterId: 'cluster', labels: ['protocolv5'] },
+			new FakeRelayClient(),
+			new FakeSocketFactory(socket),
+			logService,
+		);
+		try {
+			const { connectionId } = await connector.connect('token', 'github', 'closed', 'cluster');
+			logService.infoMessages.length = 0;
+			socket.fireClose({ code: 1000, reason: 'done' });
+
+			assert.deepStrictEqual({
+				info: logService.infoMessages,
+				warn: logService.warnMessages,
+			}, {
+				info: [`[TunnelAgentHost] WebSocket relay closed for connection ${connectionId}; code=1000, reason=done`],
+				warn: [],
+			});
+		} finally {
+			connector.dispose();
+		}
 	});
 
 	test('cleans up when the gateway inventory is malformed', async () => {

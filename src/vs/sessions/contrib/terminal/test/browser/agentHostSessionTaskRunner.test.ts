@@ -19,7 +19,7 @@ import { IAgentHostTerminalCreateOptions, IAgentHostTerminalService } from '../.
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../common/agentHostSessionsProvider.js';
-import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IConfigurationResolverService } from '../../../../../workbench/services/configurationResolver/common/configurationResolver.js';
 import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
@@ -27,7 +27,7 @@ import { ITaskEntry, ISessionsTasksService, ISessionTaskWithTarget } from '../..
 import { osToTaskTargetOS } from '../../../chat/browser/taskCommand.js';
 import { AgentHostSessionTaskRunner } from '../../browser/agentHostSessionTaskRunner.js';
 
-function makeSession(opts: { providerId: string; cwd?: URI }): ISession {
+function makeSession(opts: { providerId: string; cwd?: URI; remoteConnectionStatus?: SessionRemoteConnectionStatus }): ISession {
 	const folder: ISessionFolder | undefined = opts.cwd ? {
 		root: opts.cwd,
 		workingDirectory: opts.cwd,
@@ -55,11 +55,10 @@ function makeSession(opts: { providerId: string; cwd?: URI }): ISession {
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', SessionStatus.Untitled),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
 		loading: observableValue('loading', false),
+		...(opts.remoteConnectionStatus ? { remoteConnectionStatus: observableValue('remoteConnectionStatus', opts.remoteConnectionStatus) } : {}),
 		isArchived: observableValue('isArchived', false),
 		isRead: observableValue('isRead', true),
 		lastTurnEnd: observableValue('lastTurnEnd', undefined),
@@ -78,6 +77,7 @@ suite('AgentHostSessionTaskRunner', () => {
 	let sentText: { text: string; shouldExecute: boolean }[];
 	let disposedTerminals: ITerminalInstance[];
 	let allTasks: ISessionTaskWithTarget[];
+	let allTasksOwner: ISession | IChat | undefined;
 	let resolverCalls: string[];
 	const fakeInstance = {
 		sendText: async (text: string, shouldExecute: boolean) => { sentText.push({ text, shouldExecute }); },
@@ -89,6 +89,7 @@ suite('AgentHostSessionTaskRunner', () => {
 		sentText = [];
 		disposedTerminals = [];
 		allTasks = [];
+		allTasksOwner = undefined;
 		resolverCalls = [];
 
 		const instantiationService = store.add(new TestInstantiationService());
@@ -101,7 +102,8 @@ suite('AgentHostSessionTaskRunner', () => {
 		});
 
 		instantiationService.stub(ISessionsTasksService, new class extends mock<ISessionsTasksService>() {
-			override async getAllTasks() {
+			override async getAllTasks(owner: ISession | IChat) {
+				allTasksOwner = owner;
 				return allTasks;
 			}
 		});
@@ -161,6 +163,26 @@ suite('AgentHostSessionTaskRunner', () => {
 
 	test('canRun: true for remote agent host', () => {
 		assert.strictEqual(runner.canRun(makeSession({ providerId: 'agenthost-myhost' })), true);
+	});
+
+	test('does not run tasks for an unavailable remote agent host', async () => {
+		const session = makeSession({
+			providerId: 'agenthost-myhost',
+			cwd: toAgentHostUri(URI.file('/remote/worktree'), 'remote-agenthost-myhost'),
+			remoteConnectionStatus: { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning },
+		});
+
+		const handle = await runner.runTask(shellTask(), session);
+
+		assert.deepStrictEqual({
+			canRun: runner.canRun(session),
+			handle,
+			createdTerminals,
+		}, {
+			canRun: false,
+			handle: undefined,
+			createdTerminals: [],
+		});
 	});
 
 	test('local agent-host sessions pass through file: cwd', async () => {
@@ -267,6 +289,47 @@ suite('AgentHostSessionTaskRunner', () => {
 			shouldExecute: true,
 		}]);
 		assert.deepStrictEqual(resolverCalls, ['./scripts/code.sh', '--user-data-dir=${workspaceFolder}/.profile-oss']);
+	});
+
+	test('runs tasks and dependent tasks from the active chat working directory', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.file('/session-a') });
+		const chatCwd = URI.file('/session-b');
+		const chat = {
+			...session.mainChat.get(),
+			resource: URI.parse('file:///session/chat-b'),
+			workspace: constObservable({
+				...session.workspace.get()!,
+				uri: chatCwd,
+				folders: [{
+					...session.workspace.get()!.folders[0],
+					root: chatCwd,
+					workingDirectory: chatCwd,
+				}],
+			}),
+		};
+		const dependency: ITaskEntry = {
+			label: 'Prepare',
+			type: 'shell',
+			command: 'echo ${workspaceFolder}',
+		};
+		const task: ITaskEntry = {
+			label: 'Run',
+			type: 'shell',
+			dependsOn: 'Prepare',
+		};
+		allTasks = [{ task: dependency, target: 'workspace' }];
+
+		(await runner.runTask(task, session, chat))?.dispose();
+
+		assert.deepStrictEqual({
+			allTasksOwner: allTasksOwner === chat,
+			cwd: createdTerminals[0].options?.cwd?.toString(),
+			sentText,
+		}, {
+			allTasksOwner: true,
+			cwd: chatCwd.toString(),
+			sentText: [{ text: `echo ${chatCwd.path}`, shouldExecute: true }],
+		});
 	});
 
 	test('remote agent-host sessions expand ${workspaceFolder} from the POSIX host path without the renderer resolver', async () => {

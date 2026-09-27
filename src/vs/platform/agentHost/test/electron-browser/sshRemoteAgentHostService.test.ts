@@ -1357,6 +1357,7 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 			connectionKey: 'ssh:remote.example',
 			displayHost: 'remote.example',
 			host: 'remote.example',
+			resolvedHost: 'remote.example',
 			port: 22,
 			keyType: 'ssh-ed25519',
 			fingerprint: FINGERPRINT,
@@ -1386,6 +1387,124 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 				responses: [{ requestId: 'hostkey-1', trusted: true }],
 				confirmCalls: 1,
 				stored: ['ssh-ed25519 SHA256:testfingerprintaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+			});
+	});
+
+	test('persists trust under the effective HostKeyAlias identity', async () => {
+		confirmResult = true;
+		await fireAndWait(makeHostKeyRequest({
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				effectiveHost: hostKeyTrustService.getTrustedKeys('trusted.example', 22).map(k => k.fingerprint),
+				resolvedHost: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => k.fingerprint),
+			},
+			{
+				effectiveHost: [FINGERPRINT],
+				resolvedHost: [],
+			});
+	});
+
+	test('migrates matching trust from the legacy resolved-host identity to HostKeyAlias', async () => {
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				effectiveHost: hostKeyTrustService.getTrustedKeys('trusted.example', 22).map(k => k.fingerprint),
+				resolvedHost: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => k.fingerprint),
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: true }],
+				confirmCalls: 0,
+				effectiveHost: [FINGERPRINT],
+				resolvedHost: [],
+			});
+	});
+
+	test('forgetting a migrated HostKeyAlias requires verification on the next connection', async () => {
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+		}));
+
+		hostKeyTrustService.forgetHost('trusted.example', 22);
+		confirmResult = false;
+		await fireAndWait(makeHostKeyRequest({
+			requestId: 'hostkey-2',
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				effectiveHost: hostKeyTrustService.getTrustedKeys('trusted.example', 22).length,
+				resolvedHost: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{
+				responses: [
+					{ requestId: 'hostkey-1', trusted: true },
+					{ requestId: 'hostkey-2', trusted: false },
+				],
+				confirmCalls: 1,
+				effectiveHost: 0,
+				resolvedHost: 0,
+			});
+	});
+
+	test('refuses a key that contradicts legacy resolved-host trust for HostKeyAlias', async () => {
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+			fingerprint: 'SHA256:impostorkey',
+			strictHostKeyChecking: 'accept-new',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				effectiveHost: hostKeyTrustService.getTrustedKeys('trusted.example', 22).length,
+				resolvedHost: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => k.fingerprint),
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 0,
+				effectiveHost: 0,
+				resolvedHost: [FINGERPRINT],
+			});
+	});
+
+	test('HostKeyAlias trust remains authoritative after legacy migration', async () => {
+		hostKeyTrustService.trustHostKey('trusted.example', 22, { keyType: 'ssh-ed25519', fingerprint: 'SHA256:aliaskey', addedAt: 2 });
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				effectiveHost: hostKeyTrustService.getTrustedKeys('trusted.example', 22).map(k => k.fingerprint),
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 0,
+				effectiveHost: ['SHA256:aliaskey'],
 			});
 	});
 
@@ -1474,6 +1593,26 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		assert.strictEqual(hostKeyTrustService.getTrustedKeys('remote.example', 22).length, 0);
 	});
 
+	test('the forget action clears both HostKeyAlias and legacy resolved-host trust', async () => {
+		hostKeyTrustService.trustHostKey('trusted.example', 22, { keyType: 'ssh-ed25519', fingerprint: 'SHA256:aliasoldkey', addedAt: 1 });
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: 'SHA256:legacyoldkey', addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+		}));
+
+		await notificationService.notifications.at(-1)?.actions?.primary?.[0].run();
+		assert.deepStrictEqual(
+			{
+				effectiveHost: hostKeyTrustService.getTrustedKeys('trusted.example', 22).length,
+				resolvedHost: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{
+				effectiveHost: 0,
+				resolvedHost: 0,
+			});
+	});
+
 	test('a known_hosts match is trusted silently and copied into the store', async () => {
 		await fireAndWait(makeHostKeyRequest({ knownHostsMatch: 'match' }));
 
@@ -1513,6 +1652,66 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
 			},
 			{ responses: [{ requestId: 'hostkey-1', trusted: true }], confirmCalls: 0, stored: 1 });
+	});
+
+	test('StrictHostKeyChecking accept-new refuses a new algorithm for a known host', async () => {
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({
+			keyType: 'ssh-rsa',
+			fingerprint: 'SHA256:impostorkey',
+			strictHostKeyChecking: 'accept-new',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => `${k.keyType} ${k.fingerprint}`),
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 0,
+				stored: [`ssh-ed25519 ${FINGERPRINT}`],
+			});
+	});
+
+	test('StrictHostKeyChecking accept-new refuses another algorithm known only through known_hosts', async () => {
+		await fireAndWait(makeHostKeyRequest({
+			knownHostsMatch: 'other-key-type',
+			strictHostKeyChecking: 'accept-new',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 0,
+				stored: 0,
+			});
+	});
+
+	test('StrictHostKeyChecking accept-new prompts for a certificate-authority host', async () => {
+		confirmResult = false;
+		await fireAndWait(makeHostKeyRequest({
+			knownHostsMatch: 'ca-only',
+			strictHostKeyChecking: 'accept-new',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 1,
+				stored: 0,
+			});
 	});
 
 	test('a prompt for a connection that dies is dismissed, and a late answer grants nothing', async () => {
@@ -1610,11 +1809,8 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		// announcement must not overwrite the real stored key. Mirrors
 		// OpenSSH, which only accepts additional host keys when the key that
 		// authenticated the host was already trusted.
-		//
-		// Uses an *unknown* key (a different algorithm), since a key that
-		// contradicts the stored one is now refused outright by the test above.
-		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
 		await fireAndWait(makeHostKeyRequest({ keyType: 'ssh-rsa', fingerprint: 'SHA256:impostorkey', strictHostKeyChecking: 'no' }));
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
 
 		mainService.fireHostKeysAnnouncement({
 			connectionKey: 'ssh:remote.example',

@@ -75,6 +75,7 @@ suite('Copilot SandboxPicker', () => {
 			workspace,
 			AgentSessionProviders.Cloud,
 			'default-copilot',
+			undefined,
 		));
 		if (options.useSandbox) {
 			providerSession.setUseSandbox(true);

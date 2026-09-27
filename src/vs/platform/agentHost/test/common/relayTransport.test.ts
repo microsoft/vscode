@@ -235,6 +235,29 @@ suite('ReconnectingRelayTransport', () => {
 		assert.deepStrictEqual(received, [{ id: 'connected' }]);
 	});
 
+	test('creates each reconnect logger with the established connectionId', async () => {
+		const loggerConnectionIds: string[] = [];
+		const createTransport = (connectionId: string) => disposables.add(new ReconnectingRelayTransport(
+			async () => ({ connectionId }),
+			mockChannel,
+			activeConnectionId => {
+				loggerConnectionIds.push(activeConnectionId);
+				return undefined;
+			},
+			new NullLogService(),
+			'[ReconnectingRelayTransport]',
+			AgentHostClientConnectionKind.DevTunnel
+		));
+
+		const initial = createTransport('relay-1');
+		await initial.connect();
+		initial.dispose();
+		const reconnected = createTransport('relay-2');
+		await reconnected.connect();
+
+		assert.deepStrictEqual(loggerConnectionIds, ['relay-1', 'relay-2']);
+	});
+
 	test('warns and drops messages sent before adopting a channel', () => {
 		const logService = new RecordingLogService();
 		const transport = disposables.add(new ReconnectingRelayTransport(

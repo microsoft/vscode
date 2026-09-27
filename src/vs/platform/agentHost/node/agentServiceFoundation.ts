@@ -13,7 +13,6 @@ import { IRequestService } from '../../request/common/request.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
 import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agentService.js';
-import type { IAgentHostAutomationExecution } from './agentHostAutomationService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
@@ -21,28 +20,25 @@ import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProx
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import type { IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
-import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
+import type { IAgentServiceSessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { hostBuildInfoFromProduct } from '../common/state/sessionState.js';
 
 export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder {
 	private callbacks: IAgentServiceCallbacks | undefined;
 
-	readonly automationExecution: IAgentHostAutomationExecution = {
-		isSessionTemplateAvailable: template => this.value.automationExecution.isSessionTemplateAvailable(template),
-		createSession: (template, run) => this.value.automationExecution.createSession(template, run),
-		startSession: (session, message) => this.value.automationExecution.startSession(session, message),
-		cancelSession: session => this.value.automationExecution.cancelSession(session),
-	};
-
-	readonly sessionServerToolAccessor: ISessionServerToolAccessor = {
-		isActiveAgentTitleGenerationEnabled: () => this.value.sessionServerToolAccessor.isActiveAgentTitleGenerationEnabled(),
+	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor = {
+		getAutomaticTitleGenerationStrategy: session => this.value.sessionServerToolAccessor.getAutomaticTitleGenerationStrategy(session),
+		canConvertWorkspace: session => this.value.sessionServerToolAccessor.canConvertWorkspace(session),
+		supportsChatWorkingDirectories: session => this.value.sessionServerToolAccessor.supportsChatWorkingDirectories(session),
 		listSessions: () => this.value.sessionServerToolAccessor.listSessions(),
 		getSession: session => this.value.sessionServerToolAccessor.getSession(session),
+		getWorktreeRoots: workspace => this.value.sessionServerToolAccessor.getWorktreeRoots(workspace),
 		createSession: config => this.value.sessionServerToolAccessor.createSession(config),
 		getModels: () => this.value.sessionServerToolAccessor.getModels(),
 		getCreationDefaults: source => this.value.sessionServerToolAccessor.getCreationDefaults(source),
 		startPrompt: (session, chat, prompt, delegation) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt, delegation),
 		createChat: (session, chat, options) => this.value.sessionServerToolAccessor.createChat(session, chat, options),
+		prepareChatWorkingDirectory: (session, directory, options) => this.value.sessionServerToolAccessor.prepareChatWorkingDirectory(session, directory, options),
 		renameChat: (session, chat, title) => this.value.sessionServerToolAccessor.renameChat(session, chat, title),
 		reportToolError: (toolName, error) => this.value.sessionServerToolAccessor.reportToolError(toolName, error),
 		deleteSession: session => this.value.sessionServerToolAccessor.deleteSession(session),

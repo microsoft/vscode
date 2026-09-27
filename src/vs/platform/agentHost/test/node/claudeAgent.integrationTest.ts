@@ -48,6 +48,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
@@ -69,10 +70,12 @@ import { createNoopCustomizationEnablementService } from './testCustomizationEna
 import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
+import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
 import { ClaudeProxyService, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import {
 	makeContentBlockStartText,
 	makeContentBlockStartToolUse,
@@ -87,6 +90,10 @@ import {
 
 const noopOTelService: IAgentHostOTelService = {
 	_serviceBrand: undefined,
+	diagnosticsEnabled: false,
+	emitTurnTiming: () => { },
+	emitFirstResponse: () => { },
+	emitUserInteraction: () => { },
 	getSdkTelemetryConfig: async () => undefined,
 	getNativeSdkTelemetryConfig: async () => undefined,
 	getSessionTraceContext: () => undefined,
@@ -548,6 +555,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	setModel(): never { throw new Error('not modeled'); }
 	setMaxThinkingTokens(): never { throw new Error('not modeled'); }
 	applyFlagSettings(): never { throw new Error('not modeled'); }
+	updateSettings(): never { throw new Error('not modeled'); }
 	initializationResult(): never { throw new Error('not modeled'); }
 	reinitialize(): never { throw new Error('not modeled'); }
 	supportedCommands(): never { throw new Error('not modeled'); }
@@ -560,6 +568,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	accountInfo(): never { throw new Error('not modeled'); }
 	rewindFiles(): never { throw new Error('not modeled'); }
 	readFile(): never { throw new Error('not modeled'); }
+	readMcpResource(): never { throw new Error('not modeled'); }
 	seedReadState(): never { throw new Error('not modeled'); }
 	reconnectMcpServer(): never { throw new Error('not modeled'); }
 	toggleMcpServer(): never { throw new Error('not modeled'); }
@@ -567,6 +576,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	streamInput(): never { throw new Error('not modeled'); }
 	stopTask(): never { throw new Error('not modeled'); }
 	reloadSkills(): never { throw new Error('not modeled'); }
+	reloadOutputStyles(): never { throw new Error('not modeled'); }
 	backgroundTasks(): never { throw new Error('not modeled'); }
 	close(): void { /* no-op */ }
 	[Symbol.asyncDispose](): Promise<void> { return Promise.resolve(); }
@@ -716,10 +726,12 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 
 		const services = new ServiceCollection(
 			[ILogService, logService],
+			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 			[ICopilotApiService, capi],
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
@@ -855,10 +867,12 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 
 		const services = new ServiceCollection(
 			[ILogService, logService],
+			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 			[ICopilotApiService, capi],
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
@@ -936,10 +950,12 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 
 		const services = new ServiceCollection(
 			[ILogService, logService],
+			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 			[ICopilotApiService, capi],
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),

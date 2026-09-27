@@ -29,6 +29,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize } from '../../../../nls.js';
+import { IExperimentalSettingsService } from '../../../services/configuration/common/experimentalSettings.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -61,7 +62,7 @@ import { nullRange, Settings2EditorModel } from '../../../services/preferences/c
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { SuggestEnabledInputWithHistory } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
-import { ADVANCED_SETTING_TAG, AGENTS_WINDOW_SETTING_TAG, CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EMBEDDINGS_SEARCH_PROVIDER_NAME, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, FILTER_MODEL_SEARCH_PROVIDER_NAME, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, LLM_RANKED_SEARCH_PROVIDER_NAME, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME, WorkbenchSettingsEditorSettings, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
+import { ADVANCED_SETTING_TAG, AGENTS_WINDOW_SETTING_TAG, CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EMBEDDINGS_SEARCH_PROVIDER_NAME, ENABLE_LANGUAGE_FILTER, EXP_ASSIGNMENT_SETTING_TAG, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, FILTER_MODEL_SEARCH_PROVIDER_NAME, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, LLM_RANKED_SEARCH_PROVIDER_NAME, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME, WorkbenchSettingsEditorSettings, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from '../common/settingsEditorColorRegistry.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import './media/settingsEditor2.css';
@@ -141,6 +142,7 @@ export class SettingsEditor2 extends EditorPane {
 		'@tag:accessibility',
 		'@tag:preview',
 		'@tag:experimental',
+		`@tag:${EXP_ASSIGNMENT_SETTING_TAG}`,
 		'@tag:agentMerge',
 		`@tag:${ADVANCED_SETTING_TAG}`,
 		`@${ID_SETTING_TAG}`,
@@ -237,6 +239,7 @@ export class SettingsEditor2 extends EditorPane {
 	private aiResultsAvailable: IContextKey<boolean>;
 
 	private scheduledRefreshes: Map<string, DisposableStore>;
+	private pendingAssignmentRefresh = false;
 	private _currentFocusContext: SettingsFocusContext = SettingsFocusContext.Search;
 
 	/** Don't spam warnings */
@@ -289,6 +292,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IExperimentalSettingsService experimentalSettingsService: IExperimentalSettingsService,
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = this._register(new Delayer(200));
@@ -350,6 +354,15 @@ export class SettingsEditor2 extends EditorPane {
 				this.updateElementsByKey(new Set(e.default));
 			}
 		}));
+		this._register(experimentalSettingsService.onDidChangeAssignments(keys => {
+			if (this.searchResultModel && this.viewState.tagFilters?.has(EXP_ASSIGNMENT_SETTING_TAG)) {
+				keys.forEach(key => this.settingsTreeModel.value?.updateElementsByName(key));
+				this.pendingAssignmentRefresh = true;
+				this.renderTree();
+			} else if (this.currentSettingsModel) {
+				this.updateElementsByKey(keys);
+			}
+		}));
 
 		this._register(extensionManagementService.onDidInstallExtensions(() => {
 			this.refreshInstalledExtensionsList();
@@ -382,17 +395,10 @@ export class SettingsEditor2 extends EditorPane {
 		if (this.configurationService.getValue<boolean>(ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING) ?? false) {
 			return true;
 		}
-		return this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG) ?? false;
+		return !!(this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG) || this.viewState.tagFilters?.has(EXP_ASSIGNMENT_SETTING_TAG));
 	}
 
-	/**
-	 * Determines whether a setting should be shown even when advanced settings are filtered out.
-	 * Returns true if:
-	 * - The setting is not tagged as advanced, OR
-	 * - The setting matches an ID filter (@id:settingKey), OR
-	 * - The setting key appears in the search query, OR
-	 * - The @hasPolicy filter is active (policy settings should always be shown when filtering by policy)
-	 */
+	/** Allows explicitly targeted settings to bypass the default advanced-settings filter. */
 	private shouldShowSetting(setting: ISetting): boolean {
 		if (!setting.tags?.includes(ADVANCED_SETTING_TAG)) {
 			return true;
@@ -461,6 +467,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private set searchResultModel(value: SearchResultModel | null) {
 		this._searchResultModel.value = value ?? undefined;
+		this.pendingAssignmentRefresh = false;
 
 		this.rootElement.classList.toggle('search-mode', !!this._searchResultModel.value);
 	}
@@ -1720,6 +1727,9 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private renderTree(key?: string, force = false): void {
+		if (this.pendingAssignmentRefresh) {
+			key = undefined;
+		}
 		if (!force && key && this.scheduledRefreshes.has(key)) {
 			this.updateModifiedLabelForKey(key);
 			return;
@@ -1754,6 +1764,12 @@ export class SettingsEditor2 extends EditorPane {
 				this.scheduleRefresh(focusedSetting);
 				return;
 			}
+		}
+
+		if (this.pendingAssignmentRefresh) {
+			this.pendingAssignmentRefresh = false;
+			this.searchResultModel?.updateChildren();
+			this.refreshTOCTree();
 		}
 
 		this.renderResultCountMessages(false);
@@ -1880,7 +1896,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private async triggerSearch(query: string, expandResults: boolean): Promise<void> {
 		const progressRunner = this.editorProgressService.show(true, 800);
-		const showAdvanced = this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG);
+		const showAdvanced = this.canShowAdvancedSettings();
 		this.viewState.tagFilters = new Set<string>();
 		this.viewState.extensionFilters = new Set<string>();
 		this.viewState.featureFilters = new Set<string>();
@@ -1896,7 +1912,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.viewState.languageFilter = parsedQuery.languageFilter;
 		}
 
-		if (showAdvanced !== this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG)) {
+		if (showAdvanced !== this.canShowAdvancedSettings()) {
 			await this.onConfigUpdate();
 		}
 

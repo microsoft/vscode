@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -21,12 +25,15 @@ import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../..
 import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { TAB_ACTIVE_BACKGROUND } from '../../../../../workbench/common/theme.js';
-import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { generateColorThemeCSS } from '../../../../../workbench/services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../../../workbench/services/themes/common/colorThemeData.js';
+import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
+import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -34,17 +41,88 @@ import { ISessionWorkspace } from '../../../../services/sessions/common/session.
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
+import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
-import { TestEnvironmentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestEnvironmentService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IsQuickChatSessionContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
-import '../../browser/editor.contribution.js';
+import { SessionsTabStyleContribution } from '../../browser/editor.contribution.js';
+import '../../../../browser/media/workbench.css';
+import '../../../../browser/parts/media/chatCompositeBar.css';
+import '../../../../browser/parts/media/editorPart.css';
+
+function appendElement(parent: HTMLElement, className: string): HTMLElement {
+	const element = mainWindow.document.createElement('div');
+	element.className = className;
+	parent.appendChild(element);
+	return element;
+}
 
 suite('Sessions - Editor Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shares the connected tab setting across Agents windows independently of Modern UI', async () => {
+		const configurationService = new TestConfigurationService({
+			[LayoutSettings.MODERN_UI]: false,
+			[LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE]: ModernUIEditorTabStyle.Connected,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const onDidAddContainer = store.add(new Emitter<{ container: HTMLElement; disposables: DisposableStore }>());
+		const layoutService = new class extends TestLayoutService {
+			override mainContainer = mainWindow.document.createElement('div');
+			override containers = [this.mainContainer];
+			override onDidAddContainer = onDidAddContainer.event;
+			layoutCount = 0;
+			override layout(): void { this.layoutCount++; }
+		}();
+		let auxiliaryLayouts = 0;
+		const auxiliaryWindowService = new class extends mock<IAuxiliaryWindowService>() {
+			override getWindow(): IAuxiliaryWindow {
+				return new class extends mock<IAuxiliaryWindow>() {
+					override layout(): void { auxiliaryLayouts++; }
+				}();
+			}
+		}();
+		const contribution = store.add(new SessionsTabStyleContribution(configurationService, layoutService, auxiliaryWindowService));
+		const state = () => ({
+			connected: layoutService.containers.map(container => container.classList.contains('modern-ui-connected-editor-tabs')),
+			modernUI: layoutService.containers.map(container => container.classList.contains('modern-ui')),
+			layouts: [layoutService.layoutCount, auxiliaryLayouts],
+		});
+		const update = async (key: string, value: boolean | ModernUIEditorTabStyle) => {
+			await configurationService.setUserConfiguration(key, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: setting => setting === key,
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([key]),
+				change: { keys: [key], overrides: [] },
+			});
+		};
+
+		const startup = state();
+		const auxiliaryContainer = mainWindow.document.createElement('div');
+		layoutService.containers.push(auxiliaryContainer);
+		onDidAddContainer.fire({ container: auxiliaryContainer, disposables: store.add(new DisposableStore()) });
+		const auxiliaryStartup = state();
+		await update(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Pill);
+		const pill = state();
+		await update(LayoutSettings.MODERN_UI, true);
+		const unrelatedSetting = state();
+		await update(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Connected);
+		const connected = state();
+		contribution.dispose();
+
+		assert.deepStrictEqual({ startup, auxiliaryStartup, pill, unrelatedSetting, connected, disposed: state() }, {
+			startup: { connected: [true], modernUI: [false], layouts: [0, 0] },
+			auxiliaryStartup: { connected: [true, true], modernUI: [false, false], layouts: [0, 0] },
+			pill: { connected: [false, false], modernUI: [false, false], layouts: [1, 1] },
+			unrelatedSetting: { connected: [false, false], modernUI: [false, false], layouts: [1, 1] },
+			connected: { connected: [true, true], modernUI: [false, false], layouts: [2, 2] },
+			disposed: { connected: [false, false], modernUI: [false, false], layouts: [2, 2] },
+		});
+	});
 
 	test('registers legacy Modern UI tab color customizations', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#000000' });
@@ -53,6 +131,205 @@ suite('Sessions - Editor Contribution', () => {
 		const css = generateColorThemeCSS(theme, '.sessions-tab-customization-theme', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
 
 		assert.strictEqual(css.includes('--modern-ui-editor-tab-active-background: #123456;'), true);
+	});
+
+	test('centers both side-panel action bars within the tab row at either height', () => {
+		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs agent-sessions-workbench dock-detail-panel');
+		store.add({ dispose: () => workbench.remove() });
+		workbench.style.cssText = 'width: 600px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-strokeThickness: 1px;';
+		const editor = appendElement(workbench, 'part editor');
+		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(appendElement(row, 'monaco-scrollable-element'), 'tabs-container');
+		appendElement(tabs, 'tab');
+		const buttons = ['editor-actions', 'editor-layout-actions'].map(className => {
+			const container = appendElement(row, className);
+			container.style.display = 'block';
+			const toolbar = appendElement(container, 'monaco-toolbar');
+			const actions = appendElement(appendElement(toolbar, 'monaco-action-bar'), 'actions-container');
+			return appendElement(appendElement(actions, 'action-item'), 'action-label codicon codicon-screen-full');
+		});
+
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			workbench.classList.add(theme);
+			for (const connected of [true, false]) {
+				workbench.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				for (const compact of [true, false]) {
+					title.classList.toggle('compact-height', compact);
+					const rowBounds = row.getBoundingClientRect();
+					const contentHeight = compact ? 28 : 32;
+					const expectedCenter = rowBounds.top + contentHeight / 2;
+					assert.deepStrictEqual({
+						rowHeight: rowBounds.height,
+						buttonOffsets: buttons.map(button => {
+							const bounds = button.getBoundingClientRect();
+							return bounds.top + bounds.height / 2 - expectedCenter;
+						}),
+					}, {
+						rowHeight: contentHeight + (connected ? 1 : 0),
+						buttonOffsets: [0, 0],
+					}, `${theme}, connected: ${connected}, compact: ${compact}`);
+				}
+			}
+			workbench.classList.remove(theme);
+		}
+	});
+
+	test('uses one connected group frame with or without docked details', () => {
+		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs agent-sessions-workbench dock-detail-panel');
+		workbench.style.setProperty('--vscode-agentsPanel-border', '#888888');
+		workbench.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#445566');
+		workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
+		workbench.style.setProperty('--vscode-strokeThickness', '1px');
+		workbench.style.setProperty('--vscode-focusBorder', '#00ff00');
+		workbench.style.setProperty('--vscode-contrastBorder', '#888888');
+		const editor = appendElement(appendElement(workbench, 'monaco-grid-view'), 'part editor editor-tabs-multiple');
+		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container active');
+		try {
+			const getBorders = () => {
+				const frame = mainWindow.getComputedStyle(group, '::after');
+				return {
+					outerBorder: mainWindow.getComputedStyle(editor).borderColor,
+					frameWidth: frame.borderWidth,
+					frameColor: frame.borderColor,
+					frameRadius: frame.borderRadius,
+				};
+			};
+			const borders = [];
+			const themes = ['vs-dark', 'vs', 'hc-black', 'hc-light'];
+			for (const theme of themes) {
+				workbench.classList.add(theme);
+				workbench.classList.remove('noauxiliarybar');
+				const docked = getBorders();
+				workbench.classList.add('noauxiliarybar');
+				borders.push({ theme, docked, editorOnly: getBorders() });
+				workbench.classList.remove(theme);
+			}
+			assert.deepStrictEqual(borders, themes.map(theme => {
+				const expected = {
+					outerBorder: 'rgba(0, 0, 0, 0)',
+					frameWidth: '1px',
+					frameColor: theme.startsWith('hc-') ? 'rgb(0, 255, 0)' : 'rgb(68, 85, 102)',
+					frameRadius: '7px',
+				};
+				return { theme, docked: expected, editorOnly: expected };
+			}));
+		} finally {
+			workbench.remove();
+		}
+	});
+
+	test('matches the chat separator with and without the theme border class', () => {
+		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs agent-sessions-workbench dock-detail-panel');
+		workbench.style.setProperty('--vscode-activeSessionView-foreground', 'rgb(100, 100, 100)');
+		workbench.style.setProperty('--vscode-agentsPanel-foreground', 'rgb(200, 0, 0)');
+		workbench.style.setProperty('--vscode-contrastBorder', 'rgb(255, 255, 255)');
+		workbench.style.setProperty('--vscode-spacing-size20', '2px');
+		workbench.style.setProperty('--vscode-strokeThickness', '1px');
+
+		const editorPart = appendElement(workbench, 'part editor');
+		const editorContent = appendElement(editorPart, 'content');
+		const editorGroupContainer = appendElement(editorContent, 'editor-group-container');
+		const title = appendElement(editorGroupContainer, 'title tabs');
+		const tabsAndActionsContainer = appendElement(title, 'tabs-and-actions-container');
+
+		const modalEditorPart = appendElement(workbench, 'part editor modal-editor-part');
+		const modalEditorContent = appendElement(modalEditorPart, 'content');
+		const modalEditorGroupContainer = appendElement(modalEditorContent, 'editor-group-container');
+		const modalTitle = appendElement(modalEditorGroupContainer, 'title tabs');
+		const modalTabsAndActionsContainer = appendElement(modalTitle, 'tabs-and-actions-container');
+
+		const sessionView = appendElement(workbench, 'session-view tabs-replace-header');
+		sessionView.style.setProperty('--session-view-foreground', 'rgb(100, 100, 100)');
+		const chatGroupsView = appendElement(sessionView, 'chat-groups-view single-group');
+		const chatBar = appendElement(chatGroupsView, 'chat-composite-bar session-chat-tabs-bar');
+		const chatTabsRow = appendElement(chatBar, 'chat-composite-bar-tabs-row');
+
+		const expectedColorReference = appendElement(workbench, 'expected-color-reference');
+		expectedColorReference.style.color = 'color-mix(in srgb, rgb(100, 100, 100) 12%, transparent)';
+
+		try {
+			const getSidePanelSeparatorStyles = () => {
+				const style = mainWindow.getComputedStyle(tabsAndActionsContainer, '::after');
+				return {
+					color: style.backgroundColor,
+					leftInset: style.left,
+					rightInset: style.right,
+					width: style.height,
+				};
+			};
+			const chatBarStyle = mainWindow.getComputedStyle(chatBar);
+			const chatTabsRowStyle = mainWindow.getComputedStyle(chatTabsRow);
+			const chatSeparatorStyles = {
+				color: chatTabsRowStyle.borderBottomColor,
+				leftInset: chatBarStyle.paddingLeft,
+				rightInset: chatBarStyle.paddingRight,
+				width: chatTabsRowStyle.borderBottomWidth,
+			};
+			const expectedColor = mainWindow.getComputedStyle(expectedColorReference).color;
+			const withoutThemeBorderClass = getSidePanelSeparatorStyles();
+
+			tabsAndActionsContainer.classList.add('tabs-border-bottom');
+			tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', 'rgb(200, 0, 0)');
+			const withThemeBorderClass = getSidePanelSeparatorStyles();
+
+			workbench.classList.add('hc-black');
+			const highContrast = getSidePanelSeparatorStyles();
+			const highContrastChatColor = mainWindow.getComputedStyle(chatTabsRow).borderBottomColor;
+			const modalTitleStyle = mainWindow.getComputedStyle(modalTitle);
+			const modalSeparatorStyle = mainWindow.getComputedStyle(modalTabsAndActionsContainer, '::after');
+
+			assert.deepStrictEqual({
+				expectedColorIsTransparent: expectedColor === 'rgba(0, 0, 0, 0)',
+				withoutThemeBorderClass,
+				withThemeBorderClass,
+				chatSeparatorStyles,
+				highContrast,
+				highContrastChatColor,
+				hasDuplicateTitleSeparator: mainWindow.getComputedStyle(title, '::after').content !== 'none',
+				modal: {
+					borderColor: modalTitleStyle.getPropertyValue('--modern-ui-editor-tabs-border'),
+					leftInset: modalSeparatorStyle.left,
+					rightInset: modalSeparatorStyle.right,
+				},
+			}, {
+				expectedColorIsTransparent: false,
+				withoutThemeBorderClass: {
+					color: expectedColor,
+					leftInset: '2px',
+					rightInset: '2px',
+					width: '1px',
+				},
+				withThemeBorderClass: {
+					color: expectedColor,
+					leftInset: '2px',
+					rightInset: '2px',
+					width: '1px',
+				},
+				chatSeparatorStyles: {
+					color: expectedColor,
+					leftInset: '2px',
+					rightInset: '2px',
+					width: '1px',
+				},
+				highContrast: {
+					color: 'rgb(255, 255, 255)',
+					leftInset: '2px',
+					rightInset: '2px',
+					width: '1px',
+				},
+				highContrastChatColor: 'rgb(255, 255, 255)',
+				hasDuplicateTitleSeparator: false,
+				modal: {
+					borderColor: 'transparent',
+					leftInset: '0px',
+					rightInset: '0px',
+				},
+			});
+		} finally {
+			workbench.remove();
+		}
 	});
 
 	function stubEditorGroupCount(instantiationService: TestInstantiationService, count: number): void {
@@ -93,13 +370,16 @@ suite('Sessions - Editor Contribution', () => {
 	test('new file tab action opens pinned empty file editor', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const opened: { editor: EditorInput; options: IEditorOptions | undefined }[] = [];
-		const workspaceFolder = URI.file('/repo/worktree');
-		const workspace = createWorkspace(workspaceFolder);
+		const sessionWorkspace = createWorkspace(URI.file('/repo/session'));
+		const chatWorkspace = createWorkspace(URI.file('/repo/chat'));
 		stubEditorGroupCount(instantiationService, 7);
 		stubEditorVisibility(instantiationService, true);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable({
-				workspace: constObservable(workspace)
+				workspace: constObservable(sessionWorkspace),
+				activeChat: constObservable({
+					workspace: constObservable(chatWorkspace),
+				}),
 			} as IActiveSession);
 		});
 
@@ -119,8 +399,41 @@ suite('Sessions - Editor Contribution', () => {
 			isEmptyFileEditor: editor instanceof EmptyFileEditorInput,
 			resource: editor.resource?.toString(),
 			pinned: options?.pinned,
-			index: options?.index
-		})), [{ isEmptyFileEditor: true, resource: workspaceFolder.toString(), pinned: true, index: 7 }]);
+			index: options?.index,
+			workspaceFolders: editor instanceof EmptyFileEditorInput
+				? editor.workspace?.folders.map(folder => folder.workingDirectory.toString())
+				: undefined,
+		})), [{
+			isEmptyFileEditor: true,
+			resource: undefined,
+			pinned: true,
+			index: 7,
+			workspaceFolders: [URI.file('/repo/chat').toString()],
+		}]);
+	});
+
+	test('new browser tab action opens a pinned browser editor', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const browserInput = new class extends mock<BrowserEditorInput>() { };
+		const opened: { editor: unknown; options: IEditorOptions | undefined }[] = [];
+		instantiationService.stub(IBrowserViewWorkbenchService, new class extends mock<IBrowserViewWorkbenchService>() {
+			override getOrCreateLazy(): BrowserEditorInput {
+				return browserInput;
+			}
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				opened.push({ editor: args[0], options: args[1] as IEditorOptions | undefined });
+				return undefined;
+			}
+		});
+
+		await new NewBrowserTabAction().run(instantiationService);
+
+		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
+			isBrowserEditor: editor === browserInput,
+			pinned: options?.pinned,
+		})), [{ isBrowserEditor: true, pinned: true }]);
 	});
 
 	test('Add Tab menu stays available in dock-only mode', () => {
@@ -226,10 +539,10 @@ suite('Sessions - Editor Contribution', () => {
 		input.setWorkspace(createWorkspace(URI.file('/repo/other')));
 
 		assert.deepStrictEqual({
-			resource: input.resource?.toString(),
+			workingDirectory: input.workspace?.folders[0]?.workingDirectory.toString(),
 			matchesAnotherEmptyInput: input.matches(other)
 		}, {
-			resource: URI.file('/repo/other').toString(),
+			workingDirectory: URI.file('/repo/other').toString(),
 			matchesAnotherEmptyInput: true
 		});
 	});
@@ -269,7 +582,7 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
-	test('empty file editor exposes its breadcrumb resource only while the editor area is visible', () => {
+	test('empty file editor never exposes a resource for breadcrumbs', () => {
 		let editorVisible = false;
 		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
 		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
@@ -288,12 +601,12 @@ suite('Sessions - Editor Contribution', () => {
 
 		assert.deepStrictEqual({
 			hiddenResource,
-			visibleResource: input.resource?.toString(),
+			visibleResource: input.resource,
 			labelChanges
 		}, {
 			hiddenResource: undefined,
-			visibleResource: URI.file('/repo/worktree').toString(),
-			labelChanges: 1
+			visibleResource: undefined,
+			labelChanges: 0
 		});
 	});
 

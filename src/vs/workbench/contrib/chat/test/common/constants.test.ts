@@ -13,7 +13,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatConfiguration, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReason, getLocalFallbackSessionTypeSelectionReason, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, CopilotHarnessIntroductionMode, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReason, getLocalFallbackSessionTypeSelectionReason, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -34,6 +34,18 @@ suite('ChatConfiguration defaults', () => {
 			() => false,
 		);
 	}
+
+	test('normalizes the Copilot harness introduction mode', () => {
+		assert.deepStrictEqual([
+			getCopilotHarnessIntroductionMode(new TestConfigurationService({ [ChatConfiguration.CopilotHarnessIntroductionMode]: CopilotHarnessIntroductionMode.NewSession })),
+			getCopilotHarnessIntroductionMode(new TestConfigurationService({ [ChatConfiguration.CopilotHarnessIntroductionMode]: CopilotHarnessIntroductionMode.AfterRequest })),
+			getCopilotHarnessIntroductionMode(new TestConfigurationService({ [ChatConfiguration.CopilotHarnessIntroductionMode]: 'unexpected' })),
+		], [
+			CopilotHarnessIntroductionMode.NewSession,
+			CopilotHarnessIntroductionMode.AfterRequest,
+			CopilotHarnessIntroductionMode.Off,
+		]);
+	});
 
 	function createChatSessionsService(...types: string[]): MockChatSessionsService {
 		const service = new MockChatSessionsService();
@@ -59,7 +71,7 @@ suite('ChatConfiguration defaults', () => {
 		accessor.set(IChatSessionsService, chatSessionsService);
 		accessor.set(IStorageService, storageService);
 		accessor.set(IWorkspaceContextService, new TestContextService(workspace));
-		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false) });
+		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
 		return { sessionType: getDefaultNewChatSessionTypeAndReason(accessor, options).sessionType };
 	}
 
@@ -76,7 +88,7 @@ suite('ChatConfiguration defaults', () => {
 		accessor.set(IChatSessionsService, chatSessionsService);
 		accessor.set(IStorageService, storageService);
 		accessor.set(IWorkspaceContextService, new TestContextService(workspace));
-		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false) });
+		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
 		return getDefaultNewChatSessionTypeAndReason(accessor, options);
 	}
 
@@ -226,6 +238,57 @@ suite('ChatConfiguration defaults', () => {
 			resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.CopilotCLI }),
 			{ sessionType: localChatSessionType }
 		);
+	});
+
+	for (const type of ['history-only', 'remote-history-only-copilot']) {
+		test(`hidden session type ${type} remains registered but is excluded from new-chat choices and defaults`, () => {
+			const configurationService = new TestConfigurationService({
+				[ChatConfiguration.EditorLocalAgentEnabled]: false,
+			});
+			const chatSessionsService = new MockChatSessionsService();
+			chatSessionsService.setContributions([
+				{ type, name: type, displayName: type, description: '', hideFromSessionTypePicker: true },
+				{ type: SessionType.CopilotCloud, name: 'Cloud', displayName: 'Cloud', description: '' },
+			]);
+			const storageService = disposables.add(new TestStorageService());
+			storeUserSelectedSessionType(storageService, type);
+
+			assert.deepStrictEqual({
+				registered: !!chatSessionsService.getChatSessionContribution(type),
+				visible: isVisibleEditorChatSessionType(type, configurationService, chatSessionsService, localWorkspace),
+				usable: isNewChatSessionTypeUsable(type, configurationService, chatSessionsService, localWorkspace),
+				cloudVisible: isVisibleEditorChatSessionType(SessionType.CopilotCloud, configurationService, chatSessionsService, localWorkspace),
+				computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, true),
+				remembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true),
+				current: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: type }),
+			}, {
+				registered: true,
+				visible: false,
+				usable: false,
+				cloudVisible: true,
+				computed: SessionType.CopilotCloud,
+				remembered: SessionType.CopilotCloud,
+				current: SessionType.CopilotCloud,
+			});
+		});
+	}
+
+	test('hidden session types do not prevent the last-resort local fallback', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorLocalAgentEnabled]: false,
+		});
+		const chatSessionsService = new MockChatSessionsService();
+		chatSessionsService.setContributions([
+			{ type: 'history-only', name: 'History', displayName: 'History', description: '', hideFromSessionTypePicker: true },
+		]);
+
+		assert.deepStrictEqual({
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, true),
+			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, localWorkspace),
+		}, {
+			computed: localChatSessionType,
+			localVisible: true,
+		});
 	});
 
 	test('editor default keeps local as last resort when local is disabled without any provider', () => {

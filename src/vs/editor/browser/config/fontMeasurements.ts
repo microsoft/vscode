@@ -69,9 +69,9 @@ export class FontMeasurementsImpl extends Disposable {
 		return cache;
 	}
 
-	private _writeToCache(targetWindow: Window, item: BareFontInfo, value: FontInfo): void {
+	private _writeToCache(targetWindow: Window, item: BareFontInfo, value: FontInfo, isRestored: boolean): void {
 		const cache = this._ensureCache(targetWindow);
-		cache.put(item, value);
+		cache.put(item, value, isRestored);
 
 		if (!value.isTrusted && this._evictUntrustedReadingsTimeout === -1) {
 			// Try reading again after some time
@@ -98,11 +98,13 @@ export class FontMeasurementsImpl extends Disposable {
 	}
 
 	/**
-	 * Serialized currently cached font information.
+	 * Returns trusted cached font information, or undefined when the cache contains only restored readings.
 	 */
-	public serializeFontInfo(targetWindow: Window): ISerializedFontInfo[] {
-		// Only save trusted font info (that has been measured in this running instance)
+	public serializeFontInfo(targetWindow: Window): ISerializedFontInfo[] | undefined {
 		const cache = this._ensureCache(targetWindow);
+		if (cache.shouldPreservePersistedValues()) {
+			return undefined;
+		}
 		return cache.getValues().filter(item => item.isTrusted);
 	}
 
@@ -118,7 +120,7 @@ export class FontMeasurementsImpl extends Disposable {
 				continue;
 			}
 			const fontInfo = new FontInfo(savedFontInfo, false);
-			this._writeToCache(targetWindow, fontInfo, fontInfo);
+			this._writeToCache(targetWindow, fontInfo, fontInfo, true);
 		}
 	}
 
@@ -152,7 +154,7 @@ export class FontMeasurementsImpl extends Disposable {
 				}, false);
 			}
 
-			this._writeToCache(targetWindow, bareFontInfo, readConfig);
+			this._writeToCache(targetWindow, bareFontInfo, readConfig, false);
 		}
 		return cache.get(bareFontInfo);
 	}
@@ -249,6 +251,8 @@ class FontMeasurementsCache {
 
 	private readonly _keys: { [key: string]: BareFontInfo };
 	private readonly _values: { [key: string]: FontInfo };
+	private _wasPopulatedWithRestoredValues = false;
+	private _wasPopulatedWithCurrentSessionValues = false;
 
 	constructor() {
 		this._keys = Object.create(null);
@@ -265,10 +269,15 @@ class FontMeasurementsCache {
 		return this._values[itemId];
 	}
 
-	public put(item: BareFontInfo, value: FontInfo): void {
+	public put(item: BareFontInfo, value: FontInfo, isRestored: boolean): void {
 		const itemId = item.getId();
 		this._keys[itemId] = item;
 		this._values[itemId] = value;
+		if (isRestored) {
+			this._wasPopulatedWithRestoredValues = true;
+		} else {
+			this._wasPopulatedWithCurrentSessionValues = true;
+		}
 	}
 
 	public remove(item: FontInfo): void {
@@ -279,6 +288,10 @@ class FontMeasurementsCache {
 
 	public getValues(): FontInfo[] {
 		return Object.keys(this._keys).map(id => this._values[id]);
+	}
+
+	public shouldPreservePersistedValues(): boolean {
+		return this._wasPopulatedWithRestoredValues && !this._wasPopulatedWithCurrentSessionValues;
 	}
 }
 

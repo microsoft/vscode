@@ -19,12 +19,12 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 	test('migration card has one native interactive target', () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
-		const migratedCategories: CustomizationMigrationCategoryId[] = [];
+		let reviewedMigrations = false;
 		const callbacks: IWelcomePageCallbacks = {
 			selectSection() { },
 			selectSectionWithMarketplace() { },
 			closeEditor() { },
-			migrateCustomizations: categoryId => migratedCategories.push(categoryId),
+			reviewMigrations: () => reviewedMigrations = true,
 			prefillChat() { },
 		};
 		const page = store.add(new PromptLaunchersAICustomizationWelcomePage(
@@ -38,7 +38,7 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 		));
 		const category: ICustomizationMigrationCategorySummary = {
 			id: CustomizationMigrationCategoryId.UserData,
-			label: 'Migrate User Data Customizations',
+			label: 'VS Code Profile Customizations',
 			description: 'Move customizations.',
 			actionLabel: 'Migrate...',
 			actionAriaLabel: 'Migrate User Data customizations',
@@ -55,12 +55,12 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 				cardTagName: card?.tagName,
 				buttonCount: card?.querySelectorAll('button').length,
 				focusedCard: document.activeElement === card,
-				migratedCategories,
+				reviewedMigrations,
 			}, {
 				cardTagName: 'BUTTON',
 				buttonCount: 0,
 				focusedCard: true,
-				migratedCategories: [CustomizationMigrationCategoryId.UserData],
+				reviewedMigrations: true,
 			});
 		} finally {
 			parent.remove();
@@ -78,7 +78,7 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 				selectSection: section => selectedSections.push(section),
 				selectSectionWithMarketplace() { },
 				closeEditor() { },
-				migrateCustomizations() { },
+				reviewMigrations() { },
 				prefillChat() { },
 			},
 			{} as ICommandService,

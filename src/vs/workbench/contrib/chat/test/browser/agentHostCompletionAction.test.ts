@@ -8,8 +8,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../browser/agentHostCompletionAction.js';
+import { autoApprovePolicyValue } from '../../common/agentHostConfigPolicy.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { resetShownWarnings } from '../../common/chatPermissionWarnings.js';
 
@@ -32,6 +34,18 @@ suite('applyAgentHostCompletionAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => resetShownWarnings());
+
+	test('auto-approve policy ignores preview policy and honors the bypass restriction', () => {
+		assert.deepStrictEqual([
+			autoApprovePolicyValue({ chat_preview_features_enabled: false }),
+			autoApprovePolicyValue({ managedSettings: { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' } }),
+			autoApprovePolicyValue({ managedSettings: { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable' } }),
+		], [
+			undefined,
+			false,
+			undefined,
+		]);
+	});
 
 	test('applies a non-elevated (mode) change without a dialog', async () => {
 		const dialog = new TestDialogService(); // default confirms if prompted

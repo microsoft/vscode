@@ -385,10 +385,11 @@ suite('SSH Remote Agent Host Helpers', () => {
 		test('lists commit-keyed candidates then legacy paths for insider', () => {
 			const cmd = buildFindFallbackCLICommand('.vscode-server-insiders', 'insider');
 			// New commit-keyed candidates in shared install root, sorted newest-first.
-			assert.ok(cmd.includes('~/.vscode-server-insiders/code-insiders-'), `cmd missing new path: ${cmd}`);
+			assert.ok(cmd.includes('.vscode-server-insiders/code-insiders-'), `cmd missing new path: ${cmd}`);
 			assert.ok(/ls -1t/.test(cmd), 'should sort commit-keyed candidates by mtime');
+			assert.ok(cmd.includes(`sed 's#^#~/#'`), `cmd should normalize candidates to validated paths: ${cmd}`);
 			// Legacy single-binary path (insider has the `-insider` dir suffix).
-			assert.ok(cmd.includes('~/.vscode-cli-insider/code-insiders'), `cmd missing legacy path: ${cmd}`);
+			assert.ok(cmd.includes(`printf '%s\\n' '~/.vscode-cli-insider/code-insiders'`), `cmd missing legacy path: ${cmd}`);
 		});
 
 		test('uses no-suffix legacy dir for stable', () => {

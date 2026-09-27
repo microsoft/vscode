@@ -114,6 +114,16 @@ export function readSessionArtifacts(meta: SessionSummaryMeta | undefined): read
 	return artifacts;
 }
 
+/**
+ * The artifacts recorded on a session's `_meta` bag, most recent first.
+ * Artifacts are appended as the agent records them, so the stored order runs
+ * oldest to newest, while every surface lists the newest entry at the top of
+ * its group.
+ */
+export function readSessionArtifactsNewestFirst(meta: SessionSummaryMeta | undefined): readonly ISessionArtifact[] {
+	return readSessionArtifacts(meta).slice().reverse();
+}
+
 /** Returns `meta` with the artifact slot replaced, dropping it when empty. */
 export function withSessionArtifacts(meta: SessionSummaryMeta | undefined, artifacts: readonly ISessionArtifact[]): SessionSummaryMeta | undefined {
 	const next: { [key: string]: unknown } = { ...meta };

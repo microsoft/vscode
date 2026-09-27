@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { FetchSuccess } from '../../../platform/chat/common/commonTypes';
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
-import { isEncryptedThinkingDelta, ThinkingData, ThinkingDelta } from '../../../platform/thinking/common/thinking';
+import { isEncryptedThinkingDelta, ThinkingData, ThinkingDelta, ThinkingOriginApi } from '../../../platform/thinking/common/thinking';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IToolCall, IToolCallRound } from './intents';
 
@@ -18,6 +18,7 @@ export class ToolCallRound implements IToolCallRound {
 	public summary: string | undefined;
 	public phase?: string;
 	public modelId?: string;
+	public originApi?: ThinkingOriginApi;
 
 	/**
 	 * Creates a ToolCallRound from an existing IToolCallRound object.
@@ -38,6 +39,7 @@ export class ToolCallRound implements IToolCallRound {
 		round.summary = params.summary;
 		round.phase = params.phase;
 		round.modelId = params.modelId;
+		round.originApi = params.originApi;
 		return round;
 	}
 

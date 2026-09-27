@@ -7,7 +7,7 @@ import type { SectionOverride } from '@github/copilot-sdk';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { BrowserChatToolReferenceName, browserChatToolReferenceNames } from '../../../../browserView/common/browserChatToolReferenceNames.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
+import { copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../common/toolSearchConstants.js';
 
 /**
@@ -24,8 +24,7 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../common/toolSearchCon
  * To add guidance, write a {@link ToolInstructionLine} and add it to
  * {@link TOOL_INSTRUCTION_LINES}. The browser guidance
  * ({@link browserToolInstructions}) demonstrates a line gated on
- * `openBrowserPage` plus an agentic browser tool; the subagent guidance
- * ({@link subagentToolInstructions}) one gated on a setting.
+ * `openBrowserPage` plus an agentic browser tool.
  */
 
 type CopilotCliConfigDefinition = typeof copilotCliConfigSchema.definition;
@@ -66,9 +65,7 @@ export const COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS = [
 	'When launching subagents with the task tool, leave the `model`, `reasoning_effort`, and `context_tier` parameters unset — each agent type already runs on a model suited to it, and overriding the model changes the session\'s cost and behavior profile.',
 	'Only set the task tool\'s `model` parameter when the user explicitly names the model the subagent should run on.',
 ].join('\n');
-/** Opt-in via {@link CopilotCliConfigKey.SubagentModelGuidance}. */
-const subagentToolInstructions: ToolInstructionLine = ({ getSetting }) =>
-	getSetting(CopilotCliConfigKey.SubagentModelGuidance) === true ? COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS : undefined;
+const subagentToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS;
 
 /**
  * Front-end guidance for the integrated browser tools, ported from the Copilot
