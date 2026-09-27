@@ -50,6 +50,7 @@ import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.j
 import { TerminalToolAutoExpand, TerminalToolAutoExpandTimeout } from '../../../../browser/widget/chatContentParts/toolInvocationParts/terminalToolAutoExpand.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalInstance, ITerminalService, type IChatTerminalOutputSource, type IDetachedXTermOptions } from '../../../../../terminal/browser/terminal.js';
 import type { ITerminalFont } from '../../../../../terminal/common/terminal.js';
+import type { XtermTerminal } from '../../../../../terminal/browser/xterm/xtermTerminal.js';
 import { createFakeDetachedTerminal } from '../../../../../terminal/test/browser/chatTerminalMirrorTestUtils.js';
 import { ChatTerminalOutputResource, IChatTerminalOutputTextModelService } from '../../../../browser/agentSessions/agentHost/chatTerminalOutputTextModelContentProvider.js';
 
@@ -1321,10 +1322,10 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		store.add(toDisposable(() => container.remove()));
 	});
 
-	function createSection(output: IChatTerminalToolInvocationData['terminalCommandOutput'], fullOutputAction?: IAction, options?: { command?: ITerminalCommand; source?: IChatTerminalOutputSource; isRunning?: () => boolean }): ChatTerminalToolOutputSection {
+	function createSection(output: IChatTerminalToolInvocationData['terminalCommandOutput'], fullOutputAction?: IAction, options?: { command?: ITerminalCommand; source?: IChatTerminalOutputSource; isRunning?: () => boolean; terminal?: ITerminalInstance }): ChatTerminalToolOutputSection {
 		const section = store.add(instantiationService.createInstance(
 			ChatTerminalToolOutputSection,
-			async () => undefined,
+			async () => options?.terminal,
 			() => options?.command,
 			() => options?.source,
 			() => output,
@@ -1336,6 +1337,59 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		));
 		container.appendChild(section.domNode);
 		return section;
+	}
+
+	for (const alreadyReady of [false, true]) {
+		test(`concurrent expansions share one live terminal mirror when xterm is ${alreadyReady ? 'ready' : 'pending'}`, async () => {
+			const raw = store.add(new XTermBaseCtor({ cols: 80, rows: 10 }));
+			const marker = raw.registerMarker(0);
+			assert.ok(marker);
+			store.add(marker);
+			const xterm = new class extends mock<XtermTerminal>() {
+				override readonly raw = raw;
+				override async getRangeAsVT(): Promise<string> {
+					return 'test output\r\n';
+				}
+			}();
+			const command = new class extends mock<ITerminalCommand>() {
+				override readonly command = 'echo test';
+				override readonly executedMarker = marker;
+				override readonly endMarker = marker;
+			}();
+			const ready = new DeferredPromise<XtermTerminal | undefined>();
+			const readyRequested = new DeferredPromise<void>();
+			const terminal = new class extends mock<ITerminalInstance>() {
+				override readonly isDisposed = false;
+				override readonly xterm = xterm;
+				override get xtermReadyPromise(): Promise<XtermTerminal | undefined> {
+					void readyRequested.complete();
+					return ready.p;
+				}
+			}();
+			if (alreadyReady) {
+				await ready.complete(xterm);
+			}
+			const section = createSection(undefined, undefined, { command, terminal });
+			const expansions = Array.from({ length: 50 }, () => section.toggle(true));
+			await readyRequested.p;
+			if (!alreadyReady) {
+				await ready.complete(xterm);
+			}
+			await Promise.all(expansions);
+			await section.refresh();
+			const firstLine = fakes[0]?.raw.buffer.active.getLine(0)?.translateToString(true);
+			const disposeSpies = fakes.map(fake => sinon.spy(fake.instance, 'dispose'));
+			section.dispose();
+			assert.deepStrictEqual({
+				mirrors: fakes.length,
+				firstLine,
+				disposeCalls: disposeSpies.map(spy => spy.callCount),
+			}, {
+				mirrors: 1,
+				firstLine: 'test output',
+				disposeCalls: [1],
+			});
+		});
 	}
 
 	test('only enables Enter activation for completed output with an enabled action', async () => {
