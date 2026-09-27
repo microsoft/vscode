@@ -80,7 +80,16 @@ pub async fn agent_stop(ctx: CommandContext, args: AgentStopArgs) -> Result<i32,
 				"Agent host returned an invalid active turn start timestamp",
 			)
 		})?;
-		let duration = Timestamp::now().as_millisecond() - started_at.as_millisecond();
+		
+		// Savunmacı Programlama: Saat uyumsuzluklarına (clock skew) karşı negatif süre koruması
+		let now_ms = Timestamp::now().as_millisecond();
+		let started_ms = started_at.as_millisecond();
+		let duration = if now_ms >= started_ms {
+			now_ms - started_ms
+		} else {
+			0
+		};
+
 		let turn_id = active_turn.id;
 
 		debug!(ctx.log, "Cancelling turn {} on {}", turn_id, chat_uri);
