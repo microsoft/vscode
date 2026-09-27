@@ -153,7 +153,7 @@ export class McpServerCustomizationMigrator {
 					: McpServerCustomizationMigrationFailureReason.InvalidSource);
 				continue;
 			}
-			if (!isConfigurationRepresentable(server.projectedConfiguration, storage)
+			if (!isConfigurationRepresentable(server.projectedConfiguration)
 				|| !Iterable.isEmpty(ConfigurationResolverExpression.parse(server.projectedConfiguration).unresolved())
 				|| !equals(sourceConfiguration, projectedConfiguration)) {
 				excluded(McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
@@ -376,7 +376,7 @@ async function migrateGroup(
 	};
 
 	for (const candidate of group.candidates) {
-		if (!isConfigurationRepresentable(candidate.projectedConfiguration, candidate.storage)) {
+		if (!isConfigurationRepresentable(candidate.projectedConfiguration)) {
 			reject(candidate, McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
 			continue;
 		}
@@ -397,7 +397,7 @@ async function migrateGroup(
 			reject(candidate, McpServerCustomizationMigrationFailureReason.SourceChanged);
 			continue;
 		}
-		if (Object.hasOwn(targetServers, candidate.name) && !await isEquivalentTargetConfiguration(targetServers[candidate.name], candidate, configurationResolverService)) {
+		if (Object.hasOwn(targetServers, candidate.name) && !isEquivalentTargetConfiguration(targetServers[candidate.name], candidate)) {
 			reject(candidate, McpServerCustomizationMigrationFailureReason.TargetConflict);
 			continue;
 		}
@@ -489,7 +489,7 @@ async function migrateGroup(
 		writtenSource = await writeDocument(group.sourceUri, sourceContent, source, fileService, beforeWrite);
 	} catch (error) {
 		const sourceChangedBeforeWrite = error instanceof McpServerDocumentChangedError;
-		if (sourceChangedBeforeWrite && await isConcurrentMigrationComplete(migrationGroup, fileService, configurationResolverService)) {
+		if (sourceChangedBeforeWrite && await isConcurrentMigrationComplete(migrationGroup, fileService)) {
 			await ensureNoCrossRootConflicts(migrationGroup, roots, fileService, logService);
 			logService.info(`${LOG_PREFIX} Concurrent migration already completed for ${group.sourceUri.toString()}; retaining ${group.targetUri.toString()}.`);
 			return { migratedCount: candidatesToMigrate.length, failures };
@@ -523,7 +523,7 @@ async function migrateGroup(
 	}
 
 	try {
-		await verifyMigration(group, candidatesToMigrate, fileService, configurationResolverService);
+		await verifyMigration(group, candidatesToMigrate, fileService);
 		await ensureNoCrossRootConflicts({ ...group, candidates: candidatesToMigrate }, roots, fileService, logService);
 	} catch (verificationError) {
 		logService.trace(`${LOG_PREFIX} Verification failed for ${group.sourceUri.toString()}; rolling both files back.`);
@@ -561,7 +561,6 @@ async function migrateGroup(
 async function isConcurrentMigrationComplete(
 	group: IMcpServerMigrationGroup,
 	fileService: IFileService,
-	configurationResolverService: IConfigurationResolverService,
 ): Promise<boolean> {
 	try {
 		const sourceServers = getObjectProperty((await readSourceDocument(group.sourceUri, fileService)).value, 'servers');
@@ -572,7 +571,7 @@ async function isConcurrentMigrationComplete(
 		for (const candidate of group.candidates) {
 			if (Object.hasOwn(sourceServers, candidate.name)
 				|| !Object.hasOwn(targetServers, candidate.name)
-				|| !await isEquivalentTargetConfiguration(targetServers[candidate.name], candidate, configurationResolverService)) {
+				|| !isEquivalentTargetConfiguration(targetServers[candidate.name], candidate)) {
 				return false;
 			}
 		}
@@ -610,7 +609,6 @@ async function verifyMigration(
 	group: IMcpServerMigrationGroup,
 	candidates: readonly IMcpServerCustomizationMigrationCandidate[],
 	fileService: IFileService,
-	configurationResolverService: IConfigurationResolverService,
 ): Promise<void> {
 	const source = await readSourceDocument(group.sourceUri, fileService);
 	const sourceServers = getObjectProperty(source.value, 'servers');
@@ -618,7 +616,7 @@ async function verifyMigration(
 	const targetServers = getTargetServers(target);
 	for (const candidate of candidates) {
 		if (sourceServers?.[candidate.name] !== undefined
-			|| !await isEquivalentTargetConfiguration(targetServers[candidate.name], candidate, configurationResolverService)) {
+			|| !isEquivalentTargetConfiguration(targetServers[candidate.name], candidate)) {
 			throw new Error(`MCP server '${candidate.name}' changed during migration.`);
 		}
 	}
@@ -674,23 +672,18 @@ function getTargetServers(target: IMcpTargetDocument): Record<string, unknown> {
 }
 
 function getTargetConfiguration(candidate: IMcpServerCustomizationMigrationCandidate) {
-	return candidate.storage === PromptsStorage.user
-		? toCopilotMcpServerConfiguration(candidate.projectedConfiguration)
-		: canonicalizeConfiguration(candidate.projectedConfiguration);
+	return toCopilotMcpServerConfiguration(candidate.projectedConfiguration);
 }
 
-async function isEquivalentTargetConfiguration(raw: unknown, candidate: IMcpServerCustomizationMigrationCandidate, resolver: IConfigurationResolverService): Promise<boolean> {
-	if (candidate.storage === PromptsStorage.user) {
-		if (!isJsonObject(raw)) {
-			return false;
-		}
-		return equals({
-			...(candidate.projectedConfiguration.type === McpServerType.LOCAL ? { args: [] } : {}),
-			tools: ['*'],
-			...raw,
-		}, getTargetConfiguration(candidate));
+function isEquivalentTargetConfiguration(raw: unknown, candidate: IMcpServerCustomizationMigrationCandidate): boolean {
+	if (!isJsonObject(raw)) {
+		return false;
 	}
-	return equals(await resolveSourceConfiguration(raw, dirname(candidate.targetUri), resolver), getTargetConfiguration(candidate));
+	return equals({
+		...(candidate.projectedConfiguration.type === McpServerType.LOCAL ? { args: [] } : {}),
+		tools: ['*'],
+		...raw,
+	}, getTargetConfiguration(candidate));
 }
 
 async function writeDocument(resource: URI, content: string, document: IJsonDocument, fileService: IFileService, beforeWrite?: () => Promise<void>): Promise<IFileStatWithMetadata> {
@@ -829,7 +822,7 @@ function canonicalizeConfiguration(configuration: IMcpServerConfiguration): Reco
 	};
 }
 
-function isConfigurationRepresentable(configuration: IMcpServerConfiguration, storage: PromptsStorage.local | PromptsStorage.user): boolean {
+function isConfigurationRepresentable(configuration: IMcpServerConfiguration): boolean {
 	if (configuration.version !== undefined || configuration.gallery !== undefined || configuration.dev !== undefined) {
 		return false;
 	}
@@ -837,7 +830,7 @@ function isConfigurationRepresentable(configuration: IMcpServerConfiguration, st
 		return configuration.envFile === undefined
 			&& configuration.cwd === undefined
 			&& configuration.sandboxEnabled !== true
-			&& (storage !== PromptsStorage.user || !configuration.env || Object.values(configuration.env).every(value => value !== null));
+			&& (!configuration.env || Object.values(configuration.env).every(value => value !== null));
 	}
 	return configuration.oauth === undefined && configuration.transport !== 'sse';
 }

@@ -14,7 +14,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostByokModelsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
@@ -87,6 +87,21 @@ function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[],
  */
 export function isMcpServerExplicitlyProjected(server: ICopilotMcpServerInfo): boolean {
 	return server.sdkRegistration === 'sessionConfig';
+}
+
+/**
+ * The servers a launch registers through `SessionConfig.mcpServers`: root servers, overridden by same-named enabled
+ * servers that Agent Host projects explicitly. Ephemeral sessions register none.
+ */
+export function toSessionConfigMcpServers(plan: Pick<CopilotSessionLaunchPlan, 'isEphemeral' | 'snapshot'>): NonNullable<SessionConfig['mcpServers']> {
+	if (plan.isEphemeral) {
+		return {};
+	}
+	const explicitMcpServers = plan.snapshot.plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
+		!plugin.disabledMcpServers?.includes(server.name)
+		&& isMcpServerExplicitlyProjected(server)
+	));
+	return { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) };
 }
 
 /**
@@ -217,7 +232,9 @@ export interface ICopilotSessionLauncher {
 	launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper>;
 }
 
-type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'>;
+type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'> & {
+	readonly rpc?: Pick<CopilotClient['rpc'], 'account'>;
+};
 
 interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
@@ -645,7 +662,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const session = AgentSession.uri('copilotcli', plan.sessionId);
 		try {
 			const raw = await this._resumeSession(session, plan, config);
-			return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.fallback.model?.id);
+			return this._finalizeSession(raw, sandboxConfig, plan, plan.fallback.model?.id);
 		} catch (err) {
 			let resumeError = err;
 			const errCode = getCopilotSdkErrorCode(resumeError);
@@ -657,7 +674,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
 				try {
 					const raw = await this._resumeSession(session, fallbackPlan, fallbackConfig);
-					return this._finalizeSession(raw, sandboxConfig, plan.sessionId, fallbackPlan.fallback.model?.id);
+					return this._finalizeSession(raw, sandboxConfig, fallbackPlan, fallbackPlan.fallback.model?.id);
 				} catch (retryErr) {
 					resumeError = retryErr;
 					this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without custom agent failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
@@ -718,13 +735,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
-		return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.model?.id);
+		return this._finalizeSession(raw, sandboxConfig, plan, plan.model?.id);
 	}
 
-	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: () => SandboxConfig, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
+	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: () => SandboxConfig, plan: CopilotSessionLaunchPlan, modelId: string | undefined): Promise<CopilotSessionWrapper> {
 		try {
-			await this._applyScriptSafety(raw, sessionId);
-			await applySandboxConfig(raw, sandboxConfig(), sessionId, this._logService);
+			await this._applyScriptSafety(raw, plan.sessionId);
+			await applySandboxConfig(raw, sandboxConfig(), plan.sessionId, this._logService);
+			await this._reconcileCopilotConnectors(raw, plan);
 		} catch (err) {
 			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
 			// to disconnect it here or the runtime keeps an orphaned session alive.
@@ -733,9 +751,46 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		// TODO: Remove this post-launch update once the SDK exposes verbosity in SessionConfig.
 		if (isGpt56Model(modelId)) {
-			await this._applyVerbosity(raw, 'medium', sessionId);
+			await this._applyVerbosity(raw, 'medium', plan.sessionId);
 		}
 		return new CopilotSessionWrapper(raw, this._logService);
+	}
+
+	private async _reconcileCopilotConnectors(session: CopilotSessionWrapper['session'], plan: CopilotSessionLaunchPlan): Promise<void> {
+		if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) !== true) {
+			return;
+		}
+		try {
+			const capabilities = await session.rpc.connectors.getCapabilities();
+			if (capabilities.availability !== 'enabled') {
+				this._logService.info(`[Copilot:${plan.sessionId}] Connector MCP reconciliation unavailable: ${capabilities.availability}`);
+				return;
+			}
+			const token = plan.githubCredentials.token;
+			const auth = await session.rpc.gitHubAuth.getStatus();
+			const accounts = plan.client.rpc ? await plan.client.rpc.account.getAllUsers() : [];
+			let account = token ? accounts.find(candidate => candidate.token === token && candidate.selectionId) : undefined;
+			if (!account) {
+				const sessionHost = auth.host?.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+				const matchingAccounts = accounts.filter(candidate => {
+					const login = candidate.authInfo.type === 'env' || candidate.authInfo.type === 'user' || candidate.authInfo.type === 'gh-cli'
+						? candidate.authInfo.login
+						: candidate.authInfo.copilotUser?.login;
+					const accountHost = candidate.authInfo.host.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+					return candidate.selectionId && accountHost === sessionHost && (!auth.login || login === auth.login);
+				});
+				const matchingProviders = matchingAccounts.filter(candidate => candidate.authInfo.type === 'token-provider');
+				account = matchingProviders.length === 1 ? matchingProviders[0] : matchingAccounts.length === 1 ? matchingAccounts[0] : undefined;
+			}
+			if (!account?.selectionId) {
+				this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation skipped because the session account could not be resolved`);
+				return;
+			}
+			const status = await session.rpc.connectors.reconcile({ accountId: account.selectionId, refreshCatalog: true });
+			this._logService.info(`[Copilot:${plan.sessionId}] Reconciled ${status.runtimeServers.length} connector MCP server(s) through the Copilot runtime`);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation failed; continuing without connector tools: ${getErrorMessage(error)}`);
+		}
 	}
 
 	/**
@@ -844,6 +899,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// createSession and resumeSession advertise the models to the runtime.
 		const byok = await this._resolveByokSessionConfig(plan.sessionId);
 		const hydraFusionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
+		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
+		const featureFlags = {
+			CONNECTORS: copilotConnectorsEnabled,
+			...(copilotConnectorsEnabled ? { MANAGED_MCP_SERVERS: true } : {}),
+			...(hydraFusionEnabled ? { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true } : {}),
+		};
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		let shellTools: Awaited<ReturnType<typeof createShellTools>> = [];
 		if (enableCustomTerminalTool) {
@@ -859,10 +921,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Hooks are also projected explicitly below because plugin directory discovery
 		// does not register their commands with the SDK callback surface.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
-		const explicitMcpServers = plan.isEphemeral ? [] : plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
-			!plugin.disabledMcpServers?.includes(server.name)
-			&& isMcpServerExplicitlyProjected(server)
-		));
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
@@ -939,7 +997,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...Object.keys(plan.snapshot.mcpServers),
 		] : undefined;
 		const disabledMcpServers = disabledMcpServersSessionOption(plugins, plan.disabledRootMcpServers, additionalDisabledMcpServers);
-		const mcpServers = plan.isEphemeral ? {} : { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) };
+		const mcpServers = toSessionConfigMcpServers(plan);
 		if (this._logService.getLevel() <= LogLevel.Trace) {
 			// Guarded: a `replace`-mode prompt's content can be multiple KB, so only
 			// serialize it when trace output is actually emitted.
@@ -967,13 +1025,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				}
 			},
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
-			...(hydraFusionEnabled ? {
-				enableExperimentalMode: true,
-				featureFlags: {
-					HYDRAFUSION: true,
-					HYDRAFUSION_ROLLOUT: true,
-				},
-			} : {}),
+			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
+			featureFlags,
 			streaming: true,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless

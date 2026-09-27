@@ -214,6 +214,7 @@ const HOST_OWNED_SESSION_CONFIG_KEYS = [
 	SessionConfigKey.Branch,
 	SessionConfigKey.WorktreeBranchPrefix,
 	SessionConfigKey.WorktreeIncludeFiles,
+	SessionConfigKey.WorktreeSymlinkFolders,
 	SessionConfigKey.WorktreeBranchTrack,
 	SessionConfigKey.WorktreeCreateNewBranch,
 ] as const;
@@ -3468,20 +3469,25 @@ export class AgentService extends Disposable implements IAgentService {
 		this._retryInitialProviderMigrationsInBackground(provider =>
 			visibleProviders.has(provider)
 			&& !providersWithEligibleCatalogs.has(provider));
-		const fallbackProviders = new Map<AgentProvider, IAgent>();
+		const fallbackProviders = new Map<AgentProvider, { agent: IAgent; sessionCount: number }>();
 		for (const result of catalogResults) {
-			if (!result || result.central.eligible || result.central.chatBacking || fallbackProviders.has(result.registeredSession.provider)) {
+			if (!result || result.central.eligible || result.central.chatBacking) {
+				continue;
+			}
+			const fallback = fallbackProviders.get(result.registeredSession.provider);
+			if (fallback) {
+				fallback.sessionCount++;
 				continue;
 			}
 			const agent = this._providerService.getProvider(result.registeredSession.provider);
 			if (agent?.prewarmSessionMetadata) {
-				fallbackProviders.set(result.registeredSession.provider, agent);
+				fallbackProviders.set(result.registeredSession.provider, { agent, sessionCount: 1 });
 			}
 		}
 		const prewarmDisposables: IDisposable[] = [];
-		await Promise.all([...fallbackProviders.values()].map(async agent => {
+		await Promise.all([...fallbackProviders.values()].map(async ({ agent, sessionCount }) => {
 			try {
-				prewarmDisposables.push(await agent.prewarmSessionMetadata!());
+				prewarmDisposables.push(await agent.prewarmSessionMetadata!(sessionCount));
 			} catch (err) {
 				this._logService.warn(`[AgentService] listSessions: failed to prewarm metadata for provider ${agent.id}`, err);
 			}
@@ -4547,6 +4553,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
 		return this._worktree.reconcileDetachedWorktrees(scope, activeHandles);
+	}
+
+	async refreshCopilotConnectorSessions(): Promise<void> {
+		await Promise.all(this._providerService.getProviders().map(provider => provider.refreshConnectorSessions?.()));
 	}
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
@@ -5681,6 +5691,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (iso.worktreeIncludeFilesProperty) {
 			properties[SessionConfigKey.WorktreeIncludeFiles] = iso.worktreeIncludeFilesProperty.protocol;
 		}
+		if (iso.worktreeSymlinkFoldersProperty) {
+			properties[SessionConfigKey.WorktreeSymlinkFolders] = iso.worktreeSymlinkFoldersProperty.protocol;
+		}
 		const values = omitHostOwnedSessionConfig(result.values);
 		values[SessionConfigKey.Isolation] = iso.isolationValue;
 		if (iso.branchProperty && iso.branchValue !== undefined) {
@@ -5699,6 +5712,11 @@ export class AgentService extends Disposable implements IAgentService {
 			&& Array.isArray(params.config?.[SessionConfigKey.WorktreeIncludeFiles])
 			&& params.config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')) {
 			values[SessionConfigKey.WorktreeIncludeFiles] = params.config[SessionConfigKey.WorktreeIncludeFiles];
+		}
+		if (iso.worktreeSymlinkFoldersProperty
+			&& Array.isArray(params.config?.[SessionConfigKey.WorktreeSymlinkFolders])
+			&& params.config[SessionConfigKey.WorktreeSymlinkFolders].every(pattern => typeof pattern === 'string')) {
+			values[SessionConfigKey.WorktreeSymlinkFolders] = params.config[SessionConfigKey.WorktreeSymlinkFolders];
 		}
 		return { schema: { ...result.schema, properties }, values };
 	}

@@ -763,6 +763,8 @@ export interface IAgentHostManagementService {
 	claimDetachedWorktree(handle: string): Promise<void>;
 	deleteDetachedWorktree(handle: string): Promise<void>;
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
+	/** Local-only bridge for refreshing live Copilot sessions after Connector membership changes. */
+	refreshCopilotConnectorSessions(): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -810,6 +812,7 @@ export interface IAgentService {
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
 	deleteDetachedWorktree?(handle: string): Promise<void>;
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
+	refreshCopilotConnectorSessions?(): Promise<void>;
 
 	/**
 	 * Create an additional chat within an existing session. Spins up the
@@ -1240,6 +1243,9 @@ export interface IAgentHostService extends IAgentConnection {
 
 	/** Update {@link authenticationPending}. Internal — only the auth driver should call this. */
 	setAuthenticationPending(pending: boolean): void;
+
+	/** Refresh live local Copilot sessions after Connector membership changes. */
+	refreshCopilotConnectorSessions?(): Promise<void>;
 
 	/** Start connecting to the agent host if it has not already started. */
 	startAgentHost(): void;

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -113,6 +114,7 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 	private readonly _onDidCreateConnection = this._register(new Emitter<void>());
 	readonly onDidCreateConnection = this._onDidCreateConnection.event;
 	createdConnectionCount = 0;
+	reconnectManagedByClient = false;
 	readonly observations: { state: Parameters<RemoteAgentHostConnectionObserver>[0]; time: number }[] = [];
 
 	constructor(readonly kind: RemoteAgentHostEntryType) {
@@ -135,6 +137,7 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 			connection: connection as unknown as IRemoteAgentHostProtocolClient,
 			transportDisposable,
 			reconnectTransfersTransportOwnership,
+			reconnectManagedByClient: this.reconnectManagedByClient,
 		});
 		this._createdConnections.set(address, createdConnections);
 		this.publishEntry(entry);
@@ -934,6 +937,76 @@ suite('RemoteAgentHostService', () => {
 			await wait;
 		}
 
+		for (const removal of ['removed', 'unregistered', 'disabled'] as const) {
+			for (const outcome of ['success', 'failure'] as const) {
+				test(`abandons a ${removal} factory attempt before its late ${outcome}`, async () => {
+					const address = 'cloudsandbox:replaced';
+					const entry = cloudSandboxEntry('Sandbox', address);
+					const first = disposables.add(new MockProtocolClient(address));
+					const second = disposables.add(new MockProtocolClient(address));
+					const released = new DeferredPromise<void>();
+					const transport = makeTransportDisposable();
+					disposables.add(transport.disposable);
+					const factory = disposables.add(new class extends TestConnectionFactory {
+						override async createConnection(entry: IRemoteAgentHostEntry): Promise<IRemoteAgentHostCreatedConnection> {
+							const created = await super.createConnection(entry);
+							if (created.connection.clientId === first.clientId) {
+								try {
+									await released.p;
+								} catch (error) {
+									created.connection.dispose();
+									created.transportDisposable?.dispose();
+									throw error;
+								}
+							}
+							return created;
+						}
+					}(RemoteAgentHostEntryType.CloudSandbox));
+					const registration = disposables.add(service.registerConnectionFactory(factory));
+					factory.stage(entry, first, transport.disposable);
+					service.reconnect(address);
+					const cancelled = assert.rejects(service.waitForConnection(address), isCancellationError);
+					await waitForFactoryConnection(factory, 1);
+
+					if (removal === 'removed') {
+						await service.removeRemoteAgentHost(address);
+					} else if (removal === 'unregistered') {
+						registration.dispose();
+						disposables.add(service.registerConnectionFactory(factory));
+					} else {
+						configService.setEnabled(false);
+						configService.setEnabled(true);
+					}
+
+					factory.stage(entry, second);
+					service.reconnect(address);
+					assert.strictEqual(factory.createdConnectionCount, 2, 'a new dial must not join the abandoned factory');
+					const connected = service.waitForConnection(address);
+					await cancelled;
+					if (outcome === 'success') {
+						await released.complete();
+					} else {
+						await released.error(new Error('abandoned factory failed'));
+					}
+					await timeout(0);
+					await second.connectDeferred.complete();
+					const result = await connected;
+					while (service.pendingConnections.length) {
+						await Event.toPromise(service.onDidChangePendingConnections);
+					}
+
+					assert.deepStrictEqual({
+						clientId: result.clientId,
+						activeClientId: service.getConnection(address)?.clientId,
+						oldTransportDisposed: transport.disposed(),
+						attempts: factory.createdConnectionCount,
+					}, {
+						clientId: second.clientId, activeClientId: second.clientId, oldTransportDisposed: true, attempts: 2,
+					});
+				});
+			}
+		}
+
 		test('observes one initial retry and a complete inner-to-outer recovery without a terminal handoff', () => runWithFakedTimers({}, async () => {
 			const factory = createFactory();
 			const entry = cloudSandboxEntry('Sandbox', 'cloudsandbox:observed');
@@ -1035,6 +1108,36 @@ suite('RemoteAgentHostService', () => {
 				{ state: 'failed', time: 3000 },
 			]);
 		}));
+
+		for (const initiallyConnected of [false, true]) {
+			test(`does not restart client-owned recovery after ${initiallyConnected ? 'a live connection' : 'an initial handshake'} gives up`, () => runWithFakedTimers({}, async () => {
+				const factory = createFactory();
+				factory.reconnectManagedByClient = true;
+				const entry = cloudSandboxEntry('Sandbox', 'cloudsandbox:owned-recovery');
+				const address = getEntryAddress(entry);
+				const client = disposables.add(new MockProtocolClient(address));
+				factory.stage(entry, client);
+				service.reconnect(address);
+				await waitForFactoryConnection(factory, 1);
+				if (initiallyConnected) {
+					client.connectDeferred.complete();
+					await service.waitForConnection(address);
+				}
+				client.fireConnectionState('reconnecting');
+				const failed = assert.rejects(service.waitForConnection(address), /closed before recovery completed/);
+				client.fireClose();
+				await failed;
+				client.connectDeferred.complete();
+				await timeout(120_000);
+				const states = factory.observations.map(observation => observation.state);
+				service.dispose();
+
+				assert.deepStrictEqual({ states, creates: factory.createdConnectionCount }, {
+					states: ['connecting', ...(initiallyConnected ? ['connected'] : []), 'reconnecting', 'reconnecting', 'failed'],
+					creates: 1,
+				});
+			}));
+		}
 
 		for (const action of ['remove', 'disable', 'dispose'] as const) {
 			test(`observes ${action} as intentional teardown, not a connection loss`, () => runWithFakedTimers({}, async () => {

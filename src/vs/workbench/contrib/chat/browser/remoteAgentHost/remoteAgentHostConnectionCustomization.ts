@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { AuthRequiredReason } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
 
@@ -20,9 +21,9 @@ export type RemoteAgentHostSessionPreparation = (selection: URI | undefined, tok
 export interface IRemoteAgentHostConnectionCustomization {
 	/**
 	 * Transform the outgoing `authenticate` request before it is sent. Must fail closed: throw rather
-	 * than forward a value that does not meet the host's contract. Omit to forward it unchanged.
+	 * than forward a value that does not meet the host's contract. An expired challenge requires renewal.
 	 */
-	readonly authenticate?: (request: IAgentHostAuthenticateRequest) => Promise<IAgentHostAuthenticateRequest>;
+	readonly authenticate?: (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason) => Promise<IAgentHostAuthenticateRequest>;
 
 	/**
 	 * The backend session URI scheme for an agent provider when it differs from the provider itself.

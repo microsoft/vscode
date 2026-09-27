@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/button/button.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -17,6 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -67,10 +69,11 @@ import {
 	updateMcpCardRuntimePresentation,
 	hasSameMcpMembership,
 	preserveMcpEntryOrder,
-	setPrimaryMcpServerEnablement,
 	shouldLoadMcpGallerySnapshot,
+	setPrimaryMcpServerEnablement,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 import { getEffectiveMcpServerCount } from '../../../browser/aiCustomization/mcpServerCount.js';
+import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
@@ -155,6 +158,14 @@ function trackActions(store: Pick<DisposableStore, 'add'>, actions: readonly IAc
 }
 
 type McpAccessTestWidget = {
+	delayedGallerySearch: { cancel(): void };
+	delayedCancelCount: number;
+	requestCancelCount: number;
+	galleryCts?: { dispose(cancel?: boolean): void };
+	gallerySnapshotLoading: boolean;
+	gallerySearchLoading: boolean;
+	queryCount: number;
+	queryMcpSearch(): Promise<void>;
 	element: HTMLElement;
 	mcpAccessEnabled: boolean;
 	visible: boolean;
@@ -162,60 +173,142 @@ type McpAccessTestWidget = {
 	access: McpAccessValue;
 	policyAccess: McpAccessValue | undefined;
 	configurationService: IConfigurationService;
-	delayedGallerySearch: { cancel(): void };
-	delayedCancelCount: number;
-	galleryCts: { dispose(cancel?: boolean): void } | undefined;
-	requestCancelCount: number;
-	gallerySnapshotLoading: boolean;
-	gallerySearchLoading: boolean;
+	connectorsCancellation: MutableDisposable<{ cancel(): void; dispose(): void }>;
+	connectorActionCancellation: MutableDisposable<CancellationTokenSource>;
+	connectorsCancelCount: number;
 	searchInput: { hideMessage(): void };
 	disabledIcon: HTMLElement;
 	disabledMessage: HTMLElement;
 	disabledLinkListener: MutableDisposable<{ dispose(): void }>;
 	commandService: ICommandService;
-	queryCount: number;
 	refreshCount: number;
-	queryMcpSearch(): Promise<void>;
+	refreshConnectorsCount: number;
 	refresh(): Promise<void>;
+	refreshConnectors(): Promise<void>;
 	updateAccessState(): void;
 };
 
-function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAccessValue | undefined, store: Pick<DisposableStore, 'add'>, galleryDiscoveryEnabled = false): McpAccessTestWidget {
+function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAccessValue | undefined, store: Pick<DisposableStore, 'add'>, galleryDiscoveryEnabled = false, connectorsEnabled = false): McpAccessTestWidget {
 	const widget = Object.create(McpListWidget.prototype) as McpAccessTestWidget;
 	widget.element = document.createElement('div');
 	widget.mcpAccessEnabled = false;
+	widget.delayedCancelCount = 0;
+	widget.requestCancelCount = 0;
+	widget.queryCount = 0;
+	widget.delayedGallerySearch = { cancel() { widget.delayedCancelCount++; } };
+	widget.queryMcpSearch = async () => { widget.queryCount++; };
 	widget.visible = false;
 	widget.searchQuery = '';
 	widget.access = access;
 	widget.policyAccess = policyAccess;
 	widget.configurationService = {
-		getValue: () => galleryDiscoveryEnabled,
+		getValue: (key: string) => key === CustomizationMarketplaceConfiguration.MarketplaceEnabled
+			? galleryDiscoveryEnabled
+			: key === CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled
+				? connectorsEnabled
+				: undefined,
 		inspect: (key: string) => key === mcpAccessConfig ? {
 			value: widget.access,
 			defaultValue: McpAccessValue.All,
 			policyValue: widget.policyAccess,
 		} : undefined,
 	} as unknown as IConfigurationService;
-	widget.delayedCancelCount = 0;
-	widget.delayedGallerySearch = { cancel: () => widget.delayedCancelCount++ };
-	widget.galleryCts = undefined;
-	widget.requestCancelCount = 0;
-	widget.gallerySnapshotLoading = false;
-	widget.gallerySearchLoading = false;
+	widget.connectorsCancelCount = 0;
+	widget.connectorsCancellation = store.add(new MutableDisposable());
+	widget.connectorActionCancellation = store.add(new MutableDisposable());
 	widget.searchInput = { hideMessage() { } };
 	widget.disabledIcon = document.createElement('div');
 	widget.disabledMessage = document.createElement('div');
 	widget.disabledLinkListener = store.add(new MutableDisposable());
 	widget.commandService = { executeCommand: async () => undefined } as unknown as ICommandService;
-	widget.queryCount = 0;
 	widget.refreshCount = 0;
-	widget.queryMcpSearch = async () => { widget.queryCount++; };
+	widget.refreshConnectorsCount = 0;
 	widget.refresh = async () => { widget.refreshCount++; };
+	widget.refreshConnectors = async () => { widget.refreshConnectorsCount++; };
 	return widget;
 }
 
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('observes Connector changes only while the experiment is enabled', () => {
+		let enabled = false;
+		const changes = disposables.add(new Emitter<void>());
+		const widget = Object.create(McpListWidget.prototype) as {
+			connectorChangeListener: MutableDisposable<{ dispose(): void }>;
+			connectorsService: ICopilotConnectorsService;
+			visible: boolean;
+			isConnectorsEnabled(): boolean;
+			refreshConnectors(): Promise<void>;
+			updateConnectorChangeListener(): void;
+		};
+		widget.connectorChangeListener = disposables.add(new MutableDisposable());
+		widget.connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = changes.event;
+		}();
+		widget.visible = false;
+		widget.isConnectorsEnabled = () => enabled;
+		widget.refreshConnectors = async () => { };
+
+		widget.updateConnectorChangeListener();
+		const disabled = changes.hasListeners();
+		enabled = true;
+		widget.updateConnectorChangeListener();
+		const enabledState = changes.hasListeners();
+		enabled = false;
+		widget.updateConnectorChangeListener();
+
+		assert.deepStrictEqual({ disabled, enabled: enabledState, disabledAgain: changes.hasListeners() }, {
+			disabled: false,
+			enabled: true,
+			disabledAgain: false,
+		});
+	});
+
+	test('renders Connector controls in the installed MCP row without an enablement toggle', () => {
+		const connector: ICopilotConnector = {
+			name: 'mail',
+			displayName: 'Mail',
+			description: 'Search mail',
+			tags: [],
+			keywords: [],
+			capabilities: [],
+			representativeQueries: [],
+			connectionStatus: 'connected',
+			scopes: [],
+			mcpServers: [{ name: 'mail-mcp', type: 'http' }],
+		};
+		const entry: IMcpInstalledEntry = {
+			type: 'builtin-item',
+			id: 'copilot-connector:mail:mail-mcp',
+			label: 'mail-mcp',
+			description: 'Connector: Mail',
+			connector: { id: 'mail:mail-mcp', connector, serverName: 'mail-mcp' },
+		};
+		const opened: string[] = [];
+		const widget = Object.create(McpListWidget.prototype) as {
+			showConnectorActions(connector: ICopilotConnector, anchor: HTMLElement): void;
+			renderMcpListActions(getEntry: () => IMcpInstalledEntry | undefined, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void): void;
+		};
+		widget.showConnectorActions = selected => opened.push(selected.name);
+		const actions = DOM.$('.actions');
+		const store = disposables.add(new DisposableStore());
+
+		widget.renderMcpListActions(() => entry, actions, store, () => { });
+		const more = actions.querySelector<HTMLButtonElement>('.plugin-card-icon-button');
+		assert.ok(more);
+		more.click();
+
+		assert.deepStrictEqual({
+			hasToggle: actions.querySelector('[role="switch"]') !== null,
+			moreAriaLabel: more.getAttribute('aria-label'),
+			opened,
+		}, {
+			hasToggle: false,
+			moreAriaLabel: 'More actions for mail-mcp',
+			opened: ['mail'],
+		});
+	});
 
 	test('preserves installed row order across enablement refreshes', () => {
 		const order = new Map<string, number>();
@@ -607,7 +700,7 @@ suite('mcpListWidget', () => {
 		assert.deepStrictEqual({ queries: widget.queryCount, refreshes: widget.refreshCount }, { queries: 0, refreshes: 1 });
 	});
 
-	test('shows access-disabled UI before gallery work starts', () => {
+	test('shows access-disabled UI before gallery or connector work starts', () => {
 		const widget = createMcpAccessTestWidget(McpAccessValue.None, McpAccessValue.None, disposables);
 
 		widget.updateAccessState();
@@ -660,9 +753,63 @@ suite('mcpListWidget', () => {
 		assert.deepStrictEqual({
 			queryCount: widget.queryCount,
 			refreshCount: widget.refreshCount,
+			refreshConnectorsCount: widget.refreshConnectorsCount,
 		}, {
 			queryCount: 1,
 			refreshCount: 0,
+			refreshConnectorsCount: 0,
+		});
+	});
+
+	test('cancels in-flight connector work when access is revoked', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.All, undefined, disposables);
+		widget.updateAccessState();
+		widget.connectorsCancellation.value = {
+			cancel: () => widget.connectorsCancelCount++,
+			dispose() { },
+		};
+
+		widget.access = McpAccessValue.None;
+		widget.updateAccessState();
+
+		assert.deepStrictEqual({
+			accessEnabled: widget.mcpAccessEnabled,
+			connectorsCancelCount: widget.connectorsCancelCount,
+		}, {
+			accessEnabled: false,
+			connectorsCancelCount: 1,
+		});
+	});
+
+	test('hiding MCP servers cancels an in-flight connector action', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.All, undefined, disposables);
+		widget.visible = true;
+		widget.connectorActionCancellation.value = new CancellationTokenSource();
+		const token = widget.connectorActionCancellation.value.token;
+		const instance = widget as McpAccessTestWidget & { setVisible(visible: boolean): void; clearMcpServerCompatibilityScope(): void };
+		instance.clearMcpServerCompatibilityScope = () => { };
+		instance.setVisible(false);
+
+		assert.deepStrictEqual({
+			cancelled: token.isCancellationRequested,
+			active: widget.connectorActionCancellation.value,
+		}, { cancelled: true, active: undefined });
+	});
+
+	test('refreshes installed servers and connectors when access is restored', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, undefined, disposables, false, true);
+		widget.visible = true;
+		widget.updateAccessState();
+
+		widget.access = McpAccessValue.All;
+		widget.updateAccessState();
+
+		assert.deepStrictEqual({
+			refreshCount: widget.refreshCount,
+			refreshConnectorsCount: widget.refreshConnectorsCount,
+		}, {
+			refreshCount: 1,
+			refreshConnectorsCount: 1,
 		});
 	});
 

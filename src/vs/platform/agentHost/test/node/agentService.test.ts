@@ -2043,6 +2043,26 @@ suite('AgentService (node dispatcher)', () => {
 			}]);
 		});
 
+		test('refreshes Connector sessions through capable providers', async () => {
+			const calls: string[] = [];
+			const provider: IAgent = copilotAgent;
+			provider.refreshConnectorSessions = async () => { calls.push(provider.id); };
+			const otherProvider = new MockAgent('other');
+			disposables.add(toDisposable(() => otherProvider.dispose()));
+			const otherProviderContract: IAgent = otherProvider;
+			otherProviderContract.refreshConnectorSessions = async () => { calls.push(otherProviderContract.id); };
+			const unsupportedProvider = new MockAgent('unsupported');
+			disposables.add(toDisposable(() => unsupportedProvider.dispose()));
+			registerTestAgentProvider(service, provider);
+			registerTestAgentProvider(service, otherProvider);
+			registerTestAgentProvider(service, unsupportedProvider);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+
+			await managementService.refreshCopilotConnectorSessions();
+
+			assert.deepStrictEqual(calls, ['copilot', 'other']);
+		});
+
 		test('maps progress events to protocol actions via onDidAction', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
@@ -2093,6 +2113,7 @@ suite('AgentService (node dispatcher)', () => {
 		disposables.add(toDisposable(() => agent.dispose()));
 		registerTestAgentProvider(localService, agent);
 		const includeFiles = ['.env', '.env.local', 'config/**'];
+		const symlinkFolders = ['node_modules/**', '.cache/**'];
 
 		const initialWorktree = await localService.resolveSessionConfig({
 			provider: 'copilot',
@@ -2102,12 +2123,12 @@ suite('AgentService (node dispatcher)', () => {
 		const worktree = await localService.resolveSessionConfig({
 			provider: 'copilot',
 			workingDirectory,
-			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles, [SessionConfigKey.WorktreeSymlinkFolders]: symlinkFolders },
 		});
 		const folder = await localService.resolveSessionConfig({
 			provider: 'copilot',
 			workingDirectory,
-			config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
+			config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles, [SessionConfigKey.WorktreeSymlinkFolders]: symlinkFolders },
 		});
 
 		assert.deepStrictEqual({
@@ -2116,16 +2137,24 @@ suite('AgentService (node dispatcher)', () => {
 			worktreeBranch: worktree.values[SessionConfigKey.Branch],
 			worktreeReadOnly: worktree.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			worktreeValue: worktree.values[SessionConfigKey.WorktreeIncludeFiles],
+			worktreeSymlinkReadOnly: worktree.schema.properties[SessionConfigKey.WorktreeSymlinkFolders]?.readOnly,
+			worktreeSymlinkValue: worktree.values[SessionConfigKey.WorktreeSymlinkFolders],
 			folderReadOnly: folder.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			folderValue: folder.values[SessionConfigKey.WorktreeIncludeFiles],
+			folderSymlinkReadOnly: folder.schema.properties[SessionConfigKey.WorktreeSymlinkFolders]?.readOnly,
+			folderSymlinkValue: folder.values[SessionConfigKey.WorktreeSymlinkFolders],
 		}, {
 			initialWorktreeBranch: 'origin/main',
 			initialWorktreeDefault: 'origin/main',
 			worktreeBranch: 'feature',
 			worktreeReadOnly: true,
 			worktreeValue: includeFiles,
+			worktreeSymlinkReadOnly: true,
+			worktreeSymlinkValue: symlinkFolders,
 			folderReadOnly: true,
 			folderValue: includeFiles,
+			folderSymlinkReadOnly: true,
+			folderSymlinkValue: symlinkFolders,
 		});
 	});
 
@@ -2193,6 +2222,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.Branch]: 'feature/config',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
 				[SessionConfigKey.WorktreeBranchTrack]: false,
 				[SessionConfigKey.WorktreeCreateNewBranch]: false,
 				providerSetting: 'selected',
@@ -2211,6 +2241,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.Branch]: 'feature/config',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
 				[SessionConfigKey.WorktreeBranchTrack]: false,
 				[SessionConfigKey.WorktreeCreateNewBranch]: false,
 				providerSetting: 'completion',
@@ -2247,6 +2278,7 @@ suite('AgentService (node dispatcher)', () => {
 				branch: selected.values[SessionConfigKey.Branch],
 				branchPrefix: selected.values[SessionConfigKey.WorktreeBranchPrefix],
 				includeFiles: selected.values[SessionConfigKey.WorktreeIncludeFiles],
+				symlinkFolders: selected.values[SessionConfigKey.WorktreeSymlinkFolders],
 				branchTrack: selected.values[SessionConfigKey.WorktreeBranchTrack],
 				createNewBranch: selected.values[SessionConfigKey.WorktreeCreateNewBranch],
 				providerSetting: selected.values.providerSetting,
@@ -2279,7 +2311,7 @@ suite('AgentService (node dispatcher)', () => {
 				agentMergeController: { lastPromptFingerprint: 'fingerprint' },
 				providerSetting: 'initial',
 			},
-			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], branchTrack: false, createNewBranch: false, providerSetting: 'selected' },
+			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], symlinkFolders: ['node_modules/**'], branchTrack: false, createNewBranch: false, providerSetting: 'selected' },
 			folder: { isolation: 'folder', branch: 'feature/config', providerSetting: 'folder' },
 		});
 	});
@@ -6293,14 +6325,16 @@ suite('AgentService (node dispatcher)', () => {
 		class CountingMetadataAgent extends TimedExternalAgent {
 			metadataCalls: string[] = [];
 			prewarmCalls = 0;
+			prewarmSessionCounts: number[] = [];
 
 			override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
 				this.metadataCalls.push(resolveAgentChatContext(context, chat).configurationResource.toString());
 				return super.getChatMetadata(chat, context);
 			}
 
-			async prewarmSessionMetadata() {
+			async prewarmSessionMetadata(expectedSessionCount: number) {
 				this.prewarmCalls++;
+				this.prewarmSessionCounts.push(expectedSessionCount);
 				return toDisposable(() => { });
 			}
 		}
@@ -7582,6 +7616,7 @@ suite('AgentService (node dispatcher)', () => {
 				providerMetadataCalls: agent.metadataCalls,
 				providerPrewarmCalls: agent.prewarmCalls,
 				sessionDatabaseOpenSessions: [...new Set(databaseOpens)],
+				prewarmSessionCounts: agent.prewarmSessionCounts,
 				sessionDatabaseOpenCount: databaseOpens.length,
 			}, {
 				sessions: [centralSession.toString(), fallbackSession.toString()],
@@ -7589,8 +7624,44 @@ suite('AgentService (node dispatcher)', () => {
 				providerMetadataCalls: [fallbackSession.toString()],
 				providerPrewarmCalls: 1,
 				sessionDatabaseOpenSessions: [buildDefaultChatUri(fallbackSession), fallbackSession.toString()],
+				prewarmSessionCounts: [1],
 				sessionDatabaseOpenCount: 4,
 			});
+		});
+
+		test('prewarm counts include only fallback sessions and are grouped by provider', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const agents = [
+				disposables.add(new CountingMetadataAgent('copilot')),
+				disposables.add(new CountingMetadataAgent('other')),
+			];
+			for (const [index, agent] of agents.entries()) {
+				for (let i = 0; i < index + 2; i++) {
+					const session = agent.addSession(`fallback-${i}`, 25);
+					await orchestratorDatabase.registerSessionV2(session.toString(), {
+						provider: agent.id, startTime: 10, source: 'explicit',
+					}, { checkTombstone: false });
+				}
+				const eligible = agent.addSession('eligible', 30);
+				await orchestratorDatabase.registerSessionV2(eligible.toString(), {
+					provider: agent.id, startTime: 10, source: 'explicit',
+				}, { checkTombstone: false });
+				orchestratorDatabase.setCatalog(eligible, centralData(eligible, 30, 'Central'));
+			}
+			const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+			await svc.whenCatalogReconciliationIdle();
+			for (const agent of agents) {
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+			}
+			await svc.whenCatalogReconciliationIdle();
+
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				sessionCount: listed.length,
+				prewarmCounts: agents.map(agent => agent.prewarmSessionCounts),
+			}, { sessionCount: 7, prewarmCounts: [[2], [3]] });
 		});
 
 		test('central list drops an ineligible row whose fallback has no provider and lists eligible rows without a session database', async () => {
@@ -13561,6 +13632,7 @@ suite('AgentService (node dispatcher)', () => {
 				getWorktreeRoots: async () => [],
 				addWorktree: async () => { },
 				copyWorktreeIncludeFiles: async () => { },
+				symlinkWorktreeFolders: async () => [],
 				addExistingWorktree: async () => { },
 				removeWorktree: async () => { },
 				branchExists: async () => false,
@@ -13572,6 +13644,7 @@ suite('AgentService (node dispatcher)', () => {
 				mergeBranch: async () => '',
 				restore: async () => { },
 				hasUpstream: async () => false,
+				fetch: async () => { },
 				pull: async () => { },
 				push: async () => { },
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
@@ -13671,6 +13744,7 @@ suite('AgentService (node dispatcher)', () => {
 				getWorktreeRoots: async () => [],
 				addWorktree: async () => { },
 				copyWorktreeIncludeFiles: async () => { },
+				symlinkWorktreeFolders: async () => [],
 				addExistingWorktree: async () => { },
 				removeWorktree: async () => { },
 				branchExists: async () => false,
@@ -13681,6 +13755,7 @@ suite('AgentService (node dispatcher)', () => {
 				commitAll: async () => { },
 				mergeBranch: async () => '',
 				hasUpstream: async () => false,
+				fetch: async () => { },
 				pull: async () => { },
 				push: async () => { },
 				restore: async () => { },
