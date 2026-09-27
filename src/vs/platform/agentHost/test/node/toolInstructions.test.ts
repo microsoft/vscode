@@ -52,7 +52,7 @@ suite('toolInstructions', () => {
 				COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS,
 				universalToolInstructions(hasTools()),
 			], [
-				'When a tool reports that its output was saved to a temporary file because it was too large, ONLY use the `view` tool with a narrow `view_range` to inspect that file. NEVER read it with shell commands such as `cat`, `head`, `tail`, or `sed`, because their output may be offloaded again.',
+				'When a tool reports that its output was saved to a temporary file because it was too large, inspect that file with targeted, bounded reads: search it for what you need (for example with `grep`, `rg`, or a selective `jq` filter), then use `view` with a narrow `view_range` to read the relevant lines. Do not dump the whole file (for example with `cat` or `view` without a range) or run broad searches, because oversized output will be offloaded again.',
 				'When launching subagents with the task tool, leave the `model`, `reasoning_effort`, and `context_tier` parameters unset — each agent type already runs on a model suited to it, and overriding the model changes the session\'s cost and behavior profile.\nOnly set the task tool\'s `model` parameter when the user explicitly names the model the subagent should run on.',
 				UNCONDITIONAL_TOOL_INSTRUCTIONS,
 			]);
