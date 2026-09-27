@@ -706,7 +706,7 @@ export interface IRemoteAgentHostService {
 	/** Signals that consumers should re-read pendingConnections, including after configuration reconciliation; the catalog may be unchanged. */
 	readonly onDidChangePendingConnections: Event<void>;
 
-	/** Fires when a remote connection is established, lost, or renamed in this client. */
+	/** Fires when remote connections change; client-local renames only fire {@link onDidChangeDisplayName}. */
 	readonly onDidChangeConnections: Event<void>;
 
 	/** Fires with the normalized address when its client-local display name changes. */

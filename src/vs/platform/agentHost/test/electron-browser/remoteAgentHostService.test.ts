@@ -1630,6 +1630,61 @@ suite('RemoteAgentHostService', () => {
 			]);
 		});
 
+		const offlineEntries: IRemoteAgentHostEntry[] = [
+			{ name: 'Offline SSH', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:offline-host', sshConfigHost: 'offline-host', hostName: 'host.example' } },
+			{ name: 'Offline WSL', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } },
+		];
+		for (const entry of offlineEntries) {
+			test(`renaming an offline ${entry.connection.type} host does not notify reconnect consumers`, async () => {
+				const address = getEntryAddress(entry);
+				const factory = disposables.add(new TestConnectionFactory(entry.connection.type));
+				disposables.add(service.registerConnectionFactory(factory));
+				factory.stageFailure(entry, new NonReconnectableTransportError('Host is offline', AgentHostTransportFailureReason.HostNotRunning));
+				while (service.pendingConnections.length) {
+					await Event.toPromise(service.onDidChangePendingConnections);
+				}
+				const initialStatus = service.connections[0].status;
+				const initialObservations = factory.observations.slice();
+				let connectionChanges = 0;
+				let pendingChanges = 0;
+				const displayNameChanges: { address: string; name: string; hostLabel: string | undefined }[] = [];
+				disposables.add(service.onDidChangeConnections(() => connectionChanges++));
+				disposables.add(service.onDidChangePendingConnections(() => pendingChanges++));
+				disposables.add(service.onDidChangeDisplayName(address => displayNameChanges.push({
+					address,
+					name: service.connections[0].name,
+					hostLabel: registeredFormatters.find(formatter => formatter.authority === agentHostAuthority(address))?.formatting.workspaceSuffix,
+				})));
+				const otherWindow = disposables.add(instantiationService.createInstance(EditorWindowRemoteAgentHostService));
+
+				service.setDisplayName(address, 'My Offline Host');
+				otherWindow.setDisplayName(address, undefined);
+
+				assert.deepStrictEqual({
+					initialStatus,
+					status: service.connections[0].status,
+					connectionChanges,
+					pendingChanges,
+					displayNameChanges,
+					connection: service.getConnection(address),
+					createdConnections: factory.createdConnectionCount,
+					newObservations: factory.observations.slice(initialObservations.length),
+				}, {
+					initialStatus: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning),
+					status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning),
+					connectionChanges: 0,
+					pendingChanges: 0,
+					displayNameChanges: [
+						{ address, name: 'My Offline Host', hostLabel: 'My Offline Host' },
+						{ address, name: entry.name, hostLabel: entry.name },
+					],
+					connection: undefined,
+					createdConnections: 0,
+					newObservations: [],
+				});
+			});
+		}
+
 		test('updates live connection and resource labels without reconnecting and restores the latest default', async () => {
 			const entry: IRemoteAgentHostEntry = {
 				name: 'Original Host',
@@ -1646,7 +1701,9 @@ suite('RemoteAgentHostService', () => {
 				hostLabel: registeredFormatters.find(formatter => formatter.authority === agentHostAuthority('host:8080'))?.formatting.workspaceSuffix,
 			});
 			const changes: string[] = [];
+			const displayNameChanges: string[] = [];
 			disposables.add(service.onDidChangeConnections(() => changes.push(service.connections[0].name)));
+			disposables.add(service.onDidChangeDisplayName(() => displayNameChanges.push(service.connections[0].name)));
 
 			service.setDisplayName('ws://host:8080', '  My Host  ');
 			const renamed = snapshot();
@@ -1660,6 +1717,7 @@ suite('RemoteAgentHostService', () => {
 				reset: snapshot(),
 				override: service.getDisplayNameOverride('host:8080'),
 				changes,
+				displayNameChanges,
 				sameConnection: service.getConnection('host:8080') === connection,
 				createdClients: createdClients.length,
 				configuredEntry: service.getEntryByAddress('host:8080'),
@@ -1669,7 +1727,8 @@ suite('RemoteAgentHostService', () => {
 				rediscovered: { name: 'My Host', hostLabel: 'My Host' },
 				reset: { name: 'New Default', hostLabel: 'New Default' },
 				override: undefined,
-				changes: ['My Host', 'My Host', 'New Default'],
+				changes: ['My Host'],
+				displayNameChanges: ['My Host', 'New Default'],
 				sameConnection: true,
 				createdClients: 1,
 				configuredEntry: { ...entry, name: 'New Default', connection: { ...entry.connection, address: 'host:8080' } },

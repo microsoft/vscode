@@ -243,9 +243,6 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				this._updateHostLabelFormatter(address, name);
 			}
 			this._onDidChangeDisplayName.fire(address);
-			if (this._entries.has(address)) {
-				this._onDidChangeConnections.fire();
-			}
 		}));
 
 		// The service creates these built-in factories, so it owns their
