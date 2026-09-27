@@ -29,13 +29,20 @@ export class DefaultsOnlyConfigurationService extends AbstractConfigurationServi
 	}
 
 	override updateExperimentBasedConfiguration(treatments: string[]): void {
-		if (treatments.length === 0) {
+		if (!treatments || treatments.length === 0) {
 			return;
 		}
 
-		// Fire simulated event which checks if a configuration is affected in the treatments
+		// Sanitize and filter out empty, whitespace-only, or malformed treatment strings
+		const sanitizedTreatments = treatments.filter(t => typeof t === 'string' && t.trim().length > 0);
+
+		if (sanitizedTreatments.length === 0) {
+			return;
+		}
+
+		// Fire simulated event which checks if a configuration is affected in the sanitized treatments
 		this._onDidChangeConfiguration.fire({
-			affectsConfiguration: (section: string, _scope?: ConfigurationScope) => this._treatmentsAffectConfiguration(treatments, section)
+			affectsConfiguration: (section: string, _scope?: ConfigurationScope) => this._treatmentsAffectConfiguration(sanitizedTreatments, section)
 		});
 	}
 
