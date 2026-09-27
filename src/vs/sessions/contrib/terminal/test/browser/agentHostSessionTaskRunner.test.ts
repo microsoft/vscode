@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -73,16 +74,35 @@ suite('AgentHostSessionTaskRunner', () => {
 
 	const store = new DisposableStore();
 	let runner: AgentHostSessionTaskRunner;
-	let createdTerminals: { address: string; options?: IAgentHostTerminalCreateOptions }[];
+	let createdTerminals: { address: string; options?: IAgentHostTerminalCreateOptions; instance: ITerminalInstance }[];
 	let sentText: { text: string; shouldExecute: boolean }[];
 	let disposedTerminals: ITerminalInstance[];
 	let allTasks: ISessionTaskWithTarget[];
 	let allTasksOwner: ISession | IChat | undefined;
 	let resolverCalls: string[];
-	const fakeInstance = {
-		sendText: async (text: string, shouldExecute: boolean) => { sentText.push({ text, shouldExecute }); },
-		dispose: () => { disposedTerminals.push(fakeInstance); },
-	} as unknown as ITerminalInstance;
+	let commandExecuting: boolean | undefined;
+	let showPanelBarrier: DeferredPromise<void> | undefined;
+	let firstShowPanelCall: DeferredPromise<void> | undefined;
+	let secondShowPanelCall: DeferredPromise<void> | undefined;
+	let showPanelCallCount: number;
+
+	function createFakeTerminal(): ITerminalInstance {
+		const instanceStore = store.add(new DisposableStore());
+		let isDisposed = false;
+		const instance = {
+			get isDisposed() { return isDisposed; },
+			store: instanceStore,
+			sendText: async (text: string, shouldExecute: boolean) => { sentText.push({ text, shouldExecute }); },
+			dispose: () => {
+				if (!isDisposed) {
+					isDisposed = true;
+					disposedTerminals.push(instance);
+					instanceStore.dispose();
+				}
+			},
+		} as unknown as ITerminalInstance;
+		return instance;
+	}
 
 	setup(() => {
 		createdTerminals = [];
@@ -91,13 +111,22 @@ suite('AgentHostSessionTaskRunner', () => {
 		allTasks = [];
 		allTasksOwner = undefined;
 		resolverCalls = [];
+		commandExecuting = undefined;
+		showPanelBarrier = undefined;
+		firstShowPanelCall = undefined;
+		secondShowPanelCall = undefined;
+		showPanelCallCount = 0;
 
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IAgentHostTerminalService, new class extends mock<IAgentHostTerminalService>() {
 			override async createTerminalForEntry(address: string, options?: IAgentHostTerminalCreateOptions) {
-				createdTerminals.push({ address, options });
-				return fakeInstance;
+				const instance = createFakeTerminal();
+				createdTerminals.push({ address, options, instance });
+				return instance;
+			}
+			override isCommandExecuting() {
+				return commandExecuting;
 			}
 		});
 
@@ -125,7 +154,15 @@ suite('AgentHostSessionTaskRunner', () => {
 		});
 
 		instantiationService.stub(ITerminalGroupService, new class extends mock<ITerminalGroupService>() {
-			override async showPanel() { /* no-op */ }
+			override async showPanel() {
+				showPanelCallCount++;
+				if (showPanelCallCount === 1) {
+					firstShowPanelCall?.complete();
+				} else if (showPanelCallCount === 2) {
+					secondShowPanelCall?.complete();
+				}
+				await showPanelBarrier?.p;
+			}
 		});
 
 		instantiationService.stub(ILogService, new NullLogService());
@@ -205,7 +242,93 @@ suite('AgentHostSessionTaskRunner', () => {
 
 		handle?.dispose();
 
-		assert.deepStrictEqual(disposedTerminals, [fakeInstance]);
+		assert.deepStrictEqual(disposedTerminals, [createdTerminals[0].instance]);
+	});
+
+	test('reuses the idle terminal that last ran the same task', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		commandExecuting = false;
+
+		const handles = [
+			await runner.runTask(shellTask(), session),
+			await runner.runTask(shellTask(), session),
+			await runner.runTask({ label: 'test', type: 'shell', command: 'echo', args: ['test'] }, session),
+		];
+		handles.forEach(handle => handle?.dispose());
+
+		assert.deepStrictEqual({
+			createdTerminals: createdTerminals.map(t => t.options?.name),
+			sentText: sentText.map(t => t.text),
+		}, {
+			createdTerminals: ['Task: build', 'Task: test'],
+			sentText: ['echo hi', 'echo hi', 'echo test'],
+		});
+	});
+
+	test('does not reuse a terminal while a command is being launched', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		commandExecuting = false;
+		showPanelBarrier = new DeferredPromise<void>();
+		firstShowPanelCall = new DeferredPromise<void>();
+		secondShowPanelCall = new DeferredPromise<void>();
+
+		const firstRun = runner.runTask(shellTask(), session);
+		await firstShowPanelCall.p;
+		const secondRun = runner.runTask(shellTask(), session);
+		await secondShowPanelCall.p;
+		showPanelBarrier.complete();
+		const handles = await Promise.all([firstRun, secondRun]);
+		handles.forEach(handle => handle?.dispose());
+
+		assert.strictEqual(createdTerminals.length, 2);
+	});
+
+	test('disposing an earlier run does not dispose a terminal reused by a later run', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		commandExecuting = false;
+
+		const firstHandle = await runner.runTask(shellTask(), session);
+		const secondHandle = await runner.runTask(shellTask(), session);
+		firstHandle?.dispose();
+		const disposedAfterFirstHandle = [...disposedTerminals];
+		secondHandle?.dispose();
+
+		assert.deepStrictEqual({
+			disposedAfterFirstHandle,
+			disposedTerminals,
+		}, {
+			disposedAfterFirstHandle: [],
+			disposedTerminals: [createdTerminals[0].instance],
+		});
+	});
+
+	test('does not reuse a terminal when the task requests a new panel', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		commandExecuting = false;
+		const task = { ...shellTask(), presentation: { panel: 'new' } };
+
+		const handles = [
+			await runner.runTask(task, session),
+			await runner.runTask(task, session),
+		];
+		handles.forEach(handle => handle?.dispose());
+
+		assert.strictEqual(createdTerminals.length, 2);
+	});
+
+	test('does not reuse a terminal whose command is still running or whose state is unknown', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+
+		commandExecuting = true;
+		const handles = [
+			await runner.runTask(shellTask(), session),
+			await runner.runTask(shellTask(), session),
+		];
+		commandExecuting = undefined;
+		handles.push(await runner.runTask(shellTask(), session));
+		handles.forEach(handle => handle?.dispose());
+
+		assert.strictEqual(createdTerminals.length, 3);
 	});
 
 	test('agent-host scheme cwds are unwrapped to their original URI', async () => {

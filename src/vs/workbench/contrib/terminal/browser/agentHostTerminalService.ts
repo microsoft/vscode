@@ -120,6 +120,12 @@ export interface IAgentHostTerminalService {
 	 * is not an agent host terminal or its host is no longer registered.
 	 */
 	getAgentHostAddress(instance: ITerminalInstance): string | undefined;
+
+	/**
+	 * Whether a shell command is pending or executing in the given agent host
+	 * terminal. Returns `undefined` when the command state is unknown.
+	 */
+	isCommandExecuting(instance: ITerminalInstance): boolean | undefined;
 }
 
 export class AgentHostTerminalService extends Disposable implements IAgentHostTerminalService {
@@ -480,6 +486,14 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		// Reconnection moves the terminal's PTY to the new connection.
 		const clientId = this._activePtys.get(registration.key)?.clientId ?? registration.clientId;
 		return this._entries.find(entry => entry.getConnection()?.clientId === clientId)?.address;
+	}
+
+	isCommandExecuting(instance: ITerminalInstance): boolean | undefined {
+		const registration = this._instanceKeys.get(instance.instanceId);
+		if (!registration) {
+			return undefined;
+		}
+		return this._activePtys.get(registration.key)?.pty.isCommandExecuting;
 	}
 
 	async reconnectTerminals(newConnection: IAgentConnection, oldClientId: string): Promise<{ recovered: number; total: number }> {

@@ -12,7 +12,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
-import { ITerminalGroupService, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionTaskRunner } from '../../chat/browser/sessionTaskRunner.js';
 import { osToTaskTargetOS, resolveTaskCommand } from '../../chat/browser/taskCommand.js';
@@ -31,6 +31,13 @@ const LOG_PREFIX = '[AgentHostSessionTaskRunner]';
  */
 const LOCAL_AGENT_HOST_ADDRESS = '__local__';
 
+/** Tracks one reusable terminal and its current task launch. */
+interface ITaskTerminal {
+	readonly instance: ITerminalInstance;
+	isLaunching: boolean;
+	executionId: number;
+}
+
 /**
  * Task runner for sessions backed by an agent host (local or remote). Resolves
  * the task into a shell command via {@link resolveTaskCommand} and dispatches
@@ -41,6 +48,9 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 
 	readonly id = 'agentHost';
 	readonly priority = 100;
+
+	/** The terminal that last ran each task, keyed by host, working directory, and task label. */
+	private readonly _taskTerminals = new Map<string, ITaskTerminal>();
 
 	constructor(
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
@@ -88,22 +98,69 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		if (!this._isSessionRemoteHostAvailable(session)) {
 			return undefined;
 		}
-		const instance = await this._agentHostTerminalService.createTerminalForEntry(address, {
-			cwd,
-			name: localize('agentHostSessionTaskTerminalName', "Task: {0}", task.label),
-		});
-		if (!instance) {
-			this._logService.warn(`${LOG_PREFIX} Failed to create terminal for task '${task.label}' on '${address}'.`);
-			return undefined;
+		const terminalKey = JSON.stringify([address, cwd?.toString(), task.label]);
+		const shouldReuse = this._shouldReuseTerminal(task);
+		let taskTerminal = shouldReuse ? this._getReusableTerminal(terminalKey) : undefined;
+		if (!taskTerminal) {
+			const instance = await this._agentHostTerminalService.createTerminalForEntry(address, {
+				cwd,
+				name: localize('agentHostSessionTaskTerminalName', "Task: {0}", task.label),
+			});
+			if (!instance) {
+				this._logService.warn(`${LOG_PREFIX} Failed to create terminal for task '${task.label}' on '${address}'.`);
+				return undefined;
+			}
+			taskTerminal = { instance, isLaunching: false, executionId: 0 };
+			if (shouldReuse) {
+				this._taskTerminals.set(terminalKey, taskTerminal);
+				instance.store.add(toDisposable(() => {
+					if (this._taskTerminals.get(terminalKey) === taskTerminal) {
+						this._taskTerminals.delete(terminalKey);
+					}
+				}));
+			}
 		}
 
-		this._terminalService.setActiveInstance(instance);
-		await this._terminalGroupService.showPanel(true);
-		await instance.sendText(command, /*shouldExecute*/ true);
+		const { instance } = taskTerminal;
+		taskTerminal.isLaunching = true;
+		const executionId = ++taskTerminal.executionId;
+		try {
+			this._terminalService.setActiveInstance(instance);
+			await this._terminalGroupService.showPanel(true);
+			await instance.sendText(command, /*shouldExecute*/ true);
+		} finally {
+			taskTerminal.isLaunching = false;
+		}
 
 		return toDisposable(() => {
-			instance.dispose(TerminalExitReason.User);
+			if (taskTerminal.executionId === executionId) {
+				instance.dispose(TerminalExitReason.User);
+			}
 		});
+	}
+
+	/**
+	 * Returns the terminal that last ran the task identified by {@link key}
+	 * when it can run the task again, mirroring how the workbench task system
+	 * reuses task terminals. A terminal is only reused when it is known to be
+	 * idle so that the command is never typed into a still running process.
+	 */
+	private _getReusableTerminal(key: string): ITaskTerminal | undefined {
+		const taskTerminal = this._taskTerminals.get(key);
+		if (!taskTerminal) {
+			return undefined;
+		}
+		const { instance } = taskTerminal;
+		if (instance.isDisposed) {
+			this._taskTerminals.delete(key);
+			return undefined;
+		}
+		return !taskTerminal.isLaunching && this._agentHostTerminalService.isCommandExecuting(instance) === false ? taskTerminal : undefined;
+	}
+
+	private _shouldReuseTerminal(task: ITaskEntry): boolean {
+		const presentation = task.presentation;
+		return typeof presentation !== 'object' || presentation === null || !('panel' in presentation) || presentation.panel !== 'new';
 	}
 
 	private _getAddress(session: ISession): string | undefined {

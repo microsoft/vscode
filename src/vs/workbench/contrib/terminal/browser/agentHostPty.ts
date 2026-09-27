@@ -113,6 +113,20 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 	private _supportsCommandDetection = false;
 	get supportsCommandDetection(): boolean { return this._supportsCommandDetection; }
 
+	private _isCommandStateKnown = false;
+	private _pendingCommandCount = 0;
+	private readonly _executingCommandIds = new Set<string>();
+
+	/**
+	 * Whether a shell command is pending or executing in the terminal, or
+	 * `undefined` when the command state is unknown.
+	 */
+	get isCommandExecuting(): boolean | undefined {
+		return this._isCommandStateKnown && this._supportsCommandDetection
+			? this._pendingCommandCount > 0 || this._executingCommandIds.size > 0
+			: undefined;
+	}
+
 	/**
 	 * Command IDs for sentinel commands that should be suppressed from shell
 	 * integration events. When the copilot shell tools fall back to sentinel-
@@ -183,11 +197,12 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 			const state = subscription.value as TerminalState;
 
 			// 4. Replay any existing content from the snapshot
-			if (state.supportsCommandDetection) {
-				this._supportsCommandDetection = true;
+			this._supportsCommandDetection = state.supportsCommandDetection === true;
+			if (this._supportsCommandDetection) {
 				this._onSupportsCommandDetection.fire();
 			}
 			this._replayContent(state.content);
+			this._isCommandStateKnown = true;
 
 			// 5. Track initial cwd
 			this._initialCwd = state.cwd?.toString() ?? '';
@@ -268,6 +283,8 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 				}
 				break;
 			case ActionType.TerminalCommandExecuted:
+				this._pendingCommandCount = Math.max(0, this._pendingCommandCount - 1);
+				this._executingCommandIds.add(action.commandId);
 				if (isCopilotSentinelCommand(action.commandLine)) {
 					this._suppressedCommandIds.add(action.commandId);
 					break;
@@ -280,6 +297,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 				});
 				break;
 			case ActionType.TerminalCommandFinished:
+				this._executingCommandIds.delete(action.commandId);
 				if (this._suppressedCommandIds.delete(action.commandId)) {
 					break;
 				}
@@ -299,6 +317,8 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 	 * (e.g. {@link AhpTerminalCommandSource}) can reconstruct command history.
 	 */
 	private _replayContent(content: TerminalContentPart[]): void {
+		this._pendingCommandCount = 0;
+		this._executingCommandIds.clear();
 		for (const part of content) {
 			if (part.type === 'unclassified') {
 				if (part.value) {
@@ -306,6 +326,9 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 				}
 			} else if (part.type === 'command') {
 				if (isCopilotSentinelCommand(part.commandLine)) {
+					if (!part.isComplete) {
+						this._executingCommandIds.add(part.commandId);
+					}
 					continue;
 				}
 				this.handleData(getAhpCommandMarkCode(part.commandId, AhpCommandMarkKind.Executed));
@@ -318,7 +341,9 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 				if (part.output) {
 					this.handleData(part.output);
 				}
-				if (part.isComplete) {
+				if (!part.isComplete) {
+					this._executingCommandIds.add(part.commandId);
+				} else {
 					this.handleData(getAhpCommandMarkCode(part.commandId, AhpCommandMarkKind.End));
 					this._onCommandFinished.fire({
 						commandId: part.commandId,
@@ -376,6 +401,11 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 	input(data: string): void {
 		if (this._inReplay || this._lifetime.token.isCancellationRequested) {
 			return;
+		}
+		for (let index = 0; index < data.length; index++) {
+			if (data.charCodeAt(index) === 13) {
+				this._pendingCommandCount++;
+			}
 		}
 		this._startBarrier.wait().then(() => {
 			if (this._lifetime.token.isCancellationRequested) {
@@ -446,6 +476,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		if (this._lifetime.token.isCancellationRequested) {
 			return;
 		}
+		this._isCommandStateKnown = false;
 		this._lifetime.cancel();
 		this._subscription.clear();
 		this._startBarrier.open();
@@ -519,6 +550,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		}
 
 		// Replace the old subscription generation and swap the connection.
+		this._isCommandStateKnown = false;
 		this._subscription.clear();
 		this._connection = newConnection;
 		let subscriptionStore: DisposableStore | undefined;
@@ -541,8 +573,10 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 			const state = subscription.value as TerminalState;
 
-			if (state.supportsCommandDetection && !this._supportsCommandDetection) {
-				this._supportsCommandDetection = true;
+			const supportedCommandDetection = state.supportsCommandDetection === true;
+			const didSupportCommandDetection = this._supportsCommandDetection;
+			this._supportsCommandDetection = supportedCommandDetection;
+			if (supportedCommandDetection && !didSupportCommandDetection) {
 				this._onSupportsCommandDetection.fire();
 			}
 
@@ -551,6 +585,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 			// ESC[H moves cursor to home position.
 			this.handleData('\x1b[2J\x1b[3J\x1b[H');
 			this._replayContent(state.content);
+			this._isCommandStateKnown = true;
 
 			// Update cwd/title if they changed
 			if (state.cwd) {
