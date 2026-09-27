@@ -1946,9 +1946,9 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	/**
-	 * Resizes the mirror's column count according to the reflow setting. No-op while the
+	 * Resizes the mirror's column count to fill the currently available width. No-op while the
 	 * width is unmeasurable (e.g. collapsed); the mirror keeps its current cols until the next
-	 * layout opportunity.
+	 * layout opportunity. When reflow is disabled, the mirror uses its fixed cols instead.
 	 */
 	private async _layoutMirrorWidth(mirror: DetachedTerminalCommandMirror | DetachedTerminalSnapshotMirror | undefined = this._snapshotMirror ?? this._mirror): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined> {
 		if (!mirror) {
