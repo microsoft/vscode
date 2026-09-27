@@ -236,8 +236,7 @@ suite('Workbench - TerminalInstance', () => {
 		for (const removeBeforeDispose of [true, false]) {
 			test(`${removeBeforeDispose ? 'removed' : 'active'} horizontal scrollbars are released from terminal lifetime ownership`, async () => {
 				const instance = await createTerminalWithLongLine();
-				// TestInstantiationService disposes the default Sinon sandbox during
-				// terminal teardown. Keep observing the scrollbar through that teardown.
+				// Use a separate sandbox to observe scrollbar disposal after the default sandbox is torn down.
 				const sandbox = createSandbox();
 				const additions = sandbox.spy(instance.store, 'add');
 				try {
