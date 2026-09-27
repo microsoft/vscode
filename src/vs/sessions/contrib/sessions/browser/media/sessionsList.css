@@ -611,6 +611,8 @@
 	each nested/side chat row (for that chat), so it is scoped to neither. */
 .session-approval-row {
 	display: none;
+	/* Keep code-block placeholders independent of the list row's dynamic line-height. */
+	line-height: 18px;
 	gap: 8px;
 	margin-top: 4px;
 	margin-left: -6px;
