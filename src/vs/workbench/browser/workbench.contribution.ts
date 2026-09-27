@@ -819,7 +819,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'default': ModernUIEditorTabStyle.Connected,
 				'tags': ['experimental'],
-				'description': localize('modernUIEditorTabStyle', "Controls the chat and side-panel tab style in the Agents window. High contrast themes retain explicit selection and focus borders."),
+				'description': localize('modernUIEditorTabStyle', "Controls the editor, chat, and side-panel tab style in the Agents window. High contrast themes retain explicit selection and focus borders."),
 			},
 		}
 	});
