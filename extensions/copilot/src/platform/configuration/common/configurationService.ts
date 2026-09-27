@@ -1089,7 +1089,7 @@ export namespace ConfigKey {
 	export const ResponsesApiContextManagementEnabled = defineSetting<boolean>('chat.responsesApiContextManagement.enabled', ConfigType.ExperimentBased, false);
 	/** Enable client-side prompt_cache_key (conversationId:modelFamily) sent to Responses API */
 	export const ResponsesApiPromptCacheKeyEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheKey.enabled', ConfigType.ExperimentBased, false);
-	/** Enable Responses prompt cache markers: up to two agent-prefix anchors and twenty conversation boundaries. */
+	/** Enable Responses prompt cache markers: up to two agent-prefix anchors and twenty conversation boundaries. BYOK endpoints require an explicit user opt-in. */
 	export const ResponsesApiPromptCacheBreakpointEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheBreakpoint.enabled', ConfigType.ExperimentBased, true);
 	/** Enable updated prompt for 5.3Codex model */
 	export const Updated53CodexPromptEnabled = defineSetting<boolean>('chat.updated53CodexPrompt.enabled', ConfigType.ExperimentBased, true);
@@ -1193,8 +1193,6 @@ export namespace ConfigKey {
 
 	export const BackgroundAgentEnabled = defineSetting<boolean>('chat.backgroundAgent.enabled', ConfigType.Simple, true);
 	export const CloudAgentEnabled = defineSetting<boolean>('chat.cloudAgent.enabled', ConfigType.Simple, true);
-	export type CloudSessionVisibilityValue = '24hours' | '7days' | '30days' | '90days' | 'all';
-	export const CloudSessionVisibility = defineSetting<CloudSessionVisibilityValue>('chat.cloudAgent.sessionVisibility', ConfigType.Simple, '30days', vEnum('24hours', '7days', '30days', '90days', 'all'));
 	export const AdditionalReadAccessPaths = defineSetting<string[]>('chat.additionalReadAccessPaths', ConfigType.Simple, []);
 	export const SwitchAgentEnabled = defineSetting<boolean>('chat.switchAgent.enabled', ConfigType.ExperimentBased, false);
 

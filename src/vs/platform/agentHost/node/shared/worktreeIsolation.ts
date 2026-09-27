@@ -64,7 +64,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	deleteDetachedWorktree(handle: string): Promise<void>;
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
 	resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined>;
-	branchCompletions(workingDirectory: URI | undefined, query?: string): Promise<{ items: { value: string; label: string }[] }>;
+	branchCompletions(workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }>;
 	takePendingAnnouncement(sessionId: string): string | undefined;
 	persistCreationFailure(sessionUri: URI, sessionId: string, diagnostic: string | undefined): Promise<void>;
 	applyRestoreAnnouncement(sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]>;
@@ -97,6 +97,8 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 const WORKTREE_META_BRANCH = 'copilot.worktree.branchName';
 const WORKTREE_META_PATH = 'copilot.worktree.path';
 export const WORKTREE_META_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
+const WORKTREE_META_SYMLINK_PATTERNS = 'copilot.worktree.symlinkPatterns';
+const WORKTREE_META_SYMLINK_SOURCE_ROOT = 'copilot.worktree.symlinkSourceRoot';
 const WORKTREE_META_CREATION_FAILURE = 'copilot.worktree.creationFailure';
 const DETACHED_WORKTREE_OWNER_SCHEME = 'vscode-agent-host-worktree';
 const DETACHED_WORKTREE_SCOPE = 'vscode.devContainerWorktree.scope';
@@ -109,7 +111,7 @@ const DETACHED_WORKTREE_RECONCILE_GRACE_MS = 24 * 60 * 60 * 1000;
 const LEGACY_WORKTREE_META_WORKING_DIRECTORY = 'copilot.workingDirectory';
 const MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH = 200;
 
-function detachedWorktreeRecordUri(handle: string): URI {
+export function detachedWorktreeRecordUri(handle: string): URI {
 	return URI.from({ scheme: DETACHED_WORKTREE_OWNER_SCHEME, path: `/${DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX}${handle}` });
 }
 
@@ -124,7 +126,6 @@ export class SessionWorkingDirectoryMissingError extends Error {
 }
 
 /** Default upper bound on branch names returned for the branch picker. */
-const BRANCH_COMPLETION_LIMIT = 25;
 const WORKTREE_PROGRESS_DEBOUNCE_MS = 40;
 
 export interface ISessionWorktree {
@@ -142,6 +143,8 @@ export interface IWorktreeMetadata {
 	readonly branchName: string;
 	readonly worktreePath?: URI;
 	readonly repositoryRoot?: URI;
+	readonly symlinkPatterns?: readonly string[];
+	readonly symlinkSourceRoot?: URI;
 }
 
 /**
@@ -230,6 +233,8 @@ export const enum WorktreeCreationPhase {
 	NamingBranch,
 	/** `git worktree add` — the phase that reports file-level progress. */
 	CheckingOut,
+	/** Symlinking the git-ignored folders the client asked to share. */
+	SymlinkingFolders,
 	/** Copying the git-ignored files the client asked to carry over. */
 	CopyingIncludeFiles,
 }
@@ -249,6 +254,8 @@ export function buildWorktreeProgressText(phase: WorktreeCreationPhase, percent?
 			return percent === undefined
 				? localize('agentHost.worktreeCheckingOut', "Creating isolated worktree (checking out files)")
 				: localize('agentHost.worktreeCheckingOutPercent', "Creating isolated worktree (checking out files, {0}%)", percent);
+		case WorktreeCreationPhase.SymlinkingFolders:
+			return localize('agentHost.worktreeSymlinkingFolders', "Creating isolated worktree (symlinking folders)");
 		case WorktreeCreationPhase.CopyingIncludeFiles:
 			return percent === undefined
 				? localize('agentHost.worktreeCopyingIncludeFiles', "Creating isolated worktree (copying additional files)")
@@ -359,6 +366,8 @@ export interface IIsolationConfigContribution {
 	readonly worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
 	/** Read-only carrier for the client's `git.worktreeIncludeFiles`. */
 	readonly worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
+	/** Read-only carrier for the client's `git.worktreeSymlinkFolders`. */
+	readonly worktreeSymlinkFoldersProperty: ISchemaProperty<readonly string[]> | undefined;
 	/** Read-only carrier for the programmatic worktree branch tracking preference. */
 	readonly worktreeBranchTrackProperty: ISchemaProperty<boolean> | undefined;
 	/** Read-only carrier for checking out the selected branch directly. */
@@ -760,6 +769,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		let branchValue: string | undefined;
 		let worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
 		let worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
+		let worktreeSymlinkFoldersProperty: ISchemaProperty<readonly string[]> | undefined;
 		let worktreeBranchTrackProperty: ISchemaProperty<boolean> | undefined;
 		let worktreeCreateNewBranchProperty: ISchemaProperty<boolean> | undefined;
 		if (gitInfo) {
@@ -823,7 +833,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			worktreeIncludeFilesProperty = schemaProperty<readonly string[]>({
 				type: 'array',
 				title: localize('agentHost.sessionConfig.worktreeIncludeFiles', "Worktree Include Files"),
-				description: localize('agentHost.sessionConfig.worktreeIncludeFilesDescription', "Glob patterns for git-ignored files to copy into the isolated worktree."),
+				description: localize('agentHost.sessionConfig.worktreeIncludeFilesDescription', "Patterns, in .gitignore syntax, for git-ignored files to copy into the isolated worktree."),
 				items: {
 					type: 'string',
 					title: localize('agentHost.sessionConfig.worktreeIncludeFilesItem', "Pattern"),
@@ -831,17 +841,28 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				readOnly: true,
 				sessionMutable: false,
 			});
+
+			worktreeSymlinkFoldersProperty = schemaProperty<readonly string[]>({
+				type: 'array',
+				title: localize('agentHost.sessionConfig.worktreeSymlinkFolders', "Worktree Symlink Folders"),
+				description: localize('agentHost.sessionConfig.worktreeSymlinkFoldersDescription', "Patterns, in .gitignore syntax, for git-ignored folders to symlink into the isolated worktree."),
+				items: {
+					type: 'string',
+					title: localize('agentHost.sessionConfig.worktreeSymlinkFoldersItem', "Pattern"),
+				},
+				readOnly: true,
+				sessionMutable: false,
+			});
 		}
 
-		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeBranchTrackProperty, worktreeCreateNewBranchProperty, worktreeIncludeFilesProperty, isolationValue, branchDefault, branchValue };
+		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeBranchTrackProperty, worktreeCreateNewBranchProperty, worktreeIncludeFilesProperty, worktreeSymlinkFoldersProperty, isolationValue, branchDefault, branchValue };
 	}
 
 	/**
-	 * Branch-name completions for the branch picker. Callers forward this from
-	 * their `sessionConfigCompletions` when the requested property is
-	 * {@link SessionConfigKey.Branch}.
+	 * All local branch names for the branch picker, ordered with the current and
+	 * default branches first. Pickers filter and limit the returned list.
 	 */
-	async branchCompletions(workingDirectory: URI | undefined, query?: string): Promise<{ items: { value: string; label: string }[] }> {
+	async branchCompletions(workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }> {
 		if (!workingDirectory) {
 			return { items: [] };
 		}
@@ -853,8 +874,6 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		const branchCompletions = getBranchCompletions(branches.map(branch => branch.name), {
 			currentBranch,
 			defaultBranch: defaultBranch?.name,
-			query,
-			limit: BRANCH_COMPLETION_LIMIT,
 		});
 
 		return { items: branchCompletions.map(branch => ({ value: branch, label: branch })) };
@@ -938,6 +957,15 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			await request.onWillCreate?.({ repositoryRoot, worktreePath, baseBranch, branchName: newBranchName ?? selectedBranch });
 			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 
+			const branch = await this._gitService.getBranch(repositoryRoot, selectedBranch);
+			if (branch?.kind === GitRefType.RemoteHead) {
+				try {
+					await this._gitService.fetch(repositoryRoot, branch);
+				} catch (error) {
+					this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to fetch remote '${branch.remote}' before creating worktree: ${errorMessage(error)}`);
+				}
+			}
+
 			await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
 				this._gitService.addWorktree(repositoryRoot, {
 					path: worktreePath,
@@ -954,11 +982,24 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			&& config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')
 			? config[SessionConfigKey.WorktreeIncludeFiles] as readonly string[]
 			: undefined;
+		const worktreeSymlinkFolders = Array.isArray(config[SessionConfigKey.WorktreeSymlinkFolders])
+			&& config[SessionConfigKey.WorktreeSymlinkFolders].every(pattern => typeof pattern === 'string')
+			? config[SessionConfigKey.WorktreeSymlinkFolders] as readonly string[]
+			: undefined;
+		let createdSymlinkFolders: readonly string[] = [];
+		if (worktreeSymlinkFolders?.length) {
+			try {
+				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.SymlinkingFolders));
+				createdSymlinkFolders = await this._gitService.symlinkWorktreeFolders(checkoutRoot, worktreePath, worktreeSymlinkFolders, sessionId);
+			} catch (error) {
+				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to symlink worktree folders: ${errorMessage(error)}`);
+			}
+		}
 		if (worktreeIncludeFiles?.length) {
 			try {
 				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CopyingIncludeFiles));
 				await withPercentProgress(WorktreeCreationPhase.CopyingIncludeFiles, onProgress, progress =>
-					this._gitService.copyWorktreeIncludeFiles(checkoutRoot, worktreePath, worktreeIncludeFiles, progress));
+					this._gitService.copyWorktreeIncludeFiles(checkoutRoot, worktreePath, worktreeIncludeFiles, sessionId, progress, createdSymlinkFolders));
 			} catch (error) {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to copy worktree include files: ${errorMessage(error)}`);
 			}
@@ -971,7 +1012,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		this._pendingFirstTurnAnnouncements.set(sessionId, buildWorktreeAnnouncementText(branchName));
 
 		try {
-			await this._writeWorktreeMetadata(sessionUri, { repositoryRoot, worktreePath, baseBranch, branchName });
+			await this._writeWorktreeMetadata(
+				sessionUri,
+				{ repositoryRoot, worktreePath, baseBranch, branchName },
+				{ sourceRoot: checkoutRoot, patterns: worktreeSymlinkFolders ?? [] },
+			);
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to persist worktree branch metadata: ${errorMessage(error)}`);
 		}
@@ -1013,11 +1058,16 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 		let recreateFailureReason: string | undefined;
 		if (meta?.worktreePath && meta.repositoryRoot) {
-			const { branchName, worktreePath, repositoryRoot } = meta;
-			const recreated = await this._recreateWorktree(sessionId, { branchName, worktreePath, repositoryRoot });
+			const recreated = await this._recreateWorktree(sessionId, {
+				branchName: meta.branchName,
+				worktreePath: meta.worktreePath,
+				repositoryRoot: meta.repositoryRoot,
+				symlinkPatterns: meta.symlinkPatterns,
+				symlinkSourceRoot: meta.symlinkSourceRoot,
+			});
 			if (recreated.ok) {
-				this._logService.info(`[${this._logLabel}:${sessionId}] Recreated missing worktree '${worktreePath.fsPath}' for a live session on resume`);
-				return worktreePath;
+				this._logService.info(`[${this._logLabel}:${sessionId}] Recreated missing worktree '${meta.worktreePath.fsPath}' for a live session on resume`);
+				return meta.worktreePath;
 			}
 			recreateFailureReason = recreated.reason;
 		}
@@ -1152,6 +1202,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				WORKTREE_META_BRANCH,
 				WORKTREE_META_PATH,
 				WORKTREE_META_REPOSITORY_ROOT,
+				WORKTREE_META_SYMLINK_PATTERNS,
+				WORKTREE_META_SYMLINK_SOURCE_ROOT,
 				WORKTREE_META_CREATION_FAILURE,
 				LEGACY_WORKTREE_META_WORKING_DIRECTORY,
 				META_DIFF_BASE_BRANCH,
@@ -1279,12 +1331,17 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			// expected when the worktree was cleaned up on archive
 		}
 
-		const { branchName, worktreePath, repositoryRoot } = meta;
-		await this._recreateWorktree(sessionId, { branchName, worktreePath, repositoryRoot });
+		await this._recreateWorktree(sessionId, {
+			branchName: meta.branchName,
+			worktreePath: meta.worktreePath,
+			repositoryRoot: meta.repositoryRoot,
+			symlinkPatterns: meta.symlinkPatterns,
+			symlinkSourceRoot: meta.symlinkSourceRoot,
+		});
 	}
 
-	private async _recreateWorktree(sessionId: string, meta: { readonly branchName: string; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }> {
-		const { branchName, worktreePath, repositoryRoot } = meta;
+	private async _recreateWorktree(sessionId: string, meta: { readonly branchName: string; readonly worktreePath: URI; readonly repositoryRoot: URI; readonly symlinkPatterns?: readonly string[]; readonly symlinkSourceRoot?: URI }): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }> {
+		const { branchName, worktreePath, repositoryRoot, symlinkPatterns, symlinkSourceRoot } = meta;
 		const branchPresent = await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false);
 		if (!branchPresent) {
 			const reason = localize('worktreeRecreateBranchMissing', "the branch '{0}' no longer exists", branchName);
@@ -1294,6 +1351,13 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		try {
 			await fs.mkdir(URI.joinPath(worktreePath, '..').fsPath, { recursive: true });
 			await this._gitService.addExistingWorktree(repositoryRoot, worktreePath, branchName);
+			if (symlinkSourceRoot && symlinkPatterns?.length) {
+				try {
+					await this._gitService.symlinkWorktreeFolders(symlinkSourceRoot, worktreePath, symlinkPatterns, sessionId);
+				} catch (error) {
+					this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to restore worktree folder symlinks in '${worktreePath.fsPath}': ${errorMessage(error)}`);
+				}
+			}
 			this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath, branchName });
 			this._logService.info(`[${this._logLabel}:${sessionId}] Recreated worktree '${worktreePath.fsPath}'`);
 			return { ok: true };
@@ -1449,7 +1513,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		return { currentBranch, defaultBranch };
 	}
 
-	private async _writeWorktreeMetadata(sessionUri: URI, metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI }): Promise<void> {
+	private async _writeWorktreeMetadata(
+		sessionUri: URI,
+		metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI },
+		symlinkSetup?: { readonly sourceRoot: URI; readonly patterns: readonly string[] },
+	): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(sessionUri);
 		try {
 			const work: Promise<void>[] = [
@@ -1459,6 +1527,16 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			];
 			if (metadata.baseBranch) {
 				work.push(dbRef.object.setMetadata(META_DIFF_BASE_BRANCH, metadata.baseBranch));
+			}
+			if (symlinkSetup) {
+				if (symlinkSetup.patterns.length > 0) {
+					work.push(
+						dbRef.object.setMetadata(WORKTREE_META_SYMLINK_PATTERNS, JSON.stringify(symlinkSetup.patterns)),
+						dbRef.object.setMetadata(WORKTREE_META_SYMLINK_SOURCE_ROOT, symlinkSetup.sourceRoot.toString()),
+					);
+				} else {
+					work.push(dbRef.object.deleteMetadata([WORKTREE_META_SYMLINK_PATTERNS, WORKTREE_META_SYMLINK_SOURCE_ROOT]));
+				}
 			}
 			await Promise.all(work);
 		} finally {
@@ -1479,10 +1557,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 
 		try {
-			const [branchName, worktreePathRaw, repositoryRootRaw, legacyWorkingDirectoryRaw] = await Promise.all([
+			const [branchName, worktreePathRaw, repositoryRootRaw, symlinkPatternsRaw, symlinkSourceRootRaw, legacyWorkingDirectoryRaw] = await Promise.all([
 				ref.object.getMetadata(WORKTREE_META_BRANCH),
 				ref.object.getMetadata(WORKTREE_META_PATH),
 				ref.object.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+				ref.object.getMetadata(WORKTREE_META_SYMLINK_PATTERNS),
+				ref.object.getMetadata(WORKTREE_META_SYMLINK_SOURCE_ROOT),
 				ref.object.getMetadata(LEGACY_WORKTREE_META_WORKING_DIRECTORY),
 			]);
 			if (!branchName) {
@@ -1510,7 +1590,20 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 					}
 				}
 			}
-			return { branchName, worktreePath, repositoryRoot };
+			let symlinkPatterns: readonly string[] | undefined;
+			let symlinkSourceRoot: URI | undefined;
+			if (symlinkPatternsRaw && symlinkSourceRootRaw) {
+				try {
+					const parsedPatterns = JSON.parse(symlinkPatternsRaw);
+					if (Array.isArray(parsedPatterns) && parsedPatterns.every(pattern => typeof pattern === 'string')) {
+						symlinkPatterns = parsedPatterns;
+						symlinkSourceRoot = URI.parse(symlinkSourceRootRaw);
+					}
+				} catch (error) {
+					this._logService.warn(`[${this._logLabel}] Failed to read worktree symlink metadata for '${sessionUri.toString()}': ${errorMessage(error)}`);
+				}
+			}
+			return { branchName, worktreePath, repositoryRoot, symlinkPatterns, symlinkSourceRoot };
 		} finally {
 			ref.dispose();
 		}
@@ -1583,7 +1676,7 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async deleteDetachedWorktree(_handle: string): Promise<void> { }
 	async reconcileDetachedWorktrees(_scope: string, _activeHandles: readonly string[]): Promise<void> { }
 	async resolveIsolationConfig(_request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined> { return undefined; }
-	async branchCompletions(_workingDirectory: URI | undefined, _query?: string): Promise<{ items: { value: string; label: string }[] }> { return { items: [] }; }
+	async branchCompletions(_workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }> { return { items: [] }; }
 	async resolveWorkingDirectoryForResume(_sessionUri: URI, _sessionId: string, workingDirectory: URI): Promise<URI> { return workingDirectory; }
 	takePendingAnnouncement(_sessionId: string): string | undefined { return undefined; }
 	async persistCreationFailure(_sessionUri: URI, _sessionId: string, _diagnostic: string | undefined): Promise<void> { }

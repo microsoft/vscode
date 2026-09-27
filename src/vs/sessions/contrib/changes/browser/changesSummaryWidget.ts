@@ -10,7 +10,7 @@ import { derived, IObservable } from '../../../../base/common/observable.js';
 import { ISessionChangesSummary } from '../../../services/sessions/common/session.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { AnimatedCounterWidget } from '../../../../workbench/browser/animatedCounterWidget.js';
+import { ChangesStatsWidget, IChangesStats } from '../../../../workbench/browser/changesStatsWidget.js';
 
 export class ChangesSummaryWidget extends Disposable {
 	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined>;
@@ -24,26 +24,21 @@ export class ChangesSummaryWidget extends Disposable {
 		this._summaryObs = changesViewService.activeSessionChangesSummaryObs;
 	}
 
-	render(container: HTMLElement) {
-		const element = dom.$('div.changes-summary-widget');
+	render(container: HTMLElement): void {
+		const element = dom.$('span.changes-summary-widget');
 		container.appendChild(element);
 
-		this._register(this._instantiationService.createInstance(AnimatedCounterWidget, element, {
-			prefix: '+',
-			direction: 'topToBottom',
-			cssClassName: 'changes-summary-lines-added',
-			count: derived(this, (reader) => {
-				return this._summaryObs.read(reader)?.additions;
-			})
-		}));
-
-		this._register(this._instantiationService.createInstance(AnimatedCounterWidget, element, {
-			prefix: '-',
-			direction: 'bottomToTop',
-			cssClassName: 'changes-summary-lines-removed',
-			count: derived(this, (reader) => {
-				return this._summaryObs.read(reader)?.deletions;
-			})
-		}));
+		this._register(this._instantiationService.createInstance(ChangesStatsWidget, element, derived(this, reader => {
+			const summary = this._summaryObs.read(reader);
+			return summary ? toChangesStats(summary) : undefined;
+		}), false));
 	}
+}
+
+function toChangesStats(summary: ISessionChangesSummary): IChangesStats {
+	return {
+		files: summary.files,
+		insertions: summary.additions,
+		deletions: summary.deletions,
+	};
 }

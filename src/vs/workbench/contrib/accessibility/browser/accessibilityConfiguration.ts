@@ -68,9 +68,11 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
 	Debug = 'accessibility.verbosity.debug',
 	Walkthrough = 'accessibility.verbosity.walkthrough',
+	ReleaseNotes = 'accessibility.verbosity.releaseNotes',
 	SourceControl = 'accessibility.verbosity.sourceControl',
 	Find = 'accessibility.verbosity.find',
 	SessionsChat = 'accessibility.verbosity.sessionsChat',
+	NewSessionWelcome = 'accessibility.verbosity.newSessionWelcome',
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
@@ -219,12 +221,20 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.scm', 'Provide information about how to access the source control accessibility help menu when the input is focused.'),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.ReleaseNotes]: {
+			description: localize('verbosity.releaseNotes', "Provide information about how to access release notes accessibility help when the release notes are focused."),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.Find]: {
 			description: localize('verbosity.find', 'Provide information about how to access the find accessibility help menu when the find input is focused.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.SessionsChat]: {
-			description: localize('verbosity.sessionsChat', 'Provide information about how to access the Agents window accessibility help and comparison result Accessible View when the relevant surface is focused.'),
+			description: localize('verbosity.sessionsChat', 'Provide information about how to access the Agents window accessibility help menu when the chat input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.NewSessionWelcome]: {
+			description: localize('verbosity.newSessionWelcome', "Announce the welcome message when a new session composer is shown."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.SessionsChanges]: {
@@ -659,6 +669,16 @@ const configuration: IConfigurationNode = {
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.chatResponseReceived.sound', "Plays a sound on when the response has been received."),
+					...soundFeatureBase
+				},
+			}
+		},
+		'accessibility.signals.confetti': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.confetti', "Plays a joyful sound / audio cue when confetti is shown."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.confetti.sound', "Plays a joyful sound when confetti is shown."),
 					...soundFeatureBase
 				},
 			}

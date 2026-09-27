@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { EventType } from '../../../base/browser/dom.js';
-import { mainWindow } from '../../../base/browser/window.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { SessionsPart } from '../../browser/parts/sessionsPart.js';
@@ -48,13 +47,6 @@ interface ICodiconActivationTestHarness {
 	};
 }
 
-interface IContextKeyHarness {
-	readonly element: HTMLElement;
-	readonly _multipleSessionsVisibleKey: {
-		set(value: boolean): void;
-	};
-}
-
 class TestSessionView implements IDisposable {
 	readonly element = document.createElement('div');
 	readonly minimumWidth = 200;
@@ -72,7 +64,6 @@ suite('Sessions - Sessions Part', () => {
 
 	const createSlot = Reflect.get(SessionsPart.prototype, '_createSlot') as (this: ISessionsPartTestHarness) => ITestGridSlot;
 	const activateCodicon = Reflect.get(SessionsPart.prototype, 'activateCodicon') as (this: ICodiconActivationTestHarness, element: HTMLElement) => void;
-	const updateContextKeys = Reflect.get(SessionsPart.prototype, '_updateContextKeys') as (this: IContextKeyHarness, visible: readonly object[]) => void;
 
 	function assertActivation(eventFactory: () => Event): void {
 		const minimizedView = new TestSessionView();
@@ -338,188 +329,5 @@ suite('Sessions - Sessions Part', () => {
 			statuses: ['Confetti!'],
 			telemetryEvents: [{ name: 'vscodeAgents.codiconBackground/confetti', data: {} }],
 		});
-	});
-
-	test('marks the part when multiple session panes are visible', () => {
-		const values: boolean[] = [];
-		const element = document.createElement('div');
-		const harness: IContextKeyHarness = {
-			element,
-			_multipleSessionsVisibleKey: {
-				set: value => values.push(value),
-			},
-		};
-
-		updateContextKeys.call(harness, [{}]);
-		const single = element.classList.contains('multiple-sessions-visible');
-		updateContextKeys.call(harness, [{}, {}]);
-		const multiple = element.classList.contains('multiple-sessions-visible');
-
-		assert.deepStrictEqual({ values, single, multiple }, {
-			values: [false, true],
-			single: false,
-			multiple: true,
-		});
-	});
-
-	test('preserves ordinary inactive styling and outlines only comparison grids', () => {
-		const workbench = document.createElement('div');
-		workbench.className = 'monaco-workbench';
-		workbench.style.setProperty('--vscode-strokeThickness', '1px');
-		workbench.style.setProperty('--vscode-focusBorder', 'rgb(0, 122, 204)');
-		workbench.style.setProperty('--vscode-contrastActiveBorder', 'rgb(255, 255, 0)');
-		const part = document.createElement('div');
-		part.className = 'part sessionspart multiple-sessions-visible';
-		workbench.appendChild(part);
-
-		const active = document.createElement('div');
-		active.className = 'session-view is-active';
-		const inactive = document.createElement('div');
-		inactive.className = 'session-view';
-		const header = document.createElement('div');
-		header.className = 'chat-composite-bar session-header-bar';
-		const interactiveSession = document.createElement('div');
-		interactiveSession.className = 'interactive-session';
-		const transcript = document.createElement('div');
-		transcript.className = 'interactive-list';
-		const toolInvocation = document.createElement('div');
-		toolInvocation.className = 'chat-tool-invocation-part';
-		transcript.appendChild(toolInvocation);
-		const inputToolbars = document.createElement('div');
-		inputToolbars.className = 'chat-input-toolbars';
-		const inputToolbar = document.createElement('div');
-		inputToolbar.className = 'chat-input-toolbar';
-		const executeToolbar = document.createElement('div');
-		executeToolbar.className = 'chat-execute-toolbar';
-		inputToolbars.append(inputToolbar, executeToolbar);
-		const editor = document.createElement('div');
-		editor.className = 'chat-editor-container';
-		interactiveSession.append(transcript, inputToolbars, editor);
-		inactive.append(header, interactiveSession);
-		part.append(active, inactive);
-		mainWindow.document.body.appendChild(workbench);
-
-		try {
-			const ordinaryInactiveStyles = {
-				headerOpacity: mainWindow.getComputedStyle(header).opacity,
-				transcriptOpacity: mainWindow.getComputedStyle(transcript).opacity,
-				toolInvocationOpacity: mainWindow.getComputedStyle(toolInvocation).opacity,
-				inputToolbarOpacity: mainWindow.getComputedStyle(inputToolbar).opacity,
-				inputToolbarPointerEvents: mainWindow.getComputedStyle(inputToolbar).pointerEvents,
-				inputToolbarVisibility: mainWindow.getComputedStyle(inputToolbar).visibility,
-				editorOpacity: mainWindow.getComputedStyle(editor).opacity,
-				executeToolbarOpacity: mainWindow.getComputedStyle(executeToolbar).opacity,
-				executeToolbarFilter: mainWindow.getComputedStyle(executeToolbar).filter,
-			};
-			workbench.classList.add('session-comparison-grid-active');
-			const selectedIndicatorStyle = mainWindow.getComputedStyle(active, '::after');
-			const selectedBorder = {
-				top: `${selectedIndicatorStyle.borderTopWidth} ${selectedIndicatorStyle.borderTopStyle} ${selectedIndicatorStyle.borderTopColor}`,
-				right: `${selectedIndicatorStyle.borderRightWidth} ${selectedIndicatorStyle.borderRightStyle} ${selectedIndicatorStyle.borderRightColor}`,
-				bottom: `${selectedIndicatorStyle.borderBottomWidth} ${selectedIndicatorStyle.borderBottomStyle} ${selectedIndicatorStyle.borderBottomColor}`,
-				left: `${selectedIndicatorStyle.borderLeftWidth} ${selectedIndicatorStyle.borderLeftStyle} ${selectedIndicatorStyle.borderLeftColor}`,
-				zIndex: selectedIndicatorStyle.zIndex,
-			};
-			const comparisonInactiveStyles = {
-				headerOpacity: mainWindow.getComputedStyle(header).opacity,
-				transcriptOpacity: mainWindow.getComputedStyle(transcript).opacity,
-				toolInvocationOpacity: mainWindow.getComputedStyle(toolInvocation).opacity,
-				inputToolbarOpacity: mainWindow.getComputedStyle(inputToolbar).opacity,
-				inputToolbarPointerEvents: mainWindow.getComputedStyle(inputToolbar).pointerEvents,
-				inputToolbarVisibility: mainWindow.getComputedStyle(inputToolbar).visibility,
-				editorOpacity: mainWindow.getComputedStyle(editor).opacity,
-				executeToolbarOpacity: mainWindow.getComputedStyle(executeToolbar).opacity,
-				executeToolbarFilter: mainWindow.getComputedStyle(executeToolbar).filter,
-			};
-			workbench.classList.add('hc-black');
-			const highContrastBorderColor = mainWindow.getComputedStyle(active, '::after').borderTopColor;
-			part.classList.remove('multiple-sessions-visible');
-			const singlePaneBorderWidth = mainWindow.getComputedStyle(active, '::after').borderTopWidth;
-
-			assert.deepStrictEqual({
-				selectedBorder,
-				highContrastBorderColor,
-				singlePaneBorderWidth,
-				ordinaryInactiveStyles,
-				comparisonInactiveStyles,
-			}, {
-				selectedBorder: {
-					top: '1px solid rgb(0, 122, 204)',
-					right: '1px solid rgb(0, 122, 204)',
-					bottom: '1px solid rgb(0, 122, 204)',
-					left: '1px solid rgb(0, 122, 204)',
-					zIndex: '101',
-				},
-				highContrastBorderColor: 'rgb(255, 255, 0)',
-				singlePaneBorderWidth: '0px',
-				ordinaryInactiveStyles: {
-					headerOpacity: '0.6',
-					transcriptOpacity: '0.9',
-					toolInvocationOpacity: '0.6',
-					inputToolbarOpacity: '0',
-					inputToolbarPointerEvents: 'none',
-					inputToolbarVisibility: 'hidden',
-					editorOpacity: '0.6',
-					executeToolbarOpacity: '0.6',
-					executeToolbarFilter: 'grayscale(1)',
-				},
-				comparisonInactiveStyles: {
-					headerOpacity: '1',
-					transcriptOpacity: '1',
-					toolInvocationOpacity: '1',
-					inputToolbarOpacity: '1',
-					inputToolbarPointerEvents: 'auto',
-					inputToolbarVisibility: 'visible',
-					editorOpacity: '1',
-					executeToolbarOpacity: '1',
-					executeToolbarFilter: 'none',
-				},
-			});
-		} finally {
-			workbench.remove();
-		}
-	});
-
-	test('hides only inactive comparison inputs when the experiment is active', () => {
-		const workbench = document.createElement('div');
-		workbench.className = 'monaco-workbench session-comparison-hide-inactive-inputs';
-		const part = document.createElement('div');
-		part.className = 'part sessionspart multiple-sessions-visible';
-		workbench.appendChild(part);
-
-		const createSessionView = (active: boolean) => {
-			const view = document.createElement('div');
-			view.className = `session-view${active ? ' is-active' : ''}`;
-			const interactiveSession = document.createElement('div');
-			interactiveSession.className = 'interactive-session';
-			const input = document.createElement('div');
-			input.className = 'interactive-input-part';
-			interactiveSession.appendChild(input);
-			view.appendChild(interactiveSession);
-			part.appendChild(view);
-			return input;
-		};
-		const activeInput = createSessionView(true);
-		const inactiveInput = createSessionView(false);
-		mainWindow.document.body.appendChild(workbench);
-
-		try {
-			const activeDisplay = mainWindow.getComputedStyle(activeInput).display;
-			const inactiveDisplay = mainWindow.getComputedStyle(inactiveInput).display;
-			workbench.classList.remove('session-comparison-hide-inactive-inputs');
-			const restoredDisplay = mainWindow.getComputedStyle(inactiveInput).display;
-
-			assert.deepStrictEqual({
-				activeDisplay,
-				inactiveDisplay,
-				restoredDisplay,
-			}, {
-				activeDisplay: 'block',
-				inactiveDisplay: 'none',
-				restoredDisplay: 'block',
-			});
-		} finally {
-			workbench.remove();
-		}
 	});
 });

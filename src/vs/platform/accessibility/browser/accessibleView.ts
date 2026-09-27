@@ -41,6 +41,7 @@ export const enum AccessibleViewProviderId {
 	ReplHelp = 'replHelp',
 	RunAndDebug = 'runAndDebug',
 	Walkthrough = 'walkthrough',
+	ReleaseNotes = 'releaseNotes',
 	SourceControl = 'scm',
 	EditorFindHelp = 'editorFindHelp',
 	SearchHelp = 'searchHelp',

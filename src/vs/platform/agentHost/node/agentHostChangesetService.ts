@@ -66,7 +66,7 @@ import { AgentSession } from '../common/agent.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 import { getSummaryChangesetKind, resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
+import { resolveAgentMergeOwningChat, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
 
 /**
  * Maximum number of per-repository git diffs a multi-folder fan-out runs at
@@ -445,7 +445,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				changesets: this._stateManager.getChatState(session)?.changesets,
 			}
 			: state;
-		this._stateManager.setChangesets(session, buildDefaultChangesetCatalog(session, catalogState, branchChangesetOwner));
+		const sessionUri = containingSessionUri(session);
+		this._stateManager.setChangesets(session, buildDefaultChangesetCatalog(session, catalogState, branchChangesetOwner,
+			(folderKey, recordedChat) => resolveAgentMergeOwningChat(this._stateManager, sessionUri, folderKey, recordedChat)));
 	}
 
 	private _getBranchChangesetOwner(owner: ProtocolURI): ProtocolURI {
@@ -684,10 +686,59 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return compareUri;
 		}
 		try {
+			const workingDirectories = this._getEffectiveWorkingDirectories(session);
+			const workingDirectoryUris = workingDirectories?.map(workingDirectory => URI.parse(workingDirectory)) ?? [];
 			const sessionUri = URI.parse(containingSessionUri(session));
+			if (isMultiRootSession(workingDirectories)) {
+				const { gitRepositories, nonGitDirectories } = await resolveSessionRepositories(workingDirectoryUris, this._gitService);
+				if (nonGitDirectories.length > 0) {
+					this._stateManager.dispatchServerAction(compareUri, {
+						type: ActionType.ChangesetStatusChanged,
+						status: ChangesetStatus.Error,
+						error: { errorType: 'computeFailed', message: 'Compare requires git-backed folders.' },
+					});
+					return compareUri;
+				}
+				const perRepoDiffs: ISessionFileDiff[][] = [];
+				for (const repository of gitRepositories) {
+					const [originalCurrentRef, modifiedPair] = await Promise.all([
+						this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId, repository).then(p => p?.current),
+						this._checkpointService.getTurnCheckpointPair(sessionUri, modifiedTurnId, repository),
+					]);
+					if (!originalCurrentRef || !modifiedPair) {
+						this._stateManager.dispatchServerAction(compareUri, {
+							type: ActionType.ChangesetStatusChanged,
+							status: ChangesetStatus.Error,
+							error: { errorType: 'computeFailed', message: `No checkpoint available for ${repository.toString()}; compare requires git-backed sessions.` },
+						});
+						return compareUri;
+					}
+					if (originalCurrentRef === modifiedPair.current) {
+						perRepoDiffs.push([]);
+						continue;
+					}
+					const diffs = await this._gitService.computeFileDiffsBetweenRefs(repository, {
+						sessionUri: session,
+						fromRef: originalCurrentRef,
+						toRef: modifiedPair.current,
+					});
+					if (diffs === undefined) {
+						this._stateManager.dispatchServerAction(compareUri, {
+							type: ActionType.ChangesetStatusChanged,
+							status: ChangesetStatus.Error,
+							error: { errorType: 'computeFailed', message: `Failed to compute compare-turns diff from git (${originalCurrentRef}..${modifiedPair.current}).` },
+						});
+						return compareUri;
+					}
+					perRepoDiffs.push([...diffs]);
+				}
+				this._publishChangesetDiffs(session, compareUri, dedupeSessionFileDiffs(perRepoDiffs));
+				return compareUri;
+			}
+			const workingDir = workingDirectoryUris[0];
 			const [originalCurrentRef, modifiedPair] = await Promise.all([
-				this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId).then(p => p?.current),
-				this._checkpointService.getTurnCheckpointPair(sessionUri, modifiedTurnId),
+				this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId, workingDir).then(p => p?.current),
+				this._checkpointService.getTurnCheckpointPair(sessionUri, modifiedTurnId, workingDir),
 			]);
 			if (!originalCurrentRef || !modifiedPair) {
 				// One of the turns has no checkpoint — either it's an
@@ -713,7 +764,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				this._publishChangesetDiffs(session, compareUri, []);
 				return compareUri;
 			}
-			const workingDir = await this._resolveWorkingDirectory(session);
 			if (!workingDir) {
 				this._stateManager.dispatchServerAction(compareUri, {
 					type: ActionType.ChangesetStatusChanged,
@@ -869,9 +919,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * changeset is otherwise indistinguishable from a turn that changed nothing.
 	 */
 	private async _computeSingleFolderTurnDiffs(session: ProtocolURI, turnId: string, source: GitTurnDiffSource): Promise<readonly ISessionFileDiff[]> {
-		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(containingSessionUri(session)), turnId);
+		const workingDir = await this._resolveWorkingDirectory(session);
+		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(containingSessionUri(session)), turnId, workingDir);
 		if (pair && pair.parent !== pair.current) {
-			const workingDir = await this._resolveWorkingDirectory(session);
 			if (workingDir) {
 				const fromRefDiffs = await this._gitService.computeFileDiffsBetweenRefs(workingDir, {
 					sessionUri: session,
@@ -1111,8 +1161,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	/** Computes a complete session delta across repositories and tracked-only folders. */
 	private async _computeMultiFolderSessionDiffs(session: ProtocolURI, db: ISessionDatabase, workingDirectories: readonly string[], strategy: 'auto' | 'git'): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
 		const { gitRepositories, nonGitDirectories } = await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), this._gitService);
-		const latestTurnId = this._latestTurnIdAcrossChats(session);
-		const perRepoDiffs = await this._computeRepositoryCheckpointDiffs(session, gitRepositories, latestTurnId);
+		const latestTurnIds = this._latestTurnIdsAcrossChats(session);
+		const perRepoDiffs = await this._computeRepositoryCheckpointDiffs(session, gitRepositories, latestTurnIds);
 		const trackedRoots = [...nonGitDirectories, ...gitRepositories.filter((_, index) => perRepoDiffs[index] === undefined)];
 		if (strategy === 'git' && trackedRoots.length > 0) {
 			throw new Error(localize('sessionGitDiffUnavailable', "Git diff is unavailable for the session changeset."));
@@ -1142,10 +1192,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return { diffs: dedupeSessionFileDiffs([...gitDiffs, trackedDiffs]), usedFallback: trackedRoots.length > 0 };
 	}
 
-	private async _computeRepositoryCheckpointDiffs(session: ProtocolURI, gitRepositories: readonly URI[], latestTurnId: string | undefined): Promise<readonly (readonly ISessionFileDiff[] | undefined)[]> {
+	private async _computeRepositoryCheckpointDiffs(session: ProtocolURI, gitRepositories: readonly URI[], latestTurnIds: readonly string[]): Promise<readonly (readonly ISessionFileDiff[] | undefined)[]> {
 		const limiter = new Limiter<readonly ISessionFileDiff[] | undefined>(MAX_DIFF_REPOSITORY_CONCURRENCY);
 		return Promises.settled(gitRepositories.map(repoRoot =>
-			limiter.queue(() => this._computeSessionCheckpointDiffs(session, repoRoot, latestTurnId))
+			limiter.queue(() => this._computeSessionCheckpointDiffs(session, repoRoot, latestTurnIds))
 		)).finally(() => limiter.dispose());
 	}
 
@@ -1221,16 +1271,23 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/** Missing checkpoints return undefined; failed Git computations must not publish partial results. */
-	private async _computeSessionCheckpointDiffs(session: ProtocolURI, workingDirectory: URI, latestTurnId: string | undefined): Promise<readonly ISessionFileDiff[] | undefined> {
-		if (!latestTurnId) {
+	private async _computeSessionCheckpointDiffs(session: ProtocolURI, workingDirectory: URI, latestTurnIds: readonly string[]): Promise<readonly ISessionFileDiff[] | undefined> {
+		if (latestTurnIds.length === 0) {
 			return undefined;
 		}
 		const sessionUri = URI.parse(containingSessionUri(session));
-		const [baseline, pair] = await Promise.all([
-			this._checkpointService.getBaselineCheckpoint(sessionUri, workingDirectory),
-			this._checkpointService.getTurnCheckpointPair(sessionUri, latestTurnId, workingDirectory),
-		]);
-		if (!baseline || !pair) {
+		const baseline = await this._checkpointService.getBaselineCheckpoint(sessionUri, workingDirectory);
+		if (!baseline) {
+			return undefined;
+		}
+		let pair: Awaited<ReturnType<IAgentHostCheckpointService['getTurnCheckpointPair']>>;
+		for (const turnId of latestTurnIds) {
+			pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, turnId, workingDirectory);
+			if (pair) {
+				break;
+			}
+		}
+		if (!pair) {
 			return undefined;
 		}
 		const diffs = await this._gitService.computeFileDiffsBetweenRefs(workingDirectory, {
@@ -1286,7 +1343,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (this._shouldScheduleBranchRecompute(session)) {
 			this._scheduleBranchRecompute(session, turnId, true, clientContext);
 		}
-		this._scheduleStaticRecompute(session, 'session', turnId, true, clientContext, 'fileEditTracker');
+		this._scheduleStaticRecompute(containingSessionUri(session), 'session', turnId, true, clientContext, 'fileEditTracker');
 	}
 
 	onSessionTruncated(session: ProtocolURI): void {
@@ -1326,9 +1383,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				this._scheduleStaticRecompute(branchChangesetOwner, 'branch', turnId, false, clientContext);
 			}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
 		}
-		this._debouncedSessionDiffTimers.set(session, disposableTimeout(() => {
-			this._debouncedSessionDiffTimers.deleteAndDispose(session);
-			this._scheduleStaticRecompute(session, 'session', turnId, false, clientContext, 'fileEditTracker');
+		const sessionChangesOwner = containingSessionUri(session);
+		this._debouncedSessionDiffTimers.set(sessionChangesOwner, disposableTimeout(() => {
+			this._debouncedSessionDiffTimers.deleteAndDispose(sessionChangesOwner);
+			this._scheduleStaticRecompute(sessionChangesOwner, 'session', turnId, false, clientContext, 'fileEditTracker');
 		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
 	}
 
@@ -1341,7 +1399,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			const branchChangesetOwner = this._getBranchChangesetOwner(session);
 			this._debouncedBranchDiffTimers.deleteAndDispose(branchChangesetOwner);
 		}
-		this._debouncedSessionDiffTimers.deleteAndDispose(session);
+		this._debouncedSessionDiffTimers.deleteAndDispose(containingSessionUri(session));
 	}
 
 	private _shouldScheduleBranchRecompute(session: ProtocolURI): boolean {
@@ -1411,6 +1469,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * but do not fail the turn.
 	 */
 	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): void {
+		if (kind === 'session' && isAhpChatChannel(session)) {
+			session = containingSessionUri(session);
+		}
 		const key = `${session}\u0000${kind}`;
 		const statusBeforeRefresh = this._markChangesetComputing(staticChangesetUri(session, kind));
 		const existing = this._scheduledStaticRecomputes.get(key);
@@ -1470,7 +1531,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const stopWatch = StopWatch.create();
 		const summarySession = containingSessionUri(session);
 		const summaryKind = getSummaryChangesetKind(this._stateManager.getSessionState(summarySession)?.config?.values);
-		const workingDirectories = kind === 'session' && !isAhpChatChannel(session) && summaryKind === ChangesetKind.Session
+		const workingDirectories = kind === 'session' && !isAhpChatChannel(session)
 			? this._getSessionSummaryWorkingDirectories(session)
 			: this._getEffectiveWorkingDirectories(session);
 		let outcome: StaticChangesetOutcome = 'error';
@@ -1528,7 +1589,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		let workingDirectoriesInvalidated = false;
 		computeDisposables.add(this._stateManager.onDidChangeSessionWorkingDirectories(() => {
-			const currentWorkingDirectories = kind === 'session' && !isAhpChatChannel(session) && summaryKind === ChangesetKind.Session
+			const currentWorkingDirectories = kind === 'session' && !isAhpChatChannel(session)
 				? this._getSessionSummaryWorkingDirectories(session)
 				: this._getEffectiveWorkingDirectories(session);
 			if (!equals(workingDirectories, currentWorkingDirectories)) {
@@ -1613,7 +1674,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			const reviewed = kind === ChangesetKind.Branch
 				? await this._computeReviewedInfo(session, ref.object)
 				: undefined;
-			const currentWorkingDirectories = kind === 'session' && !isAhpChatChannel(session) && summaryKind === ChangesetKind.Session
+			const currentWorkingDirectories = kind === 'session' && !isAhpChatChannel(session)
 				? this._getSessionSummaryWorkingDirectories(session)
 				: this._getEffectiveWorkingDirectories(session);
 			if (workingDirectoriesInvalidated || !equals(workingDirectories, currentWorkingDirectories)) {
@@ -1793,38 +1854,40 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * checkpoint represents the session's shared working tree.
 	 */
 	private _latestTurnIdAcrossChats(session: ProtocolURI): string | undefined {
+		return this._latestTurnIdsAcrossChats(session)[0];
+	}
+
+	private _latestTurnIdsAcrossChats(session: ProtocolURI): readonly string[] {
 		const sessionState = this._stateManager.getSessionState(session);
 		if (!sessionState) {
-			return undefined;
+			return [];
 		}
 		if (isAhpChatChannel(session)) {
-			return lastAttributableTurnId(sessionState.turns);
+			const turnId = lastAttributableTurnId(sessionState.turns);
+			return turnId ? [turnId] : [];
 		}
 
 		const chats = sessionState.chats ?? [];
 		if (chats.length <= 1) {
-			return lastAttributableTurnId(sessionState.turns);
+			const turnId = lastAttributableTurnId(sessionState.turns);
+			return turnId ? [turnId] : [];
 		}
 
-		let bestTurnId: string | undefined;
-		let bestCompletedAt = '';
+		const turns: { readonly id: string; readonly completedAt: string }[] = [];
 		for (const chat of chats) {
-			const turns = isDefaultChatUri(chat.resource)
+			const chatTurns = isDefaultChatUri(chat.resource)
 				? sessionState.turns
 				: this._stateManager.getChatState(chat.resource)?.turns;
-			const lastTurn = turns?.findLast(turn => !isHostNoticeTurn(turn));
+			const lastTurn = chatTurns?.findLast(turn => !isHostNoticeTurn(turn));
 			if (!lastTurn) {
 				continue;
 			}
 			const completedAt = lastTurn.startedAt
 				? addMillisecondsToTimestamp(lastTurn.startedAt, lastTurn.duration ?? 0)
 				: chat.modifiedAt;
-			if (completedAt >= bestCompletedAt) {
-				bestCompletedAt = completedAt;
-				bestTurnId = lastTurn.id;
-			}
+			turns.push({ id: lastTurn.id, completedAt });
 		}
-		return bestTurnId;
+		return turns.sort((a, b) => b.completedAt.localeCompare(a.completedAt)).map(turn => turn.id);
 	}
 
 	/** Computes Session Changes between the baseline and latest turn checkpoints. */

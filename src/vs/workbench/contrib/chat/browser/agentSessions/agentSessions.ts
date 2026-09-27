@@ -11,6 +11,9 @@ import { foreground, listActiveSelectionForeground, registerColor, transparent }
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { isAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+
+export const AgentSessionChatContextMenu = new MenuId('AgentSessionChatContext');
 
 export enum AgentSessionProviders {
 	Local = SessionType.Local,

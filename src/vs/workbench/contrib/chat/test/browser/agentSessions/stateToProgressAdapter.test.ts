@@ -22,7 +22,7 @@ import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptConte
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 
 // ---- Helper factories -------------------------------------------------------
@@ -175,16 +175,42 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
-	test('Fusion milestones render with status-specific icons', () => {
-		assert.deepStrictEqual(['selected', 'completed', 'failed', 'cancelled', 'degraded'].map(fusionStatus => {
-			const part = systemNotificationToChatPart('Fusion milestone', 'local', { kind: AgentSystemNotificationKind.FusionProgress, fusionStatus });
-			return part?.kind === 'systemNotification' ? { icon: part.icon?.id, collapsible: part.collapsible, presentation: part.presentation } : undefined;
+	test('Fusion milestones render workflow descriptions and terminal statuses with specific icons', () => {
+		assert.deepStrictEqual((['selected', 'completed', 'failed', 'cancelled', 'degraded'] as const).map(fusionStatus => {
+			const content = fusionStatus === 'selected' ? 'Selected workflow\n\nSDK-provided workflow description.' : 'Fusion milestone';
+			const part = systemNotificationToChatPart(content, 'local', toAgentSystemNotificationMeta({
+				kind: AgentSystemNotificationKind.FusionProgress,
+				fusionStatus,
+				fusionDescription: fusionStatus === 'selected' ? 'SDK-provided workflow description.' : undefined,
+			}));
+			return part?.kind === 'systemNotification' ? { content: part.content.value, icon: part.icon?.id, collapsible: part.collapsible, presentation: part.presentation } : undefined;
 		}), [
-			{ icon: Codicon.layers.id, collapsible: false, presentation: 'workflow' },
-			{ icon: Codicon.check.id, collapsible: true, presentation: undefined },
-			{ icon: Codicon.error.id, collapsible: true, presentation: undefined },
-			{ icon: Codicon.circleSlash.id, collapsible: true, presentation: undefined },
-			{ icon: Codicon.warning.id, collapsible: true, presentation: undefined },
+			{ content: 'SDK-provided workflow description.', icon: undefined, collapsible: undefined, presentation: 'workflowDescription' },
+			{ content: 'Fusion milestone', icon: Codicon.check.id, collapsible: true, presentation: undefined },
+			{ content: 'Fusion milestone', icon: Codicon.error.id, collapsible: true, presentation: undefined },
+			{ content: 'Fusion milestone', icon: Codicon.circleSlash.id, collapsible: true, presentation: undefined },
+			{ content: 'Fusion milestone', icon: Codicon.warning.id, collapsible: true, presentation: undefined },
+		]);
+		assert.strictEqual(systemNotificationToChatPart('Selected workflow', 'local', toAgentSystemNotificationMeta({
+			kind: AgentSystemNotificationKind.FusionProgress,
+			fusionStatus: 'selected',
+			fusionDescription: '',
+		})), undefined);
+	});
+
+	test('Fusion selections preserve host content without the local description metadata', () => {
+		assert.deepStrictEqual([
+			'Host-provided workflow description.',
+			'Host-provided heading\n\nHost-provided workflow description.',
+		].map(content => {
+			const part = systemNotificationToChatPart(content, 'remote', {
+				kind: AgentSystemNotificationKind.FusionProgress,
+				fusionStatus: 'selected',
+			});
+			return part?.kind === 'systemNotification' ? { content: part.content.value, presentation: part.presentation } : undefined;
+		}), [
+			{ content: 'Host-provided workflow description.', presentation: 'workflowDescription' },
+			{ content: 'Host-provided heading\n\nHost-provided workflow description.', presentation: 'workflowDescription' },
 		]);
 	});
 
@@ -2521,6 +2547,29 @@ suite('stateToProgressAdapter', () => {
 			const pending: AnyToolCallState = { toolCallId: 'tc-done', toolName: 'bash', displayName: 'Bash', invocationMessage: 'confirm', status: ToolCallStatus.PendingConfirmation, confirmationTitle: 'Confirm?' };
 			streaming.requestConfirmation(toolCallStateToPreparedInvocation(pending));
 			assert.strictEqual(IChatToolInvocation.isComplete(streaming), true, 'completed invocation is not re-armed');
+		});
+	});
+
+	suite('completedToolCallToEditParts', () => {
+		test('keeps child attribution separate from the edit undo stop', () => {
+			const toolCall = createCompletedToolCall({
+				toolCallId: 'child-patch',
+				content: [{
+					type: ToolResultContentType.FileEdit,
+					before: { uri: 'file:///workspace/file.ts', content: { uri: 'agenthost-content:///before' } },
+					after: { uri: 'file:///workspace/file.ts', content: { uri: 'agenthost-content:///after' } },
+					diff: { added: 4, removed: 1 },
+				}],
+			});
+			const [parentEdit] = completedToolCallToEditParts(toolCall, 'local');
+			const [childEdit] = completedToolCallToEditParts(toolCall, 'local', 'root-subagent');
+			assert.deepStrictEqual({
+				childEdit,
+				parentHasSubagentId: hasKey(parentEdit, { subAgentInvocationId: true }),
+			}, {
+				childEdit: { ...parentEdit, subAgentInvocationId: 'root-subagent' },
+				parentHasSubagentId: false,
+			});
 		});
 	});
 

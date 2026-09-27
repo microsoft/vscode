@@ -230,33 +230,6 @@
 	overflow: hidden;
 }
 
-.experimental-new-session-composer .sessions-chat-config-toolbar {
-	justify-content: flex-end;
-}
-
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-toolbar .chat-agent-picker-item {
-	margin-left: auto;
-}
-
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container > .chat-context-usage-container {
-	position: absolute;
-	top: var(--vscode-spacing-size120);
-	right: calc(var(--vscode-spacing-size60) - 3px);
-	z-index: 1;
-}
-
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls {
-	justify-content: flex-start;
-	flex: 0 1 auto;
-	width: max-content;
-}
-
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-toolbar,
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar,
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar .actions-container {
-	overflow: visible;
-}
-
 .sessions-chat-config-toolbar .monaco-toolbar {
 	height: auto;
 	min-width: 0;
@@ -366,10 +339,6 @@
 	color: var(--vscode-foreground);
 }
 
-.experimental-new-session-composer .sessions-chat-toolbar .sessions-chat-picker-slot > .action-label.agent-host-mode-permissions-trigger {
-	padding: 0;
-}
-
 .sessions-chat-config-toolbar .action-label,
 .sessions-chat-config-toolbar .action-label .chat-input-picker-label {
 	font-size: var(--vscode-fontSize-label2, 11px);
@@ -446,21 +415,6 @@
 	position: relative;
 	z-index: 1;
 	transition: background-color 250ms ease, color 250ms ease;
-}
-
-.sessions-chat-send-button.labeled {
-	width: auto;
-}
-
-.sessions-chat-send-button.labeled .monaco-button {
-	width: auto;
-	min-width: 22px;
-	padding: 0 var(--vscode-spacing-size80);
-}
-
-.action-widget .sessions-new-chat-picker-list .monaco-list-row.sessions-run-multiple-agents-action.has-toolbar .action-list-item-toolbar {
-	display: flex;
-	visibility: visible;
 }
 
 .sessions-chat-send-button .monaco-button.disabled {

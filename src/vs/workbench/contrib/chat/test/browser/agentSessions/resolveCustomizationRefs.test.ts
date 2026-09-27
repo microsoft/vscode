@@ -25,7 +25,8 @@ import { ContributionEnablementState } from '../../../common/enablement.js';
 import { type IAgentPlugin, type IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { type IMcpServer, type IMcpService, McpCollectionDefinition, McpServerLaunch, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
+import { type IMcpServer, type IMcpService, McpCollectionDefinition, McpCollectionProvenance, McpServerLaunch, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
+import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
@@ -128,9 +129,9 @@ function makeFileService(stats: ReadonlyMap<string, { mtime: number }> = new Map
 	} as unknown as IFileService;
 }
 
-function makeMcpServer(options: { id: string; collectionId: string; label?: string; enabled?: boolean; enablement?: ContributionEnablementState; launch?: McpServerLaunch | undefined; defaultCwd?: URI; roots?: readonly URI[]; configTarget?: ConfigurationTarget; collectionSource?: ExtensionIdentifier; collectionOrigin?: URI }): IMcpServer {
-	const { id, collectionId, label = id, enabled = true, enablement = enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile, launch, defaultCwd, roots, configTarget = ConfigurationTarget.USER, collectionSource, collectionOrigin } = options;
-	const collection = { id: collectionId, label: collectionId, order: 0, configTarget, source: collectionSource, presentation: collectionOrigin ? { origin: collectionOrigin } : undefined } as unknown as McpCollectionDefinition;
+function makeMcpServer(options: { id: string; collectionId: string; label?: string; enabled?: boolean; enablement?: ContributionEnablementState; launch?: McpServerLaunch | undefined; defaultCwd?: URI; roots?: readonly URI[]; configTarget?: ConfigurationTarget; collectionSource?: ExtensionIdentifier; collectionOrigin?: URI; provenance?: McpCollectionProvenance; discoverySource?: ExternalDiscoverySource; remoteAuthority?: string | null }): IMcpServer {
+	const { id, collectionId, label = id, enabled = true, enablement = enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile, launch, defaultCwd, roots, configTarget = ConfigurationTarget.USER, collectionSource, collectionOrigin, provenance, discoverySource, remoteAuthority = null } = options;
+	const collection = { id: collectionId, label: collectionId, order: 0, configTarget, source: collectionSource, presentation: collectionOrigin ? { origin: collectionOrigin } : undefined, provenance, discoverySource, remoteAuthority } as unknown as McpCollectionDefinition;
 	const definitions = observableValue('definitions', { server: launch ? { launch, defaultCwd, roots } : undefined, collection });
 	return {
 		definition: { id, label },
@@ -711,6 +712,43 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 		assert.strictEqual(bundler.received.length, 0);
 	});
+
+	for (const windowRemoteAuthority of [null, 'ssh-remote+devbox']) {
+		for (const sessionType of [SessionType.AgentHostCopilot, 'remote-ssh-remote+devbox-copilotcli', 'agent-host-claude']) {
+			test(`bundles Copilot-home servers for ${sessionType} in window ${windowRemoteAuthority}`, async () => {
+				const bundler = new FakeBundler();
+				const servers = [null, 'ssh-remote+devbox', 'ssh-remote+other'].map(remoteAuthority => makeMcpServer({
+					id: `copilot.${remoteAuthority}.server`,
+					collectionId: `copilot.${remoteAuthority}`,
+					provenance: McpCollectionProvenance.ExternalConfiguration,
+					discoverySource: ExternalDiscoverySource.Copilot,
+					remoteAuthority,
+					launch: stdioLaunch,
+				}));
+
+				await resolveCustomizationRefs(
+					makeFileService(),
+					makePromptsService(new Map()),
+					new FakeSyncProvider(),
+					makeAgentPluginService(),
+					makeMcpService(servers),
+					makeConfigurationResolverService(),
+					bundler as unknown as SyncedCustomizationBundler,
+					sessionType,
+					undefined,
+					[],
+					windowRemoteAuthority,
+				);
+
+				assert.deepStrictEqual(bundler.receivedMcp.flat().map(server => server.name),
+					sessionType !== SessionType.AgentHostCopilot
+						? ['copilot.null.server', 'copilot.ssh-remote+devbox.server', 'copilot.ssh-remote+other.server']
+						: windowRemoteAuthority === null
+							? ['copilot.ssh-remote+devbox.server', 'copilot.ssh-remote+other.server']
+							: ['copilot.null.server', 'copilot.ssh-remote+other.server']);
+			});
+		}
+	}
 
 	test('excludes `.code-workspace` configured servers', async () => {
 		const bundler = new FakeBundler();

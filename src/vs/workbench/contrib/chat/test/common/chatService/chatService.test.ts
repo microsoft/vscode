@@ -1567,6 +1567,37 @@ suite('ChatService', () => {
 		]]);
 	});
 
+	test('syncPendingRequestsFromRemote preserves request ids and updates delegated message metadata', () => {
+		const testService = createChatService();
+		const model = testDisposables.add(startSessionModel(testService)).object;
+		const request = {
+			id: 'remote-delegated', kind: ChatRequestQueueKind.Queued, message: 'Delegated message',
+			modelId: 'agent-host-copilot:claude-opus-4.8', modelConfiguration: { reasoningEffort: 'high' },
+			agentHostMessageOrigin: { kind: MessageKind.Agent },
+		};
+		const firstMetadata = { 'test.provenance': { source: 'first' } };
+		const secondMetadata = { 'test.provenance': { source: 'second' } };
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [{ ...request, metadata: firstMetadata }]);
+		const first = model.getPendingRequests()[0];
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [{ ...request, metadata: secondMetadata }]);
+		const second = model.getPendingRequests()[0];
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [{ ...request, metadata: { ...secondMetadata } }]);
+		const unchanged = model.getPendingRequests()[0];
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [request]);
+		assert.deepStrictEqual({
+			first: first.sendOptions.metadata,
+			second: second.sendOptions.metadata,
+			unchanged: unchanged === second,
+			requestIds: [first.request.id, second.request.id],
+			cleared: model.getPendingRequests()[0].sendOptions.metadata,
+			modelId: second.sendOptions.userSelectedModelId,
+			modelConfiguration: second.sendOptions.userSelectedModelConfiguration,
+		}, {
+			first: firstMetadata, second: secondMetadata, unchanged: true, requestIds: [request.id, request.id], cleared: undefined,
+			modelId: request.modelId, modelConfiguration: request.modelConfiguration,
+		});
+	});
+
 	test('remote pending requests reconcile model-only edits and preserve selections on legacy text updates', async () => {
 		const service = createChatService();
 		const model = testDisposables.add(startSessionModel(service)).object;
@@ -2896,6 +2927,7 @@ suite('ChatService', () => {
 			'chat.defaultToCopilotHarness': true,
 			'chat.editor.preferCopilotHarness': true,
 			'chat.editor.localAgent.enabled': false,
+			'chat.copilotHarnessIntroduction.mode': 'afterRequest',
 		}));
 
 		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
@@ -2922,8 +2954,9 @@ suite('ChatService', () => {
 			settingDefaultToCopilotHarness: event.settingDefaultToCopilotHarness,
 			settingPreferCopilotHarness: event.settingPreferCopilotHarness,
 			settingLocalAgentEnabled: event.settingLocalAgentEnabled,
+			settingCopilotHarnessIntroductionMode: event.settingCopilotHarnessIntroductionMode,
 			hasRequestId: typeof event.requestId === 'string',
-		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 0, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, hasRequestId: true }, { sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 1, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, hasRequestId: true }]);
+		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 0, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, settingCopilotHarnessIntroductionMode: 'afterRequest', hasRequestId: true }, { sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 1, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, settingCopilotHarnessIntroductionMode: 'afterRequest', hasRequestId: true }]);
 	});
 
 	test('user action telemetry distinguishes agent host sessions from local sessions', () => {

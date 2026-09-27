@@ -82,7 +82,8 @@ export class GitHubLinkPresentationContribution extends Disposable implements IW
 
 	private _registerProviders(): void {
 		this._registrations.clear();
-		const authority = URI.parse(this._defaultAccountService.resolveGitHubUrl('')).authority;
+		const gitHubUrl = this._defaultAccountService.resolveGitHubUrl('');
+		const authority = gitHubUrl ? URI.parse(gitHubUrl).authority : undefined;
 		if (!authority) {
 			return;
 		}

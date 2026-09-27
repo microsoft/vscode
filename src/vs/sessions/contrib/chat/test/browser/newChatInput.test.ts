@@ -25,6 +25,8 @@ import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariable
 import { NewChatContextAttachments } from '../../browser/newChatContextAttachments.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
+import { NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
+import { INewSessionComposerPicker } from '../../browser/newSessionComposerService.js';
 
 interface IInputModelReferenceHarness {
 	readonly _store: DisposableStore;
@@ -50,8 +52,6 @@ const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_update
 const updateInitializationLoadingState = Reflect.get(NewChatInputWidget.prototype, '_updateInitializationLoadingState') as (this: IInitializationLoadingHarness, loading: boolean) => void;
 const setLoadingSpinnerVisible = Reflect.get(NewChatInputWidget.prototype, '_setLoadingSpinnerVisible') as (this: ILoadingSpinnerHarness, visible: boolean) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
-const getInputValue = Reflect.get(NewChatInputWidget.prototype, 'getInputValue') as (this: IInputValueHarness) => string;
-const setInputValue = Reflect.get(NewChatInputWidget.prototype, 'setInputValue') as (this: IInputValueHarness, value: string) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
 
@@ -138,18 +138,6 @@ interface IInitializationLoadingHarness {
 	};
 }
 
-interface IInputValueHarness {
-	readonly _editor: {
-		getModel(): {
-			getValue(): string;
-			setValue(value: string): void;
-			getLineCount(): number;
-			getLineMaxColumn(lineNumber: number): number;
-		} | null;
-		setPosition(position: { lineNumber: number; column: number }): void;
-	};
-}
-
 interface IAttachmentRenderingHarness {
 	readonly _container: HTMLElement;
 	readonly _attachedContext: readonly IChatRequestVariableEntry[];
@@ -198,31 +186,37 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 suite('NewChatInputWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('gets and sets the composer input without moving focus', () => {
-		let value = 'Initial prompt';
-		let position: { lineNumber: number; column: number } | undefined;
-		const harness: IInputValueHarness = {
-			_editor: {
-				getModel: () => ({
-					getValue: () => value,
-					setValue: newValue => value = newValue,
-					getLineCount: () => 2,
-					getLineMaxColumn: () => 8,
-				}),
-				setPosition: newPosition => position = newPosition,
-			},
+	test('exposes the scoped model control', () => {
+		const modelPickers = new NewChatModelPickerService();
+		const modelNode = document.createElement('button');
+		const opened: string[] = [];
+		const harness = {
+			_newChatModelPickerService: modelPickers,
 		};
-
-		setInputValue.call(harness, 'Updated\nprompt');
+		const getPicker = () => Reflect.get(NewChatInputWidget.prototype, 'modelPicker', harness) as INewSessionComposerPicker | undefined;
+		const beforeRegistration = getPicker();
+		const registration = disposables.add(modelPickers.registerModelPicker({
+			getDomNode: () => modelNode,
+			open: () => opened.push('model'),
+			switchToModel: () => false,
+		}));
+		const model = getPicker();
+		model?.open();
+		registration.dispose();
 
 		assert.deepStrictEqual({
-			value: getInputValue.call(harness),
-			position,
+			beforeRegistration,
+			modelNode: model?.getDomNode() === modelNode,
+			opened,
+			afterDisposal: getPicker(),
 		}, {
-			value: 'Updated\nprompt',
-			position: { lineNumber: 2, column: 8 },
+			beforeRegistration: undefined,
+			modelNode: true,
+			opened: ['model'],
+			afterDisposal: undefined,
 		});
 	});
+
 	for (const existing of ['empty', 'text', 'attachments', 'sending'] as const) {
 		test(`applies an incoming draft only to an empty idle input (${existing})`, () => {
 			let inputText = existing === 'text' ? 'Keep me' : '';

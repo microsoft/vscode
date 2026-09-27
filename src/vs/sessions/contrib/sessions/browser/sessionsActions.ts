@@ -36,7 +36,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, IsPhoneLayoutContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -64,7 +64,7 @@ import { logSessionsInteraction, SessionsInteractionSource } from '../../../comm
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
-import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
@@ -760,12 +760,12 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				id: Menus.SessionItemToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(SessionsListPromoteNewChatActionContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionsListPromoteNewChatActionContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate()),
 			}, {
 				id: Menus.SessionItemContextMenu,
 				group: '1_newChat',
 				order: 0,
-				when: ContextKeyExpr.and(SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate()),
 			}],
 		});
 	}
@@ -855,7 +855,7 @@ registerAction2(class CloseChatAction extends Action2 {
 		super({
 			id: CLOSE_CHAT_COMMAND_ID,
 			title: localize2('closeActiveChat', "Close"),
-			icon: Codicon.close,
+			icon: Codicon.closeSmall,
 			// Hidden from the palette because closing a chat requires either an
 			// explicit tab context or an active chat group.
 			f1: false,
@@ -1908,15 +1908,6 @@ registerAction2(class CloseSessionAction extends Action2 {
 				),
 				group: 'secondary/4_pin',
 				order: 30,
-			}, {
-				id: Menus.SessionBarToolbar,
-				when: ContextKeyExpr.and(
-					MultipleSessionsVisibleContext,
-					IsPhoneLayoutContext.negate(),
-					SessionHeaderShowsChatContext.negate(),
-				),
-				group: 'navigation',
-				order: 20,
 			}, {
 				id: Menus.SessionHeaderContext,
 				when: ContextKeyExpr.and(
