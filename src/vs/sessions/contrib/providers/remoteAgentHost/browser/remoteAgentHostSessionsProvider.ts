@@ -54,6 +54,7 @@ import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/r
 import type { ISendRequestOptions, ISessionsProviderAutomations, SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
 import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
+import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v2.';
@@ -264,6 +265,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IAgentHostSessionWorkingDirectoryResolver workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IRemoteAgentHostAuthenticationService remoteAuthenticationService: IRemoteAgentHostAuthenticationService,
+		@INewSessionComposerService private readonly _newSessionComposerService: INewSessionComposerService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 
@@ -356,6 +358,12 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			}
 		}));
 		this._register(autorun(reader => this.setAuthenticationPending(authenticationPending.read(reader))));
+		if (this._devContainerLifecycle) {
+			this._register(autorun(reader => {
+				this._newSessionComposerService.inputVersion.read(reader);
+				this._scheduleDevContainerStopIfIdle();
+			}));
+		}
 	}
 
 	override async archiveSession(sessionId: string): Promise<void> {
@@ -365,7 +373,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		if (this._devContainerLifecycle) {
 			await this._ensureDevContainerConnection();
 			await this._setDevContainerSessionArchived(sessionId, true);
-			if (this.getKnownSessions().some(session => session.sessionId !== sessionId && !session.isArchived.get())) {
+			if (this.getKnownSessions().some(session => session.sessionId !== sessionId && !session.isArchived.get() && !this._isEmptyDevContainerDraft(session))) {
 				this._scheduleDevContainerStopIfIdle();
 				return;
 			}
@@ -397,7 +405,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				await this._ensureDevContainerConnection();
 				await this._setDevContainerSessionArchived(sessionId, false);
 			} catch (error) {
-				const hasOtherUnarchivedSession = this.getKnownSessions().some(session => session.sessionId !== sessionId && !session.isArchived.get());
+				const hasOtherUnarchivedSession = this.getKnownSessions().some(session => session.sessionId !== sessionId && !session.isArchived.get() && !this._isEmptyDevContainerDraft(session));
 				// TODO: Reconcile experimental worktree rollback without removing a mount still used by another session.
 				if (!hasOtherUnarchivedSession) {
 					this._devContainerIdleScheduler.cancel();
@@ -518,8 +526,14 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		const sessions = this.getKnownSessions();
 		return !!this.connection && !sessions.some(session => {
 			const status = session.status.get();
-			return status === SessionStatus.Untitled || isActiveSessionStatus(status);
+			return (status === SessionStatus.Untitled && !this._isEmptyDevContainerDraft(session)) || isActiveSessionStatus(status);
 		});
+	}
+
+	private _isEmptyDevContainerDraft(session: ISession): boolean {
+		return session.status.get() === SessionStatus.Untitled
+			&& !session.isNewSessionRequestInProgress?.get()
+			&& !this._newSessionComposerService.hasDraftInputForSession(session.resource);
 	}
 
 	private async _stopDevContainerIfIdle(): Promise<void> {
@@ -558,7 +572,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 		let worktreeError: unknown;
 		let canDeleteDetachedWorktrees = true;
-		if (!deleteError && this._devContainerLifecycle && hadSessions && this.getKnownSessions().length === 0) {
+		if (!deleteError && this._devContainerLifecycle && hadSessions && this.getKnownSessions().every(session => this._isEmptyDevContainerDraft(session))) {
 			try {
 				this._devContainerIdleScheduler.cancel();
 				canDeleteDetachedWorktrees = await this._devContainerLifecycle.remove();

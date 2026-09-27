@@ -132,6 +132,8 @@ Archiving first records the remote archived state, then removes the container be
 
 Automatic idle shutdown is controlled by `chat.agentHost.devContainer.idleTimeout`, in seconds, with a default of 300. Setting it to 0 cancels pending idle shutdown without restarting stopped containers. Changing it to a positive value starts a fresh inactivity grace period for connected containers. Explicit archive and delete cleanup is unaffected.
 
+An empty new-session composer does not hold a container open. Draft text, attachments, feedback, and first-request preparation do. Draft input is scoped to its session, so a composer for another provider does not block this container's cleanup.
+
 ## Change policy
 
 Update this specification only when connection/provider ownership, routing identity, or the shared Agent Host lifecycle boundary changes. Do not append transport algorithms, telemetry schemas, retry narratives, or incident history.

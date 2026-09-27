@@ -63,6 +63,7 @@ import { ISessionsRecentWorkspacesService } from '../../../../../services/sessio
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../../../../chat/browser/newSessionComposerService.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -272,10 +273,11 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined> }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined> }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
+	instantiationService.stub(INewSessionComposerService, overrides?.composerService ?? disposables.add(new NewSessionComposerService()));
 	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
 		override registerResolver() { return Disposable.None; }
 	}());
@@ -1587,6 +1589,109 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		}));
 	}
 
+	for (const action of ['archive', 'delete'] as const) {
+		for (const hasInput of [false, true]) {
+			test(`${action} ${hasInput ? 'preserves' : 'removes'} a container when the replacement composer ${hasInput ? 'has input' : 'is empty'}`, async () => {
+				connection.echoDispatchedActions = true;
+				connection.addSession(createSession('finished-session'));
+				const composerService = disposables.add(new NewSessionComposerService());
+				let removals = 0;
+				const provider = createProvider(disposables, connection, {
+					composerService,
+					devContainerLifecycle: {
+						connect: async () => { },
+						stop: async () => true,
+						remove: async () => { removals++; return true; },
+					},
+				});
+				await timeout(0);
+				const session = provider.getSessions()[0];
+				let replacement: ISession | undefined;
+				const openReplacement = () => {
+					if (replacement) {
+						return;
+					}
+					replacement = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+					disposables.add(composerService.registerComposer({
+						sessionResource: constObservable(replacement.resource),
+						hasInput,
+						animatePrompt: async () => false,
+						showPromptOptions: () => false,
+					}));
+				};
+				if (action === 'archive') {
+					disposables.add(autorun(reader => {
+						if (session.isArchived.read(reader)) {
+							openReplacement();
+						}
+					}));
+					await provider.archiveSession(session.sessionId);
+				} else {
+					disposables.add(provider.onDidChangeSessions(event => {
+						if (event.removed.some(removed => removed.sessionId === session.sessionId)) {
+							openReplacement();
+						}
+					}));
+					await provider.deleteSession(session.sessionId);
+				}
+				assert.deepStrictEqual({ replacementCreated: !!replacement, removals }, { replacementCreated: true, removals: hasInput ? 0 : 1 });
+			});
+		}
+	}
+
+	test('clearing actual draft input starts the idle countdown without deleting the composer', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const composerService = disposables.add(new NewSessionComposerService());
+		const changed = disposables.add(new Emitter<void>());
+		let hasInput = false;
+		let stops = 0;
+		const provider = createProvider(disposables, connection, {
+			composerService,
+			configurationService: new TestConfigurationService({ [DevContainerIdleTimeoutSettingId]: 10 }),
+			devContainerLifecycle: {
+				connect: async () => { },
+				stop: async () => { stops++; return true; },
+				remove: async () => true,
+			},
+		});
+		const draft = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		disposables.add(composerService.registerComposer({
+			sessionResource: constObservable(draft.resource),
+			get hasInput() { return hasInput; },
+			onDidChangeInput: changed.event,
+			animatePrompt: async () => false,
+			showPromptOptions: () => false,
+		}));
+		await timeout(9000);
+		hasInput = true;
+		changed.fire();
+		await timeout(20000);
+		const stopsWithInput = stops;
+		hasInput = false;
+		changed.fire();
+		await timeout(9999);
+		const stopsBeforeDeadline = stops;
+		await timeout(1);
+		assert.deepStrictEqual({ stopsWithInput, stopsBeforeDeadline, stops }, { stopsWithInput: 0, stopsBeforeDeadline: 0, stops: 1 });
+	}));
+
+	test('first-send preparation keeps an empty composer from stopping the container', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let stops = 0;
+		const provider = createProvider(disposables, connection, {
+			devContainerLifecycle: {
+				connect: async () => { },
+				stop: async () => { stops++; return true; },
+				remove: async () => true,
+			},
+		});
+		const draft = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		const preparation = disposables.add(provider.startNewSessionRequest(draft.sessionId));
+		await timeout(6 * 60 * 1000);
+		const stopsDuringPreparation = stops;
+		preparation.dispose();
+		await timeout(7 * 60 * 1000);
+		assert.deepStrictEqual({ stopsDuringPreparation, stops }, { stopsDuringPreparation: 0, stops: 1 });
+	}));
+
 	test('stops a Dev Container after all sessions have been idle for five minutes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const lifecycleCalls: string[] = [];
 		const provider = createProvider(disposables, connection, {
@@ -1634,7 +1739,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('restarts the Dev Container idle countdown after an unsent draft is removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const lifecycleCalls: string[] = [];
+		const composerService = disposables.add(new NewSessionComposerService());
 		const provider = createProvider(disposables, connection, {
+			composerService,
 			devContainerLifecycle: {
 				connect: async () => { lifecycleCalls.push('connect'); },
 				stop: async () => { lifecycleCalls.push('stop'); return true; },
@@ -1651,6 +1758,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			URI.parse('vscode-agent-host://localhost__4321/home/user/project'),
 			provider.sessionTypes[0].id,
 		);
+		disposables.add(composerService.registerComposer({
+			sessionResource: constObservable(draft.resource),
+			hasInput: true,
+			animatePrompt: async () => false,
+			showPromptOptions: () => false,
+		}));
 		await timeout(5 * 60 * 1000);
 
 		assert.deepStrictEqual(lifecycleCalls, []);
@@ -1842,7 +1955,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('stops an empty container five minutes after its only draft is discarded', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		let stops = 0;
+		const composerService = disposables.add(new NewSessionComposerService());
 		const provider = createProvider(disposables, connection, {
+			composerService,
 			devContainerLifecycle: {
 				connect: async () => { },
 				stop: async () => { stops++; return true; },
@@ -1850,6 +1965,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			},
 		});
 		const draft = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		disposables.add(composerService.registerComposer({
+			sessionResource: constObservable(draft.resource),
+			hasInput: true,
+			animatePrompt: async () => false,
+			showPromptOptions: () => false,
+		}));
 		await timeout(6 * 60 * 1000);
 		const stopsWhileDraftExists = stops;
 		provider.deleteNewSession(draft.sessionId);
