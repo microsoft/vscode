@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual } from 'assert';
+import { deepStrictEqual, rejects } from 'assert';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import pkg from '@xterm/headless';
 import { createSandbox } from 'sinon';
@@ -40,6 +40,19 @@ suite('XtermSerializer', () => {
 			{ disposed: 2, screen: 'replay-ready' },
 			{ disposed: 3, screen: 'replay-ready' }
 		]);
+	});
+
+	test('releases each addon when serialization throws on repeated attempts', async () => {
+		const { serializer } = createSerializer();
+		const dispose = sandbox.spy(SerializeAddon.prototype, 'dispose');
+		const failure = new Error('Serialization failed');
+		sandbox.stub(SerializeAddon.prototype, 'serialize').throws(failure);
+		const disposalCounts = [];
+		for (let index = 0; index < 3; index++) {
+			await rejects(serializer.generateReplayEvent(), error => error === failure);
+			disposalCounts.push(dispose.callCount);
+		}
+		deepStrictEqual(disposalCounts, [1, 2, 3]);
 	});
 
 	test('releases the addon when reusing a saved screen', async () => {

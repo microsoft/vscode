@@ -1090,12 +1090,15 @@ export class XtermSerializer implements ITerminalSerializer {
 			options.excludeModes = true;
 		}
 		let serialized: string;
-		if (restoreToLastReviveBuffer && this._rawReviveBuffer) {
-			serialized = this._rawReviveBuffer;
-		} else {
-			serialized = serialize.serialize(options);
+		try {
+			if (restoreToLastReviveBuffer && this._rawReviveBuffer) {
+				serialized = this._rawReviveBuffer;
+			} else {
+				serialized = serialize.serialize(options);
+			}
+		} finally {
+			serialize.dispose();
 		}
-		serialize.dispose();
 		return {
 			events: [
 				{
