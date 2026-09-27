@@ -58,7 +58,7 @@ import type { ICustomViewDescriptor } from '../../../../services/customView/brow
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -1949,11 +1949,14 @@ suite('Sessions - SessionsList', () => {
 		};
 		const provider = upcastPartial<ISessionsProvider>({
 			label: 'Remote Mac',
-			sessionTypes: [upcastPartial({ id: 'test', label: 'Copilot CLI' })],
+			sessionTypes: [upcastPartial<ISessionType>({ id: 'test', label: 'Copilot CLI' })],
 		});
-		const providersService = upcastPartial<ISessionsProvidersService>({
-			getProvider: () => provider,
-		});
+		const createProvidersService = (provider: ISessionsProvider) => new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(): T | undefined {
+				return provider as T;
+			}
+		};
+		const providersService = createProvidersService(provider);
 		const createHoverData = (session: ISession) => getSessionSummaryHoverData(
 			session,
 			providersService,
@@ -1965,7 +1968,7 @@ suite('Sessions - SessionsList', () => {
 		const titleLine = new SessionSummaryHoverWidget(remoteData).domNode.querySelector('.session-summary-hover-title')?.textContent;
 		const disconnectedData = getSessionSummaryHoverData(
 			remoteSession,
-			upcastPartial<ISessionsProvidersService>({ getProvider: () => ({ ...provider, sessionTypes: [] }) }),
+			createProvidersService({ ...provider, sessionTypes: [] }),
 			upcastPartial<IOpenerService>({}),
 			upcastPartial<ILabelService>({}),
 			upcastPartial<IPreferencesService>({}),
