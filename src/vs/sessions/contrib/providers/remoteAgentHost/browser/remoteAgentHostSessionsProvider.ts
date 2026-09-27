@@ -16,7 +16,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, normalizeRemoteAgentHostAddress, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionSchemeAlias } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -152,6 +152,9 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessionsProvider {
 
 	readonly id: string;
+	private _defaultLabel: string;
+	/** Configured or discovered name, without the client-local override. */
+	get defaultLabel(): string { return this._defaultLabel; }
 	private _label: string;
 	get label(): string { return this._label; }
 	readonly icon: ThemeIcon = Codicon.remote;
@@ -315,7 +318,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			this._register(Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event)(() => this._scheduleDevContainerStopIfIdle()));
 		}
 		this.updateResourceLabelHomes();
-		const displayName = config.name || config.address;
+		this._defaultLabel = config.name || config.address;
+		const displayName = this._remoteAgentHostService.getDisplayNameOverride(config.address) ?? this._defaultLabel;
 
 		this.id = `agenthost-${this._connectionAuthority}`;
 		this._label = displayName;
@@ -347,6 +351,11 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 		this._enableSessionCachePersistence(this._storageKey, `${CACHED_SESSIONS_STORAGE_PREFIX_LEGACY}${this._connectionAuthority}`);
 		this.updateResourceLabelHomes();
+		this._register(this._remoteAgentHostService.onDidChangeDisplayName(address => {
+			if (address === normalizeRemoteAgentHostAddress(this.remoteAddress)) {
+				this._updateLabel();
+			}
+		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.branchProtection')) {
 				this._refreshSessionWorkspaces();
@@ -807,7 +816,12 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	/** Refresh the provider's display name and notify picker consumers. */
 	setLabel(name: string): void {
-		const label = name || this.remoteAddress;
+		this._defaultLabel = name || this.remoteAddress;
+		this._updateLabel();
+	}
+
+	private _updateLabel(): void {
+		const label = this._remoteAgentHostService.getDisplayNameOverride(this.remoteAddress) ?? this._defaultLabel;
 		if (this._label === label) {
 			return;
 		}

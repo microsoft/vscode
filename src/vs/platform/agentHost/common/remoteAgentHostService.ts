@@ -706,8 +706,17 @@ export interface IRemoteAgentHostService {
 	/** Signals that consumers should re-read pendingConnections, including after configuration reconciliation; the catalog may be unchanged. */
 	readonly onDidChangePendingConnections: Event<void>;
 
-	/** Fires when a remote connection is established or lost. */
+	/** Fires when a remote connection is established, lost, or renamed in this client. */
 	readonly onDidChangeConnections: Event<void>;
+
+	/** Fires with the normalized address when its client-local display name changes. */
+	readonly onDidChangeDisplayName: Event<string>;
+
+	/** Gets the client-local display-name override, or undefined to use the configured or discovered name. */
+	getDisplayNameOverride(address: string): string | undefined;
+
+	/** Sets a machine-local display-name override. An empty or undefined name restores the default. */
+	setDisplayName(address: string, name: string | undefined): void;
 
 	/**
 	 * Known remote addresses with metadata. This is a status catalog, not a
@@ -825,11 +834,16 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	declare readonly _serviceBrand: undefined;
 	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[] { return []; }
 	readonly onDidChangeConnections = Event.None;
+	readonly onDidChangeDisplayName = Event.None;
 	readonly onDidChangePendingConnections = Event.None;
 	readonly pendingConnections: readonly IRemoteAgentHostPendingConnection[] = [];
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	readonly onDidChangeConfiguredEntries = Event.None;
+	getDisplayNameOverride(): string | undefined { return undefined; }
+	setDisplayName(): void {
+		throw new Error('Remote agent host display names are not supported in this environment.');
+	}
 	registerConnectionFactory(): IDisposable {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}

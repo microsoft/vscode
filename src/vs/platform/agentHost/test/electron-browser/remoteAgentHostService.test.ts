@@ -1586,6 +1586,98 @@ suite('RemoteAgentHostService', () => {
 		});
 	});
 
+	suite('display names', () => {
+		test('persists normalized overrides only in this client without changing connection settings', () => {
+			const addresses = ['ws://host:8080', 'wss://host:8080', 'ssh:my-host', 'me@host:22', 'tunnel:my-tunnel', 'wsl:Ubuntu', 'devcontainer:repo'];
+			for (const address of addresses) {
+				service.setDisplayName(address, `  My ${address}  `);
+			}
+			const restored = disposables.add(instantiationService.createInstance(EditorWindowRemoteAgentHostService));
+			instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+			const otherClient = disposables.add(instantiationService.createInstance(EditorWindowRemoteAgentHostService));
+
+			assert.deepStrictEqual({
+				names: addresses.map(address => restored.getDisplayNameOverride(address)),
+				normalizedName: service.getDisplayNameOverride('host:8080'),
+				otherClientNames: addresses.map(address => otherClient.getDisplayNameOverride(address)),
+				machineKeys: storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE).length,
+				syncedKeys: storageService.keys(StorageScope.APPLICATION, StorageTarget.USER),
+				settingsWrites: configService.updateValueCalls,
+				createdClients: createdClients.length,
+			}, {
+				names: addresses.map(address => `My ${address}`),
+				normalizedName: 'My ws://host:8080',
+				otherClientNames: addresses.map(() => undefined),
+				machineKeys: addresses.length,
+				syncedKeys: [],
+				settingsWrites: 0,
+				createdClients: 0,
+			});
+		});
+
+		test('observes display-name changes from another window using the same storage', () => {
+			const otherWindow = disposables.add(instantiationService.createInstance(EditorWindowRemoteAgentHostService));
+			const changes: { address: string; name: string | undefined }[] = [];
+			disposables.add(service.onDidChangeDisplayName(address => changes.push({ address, name: service.getDisplayNameOverride(address) })));
+
+			otherWindow.setDisplayName('ws://host:8080', 'My Host');
+			otherWindow.setDisplayName('host:8080', 'My Host');
+			otherWindow.setDisplayName('host:8080', undefined);
+
+			assert.deepStrictEqual(changes, [
+				{ address: 'host:8080', name: 'My Host' },
+				{ address: 'host:8080', name: undefined },
+			]);
+		});
+
+		test('updates live connection and resource labels without reconnecting and restores the latest default', async () => {
+			const entry: IRemoteAgentHostEntry = {
+				name: 'Original Host',
+				connectionToken: 'test-token',
+				connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host:8080' },
+			};
+			configService.setEntries([entry]);
+			await waitForCreatedClients(1);
+			await createdClients[0].connectDeferred.complete();
+			await waitForConnected();
+			const connection = service.getConnection('host:8080');
+			const snapshot = () => ({
+				name: service.connections[0].name,
+				hostLabel: registeredFormatters.find(formatter => formatter.authority === agentHostAuthority('host:8080'))?.formatting.workspaceSuffix,
+			});
+			const changes: string[] = [];
+			disposables.add(service.onDidChangeConnections(() => changes.push(service.connections[0].name)));
+
+			service.setDisplayName('ws://host:8080', '  My Host  ');
+			const renamed = snapshot();
+			configService.setEntries([{ ...entry, name: 'New Default' }]);
+			const rediscovered = snapshot();
+			service.setDisplayName('host:8080', '   ');
+
+			assert.deepStrictEqual({
+				renamed,
+				rediscovered,
+				reset: snapshot(),
+				override: service.getDisplayNameOverride('host:8080'),
+				changes,
+				sameConnection: service.getConnection('host:8080') === connection,
+				createdClients: createdClients.length,
+				configuredEntry: service.getEntryByAddress('host:8080'),
+				settingsWrites: configService.updateValueCalls,
+			}, {
+				renamed: { name: 'My Host', hostLabel: 'My Host' },
+				rediscovered: { name: 'My Host', hostLabel: 'My Host' },
+				reset: { name: 'New Default', hostLabel: 'New Default' },
+				override: undefined,
+				changes: ['My Host', 'My Host', 'New Default'],
+				sameConnection: true,
+				createdClients: 1,
+				configuredEntry: { ...entry, name: 'New Default', connection: { ...entry.connection, address: 'host:8080' } },
+				settingsWrites: 0,
+			});
+		});
+	});
+
 	suite('host label formatter', () => {
 
 		function formatterFor(address: string): ResourceLabelFormatter | undefined {
