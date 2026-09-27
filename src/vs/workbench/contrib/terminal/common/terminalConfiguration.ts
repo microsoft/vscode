@@ -181,12 +181,12 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		type: 'string',
 	},
 	[TerminalSettingId.FontRendering]: {
-		markdownDescription: localize('terminal.integrated.fontRendering', "Controls the experimental antialiasing style of terminal text on macOS high-DPI displays without changing its font, size, or configured weight."),
+		markdownDescription: localize('terminal.integrated.fontRendering', "Controls how terminal text is antialiased on high-DPI displays."),
 		type: 'string',
 		enum: ['inherit', 'grayscale'],
 		markdownEnumDescriptions: [
-			localize('terminal.integrated.fontRendering.inherit', "Use the workbench font smoothing configured by {0}.", '`#workbench.fontAliasing#`'),
-			localize('terminal.integrated.fontRendering.grayscale', "Request grayscale antialiasing, which may make text appear lighter. With GPU acceleration, this currently takes effect only after a window reload while terminals are open. New terminals do not pick it up after all terminals are closed or after a restart.")
+			localize('terminal.integrated.fontRendering.inherit', "Follow {0}.", '`#workbench.fontAliasing#`'),
+			localize('terminal.integrated.fontRendering.grayscale', "Use grayscale antialiasing, which can make text look sharper. With GPU acceleration, this may require **Developer: Reload Window** to take effect.")
 		],
 		default: 'inherit',
 		tags: ['experimental', 'advanced'],
