@@ -155,11 +155,11 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 			}
 		});
 		// Loop through all loggers and update their level
-		this._telemetryLoggers.forEach(loggers => {
+		for (const loggers of [...this._telemetryLoggers.values()]) {
 			for (const logger of loggers) {
 				logger.updateTelemetryEnablements(telemetryDetails.isUsageEnabled, telemetryDetails.isErrorsEnabled);
 			}
-		});
+		}
 
 		if (this._oldTelemetryEnablement !== this.getTelemetryConfiguration()) {
 			this._onDidChangeTelemetryEnabled.fire(this.getTelemetryConfiguration());

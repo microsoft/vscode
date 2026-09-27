@@ -14,7 +14,7 @@ import { IExtHostInitDataService } from '../../common/extHostInitDataService.js'
 import { ExtHostTelemetry, ExtHostTelemetryLogger } from '../../common/extHostTelemetry.js';
 import { IEnvironment } from '../../../services/extensions/common/extensionHostProtocol.js';
 import { mock } from '../../../test/common/workbenchTestServices.js';
-import type { TelemetryLoggerOptions, TelemetrySender } from 'vscode';
+import type { TelemetryLogger, TelemetryLoggerOptions, TelemetrySender } from 'vscode';
 
 interface TelemetryLoggerSpy {
 	dataArr: any[];
@@ -219,6 +219,39 @@ suite('ExtHostTelemetry', function () {
 		assert.strictEqual(telemetryLoggers.get(mockExtensionIdentifier.identifier.value)?.length, 1);
 		assert.throws(() => logger.dispose(), /flush failed/);
 		assert.strictEqual(telemetryLoggers.has(mockExtensionIdentifier.identifier.value), false);
+	});
+
+	test('Replacing the last logger during enablement notification does not notify the replacement', function () {
+		const extensionTelemetry = createExtHostTelemetry();
+		const functionSpy: TelemetryLoggerSpy = { dataArr: [], exceptionArr: [], flushCalled: false };
+		let notifications = 0;
+		let currentLogger = createLogger(functionSpy, extensionTelemetry);
+
+		const subscribe = (logger: TelemetryLogger): void => {
+			store.add(logger.onDidChangeEnableStates(() => {
+				notifications++;
+				// Bound the reproducer so a live-map iteration regression cannot hang the test.
+				if (notifications >= 5) {
+					return;
+				}
+				logger.dispose();
+				currentLogger = createLogger(functionSpy, extensionTelemetry);
+				subscribe(currentLogger);
+			}));
+		};
+		subscribe(currentLogger);
+
+		extensionTelemetry.$onDidChangeTelemetryLevel(TelemetryLevel.NONE);
+		assert.deepStrictEqual(
+			[notifications, currentLogger.isUsageEnabled, currentLogger.isErrorsEnabled],
+			[1, false, false]
+		);
+
+		extensionTelemetry.$onDidChangeTelemetryLevel(TelemetryLevel.USAGE);
+		assert.deepStrictEqual(
+			[notifications, currentLogger.isUsageEnabled, currentLogger.isErrorsEnabled],
+			[2, true, true]
+		);
 	});
 
 	test('Simple log event to TelemetryLogger with options', function () {
