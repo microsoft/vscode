@@ -5590,6 +5590,7 @@ suite('Sessions - SessionsList', () => {
 						capabilities: constObservable({ supportsMultipleChats: true }),
 					};
 					const harness = createListHarness(disposables, [session], instantiationService => {
+						void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('editor', { fontFamily: 'monospace' });
 						instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 					});
 					const command = Array.from({ length: lineCount }, (_, index) => `echo ${index}`).join('\n');
@@ -5604,6 +5605,7 @@ suite('Sessions - SessionsList', () => {
 					list.layout(600, 400);
 					setSessionChatsExpanded(container, true);
 					await timeout(0);
+					assert.ok(container.querySelector('.session-approval-row .monaco-tokenized-source'));
 
 					const row = () => container.querySelector<HTMLElement>('.monaco-list-rows .session-item')?.closest<HTMLElement>('.monaco-list-row');
 					const initialHeight = row()?.offsetHeight;
