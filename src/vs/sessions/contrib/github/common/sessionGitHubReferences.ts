@@ -59,7 +59,9 @@ function mergeGitHubReferences<T extends IGitHubIssueRef>(recorded: readonly T[]
 }
 
 /**
- * Resolves recorded GitHub links independently of a workspace, retaining repository-discovered associations.
+ * Resolves the pull requests and issues for the dedicated GitHub pills: recorded artifacts, independently of a
+ * workspace, and repository-discovered associations. Recorded references are left out, as the references pill
+ * lists them.
  * Pass `chat` to use the repository associations of every folder of the chat's workspace instead of the
  * session's primary folder; recorded pull requests from other repositories are then left out once the
  * chat's repositories are known.
@@ -72,12 +74,23 @@ export function getSessionGitHubReferences(session: ISession | undefined, reader
 		: [];
 	const gitHubInfo = chatWorkspace ? folderGitHubInfos[0] : session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 	const chatRepositories = chatWorkspace && folderGitHubInfos.length > 0 ? folderGitHubInfos : undefined;
-	const associatedPullRequests = chatWorkspace ? folderGitHubInfos.flatMap(info => getGitHubPullRequestRefs(info)) : getGitHubPullRequestRefs(gitHubInfo);
-	const associatedIssues = chatWorkspace ? folderGitHubInfos.flatMap(info => info.issues ?? []) : gitHubInfo?.issues ?? [];
+	const artifacts = session?.artifacts?.read(reader) ?? [];
+	// Providers may echo recorded references into their associations; those stay out of the dedicated pills too.
+	const recordedReferenceIds = new Set(artifacts.filter(artifact => !artifact.isArtifact).map(artifact => artifact.id));
+	const isRecordedReference = (ref: { readonly recordedReferenceId?: string }) => !!ref.recordedReferenceId && recordedReferenceIds.has(ref.recordedReferenceId);
+	const associatedPullRequests = (chatWorkspace ? folderGitHubInfos.flatMap(info => getGitHubPullRequestRefs(info)) : getGitHubPullRequestRefs(gitHubInfo)).flatMap(ref => {
+		if (!isRecordedReference(ref)) {
+			return [ref];
+		}
+		// A referenced pull request the session also produced remains, as an association rather than as the reference.
+		const { recordedReferenceId: _, ...association } = ref;
+		return ref.createdByThisSession ? [association] : [];
+	});
+	const associatedIssues = (chatWorkspace ? folderGitHubInfos.flatMap(info => info.issues ?? []) : gitHubInfo?.issues ?? []).filter(ref => !isRecordedReference(ref));
 	const pullRequests: IGitHubPullRequestRef[] = [];
 	const issues: IGitHubIssueRef[] = [];
-	for (const artifact of session?.artifacts?.read(reader) ?? []) {
-		const parsed = parseGitHubArtifactLink(artifact);
+	for (const artifact of artifacts) {
+		const parsed = artifact.isArtifact ? parseGitHubArtifactLink(artifact) : undefined;
 		if (!parsed || !artifact.link) {
 			continue;
 		}
@@ -89,7 +102,7 @@ export function getSessionGitHubReferences(session: ISession | undefined, reader
 		};
 		if (artifact.kind === SessionArtifactKind.PullRequest) {
 			if (!chatRepositories || chatRepositories.some(repository => isSameRepository(ref, repository))) {
-				pullRequests.push({ ...ref, createdByThisSession: artifact.isArtifact });
+				pullRequests.push({ ...ref, createdByThisSession: true });
 			}
 		} else {
 			issues.push(ref);

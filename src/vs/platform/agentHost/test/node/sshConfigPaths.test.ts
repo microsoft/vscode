@@ -67,6 +67,21 @@ suite('SSH Config Paths', () => {
 			failure => failure instanceof SSHKnownHostsResolutionError && failure.cause === error && failure.message.includes(error.message));
 	});
 
+	test('rejects unsupported dynamic trust and revocation sources', async () => {
+		for (const directive of [
+			'knownhostscommand /usr/local/bin/find-host-key',
+			'revokedhostkeys ~/.ssh/revoked_keys',
+		]) {
+			await assert.rejects(resolveSSHKnownHostsFiles(directive),
+				error => error instanceof SSHKnownHostsResolutionError && /not supported/.test(error.message));
+		}
+
+		assert.deepStrictEqual(await resolveSSHKnownHostsFiles('knownhostscommand none\nrevokedhostkeys none'), {
+			userKnownHostsFiles: [],
+			globalKnownHostsFiles: [],
+		});
+	});
+
 	test('recovers real files without treating directories as known-hosts files', async () => {
 		const directory = await fsp.mkdtemp(join(tmpdir(), 'vscode-ssh-config-'));
 		try {

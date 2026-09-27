@@ -9,7 +9,7 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignal } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, observableSignal } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -25,15 +25,9 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { AgentSandboxEnabledSettingValue, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
-import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { getPermissionLevelBadge, IModePickerPermissions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
-
-const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 
 /**
  * Strategy for the per-provider parts of {@link PermissionPicker}: how to read
@@ -41,8 +35,7 @@ const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
  * given the active session, and where to write the user's selection.
  *
  * Implementations live with the provider they back (e.g.
- * {@link CopilotPermissionPickerDelegate} below for the default Copilot
- * provider, or `AgentHostPermissionPickerDelegate` in the agent-host folder).
+ * `AgentHostPermissionPickerDelegate` in the agent-host folder).
  */
 export interface IPermissionPickerDelegate {
 	/**
@@ -576,61 +569,5 @@ export class PermissionPicker extends Disposable {
 	protected _getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMeta {
 		const meta = getPermissionLevelMeta(level);
 		return this._delegate.getPermissionLevelMeta(level, meta);
-	}
-}
-
-/**
- * Default-Copilot {@link IPermissionPickerDelegate}: writes the user's chosen
- * level back to the active {@link CopilotChatSessionsProvider} session, and
- * exposes that session's `permissionLevel` observable so the picker's
- * trigger label tracks the session's current level rather than resetting to
- * the configured default on every re-render.
- */
-export class CopilotPermissionPickerDelegate extends Disposable implements IPermissionPickerDelegate {
-
-	readonly currentPermissionLevel: IObservable<ChatPermissionLevel | undefined>;
-
-	getPermissionLevelMeta(_level: ChatPermissionLevel, meta: IPermissionLevelMeta): IPermissionLevelMeta {
-		return meta;
-	}
-
-	constructor(
-		private readonly _session: IObservable<IActiveSession | undefined>,
-		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
-		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
-	) {
-		super();
-
-		this.currentPermissionLevel = derived(this, reader => {
-			const session = this._session.read(reader);
-			if (!session) {
-				return undefined;
-			}
-			const provider = this._sessionsProvidersService.getProvider(session.providerId);
-			if (!(provider instanceof CopilotChatSessionsProvider)) {
-				return undefined;
-			}
-			return provider.getSession(session.sessionId)?.permissionLevel.read(reader);
-		});
-	}
-
-	setPermissionLevel(level: ChatPermissionLevel): void {
-		const session = this._session.get();
-		if (!session) {
-			return;
-		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
-		if (provider instanceof CopilotChatSessionsProvider) {
-			const chatSession = provider.getSession(session.sessionId);
-			if (!chatSession) {
-				return;
-			}
-			if (chatSession.setOption) {
-				chatSession.setPermissionLevel(level);
-				chatSession.setOption(PERMISSION_LEVEL_OPTION_ID, level);
-			} else {
-				this._chatSessionsService.setSessionOption(chatSession.resource, PERMISSION_LEVEL_OPTION_ID, level);
-			}
-		}
 	}
 }

@@ -568,6 +568,24 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		return this._rootUri;
 	}
 
+	private _activeRepositoryName: string | undefined;
+
+	get activeRepositoryName(): string | undefined {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+		return this._activeRepositoryName;
+	}
+
+	set activeRepositoryName(activeRepositoryName: string | undefined) {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+
+		if (this._activeRepositoryName === activeRepositoryName) {
+			return;
+		}
+
+		this._activeRepositoryName = activeRepositoryName;
+		this.#proxy.$updateSourceControl(this.handle, { activeRepositoryName: activeRepositoryName ?? null });
+	}
+
 	private _contextValue: string | undefined = undefined;
 
 	get contextValue(): string | undefined {

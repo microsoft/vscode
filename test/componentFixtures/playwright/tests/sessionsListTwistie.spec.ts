@@ -119,6 +119,8 @@ for (const theme of ['Dark', 'Light', 'DarkHighContrast', 'LightHighContrast']) 
 					await readWorkspace.hover();
 					await expect(row).toHaveAttribute('aria-expanded', 'false');
 					await expect(indicator).toHaveCount(1);
+					// A hovered row reveals its toolbar actions, which would then sit in the Shift+Tab order.
+					await page.mouse.move(0, 0);
 					await page.keyboard.press('Tab');
 					await page.keyboard.press('Shift+Tab');
 					await expect(page.getByRole('tree', { name: 'Sessions', exact: true })).toBeFocused();

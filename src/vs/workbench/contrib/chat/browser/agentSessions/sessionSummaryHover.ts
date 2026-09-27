@@ -57,6 +57,12 @@ export interface ISessionSummaryHoverPullRequest {
 	readonly onOpen?: () => void;
 }
 
+export interface ISessionSummaryHoverWorkspace {
+	readonly name: string;
+	readonly parentPath?: string;
+	readonly icon?: ThemeIcon;
+}
+
 /**
  * Everything the session hover shows, in a provider-neutral shape.
  *
@@ -86,12 +92,18 @@ export interface ISessionSummaryHoverData {
 		readonly onOpen: () => void;
 	};
 	/**
-	 * Set when the session was created in another application. The row names
-	 * that origin and, when activated, leads to whatever controls whether such
+	 * Set while the session is treated as external. The row names
+	 * that status and, when activated, leads to whatever controls whether such
 	 * sessions are shown here.
 	 */
 	readonly externalSession?: {
 		readonly onOpen: () => void;
+	};
+	/** Aggregate context shown after chat-specific details for a multi-folder session. */
+	readonly sessionSummary?: {
+		readonly workspaces: readonly ISessionSummaryHoverWorkspace[];
+		readonly changes?: ISessionSummaryHoverLocation['changes'];
+		readonly pullRequests?: readonly ISessionSummaryHoverPullRequest[];
 	};
 }
 
@@ -113,6 +125,7 @@ export class SessionSummaryHoverWidget {
 	private readonly _pullRequests: HTMLElement;
 	private readonly _createdBy: HTMLElement;
 	private readonly _externalSession: HTMLElement;
+	private readonly _sessionSummary: HTMLElement;
 
 	constructor(data?: ISessionSummaryHoverData) {
 		this.domNode = dom.$('.session-summary-hover');
@@ -121,6 +134,7 @@ export class SessionSummaryHoverWidget {
 		this._pullRequests = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-pull-requests'));
 		this._createdBy = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-created-by'));
 		this._externalSession = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-external-session'));
+		this._sessionSummary = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-session-summary'));
 		if (data) {
 			this.update(data);
 		}
@@ -145,14 +159,7 @@ export class SessionSummaryHoverWidget {
 		this._location.classList.toggle('hidden', !this._location.hasChildNodes());
 
 		dom.clearNode(this._pullRequests);
-		for (const pullRequest of data.pullRequests ?? []) {
-			const icon = pullRequest.icon ?? Codicon.gitPullRequest;
-			if (pullRequest.uri && pullRequest.onOpen) {
-				this._appendLinkRow(this._pullRequests, icon, pullRequest.uri, pullRequest.onOpen, pullRequest.title);
-			} else {
-				this._appendRow(this._pullRequests, icon, pullRequest.title);
-			}
-		}
+		this._renderPullRequests(this._pullRequests, data.pullRequests);
 		this._pullRequests.classList.toggle('hidden', !this._pullRequests.hasChildNodes());
 
 		dom.clearNode(this._createdBy);
@@ -161,16 +168,27 @@ export class SessionSummaryHoverWidget {
 		}
 		this._createdBy.classList.toggle('hidden', !this._createdBy.hasChildNodes());
 
-		// Where the session came from rather than what it is doing, so it closes
-		// the hover below everything the session itself has to say.
+		this.updateExternalSession(data.externalSession);
+
+		dom.clearNode(this._sessionSummary);
+		if (data.sessionSummary) {
+			dom.append(this._sessionSummary, dom.$('.session-summary-hover-section-title', undefined, localize('sessionSummaryHover.sessionSummary', "Session summary")));
+			this._renderWorkspaces(this._sessionSummary, data.sessionSummary.workspaces);
+			this._appendChangesRow(this._sessionSummary, data.sessionSummary.changes);
+			this._renderPullRequests(this._sessionSummary, data.sessionSummary.pullRequests);
+		}
+		this._sessionSummary.classList.toggle('hidden', !this._sessionSummary.hasChildNodes());
+	}
+
+	updateExternalSession(externalSession: ISessionSummaryHoverData['externalSession']): void {
 		dom.clearNode(this._externalSession);
-		if (data.externalSession) {
-			this._appendButtonRow(this._externalSession, Codicon.multipleWindows, data.externalSession.onOpen, localize('sessionSummaryHover.externalSession', "External Session"));
+		if (externalSession) {
+			this._appendButtonRow(this._externalSession, Codicon.multipleWindows, externalSession.onOpen, localize('sessionSummaryHover.externalSession', "External Session"));
 		}
 		this._externalSession.classList.toggle('hidden', !this._externalSession.hasChildNodes());
 	}
 
-	private _renderLocation(location: ISessionSummaryHoverLocation | undefined): void {
+	private _renderLocation(location: ISessionSummaryHoverLocation | undefined, parent = this._location): void {
 		if (!location) {
 			return;
 		}
@@ -179,29 +197,50 @@ export class SessionSummaryHoverWidget {
 		// list of facts about the session rather than a stack of bare paths. The
 		// name carries the emphasis; the value it names stays muted behind it.
 		if (location.workspace) {
-			this._appendRow(this._location, location.workspaceIcon ?? Codicon.folder, localize('sessionSummaryHover.workspace', "Workspace"), location.workspace);
+			this._appendRow(parent, location.workspaceIcon ?? Codicon.folder, localize('sessionSummaryHover.workspace', "Workspace"), location.workspace);
 		}
 
 		if (location.worktreePending) {
-			this._appendRow(this._location, Codicon.worktree, localize('sessionSummaryHover.worktree', "Worktree"), localize('sessionSummaryHover.worktreeCreating', "Creating…"));
+			this._appendRow(parent, Codicon.worktree, localize('sessionSummaryHover.worktree', "Worktree"), localize('sessionSummaryHover.worktreeCreating', "Creating…"));
 		} else if (location.worktree) {
-			this._appendRow(this._location, Codicon.worktree, localize('sessionSummaryHover.worktree', "Worktree"), location.worktree);
+			this._appendRow(parent, Codicon.worktree, localize('sessionSummaryHover.worktree', "Worktree"), location.worktree);
 		}
 
 		if (location.branch) {
-			this._appendRow(this._location, Codicon.gitBranch, localize('sessionSummaryHover.branch', "Branch"), location.branch);
+			this._appendRow(parent, Codicon.gitBranch, localize('sessionSummaryHover.branch', "Branch"), location.branch);
 		}
 
 		// Changes name themselves, so they take no separate label.
-		const changes = location.changes;
-		if (changes) {
-			const files = changes.files === 1
-				? localize('sessionSummaryHover.fileChanged', "1 file changed")
-				: localize('sessionSummaryHover.filesChanged', "{0} files changed", changes.files);
-			const text = this._appendRow(this._location, Codicon.diffMultiple, files);
-			appendCount(text, 'session-summary-hover-insertions', chatLinesAddedForeground, `+${changes.insertions}`);
-			appendCount(text, 'session-summary-hover-deletions', chatLinesRemovedForeground, `-${changes.deletions}`);
+		this._appendChangesRow(parent, location.changes);
+	}
+
+	private _renderWorkspaces(parent: HTMLElement, workspaces: readonly ISessionSummaryHoverWorkspace[]): void {
+		for (const workspace of workspaces) {
+			this._appendRow(parent, workspace.icon ?? Codicon.folder, workspace.name, workspace.parentPath);
 		}
+	}
+
+	private _renderPullRequests(parent: HTMLElement, pullRequests: readonly ISessionSummaryHoverPullRequest[] | undefined): void {
+		for (const pullRequest of pullRequests ?? []) {
+			const icon = pullRequest.icon ?? Codicon.gitPullRequest;
+			if (pullRequest.uri && pullRequest.onOpen) {
+				this._appendLinkRow(parent, icon, pullRequest.uri, pullRequest.onOpen, pullRequest.title);
+			} else {
+				this._appendRow(parent, icon, pullRequest.title);
+			}
+		}
+	}
+
+	private _appendChangesRow(parent: HTMLElement, changes: ISessionSummaryHoverLocation['changes']): void {
+		if (!changes) {
+			return;
+		}
+		const files = changes.files === 1
+			? localize('sessionSummaryHover.fileChanged', "1 file changed")
+			: localize('sessionSummaryHover.filesChanged', "{0} files changed", changes.files);
+		const text = this._appendRow(parent, Codicon.diffMultiple, files);
+		appendCount(text, 'session-summary-hover-insertions', chatLinesAddedForeground, `+${changes.insertions}`);
+		appendCount(text, 'session-summary-hover-deletions', chatLinesRemovedForeground, `-${changes.deletions}`);
 	}
 
 	/**
