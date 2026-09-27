@@ -39,6 +39,8 @@ import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin, type IRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
+import { readSessionSandboxPolicy, type ISessionSandboxPolicy } from '../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
+import { readSessionSandboxState } from '../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -4597,6 +4599,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		};
 	}
 
+	getSessionSandboxPolicy(sessionId: string): ISessionSandboxPolicy | undefined {
+		if (!this._getNewSession(sessionId)) {
+			this._keepSessionStateAlive(sessionId);
+		}
+		return readSessionSandboxPolicy(this._lastSessionStates.get(sessionId));
+	}
+
+	getSessionSandboxEnabled(sessionId: string): boolean | undefined {
+		return readSessionSandboxState(this._lastSessionStates.get(sessionId))?.enabled;
+	}
+
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
 		// New-session config wins (during pre-creation flow). Otherwise lazily
 		// subscribe to the session's state so the running picker can seed its
@@ -4739,7 +4752,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const sessionUri = cached.backendUri;
 			const action = { type: ActionType.SessionConfigChanged as const, config: { [property]: normalizedValue } };
 			connection.dispatch(sessionUri.toString(), action);
-			void this._resolveRunningSessionConfig(sessionId, cached, nextValues);
+			if (property !== SessionConfigKey.SandboxEnabled) {
+				void this._resolveRunningSessionConfig(sessionId, cached, nextValues);
+			}
 		}
 	}
 
@@ -4975,7 +4990,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (this._runningSessionConfigResolveSeq.get(sessionId) !== seq) {
 				return;
 			}
-			this._runningSessionConfigs.set(sessionId, resolved);
+			const sandboxEnabled = this._runningSessionConfigs.get(sessionId)?.values[SessionConfigKey.SandboxEnabled];
+			this._runningSessionConfigs.set(sessionId, sandboxEnabled === undefined ? resolved : {
+				...resolved,
+				values: { ...resolved.values, [SessionConfigKey.SandboxEnabled]: sandboxEnabled },
+			});
 			this._onDidChangeSessionConfig.fire(sessionId);
 		} catch (err) {
 			this._logService.warn(`[${this.id}] Failed to re-resolve session config for ${sessionId}: ${err}`);
@@ -6535,6 +6554,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeCustomizations.fire();
 		}
 		this._seedRunningConfigFromState(sessionId, state);
+		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state)) || readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled) {
+			this._onDidChangeSessionConfig.fire(sessionId);
+		}
 		this._applySessionMetadataFromState(sessionId, state, previous);
 		const rawId = this._rawIdFromChatId(sessionId);
 		this._applyChatCatalogFromState(sessionId, state);
@@ -6594,6 +6616,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
 		this._newSessions.get(sessionId)?.applySessionMeta(state._meta, state.workingDirectories?.[0]);
+		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state)) || readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled) {
+			this._onDidChangeSessionConfig.fire(sessionId);
+		}
 		if (!previous || customizationsChanged(previous, state)) {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();

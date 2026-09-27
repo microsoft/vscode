@@ -588,6 +588,9 @@ class MockCopilotSession {
 				if (params.sandboxConfig !== undefined) {
 					this.operationLog.push('options.update:sandbox');
 					this.sandboxConfigUpdates.push(params.sandboxConfig);
+					if (this.sandboxConfigUpdateGate) {
+						await this.sandboxConfigUpdateGate;
+					}
 				}
 				if (params.isExperimentalMode !== undefined) {
 					this.experimentalModeUpdates.push(params.isExperimentalMode);
@@ -608,6 +611,15 @@ class MockCopilotSession {
 					return { success: this.workingDirectoryOptionUpdateSuccess };
 				}
 				return { success: params.sandboxConfig !== undefined ? this.sandboxConfigUpdateSuccess : this.experimentalModeUpdateSuccess };
+			},
+		},
+		sandbox: {
+			disableForSession: async (params: { requestId: string }) => {
+				this.sandboxDisableRequests.push(params.requestId);
+				if (this.sandboxDisableError) {
+					throw this.sandboxDisableError;
+				}
+				return this.sandboxDisableResult;
 			},
 		},
 		instructions: {
@@ -637,6 +649,10 @@ class MockCopilotSession {
 	};
 
 	readonly sandboxConfigUpdates: unknown[] = [];
+	readonly sandboxDisableRequests: string[] = [];
+	sandboxDisableResult = { success: true, enabled: false };
+	sandboxDisableError: Error | undefined;
+	sandboxConfigUpdateGate: Promise<void> | undefined;
 	readonly shellInitScriptUpdates: unknown[] = [];
 
 	mcpListResult: Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>> = { servers: [] };
@@ -957,6 +973,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	resume?: boolean;
 	initializeEnablementSession?: (session: string) => Promise<void>;
 	beforeLaunch?: () => void;
+	sandboxPolicy?: ReturnType<IAgentConfigurationService['getSessionSandboxPolicy']>;
 	realpath?: (path: string) => Promise<string>;
 }): Promise<{
 	session: CopilotAgentSession;
@@ -969,6 +986,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	fileWriteOptions: ReadonlyMap<string, IWriteFileOptions | undefined>;
 	dispatchedActions: readonly StateAction[];
 	sessionConfigUpdates: ReadonlyArray<{ session: string; patch: Record<string, unknown> }>;
+	sandboxResults: Array<boolean | string>;
 	setConfigValue: (key: string, value: unknown) => void;
 	setRootValue: (key: string, value: unknown) => void;
 	fireRootConfigChange: () => void;
@@ -1115,6 +1133,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(ISessionDataService, createSessionDataService(options?.sessionDatabase));
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
+	const sandboxResults: Array<boolean | string> = [];
+	let sandboxEnabled: boolean | undefined;
 	const configValues = options?.configValues ?? {};
 	const rootValues = options?.rootValues ?? {};
 	const rootConfigEmitter = disposables.add(new Emitter<void>());
@@ -1136,8 +1156,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// visible through `getEffectiveValue` alone so tests can prove a
 		// consumer does not fall through to root or parent config.
 		getSessionConfigValues: (session: string) => session === sessionUri.toString() ? configValues : undefined,
-		getSessionSandboxPolicy: () => undefined,
+		getSessionSandboxPolicy: () => options?.sandboxPolicy,
+		getSessionSandboxEnabled: () => sandboxEnabled,
 		setSessionSandboxPolicy: () => { },
+		setSessionSandboxEnabled: (_session, enabled, error) => { sandboxEnabled = enabled; sandboxResults.push(error?.message ?? enabled); },
+		rejectSessionSandboxChange: (_session, _values, _origin, message) => { sandboxResults.push(message); },
 		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
 		getRootValue: ((_schema: unknown, key: string) => rootValues[key]) as IAgentConfigurationService['getRootValue'],
 		updateRootConfig: () => { /* no-op */ },
@@ -1280,6 +1303,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		fileWriteOptions,
 		dispatchedActions: stateManager.dispatchedActions,
 		sessionConfigUpdates,
+		sandboxResults,
 		setConfigValue: (key, value) => { configValues[key] = value; },
 		setRootValue: (key, value) => { rootValues[key] = value; },
 		fireRootConfigChange: () => rootConfigEmitter.fire(),
@@ -7803,6 +7827,103 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sendRequests, []);
 		});
 
+		for (const outcome of ['success', 'rejected', 'error', 'missing-request', 'expired-request'] as const) {
+			test(`session sandbox bypass uses the pending SDK request: ${outcome}`, async () => {
+				const { session, runtime, mockSession, waitForSignal, sandboxResults, sessionConfigUpdates, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
+					sandboxPolicy: { enabled: true, allowBypass: true },
+				});
+				const request = {
+					kind: 'shell' as const, toolCallId: 'bypass-tool', fullCommandText: 'curl https://example.com',
+					requestSandboxBypass: true,
+				};
+				const pending = runtime.handlePermissionRequest(request);
+				if (outcome !== 'missing-request') {
+					mockSession.fire('permission.requested', {
+						requestId: 'sdk-permission-123',
+						permissionRequest: toPermissionRequest(request),
+					});
+				}
+				const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				if (outcome === 'success') {
+					mockSession.fire('permission.completed', { requestId: 'older-sdk-request', toolCallId: 'bypass-tool', result: { kind: 'denied-interactively-by-user' } });
+				}
+				if (outcome === 'expired-request') {
+					mockSession.fire('permission.completed', { requestId: 'sdk-permission-123', toolCallId: 'bypass-tool', result: { kind: 'denied-interactively-by-user' } });
+				}
+				if (outcome === 'rejected') {
+					mockSession.sandboxDisableResult = { success: false, enabled: true };
+				} else if (outcome === 'error') {
+					mockSession.sandboxDisableError = new Error('Permission request expired');
+				}
+				session.respondToPermissionRequest('bypass-tool', true, {
+					selectedOptionId: 'allow-session',
+					origin: { clientId: 'client', clientSeq: 7 },
+				});
+				const result = await pending;
+				const applied = [...sandboxResults];
+				const changes = sessionConfigUpdates.map(update => update.patch);
+				if (outcome === 'success') {
+					setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
+					fireSessionConfigChange({ sandboxEnabled: 'off' });
+					await timeout(0);
+					assert.deepStrictEqual(mockSession.sandboxConfigUpdates, []);
+					setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
+					fireSessionConfigChange({ sandboxEnabled: 'on' });
+					await timeout(0);
+					assert.ok(sandboxResults.includes(true));
+				}
+				assert.deepStrictEqual({
+					canOptOut: signal.kind === 'pending_confirmation' && signal.canAllowSessionSandboxBypass,
+					requests: mockSession.sandboxDisableRequests,
+					result, applied, changes,
+				}, {
+					canOptOut: outcome !== 'missing-request',
+					requests: outcome === 'missing-request' || outcome === 'expired-request' ? [] : ['sdk-permission-123'],
+					result: { kind: outcome === 'success' ? 'no-result' : 'reject' },
+					applied: [outcome === 'success' ? false : outcome === 'rejected' ? 'Copilot SDK did not disable sandboxing for this session' : outcome === 'error' ? 'Permission request expired' : 'Sandbox bypass permission request is no longer pending'],
+					changes: outcome === 'success' ? [{ sandboxEnabled: 'off' }] : [],
+				});
+			});
+		}
+
+		test('allow-once and managed asks never initiate session sandbox bypass', async () => {
+			const results = [];
+			for (const managedApprovalRequired of [false, true]) {
+				const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+					sandboxPolicy: { enabled: true, allowBypass: true },
+				});
+				const pending = runtime.handlePermissionRequest({
+					kind: 'shell', toolCallId: 'tool', fullCommandText: 'curl https://example.com',
+					requestSandboxBypass: true, managedApprovalRequired,
+				});
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				session.respondToPermissionRequest('tool', true, { selectedOptionId: managedApprovalRequired ? 'allow-session' : 'allow-once' });
+				results.push({ result: await pending, requests: mockSession.sandboxDisableRequests });
+			}
+			assert.deepStrictEqual(results, Array(2).fill({ result: { kind: 'approve-once' }, requests: [] }));
+		});
+
+		test('queued session sandbox bypass is cancelled before reaching the SDK', async () => {
+			const { session, runtime, mockSession, waitForSignal, fireSessionConfigChange, setConfigValue } = await createAgentSession(disposables, {
+				sandboxPolicy: { enabled: true, allowBypass: true },
+			});
+			const request = { kind: 'shell' as const, toolCallId: 'queued-bypass', fullCommandText: 'curl https://example.com', requestSandboxBypass: true };
+			const pending = runtime.handlePermissionRequest(request);
+			mockSession.fire('permission.requested', { requestId: 'sdk-queued-request', permissionRequest: toPermissionRequest(request) });
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			const gate = new DeferredPromise<void>();
+			mockSession.sandboxConfigUpdateGate = gate.p;
+			setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
+			fireSessionConfigChange({ sandboxEnabled: 'on' });
+			await timeout(0);
+			session.respondToPermissionRequest('queued-bypass', true, { selectedOptionId: 'allow-session', origin: { clientId: 'client', clientSeq: 8 } });
+			await timeout(0);
+			const abort = session.abort();
+			await gate.complete();
+			await abort;
+			assert.deepStrictEqual({ result: await pending, requests: mockSession.sandboxDisableRequests }, { result: { kind: 'reject' }, requests: [] });
+		});
+
 		test('defers an idle session approval change until the next turn', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
@@ -7935,7 +8056,7 @@ suite('CopilotAgentSession', () => {
 
 		test('logs idle sandbox update failures without aborting and retries before the next prompt', async () => {
 			const logService = new CapturingLogService();
-			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, { logService });
+			const { session, mockSession, setConfigValue, fireSessionConfigChange, sandboxResults } = await createAgentSession(disposables, { logService });
 			mockSession.sandboxConfigUpdateSuccess = false;
 			setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
 			fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'on' });
@@ -7944,9 +8065,11 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				errors: logService.errors.map(entry => entry.first instanceof Error ? entry.first.message : entry.first),
 				abortCalls: mockSession.abortCalls,
+				sandboxResults,
 			}, {
 				errors: ['Copilot SDK rejected sandbox config update'],
 				abortCalls: 0,
+				sandboxResults: ['Copilot SDK rejected sandbox config update'],
 			});
 			await assert.rejects(() => session.send('hello', undefined, 'failed-turn'), /rejected sandbox config update/);
 			assert.deepStrictEqual(mockSession.sendRequests, []);
@@ -7954,6 +8077,20 @@ suite('CopilotAgentSession', () => {
 			mockSession.sandboxConfigUpdateSuccess = true;
 			await session.send('hello', undefined, 'retry-turn');
 			assert.strictEqual(mockSession.sendRequests.length, 1);
+		});
+
+		test('lets the SDK reject a fail-closed sandbox disable and reports the failure to the host', async () => {
+			const { mockSession, setConfigValue, fireSessionConfigChange, sandboxResults } = await createAgentSession(disposables, {
+				sandboxPolicy: { enabled: true, allowBypass: false, failClosed: true },
+			});
+			mockSession.sandboxConfigUpdateSuccess = false;
+			setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
+			fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'off' });
+			await timeout(0);
+			assert.deepStrictEqual({ updates: mockSession.sandboxConfigUpdates, sandboxResults }, {
+				updates: [{ enabled: false }],
+				sandboxResults: ['Copilot SDK rejected sandbox config update'],
+			});
 		});
 
 		test('ignores approval changes for other sessions', async () => {
@@ -8073,6 +8210,32 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), expectedSessionSandboxConfig('linux', sandbox));
 		});
+
+		for (const platform of ['linux', 'darwin', 'win32'] as const) {
+			test(`per-request sandbox: sends managed outbound denial and keeps local bypass false on ${platform}`, async () => {
+				const sandboxPolicy = { enabled: true, allowBypass: true, allowOutbound: false };
+				const { session, mockSession } = await createAgentSession(disposables, {
+					platform,
+					sandboxPolicy,
+					rootValues: {
+						[AgentHostSandboxConfigKey.Sandbox]: {
+							[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
+							[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.Off,
+							[AgentHostSandboxKey.AllowNetwork]: true,
+							[AgentHostSandboxKey.AllowUnsandboxedCommands]: false,
+						},
+					},
+				});
+				await session.send('first', undefined, 'turn-1');
+				const denied = mockSession.sandboxConfigUpdates.at(-1);
+				sandboxPolicy.allowOutbound = true;
+				await session.send('second', undefined, 'turn-2');
+				assert.deepStrictEqual({ denied, allowed: mockSession.sandboxConfigUpdates.at(-1) }, {
+					denied: { enabled: true, allowBypass: false, userPolicy: { filesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR] }, network: { allowOutbound: false } } },
+					allowed: { enabled: true, allowBypass: false, userPolicy: { filesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR] }, network: { allowOutbound: true } } },
+				});
+			});
+		}
 
 		test('per-request sandbox: applies the configured policy on Windows', async () => {
 			const sandbox = {
@@ -19575,7 +19738,6 @@ Use the attached image as context.
 			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
 			assert.deepStrictEqual(sandboxConfig?.userPolicy?.filesystem, {
 				readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR],
-				clearPolicyOnExit: true,
 			});
 		});
 
@@ -19591,7 +19753,6 @@ Use the attached image as context.
 			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
 			assert.deepStrictEqual(sandboxConfig?.userPolicy?.filesystem, {
 				readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR, TEST_SHELL_INIT_DIR],
-				clearPolicyOnExit: true,
 			});
 		});
 
