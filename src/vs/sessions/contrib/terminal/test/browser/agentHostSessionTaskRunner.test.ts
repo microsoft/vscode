@@ -81,6 +81,9 @@ suite('AgentHostSessionTaskRunner', () => {
 	let allTasksOwner: ISession | IChat | undefined;
 	let resolverCalls: string[];
 	let commandExecuting: boolean | undefined;
+	let terminalCwd: { initial: string; current: string } | undefined;
+	let pendingCommandMarks: number;
+	let clearedTerminals: ITerminalInstance[];
 	let showPanelBarrier: DeferredPromise<void> | undefined;
 	let firstShowPanelCall: DeferredPromise<void> | undefined;
 	let secondShowPanelCall: DeferredPromise<void> | undefined;
@@ -93,6 +96,7 @@ suite('AgentHostSessionTaskRunner', () => {
 			get isDisposed() { return isDisposed; },
 			store: instanceStore,
 			sendText: async (text: string, shouldExecute: boolean) => { sentText.push({ text, shouldExecute }); },
+			clearBuffer: () => { clearedTerminals.push(instance); },
 			dispose: () => {
 				if (!isDisposed) {
 					isDisposed = true;
@@ -112,6 +116,9 @@ suite('AgentHostSessionTaskRunner', () => {
 		allTasksOwner = undefined;
 		resolverCalls = [];
 		commandExecuting = undefined;
+		terminalCwd = { initial: '/x', current: '/x' };
+		pendingCommandMarks = 0;
+		clearedTerminals = [];
 		showPanelBarrier = undefined;
 		firstShowPanelCall = undefined;
 		secondShowPanelCall = undefined;
@@ -127,6 +134,12 @@ suite('AgentHostSessionTaskRunner', () => {
 			}
 			override isCommandExecuting() {
 				return commandExecuting;
+			}
+			override markCommandPending() {
+				pendingCommandMarks++;
+			}
+			override getCwd() {
+				return terminalCwd;
 			}
 		});
 
@@ -259,9 +272,45 @@ suite('AgentHostSessionTaskRunner', () => {
 		assert.deepStrictEqual({
 			createdTerminals: createdTerminals.map(t => t.options?.name),
 			sentText: sentText.map(t => t.text),
+			pendingCommandMarks,
 		}, {
 			createdTerminals: ['Task: build', 'Task: test'],
 			sentText: ['echo hi', 'echo hi', 'echo test'],
+			pendingCommandMarks: 3,
+		});
+	});
+
+	test('does not reuse a terminal whose shell left the task working directory', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		commandExecuting = false;
+
+		const handles = [await runner.runTask(shellTask(), session)];
+		terminalCwd = { initial: '/x', current: '/x/' };
+		handles.push(await runner.runTask(shellTask(), session));
+		terminalCwd = { initial: '/x', current: '/x/subdir' };
+		handles.push(await runner.runTask(shellTask(), session));
+		handles.forEach(handle => handle?.dispose());
+
+		assert.strictEqual(createdTerminals.length, 2);
+	});
+
+	test('clears a reused terminal when the task requests it', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		commandExecuting = false;
+		const task = { ...shellTask(), terminal: { clear: true } };
+
+		const handles = [
+			await runner.runTask(task, session),
+			await runner.runTask(task, session),
+		];
+		handles.forEach(handle => handle?.dispose());
+
+		assert.deepStrictEqual({
+			createdTerminals: createdTerminals.length,
+			clearedTerminals,
+		}, {
+			createdTerminals: 1,
+			clearedTerminals: [createdTerminals[0].instance],
 		});
 	});
 
@@ -305,15 +354,19 @@ suite('AgentHostSessionTaskRunner', () => {
 	test('does not reuse a terminal when the task requests a new panel', async () => {
 		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
 		commandExecuting = false;
-		const task = { ...shellTask(), presentation: { panel: 'new' } };
-
-		const handles = [
-			await runner.runTask(task, session),
-			await runner.runTask(task, session),
+		const tasks: ITaskEntry[] = [
+			{ ...shellTask(), presentation: { panel: 'new' } },
+			{ ...shellTask(), label: 'mixedCase', presentation: { panel: 'New' } },
+			{ ...shellTask(), label: 'legacy', terminal: { panel: 'new' } },
 		];
+
+		const handles = [];
+		for (const task of tasks) {
+			handles.push(await runner.runTask(task, session), await runner.runTask(task, session));
+		}
 		handles.forEach(handle => handle?.dispose());
 
-		assert.strictEqual(createdTerminals.length, 2);
+		assert.strictEqual(createdTerminals.length, 6);
 	});
 
 	test('does not reuse a terminal whose command is still running or whose state is unknown', async () => {

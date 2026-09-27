@@ -324,10 +324,12 @@ suite('AgentHostPty', () => {
 		const states: (boolean | undefined)[] = [pty.isCommandExecuting];
 		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandDetectionAvailable });
 		states.push(pty.isCommandExecuting);
-		pty.input('npm run build\r');
+		pty.markCommandPending();
 		states.push(pty.isCommandExecuting);
 		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandExecuted, commandId: 'c1', commandLine: 'npm run build', timestamp: 0 });
 		states.push(pty.isCommandExecuting);
+		// Input to the foreground process must not leave the terminal busy after the command finishes.
+		pty.input('answer\r');
 		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandFinished, commandId: 'c1', exitCode: 0 });
 		states.push(pty.isCommandExecuting);
 		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandExecuted, commandId: 'sentinel', commandLine: 'echo <<<COPILOT_SENTINEL_test>>>', timestamp: 1 });

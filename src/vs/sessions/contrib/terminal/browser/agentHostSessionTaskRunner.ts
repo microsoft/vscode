@@ -31,6 +31,11 @@ const LOG_PREFIX = '[AgentHostSessionTaskRunner]';
  */
 const LOCAL_AGENT_HOST_ADDRESS = '__local__';
 
+/** Strips trailing path separators (except for a root) so equivalent cwd paths compare equal. */
+function normalizeCwd(cwd: string): string {
+	return cwd.replace(/(?<=[^\\/:])[\\/]+$/, '');
+}
+
 /** Tracks one reusable terminal and its current task launch. */
 interface ITaskTerminal {
 	readonly instance: ITerminalInstance;
@@ -99,8 +104,10 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			return undefined;
 		}
 		const terminalKey = JSON.stringify([address, cwd?.toString(), task.label]);
-		const shouldReuse = this._shouldReuseTerminal(task);
+		const presentation = this._getPresentation(task);
+		const shouldReuse = !(typeof presentation?.panel === 'string' && presentation.panel.toLowerCase() === 'new');
 		let taskTerminal = shouldReuse ? this._getReusableTerminal(terminalKey) : undefined;
+		const isReused = !!taskTerminal;
 		if (!taskTerminal) {
 			const instance = await this._agentHostTerminalService.createTerminalForEntry(address, {
 				cwd,
@@ -127,6 +134,10 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		try {
 			this._terminalService.setActiveInstance(instance);
 			await this._terminalGroupService.showPanel(true);
+			if (isReused && presentation?.clear === true) {
+				instance.clearBuffer();
+			}
+			this._agentHostTerminalService.markCommandPending(instance);
 			await instance.sendText(command, /*shouldExecute*/ true);
 		} finally {
 			taskTerminal.isLaunching = false;
@@ -143,7 +154,9 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 	 * Returns the terminal that last ran the task identified by {@link key}
 	 * when it can run the task again, mirroring how the workbench task system
 	 * reuses task terminals. A terminal is only reused when it is known to be
-	 * idle so that the command is never typed into a still running process.
+	 * idle, so that the command is never typed into a still running process,
+	 * and when the shell is still in the directory the terminal started in, so
+	 * that the command runs from the task's working directory.
 	 */
 	private _getReusableTerminal(key: string): ITaskTerminal | undefined {
 		const taskTerminal = this._taskTerminals.get(key);
@@ -155,15 +168,27 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			this._taskTerminals.delete(key);
 			return undefined;
 		}
-		return !taskTerminal.isLaunching && this._agentHostTerminalService.isCommandExecuting(instance) === false ? taskTerminal : undefined;
+		if (taskTerminal.isLaunching || this._agentHostTerminalService.isCommandExecuting(instance) !== false) {
+			return undefined;
+		}
+		const terminalCwd = this._agentHostTerminalService.getCwd(instance);
+		if (!terminalCwd || normalizeCwd(terminalCwd.current) !== normalizeCwd(terminalCwd.initial)) {
+			return undefined;
+		}
+		return taskTerminal;
 	}
 
-	private _shouldReuseTerminal(task: ITaskEntry): boolean {
-		const presentation = task.presentation;
-		if (typeof presentation !== 'object' || presentation === null) {
-			return true;
+	/**
+	 * Reads the task's presentation options, falling back to the legacy
+	 * `terminal` property like the workbench task configuration does.
+	 */
+	private _getPresentation(task: ITaskEntry): { readonly panel?: unknown; readonly clear?: unknown } | undefined {
+		for (const value of [task.presentation, task.terminal]) {
+			if (typeof value === 'object' && value !== null) {
+				return value;
+			}
 		}
-		return (presentation as { readonly panel?: unknown }).panel !== 'new';
+		return undefined;
 	}
 
 	private _getAddress(session: ISession): string | undefined {

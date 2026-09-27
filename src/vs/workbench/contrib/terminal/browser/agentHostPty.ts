@@ -127,6 +127,20 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 			: undefined;
 	}
 
+	/** The working directory the terminal started in and its current one, as reported by the host. */
+	get cwd(): { readonly initial: string; readonly current: string } {
+		return { initial: this._initialCwd, current: this._properties.cwd || this._initialCwd };
+	}
+
+	/**
+	 * Records that a command line is about to be submitted to the shell
+	 * prompt, so the terminal counts as busy until the shell reports that the
+	 * command started executing.
+	 */
+	markCommandPending(): void {
+		this._pendingCommandCount++;
+	}
+
 	/**
 	 * Command IDs for sentinel commands that should be suppressed from shell
 	 * integration events. When the copilot shell tools fall back to sentinel-
@@ -401,11 +415,6 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 	input(data: string): void {
 		if (this._inReplay || this._lifetime.token.isCancellationRequested) {
 			return;
-		}
-		for (let index = 0; index < data.length; index++) {
-			if (data.charCodeAt(index) === 13) {
-				this._pendingCommandCount++;
-			}
 		}
 		this._startBarrier.wait().then(() => {
 			if (this._lifetime.token.isCancellationRequested) {
