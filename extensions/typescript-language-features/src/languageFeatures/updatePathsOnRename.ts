@@ -201,7 +201,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		}
 
 		if (await isDirectory(resource)) {
-			const files = await vscode.workspace.findFiles(new vscode.RelativePattern(resource, '**/*.{ts,tsx,js,jsx}'), '**/node_modules/**', 1);
+			const files = await vscode.workspace.findFiles(new vscode.RelativePattern(resource, '**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'), '**/node_modules/**', 1);
 			return files[0];
 		}
 
