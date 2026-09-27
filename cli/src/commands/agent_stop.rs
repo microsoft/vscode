@@ -81,7 +81,7 @@ pub async fn agent_stop(ctx: CommandContext, args: AgentStopArgs) -> Result<i32,
 			)
 		})?;
 		
-		// Savunmacı Programlama: Saat uyumsuzluklarına (clock skew) karşı negatif süre koruması
+		// Defensive programming: Prevent negative duration values caused by clock skew
 		let now_ms = Timestamp::now().as_millisecond();
 		let started_ms = started_at.as_millisecond();
 		let duration = if now_ms >= started_ms {
