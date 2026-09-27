@@ -650,6 +650,32 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('routes external session import to the owning provider and propagates errors', async () => {
+		const session = stubSession({
+			sessionId: 'session', providerId: 'test', isExternal: constObservable(true),
+			capabilities: constObservable({ supportsMultipleChats: false, supportsImport: true }),
+		});
+		const calls: string[] = [];
+		let fail = false;
+		const provider = new class extends TestSessionsProvider {
+			override async importSession(sessionId: string): Promise<void> {
+				calls.push(sessionId);
+				if (fail) {
+					throw new Error('Import failed');
+				}
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		await service.importSession(session);
+		fail = true;
+		await assert.rejects(() => service.importSession(session), /Import failed/);
+		await assert.rejects(() => service.importSession(stubSession({
+			sessionId: 'unsupported', providerId: 'test', isExternal: constObservable(true),
+		})), /not supported/);
+		await service.importSession(stubSession({ sessionId: 'owned', providerId: 'test' }));
+		assert.deepStrictEqual(calls, ['session', 'session']);
+	});
+
 	test('routes artifact removal to the owning provider and propagates errors', async () => {
 		const session = stubSession({
 			sessionId: 'session', providerId: 'test',
@@ -669,6 +695,29 @@ suite('SessionsManagementService', () => {
 		await assert.rejects(() => service.removeSessionArtifact(session, 'failure'), /Removal failed/);
 		await assert.rejects(() => service.removeSessionArtifact(stubSession({ sessionId: 'unsupported', providerId: 'test' }), 'artifact'), /not supported/);
 		assert.deepStrictEqual(calls, [['session', 'artifact'], ['session', 'failure']]);
+	});
+
+	test('routes chat archive changes to the owning provider', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test' });
+		const chat = { ...stubChat, resource: URI.parse('test-chat:/peer') };
+		const calls: { sessionId: string; chat: string; archived: boolean }[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async archiveChat(sessionId: string, chatResource: URI): Promise<void> {
+				calls.push({ sessionId, chat: chatResource.toString(), archived: true });
+			}
+			override async unarchiveChat(sessionId: string, chatResource: URI): Promise<void> {
+				calls.push({ sessionId, chat: chatResource.toString(), archived: false });
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await service.archiveChat(session, chat);
+		await service.unarchiveChat(session, chat);
+
+		assert.deepStrictEqual(calls, [
+			{ sessionId: 'session', chat: 'test-chat:/peer', archived: true },
+			{ sessionId: 'session', chat: 'test-chat:/peer', archived: false },
+		]);
 	});
 
 	test('cancelCurrentRequest loads the chat model then cancels the main chat request', async () => {
@@ -1056,6 +1105,32 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	for (const preserveNavigation of [false, true]) {
+		test(`openQuickChat preserves pending navigation only for an automatic fallback (${preserveNavigation})`, () => {
+			const quickChat = stubSession({
+				sessionId: 'quick-chat',
+				providerId: 'test',
+				isQuickChat: constObservable(true),
+			});
+			const provider = new class extends TestSessionsProvider {
+				override readonly supportsQuickChats = true;
+				override createQuickChat(): ISession { return quickChat; }
+			}(quickChat);
+			const { view } = createSessionsManagementService(quickChat, disposables, provider);
+			const navigation = view.navigationRequest.get();
+
+			view.openQuickChat(undefined, preserveNavigation);
+
+			assert.deepStrictEqual({
+				activeSession: view.activeSession.get()?.sessionId,
+				preservedNavigation: view.navigationRequest.get() === navigation,
+			}, {
+				activeSession: 'quick-chat',
+				preservedNavigation: preserveNavigation,
+			});
+		});
+	}
+
 	test('openNewSession without toSide still replaces the active session', async () => {
 		const session = stubSession({ sessionId: 'active', providerId: 'test' });
 		const { view } = createSessionsManagementService(session, disposables);
@@ -1177,6 +1252,51 @@ suite('SessionsManagementService', () => {
 		await view.openNewSession({ folderUri, toSide: true });
 		assert.deepStrictEqual(view.visibleSessions.get().map(s => s?.sessionId ?? null), ['active', 'new-draft']);
 		assert.strictEqual(view.activeSession.get()?.sessionId, 'new-draft');
+	});
+
+	test('openNewSession requires Dev Container execution before activating the draft', async () => {
+		const folderUri = URI.file('/test/workspace');
+		const workspace: ISessionWorkspace = {
+			uri: folderUri,
+			label: 'workspace',
+			icon: Codicon.folder,
+			folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const newDraftSession = stubSession({
+			sessionId: 'new-draft',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const events: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override resolveWorkspace(): ISessionWorkspace { return workspace; }
+			override createNewSession(): ISession { return newDraftSession; }
+			preferDevContainer(sessionId: string, options?: { readonly required?: boolean }): void {
+				events.push(`require:${sessionId}:${options?.required}`);
+			}
+		}(newDraftSession);
+		const { view } = createSessionsManagementService(newDraftSession, disposables, provider);
+		disposables.add(autorun(reader => {
+			const session = view.activeSession.read(reader);
+			if (session) {
+				events.push(`activate:${session.sessionId}`);
+			}
+		}));
+
+		const result = await view.openNewSession({ folderUri, requireDevContainer: true });
+
+		assert.deepStrictEqual({
+			events,
+			result: result.session?.sessionId,
+			active: view.activeSession.get()?.sessionId,
+		}, {
+			events: ['require:new-draft:true', 'activate:new-draft'],
+			result: 'new-draft',
+			active: 'new-draft',
+		});
 	});
 
 	test('removing the active chat keeps the custom view open', async () => {
@@ -2160,6 +2280,28 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
 	});
 
+	for (const newSession of [true, false]) {
+		test(`${newSession ? 'new session' : 'peer chat'} forwards the exact response observer through management`, async () => {
+			const session = stubSession({ sessionId: 'observer', providerId: 'test' });
+			const onDidCreateResponse: NonNullable<ISendRequestOptions['onDidCreateResponse']> = () => { };
+			const observers: ISendRequestOptions['onDidCreateResponse'][] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async sendRequest(_sessionId: string, _chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
+					observers.push(options.onDidCreateResponse);
+					return session;
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+			const options = { query: 'test', onDidCreateResponse };
+			if (newSession) {
+				await service.sendNewChatRequest(session, options);
+			} else {
+				await service.sendRequest(session, session.mainChat.get(), options);
+			}
+			assert.deepStrictEqual(observers, [onDidCreateResponse]);
+		});
+	}
+
 	for (const isolation of ['worktree', 'folder'] as const) {
 		for (const sendKind of ['foreground', 'background', 'headless'] as const) {
 			test(`${sendKind} new session captures ${isolation} configuration before the draft is replaced`, async () => {
@@ -2397,15 +2539,20 @@ suite('SessionsManagementService', () => {
 		const send = service.sendNewChatRequest(session, { query: 'hi' });
 		await timeout(0);
 		const duringCreate = service.getInFlightNewSessionRequests().map(session => session.sessionId);
+		const inputDuringCreate = service.getInFlightNewSessionRequest(session.resource);
 		createChatBarrier.complete();
 		await send;
 
 		assert.deepStrictEqual({
 			duringCreate,
+			inputDuringCreate,
 			afterSend: service.getInFlightNewSessionRequests(),
+			inputAfterSend: service.getInFlightNewSessionRequest(session.resource),
 		}, {
 			duringCreate: ['s1'],
+			inputDuringCreate: { query: 'hi', attachedContext: undefined },
 			afterSend: [],
+			inputAfterSend: undefined,
 		});
 	});
 
@@ -2800,6 +2947,53 @@ suite('SessionsManagementService', () => {
 			metadata: undefined,
 			automationConfiguration: { sessionTemplate },
 		});
+	});
+
+	test('createNewSession forwards model configuration only to supporting providers', () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		let providerOptions: ISessionsProviderCreateSessionOptions | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsModelConfigurationForCreation = true;
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				providerOptions = options;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		service.createNewSession(URI.parse('test:///folder'), {
+			modelId: 'model',
+			modelConfiguration: { thinkingLevel: 'high' },
+		});
+
+		assert.deepStrictEqual(providerOptions, {
+			metadata: undefined,
+			modelId: 'model',
+			modelConfiguration: { thinkingLevel: 'high' },
+		});
+	});
+
+	test('createNewSession rejects model configuration without provider support or a model', () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		assert.throws(() => service.createNewSession(URI.parse('test:///folder'), {
+			modelConfiguration: { thinkingLevel: 'high' },
+		}), /requires a model identifier/);
+		assert.throws(() => service.createNewSession(URI.parse('test:///folder'), {
+			modelId: 'model',
+			modelConfiguration: { thinkingLevel: 'high' },
+		}), /does not support model configuration/);
 	});
 
 	test('createAndSendNewChatRequest rejects canonical Automation templates for providers without restoration support', async () => {
@@ -3258,6 +3452,59 @@ suite('SessionsManagementService', () => {
 			newSession: undefined,
 			calls: ['createQuickChat:test', 'setModel:gpt-4o', 'send'],
 		});
+	});
+
+	for (const quickChat of [false, true]) {
+		test(`background creation awaits preparation before sending (${quickChat ? 'quick chat' : 'workspace'})`, async () => {
+			const session = stubSession({ sessionId: 'prepared', providerId: 'test' });
+			const preparing = new DeferredPromise<void>();
+			const prepared = new DeferredPromise<void>();
+			const calls: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override readonly supportsQuickChats = true;
+				override createQuickChat(): ISession { return session; }
+				override resolveWorkspace(uri: URI): ISessionWorkspace {
+					return { uri, label: 'Workspace', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+				}
+				override async sendRequest(): Promise<ISession> { calls.push('send'); return session; }
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+			const options: ICreateNewSessionOptions = {
+				providerId: 'test',
+				onSessionCreated: async () => {
+					calls.push('prepare');
+					await preparing.complete();
+					await prepared.p;
+					calls.push('prepared');
+				},
+			};
+			const operation = quickChat
+				? service.createAndSendQuickChatRequest({ query: 'Test' }, options)
+				: service.createAndSendNewChatRequest(URI.file('/workspace'), { query: 'Test' }, options);
+			await preparing.p;
+			await timeout(0);
+			assert.deepStrictEqual(calls, ['prepare']);
+			await prepared.complete();
+			await operation;
+			assert.deepStrictEqual(calls, ['prepare', 'prepared', 'send']);
+		});
+	}
+
+	test('quick-chat preparation failures discard the draft before sending', async () => {
+		const session = stubSession({ sessionId: 'failed-preparation', providerId: 'test' });
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override createQuickChat(): ISession { return session; }
+			override deleteNewSession(): void { calls.push('delete'); }
+			override async sendRequest(): Promise<ISession> { calls.push('send'); return session; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		await assert.rejects(service.createAndSendQuickChatRequest({ query: 'Test' }, {
+			providerId: 'test',
+			onSessionCreated: async () => { throw new Error('Preparation failed'); },
+		}), /Preparation failed/);
+		assert.deepStrictEqual(calls, ['delete']);
 	});
 
 	test('createAndSendQuickChatRequest cancels commit detection and disposes the provisional draft', async () => {
@@ -3782,6 +4029,34 @@ suite('SessionsManagementService', () => {
 		});
 
 		assert.deepStrictEqual({ providerId: result?.providerId, sent }, { providerId: 'test', sent: true });
+	});
+
+	test('an explicit false worktree flag rejects unsupported folder requests before creation', async () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		let created = false;
+		let sent = false;
+		const provider = new class extends TestSessionsProvider {
+			override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'test', label: 'Test', icon: Codicon.vm }];
+			override resolveWorkspace(uri: URI): ISessionWorkspace {
+				return { uri, label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+			override createNewSession(): ISession {
+				created = true;
+				return session;
+			}
+			override async sendRequest(): Promise<ISession> {
+				sent = true;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		await assert.rejects(service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
+			providerId: provider.id,
+			sessionTypeId: 'test',
+			isolationMode: 'workspace',
+			worktreeCreateNewBranch: false,
+		}), /does not support worktree configuration/);
+		assert.deepStrictEqual({ created, sent }, { created: false, sent: false });
 	});
 
 	test('createAndSendNewChatRequest disposes stranded draft when a setter throws', async () => {

@@ -15,7 +15,7 @@ import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/bu
 import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import type { IProductService } from '../../../product/common/productService.js';
-import { getWorkingDirectoryKey } from '../agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../agentHostWorkingDirectories.js';
 import { isAgentWorkspaceContinuationMessage } from '../meta/agentWorkspaceContinuationMeta.js';
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
 import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
@@ -1394,6 +1394,12 @@ export type SessionSummaryMeta = Record<string, unknown>;
  */
 export const SESSION_META_GIT_KEY = 'git';
 
+/** Reserved key for Git state keyed by normalized working-directory scope. */
+export const SESSION_META_GIT_DATA_KEY = 'gitData';
+
+/** Host-authored scope ids keyed by their exact backend working-directory list. */
+export const SESSION_META_WORKING_DIRECTORY_SCOPE_IDS_KEY = 'workingDirectoryScopeIds';
+
 /**
  * Reserved key under {@link SessionMeta} for a single {@link ISessionGitHubState}
  * describing the session folder. It is never written to session state: clients
@@ -1413,7 +1419,7 @@ export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
 
 export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
 
-/** Reserved key for whether a session was first discovered in a provider-native catalog. */
+/** Reserved key for whether a provider-native session has not yet been adopted. */
 export const SESSION_META_EXTERNAL_KEY = 'vscode.external';
 
 const MAX_WORKSPACE_FILE_LENGTH = 4096;
@@ -1586,6 +1592,8 @@ export function withSessionFolderPickerDecision(meta: SessionMeta | undefined, d
  * "unknown" from "known to be zero".
  */
 export interface ISessionGitState {
+	/** Whether the working directory has any Git remote. */
+	readonly hasGitRemote?: boolean;
 	/** Whether the working directory has a `github.com` git remote. */
 	readonly hasGitHubRemote?: boolean;
 	/** Current branch name. */
@@ -1789,24 +1797,14 @@ export function withInitialSessionPullRequest(gitHubState: ISessionGitHubState |
 	};
 }
 
-/**
- * Reads the well-known git-state payload from {@link SessionMeta}, if
- * present. Returns `undefined` when the meta bag is absent or the value at
- * the git key is not a plain object (e.g. an array or a primitive).
- * Individual fields with wrong types are silently dropped so partial state
- * still propagates.
- *
- * Unlike the other typed readers, this takes the raw {@link SessionMeta} value
- * rather than its parent {@link SessionState}: the sessions provider stores and
- * reads a detached meta snapshot without retaining the owning state.
- */
-export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitState | undefined {
-	const value = meta?.[SESSION_META_GIT_KEY];
+/** Parses a Git state payload, dropping fields with invalid types. */
+export function parseSessionGitState(value: unknown): ISessionGitState | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
 	}
 	const raw = value as Record<string, unknown>;
 	const result: {
+		hasGitRemote?: boolean;
 		hasGitHubRemote?: boolean;
 		branchName?: string;
 		isDetachedHead?: boolean;
@@ -1820,6 +1818,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 		githubHeadOwner?: string;
 		githubRepo?: string;
 	} = {};
+	if (typeof raw['hasGitRemote'] === 'boolean') { result.hasGitRemote = raw['hasGitRemote']; }
 	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
 	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
@@ -1833,6 +1832,11 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	if (typeof raw['githubHeadOwner'] === 'string') { result.githubHeadOwner = raw['githubHeadOwner']; }
 	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }
 	return result;
+}
+
+/** Reads the well-known Git state payload from {@link SessionMeta}. */
+export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitState | undefined {
+	return parseSessionGitState(meta?.[SESSION_META_GIT_KEY]);
 }
 
 /**
@@ -1867,6 +1871,88 @@ export function withSessionGitState(meta: SessionMeta | undefined, gitState: ISe
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
+/** Parses Git state keyed by normalized working-directory scope. */
+export function parseSessionGitData(value: unknown): ReadonlyMap<string, ISessionGitState> {
+	const states = new Map<string, ISessionGitState>();
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return states;
+	}
+
+	for (const [scopeId, raw] of Object.entries(value)) {
+		const state = parseSessionGitState(raw);
+		if (state) {
+			states.set(scopeId, state);
+		}
+	}
+	return states;
+}
+
+function parseStringMap(value: unknown): ReadonlyMap<string, string> {
+	const entries = new Map<string, string>();
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return entries;
+	}
+	for (const [key, raw] of Object.entries(value)) {
+		if (typeof raw === 'string') {
+			entries.set(key, raw);
+		}
+	}
+	return entries;
+}
+
+/** Reads Git state keyed by normalized working-directory scope. */
+export function readSessionGitData(meta: SessionSummaryMeta | undefined): ReadonlyMap<string, ISessionGitState> {
+	return parseSessionGitData(meta?.[SESSION_META_GIT_DATA_KEY]);
+}
+
+export function readWorkingDirectoryScopeIds(meta: SessionSummaryMeta | undefined): ReadonlyMap<string, string> {
+	return parseStringMap(meta?.[SESSION_META_WORKING_DIRECTORY_SCOPE_IDS_KEY]);
+}
+
+function workingDirectoryScopeKey(workingDirectories: readonly string[]): string {
+	return JSON.stringify(workingDirectories);
+}
+
+export function readWorkingDirectoryScopeId(meta: SessionSummaryMeta | undefined, workingDirectories: readonly string[]): string {
+	return readWorkingDirectoryScopeIds(meta).get(workingDirectoryScopeKey(workingDirectories)) ?? getWorkingDirectoryScopeId(workingDirectories);
+}
+
+export function withWorkingDirectoryScopeId(meta: SessionSummaryMeta | undefined, workingDirectories: readonly string[], scopeId = getWorkingDirectoryScopeId(workingDirectories)): SessionSummaryMeta | undefined {
+	const scopes = new Map(readWorkingDirectoryScopeIds(meta));
+	scopes.set(workingDirectoryScopeKey(workingDirectories), scopeId);
+	const next: SessionSummaryMeta = { ...meta };
+	next[SESSION_META_WORKING_DIRECTORY_SCOPE_IDS_KEY] = Object.fromEntries(scopes);
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Reads the Git state recorded for one normalized working-directory scope. */
+export function readFolderScopeGitState(meta: SessionSummaryMeta | undefined, scopeId: string): ISessionGitState | undefined {
+	return readSessionGitData(meta).get(scopeId);
+}
+
+/** Returns `meta` with the Git state for one normalized working-directory scope replaced. */
+export function withFolderScopeGitState(meta: SessionSummaryMeta | undefined, scopeId: string, gitState: ISessionGitState | undefined, workingDirectories?: readonly string[]): SessionSummaryMeta | undefined {
+	const scopes = new Map(readSessionGitData(meta));
+	if (gitState !== undefined) {
+		scopes.set(scopeId, gitState);
+	} else {
+		scopes.delete(scopeId);
+	}
+	const next = withSessionGitData(meta, scopes);
+	return workingDirectories ? withWorkingDirectoryScopeId(next, workingDirectories, scopeId) : next;
+}
+
+/** Returns `meta` with all normalized working-directory Git states replaced. */
+export function withSessionGitData(meta: SessionSummaryMeta | undefined, scopes: ReadonlyMap<string, ISessionGitState>): SessionSummaryMeta | undefined {
+	const next: SessionSummaryMeta = { ...meta };
+	if (scopes.size > 0) {
+		next[SESSION_META_GIT_DATA_KEY] = Object.fromEntries(scopes);
+	} else {
+		delete next[SESSION_META_GIT_DATA_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
 /**
  * Reserved key under {@link SessionSummaryMeta} holding the GitHub and pull
  * request state of each session folder, keyed by working-directory key (see
@@ -1875,6 +1961,9 @@ export function withSessionGitState(meta: SessionMeta | undefined, gitState: ISe
  * Code-specific convention layered on top of the protocol's generic `_meta` bag.
  */
 export const SESSION_META_GITHUB_DATA_KEY = 'githubData';
+
+/** Host-authored folder keys keyed by their exact backend working directory. */
+export const SESSION_META_WORKING_DIRECTORY_KEYS_KEY = 'workingDirectoryKeys';
 
 /**
  * Parses a GitHub state payload. Returns `undefined` when the value is not a
@@ -1950,6 +2039,22 @@ export function readSessionGitHubData(meta: SessionSummaryMeta | undefined): Rea
 	return parseSessionGitHubData(meta?.[SESSION_META_GITHUB_DATA_KEY]);
 }
 
+export function readWorkingDirectoryKeys(meta: SessionSummaryMeta | undefined): ReadonlyMap<string, string> {
+	return parseStringMap(meta?.[SESSION_META_WORKING_DIRECTORY_KEYS_KEY]);
+}
+
+export function readWorkingDirectoryKey(meta: SessionSummaryMeta | undefined, workingDirectory: string): string {
+	return readWorkingDirectoryKeys(meta).get(workingDirectory) ?? getWorkingDirectoryKey(workingDirectory);
+}
+
+export function withWorkingDirectoryKey(meta: SessionSummaryMeta | undefined, workingDirectory: string, folderKey = getWorkingDirectoryKey(workingDirectory)): SessionSummaryMeta | undefined {
+	const folders = new Map(readWorkingDirectoryKeys(meta));
+	folders.set(workingDirectory, folderKey);
+	const next: SessionSummaryMeta = { ...meta };
+	next[SESSION_META_WORKING_DIRECTORY_KEYS_KEY] = Object.fromEntries(folders);
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
 /** Reads the GitHub state of the folder with working-directory key `folderKey`. */
 export function readFolderGitHubState(meta: SessionSummaryMeta | undefined, folderKey: string | undefined): ISessionGitHubState | undefined {
 	return folderKey === undefined ? undefined : readSessionGitHubData(meta).get(folderKey);
@@ -1957,7 +2062,7 @@ export function readFolderGitHubState(meta: SessionSummaryMeta | undefined, fold
 
 /** Reads the GitHub state of the session folder, the session's first working directory. */
 export function readSessionGitHubState(meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined): ISessionGitHubState | undefined {
-	return readFolderGitHubState(meta, sessionWorkingDirectory === undefined ? undefined : getWorkingDirectoryKey(sessionWorkingDirectory));
+	return readFolderGitHubState(meta, sessionWorkingDirectory === undefined ? undefined : readWorkingDirectoryKey(meta, sessionWorkingDirectory));
 }
 
 /**
@@ -1966,7 +2071,7 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined, ses
  * Returns `meta` unchanged when `folderKey` is `undefined`, and `undefined` if
  * the result would be empty.
  */
-export function withFolderGitHubState(meta: SessionSummaryMeta | undefined, folderKey: string | undefined, gitHubState: ISessionGitHubState | undefined): SessionSummaryMeta | undefined {
+export function withFolderGitHubState(meta: SessionSummaryMeta | undefined, folderKey: string | undefined, gitHubState: ISessionGitHubState | undefined, workingDirectory?: string): SessionSummaryMeta | undefined {
 	if (folderKey === undefined) {
 		return meta;
 	}
@@ -1976,7 +2081,8 @@ export function withFolderGitHubState(meta: SessionSummaryMeta | undefined, fold
 	} else {
 		folders.delete(folderKey);
 	}
-	return withSessionGitHubData(meta, folders);
+	const next = withSessionGitHubData(meta, folders);
+	return workingDirectory ? withWorkingDirectoryKey(next, workingDirectory, folderKey) : next;
 }
 
 /**
@@ -2066,7 +2172,7 @@ export function withReplacedFolderGitHubState(meta: SessionSummaryMeta | undefin
 	if (!next.has(toKey)) {
 		next.set(toKey, state);
 	}
-	return withSessionGitHubData(meta, next);
+	return withWorkingDirectoryKey(withSessionGitHubData(meta, next), replacement, toKey);
 }
 
 /**
@@ -2260,20 +2366,14 @@ export function withSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | un
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
-/** Whether the session was first discovered in a provider-native catalog. */
+/** Whether a provider-native session has not yet been adopted by the host. */
 export function readSessionExternal(meta: SessionSummaryMeta | undefined): boolean {
 	return meta?.[SESSION_META_EXTERNAL_KEY] === true;
 }
 
-/** Returns a copy of `meta` with the external-session provenance marker updated. */
-export function withSessionExternal(meta: SessionSummaryMeta | undefined, external: boolean): SessionSummaryMeta | undefined {
-	const next: { [key: string]: unknown } = { ...meta };
-	if (external) {
-		next[SESSION_META_EXTERNAL_KEY] = true;
-	} else {
-		delete next[SESSION_META_EXTERNAL_KEY];
-	}
-	return Object.keys(next).length > 0 ? next : undefined;
+/** Writes an explicit external flag so clearing it survives serialization and metadata-only refreshes. */
+export function withSessionExternal(meta: SessionSummaryMeta | undefined, external: boolean): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_EXTERNAL_KEY]: external };
 }
 
 /**

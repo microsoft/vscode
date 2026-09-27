@@ -76,7 +76,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return this.labelService.getUriBasenameLabel(override);
 			}
 			const session = this.sessionsService.activeSession.read(reader);
-			return session?.activeChat.read(reader).workspace.read(reader)?.folders[0]?.name;
+			const workspace = session?.activeChat.read(reader).workspace.read(reader);
+			return workspace?.isVirtualWorkspace ? workspace.label : workspace?.folders[0]?.name;
 		});
 
 		this.hasOverrideProjectRoot = derived(reader => {

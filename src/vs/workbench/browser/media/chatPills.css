@@ -96,14 +96,6 @@
 	flex-shrink: 0;
 }
 
-.chat-pill-added {
-	color: var(--vscode-chat-linesAddedForeground);
-}
-
-.chat-pill-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
-}
-
 /* Section-backed pills (artifacts, customizations, browsers, subagents) can
 	carry a long entry label, so they cap their width and ellipsize rather than
 	pushing their neighbours out of the row. */
@@ -259,6 +251,7 @@
 	pill renderers keep their identifying icon while labels, counters and dropdown
 	chevrons remain available through the button's tooltip and accessible name. */
 .chat-pills-row.compact .chat-pill-label,
+.chat-pills-row.compact .changes-stats-files,
 .chat-pills-row.compact .monaco-animated-counter,
 .chat-pills-row.compact .chat-pill-chevron,
 .chat-pills-row.compact .chat-resource-pill-button .monaco-icon-label {

@@ -77,20 +77,26 @@ export class GitHubApiClient extends Disposable {
 	}
 
 	get enterpriseHost(): string | undefined {
-		return this._getConnection().endpoints.enterpriseHost;
+		return this._getConnection()?.endpoints.enterpriseHost;
 	}
 
 	async authenticate(scopes: readonly string[], token: CancellationToken): Promise<void> {
-		await this._getAuthToken(this._getConnection().authenticationProviderId, true, token, scopes);
+		await this._getAuthToken(this._defaultAccountService.getDefaultAccountAuthenticationProvider().id, true, token, scopes);
 	}
 
 	async request<T>(method: string, path: string, callSite: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
 		const connection = this._getConnection();
+		if (!connection) {
+			throw new GitHubAuthenticationError();
+		}
 		return this._request<T>(method, `${connection.endpoints.apiBaseUri}${path}`, path, 'application/vnd.github.v3+json', callSite, connection.authenticationProviderId, options);
 	}
 
 	async graphql<T>(query: string, callSite: string, variables?: Record<string, unknown>, options?: Pick<IGitHubApiRequestOptions, 'token' | 'createAuthenticationSession'>): Promise<T> {
 		const connection = this._getConnection();
+		if (!connection) {
+			throw new GitHubAuthenticationError();
+		}
 		const response = await this._request<IGitHubGraphQLResponse<T>>(
 			'POST',
 			connection.endpoints.graphQlUri,
@@ -116,9 +122,12 @@ export class GitHubApiClient extends Disposable {
 		return response.data.data;
 	}
 
-	private _getConnection(): { readonly authenticationProviderId: string; readonly endpoints: IGitHubEndpoints } {
+	private _getConnection(): { readonly authenticationProviderId: string; readonly endpoints: IGitHubEndpoints } | undefined {
 		const authenticationProvider = this._defaultAccountService.getDefaultAccountAuthenticationProvider();
 		const enterpriseUri = authenticationProvider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined;
+		if (authenticationProvider.enterprise && !enterpriseUri) {
+			return undefined;
+		}
 		return {
 			authenticationProviderId: authenticationProvider.id,
 			endpoints: deriveGitHubEndpoints(enterpriseUri),
