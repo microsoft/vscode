@@ -25,6 +25,7 @@ import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
+import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -33,7 +34,7 @@ suite('agentHostBootstrap', () => {
 		const testDisposables = disposables.add(new DisposableStore());
 		const userDataPath = mkdtempSync(join(tmpdir(), 'agent-host-bootstrap-'));
 		mkdirSync(join(userDataPath, 'User', 'globalStorage'), { recursive: true });
-		testDisposables.add(toDisposable(() => rmSync(userDataPath, { recursive: true, force: true })));
+		disposables.add(toDisposable(() => rmSync(userDataPath, { recursive: true, force: true })));
 		const productService = { _serviceBrand: undefined, ...product };
 		const environmentService = new NativeEnvironmentService(parseArgs(['--user-data-dir', userDataPath, '--force-disable-user-env'], OPTIONS), productService);
 		const timings: ITelemetryData[] = [];
@@ -58,41 +59,47 @@ suite('agentHostBootstrap', () => {
 			byok: { kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() },
 		});
 		testDisposables.add(runtime);
-		runtime.agentService.markStartupComplete('error');
-		await runtime.agentService.listSessions();
-		await runtime.agentService.whenDeferredWorkSettled();
+		const database = runtime.instantiationService.invokeFunction(accessor => accessor.get(IAgentHostDatabase));
+		try {
+			runtime.agentService.markStartupComplete('error');
+			await runtime.agentService.listSessions();
+			await runtime.agentService.whenDeferredWorkSettled();
 
-		// Whole-graph dependency completeness is checked statically in
-		// agentHostServices.test.ts without forcing every descriptor to construct.
-		const startupPerformance = runtime.instantiationService.invokeFunction(accessor => accessor.get(IAgentHostStartupPerformance));
-		assert.deepStrictEqual({
-			services: runtime.instantiationService.invokeFunction(accessor => [
-				accessor.get(IAgentSdkDownloader) !== undefined,
-				accessor.get(IAgentHostCheckpointService) !== undefined,
-				accessor.get(IAgentHostReviewService) !== undefined,
-			]),
-			markers: timings.map(timing => [timing.name, timing.since, timing.outcome]),
-			correlated: timings.every(timing => timing.agentHostSessionId === startupPerformance.agentHostSessionId),
-			validTimings: timings.every(timing => typeof timing.timestampMs === 'number' && timing.timestampMs >= 0
-				&& (timing.since === undefined ? timing.durationMs === undefined : typeof timing.durationMs === 'number' && timing.durationMs >= 0)),
-		}, {
-			services: [true, true, true],
-			markers: [
-				['processStart', undefined, undefined],
-				['bootstrapStart', undefined, undefined],
-				['configuration', 'bootstrapStart', undefined],
-				['telemetry', 'configuration', undefined],
-				['services', 'telemetry', undefined],
-				['bootstrap', 'processStart', undefined],
-				['hostReady', 'processStart', 'error'],
-				['sessionListStart', undefined, undefined],
-				['sessionList', 'sessionListStart', 'success'],
-				['firstSessionList', 'processStart', undefined],
-				['startupSettled', 'processStart', undefined],
-			],
-			correlated: true,
-			validTimings: true,
-		});
+			// Whole-graph dependency completeness is checked statically in
+			// agentHostServices.test.ts without forcing every descriptor to construct.
+			const startupPerformance = runtime.instantiationService.invokeFunction(accessor => accessor.get(IAgentHostStartupPerformance));
+			assert.deepStrictEqual({
+				services: runtime.instantiationService.invokeFunction(accessor => [
+					accessor.get(IAgentSdkDownloader) !== undefined,
+					accessor.get(IAgentHostCheckpointService) !== undefined,
+					accessor.get(IAgentHostReviewService) !== undefined,
+				]),
+				markers: timings.map(timing => [timing.name, timing.since, timing.outcome]),
+				correlated: timings.every(timing => timing.agentHostSessionId === startupPerformance.agentHostSessionId),
+				validTimings: timings.every(timing => typeof timing.timestampMs === 'number' && timing.timestampMs >= 0
+					&& (timing.since === undefined ? timing.durationMs === undefined : typeof timing.durationMs === 'number' && timing.durationMs >= 0)),
+			}, {
+				services: [true, true, true],
+				markers: [
+					['processStart', undefined, undefined],
+					['bootstrapStart', undefined, undefined],
+					['configuration', 'bootstrapStart', undefined],
+					['telemetry', 'configuration', undefined],
+					['services', 'telemetry', undefined],
+					['bootstrap', 'processStart', undefined],
+					['hostReady', 'processStart', 'error'],
+					['sessionListStart', undefined, undefined],
+					['sessionList', 'sessionListStart', 'success'],
+					['firstSessionList', 'processStart', undefined],
+					['startupSettled', 'processStart', undefined],
+				],
+				correlated: true,
+				validTimings: true,
+			});
+		} finally {
+			runtime.dispose();
+			await database.close();
+		}
 	});
 
 	test('loads standalone proxy configuration before resolver construction', () => {
