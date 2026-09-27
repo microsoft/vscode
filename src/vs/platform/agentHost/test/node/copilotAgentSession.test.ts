@@ -8231,8 +8231,8 @@ suite('CopilotAgentSession', () => {
 				sandboxPolicy.allowOutbound = true;
 				await session.send('second', undefined, 'turn-2');
 				assert.deepStrictEqual({ denied, allowed: mockSession.sandboxConfigUpdates.at(-1) }, {
-					denied: { enabled: true, allowBypass: false, userPolicy: { filesystem: {}, network: { allowOutbound: false } } },
-					allowed: { enabled: true, allowBypass: false, userPolicy: { filesystem: {}, network: { allowOutbound: true } } },
+					denied: { enabled: true, allowBypass: false, userPolicy: { filesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR] }, network: { allowOutbound: false } } },
+					allowed: { enabled: true, allowBypass: false, userPolicy: { filesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR] }, network: { allowOutbound: true } } },
 				});
 			});
 		}
@@ -19738,7 +19738,6 @@ Use the attached image as context.
 			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
 			assert.deepStrictEqual(sandboxConfig?.userPolicy?.filesystem, {
 				readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR],
-				clearPolicyOnExit: true,
 			});
 		});
 
@@ -19754,7 +19753,6 @@ Use the attached image as context.
 			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
 			assert.deepStrictEqual(sandboxConfig?.userPolicy?.filesystem, {
 				readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR, TEST_SHELL_INIT_DIR],
-				clearPolicyOnExit: true,
 			});
 		});
 
