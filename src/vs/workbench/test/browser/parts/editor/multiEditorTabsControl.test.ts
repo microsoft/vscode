@@ -1106,17 +1106,17 @@ suite('MultiEditorTabsControl', () => {
 				stripHeight: strip.getBoundingClientRect().height,
 				wrapping: strip.classList.contains('wrapping'),
 				upperRow: tab.classList.contains('connected-tab-upper-row'),
-				gap: strip.getBoundingClientRect().bottom - (fill.getBoundingClientRect().bottom - parseFloat(fillStyle.borderBottomWidth)),
+				gap: strip.getBoundingClientRect().bottom - fill.getBoundingClientRect().bottom,
 				clippingGap: strip.getBoundingClientRect().bottom - clippingBottom,
 				bottomRadius: fillStyle.borderBottomRightRadius,
 				shoulder: mainWindow.getComputedStyle(fill, '::after').content,
-				visibleHeights: fills.map(rect => Math.min(rect.bottom, clippingBottom) - rect.top),
+				fillHeights: fills.map(rect => rect.bottom - rect.top),
 				rowGap: fills[1].top - fills[0].bottom,
 			});
 		}
 		assert.deepStrictEqual(measurements, [
-			{ tabHeight: 'default', stripHeight: 58, wrapping: true, upperRow: false, gap: -1, clippingGap: 0, bottomRadius: '0px', shoulder: '""', visibleHeights: [28, 28], rowGap: 2 },
-			{ tabHeight: 'compact', stripHeight: 50, wrapping: true, upperRow: false, gap: -1, clippingGap: 0, bottomRadius: '0px', shoulder: '""', visibleHeights: [24, 24], rowGap: 2 },
+			{ tabHeight: 'default', stripHeight: 58, wrapping: true, upperRow: false, gap: 0, clippingGap: 0, bottomRadius: '0px', shoulder: '""', fillHeights: [28, 28], rowGap: 2 },
+			{ tabHeight: 'compact', stripHeight: 50, wrapping: true, upperRow: false, gap: 0, clippingGap: 0, bottomRadius: '0px', shoulder: '""', fillHeights: [24, 24], rowGap: 2 },
 		]);
 	});
 
@@ -1191,6 +1191,7 @@ suite('MultiEditorTabsControl', () => {
 
 		const [activeTab, inactiveTab] = container.querySelectorAll<HTMLElement>('.tabs-container > .tab');
 		const activeFillStyle = mainWindow.getComputedStyle(activeTab.querySelector<HTMLElement>('.tab-fill')!);
+		const activeEdgeStyle = mainWindow.getComputedStyle(activeTab.querySelector<HTMLElement>('.tab-connected-edge')!);
 		const inactiveFillStyle = mainWindow.getComputedStyle(inactiveTab.querySelector<HTMLElement>('.tab-fill')!);
 		const row = container.querySelector<HTMLElement>('.tabs-and-actions-container')!;
 		const rowStyle = mainWindow.getComputedStyle(row);
@@ -1200,13 +1201,15 @@ suite('MultiEditorTabsControl', () => {
 
 		assert.deepStrictEqual({
 			active: { top: activeFillStyle.top, left: activeFillStyle.left, right: activeFillStyle.right, bottom: activeFillStyle.bottom },
+			activeEdgeBottom: activeEdgeStyle.bottom,
 			inactive: { top: inactiveFillStyle.top, left: inactiveFillStyle.left, right: inactiveFillStyle.right, bottom: inactiveFillStyle.bottom },
 			alignItems: rowStyle.alignItems,
 			editorActionsHeight: editorActionsStyle.height,
 			rowPaddingLeft: rowStyle.paddingLeft,
 			rowPaddingTop: rowStyle.paddingTop,
 		}, {
-			active: { top: '0px', left: '0px', right: '0px', bottom: '-2px' },
+			active: { top: '0px', left: '0px', right: '0px', bottom: '-1px' },
+			activeEdgeBottom: '-1px',
 			inactive: { top: '0px', left: '0px', right: '0px', bottom: '-1px' },
 			alignItems: 'flex-start',
 			editorActionsHeight: '32px',
