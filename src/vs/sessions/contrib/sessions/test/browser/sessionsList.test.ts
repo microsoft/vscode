@@ -868,6 +868,34 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('row feedback', () => {
+		test('keeps custom group toolbar at the trailing edge', () => {
+			const group: ISessionGroup = { id: 'group', name: 'Custom Group', createdAt: 1 };
+			const session = createTestSession('session').session;
+			const harness = createListHarness(disposables, [session], {
+				groups: [group],
+				memberships: new Map([[session.sessionId, group.id]]),
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1000, 400);
+
+			const groupHeader = container.querySelector<HTMLElement>('.session-group');
+			const labelContainer = groupHeader?.querySelector<HTMLElement>('.session-section-label-container');
+			assert.deepStrictEqual({
+				labelContainerParent: labelContainer.parentElement?.classList.contains('session-group'),
+				labelParent: labelContainer.querySelector('.session-section-label')?.parentElement?.classList.contains('session-section-label-container'),
+				flexGrow: mainWindow.getComputedStyle(labelContainer).flexGrow,
+			}, {
+				labelContainerParent: true,
+				labelParent: true,
+				flexGrow: '1',
+			});
+		});
+
 		test('aligns workspace and custom group rows with session rows', () => {
 			const group: ISessionGroup = { id: 'group', name: 'Custom Group', createdAt: 1 };
 			const sessions = Array.from({ length: 6 }, (_, index) => {
