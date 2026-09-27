@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import type { AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
 import { l10n, Uri } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
-import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
@@ -40,6 +40,7 @@ import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsMan
 import { ChatSessionContentBuilder } from './copilotCloudSessionContentBuilder';
 import { StreamBaseline, TaskTurnStreamer } from './taskTurnStreamer';
 import { CloudBackendInstrumentation } from './cloudBackendTelemetry';
+import { CloudTaskOwnership } from './cloudTaskOwnership';
 import { parseRepoFromTaskUrl, TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
 import { resolvePullArtifact } from './pullArtifactResolver';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
@@ -188,27 +189,94 @@ export function getCloudSessionItemMetadata(repo: CloudSessionData['repo'], diff
 	};
 }
 
+/** Core setting that controls which external sessions are listed. */
+export const SHOW_EXTERNAL_SESSIONS_SETTING = 'chat.agentSessions.showExternal';
+
+/** Values of {@link SHOW_EXTERNAL_SESSIONS_SETTING}. */
+export type ExternalSessionsMode = 'none' | 'recent' | 'last24Hours' | 'last7Days' | 'last30Days';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const RECENT_EXTERNAL_SESSION_LIMIT = 2;
+const RECENT_INTERNAL_SESSION_LIMIT = 2;
+
+export function readExternalSessionsMode(value: unknown): ExternalSessionsMode {
+	switch (value) {
+		case 'none':
+		case 'recent':
+		case 'last24Hours':
+		case 'last7Days':
+		case 'last30Days':
+			return value;
+		case 'all':
+			return 'last30Days';
+		default:
+			return 'recent';
+	}
+}
+
+function getLastActivity(session: CloudSessionData): number {
+	return Date.parse(session.updatedAt ?? session.completedAt ?? session.createdAt);
+}
+
+/**
+ * Activity time of the second most recently active session that was started or adopted from
+ * VS Code. Under the `recent` mode, older external sessions are superseded by these sessions.
+ */
+export function getRecentInternalActivityCutoff(sessions: readonly CloudSessionData[], isExternal: (taskId: string) => boolean): number | undefined {
+	return sessions
+		.filter(session => !isExternal(session.taskId))
+		.map(getLastActivity)
+		.filter(Number.isFinite)
+		.sort((a, b) => b - a)[RECENT_INTERNAL_SESSION_LIMIT - 1];
+}
+
+export interface ICloudSessionVisibilityOptions {
+	readonly mode: ExternalSessionsMode;
+	readonly isExternal: (taskId: string) => boolean;
+	/** See {@link getRecentInternalActivityCutoff}. */
+	readonly recentInternalActivityCutoff: number | undefined;
+}
+
+/**
+ * Sessions started or adopted from VS Code are always visible. External sessions follow
+ * {@link SHOW_EXTERNAL_SESSIONS_SETTING}, matching the Agent Host's external session catalog.
+ * `expiresAt` is the earliest time at which a visible session ages out of the mode.
+ */
 export function filterCloudSessions(
 	sessions: readonly CloudSessionData[],
-	visibility: ConfigKey.CloudSessionVisibilityValue,
+	{ mode, isExternal, recentInternalActivityCutoff }: ICloudSessionVisibilityOptions,
 	logService: ILogService,
 	now: number = Date.now(),
 ): { readonly sessions: readonly CloudSessionData[]; readonly expiresAt: number } {
-	if (visibility === 'all') {
-		return { sessions, expiresAt: Infinity };
-	}
+	const maxAge = mode === 'last24Hours' ? DAY_MS : mode === 'last30Days' ? 30 * DAY_MS : 7 * DAY_MS;
+	const recentTaskIds = mode === 'recent'
+		? new Set(sessions
+			.filter(session => {
+				const lastActivity = getLastActivity(session);
+				return isExternal(session.taskId)
+					&& lastActivity >= now - maxAge
+					&& (recentInternalActivityCutoff === undefined || lastActivity >= recentInternalActivityCutoff);
+			})
+			.sort((a, b) => getLastActivity(b) - getLastActivity(a) || a.taskId.localeCompare(b.taskId))
+			.slice(0, RECENT_EXTERNAL_SESSION_LIMIT)
+			.map(session => session.taskId))
+		: undefined;
 
-	const days = { '24hours': 1, '7days': 7, '30days': 30, '90days': 90 }[visibility];
-	const maxAge = days * 24 * 60 * 60 * 1000;
 	let expiresAt = Infinity;
 	const visibleSessions = sessions.filter(session => {
-		const lastActivity = Date.parse(session.updatedAt ?? session.completedAt ?? session.createdAt);
+		if (!isExternal(session.taskId)) {
+			return true;
+		}
+		if (mode === 'none') {
+			return false;
+		}
+		const lastActivity = getLastActivity(session);
 		if (!Number.isFinite(lastActivity)) {
 			logService.warn(`Cannot determine the last activity of cloud task ${session.taskId}; keeping it visible.`);
 			return true;
 		}
 		const expiry = lastActivity + maxAge;
-		if (expiry < now) {
+		if (expiry < now || (recentTaskIds && !recentTaskIds.has(session.taskId))) {
 			return false;
 		}
 		expiresAt = Math.min(expiresAt, expiry);
@@ -495,6 +563,13 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	private readonly WORKSPACE_CONTEXT_PREFIX = 'copilot.cloudAgent';
 
 	private readonly _backend: CloudAgentBackend;
+	private readonly _ownership: CloudTaskOwnership;
+	/**
+	 * {@link getRecentInternalActivityCutoff} snapshotted at the first listing, like the Agent Host's
+	 * startup snapshot, so sessions started or adopted later do not hide external sessions that
+	 * are already listed.
+	 */
+	private _recentInternalActivityCutoff: { readonly value: number | undefined } | undefined;
 
 	constructor(
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
@@ -520,11 +595,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		const instrumentation = new CloudBackendInstrumentation(this.telemetry, this._otelService);
 		const taskApiClient = new TaskApiHttpClient(capiClientService, this._authenticationService, this.logService);
 		this._backend = new TaskApiBackend(taskApiClient, this.logService, this._octoKitService, instrumentation);
+		this._ownership = new CloudTaskOwnership(this._extensionContext.globalState);
 
 		this.registerCommands();
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ConfigKey.CloudSessionVisibility.fullyQualifiedId)) {
+			if (e.affectsConfiguration(SHOW_EXTERNAL_SESSIONS_SETTING)) {
 				this.refresh();
 			}
 		}));
@@ -1334,7 +1410,15 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 	private async fetchSessionList(repoIds: GithubRepoId[] | undefined) {
 		const sessions = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace);
-		return filterCloudSessions(sessions, this._configurationService.getConfig(ConfigKey.CloudSessionVisibility), this.logService);
+		const ownedTaskIds = this._ownership.getOwnedTaskIds();
+		const isExternal = (taskId: string) => !ownedTaskIds.has(taskId);
+		this._recentInternalActivityCutoff ??= { value: getRecentInternalActivityCutoff(sessions, isExternal) };
+		const visible = filterCloudSessions(sessions, {
+			mode: readExternalSessionsMode(this._configurationService.getNonExtensionConfig<unknown>(SHOW_EXTERNAL_SESSIONS_SETTING)),
+			isExternal,
+			recentInternalActivityCutoff: this._recentInternalActivityCutoff.value,
+		}, this.logService);
+		return { ...visible, isExternal };
 	}
 
 	async provideChatSessionItems(token: vscode.CancellationToken): Promise<vscode.ChatSessionItem[]> {
@@ -1356,7 +1440,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				this.logService.debug('copilotCloudSessionsProvider#provideChatSessionItems: not a GitHub repo, returning empty');
 				return [];
 			}
-			const { sessions: sessionList, expiresAt } = await this.fetchSessionList(repoIds);
+			const { sessions: sessionList, expiresAt, isExternal } = await this.fetchSessionList(repoIds);
 			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: fetched ${sessionList.length} grouped sessions`);
 			const validateISOTimestamp = (date: string | undefined): number | undefined => {
 				try {
@@ -1393,7 +1477,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					: entry.diffRefs
 						? await this._prFileChangesService.getComparisonChangedFiles(entry.diffRefs)
 						: undefined;
-				const metadata = getCloudSessionItemMetadata(entry.repo, entry.diffRefs, pr);
+				const repositoryMetadata = getCloudSessionItemMetadata(entry.repo, entry.diffRefs, pr);
+				// Tells the Agents window that the task was started outside VS Code and not adopted yet.
+				const metadata = isExternal(entry.taskId) ? { ...repositoryMetadata, external: true } : repositoryMetadata;
 
 				return {
 					...getCloudSessionResources(entry.taskId, pr?.number),
@@ -2334,6 +2420,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 	private async handleTaskFollowUp(taskId: string, prompt: string, stream: vscode.ChatResponseStream, token: vscode.CancellationToken, context: vscode.ChatContext): Promise<{}> {
 		const backend = this._backend;
+		// Sending a message adopts an external task. It stays adopted even if the message fails.
+		if (await this.recordTaskFromVSCode(taskId)) {
+			this.refresh();
+		}
 		// Active stream present: only POST the steer; that stream renders the injection (no second streamer).
 		if (this._activeTaskStreams.has(taskId)) {
 			stream.progress(vscode.l10n.t('Steering'));
@@ -2572,7 +2662,21 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			model: modelName && modelName !== DEFAULT_MODEL_ID ? modelName : undefined,
 			partnerAgentId,
 		});
+		await this.recordTaskFromVSCode(result.taskId);
 		this.refresh();
 		return result;
+	}
+
+	/**
+	 * Records a task started or messaged from VS Code so that it is not external. Returns whether
+	 * the task was external before. Failing to record must not fail the request.
+	 */
+	private async recordTaskFromVSCode(taskId: string): Promise<boolean> {
+		try {
+			return await this._ownership.record(taskId);
+		} catch (e) {
+			this.logService.warn(`Failed to record cloud task ${taskId} as started from VS Code: ${e}`);
+			return false;
+		}
 	}
 }

@@ -14,8 +14,6 @@ export { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from
  */
 export const NON_DEFERRED_CLIENT_TOOL_NAMES: ReadonlySet<string> = new Set<string>([
 	'runTests',
-	'rename',
-	'usages',
 	SEMANTIC_SEARCH_TOOL_NAME,
 ]);
 

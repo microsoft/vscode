@@ -58,6 +58,7 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
+import { filterBranchPickerItems } from './agentHostBranchPicker.js';
 import { retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
@@ -791,8 +792,8 @@ export class AgentHostChatInputPicker extends Disposable {
 		return undefined;
 	}
 
-	private async _getActionItems(property: string, schema: SessionConfigPropertySchema, value: unknown): Promise<IActionListItem<IConfigPickerItem>[]> {
-		const items = await this._getItems(schema, undefined, property);
+	private async _getActionItems(property: string, schema: SessionConfigPropertySchema, value: unknown, branchItems?: readonly IConfigPickerItem[]): Promise<IActionListItem<IConfigPickerItem>[]> {
+		const items = branchItems ?? await this._getItems(schema, undefined, property);
 		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService);
 		const actionItems = toActionItems(property, items, value, policyRestricted, this._getSandboxStandaloneToggle(property));
 		const permissionsLearnMoreUrl = getPermissionsLearnMoreUrl(property);
@@ -828,7 +829,10 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 
 		const anchor = trigger === this._trigger ? this._splitTrigger.value?.modeButton ?? trigger : trigger;
-		const modeItems = await this._getActionItems(this._property, ctx.schema, ctx.value);
+		const branches = this._property === SessionConfigKey.Branch && ctx.schema.enumDynamic
+			? await this._getItems(ctx.schema)
+			: undefined;
+		const modeItems = await this._getActionItems(this._property, ctx.schema, ctx.value, branches && filterBranchPickerItems(branches));
 		if (modeItems.length === 0) {
 			return;
 		}
@@ -870,13 +874,19 @@ export class AgentHostChatInputPicker extends Disposable {
 		const delegate: IActionListDelegate<IConfigPickerItem | IAction> = {
 			onSelect: item => hasKey(item, { run: true }) ? item.run() : this._selectItem(this._property, ctx, item),
 			onFilter: ctx.schema.enumDynamic
-				? query => this._filterDelayer.trigger(async () => {
+				? async query => {
 					const refreshed = this._readContext();
 					if (!refreshed || !this._isCurrentTarget(ctx)) {
 						return [];
 					}
-					return toActionItems(this._property, await this._getItems(refreshed.schema, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle());
-				})
+					if (branches) {
+						return toActionItems(this._property, filterBranchPickerItems(branches, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle());
+					}
+					return this._filterDelayer.trigger(async () => {
+						const items = await this._getItems(refreshed.schema, query);
+						return toActionItems(this._property, items, refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle());
+					});
+				}
 				: undefined,
 			onHide: () => {
 				this._pickerVisible = false;
@@ -1037,7 +1047,7 @@ export class AgentHostChatInputPicker extends Disposable {
 				result = await context.connection.sessionConfigCompletions({
 					provider: context.provider,
 					property,
-					query,
+					query: property === SessionConfigKey.Branch ? undefined : query,
 					workingDirectory: this._readWorkingDirectory(),
 					config: this._readCurrentValues(),
 				});
