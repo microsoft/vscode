@@ -1539,6 +1539,10 @@ class ExtHostChatAgent {
 				}
 				disposed = true;
 				that._onDispose();
+				if (that._agentVariableProvider) {
+					that._agentVariableProvider = undefined;
+					that._proxy.$unregisterAgentCompletionsProvider(that._handle, that.id);
+				}
 				that._followupProvider = undefined;
 				that._onDidReceiveFeedback.dispose();
 				that._onDidPerformAction.dispose();

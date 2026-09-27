@@ -27,10 +27,12 @@ suite('ExtHostChatAgents2', function () {
 	function createParticipant(dynamic = false) {
 		let handle = -1;
 		let unregisterCount = 0;
+		const unregisteredCompletions: { handle: number; id: string }[] = [];
 		const proxy = new class extends mock<MainThreadChatAgentsShape2>() {
 			override $registerAgent(value: number): void { handle = value; }
 			override $unregisterAgent(): void { unregisterCount++; }
 			override $registerAgentCompletionsProvider(): void { }
+			override $unregisterAgentCompletionsProvider(handle: number, id: string): void { unregisteredCompletions.push({ handle, id }); }
 		};
 		const commands = new ExtHostCommands(SingleProxyRPCProtocol(new class extends mock<MainThreadCommandsShape>() {
 			override $registerCommand(): void { }
@@ -40,7 +42,7 @@ suite('ExtHostChatAgents2', function () {
 		const participant = disposables.add(dynamic
 			? agents.createDynamicChatAgent(extension, 'test.participant', { name: 'Test', publisherName: 'Test' }, async () => ({}))
 			: agents.createChatAgent(extension, 'test.participant', async () => ({})));
-		return { agents, participant, commands, handle, unregisterCount: () => unregisterCount };
+		return { agents, participant, commands, handle, unregisteredCompletions, unregisterCount: () => unregisterCount };
 	}
 
 	const completion: vscode.ChatCompletionItem = {
@@ -58,6 +60,20 @@ suite('ExtHostChatAgents2', function () {
 			await agents.$invokeCompletionProvider(handle, '', CancellationToken.None);
 			assert.strictEqual(calls, 1);
 		});
+		test(`unregisters variable providers of disposed ${dynamic ? 'dynamic' : 'static'} participants only once`, () => {
+			const { participant, handle, unregisteredCompletions } = createParticipant(dynamic);
+			participant.participantVariableProvider = { triggerCharacters: ['#'], provider: { provideCompletionItems: () => [] } };
+			participant.dispose();
+			participant.dispose();
+			assert.deepStrictEqual({
+				provider: participant.participantVariableProvider,
+				unregisteredCompletions
+			}, {
+				provider: undefined,
+				unregisteredCompletions: [{ handle, id: 'test.participant' }]
+			});
+		});
+
 	}
 
 	test('releases completion commands when the participant is disposed', async () => {
@@ -80,10 +96,10 @@ suite('ExtHostChatAgents2', function () {
 	});
 
 	test('unregisters a disposed participant only once', () => {
-		const { participant, unregisterCount } = createParticipant();
+		const { participant, unregisterCount, unregisteredCompletions } = createParticipant();
 		participant.dispose();
 		participant.dispose();
-		assert.strictEqual(unregisterCount(), 1);
+		assert.deepStrictEqual({ unregisterCount: unregisterCount(), unregisteredCompletions }, { unregisterCount: 1, unregisteredCompletions: [] });
 	});
 
 	test('forwards the Auto tier on edit parts and omits it when unset', async () => {
