@@ -10,6 +10,8 @@ import { constObservable, IObservable, ISettableObservable, observableValue } fr
 import { mark } from '../../../base/common/performance.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
+import { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
+import { ArtifactChatAction } from '../common/artifactIntegrationChat.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, IChannelClient, IChannelServer, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
@@ -172,6 +174,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly onDidNotification = this._onDidNotification.event;
 	private readonly _onMcpNotification = this._register(new Relay<IMcpNotification>());
 	readonly onMcpNotification = this._onMcpNotification.event;
+	private readonly _artifactIntegrationUpdates = this._register(new Relay<ArtifactIntegrationUpdate>());
+	readonly onDidArtifactIntegrationUpdate = this._artifactIntegrationUpdates.event;
+	private readonly _artifactIntegrationReset = this._register(new Relay<void>());
+	readonly onDidArtifactIntegrationReset = this._artifactIntegrationReset.event;
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -233,6 +239,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			this._onDidAction.input = this._protocolClient.onDidAction;
 			this._onDidNotification.input = this._protocolClient.onDidNotification;
 			this._onMcpNotification.input = this._protocolClient.onMcpNotification;
+			this._artifactIntegrationUpdates.input = this._protocolClient.onDidArtifactIntegrationUpdate;
+			this._artifactIntegrationReset.input = this._protocolClient.onDidArtifactIntegrationReset;
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
 			this._register(this._protocolClient.onDidFatalClose(() => {
 				if (!this._didConnectInitially) {
@@ -359,6 +367,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient?.initializeResult ?? constObservable(undefined);
 	}
 
+	get connectionAvailable(): IObservable<boolean> {
+		return this._protocolClient?.connectionAvailable ?? constObservable(false);
+	}
+
 	get rootState(): IAgentSubscription<RootState> {
 		return this._protocolClient?.rootState ?? this._noopRootState;
 	}
@@ -443,6 +455,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	importSession(session: URI): Promise<void> {
 		return this._requireClient().importSession(session);
+	}
+
+	artifactIntegrationRequest(request: ArtifactIntegrationRequest): Promise<ArtifactIntegrationResponse> {
+		return this._requireClient().artifactIntegrationRequest(request);
+	}
+
+	dispatchBackgroundChatAction(chat: string, action: ArtifactChatAction): Promise<void> {
+		return this._requireClient().dispatchBackgroundChatAction(chat, action);
 	}
 
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {

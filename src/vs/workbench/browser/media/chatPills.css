@@ -38,7 +38,8 @@
 	gap: var(--vscode-spacing-size60);
 }
 
-.chat-pill-item {
+.chat-pill-item,
+.chat-pills .monaco-action-bar .chat-pill-segmented {
 	display: inline-flex;
 	align-items: center;
 	flex-shrink: 0;
@@ -49,10 +50,14 @@
 	align-items: center;
 	width: auto;
 	gap: var(--vscode-spacing-size40);
-	border-radius: var(--vscode-cornerRadius-medium);
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 	touch-action: manipulation;
+}
+
+.chat-pill-item .monaco-button.chat-pill-button,
+.chat-pill-item.chat-pill-segmented {
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 /* Tint the opaque base `chatPills.ts` sets, so a translucent pill color never
@@ -77,6 +82,54 @@
 	in the row, including hosted ones. */
 .chat-pills .monaco-button:focus {
 	outline-offset: -1px !important;
+}
+
+.chat-pill-sections {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	border-radius: inherit;
+}
+
+.chat-pill-sections[hidden] {
+	display: none;
+}
+
+.chat-pill-item.chat-pill-segmented .monaco-button.chat-pill-button {
+	border-radius: 0;
+	border-inline-width: 0;
+}
+
+.chat-pill-item.chat-pill-segmented > .monaco-button.chat-pill-button {
+	border-start-start-radius: inherit;
+	border-end-start-radius: inherit;
+	border-inline-start-width: var(--vscode-strokeThickness);
+}
+
+.chat-pill-item.chat-pill-segmented .chat-pill-sections > .monaco-button.chat-pill-button:last-child {
+	border-start-end-radius: inherit;
+	border-end-end-radius: inherit;
+	border-inline-end-width: var(--vscode-strokeThickness);
+}
+
+.chat-pill-sections > .chat-pill-button {
+	position: relative;
+	min-width: 0;
+}
+
+.chat-pill-sections > .chat-pill-button::before {
+	content: '';
+	position: absolute;
+	inset-inline-start: 0;
+	top: 25%;
+	bottom: 25%;
+	width: var(--vscode-strokeThickness);
+	background-color: var(--vscode-widget-border, var(--vscode-descriptionForeground));
+}
+
+.hc-black .chat-pill-sections > .chat-pill-button::before,
+.hc-light .chat-pill-sections > .chat-pill-button::before {
+	background-color: var(--vscode-contrastBorder);
 }
 
 .chat-pills .monaco-action-bar .chat-hosted-pill {
@@ -111,7 +164,7 @@
 	overflow: hidden;
 }
 
-.chat-dropdown-pill-button .chat-pill-label {
+.chat-pill-button .chat-pill-label {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;

@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from '../../../base/common/event.js';
-import { DisposableStore, type IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { TimeoutTimer } from '../../../base/common/async.js';
 import type { IObservable } from '../../../base/common/observable.js';
+import { dirname, joinPath } from '../../../base/common/resources.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
@@ -45,8 +47,11 @@ import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
+import { IArtifactIntegrationRegistry } from '../../artifactIntegrations/common/artifactIntegrationRegistry.js';
+import { AgentHostArtifactRuntime, IAgentHostArtifactEventService } from './artifactIntegrations/agentHostArtifactRuntime.js';
 
 export interface IAgentServiceComposition {
+	readonly artifactRuntime: AgentHostArtifactRuntime;
 	readonly agentService: AgentService;
 	readonly authenticationService: IAgentHostAuthenticationService;
 	readonly configurationService: IAgentConfigurationService;
@@ -178,7 +183,43 @@ export function createAgentServiceComposition(
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
 
+		let artifactSequence = 0;
+		const artifactDispatches = owned.add(new DisposableMap<number, DisposableStore>());
+		const artifactRuntime = owned.add(new AgentHostArtifactRuntime(
+			options.rootConfigResource ? joinPath(dirname(options.rootConfigResource), 'artifact-integrations.json') : undefined,
+			{
+				acquire: async (resource, owner) => {
+					await agentService!.subscribe(resource, owner);
+					return toDisposable(() => agentService!.unsubscribe(resource, owner));
+				},
+				dispatch: async (chat, action) => {
+					const sequence = ++artifactSequence;
+					const lifetime = new DisposableStore();
+					artifactDispatches.set(sequence, lifetime);
+					try {
+						await new Promise<void>((resolve, reject) => {
+							lifetime.add(toDisposable(() => reject(new Error('Artifact dispatch was closed before acknowledgement'))));
+							lifetime.add(new TimeoutTimer(() => reject(new Error('Artifact dispatch acknowledgement timed out')), 30_000));
+							lifetime.add(stateManager.onDidEmitEnvelope(envelope => {
+								if (envelope.origin?.clientId === 'artifact-integrations' && envelope.origin.clientSeq === sequence) {
+									if (envelope.rejectionReason) {
+										reject(new Error(envelope.rejectionReason));
+									} else {
+										resolve();
+									}
+								}
+							}));
+							agentService!.dispatchAction(chat, action, 'artifact-integrations', sequence);
+						});
+					} finally {
+						artifactDispatches.deleteAndDispose(sequence);
+					}
+				},
+			},
+			accessor.get(IArtifactIntegrationRegistry), accessor.get(IAgentHostArtifactEventService), stateManager, configurationService, logService,
+		));
 		const collaborators: IAgentServiceCollaborators = {
+			artifactIntegrations: artifactRuntime.integrations,
 			gitHubEndpointService,
 			gitStateService,
 			agentMergeController,
@@ -229,6 +270,7 @@ export function createAgentServiceComposition(
 			owned.add(disposable);
 		}
 		return {
+			artifactRuntime,
 			agentService,
 			authenticationService: core.authenticationService,
 			configurationService,

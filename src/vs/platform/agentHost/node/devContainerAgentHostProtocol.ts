@@ -166,7 +166,7 @@ export class DevContainerAgentHostProtocol extends Disposable {
 		this._connectionsById.delete(connection.id);
 	}
 
-	private _forward<M extends keyof IAgentHostExtensionNotificationMap>(method: M, event: IAgentHostExtensionNotificationMap[M]): void {
+	private _forward<M extends Extract<keyof IAgentHostExtensionNotificationMap, `vscode/devContainers/${string}`>>(method: M, event: IAgentHostExtensionNotificationMap[M]): void {
 		const connection = this._connectionsById.get(event.connectionId);
 		if (connection && !this._disposed) {
 			this._notify(method, { ...event, connectionId: connection.clientId });

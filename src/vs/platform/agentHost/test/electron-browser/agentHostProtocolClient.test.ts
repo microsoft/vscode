@@ -17,8 +17,10 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import type { ArtifactIntegrationUpdate } from '../../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { ArtifactIntegrationUpdateNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { getAgentHostArtifactIntegrationsCapability } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
@@ -417,6 +419,34 @@ suite('AgentHostProtocolClient', () => {
 		});
 		await connectPromise;
 	}
+
+	test('artifact integration capability is independent of timing and session import', async () => {
+		const capabilities: ReturnType<typeof getAgentHostArtifactIntegrationsCapability>[] = [];
+		for (const enabled of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, true, true, enabled));
+			capabilities.push(getAgentHostArtifactIntegrationsCapability(client.initializeResult.get()));
+		}
+		assert.deepStrictEqual(capabilities, ['unsupported', 'supported']);
+	});
+
+	test('validates private artifact integration notifications outside the upstream AHP shape', async () => {
+		const log = new NullLogService();
+		const errors = sinon.spy(log, 'error');
+		const { client, transport } = createClient(undefined, undefined, undefined, log);
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
+		const received: ArtifactIntegrationUpdate[] = [];
+		disposables.add(client.onDidArtifactIntegrationUpdate(update => received.push(update)));
+		const update: ArtifactIntegrationUpdate = {
+			kind: 'details', subscription: 'checks', revision: 0, canLoadMore: false,
+			details: { title: 'Checks', availability: { kind: 'available' }, links: [], items: [], completeness: 'complete' },
+		};
+		transport.fireExtensionNotification({ jsonrpc: '2.0', method: ArtifactIntegrationUpdateNotification, params: update });
+		transport.fireExtensionNotification({ jsonrpc: '2.0', method: ArtifactIntegrationUpdateNotification, params: { ...update, revision: -1 } });
+		assert.deepStrictEqual({ received, errors: errors.args }, {
+			received: [update], errors: [['[ArtifactIntegrations] Invalid update from the agent host']],
+		});
+	});
 
 	test('Dev Container facade is capability gated for old and malformed hosts', async () => {
 		const supported: boolean[] = [];
@@ -4239,6 +4269,33 @@ suite('AgentHostProtocolClient', () => {
 				assert.strictEqual((replayed.params as { clientSeq: number }).clientSeq, initialSeq, 'replayed dispatch must reuse the original clientSeq');
 
 				subRef.dispose();
+				client.dispose();
+			});
+		});
+
+		test('background artifact prompts are never replayed after losing their acknowledgement', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connecting = client.connect();
+				await completeHandshake(transports[0], connecting);
+				let resets = 0;
+				const listener = disposables.add(client.onDidArtifactIntegrationReset(() => resets++));
+				const pending = client.dispatchBackgroundChatAction(buildChatUri(URI.parse('copilot:/session'), 'default'), {
+					type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'artifact-run',
+					message: { text: 'Analyse', origin: { kind: MessageKind.User } },
+				});
+				const rejected = assert.rejects(pending, /uncertain/);
+				transports[0].fireClose();
+				await rejected;
+				await waitForReconnecting(client);
+				const next = await waitForTransport(transports, 1);
+				next.connectDeferred.complete();
+				const reconnect = await waitForRequest(next, 'reconnect');
+				next.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await flushMicrotasks();
+				assert.deepStrictEqual({ replayed: findDispatchAction(next, ActionType.ChatPendingMessageSet), resets }, { replayed: undefined, resets: 1 });
+				listener.dispose();
 				client.dispose();
 			});
 		});
