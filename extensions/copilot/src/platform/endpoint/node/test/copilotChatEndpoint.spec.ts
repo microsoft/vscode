@@ -307,9 +307,11 @@ describe('CopilotChatEndpoint - Chat Completions token parameter (#328418)', () 
 		endpoint.interceptBody(body);
 
 		expect({
+			maxContextWindowTokens: endpoint.maxContextWindowTokens,
 			max_tokens: body.max_tokens,
 			max_completion_tokens: body.max_completion_tokens
 		}).toEqual({
+			maxContextWindowTokens: 256000,
 			max_tokens: 256000,
 			max_completion_tokens: undefined
 		});

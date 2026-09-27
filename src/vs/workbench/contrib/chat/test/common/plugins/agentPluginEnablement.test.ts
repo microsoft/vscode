@@ -120,6 +120,120 @@ suite('AgentPlugin enablement', () => {
 		assert.ok(isContributionEnabled(enablementModel.readEnabled(copilotCliDirectUri.toString())));
 	});
 
+	test('managed enablement overrides user state without replacing it', () => {
+		const required = URI.file('/plugins/required').toString();
+		const blocked = URI.file('/plugins/blocked').toString();
+		const unmanaged = URI.file('/plugins/unmanaged').toString();
+		const stored = new Map<string, ContributionEnablementState>([
+			[required, ContributionEnablementState.DisabledWorkspace],
+			[blocked, ContributionEnablementState.EnabledProfile],
+			[unmanaged, ContributionEnablementState.DisabledProfile],
+		]);
+		const base: IEnablementModel = {
+			readEnabled: key => stored.get(key) ?? ContributionEnablementState.EnabledProfile,
+			readProfileEnabled: key => (stored.get(key) ?? ContributionEnablementState.EnabledProfile) === ContributionEnablementState.EnabledProfile,
+			setEnabled: (key, value) => stored.set(key, value),
+			remove: key => stored.delete(key),
+		};
+		const policy = observableValue<ReadonlyMap<string, boolean>>('managedPluginEnablement', new Map([
+			[required, true],
+			[blocked, false],
+		]));
+		const enablementModel = new AgentPluginCollisionEnablementModel(base, observableValue('emptyCollisionGroups', new Map()), policy);
+
+		enablementModel.setEnabled(required, ContributionEnablementState.DisabledProfile);
+		enablementModel.setEnabled(blocked, ContributionEnablementState.EnabledProfile);
+		enablementModel.setEnabled(unmanaged, ContributionEnablementState.EnabledProfile);
+
+		assert.deepStrictEqual({
+			required: enablementModel.readEnabled(required),
+			requiredProfile: enablementModel.readProfileEnabled(required),
+			blocked: enablementModel.readEnabled(blocked),
+			blockedProfile: enablementModel.readProfileEnabled(blocked),
+			unmanaged: enablementModel.readEnabled(unmanaged),
+			storedRequired: stored.get(required),
+			storedBlocked: stored.get(blocked),
+		}, {
+			required: ContributionEnablementState.EnabledProfile,
+			requiredProfile: true,
+			blocked: ContributionEnablementState.DisabledProfile,
+			blockedProfile: false,
+			unmanaged: ContributionEnablementState.EnabledProfile,
+			storedRequired: ContributionEnablementState.DisabledWorkspace,
+			storedBlocked: ContributionEnablementState.EnabledProfile,
+		});
+
+		policy.set(new Map(), undefined);
+
+		assert.deepStrictEqual({
+			required: enablementModel.readEnabled(required),
+			blocked: enablementModel.readEnabled(blocked),
+		}, {
+			required: ContributionEnablementState.DisabledWorkspace,
+			blocked: ContributionEnablementState.EnabledProfile,
+		});
+	});
+
+	test('force-enabled duplicate wins collision priority', () => {
+		const marketplaceUri = URI.file('/Users/test/.vscode-insiders/agent-plugins/github.com/microsoft/vscode-team-kit/model-council');
+		const copilotCliDirectUri = URI.file('/Users/test/.copilot/installed-plugins/_direct/microsoft--vscode-team-kit--model-council');
+		const marketplacePlugin = makePlugin(marketplaceUri, 'model-council', makeMarketplacePlugin());
+		const discoveries: IDiscoveredAgentPlugins[] = [
+			{
+				priority: AgentPluginDiscoveryPriority.CopilotCli,
+				order: 1,
+				plugins: [makePlugin(copilotCliDirectUri, 'model-council')],
+			},
+			{
+				priority: AgentPluginDiscoveryPriority.Marketplace,
+				order: 2,
+				plugins: [marketplacePlugin],
+			},
+		];
+		const collisionGroups = getCanonicalAgentPluginCollisionGroups(
+			discoveries,
+			undefined,
+			plugin => plugin === marketplacePlugin,
+		);
+
+		assert.deepStrictEqual(collisionGroups.get(copilotCliDirectUri.toString()), [
+			marketplaceUri.toString(),
+			copilotCliDirectUri.toString(),
+		]);
+	});
+
+	test('cannot enable an unmanaged duplicate while another duplicate is force-enabled', () => {
+		const required = URI.file('/plugins/required').toString();
+		const unmanaged = URI.file('/plugins/unmanaged').toString();
+		const stored = new Map<string, ContributionEnablementState>([
+			[unmanaged, ContributionEnablementState.DisabledProfile],
+		]);
+		const base: IEnablementModel = {
+			readEnabled: key => stored.get(key) ?? ContributionEnablementState.EnabledProfile,
+			readProfileEnabled: key => (stored.get(key) ?? ContributionEnablementState.EnabledProfile) === ContributionEnablementState.EnabledProfile,
+			setEnabled: (key, value) => stored.set(key, value),
+			remove: key => stored.delete(key),
+		};
+		const policy = observableValue<ReadonlyMap<string, boolean>>('managedPluginEnablement', new Map([[required, true]]));
+		const groups = observableValue<ReadonlyMap<string, readonly string[]>>('collisionGroups', new Map([
+			[required, [required, unmanaged]],
+			[unmanaged, [required, unmanaged]],
+		]));
+		const enablementModel = new AgentPluginCollisionEnablementModel(base, groups, policy);
+
+		enablementModel.setEnabled(unmanaged, ContributionEnablementState.EnabledProfile);
+
+		assert.deepStrictEqual({
+			required: enablementModel.readEnabled(required),
+			unmanaged: enablementModel.readEnabled(unmanaged),
+			storedUnmanaged: stored.get(unmanaged),
+		}, {
+			required: ContributionEnablementState.EnabledProfile,
+			unmanaged: ContributionEnablementState.DisabledProfile,
+			storedUnmanaged: ContributionEnablementState.DisabledProfile,
+		});
+	});
+
 	test('same-URI duplicates collapse before collision grouping', () => {
 		const sharedUri = URI.file('/Users/test/.copilot/installed-plugins/team/model-council');
 		const discoveries: IDiscoveredAgentPlugins[] = [

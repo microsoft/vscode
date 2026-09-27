@@ -20484,7 +20484,8 @@ declare module 'vscode' {
 		uri: Uri;
 
 		/**
-		 * Optional additional heads included with each request to the server.
+		 * Optional additional headers included with requests to the server's origin.
+		 * These headers are not sent to a different origin, including across redirects.
 		 */
 		headers: Record<string, string>;
 
@@ -20497,7 +20498,7 @@ declare module 'vscode' {
 		/**
 		 * @param label The human-readable name of the server.
 		 * @param uri The URI of the server.
-		 * @param headers Optional additional heads included with each request to the server.
+		 * @param headers Optional additional headers included with requests to the server's origin.
 		 */
 		constructor(label: string, uri: Uri, headers?: Record<string, string>, version?: string);
 	}

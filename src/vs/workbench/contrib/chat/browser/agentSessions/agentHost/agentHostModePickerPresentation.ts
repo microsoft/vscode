@@ -24,7 +24,6 @@ import { getCompactCodicon } from '../../chatIcons.js';
 export const AGENT_HOST_PERMISSIONS_SETTINGS_QUERY = `@id:${[
 	ChatConfiguration.DefaultConfiguration,
 	ChatConfiguration.DefaultPermissionLevel,
-	ChatConfiguration.AssistedPermissionsEnabled,
 	ChatConfiguration.GlobalAutoApprove,
 	ChatConfiguration.AutoApproveEdits,
 	ChatConfiguration.AutoApprovedUrls,
@@ -36,7 +35,6 @@ export const AGENT_HOST_PERMISSIONS_SETTINGS_QUERY = `@id:${[
 	TerminalContribSettingId.IgnoreDefaultAutoApproveRules,
 	TerminalContribSettingId.BlockDetectedFileWrites,
 	'chat.agent.sandbox.*',
-	'chat.agentHost.sdkSandbox.*',
 ].join(',')}`;
 
 export interface IModePickerPermissions {
@@ -54,9 +52,16 @@ const MODE_SECTION_ID = 'agentHostModePicker.mode';
 const PERMISSIONS_SECTION_ID = 'agentHostModePicker.permissions';
 export const MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE = 'data-mode-permissions-picker-open';
 
+export function getPermissionLevelBadge(level: string): { readonly badge?: string; readonly className?: string } {
+	return level === ChatPermissionLevel.Assisted ? {
+		badge: localize('agentHostModePicker.experimental', "Experimental"),
+		className: 'agent-host-assisted-permissions',
+	} : {};
+}
+
 export function getModePermissionsPickerOptions(openPermissions = false, initialFocusItemId?: string): IActionListOptions {
 	return {
-		minWidth: 260,
+		minWidth: 300,
 		anchorPosition: AnchorPosition.ABOVE,
 		useFullHeight: true,
 		widgetClassName: 'agent-host-mode-permissions-popup',
@@ -203,7 +208,7 @@ export function getModePickerAriaLabel(mode: string, permissions: IModePickerPer
 }
 
 export function getModePickerAccessibilityHelp(): string {
-	return localize('agentHostModePicker.accessibilityHelp', "When the experimental combined picker is enabled for a Copilot Agent Host session, Tab reaches separate Mode and Permissions buttons. Press Enter or Space on Mode to open the picker with Agent Mode expanded, or on Permissions to open it with Permissions expanded. Each section header shows its current selection, and the opened section initially focuses that selection. Press Enter or Space on a section header to expand or collapse it, or use Right Arrow to expand and Left Arrow to collapse. Hover or keyboard navigation moves the single row highlight without changing the selection until you activate a choice. Focus the Permissions header and press Tab to reach Configure Permissions, which opens the related settings. Use Up and Down Arrow to navigate and Enter to select a mode, permission level, or terminal sandboxing. Escape closes the picker and returns focus to the button that opened it.");
+	return localize('agentHostModePicker.accessibilityHelp', "When the experimental combined picker is enabled for a Copilot Agent Host session, Tab reaches separate Mode and Permissions buttons. Press Enter or Space on Mode to open the picker with Agent Mode expanded, or on Permissions to open it with Permissions expanded. Each section header shows its current selection, and the opened section initially focuses that selection. Press Enter or Space on a section header to expand or collapse it, or use Right Arrow to expand and Left Arrow to collapse. Hover or keyboard navigation moves the single row highlight without changing the selection until you activate a choice. Focus the Permissions header and press Tab to reach Configure Permissions, which opens the related settings. Use Up and Down Arrow to navigate and Enter to select a mode, permission level, or terminal sandboxing. Assisted permissions is experimental and evaluates risk before running tools. Enterprise policy can disable Assisted permissions and Allow all. Escape closes the picker and returns focus to the button that opened it.");
 }
 
 function getPermissionLevelStyle(level: ChatPermissionLevel): string | undefined {

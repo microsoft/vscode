@@ -25,6 +25,7 @@ export function createSessionsSignInDialogOptions(
 ) {
 	return {
 		forceSignInDialog: true,
+		autoDismissOnSignIn: true,
 		dialogIcon: Codicon.agent,
 		dialogTitle: localize('sessions.signIn', "Sign in to use Agents"),
 		disableCloseButton: !allowContinueWithoutSignIn,

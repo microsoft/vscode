@@ -215,8 +215,6 @@ suite('LanguageModelAccess model info', () => {
 			resolveAutoModeEndpoint: async () => endpoint,
 			resolveAutoModePickerEndpoint: async () => endpoint,
 			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
-			areAutoModeTiersSupported: () => false,
-			onDidChangeAutoModeTierSupport: Event.None,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);
 		testingServiceCollection.define(IEndpointProvider, {
@@ -406,8 +404,6 @@ suite('LanguageModelAccess model info', () => {
 			resolveAutoModeEndpoint: async () => endpoint,
 			resolveAutoModePickerEndpoint: async () => endpoint,
 			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
-			areAutoModeTiersSupported: () => false,
-			onDidChangeAutoModeTierSupport: Event.None,
 			consumeLastRoutingDecision: () => undefined,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);
@@ -471,8 +467,6 @@ suite('LanguageModelAccess model info', () => {
 			resolveAutoModeEndpoint: async () => lunaEndpoint,
 			resolveAutoModePickerEndpoint: () => autoPickerEndpoint.p,
 			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
-			areAutoModeTiersSupported: () => false,
-			onDidChangeAutoModeTierSupport: Event.None,
 			consumeLastRoutingDecision: () => undefined,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);
@@ -665,6 +659,13 @@ suite('reasoning effort schema', () => {
 		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'claude-sonnet-4'), 'high');
 	});
 
+	test('claude-opus-5.5 prefers medium when available', () => {
+		assert.deepStrictEqual(
+			['claude-opus-5.5', 'claude-opus-5-5', 'claude-opus-5'].map(family => pickDefaultReasoningEffort(['low', 'medium', 'high'], family)),
+			['medium', 'medium', 'high']
+		);
+	});
+
 	test('Kimi K3 prefers high when available', () => {
 		assert.strictEqual(pickDefaultReasoningEffort(['low', 'high', 'max'], 'kimi-k3'), 'high');
 	});
@@ -703,13 +704,17 @@ suite('auto mode tier schema', () => {
 	// The picker renders `title` as the group header and `enumItemLabels` as the
 	// rows, so this descriptor is the user-visible wording for Auto routing. The
 	// tier values stay the wire enum the service expects.
-	test('names the group "Optimize for" and labels the selectable tiers', () => {
+	test('names the group "Optimize for" and labels and describes the selectable tiers', () => {
 		assert.deepStrictEqual(buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier), {
 			type: 'string',
 			title: 'Optimize for',
 			enum: ['efficiency', 'balance', 'intelligence'],
 			enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
-			enumDescriptions: ['Cheaper models for everyday tasks', 'Balances capability and cost', 'Most capable models, higher cost'],
+			enumDescriptions: [
+				'Optimizes for cost and speed, using more capable models only when needed.',
+				'Balances cost/speed and capability based on task complexity.',
+				'Optimizes for capability, using faster models only when the task allows it.',
+			],
 			default: 'balance',
 			group: 'navigation',
 		});

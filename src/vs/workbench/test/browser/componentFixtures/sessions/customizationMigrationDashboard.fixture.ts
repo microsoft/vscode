@@ -25,7 +25,7 @@ function overview(): ICustomizationMigrationDashboardOverview {
 				storage: PromptsStorage.local, label: 'vscode', count: 9, skipped: false, hasConfigurableDestinations: true,
 				categories: [
 					{ id: CustomizationMigrationCategoryId.PromptFiles, label: 'Prompts to skills', description: 'Convert prompts to skills so they can be invoked by supported agents.', count: 7, countLabel: '7 prompts', highRisk: true },
-					{ id: CustomizationMigrationCategoryId.McpServers, label: 'MCP Servers', description: 'Move supported workspace servers to the root .mcp.json so agents can discover them directly.', count: 2, countLabel: '2 servers' },
+					{ id: CustomizationMigrationCategoryId.McpServers, label: 'MCP Servers', description: 'Move eligible workspace servers to the root .mcp.json so agents can discover them directly.', count: 2, countLabel: '2 migratable · 0 not migratable' },
 				],
 			},
 		],
@@ -91,6 +91,7 @@ function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'ov
 		};
 	}
 	const dashboard = disposableStore.add(instantiationService.createInstance(CustomizationMigrationDashboard, container, {
+		actionClicked: () => { },
 		configureLocations: () => { },
 		reviewCategory: () => { },
 		setWorkspaceSkipped: skipped => {

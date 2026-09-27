@@ -5,7 +5,6 @@
 
 import * as l10n from '@vscode/l10n';
 import { createServiceIdentifier } from '../../../util/common/services';
-import { Limiter } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { URI } from '../../../util/vs/base/common/uri';
 
@@ -65,14 +64,27 @@ export class NullIgnoreService implements IIgnoreService {
 	}
 }
 
+/**
+ * Filters out content excluded resources with bounded concurrency, preserving order. Workers claim
+ * the next index rather than queueing each resource into a `Limiter`, whose `Array#shift` based queue
+ * is quadratic over the hundreds of thousands of results a workspace-wide search can return.
+ */
 export async function filterIngoredResources(ignoreService: IIgnoreService, resources: URI[]): Promise<URI[]> {
-	// Bounded because this runs over every search result, and an unresolved repository turns each
-	// check into a git extension lookup, plus a file read when content rules are configured.
-	const limiter = new Limiter<boolean>(IGNORE_CHECK_CONCURRENCY);
+	const ignored = new Array<boolean>(resources.length);
+	let nextIndex = 0;
+	let stopped = false;
+	const worker = async () => {
+		while (!stopped && nextIndex < resources.length) {
+			const index = nextIndex++;
+			ignored[index] = await ignoreService.isCopilotIgnored(resources[index]);
+		}
+	};
 	try {
-		const ignored = await Promise.all(resources.map(resource => limiter.queue(() => ignoreService.isCopilotIgnored(resource))));
-		return resources.filter((_, index) => !ignored[index]);
+		await Promise.all(Array.from({ length: Math.min(IGNORE_CHECK_CONCURRENCY, resources.length) }, worker));
 	} finally {
-		limiter.dispose();
+		// Promise.all reports the first failure straight away; this stops the other workers from
+		// checking the rest of the batch for a caller that has already been given the error.
+		stopped = true;
 	}
+	return resources.filter((_, index) => !ignored[index]);
 }

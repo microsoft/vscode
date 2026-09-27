@@ -1317,28 +1317,44 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		return new Promise((resolve, reject) => {
+			let pendingWrite = Promise.resolve();
+			let streamEnded = false;
+			let firstError: Error | undefined;
+
+			const finish = (error?: Error) => {
+				streamEnded = true;
+				firstError ??= error;
+				// The stream can finish before its last asynchronous write settles.
+				pendingWrite.then(
+					() => firstError ? reject(firstError) : resolve(),
+					error => reject(firstError ?? error)
+				);
+			};
+
 			listenStream(stream, {
-				onData: async chunk => {
+				onData: chunk => {
+					if (streamEnded) {
+						return;
+					}
 
 					// pause stream to perform async write operation
 					stream.pause();
 
-					try {
+					pendingWrite = pendingWrite.then(async () => {
 						await this.doWriteBuffer(provider, handle, chunk, chunk.byteLength, posInFile, 0);
-					} catch (error) {
-						return reject(error);
-					}
 
-					posInFile += chunk.byteLength;
+						posInFile += chunk.byteLength;
 
-					// resume stream now that we have successfully written
-					// run this on the next tick to prevent increasing the
-					// execution stack because resume() may call the event
-					// handler again before finishing.
-					setTimeout(() => stream.resume());
+						setTimeout(() => {
+							if (!streamEnded) {
+								stream.resume();
+							}
+						});
+					});
+					pendingWrite.catch(finish);
 				},
-				onError: error => reject(error),
-				onEnd: () => resolve()
+				onError: finish,
+				onEnd: finish
 			});
 		});
 	}

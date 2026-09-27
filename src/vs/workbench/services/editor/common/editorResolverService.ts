@@ -8,6 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { posix } from '../../../../base/common/path.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -45,23 +46,29 @@ export const hiddenEditorTypesSettingId = 'workbench.editor.hiddenEditorTypes';
  */
 export const markdownDefaultEditorAgentsWindowSettingId = 'workbench.editor.markdownDefaultEditorInAgentsWindow';
 
+function markdownEditorAgentsWindowDefault(markdownDefaultEditor?: boolean): string {
+	return markdownDefaultEditor === true ? 'vscode.markdown.editor' : 'vscode.markdown.preview.editor';
+}
+
 /**
  * Builds the default value for `workbench.editorAssociations` in the Agents window.
  * Shared so that dynamic re-registrations of the setting preserve the override.
  *
- * Each editor association can be toggled independently. Passing `undefined`
- * leaves the association at its enabled default, so the static registration
- * ends up with all defaults registered. Pass `false` to fall back to the
- * markdown preview editor for `*.md` files.
+ * Pass `false` to use the Markdown preview editor for `*.md` files.
  */
-export function editorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: boolean }): Record<string, string> {
-	return {
-		'*.md': options?.markdownDefaultEditor === true ? 'vscode.markdown.editor' : 'vscode.markdown.preview.editor'
-	};
+export function editorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: boolean; integratedBrowserAvailable?: boolean }): Record<string, string> {
+	const associations: Record<string, string> = {};
+	if (options?.integratedBrowserAvailable ?? !isWeb) {
+		associations['*.html'] = 'workbench.editor.browser';
+	}
+	associations['*.md'] = markdownEditorAgentsWindowDefault(options?.markdownDefaultEditor);
+	return associations;
 }
 
 export function diffEditorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: boolean }): Record<string, string> {
-	return editorsAssociationsAgentsWindowDefault(options);
+	return {
+		'*.md': markdownEditorAgentsWindowDefault(options?.markdownDefaultEditor)
+	};
 }
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

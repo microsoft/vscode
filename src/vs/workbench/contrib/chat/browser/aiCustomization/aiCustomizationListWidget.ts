@@ -9,6 +9,7 @@ import * as aria from '../../../../../base/browser/ui/aria/aria.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -16,8 +17,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
+import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
+import { IListContextMenuEvent, IListVirtualDelegate, IListRenderer } from '../../../../../base/browser/ui/list/list.js';
+import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { IObjectTreeElement, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
@@ -31,12 +34,12 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { matchesContiguousSubString, IMatch } from '../../../../../base/common/filters.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
-import { IMenu, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { createActionViewItem, getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
+import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -49,9 +52,7 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setupCollapsibleSection } from './customizationCardList.js';
-import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
+import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -102,13 +103,6 @@ interface IFileItemEntry {
 
 type IListEntry = IGroupHeaderEntry | IFileItemEntry;
 
-interface ICustomizationSectionList {
-	readonly list: WorkbenchList<IFileItemEntry>;
-	readonly items: readonly IAICustomizationListItem[];
-	readonly container: HTMLElement;
-	readonly key: string;
-}
-
 /**
  * Delegate for the AI Customization list.
  */
@@ -133,11 +127,11 @@ interface IAICustomizationItemTemplateData {
 	readonly nameLabel: HighlightedLabel;
 	readonly badge: HTMLElement;
 	readonly statusIcon: HTMLElement;
+	readonly descriptionContainer: HTMLElement;
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
-	/** Index of the row currently rendered into this template, or -1 when unbound. */
-	currentIndex: number;
+	currentItemId: string | undefined;
 }
 
 interface IGroupHeaderTemplateData {
@@ -147,6 +141,7 @@ interface IGroupHeaderTemplateData {
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly infoIcon: HTMLElement;
+	readonly actions: HTMLElement;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 }
@@ -160,6 +155,7 @@ class GroupHeaderRenderer implements IListRenderer<IGroupHeaderEntry, IGroupHead
 
 	constructor(
 		private readonly hoverService: IHoverService,
+		private readonly renderActions?: (entry: IGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore) => void,
 	) { }
 
 	renderTemplate(container: HTMLElement): IGroupHeaderTemplateData {
@@ -174,8 +170,9 @@ class GroupHeaderRenderer implements IListRenderer<IGroupHeaderEntry, IGroupHead
 		const count = DOM.append(container, $('.group-count'));
 		const infoIcon = DOM.append(container, $('.group-info'));
 		infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+		const actions = DOM.append(container, $('.group-actions'));
 
-		return { container, chevron, icon, label, count, infoIcon, disposables, elementDisposables };
+		return { container, chevron, icon, label, count, infoIcon, actions, disposables, elementDisposables };
 	}
 
 	renderElement(element: IGroupHeaderEntry, _index: number, templateData: IGroupHeaderTemplateData): void {
@@ -192,9 +189,11 @@ class GroupHeaderRenderer implements IListRenderer<IGroupHeaderEntry, IGroupHead
 		// Label + count
 		templateData.label.textContent = element.label;
 		templateData.count.textContent = `${element.count}`;
+		DOM.clearNode(templateData.actions);
+		this.renderActions?.(element, templateData.actions, templateData.elementDisposables);
 
-		// Info icon hover
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.infoIcon, () => ({
+		templateData.infoIcon.style.display = 'none';
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.label, () => ({
 			content: element.description,
 			appearance: {
 				compact: true,
@@ -249,7 +248,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	 * every row's actions.
 	 */
 	private readonly templates = new Set<IAICustomizationItemTemplateData>();
-	private focusedIndex = -1;
+	private focusedItemId: string | undefined;
 
 	constructor(
 		private readonly showItemActions: (item: IAICustomizationListItem, anchor: HTMLElement) => void,
@@ -266,13 +265,10 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	 * The action bar of that row (and only that row) is made tab-focusable.
 	 * Pass -1 to clear focus; in that case all action bars are made non-focusable.
 	 */
-	setFocusedIndex(index: number): void {
-		this.focusedIndex = index;
+	setFocusedItemId(itemId: string | undefined): void {
+		this.focusedItemId = itemId;
 		for (const template of this.templates) {
-			// Guard against the -1 === -1 case where unbound/recycled templates
-			// (whose currentIndex was reset by disposeElement) would otherwise be
-			// made tab-focusable when no row has focus.
-			template.actionBar.setFocusable(index !== -1 && template.currentIndex === index);
+			template.actionBar.setFocusable(itemId !== undefined && template.currentItemId === itemId);
 		}
 	}
 
@@ -289,7 +285,8 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameRow, $('.item-name'))));
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
 		const statusIcon = DOM.append(nameRow, $('.item-status-icon'));
-		const description = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-description'))));
+		const descriptionContainer = DOM.append(textContainer, $('.item-description'));
+		const description = disposables.add(new HighlightedLabel(descriptionContainer));
 
 		// Right section for actions (hover-visible)
 		const actionsContainer = DOM.append(container, $('.item-right'));
@@ -297,7 +294,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
 		}));
 		// Keep the inline actions out of the document tab order by default. Only the
-		// focused row's action bar is made tab-focusable (see `setFocusedIndex`),
+		// focused row's action bar is made tab-focusable (see `setFocusedItemId`),
 		// so Tab from a focused row enters that row's actions exactly once instead
 		// of cycling through every row's actions.
 		actionBar.setFocusable(false);
@@ -310,10 +307,11 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			nameLabel,
 			badge,
 			statusIcon,
+			descriptionContainer,
 			description,
 			disposables,
 			elementDisposables,
-			currentIndex: -1,
+			currentItemId: undefined,
 		};
 		this.templates.add(template);
 		return template;
@@ -321,8 +319,8 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 	renderElement(entry: IFileItemEntry, index: number, templateData: IAICustomizationItemTemplateData): void {
 		templateData.elementDisposables.clear();
-		templateData.currentIndex = index;
-		templateData.actionBar.setFocusable(this.focusedIndex !== -1 && index === this.focusedIndex);
+		templateData.currentItemId = entry.item.id;
+		templateData.actionBar.setFocusable(this.focusedItemId !== undefined && entry.item.id === this.focusedItemId);
 		const element = entry.item;
 
 		// Type icon: use per-item override or fall back to prompt type
@@ -436,12 +434,12 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		}
 		if (secondaryText) {
 			templateData.description.set(secondaryText, secondaryTextMatches);
-			templateData.description.element.style.display = '';
+			templateData.descriptionContainer.style.display = '';
 			// Style differently for filename vs description
-			templateData.description.element.classList.toggle('is-filename', !element.description);
+			templateData.descriptionContainer.classList.toggle('is-filename', !element.description);
 		} else {
 			templateData.description.set('', undefined);
-			templateData.description.element.style.display = 'none';
+			templateData.descriptionContainer.style.display = 'none';
 		}
 
 		// Inline action bar from menu
@@ -496,7 +494,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	}
 
 	disposeElement(_entry: IFileItemEntry, _index: number, templateData: IAICustomizationItemTemplateData): void {
-		templateData.currentIndex = -1;
+		templateData.currentItemId = undefined;
 	}
 
 	disposeTemplate(templateData: IAICustomizationItemTemplateData): void {
@@ -524,7 +522,7 @@ function toItemsModelSection(section: AICustomizationManagementSection): ItemsMo
 	}
 }
 
-export function usesCustomizationCardLayout(section: AICustomizationManagementSection): boolean {
+export function usesCustomizationTreePresentation(section: AICustomizationManagementSection): boolean {
 	return section === AICustomizationManagementSection.Agents
 		|| section === AICustomizationManagementSection.Skills
 		|| section === AICustomizationManagementSection.Instructions
@@ -533,7 +531,7 @@ export function usesCustomizationCardLayout(section: AICustomizationManagementSe
 }
 
 export function getAlwaysVisibleCustomizationGroupKeys(section: AICustomizationManagementSection, isFiltering: boolean): readonly string[] {
-	return usesCustomizationCardLayout(section) && !isFiltering
+	return usesCustomizationTreePresentation(section) && !isFiltering
 		? [PromptsStorage.local, PromptsStorage.user]
 		: [];
 }
@@ -660,18 +658,7 @@ export class AICustomizationListWidget extends Disposable {
 	private addButton!: ButtonWithDropdown;
 	private addButtonSimple!: Button;
 	private listContainer!: HTMLElement;
-	private list!: WorkbenchList<IListEntry>;
-	private cardContainer!: HTMLElement;
-	private cardScrollable!: DomScrollableElement;
-	private cardScrollableNode!: HTMLElement;
-	private cardSectionLayoutContainer: HTMLElement | undefined;
-	private cardSectionLists: ICustomizationSectionList[] = [];
-	private firstCardFocusElement: HTMLElement | undefined;
-	private readonly cardRowsByUri = new Map<string, HTMLElement>();
-	private readonly cardRowsById = new Map<string, HTMLElement>();
-	private readonly cardMenuButtonsById = new Map<string, HTMLElement>();
-	private cardMenuOpen = false;
-	private lastCardFocusItemId: string | undefined;
+	private list!: WorkbenchObjectTree<IListEntry>;
 	private emptyStateContainer!: HTMLElement;
 	private emptyStateText!: HTMLElement;
 	private emptyStateSubtext!: HTMLElement;
@@ -683,14 +670,10 @@ export class AICustomizationListWidget extends Disposable {
 	private sectionLoading = false;
 	private readonly collapsedGroups = new Set<string>();
 	private _layoutDeferred = false;
-	private readonly revealLastItemScheduler = this._register(new MutableDisposable());
 	private lastLayoutWidth = 0;
 	private lastLayoutHeight = 0;
 	private lastHeaderHeight = 0;
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
-	private readonly cardDisposables = this._register(new DisposableStore());
-	private readonly pendingCardSectionLayout = this._register(new MutableDisposable());
-	private readonly cardSectionScrollPositions = new Map<string, number>();
 
 	/** Monotonically increasing counter; guards the post-load announcement against stale calls. */
 	private _sectionLoadId = 0;
@@ -732,7 +715,7 @@ export class AICustomizationListWidget extends Disposable {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) {
 		super();
-		this.element = $('.ai-customization-list-widget.plugin-list-widget');
+		this.element = $('.ai-customization-list-widget');
 		this.create();
 
 		// Re-render the add button when the active project root or harness changes.
@@ -834,25 +817,6 @@ export class AICustomizationListWidget extends Disposable {
 		this.addButton.element.classList.add('list-add-button');
 		this._register(this.addButton.onDidClick(() => this.executePrimaryCreateAction()));
 
-		this.cardContainer = DOM.append(this.element, $('.plugin-card-container.customization-card-container'));
-		this.cardScrollable = this._register(new DomScrollableElement(this.cardContainer, {
-			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Auto,
-			useShadows: false,
-		}));
-		this._register(DOM.addDisposableListener(this.cardContainer, DOM.EventType.SCROLL, () => {
-			this.cardScrollable.setScrollPosition({ scrollTop: this.cardContainer.scrollTop });
-		}));
-		this.cardScrollableNode = this.cardScrollable.getDomNode();
-		this.cardScrollableNode.classList.add('plugin-card-scrollable');
-		this.cardScrollableNode.style.display = 'none';
-		this.element.appendChild(this.cardScrollableNode);
-		const cardResizeObserver = this._register(new DOM.DisposableResizeObserver(
-			'AICustomizationListWidget.cardScrollable',
-			() => this.scheduleCardSectionLayout(),
-		));
-		this._register(cardResizeObserver.observe(this.cardScrollableNode));
-
 		// List container
 		this.listContainer = DOM.append(this.element, $('.list-container'));
 
@@ -866,26 +830,29 @@ export class AICustomizationListWidget extends Disposable {
 		// Create list
 		const itemRenderer = this.instantiationService.createInstance(
 			AICustomizationItemRenderer,
-			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showCardItemActions(item, anchor),
+			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showItemContextMenu(item, anchor),
 		);
 		this.list = this._register(this.instantiationService.createInstance(
-			WorkbenchList<IListEntry>,
+			WorkbenchObjectTree<IListEntry>,
 			'AICustomizationManagementList',
 			this.listContainer,
 			new AICustomizationListDelegate(),
 			[
-				new GroupHeaderRenderer(this.hoverService),
-				itemRenderer,
+				asTreeRenderer(new GroupHeaderRenderer(this.hoverService, (entry, container, disposables) => this.renderTreeGroupActions(entry, container, disposables))),
+				asTreeRenderer(itemRenderer),
 			],
 			{
+				indent: 8,
+				renderIndentGuides: RenderIndentGuides.None,
+				hideTwistiesOfChildlessElements: false,
+				overrideStyles: customizationTreeStyles,
 				identityProvider: {
 					getId: (entry: IListEntry) => entry.type === 'group-header' ? entry.id : entry.item.id,
-					getGroupId: (entry: IListEntry) => entry.type === 'group-header' ? NotSelectableGroupId : 0,
 				},
 				accessibilityProvider: {
 					getAriaLabel: (entry: IListEntry) => {
 						if (entry.type === 'group-header') {
-							return localize('groupAriaLabel', "{0}, {1} items, {2}", entry.label, entry.count, entry.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
+							return localize('groupAriaLabel', "{0}, {1} items", entry.label, entry.count);
 						}
 						const label = getCustomizationItemAriaLabel(entry.item);
 						if (!hasReadableCustomizationContent(entry.item.uri)) {
@@ -907,7 +874,7 @@ export class AICustomizationListWidget extends Disposable {
 		this._register(this.list.onDidOpen(e => {
 			if (e.element) {
 				if (e.element.type === 'group-header') {
-					this.toggleGroup(e.element);
+					return;
 				} else {
 					if (hasReadableCustomizationContent(e.element.item.uri)) {
 						this._onDidSelectItem.fire(e.element.item);
@@ -920,7 +887,8 @@ export class AICustomizationListWidget extends Disposable {
 		// so Tab from a focused row enters that row's actions exactly once instead
 		// of cycling through the action bar of every rendered row.
 		this._register(this.list.onDidChangeFocus(e => {
-			itemRenderer.setFocusedIndex(e.indexes.length ? e.indexes[0] : -1);
+			const entry = e.elements[0];
+			itemRenderer.setFocusedItemId(entry?.type === 'file-item' ? entry.item.id : undefined);
 		}));
 
 		// When the list itself receives DOM focus (e.g. via Tab) and no row is
@@ -929,20 +897,14 @@ export class AICustomizationListWidget extends Disposable {
 		// press an arrow key first.
 		this._register(this.list.onDidFocus(() => {
 			if (this.list.getFocus().length === 0 && this.displayEntries.length > 0) {
-				const firstItemIndex = this.displayEntries.findIndex(e => e.type !== 'group-header');
-				if (firstItemIndex >= 0) {
-					this.list.setFocus([firstItemIndex]);
+				const firstItem = this.displayEntries.find(entry => entry.type !== 'group-header');
+				if (firstItem) {
+					this.list.setFocus([firstItem]);
 				}
 			}
 		}));
 
-		// Prompts retain their existing list context menu. The redesigned sections
-		// expose all row actions through an explicit overflow button.
-		this._register(this.list.onContextMenu(e => {
-			if (!this.usesCardLayout()) {
-				this.onContextMenu(e);
-			}
-		}));
+		this._register(this.list.onContextMenu(e => this.onContextMenu(e)));
 
 		// Refresh on file deletions so the list updates after inline delete actions
 		this._register(this.fileService.onDidFilesChange(e => {
@@ -958,13 +920,15 @@ export class AICustomizationListWidget extends Disposable {
 	/**
 	 * Handles context menu for list items.
 	 */
-	private onContextMenu(e: IListContextMenuEvent<IListEntry>): void {
+	private onContextMenu(e: ITreeContextMenuEvent<IListEntry | null>): void {
 		if (!e.element || e.element.type !== 'file-item') {
 			return;
 		}
 
-		const item = e.element.item;
+		this.showItemContextMenu(e.element.item, e.anchor);
+	}
 
+	private showItemContextMenu(item: IAICustomizationListItem, anchor: IListContextMenuEvent<IListEntry>['anchor']): void {
 		// Create context for the menu actions
 		const context: Record<string, unknown> = {
 			uri: item.uri.toString(),
@@ -1001,7 +965,8 @@ export class AICustomizationListWidget extends Disposable {
 		const copyActions = item.isBuiltin || !hasReadableCustomizationContent(item.uri) ? [] : [
 			new Separator(),
 			new Action('copyFullPath', localize('copyFullPath', "Copy Full Path"), undefined, true, async () => {
-				await this.clipboardService.writeText(item.uri.fsPath);
+				const path = item.uri.scheme === Schemas.file ? item.uri.fsPath : item.uri.toString(true);
+				await this.clipboardService.writeText(path);
 			}),
 			new Action('copyRelativePath', localize('copyRelativePath', "Copy Relative Path"), undefined, true, async () => {
 				const basePath = this.workspaceService.getActiveProjectRoot();
@@ -1017,98 +982,9 @@ export class AICustomizationListWidget extends Disposable {
 		];
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
+			getAnchor: () => anchor,
 			getActions: () => [...secondary, ...copyActions],
 		});
-	}
-
-	private showCardItemActions(item: IAICustomizationListItem, anchor: HTMLElement): void {
-		this.cardMenuOpen = true;
-		this.lastCardFocusItemId = item.id;
-		const disposables = new DisposableStore();
-		const context: Record<string, unknown> = {
-			uri: item.uri.toString(),
-			name: item.name,
-			promptType: item.promptType,
-			source: item.source,
-			pluginUri: item.pluginUri?.toString(),
-			itemId: item.id,
-		};
-		const menu = disposables.add(this.createCardItemMenu(item));
-		const groups = menu.getActions({ arg: context, shouldForwardArgs: true });
-		const actions: IAction[] = [];
-		const addedActionIds = new Set<string>();
-		for (const [, groupActions] of groups) {
-			const uniqueGroupActions = groupActions.filter(action => {
-				if (addedActionIds.has(action.id)) {
-					return false;
-				}
-				addedActionIds.add(action.id);
-				return true;
-			});
-			if (uniqueGroupActions.length === 0) {
-				continue;
-			}
-			if (actions.length > 0) {
-				actions.push(new Separator());
-			}
-			actions.push(...uniqueGroupActions);
-		}
-		if (!item.isBuiltin && hasReadableCustomizationContent(item.uri)) {
-			if (actions.length > 0) {
-				actions.push(new Separator());
-			}
-			actions.push(disposables.add(new Action('copyRelativePath', localize('copyRelativePath', "Copy Relative Path"), undefined, true, async () => {
-				const basePath = this.workspaceService.getActiveProjectRoot();
-				const relativePath = basePath && item.uri.fsPath.startsWith(basePath.fsPath)
-					? item.uri.fsPath.substring(basePath.fsPath.length + 1)
-					: this.labelService.getUriLabel(item.uri, { relative: true });
-				await this.clipboardService.writeText(relativePath);
-			})));
-		}
-		if (actions.length === 0) {
-			this.cardMenuOpen = false;
-			disposables.dispose();
-			return;
-		}
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => actions,
-			onHide: () => {
-				this.cardMenuOpen = false;
-				if (!this.focusCardSectionItem(item.id)) {
-					(this.cardMenuButtonsById.get(item.id) ?? this.cardRowsById.get(item.id) ?? this.firstCardFocusElement)?.focus();
-				}
-				disposables.dispose();
-			},
-		});
-	}
-
-	private createCardItemMenu(item: IAICustomizationListItem): IMenu {
-		const overlayPairs: [string, string | boolean][] = [
-			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, item.promptType],
-			[AI_CUSTOMIZATION_ITEM_URI_KEY, item.uri.toString()],
-			[AI_CUSTOMIZATION_ITEM_DISABLED_KEY, item.disabled],
-			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, item.source],
-		];
-		if (item.pluginUri) {
-			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, item.pluginUri.toString()]);
-		}
-		const overlay = this.contextKeyService.createOverlay(overlayPairs);
-		return this.menuService.createMenu(getAICustomizationManagementItemMenuId(item.uri), overlay);
-	}
-
-	private hasCardItemActions(item: IAICustomizationListItem): boolean {
-		if (hasReadableCustomizationContent(item.uri)) {
-			return true;
-		}
-
-		const menu = this.createCardItemMenu(item);
-		try {
-			return menu.getActions().some(([, actions]) => actions.length > 0);
-		} finally {
-			menu.dispose();
-		}
 	}
 
 	/**
@@ -1120,7 +996,6 @@ export class AICustomizationListWidget extends Disposable {
 	async setSection(section: AICustomizationManagementSection): Promise<void> {
 		const loadId = ++this._sectionLoadId;
 		this.currentSection = section;
-		this.element.classList.toggle('plugin-list-widget', this.usesCardLayout());
 		this.updateSectionHeader();
 
 		const modelSection = toItemsModelSection(section);
@@ -1140,8 +1015,11 @@ export class AICustomizationListWidget extends Disposable {
 		this.currentSectionSubscription.value = autorun(reader => {
 			const items = observable.read(reader);
 			this.allItems = items;
-			this.filterItems();
+			const matchCount = this.filterItems();
 			this._onDidChangeItemCount.fire(items.length);
+			if (!this.sectionLoading) {
+				this.announceItemCount(matchCount);
+			}
 		});
 		this.updateAddButton();
 		await this.itemsModel.whenSectionLoaded(modelSection);
@@ -1207,12 +1085,9 @@ export class AICustomizationListWidget extends Disposable {
 	 * The first action becomes the primary button; the rest go in the dropdown.
 	 */
 	private updateAddButton(): void {
-		if (this.usesCardLayout()) {
+		if (this.usesCustomizationTreePresentation()) {
 			this.addButton.element.style.display = 'none';
 			this.addButtonSimple.element.style.display = 'none';
-			if (this.allItems.length > 0 || !this.searchQuery.trim()) {
-				this.filterItems();
-			}
 			return;
 		}
 
@@ -1460,8 +1335,8 @@ export class AICustomizationListWidget extends Disposable {
 	/**
 	 * Announces the current number of items (after search filtering) to
 	 * screen readers via an aria status message. Called when the section
-	 * is loaded and after the search filter changes so assistive technology
-	 * users hear the count, including "no results".
+	 * is loaded, its items change, and after the search filter changes so
+	 * assistive technology users hear the count, including "no results".
 	 */
 	private announceItemCount(count: number): void {
 		const isFiltering = this.searchQuery.trim().length > 0;
@@ -1552,7 +1427,7 @@ export class AICustomizationListWidget extends Disposable {
 				continue;
 			}
 
-			const collapsed = !this.usesCardLayout() && this.collapsedGroups.has(this.getCollapsedGroupKey(group.groupKey));
+			const collapsed = this.collapsedGroups.has(this.getCollapsedGroupKey(group.groupKey));
 
 			this.displayEntries.push({
 				type: 'group-header',
@@ -1579,8 +1454,27 @@ export class AICustomizationListWidget extends Disposable {
 	 * Commits the current displayEntries to the list and updates empty state.
 	 */
 	private commitDisplayEntries(): void {
-		this.list.splice(0, this.list.length, this.displayEntries);
+		this.list.setChildren(null, this.displayEntries.map(element => ({ element })));
 		this.updateEmptyState();
+	}
+
+	private renderCustomizationTree(groups: readonly ICustomizationTreeGroup<IListEntry>[]): void {
+		this.listContainer.style.display = '';
+		this.displayEntries = groups.flatMap(group => [group.element, ...group.children]);
+		const children: IObjectTreeElement<IListEntry>[] = groups.map(group => ({
+			element: group.element,
+			collapsible: true,
+			collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+			children: group.children.map(element => ({ element })),
+		}));
+		this.list.setChildren(null);
+		this.list.setChildren(null, children);
+		this.updateAddButton();
+		this.updateEmptyState();
+	}
+
+	private getDisplayedItemCount(): number {
+		return this.displayEntries.filter(entry => entry.type === 'file-item').length;
 	}
 
 	/**
@@ -1597,9 +1491,7 @@ export class AICustomizationListWidget extends Disposable {
 		];
 
 		for (const item of matchedItems) {
-			const key = this.currentSection === AICustomizationManagementSection.Instructions
-				? item.source
-				: item.groupKey ?? item.source ?? AICustomizationSources.local;
+			const key = this.getItemGroupKey(item);
 			let group = groups.find(g => g.groupKey === key);
 			if (!group) {
 				// Dynamically create a group for unknown groupKeys from providers
@@ -1642,238 +1534,55 @@ export class AICustomizationListWidget extends Disposable {
 		}
 
 		this.buildGroupedEntries(groups);
-		if (this.usesCardLayout()) {
-			this.renderCardGroups(groups);
+		if (this.usesCustomizationTreePresentation()) {
+			const isFiltering = !!this.searchQuery.trim();
+			const alwaysVisibleGroupKeys = new Set(getAlwaysVisibleCustomizationGroupKeys(this.currentSection, isFiltering));
+			const visibleGroups = groups.filter(group => group.items.length > 0 || alwaysVisibleGroupKeys.has(group.groupKey));
+			const treeGroups = visibleGroups.map((group, index): ICustomizationTreeGroup<IListEntry> => {
+				const element: IGroupHeaderEntry = {
+					type: 'group-header',
+					id: `group-${group.groupKey}`,
+					groupKey: group.groupKey,
+					label: group.label,
+					icon: group.icon,
+					count: group.items.length,
+					isFirst: index === 0,
+					description: group.description,
+					collapsed: false,
+				};
+				return {
+					id: group.groupKey,
+					label: group.label,
+					description: group.description,
+					count: group.items.length,
+					element,
+					children: group.items.map(item => ({ type: 'file-item' as const, item })),
+				};
+			});
+			this.renderCustomizationTree(treeGroups);
 		} else {
 			this.commitDisplayEntries();
 		}
 	}
 
-	private usesCardLayout(): boolean {
-		return usesCustomizationCardLayout(this.currentSection);
+	private getItemGroupKey(item: IAICustomizationListItem): string {
+		return this.currentSection === AICustomizationManagementSection.Instructions
+			? item.source
+			: item.groupKey ?? item.source ?? AICustomizationSources.local;
 	}
 
-	private renderCardGroups(groups: ICustomizationItemGroup[]): void {
-		const activeElement = DOM.getActiveElement();
-		const shouldRestoreFocus = this.cardMenuOpen || !!activeElement && this.cardContainer.contains(activeElement);
-		const focusItemId = this.lastCardFocusItemId;
-		const isFiltering = !!this.searchQuery.trim();
-		const usesTargetedCreateActions = this.usesTargetedCreateActions();
-		const createGroupKey = isFiltering || usesTargetedCreateActions ? undefined : this.getCreateActionGroupKey();
-		const alwaysVisibleGroupKeys = new Set(getAlwaysVisibleCustomizationGroupKeys(this.currentSection, isFiltering));
-		const visibleGroups = groups.filter(group => group.items.length > 0 || alwaysVisibleGroupKeys.has(group.groupKey) || group.groupKey === createGroupKey || this.sectionLoading && !isFiltering);
-		if (visibleGroups.length === 0) {
-			this.captureCardSectionScrollPositions();
-			this.cardDisposables.clear();
-			this.cardSectionLists = [];
-			this.cardRowsByUri.clear();
-			this.cardRowsById.clear();
-			this.cardMenuButtonsById.clear();
-			this.firstCardFocusElement = undefined;
-			this.cardSectionLayoutContainer = undefined;
-			DOM.clearNode(this.cardContainer);
-			this.cardScrollableNode.style.display = 'none';
-			this.updateEmptyState();
+	private usesCustomizationTreePresentation(): boolean {
+		return usesCustomizationTreePresentation(this.currentSection);
+	}
+
+	private renderTreeGroupActions(entry: IGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
+		if (entry.groupKey !== PromptsStorage.local && entry.groupKey !== PromptsStorage.user) {
 			return;
 		}
-		if (createGroupKey) {
-			const createGroupIndex = visibleGroups.findIndex(group => group.groupKey === createGroupKey);
-			if (createGroupIndex > 0) {
-				visibleGroups.unshift(...visibleGroups.splice(createGroupIndex, 1));
-			}
-		}
-
-		this.captureCardSectionScrollPositions();
-		this.cardDisposables.clear();
-		this.cardSectionLists = [];
-		this.cardRowsByUri.clear();
-		this.cardRowsById.clear();
-		this.cardMenuButtonsById.clear();
-		this.firstCardFocusElement = undefined;
-		this.cardSectionLayoutContainer = undefined;
-		DOM.clearNode(this.cardContainer);
-		this.listContainer.style.display = 'none';
-		this.emptyStateContainer.style.display = 'none';
-		this.cardScrollableNode.style.display = '';
-		const content = DOM.append(this.cardContainer, $('.plugin-card-scroll.plugin-card-scroll-content.customization-card-scroll.distributed-section-layout'));
-		this.cardSectionLayoutContainer = content;
-		const contentResizeObserver = this.cardDisposables.add(new DOM.DisposableResizeObserver(
-			'AICustomizationListWidget.cardScrollContent',
-			() => this.scheduleCardSectionLayout(),
-		));
-		this.cardDisposables.add(contentResizeObserver.observe(content));
-
-		for (const group of visibleGroups) {
-			const collapsedGroupKey = this.getCollapsedGroupKey(group.groupKey);
-			const section = DOM.append(content, $('.plugin-card-section.customization-card-section'));
-			const header = DOM.append(section, $('.plugin-card-section-header'));
-			const text = DOM.append(header, $('.plugin-card-section-text'));
-			const headingRow = DOM.append(text, $('.plugin-card-section-heading-row'));
-			const heading = DOM.append(headingRow, $('h3.plugin-card-section-title'));
-			heading.textContent = group.label;
-			const count = DOM.append(headingRow, $('.plugin-card-section-count'));
-			count.textContent = String(group.items.length);
-			if (group.description) {
-				const description = DOM.append(text, $('.plugin-card-section-description'));
-				description.textContent = group.description;
-			}
-			if (!isFiltering && usesTargetedCreateActions && (group.groupKey === PromptsStorage.local || group.groupKey === PromptsStorage.user)) {
-				this.renderTargetedCardCreateActions(header, group.groupKey);
-			} else if (group.groupKey === createGroupKey) {
-				this.renderCardCreateActions(header);
-			}
-
-			const inventory = DOM.append(section, $('.plugin-card-grid.plugin-inventory-list.customization-inventory-list.virtualized-section-list'));
-			setupCollapsibleSection(
-				headingRow,
-				inventory,
-				group.label,
-				this.cardDisposables,
-				this.collapsedGroups.has(collapsedGroupKey),
-				collapsed => {
-					if (collapsed) {
-						this.collapsedGroups.add(collapsedGroupKey);
-					} else {
-						this.collapsedGroups.delete(collapsedGroupKey);
-					}
-					this.layoutCardSectionLists();
-					this.cardScrollable.scanDomNode();
-					this.scheduleCardSectionLayout();
-				},
-			);
-			if (group.items.length === 0) {
-				if (this.sectionLoading) {
-					renderVirtualizedSectionLoadingPlaceholder(inventory, localize('loadingCustomizations', "Loading customizations..."), ITEM_HEIGHT);
-				} else {
-					const empty = DOM.append(inventory, $('.plugin-inventory-empty'));
-					empty.textContent = this.getEmptyGroupMessage(group.groupKey);
-				}
-				continue;
-			}
-			this.createCustomizationSectionList(inventory, group.groupKey, group.label, group.items);
-		}
-		this.layoutCardSectionLists();
-		this.cardScrollable.scanDomNode();
-		this.scheduleCardSectionLayout();
-		if (shouldRestoreFocus) {
-			DOM.getWindow(this.element).requestAnimationFrame(() => {
-				if (!focusItemId || !this.focusCardSectionItem(focusItemId)) {
-					this.firstCardFocusElement?.focus();
-				}
-			});
-		}
+		this.renderTargetedCreateActions(container, entry.groupKey, disposables);
 	}
 
-	private createCustomizationSectionList(container: HTMLElement, groupKey: string, label: string, items: readonly IAICustomizationListItem[]): void {
-		const key = `${this.currentSection}:${groupKey}`;
-		container.style.height = `${ITEM_HEIGHT}px`;
-		const itemRenderer = this.instantiationService.createInstance(
-			AICustomizationItemRenderer,
-			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showCardItemActions(item, anchor),
-		);
-		const list = this.cardDisposables.add(this.instantiationService.createInstance(
-			WorkbenchList<IFileItemEntry>,
-			`AICustomizationManagementList.${label}`,
-			container,
-			new AICustomizationListDelegate(),
-			[itemRenderer],
-			{
-				identityProvider: { getId: entry => entry.item.id },
-				accessibilityProvider: {
-					getAriaLabel: entry => getCustomizationItemAriaLabel(entry.item),
-					getWidgetAriaLabel: () => label,
-					getSetSize: (_entry, _index, listLength) => listLength,
-					getPosInSet: (_entry, index) => index + 1,
-				},
-				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: entry => entry.item.name,
-				},
-				multipleSelectionSupport: false,
-				openOnSingleClick: true,
-			},
-		));
-		list.splice(0, 0, items.map(item => ({ type: 'file-item', item })));
-		list.scrollTop = this.cardSectionScrollPositions.get(key) ?? 0;
-		this.cardDisposables.add(list.onDidOpen(event => {
-			if (event.element) {
-				this._onDidSelectItem.fire(event.element.item);
-			}
-		}));
-		this.cardDisposables.add(list.onDidChangeFocus(event => {
-			itemRenderer.setFocusedIndex(event.indexes.length ? event.indexes[0] : -1);
-			if (event.elements.length > 0) {
-				this.lastCardFocusItemId = event.elements[0].item.id;
-			}
-		}));
-		this.cardDisposables.add(list.onDidFocus(() => {
-			if (list.getFocus().length === 0 && items.length > 0) {
-				list.setFocus([0]);
-			}
-		}));
-		this.cardDisposables.add(list.onContextMenu(event => this.onContextMenu(event as IListContextMenuEvent<IListEntry>)));
-		this.cardSectionLists.push({ list, items, container, key });
-	}
-
-	private captureCardSectionScrollPositions(): void {
-		for (const section of this.cardSectionLists) {
-			this.cardSectionScrollPositions.set(section.key, section.list.scrollTop);
-		}
-	}
-
-	private layoutCardSectionLists(): void {
-		const content = this.cardSectionLayoutContainer;
-		if (!content) {
-			return;
-		}
-		const heights = layoutVirtualizedSections(content, this.cardSectionLists.map(section => ({
-			container: section.container,
-			contentHeight: section.items.length * ITEM_HEIGHT,
-			minimumHeight: getVirtualizedSectionMinimumHeight(section.items, () => ITEM_HEIGHT),
-		})));
-		for (let index = 0; index < this.cardSectionLists.length; index++) {
-			const section = this.cardSectionLists[index];
-			const height = heights[index];
-			layoutVirtualizedSectionList(section.list, section.container, height, section.container.clientWidth || undefined);
-		}
-	}
-
-	private scheduleCardSectionLayout(): void {
-		const targetWindow = DOM.getWindow(this.element);
-		this.pendingCardSectionLayout.value = DOM.scheduleAtNextAnimationFrame(targetWindow, () => {
-			this.layoutCardSectionLists();
-			this.cardScrollable.scanDomNode();
-		});
-	}
-
-	private focusCardSectionItem(itemId: string): boolean {
-		for (const section of this.cardSectionLists) {
-			const index = section.items.findIndex(item => item.id === itemId);
-			if (index >= 0) {
-				section.list.reveal(index);
-				section.list.setFocus([index]);
-				section.list.domFocus();
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private usesTargetedCreateActions(): boolean {
-		return this.currentSection === AICustomizationManagementSection.Agents
-			|| this.currentSection === AICustomizationManagementSection.Skills
-			|| this.currentSection === AICustomizationManagementSection.Instructions
-			|| this.currentSection === AICustomizationManagementSection.Hooks
-			|| this.currentSection === AICustomizationManagementSection.Prompts;
-	}
-
-	private getCreateActionGroupKey(): string | undefined {
-		if (this.buildCreateActions().length === 0) {
-			return undefined;
-		}
-		return this.hasActiveWorkspace() ? PromptsStorage.local : PromptsStorage.user;
-	}
-
-	private renderTargetedCardCreateActions(header: HTMLElement, groupKey: string): void {
+	private renderTargetedCreateActions(header: HTMLElement, groupKey: string, disposables: DisposableStore): void {
 		const target = groupKey === PromptsStorage.local ? 'workspace' : 'user';
 		const hasWorkspace = this.hasActiveWorkspace();
 		const actions = this.buildCreateActions().filter(action =>
@@ -1887,7 +1596,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		const container = DOM.append(header, $('.plugin-card-section-actions'));
 		const label = this.formatTargetedCreateActionLabel(primary);
-		const button = this.cardDisposables.add(new Button(container, {
+		const button = disposables.add(new Button(container, {
 			...defaultButtonStyles,
 			secondary: true,
 			title: primary.tooltip ?? label,
@@ -1896,12 +1605,11 @@ export class AICustomizationListWidget extends Disposable {
 		button.element.classList.add('customization-create-action');
 		button.label = label;
 		button.enabled = primary.enabled;
-		this.firstCardFocusElement ??= button.element;
-		this.cardDisposables.add(button.onDidClick(() => primary.run()));
+		disposables.add(button.onDidClick(() => primary.run()));
 
 		const generateAction = actions.find(action => action.kind === 'generate');
 		if (generateAction && generateAction !== primary) {
-			const generateButton = this.cardDisposables.add(new Button(container, {
+			const generateButton = disposables.add(new Button(container, {
 				...defaultButtonStyles,
 				secondary: true,
 				title: generateAction.tooltip ?? generateAction.label,
@@ -1910,13 +1618,13 @@ export class AICustomizationListWidget extends Disposable {
 			generateButton.element.classList.add('customization-generate-action');
 			generateButton.label = generateAction.label;
 			generateButton.enabled = generateAction.enabled;
-			this.cardDisposables.add(generateButton.onDidClick(() => generateAction.run()));
+			disposables.add(generateButton.onDidClick(() => generateAction.run()));
 		}
 
 		const secondaryActions = actions.filter(action => action !== primary && action !== generateAction);
 		if (secondaryActions.length > 0) {
 			const moreLabel = localize('moreCreateActions', "More creation actions for {0}", groupKey === PromptsStorage.local ? localize('workspace', "Workspace") : localize('user', "User"));
-			const more = this.cardDisposables.add(new Button(container, {
+			const more = disposables.add(new Button(container, {
 				...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }),
 				secondary: true,
 				supportIcons: true,
@@ -1925,7 +1633,7 @@ export class AICustomizationListWidget extends Disposable {
 			}));
 			more.element.classList.add('plugin-card-icon-button', 'customization-create-more-action');
 			more.label = `$(${Codicon.ellipsis.id})`;
-			this.cardDisposables.add(more.onDidClick(() => this.showCreateActionsMenu(secondaryActions, more.element)));
+			disposables.add(more.onDidClick(() => this.showCreateActionsMenu(secondaryActions, more.element)));
 		}
 	}
 
@@ -1949,142 +1657,6 @@ export class AICustomizationListWidget extends Disposable {
 		});
 	}
 
-	private getEmptyGroupMessage(groupKey: string): string {
-		const workspace = groupKey === PromptsStorage.local;
-		switch (this.currentSection) {
-			case AICustomizationManagementSection.Agents:
-				return workspace ? localize('noWorkspaceAgents', "No workspace agents yet.") : localize('noUserAgents', "No user agents yet.");
-			case AICustomizationManagementSection.Skills:
-				return workspace ? localize('noWorkspaceSkills', "No workspace skills yet.") : localize('noUserSkills', "No user skills yet.");
-			case AICustomizationManagementSection.Instructions:
-				return workspace ? localize('noWorkspaceInstructions', "No workspace instructions yet.") : localize('noUserInstructions', "No user instructions yet.");
-			case AICustomizationManagementSection.Hooks:
-				return workspace ? localize('noWorkspaceHooks', "No workspace hooks yet.") : localize('noUserHooks', "No user hooks yet.");
-			case AICustomizationManagementSection.Prompts:
-				return workspace ? localize('noWorkspacePrompts', "No workspace prompts yet.") : localize('noUserPrompts', "No user prompts yet.");
-			default:
-				return localize('noCustomizationsInSection', "No customizations are available.");
-		}
-	}
-
-	private renderCardCreateActions(header: HTMLElement): void {
-		const actions = this.buildCreateActions();
-		const [primary, ...dropdown] = actions;
-		if (!primary) {
-			return;
-		}
-		const container = DOM.append(header, $('.plugin-card-section-actions'));
-		const accessibleLabel = primary.tooltip ?? primary.label.replace(/\$\([^)]+\)\s*/g, '');
-		if (dropdown.length > 0) {
-			const button = this.cardDisposables.add(new ButtonWithDropdown(container, {
-				...defaultButtonStyles,
-				secondary: true,
-				contextMenuProvider: this.contextMenuService,
-				addPrimaryActionToDropdown: false,
-				actions: { getActions: () => this.getDropdownActions() },
-				title: accessibleLabel,
-				ariaLabel: accessibleLabel,
-			}));
-			button.element.classList.add('customization-create-action');
-			button.label = primary.label;
-			button.enabled = primary.enabled;
-			this.firstCardFocusElement ??= button.element;
-			this.cardDisposables.add(button.onDidClick(() => this.executePrimaryCreateAction()));
-			return;
-		}
-
-		const button = this.cardDisposables.add(new Button(container, {
-			...defaultButtonStyles,
-			secondary: true,
-			title: accessibleLabel,
-			ariaLabel: accessibleLabel,
-		}));
-		button.element.classList.add('customization-create-action');
-		button.label = primary.label;
-		button.enabled = primary.enabled;
-		this.firstCardFocusElement ??= button.element;
-		this.cardDisposables.add(button.onDidClick(() => this.executePrimaryCreateAction()));
-	}
-
-	protected appendCustomizationCardRow(parent: HTMLElement, item: IAICustomizationListItem, groupLabel: string, cardList: CustomizationCardListController): void {
-		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.customization-home-row'));
-		row.classList.toggle('disabled', item.disabled);
-		const displayName = item.displayName ?? formatDisplayName(item.name);
-		const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
-		const statusLabel = getCustomizationItemStatusLabel(item);
-		const accessibleSecondaryText = [secondaryText, statusLabel].filter(Boolean).join('. ');
-		const accessibleLabel = item.disabled
-			? localize('customizationCardAriaLabelDisabled', "{0}. {1}. Disabled", displayName, accessibleSecondaryText || groupLabel)
-			: localize('customizationCardAriaLabel', "{0}. {1}", displayName, accessibleSecondaryText || groupLabel);
-		const primary = createCustomizationCardPrimaryAction(row, accessibleLabel, 'customization-row-primary');
-		const hasReadableContent = hasReadableCustomizationContent(item.uri);
-		if (!hasReadableContent) {
-			primary.setAttribute('aria-disabled', 'true');
-		}
-		this.firstCardFocusElement ??= primary;
-		if (!this.cardRowsByUri.has(item.uri.toString())) {
-			this.cardRowsByUri.set(item.uri.toString(), primary);
-		}
-		this.cardRowsById.set(item.id, primary);
-		this.cardDisposables.add(DOM.addDisposableListener(primary, 'focus', () => {
-			this.lastCardFocusItemId = item.id;
-		}));
-		if (hasReadableContent) {
-			this.cardDisposables.add(DOM.addDisposableListener(primary, 'click', () => this._onDidSelectItem.fire(item)));
-		}
-		const hasItemActions = this.hasCardItemActions(item);
-		if (hasItemActions) {
-			this.cardDisposables.add(DOM.addDisposableListener(row, 'contextmenu', event => {
-				event.preventDefault();
-				this.showCardItemActions(item, row);
-			}));
-		}
-		this.cardDisposables.add(this.hoverService.setupDelayedHover(row, () => ({
-			content: `${displayName}\n${this.labelService.getUriLabel(item.uri, { relative: item.source === AICustomizationSources.local })}`,
-			appearance: { compact: true, skipFadeInAnimation: true },
-		})));
-
-		const details = DOM.append(primary, $('.plugin-list-item-details'));
-		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
-		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
-		name.textContent = displayName;
-		if (item.badge && item.promptType !== PromptsType.instructions) {
-			const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
-			badge.textContent = item.badge;
-			badge.title = item.badgeTooltip ?? item.badge;
-		}
-		const description = DOM.append(details, $('.plugin-list-item-description'));
-		description.textContent = secondaryText ?? localize('customizationNoDescription', "No description provided.");
-
-		const actionElements: HTMLElement[] = [];
-		if (hasItemActions) {
-			const actionContainer = DOM.append(row, $('.plugin-list-item-action'));
-			this.cardDisposables.add(DOM.addDisposableGenericMouseDownListener(actionContainer, e => e.stopPropagation()));
-			this.cardDisposables.add(DOM.addDisposableListener(actionContainer, 'click', e => e.stopPropagation()));
-			const more = this.cardDisposables.add(new Button(actionContainer, {
-				...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }),
-				secondary: true,
-				supportIcons: true,
-				ariaLabel: localize('customizationMoreActionsAria', "More actions for {0}", displayName),
-			}));
-			more.element.classList.add('plugin-card-icon-button');
-			more.label = `$(${Codicon.ellipsis.id})`;
-			this.cardMenuButtonsById.set(item.id, more.element);
-			this.cardDisposables.add(DOM.addDisposableListener(more.element, 'focus', () => {
-				this.lastCardFocusItemId = item.id;
-			}));
-			this.cardDisposables.add(more.onDidClick(() => this.showCardItemActions(item, more.element)));
-			actionElements.push(more.element);
-		}
-		cardList.addItem({
-			row,
-			primaryAction: primary,
-			label: displayName,
-			actions: actionElements,
-			contextMenuAction: actionElements[0],
-		});
-	}
-
 	/**
 	 * Filters items based on the current search query and builds grouped display entries.
 	 */
@@ -2092,20 +1664,7 @@ export class AICustomizationListWidget extends Disposable {
 		const matchedItems = this.applySearchFilter(this.allItems);
 		this.groupMatchedItems(matchedItems);
 
-		return matchedItems.length;
-	}
-
-	/**
-	 * Toggles the collapsed state of a group.
-	 */
-	private toggleGroup(entry: IGroupHeaderEntry): void {
-		const collapsedGroupKey = this.getCollapsedGroupKey(entry.groupKey);
-		if (this.collapsedGroups.has(collapsedGroupKey)) {
-			this.collapsedGroups.delete(collapsedGroupKey);
-		} else {
-			this.collapsedGroups.add(collapsedGroupKey);
-		}
-		this.filterItems();
+		return this.usesCustomizationTreePresentation() ? this.getDisplayedItemCount() : matchedItems.length;
 	}
 
 	private getCollapsedGroupKey(groupKey: string): string {
@@ -2115,7 +1674,6 @@ export class AICustomizationListWidget extends Disposable {
 	private updateEmptyState(): void {
 		const hasItems = this.displayEntries.length > 0;
 		if (!hasItems) {
-			this.cardScrollableNode.style.display = 'none';
 			this.emptyStateContainer.style.display = 'flex';
 			this.listContainer.style.display = 'none';
 
@@ -2131,8 +1689,7 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		} else {
 			this.emptyStateContainer.style.display = 'none';
-			this.listContainer.style.display = this.usesCardLayout() ? 'none' : '';
-			this.cardScrollableNode.style.display = this.usesCardLayout() ? '' : 'none';
+			this.listContainer.style.display = '';
 		}
 	}
 
@@ -2192,21 +1749,10 @@ export class AICustomizationListWidget extends Disposable {
 	 * Focuses the list.
 	 */
 	focusList(): void {
-		if (this.usesCardLayout()) {
-			if (!this.firstCardFocusElement) {
-				const firstSection = this.cardSectionLists[0];
-				if (firstSection?.items.length) {
-					firstSection.list.setFocus([0]);
-					firstSection.list.domFocus();
-				}
-			} else {
-				this.firstCardFocusElement.focus();
-			}
-			return;
-		}
 		this.list.domFocus();
-		if (this.displayEntries.length > 0) {
-			this.list.setFocus([0]);
+		const firstItem = this.displayEntries.find(entry => entry.type === 'file-item');
+		if (firstItem) {
+			this.list.setFocus([firstItem]);
 		}
 	}
 
@@ -2214,21 +1760,8 @@ export class AICustomizationListWidget extends Disposable {
 	 * Scrolls the list so the last item is visible.
 	 */
 	revealLastItem(): void {
-		if (this.usesCardLayout()) {
-			const reveal = () => {
-				const section = this.cardSectionLists.at(-1);
-				if (section?.items.length) {
-					section.list.reveal(section.items.length - 1);
-				}
-				this.cardScrollable.scanDomNode();
-				this.cardScrollable.setScrollPosition({ scrollTop: this.cardContainer.scrollHeight });
-			};
-			reveal();
-			this.revealLastItemScheduler.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.element), reveal);
-			return;
-		}
 		if (this.displayEntries.length > 0) {
-			this.list.reveal(this.displayEntries.length - 1);
+			this.list.reveal(this.displayEntries[this.displayEntries.length - 1]);
 		}
 	}
 
@@ -2236,29 +1769,16 @@ export class AICustomizationListWidget extends Disposable {
 	 * Reveals and selects the first list item whose URI matches one of the provided URIs.
 	 */
 	revealAndSelectFirstItemByUri(uris: readonly URI[]): boolean {
-		if (this.usesCardLayout()) {
-			for (const section of this.cardSectionLists) {
-				const index = section.items.findIndex(item => uris.some(uri => isEqual(item.uri, uri)));
-				if (index >= 0) {
-					section.list.reveal(index);
-					section.list.setFocus([index]);
-					section.list.setSelection([index]);
-					section.list.domFocus();
-					return true;
-				}
-			}
-			return false;
-		}
-		const entryIndex = this.displayEntries.findIndex(entry => {
+		const entry = this.displayEntries.find(entry => {
 			return entry.type === 'file-item' && uris.some(uri => isEqual(entry.item.uri, uri));
 		});
-		if (entryIndex < 0) {
+		if (!entry) {
 			return false;
 		}
 
-		this.list.reveal(entryIndex);
-		this.list.setFocus([entryIndex]);
-		this.list.setSelection([entryIndex]);
+		this.list.reveal(entry);
+		this.list.setFocus([entry]);
+		this.list.setSelection([entry]);
 		this.list.domFocus();
 		return true;
 	}
@@ -2297,18 +1817,10 @@ export class AICustomizationListWidget extends Disposable {
 		}
 		const headerHeight = this.sectionTitleHeader.offsetHeight;
 		this.lastHeaderHeight = headerHeight;
-		const availableHeight = this.element.clientHeight || height;
-		const listHeight = Math.max(0, availableHeight - searchBarHeight - headerHeight);
+		const listHeight = getCustomizationTreeContentHeight(this.element, this.listContainer, height);
 
-		this.cardScrollableNode.style.height = `${listHeight}px`;
 		this.listContainer.style.height = `${listHeight}px`;
-		if (this.usesCardLayout()) {
-			this.layoutCardSectionLists();
-			this.cardScrollable.scanDomNode();
-			this.scheduleCardSectionLayout();
-		} else {
-			this.list.layout(listHeight, width);
-		}
+		this.list.layout(listHeight, width);
 	}
 
 	/**

@@ -26,6 +26,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 	public readonly domNode: HTMLElement;
 
 	private readonly rendered = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private authenticateAction: HTMLAnchorElement | undefined;
 
 	/**
 	 * Whether this part was ever shown. Used to distinguish the initial empty
@@ -42,9 +43,12 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 	 * server and stays visible regardless of the underlying auth-required state.
 	 */
 	private readonly _authenticating = observableValue<IChatMcpAuthenticationRequiredServer | undefined>(this, undefined);
+	private _pendingServers: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[] = [];
+	private _renderedAuthenticatingServerId: string | undefined;
 
 	constructor(
 		private readonly data: IChatMcpAuthenticationRequired,
+		private readonly options: { onDidAuthenticate?: () => void; onDidRemoveFocusedAction?: () => void } = {},
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 	) {
@@ -55,15 +59,39 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		// is pushed into the same observable by the session handler — or while a
 		// server is actively being authenticated.
 		this._register(autorun(reader => {
-			const servers = this.data.servers.read(reader);
+			const dataServers = this.data.servers.read(reader);
 			const authenticating = this._authenticating.read(reader);
-			this.render(servers, authenticating);
-			this.updateVisibility(servers, authenticating);
+			this.update(dataServers, authenticating);
 		}));
-		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => this.updateVisibility(this.data.servers.get(), this._authenticating.get())));
+		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => this.update(this.data.servers.get(), this._authenticating.get())));
 	}
 
-	private render(servers: readonly IChatMcpAuthenticationRequiredServer[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
+	private update(dataServers: readonly IChatMcpAuthenticationRequiredServer[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
+		const pendingServers = this.getPendingServers(dataServers);
+		const pendingServersChanged = !this.pendingServersEqual(pendingServers, this._pendingServers);
+		this._pendingServers = pendingServers;
+		if (authenticating?.id !== this._renderedAuthenticatingServerId || (!authenticating && pendingServersChanged)) {
+			this.render(pendingServers, authenticating);
+			this._renderedAuthenticatingServerId = authenticating?.id;
+		}
+		this.updateVisibility(pendingServers, authenticating);
+	}
+
+	private pendingServersEqual(first: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[], second: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[]): boolean {
+		return first.length === second.length && first.every((server, index) => server.id === second[index].id && server.name === second[index].name);
+	}
+
+	private getPendingServers(dataServers: readonly IChatMcpAuthenticationRequiredServer[]): readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[] {
+		const sessionResource = URI.revive(this.data.sessionResource);
+		const dataServerIds = new Set(dataServers.map(server => server.id));
+		return this.agentHostCustomizationService.getMcpServers(sessionResource)
+			.filter(server => dataServerIds.has(server.id) && server.enabled && server.status === McpServerStatus.AuthRequired)
+			.map(server => ({ id: server.id, name: server.name }));
+	}
+
+	private render(servers: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
+		const actionHadFocus = !!this.authenticateAction && dom.isActiveElement(this.authenticateAction);
+		this.authenticateAction = undefined;
 		dom.clearNode(this.domNode);
 		this.rendered.clear();
 
@@ -72,10 +100,16 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 				ThemeIcon.modify(Codicon.loading, 'spin'),
 				localize('mcp.auth.authenticating', 'Authenticating {0}...', '`' + escapeMarkdownSyntaxTokens(authenticating.name) + '`'),
 			);
+			if (actionHadFocus) {
+				this.options.onDidRemoveFocusedAction?.();
+			}
 			return;
 		}
 
 		if (!servers.length) {
+			if (actionHadFocus) {
+				this.options.onDidRemoveFocusedAction?.();
+			}
 			return;
 		}
 
@@ -85,10 +119,13 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		const content = servers.length === 1
 			? localize('mcp.auth.single', 'The MCP server {0} requires authentication. [Authenticate](#authenticate)?', links)
 			: localize('mcp.auth.multiple', 'The MCP servers {0} require authentication. [Authenticate](#authenticate)?', links);
-		this._renderMessage(Codicon.mcp, content, { href: '#authenticate', run: () => void this.authenticate() });
+		this.authenticateAction = this._renderMessage(Codicon.mcp, content, { href: '#authenticate', run: () => void this.authenticate() });
+		if (actionHadFocus) {
+			this.authenticateAction?.focus();
+		}
 	}
 
-	private _renderMessage(icon: ThemeIcon, content: string, action?: { href: string; run: () => void }): void {
+	private _renderMessage(icon: ThemeIcon, content: string, action?: { href: string; run: () => void }): HTMLAnchorElement | undefined {
 		const container = dom.$('.chat-mcp-servers-interaction-hint');
 		const messageContainer = dom.$('.chat-mcp-servers-message');
 		const iconElement = dom.$('.chat-mcp-servers-icon');
@@ -119,15 +156,21 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 			if (actionLink) {
 				actionLink.setAttribute('role', 'button');
 				actionLink.href = '';
+				return actionLink;
 			}
 		}
+		return undefined;
 	}
 
 	private async authenticate(): Promise<void> {
 		const sessionResource = URI.revive(this.data.sessionResource);
 		try {
-			for (const server of this.data.servers.get()) {
-				this._authenticating.set(server, undefined);
+			for (const server of this.getPendingServers(this.data.servers.get())) {
+				const dataServer = this.data.servers.get().find(candidate => candidate.id === server.id);
+				if (!dataServer || !this.getPendingServers(this.data.servers.get()).some(candidate => candidate.id === server.id)) {
+					continue;
+				}
+				this._authenticating.set({ ...dataServer, name: server.name }, undefined);
 				await this.agentHostCustomizationService.authenticateMcpServer(sessionResource, server.id);
 			}
 		} finally {
@@ -135,24 +178,23 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		}
 	}
 
-	private updateVisibility(dataServers: readonly IChatMcpAuthenticationRequiredServer[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
+	private updateVisibility(pendingServers: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
 		// Stay visible while actively authenticating so the progress message is shown.
 		if (authenticating) {
 			this.domNode.style.display = '';
 			this._hasBeenVisible = true;
 			return;
 		}
-		const sessionResource = URI.revive(this.data.sessionResource);
-		const servers = this.agentHostCustomizationService.getMcpServers(sessionResource);
-		const visible = dataServers.some(server => servers.some(current => current.id === server.id && current.status === McpServerStatus.AuthRequired));
+		const visible = pendingServers.length > 0;
 		this.domNode.style.display = visible ? '' : 'none';
 		if (visible) {
 			this._hasBeenVisible = true;
-		} else if (this._hasBeenVisible) {
+		} else if (this._hasBeenVisible && !this.data.isUsed) {
 			// Every server has been authenticated. Mark this part used so a
 			// subsequent auth requirement surfaces as a fresh prompt rather than
 			// silently reusing this now-hidden one.
 			this.data.isUsed = true;
+			this.options.onDidAuthenticate?.();
 		}
 	}
 

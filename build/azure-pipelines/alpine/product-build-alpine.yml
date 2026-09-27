@@ -1,13 +1,16 @@
 parameters:
   - name: VSCODE_ARCH
     type: string
+  - name: VSCODE_POOL_NAME
+    type: string
+    default: 1es-ubuntu-22.04-x64
 
 jobs:
   - job: Alpine_${{ parameters.VSCODE_ARCH }}
     displayName: Alpine (${{ upper(parameters.VSCODE_ARCH) }})
     timeoutInMinutes: 60
     pool:
-      name: 1es-ubuntu-22.04-x64
+      name: ${{ parameters.VSCODE_POOL_NAME }}
       os: linux
     variables:
       NPM_ARCH: ${{ parameters.VSCODE_ARCH }}
@@ -153,6 +156,10 @@ jobs:
         env:
           AZURE_DEVOPS_EXT_PAT: "$(System.AccessToken)"
         displayName: Download NodeJS MUSL
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - script: node build/npm/preinstall.ts
+        displayName: Install Electron headers
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       - script: |

@@ -26,7 +26,7 @@ import { defaultButtonStyles, getButtonStyles } from '../../../../../platform/th
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
-import { createPolicyBlockedEnableAction, createUninstallPluginAction, isPluginPolicyBlocked } from '../agentPluginActions.js';
+import { createPolicyManagedEnablementAction, createUninstallPluginAction, getPluginPolicyEnablement, isPluginPolicyBlocked } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
@@ -133,6 +133,8 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	readonly onDidRequestOpenSection = this._onDidRequestOpenSection.event;
 	private readonly _onDidUninstall = this._register(new Emitter<void>());
 	readonly onDidUninstall = this._onDidUninstall.event;
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
 
 	private readonly root: HTMLElement;
 	private readonly headerEl: HTMLElement;
@@ -161,7 +163,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private updateEnablementAction: (() => void) | undefined;
 	private pluginVersionRowEl: HTMLElement | undefined;
 	private pluginVersionValueEl: HTMLElement | undefined;
-	private renderedPolicyBlocked = false;
+	private renderedPolicyEnablement: boolean | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -233,6 +235,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		}
 		this.narrowLayout = narrow;
 		this.root.classList.toggle('narrow-layout', narrow);
+		this._onDidChangeContent.fire();
 	}
 
 	get element(): HTMLElement {
@@ -256,17 +259,16 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.current = item;
 		this.renderItem();
 		if (item.kind === AgentPluginItemKind.Installed) {
-			this.renderedPolicyBlocked = isPluginPolicyBlocked(item.plugin);
+			this.renderedPolicyEnablement = getPluginPolicyEnablement(item.plugin);
 			this.inputStateAutorun.value = autorun(reader => {
 				item.plugin.enablement.read(reader);
-				item.plugin.policyBlocked?.read(reader);
+				const policyEnablement = getPluginPolicyEnablement(item.plugin, reader);
 				item.plugin.version?.read(reader);
 				if (this._store.isDisposed || this.current !== item) {
 					return;
 				}
-				const policyBlocked = isPluginPolicyBlocked(item.plugin);
-				if (policyBlocked !== this.renderedPolicyBlocked) {
-					this.renderedPolicyBlocked = policyBlocked;
+				if (policyEnablement !== this.renderedPolicyEnablement) {
+					this.renderedPolicyEnablement = policyEnablement;
 					this.renderItem();
 					return;
 				}
@@ -306,6 +308,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.contributionsEl.style.display = 'none';
 			DOM.clearNode(this.readmeContentEl);
 			this.readmeEl.style.display = 'none';
+			this._onDidChangeContent.fire();
 			return;
 		}
 
@@ -329,6 +332,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		const description = (item.description || '').trim();
 		this.descriptionEl.textContent = description || localize('pluginNoDescription', "No description provided.");
 		this.descriptionEl.style.display = '';
+		this._onDidChangeContent.fire();
 	}
 
 	private updateInstalledState(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): void {
@@ -341,6 +345,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		}
 		this.updateEnablementAction?.();
 		this.updatePluginVersionFact(item);
+		this._onDidChangeContent.fire();
 	}
 
 	private renderTitleActions(item: IAgentPluginItem): void {
@@ -434,13 +439,13 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	}
 
 	private renderEnablementSplitButton(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): void {
-		if (isPluginPolicyBlocked(item.plugin)) {
-			const action = createPolicyBlockedEnableAction(item.plugin, this.notificationService);
+		const policyAction = createPolicyManagedEnablementAction(item.plugin, this.notificationService);
+		if (policyAction) {
 			const policyLabel = localize('pluginManagedByOrganization', "Managed by Organization");
 			const button = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: policyLabel }));
 			button.label = policyLabel;
-			this.renderDisposables.add(button.onDidClick(() => action.run()));
-			this.renderDisposables.add(action);
+			this.renderDisposables.add(button.onDidClick(() => policyAction.run()));
+			this.renderDisposables.add(policyAction);
 			return;
 		}
 
@@ -610,6 +615,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			if (!this._store.isDisposed && this.current === item && this.readmeRenderGuard.isCurrent(renderGeneration)) {
 				const message = DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message'));
 				message.textContent = localize('pluginReadmeLoadError', "The plugin README could not be loaded.");
+				this._onDidChangeContent.fire();
 			}
 			return;
 		}
@@ -619,17 +625,26 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		if (readme === undefined) {
 			const message = DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message'));
 			message.textContent = localize('pluginReadmeMissing', "No README was provided for this plugin.");
+			this._onDidChangeContent.fire();
 			return;
 		}
 		if (!readme.content.trim()) {
 			const message = DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message'));
 			message.textContent = localize('pluginReadmeEmpty', "The plugin README is empty.");
+			this._onDidChangeContent.fire();
 			return;
 		}
 		const markdown = new MarkdownString(readme.content, { supportHtml: false });
 		markdown.baseUri = readme.baseUri;
-		const rendered = this.renderDisposables.add(this.markdownRendererService.render(markdown));
+		const rendered = this.renderDisposables.add(this.markdownRendererService.render(markdown, {
+			asyncRenderCallback: () => {
+				if (!this._store.isDisposed && this.current === item && this.readmeRenderGuard.isCurrent(renderGeneration)) {
+					this._onDidChangeContent.fire();
+				}
+			},
+		}));
 		this.readmeContentEl.appendChild(rendered.element);
+		this._onDidChangeContent.fire();
 	}
 
 	override dispose(): void {

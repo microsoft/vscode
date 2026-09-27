@@ -114,11 +114,9 @@ export class SSHRelayClientFactory implements ISSHRelayClientFactory {
 			}
 		};
 		return this._instantiationService.createInstance(AgentHostProtocolClient, address, () => {
-			// Logged under the seed channel id: the re-established id is not known
-			// until `establish()` resolves, after the logger has to exist.
-			const createLogger = () => ahpLoggingEnabled ? this._instantiationService.createInstance(
+			const createLogger = (activeConnectionId: string) => ahpLoggingEnabled ? this._instantiationService.createInstance(
 				AhpJsonlLogger,
-				{ logsHome: this._environmentService.logsHome, connectionId, transport: 'ssh' },
+				{ logsHome: this._environmentService.logsHome, logId: address, connectionId: activeConnectionId, transport: 'ssh' },
 			) : undefined;
 			return new ReconnectingRelayTransport(
 				establish,
@@ -679,13 +677,26 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		});
 
 		try {
-			const decision = decideHostKeyTrust(request, this._hostKeyTrustService.getTrustedKeys(request.host, request.port));
+			const trustedKeys = this._hostKeyTrustService.getTrustedKeys(request.host, request.port);
+			const legacyTrustedKeys = request.resolvedHost !== request.host
+				? this._hostKeyTrustService.getTrustedKeys(request.resolvedHost, request.port)
+				: [];
+			const usingLegacyTrust = trustedKeys.length === 0 && legacyTrustedKeys.length > 0;
+			const decision = decideHostKeyTrust(request, usingLegacyTrust ? legacyTrustedKeys : trustedKeys);
 			this._logService.info(`[SSHRemoteAgentHost] Host key decision for ${request.displayHost}: ${decision.kind} (${decision.reason})`);
 
 			let trusted: boolean;
 			switch (decision.kind) {
 				case 'trust':
-					if (decision.persist) {
+					if (decision.reason === 'stored' && usingLegacyTrust) {
+						for (const key of legacyTrustedKeys) {
+							this._hostKeyTrustService.trustHostKey(request.host, request.port, {
+								...key,
+								...(request.displayHost !== request.host ? { alias: request.displayHost } : undefined),
+							});
+						}
+						this._hostKeyTrustService.forgetHost(request.resolvedHost, request.port);
+					} else if (decision.persist) {
 						this._trustHostKey(request);
 					}
 					trusted = true;
@@ -827,7 +838,12 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 				primary: [toAction({
 					id: 'sshHostKey.forget',
 					label: localize('sshHostKeyForgetAction', "Forget Saved Host Key"),
-					run: () => this._hostKeyTrustService.forgetHost(request.host, request.port),
+					run: () => {
+						this._hostKeyTrustService.forgetHost(request.host, request.port);
+						if (request.resolvedHost !== request.host) {
+							this._hostKeyTrustService.forgetHost(request.resolvedHost, request.port);
+						}
+					},
 				})],
 			},
 		});

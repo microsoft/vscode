@@ -89,7 +89,7 @@ export class WalkThroughInput extends EditorInput {
 
 	override getTelemetryDescriptor(): { [key: string]: unknown } {
 		const descriptor = super.getTelemetryDescriptor();
-		descriptor['target'] = this.getTelemetryFrom();
+		descriptor.target = this.getTelemetryFrom();
 		/* __GDPR__FRAGMENT__
 			"EditorTelemetryDescriptor" : {
 				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }

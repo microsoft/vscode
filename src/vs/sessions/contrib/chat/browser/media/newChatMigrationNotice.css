@@ -1,0 +1,46 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.new-chat-migration-notice {
+	/* Keep the composer centered independently of the notice's height. */
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-top: var(--vscode-spacing-size160);
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 3%, transparent);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.5;
+}
+
+.hc-black .new-chat-migration-notice,
+.hc-light .new-chat-migration-notice {
+	background-color: var(--vscode-editor-background);
+}
+
+.new-chat-migration-notice-content {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-wrap: wrap;
+	column-gap: var(--vscode-spacing-size80);
+	row-gap: var(--vscode-spacing-size20);
+}
+
+.new-chat-migration-notice-content .monaco-link {
+	white-space: nowrap;
+}
+
+.new-chat-migration-notice > .monaco-action-bar {
+	flex-shrink: 0;
+}
