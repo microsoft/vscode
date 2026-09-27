@@ -21,6 +21,8 @@ class TestSession extends Disposable implements ICDPConnection {
 	readonly closed = this._register(new Emitter<void>());
 	readonly onClose = this.closed.event;
 	activeEventSubscriptions = 0;
+	readonly evaluation = new DeferredPromise<{ result: { value: string } }>();
+	evaluationRequested = false;
 
 	readonly onEvent: Event<CDPEvent> = (listener, thisArgs) => {
 		const subscription = this.events.event(listener, thisArgs);
@@ -35,8 +37,16 @@ class TestSession extends Disposable implements ICDPConnection {
 		super();
 	}
 
-	async sendCommand(): Promise<unknown> {
+	async sendCommand(method: string): Promise<unknown> {
+		if (method === 'Runtime.evaluate') {
+			this.evaluationRequested = true;
+			return this.evaluation.p;
+		}
 		return {};
+	}
+
+	fireEvent(event: CDPEvent): void {
+		this.events.fire(event);
 	}
 
 	close(): void {
@@ -74,6 +84,24 @@ suite('BrowserViewInspector', () => {
 		assert.deepStrictEqual([main.activeEventSubscriptions, child.activeEventSubscriptions], [1, 1]);
 		child.close();
 		assert.deepStrictEqual([main.activeEventSubscriptions, child.activeEventSubscriptions], [1, 0]);
+	});
+
+	test('does not retain a session when its evaluation completes after it closes', async () => {
+		const { inspector, child, targets } = createInspector();
+		targets.fire({ targetId: 'child', type: 'iframe', title: '', url: '', attached: true, canAccessOpener: false });
+		await Promise.resolve();
+
+		child.fireEvent({
+			method: 'Runtime.executionContextCreated',
+			params: { context: { uniqueId: 'context', auxData: { isDefault: true, frameId: 'frame' } } }
+		});
+		assert.strictEqual(child.evaluationRequested, true);
+		child.close();
+		await child.evaluation.complete({ result: { value: 'frame-token' } });
+		await new Promise<void>(resolve => setImmediate(resolve));
+
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect retained sessions without exposing test-only API.
+		assert.strictEqual(inspector['_registry']['_pendingSessions'].size, 0);
 	});
 
 	test('removes close listeners from live sessions when the inspector is disposed', async () => {
