@@ -20,6 +20,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
@@ -7985,6 +7986,23 @@ suite('CopilotAgentSession', () => {
 				sandbox: { enabled: false },
 			});
 		});
+
+		test('sandbox diagnostic timeouts do not block initialization or sending', () => runWithFakedTimers({}, async () => {
+			let queries = 0;
+			const { session, mockSession } = await createAgentSession(disposables, {
+				platform: 'linux',
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { enabled: 'on' } },
+				getSandboxHostSupport: () => {
+					queries++;
+					return new Promise(() => { });
+				},
+			});
+			await session.send('hello', undefined, 'turn-1');
+			assert.deepStrictEqual({ queries, sends: mockSession.sendRequests }, {
+				queries: 2,
+				sends: [{ prompt: 'hello', attachments: undefined }],
+			});
+		}));
 
 		for (const platform of ['darwin', 'win32'] as const) {
 			test(`does not query or publish SDK sandbox diagnostics on ${platform}`, async () => {

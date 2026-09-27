@@ -5,6 +5,7 @@
 
 import type { CopilotClient } from '@github/copilot-sdk';
 import { equals } from '../../../../base/common/arrays.js';
+import { raceTimeout } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -13,6 +14,8 @@ import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostState
 import type { SandboxConfig } from './sandboxConfigForSdk.js';
 
 type SandboxHostSupport = Awaited<ReturnType<CopilotClient['rpc']['sandbox']['getHostSupport']>>;
+
+const SANDBOX_DIAGNOSTICS_TIMEOUT_MS = 5_000;
 
 export class CopilotSandboxDiagnostics extends Disposable {
 	private _generation = 0;
@@ -31,7 +34,11 @@ export class CopilotSandboxDiagnostics extends Disposable {
 		let reasons: string[] = [];
 		if (config.enabled) {
 			try {
-				const support = await this._getHostSupport();
+				const support = await raceTimeout(this._getHostSupport(), SANDBOX_DIAGNOSTICS_TIMEOUT_MS);
+				if (!support) {
+					this._logService.warn(`[Copilot:${this._session}] Sandbox host support query timed out after ${SANDBOX_DIAGNOSTICS_TIMEOUT_MS}ms`);
+					return;
+				}
 				if (!support.supported) {
 					reasons = [support.reason || localize('copilot.sandbox.unsupported', "The sandbox backend is unavailable on this host.")];
 				} else {

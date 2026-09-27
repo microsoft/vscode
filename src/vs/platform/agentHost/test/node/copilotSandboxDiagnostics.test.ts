@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { agentSandboxDiagnosticsMetaKey, readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
 import { SessionStatus } from '../../common/state/sessionState.js';
@@ -130,6 +131,47 @@ suite('CopilotSandboxDiagnostics', () => {
 			reasons: undefined,
 		});
 	});
+
+	test('bounds a hung probe and ignores its late response after a successful retry', () => runWithFakedTimers({}, async () => {
+		const manager = createStateManager();
+		manager.setSessionMeta(session, { [agentSandboxDiagnosticsMetaKey]: ['Previous failure.'] });
+		const warnings: string[] = [];
+		const log = new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		};
+		const pending = new DeferredPromise<{ supported: boolean; reason: string; capabilities: [] }>();
+		let queries = 0;
+		const diagnostics = store.add(new CopilotSandboxDiagnostics(session, () => ++queries === 1
+			? pending.p
+			: Promise.resolve({ supported: false, reason: 'Current failure.', capabilities: [] }), manager, log));
+
+		const start = Date.now();
+		await diagnostics.update({ enabled: true });
+		const elapsed = Date.now() - start;
+		const afterTimeout = readAgentSandboxDiagnostics(manager.getSessionSummary(session)!);
+		await diagnostics.update({ enabled: true });
+		await pending.complete({ supported: false, reason: 'Stale failure.', capabilities: [] });
+
+		assert.deepStrictEqual({
+			elapsed, queries, warnings, afterTimeout,
+			afterLateResponse: readAgentSandboxDiagnostics(manager.getSessionSummary(session)!),
+		}, {
+			elapsed: 5_000,
+			queries: 2,
+			warnings: [`[Copilot:${session}] Sandbox host support query timed out after 5000ms`],
+			afterTimeout: ['Previous failure.'],
+			afterLateResponse: ['Current failure.'],
+		});
+	}));
+
+	test('handles a late rejection after the probe times out', () => runWithFakedTimers({}, async () => {
+		const manager = createStateManager();
+		const pending = new DeferredPromise<{ supported: boolean; capabilities: [] }>();
+		const diagnostics = store.add(new CopilotSandboxDiagnostics(session, () => pending.p, manager, new NullLogService()));
+		await diagnostics.update({ enabled: true });
+		await pending.error(new Error('Late RPC rejection'));
+		assert.strictEqual(readAgentSandboxDiagnostics(manager.getSessionSummary(session)!), undefined);
+	}));
 
 	test('ignores absent and malformed optional metadata', () => {
 		assert.deepStrictEqual([undefined, null, 'error', [], [1], [''], ['error', null]].map(value =>
