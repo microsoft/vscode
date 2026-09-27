@@ -196,7 +196,7 @@ suite('MultiEditorTabsControl', () => {
 		const results = [];
 		for (const tabHeight of ['default', 'compact'] as const) {
 			const oldOptions = partOptions;
-			partOptions = { ...partOptions, tabHeight };
+			partOptions = { ...partOptions, tabHeight, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 };
 			control.updateOptions(oldOptions, partOptions);
 			for (const width of [600, 220, 600]) {
 				await layoutConnectedGroup(group, width);
@@ -333,6 +333,24 @@ suite('MultiEditorTabsControl', () => {
 			assert.deepStrictEqual(results, cases.map(({ name }) => ({ name, measuredInitial: true, initialVisible: true })));
 		});
 	}
+
+	test('connected fit tabs do not collapse file icons', async () => {
+		const group = connectedGroup();
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fit', hasIcons: true, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		await layoutConnectedGroup(group, 200);
+		const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+		assert.deepStrictEqual(tabs.map(tab => ({
+			minimumWidth: tab.style.getPropertyValue('--connected-tab-min-width'),
+			minimumNameWidth: tab.style.getPropertyValue('--connected-tab-min-name-width'),
+			narrow: tab.classList.contains('connected-tab-narrow'),
+		})), tabs.map(() => ({
+			minimumWidth: '',
+			minimumNameWidth: '',
+			narrow: false,
+		})));
+	});
 
 	test('connected shrink tabs collapse and restore icons as the editor width changes', async () => {
 		const group = connectedGroup();

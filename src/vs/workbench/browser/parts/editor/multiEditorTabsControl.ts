@@ -2119,7 +2119,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		});
 		const minimumWidths = new Map<HTMLElement, number>();
 		this.forEachTab((_editor, index, tab, tabLabelWidget) => {
-			if (!connected || tab.classList.contains('sticky-compact')) {
+			if (!connected || tab.classList.contains('sticky-compact') || tab.classList.contains('sizing-fit')) {
 				tab.style.removeProperty('--connected-tab-min-width');
 				tab.style.removeProperty('--connected-tab-min-name-width');
 				return;
