@@ -33,14 +33,17 @@ export class DefaultsOnlyConfigurationService extends AbstractConfigurationServi
 			return;
 		}
 
-		// Sanitize and filter out empty, whitespace-only, or malformed treatment strings
-		const sanitizedTreatments = treatments.filter(t => typeof t === 'string' && t.trim().length > 0);
+		// Strictly sanitize and reject malformed/whitespace-containing treatment strings
+		const sanitizedTreatments = treatments
+			.filter(t => typeof t === 'string')
+			.map(t => t.trim())
+			.filter(t => t.length > 0 && !/\s/.test(t));
 
 		if (sanitizedTreatments.length === 0) {
 			return;
 		}
 
-		// Fire simulated event which checks if a configuration is affected in the sanitized treatments
+		// Fire simulated event which checks if a configuration is affected in the strictly sanitized treatments
 		this._onDidChangeConfiguration.fire({
 			affectsConfiguration: (section: string, _scope?: ConfigurationScope) => this._treatmentsAffectConfiguration(sanitizedTreatments, section)
 		});
