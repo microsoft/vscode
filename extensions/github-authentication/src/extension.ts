@@ -16,7 +16,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const githubEnterpriseAuthProvider = new GitHubEnterpriseAuthenticationProvider(new GitHubAuthenticationProviderFactory(context, uriHandler));
 	context.subscriptions.push(githubEnterpriseAuthProvider);
+	let configurationVersion = 0;
 	const updateEnterpriseConfiguration = async () => {
+		configurationVersion++;
 		const setting = vscode.workspace.getConfiguration().get<string>('github-enterprise.uri');
 		let uri: vscode.Uri | undefined;
 		try {
@@ -34,12 +36,16 @@ export async function activate(context: vscode.ExtensionContext) {
 			void updateEnterpriseConfiguration().catch(error => vscode.window.showErrorMessage(vscode.l10n.t('Could not update GitHub Enterprise authentication: {0}', error.message)));
 		}
 	}));
+	const initialUpdate = updateEnterpriseConfiguration();
+	const initialConfigurationVersion = configurationVersion;
 	try {
-		await updateEnterpriseConfiguration();
+		await initialUpdate;
 	} catch (error) {
-		const message = vscode.l10n.t('Could not initialize GitHub Enterprise authentication: {0}', error instanceof Error ? error.message : String(error));
-		await githubEnterpriseAuthProvider.update(undefined, message);
-		void vscode.window.showErrorMessage(message);
+		if (configurationVersion === initialConfigurationVersion) {
+			const message = vscode.l10n.t('Could not initialize GitHub Enterprise authentication: {0}', error instanceof Error ? error.message : String(error));
+			await githubEnterpriseAuthProvider.update(undefined, message);
+			void vscode.window.showErrorMessage(message);
+		}
 	}
 
 	// Listener to prompt for reload when the fetch implementation setting changes
