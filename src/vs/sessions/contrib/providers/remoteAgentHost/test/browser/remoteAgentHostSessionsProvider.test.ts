@@ -20,7 +20,7 @@ import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../pla
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -273,7 +273,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined> }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined> }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
@@ -307,6 +307,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	});
 	instantiationService.stub(IStorageService, overrides?.storageService ?? disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(IAgentHostService, overrides?.localAgentHostService ?? new class extends mock<IAgentHostService>() { }());
+	instantiationService.stub(IRemoteAgentHostService, overrides?.remoteAgentHostService ?? new NullRemoteAgentHostService());
 	instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
 		registerSessionResolutionPolicy: (authority, policy) => {
 			overrides?.sessionResolutionPolicies?.push({ authority, policy });
@@ -486,6 +487,63 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			sameSession: true,
 		});
 	});
+
+	for (const noConnection of [false, true]) {
+		test(`client-local names update ${noConnection ? 'offline' : 'connected'} provider labels without replacing sessions`, () => {
+			const address = 'tunnel:my-host';
+			const names = new Map([[address, 'My Host']]);
+			const displayNameChanged = disposables.add(new Emitter<string>());
+			const remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
+				override readonly onDidChangeDisplayName = displayNameChanged.event;
+				override getDisplayNameOverride(address: string): string | undefined { return names.get(address); }
+			}();
+			const provider = createProvider(disposables, connection, { address, remoteAgentHostService, noConnection, isWebPlatform: false });
+			provider.seedSessions([createSession('local-host-name', {
+				project: { uri: URI.parse('https://github.com/owner/repo'), displayName: 'owner/repo' },
+			})]);
+			const session = provider.getSessions()[0];
+			const initialLabel = provider.label;
+			const initialId = provider.id;
+			const labels: string[] = [];
+			disposables.add(provider.onDidChangeSessionTypes(() => labels.push(provider.label)));
+
+			names.set(address, 'Renamed Host');
+			displayNameChanged.fire('tunnel:another-host');
+			const unrelatedChangeLabel = provider.label;
+			displayNameChanged.fire(address);
+			provider.setLabel('New Discovered Name');
+			const renamed = {
+				label: provider.label,
+				description: provider.browseActions[0].description,
+				workspace: session.workspace.get()?.label,
+			};
+			names.delete(address);
+			displayNameChanged.fire(address);
+
+			assert.deepStrictEqual({
+				initialLabel,
+				unrelatedChangeLabel,
+				renamed,
+				reset: {
+					label: provider.label,
+					defaultLabel: provider.defaultLabel,
+					description: provider.browseActions[0].description,
+					workspace: session.workspace.get()?.label,
+				},
+				labels,
+				sameSession: provider.getSessions()[0] === session,
+				sameIdentity: provider.id === initialId && provider.remoteAddress === address,
+			}, {
+				initialLabel: 'My Host',
+				unrelatedChangeLabel: 'My Host',
+				renamed: { label: 'Renamed Host', description: 'Renamed Host', workspace: 'owner/repo [Renamed Host]' },
+				reset: { label: 'New Discovered Name', defaultLabel: 'New Discovered Name', description: 'New Discovered Name', workspace: 'owner/repo [New Discovered Name]' },
+				labels: ['Renamed Host', 'New Discovered Name'],
+				sameSession: true,
+				sameIdentity: true,
+			});
+		});
+	}
 
 	test('creates workspace-less quick chats on the remote provider', () => {
 		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host' });
