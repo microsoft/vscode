@@ -89,9 +89,9 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 		};
 		const transportFactory = () => {
 			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
-			const createLogger = () => ahpLoggingEnabled ? this._instantiationService.createInstance(
+			const createLogger = (activeConnectionId: string) => ahpLoggingEnabled ? this._instantiationService.createInstance(
 				AhpJsonlLogger,
-				{ logsHome: this._environmentService.logsHome, connectionId, transport: 'wsl' },
+				{ logsHome: this._environmentService.logsHome, logId: address, connectionId: activeConnectionId, transport: 'wsl' },
 			) : undefined;
 			return this._instantiationService.createInstance(
 				ReconnectingRelayTransport,

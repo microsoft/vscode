@@ -10,7 +10,7 @@ import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey } from '../../../../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey } from '../../../../common/agentHostSchema.js';
 import { FEEDBACK_ANNOTATION_META_KEY, type IFeedbackAnnotationMeta } from '../../../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../../../common/annotationsUri.js';
 import { buildOpenSessionLinkUri } from '../../../../common/openSessionLink.js';
@@ -63,6 +63,7 @@ const sessionToolNames = [
 	SessionServerToolName.ListSessions,
 	SessionServerToolName.GetCurrentSession,
 	SessionServerToolName.CreateSession,
+	SessionServerToolName.RenameChat,
 	SessionServerToolName.SendMessage,
 	SessionServerToolName.GetSessionContext,
 	SessionServerToolName.DeleteSession,
@@ -277,43 +278,37 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 	});
 
 	serverToolTest('server tool: rename_chat renames the chat it runs in', async function () {
-		try {
-			const session = await createSession('rename-chat', false, () => setRootConfig({
-				[AgentHostActiveAgentTitleGenerationConfigKey]: true,
-			}));
-			await driveTurnToCompletion(
-				context.client,
-				session.sessionUri,
-				'turn-rename-chat-seed',
-				'/rename Seeded Chat',
-				reserveClientSequenceBlock(),
-			);
-			const { tool } = await driveServerTool(
-				session,
-				'turn-rename-chat',
-				'Call the rename_chat tool exactly once with title "Coverage audit" and automatic false, then reply with exactly "renamed".',
-				SessionServerToolName.RenameChat,
-			);
-			const renamed = await retry(async () => {
-				const sessionTitle = (await sessionState(session.sessionUri)).title;
-				const chatTitle = (await chatState(session.chatUri)).title;
-				if (sessionTitle !== 'Coverage audit' || chatTitle !== 'Coverage audit') {
-					throw new Error('The chat rename has not completed');
-				}
-				return { sessionTitle, chatTitle };
-			}, 100, 100);
+		const session = await createSession('rename-chat');
+		await driveTurnToCompletion(
+			context.client,
+			session.sessionUri,
+			'turn-rename-chat-seed',
+			'/rename Seeded Chat',
+			reserveClientSequenceBlock(),
+		);
+		const { tool } = await driveServerTool(
+			session,
+			'turn-rename-chat',
+			'Call the rename_chat tool exactly once with title "Coverage audit", then reply with exactly "renamed".',
+			SessionServerToolName.RenameChat,
+		);
+		const renamed = await retry(async () => {
+			const sessionTitle = (await sessionState(session.sessionUri)).title;
+			const chatTitle = (await chatState(session.chatUri)).title;
+			if (sessionTitle !== 'Coverage audit' || chatTitle !== 'Coverage audit') {
+				throw new Error('The chat rename has not completed');
+			}
+			return { sessionTitle, chatTitle };
+		}, 100, 100);
 
-			assert.deepStrictEqual({
-				succeeded: tool.completion.result.success,
-				...renamed,
-			}, {
-				succeeded: true,
-				sessionTitle: 'Coverage audit',
-				chatTitle: 'Coverage audit',
-			});
-		} finally {
-			await setRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: false });
-		}
+		assert.deepStrictEqual({
+			succeeded: tool.completion.result.success,
+			...renamed,
+		}, {
+			succeeded: true,
+			sessionTitle: 'Coverage audit',
+			chatTitle: 'Coverage audit',
+		});
 	});
 
 	serverToolTest('server tool: add_artifact_or_reference records artifacts and references in one batch', async function () {
@@ -321,18 +316,20 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			const session = await createSession('artifact-add', false, () => setRootConfig({
 				[AgentHostArtifactToolsConfigKey]: true,
 			}));
-			await driveServerTool(
+			const { tool } = await driveServerTool(
 				session,
 				'turn-artifact-add',
 				'Call add_artifact_or_reference exactly once with an items array containing two entries: type "website", label "Agent Host guide", isArtifact false, and link "https://example.com/agent-host"; then type "file", label "Agent Host report", isArtifact true, and uri "file:///agent-host-report.md". Then reply with exactly "recorded".',
 				ArtifactServerToolName.AddArtifactOrReference,
-				{ result: [/Added reference:/, /Agent Host guide/, /Added artifact:/, /Agent Host report/] },
+				{ result: [/Added reference:/, /Added artifact:/] },
 			);
 			const artifacts = readSessionArtifacts((await sessionState(session.sessionUri))._meta);
 
 			assert.deepStrictEqual({
+				result: tool.resultText,
 				artifacts: artifacts.map(({ id: _id, ...artifact }) => artifact),
 			}, {
+				result: `Added reference: ${artifacts[0].id}\nAdded artifact: ${artifacts[1].id}`,
 				artifacts: [
 					{
 						type: 'website',

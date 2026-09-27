@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ipcRenderer } from 'electron';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -81,6 +82,19 @@ suite('ProtocolMainService', () => {
 				mimeType: null,
 			},
 			requestCount: 1,
+		});
+	});
+
+	test('loads vscode-remote-resource with workbench CORS headers', async function () {
+		this.timeout(15_000);
+		const response = await ipcRenderer.invoke('vscode:test-remote-resource');
+
+		assert.deepStrictEqual(response, {
+			loaded: true,
+			requestHeaders: {
+				origin: 'vscode-file://vscode-app',
+				secFetchMode: 'cors',
+			},
 		});
 	});
 });

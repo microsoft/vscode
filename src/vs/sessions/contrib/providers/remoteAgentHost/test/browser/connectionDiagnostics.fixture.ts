@@ -105,7 +105,7 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 		additionalServices: reg => {
 			reg.defineInstance(IConnectionDiagnosticsService, new class extends mock<IConnectionDiagnosticsService>() {
 				override readonly onDidChangeHostManagement = Event.None;
-				override getSnapshot(): IConnectionDiagnosticsSnapshot { return snapshot; }
+				override async getSnapshot(): Promise<IConnectionDiagnosticsSnapshot> { return snapshot; }
 				override getHostManagementState() {
 					return {
 						hosts: [{
@@ -161,6 +161,11 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 					if (target.tagName === 'SUMMARY') {
 						target.click();
 					}
+				}
+				const content = api.sheet.querySelector<HTMLElement>('.connection-diagnostics-content')!;
+				const style = dom.getWindow(content).getComputedStyle(content);
+				if (content.scrollHeight <= content.clientHeight || style.overflowY !== 'auto' || style.touchAction !== 'pan-y') {
+					throw new Error('Expanded diagnostics must overflow a native vertical touch scroll container.');
 				}
 			}
 			const header = api.sheet.querySelector<HTMLElement>('.mobile-picker-sheet-title-row')!;
@@ -221,5 +226,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/connectionDiagnostics/
 	NarrowDismissedDiscovery: defineComponentFixture({ render: context => renderReport(context, 320) }),
 	DesktopDismissedDiscovery: defineComponentFixture({ render: context => renderReport(context, 720) }),
 	ClientExpanded: defineComponentFixture({ render: context => renderReport(context, 390, true) }),
+	NarrowClientExpanded: defineComponentFixture({ render: context => renderReport(context, 320, true) }),
 	EmptyHostPicker: defineComponentFixture({ render: renderEmptyPicker }),
 });

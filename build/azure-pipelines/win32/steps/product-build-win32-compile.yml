@@ -104,6 +104,10 @@ steps:
     env:
       npm_config_arch: $(VSCODE_ARCH)
       npm_config_foreground_scripts: "true"
+      ${{ if and(eq(parameters.VSCODE_CIBUILD, true), or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true))) }}:
+        # Use an absolute path so nested installs share the existing CI logs artifact.
+        npm_config_timing: "true"
+        npm_config_logs_dir: $(Build.SourcesDirectory)/.build/logs/npm
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-token-code-oss)"

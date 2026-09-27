@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, FileEditKind, MessageKind } from '../../common/state/sessionState.js';
-import type { IReviewedFileRecord, ISessionCatalogSyncPendingSnapshot } from '../../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, type IReviewedFileRecord, type ISessionCatalogSyncPendingSnapshot } from '../../common/sessionDataService.js';
 import type { Database } from '@vscode/sqlite3';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { join } from '../../../../base/common/path.js';
@@ -258,6 +258,28 @@ suite('SessionDatabase', () => {
 			}]);
 		});
 
+		test('retrieve file edits by the turn event ID', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.createTurn('request-1');
+			await db.setTurnEventId('request-1', 'event-1');
+			await db.storeFileEdit({
+				turnId: 'request-1',
+				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
+				filePath: '/workspace/file.ts',
+				beforeContent: new TextEncoder().encode('before'),
+				afterContent: new TextEncoder().encode('after'),
+				addedLines: 1,
+				removedLines: 1,
+			});
+
+			assert.deepStrictEqual(
+				await db.getFileEditsByTurn('event-1'),
+				await db.getFileEditsByTurn('request-1'),
+			);
+		});
+
 		test('retrieve multiple edits for a single tool call', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 
@@ -438,6 +460,255 @@ suite('SessionDatabase', () => {
 		});
 	});
 
+	// ---- Terminal outputs ----------------------------------------------
+
+	suite('terminal outputs', () => {
+
+		test('persists byte-exact output and reports byte sizes for multiple tool calls', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const first = new TextEncoder().encode('hello 世界 👋');
+			const second = new Uint8Array([0, 1, 2, 255, 128, 64]);
+			await db.createTurn('turn-1');
+
+			await db.storeTerminalOutput('turn-1', 'tool-1', first);
+			await db.storeTerminalOutput('turn-1', 'tool-2', second);
+
+			assert.deepStrictEqual({
+				firstSize: await db.getTerminalOutputSize('tool-1'),
+				first: await db.readTerminalOutput('tool-1'),
+				secondSize: await db.getTerminalOutputSize('tool-2'),
+				second: await db.readTerminalOutput('tool-2'),
+			}, {
+				firstSize: first.byteLength,
+				first,
+				secondSize: second.byteLength,
+				second,
+			});
+		});
+
+		test('returns undefined for missing output', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			assert.deepStrictEqual({
+				size: await db.getTerminalOutputSize('missing'),
+				content: await db.readTerminalOutput('missing'),
+			}, {
+				size: undefined,
+				content: undefined,
+			});
+		});
+
+		test('repeated writes replace output without creating duplicate records', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.createTurn('turn-1');
+			await database.storeTerminalOutput('turn-1', 'tool-1', new TextEncoder().encode('first'));
+			const replacement = new TextEncoder().encode('replacement');
+
+			await database.storeTerminalOutput('turn-1', 'tool-1', replacement);
+			await database.storeTerminalOutput('turn-1', 'tool-1', replacement);
+
+			assert.deepStrictEqual({
+				count: await database.getRaw(`SELECT count(*) AS count FROM terminal_outputs WHERE tool_call_id = 'tool-1'`),
+				content: await database.readTerminalOutput('tool-1'),
+			}, {
+				count: { count: 1 },
+				content: replacement,
+			});
+		});
+
+		test('deletes unpublished output without affecting other tool calls', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.storeTerminalOutput('turn-1', 'tool-1', new Uint8Array([1]));
+			await db.storeTerminalOutput('turn-1', 'tool-2', new Uint8Array([2]));
+
+			await db.deleteTerminalOutput('tool-1');
+			await db.deleteTerminalOutput('missing');
+
+			assert.deepStrictEqual({
+				deleted: await db.readTerminalOutput('tool-1'),
+				retained: await db.readTerminalOutput('tool-2'),
+			}, {
+				deleted: undefined,
+				retained: new Uint8Array([2]),
+			});
+		});
+
+		test('reads and whenIdle wait for an earlier output write', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.createTurn('turn-1');
+			const content = new TextEncoder().encode('sequenced');
+			const gate = database.blockNextMutation();
+			const write = database.storeTerminalOutput('turn-1', 'tool-1', content);
+			await gate.started.p;
+
+			const sizeRead = database.getTerminalOutputSize('tool-1');
+			const contentRead = database.readTerminalOutput('tool-1');
+			const idle = database.whenIdle();
+			let readSettled = false;
+			let idleSettled = false;
+			void Promise.all([sizeRead, contentRead]).then(() => readSettled = true, () => readSettled = true);
+			void idle.then(() => idleSettled = true, () => idleSettled = true);
+			await Promise.resolve();
+			await database.waitForRaw();
+			await Promise.resolve();
+			const settledBeforeWrite = { read: readSettled, idle: idleSettled };
+
+			gate.release.complete();
+			const [, size, storedContent] = await Promise.all([write, sizeRead, contentRead, idle]);
+
+			assert.deepStrictEqual({
+				settledBeforeWrite,
+				size,
+				content: storedContent,
+			}, {
+				settledBeforeWrite: { read: false, idle: false },
+				size: content.byteLength,
+				content,
+			});
+		});
+
+		test('missing or deleted turns cannot be resurrected by output writes', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+
+			await assert.rejects(
+				() => database.storeTerminalOutput('missing-turn', 'tool-1', new Uint8Array([1])),
+				/Cannot store terminal output for missing turn 'missing-turn'/,
+			);
+			await database.createTurn('deleted-turn');
+			await database.deleteTurn('deleted-turn');
+			await assert.rejects(
+				() => database.storeTerminalOutput('deleted-turn', 'tool-2', new Uint8Array([2])),
+				/Cannot store terminal output for missing turn 'deleted-turn'/,
+			);
+
+			assert.deepStrictEqual({
+				missingTurn: await database.hasRawTurn('missing-turn'),
+				deletedTurn: await database.hasRawTurn('deleted-turn'),
+			}, {
+				missingTurn: false,
+				deletedTurn: false,
+			});
+		});
+
+		test('turn deletion and truncation cascade to output', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.createTurn('turn-2');
+			await db.createTurn('turn-3');
+			await db.storeTerminalOutput('turn-1', 'tool-1', new Uint8Array([1]));
+			await db.storeTerminalOutput('turn-2', 'tool-2', new Uint8Array([2]));
+			await db.storeTerminalOutput('turn-3', 'tool-3', new Uint8Array([3]));
+
+			await db.deleteTurn('turn-1');
+			await db.deleteTurnsAfter('turn-2');
+			const afterDeleteAndTruncate = await Promise.all([
+				db.readTerminalOutput('tool-1'),
+				db.readTerminalOutput('tool-2'),
+				db.readTerminalOutput('tool-3'),
+			]);
+			await db.deleteAllTurns();
+
+			assert.deepStrictEqual({
+				afterDeleteAndTruncate,
+				afterDeleteAll: await db.readTerminalOutput('tool-2'),
+			}, {
+				afterDeleteAndTruncate: [undefined, new Uint8Array([2]), undefined],
+				afterDeleteAll: undefined,
+			});
+		});
+
+		test('truncateFromTurn removes output starting at the boundary', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.createTurn('turn-2');
+			await db.storeTerminalOutput('turn-1', 'tool-1', new Uint8Array([1]));
+			await db.storeTerminalOutput('turn-2', 'tool-2', new Uint8Array([2]));
+
+			await db.truncateFromTurn('turn-2');
+
+			assert.deepStrictEqual(await Promise.all([
+				db.readTerminalOutput('tool-1'),
+				db.readTerminalOutput('tool-2'),
+			]), [new Uint8Array([1]), undefined]);
+		});
+
+		test('remapTurnIds keeps forked output and prunes output beyond the fork', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('old-1');
+			await db.createTurn('old-2');
+			await db.storeTerminalOutput('old-1', 'tool-1', new Uint8Array([1]));
+			await db.storeTerminalOutput('old-2', 'tool-2', new Uint8Array([2]));
+
+			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			await db.deleteTurnsAfter('new-1');
+
+			assert.deepStrictEqual(await Promise.all([
+				db.readTerminalOutput('tool-1'),
+				db.readTerminalOutput('tool-2'),
+			]), [new Uint8Array([1]), undefined]);
+		});
+
+		test('output survives closing and reopening a disk database', async () => {
+			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-terminal-output-' + generateUuid()));
+			const databasePath = join(tempRoot, 'session.db');
+			const content = new TextEncoder().encode('persisted ✓');
+			const database = await SessionDatabase.open(databasePath);
+			try {
+				await database.createTurn('turn-1');
+				await database.storeTerminalOutput('turn-1', 'tool-1', content);
+				await database.close();
+
+				const reopenedDatabase = await SessionDatabase.open(databasePath);
+				try {
+					assert.deepStrictEqual(await reopenedDatabase.readTerminalOutput('tool-1'), content);
+				} finally {
+					await reopenedDatabase.close();
+				}
+			} finally {
+				await database.close();
+				await fs.rm(tempRoot, { recursive: true, force: true });
+			}
+		});
+
+		test('enforces the shared size limit on writes and before reading malformed rows', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.createTurn('turn-1');
+			const content = new Uint8Array(MAX_TERMINAL_OUTPUT_BYTES + 1);
+
+			await database.storeTerminalOutput('turn-1', 'at-limit', content.subarray(0, MAX_TERMINAL_OUTPUT_BYTES));
+			await assert.rejects(
+				() => database.storeTerminalOutput('turn-1', 'above-limit', content),
+				new RegExp(`Terminal output exceeds the ${MAX_TERMINAL_OUTPUT_BYTES}-byte limit`),
+			);
+			await database.runRaw(`INSERT INTO terminal_outputs (tool_call_id, turn_id, output)
+				VALUES ('malformed', 'turn-1', zeroblob(${MAX_TERMINAL_OUTPUT_BYTES + 1}))`);
+
+			assert.deepStrictEqual({
+				atLimitSize: await database.getTerminalOutputSize('at-limit'),
+				atLimitContentSize: (await database.readTerminalOutput('at-limit'))?.byteLength,
+				malformedSize: await database.getTerminalOutputSize('malformed'),
+			}, {
+				atLimitSize: MAX_TERMINAL_OUTPUT_BYTES,
+				atLimitContentSize: MAX_TERMINAL_OUTPUT_BYTES,
+				malformedSize: MAX_TERMINAL_OUTPUT_BYTES + 1,
+			});
+			await assert.rejects(
+				() => database.readTerminalOutput('malformed'),
+				new RegExp(`Stored terminal output exceeds the ${MAX_TERMINAL_OUTPUT_BYTES}-byte limit`),
+			);
+		});
+
+		test('migration v14 creates the terminal_outputs table', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			assert.ok((await db.getAllTables()).includes('terminal_outputs'));
+		});
+	});
+
 	// ---- Turns ----------------------------------------------------------
 
 	suite('turns', () => {
@@ -506,6 +777,25 @@ suite('SessionDatabase', () => {
 		test('deleteTurn is a no-op for unknown turn', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.deleteTurn('nonexistent'); // should not throw
+		});
+
+		test('hasConversationTurns tracks persisted and local turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			const empty = await db.hasConversationTurns();
+			await db.createTurn('turn-1');
+			const afterTurn = await db.hasConversationTurns();
+			await db.deleteAllTurns();
+			const afterDeleteAll = await db.hasConversationTurns();
+			await db.insertLocalTurn({ turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 0, payload: '{}' });
+			const afterLocalTurn = await db.hasConversationTurns();
+
+			assert.deepStrictEqual({ empty, afterTurn, afterDeleteAll, afterLocalTurn }, {
+				empty: false,
+				afterTurn: true,
+				afterDeleteAll: false,
+				afterLocalTurn: true,
+			});
 		});
 	});
 
@@ -1236,7 +1526,7 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				title: 'After upgrade',
 				snapshot: snapshot(1),
 			});
@@ -1263,7 +1553,7 @@ suite('SessionDatabase', () => {
 				tables: await upgraded.getAllTables(),
 				snapshot: await upgraded.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				snapshot: snapshot(1),
 			});
 		});

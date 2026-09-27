@@ -80,6 +80,9 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			this._updateConnectionStatuses();
 			this._wireConnections();
 		}));
+		if (this.isWebPlatform) {
+			this._register(this._remoteAgentHostService.onDidChangePendingConnections(() => this._updateConnectionStatuses()));
+		}
 
 		// Reconcile providers when the tunnel cache changes
 		this._register(this._tunnelService.onDidChangeTunnels(() => {
@@ -233,8 +236,13 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	// -- Connection status --
 
 	private _updateConnectionStatuses(): void {
+		const pending = new Set(this.isWebPlatform ? this._remoteAgentHostService.pendingConnections.map(attempt => attempt.address) : []);
 		for (const [address, provider] of this._providerInstances) {
 			const connectionInfo = this._remoteAgentHostService.connections.find(c => c.address === address);
+			if (pending.has(address) && (!connectionInfo || RemoteAgentHostConnectionStatus.isDisconnected(connectionInfo.status))) {
+				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+				continue;
+			}
 			if (connectionInfo) {
 				// Service has an entry — its status is authoritative
 				// (including incompatible from the WebSocket connect
@@ -298,9 +306,6 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
 		if (options.userInitiated) {
 			this._tunnelService.clearTunnelDismissal(tunnelId);
-			if (this.isWebPlatform) {
-				this._tunnelService.clearAutoConnectSuppression(tunnelId);
-			}
 		}
 		const cached = this._tunnelService.getCachedTunnels().find(t => t.tunnelId === tunnelId);
 		const attemptStart = Date.now();
@@ -427,7 +432,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		// Fetch tunnel list silently to check online status
 		let onlineTunnels: ITunnelInfo[] | undefined;
 		try {
-			onlineTunnels = await this._diagnosticsService.trackDiscovery(resolvedTrigger, () => this._tunnelService.listTunnels({ silent: true }));
+			onlineTunnels = await this._diagnosticsService.trackDiscovery(resolvedTrigger, onDiagnostic => this._tunnelService.listTunnels({ silent: true, onDiagnostic }));
 		} catch (error) {
 			// No cached token or network error — leave statuses as-is
 			this._logService.warn(`[TunnelAgentHost] Discovery failed for trigger '${resolvedTrigger}'; preserving ${cachedBefore} cached tunnel(s): ${error instanceof Error ? error.message : String(error)}`);

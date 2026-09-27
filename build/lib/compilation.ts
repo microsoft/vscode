@@ -16,8 +16,6 @@ import ansiColors from 'ansi-colors';
 import os from 'os';
 import File from 'vinyl';
 import * as task from './gulp/task.ts';
-import { Mangler } from './mangle/index.ts';
-import type { RawSourceMap } from 'source-map';
 import ts from 'typescript';
 import watch from './watch/index.ts';
 import * as tsb from './tsb/index.ts';
@@ -52,19 +50,14 @@ interface ICompileTaskOptions {
 	readonly emitError: boolean;
 	readonly transpileOnly: boolean | { esbuild: boolean };
 	readonly preserveEnglish: boolean;
-	readonly noEmit?: boolean;
 }
 
-export function createCompile(src: string, { build, emitError, transpileOnly, preserveEnglish, noEmit }: ICompileTaskOptions) {
+export function createCompile(src: string, { build, emitError, transpileOnly, preserveEnglish }: ICompileTaskOptions) {
 	const projectPath = path.join(import.meta.dirname, '../../', src, 'tsconfig.json');
 	const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
 	if (!build) {
 		overrideOptions.inlineSourceMap = true;
 	}
-	if (noEmit) {
-		overrideOptions.noEmit = true;
-	}
-
 	const compilation = tsb.create(projectPath, overrideOptions, {
 		verbose: false,
 		transpileOnly: Boolean(transpileOnly),
@@ -98,9 +91,6 @@ export function createCompile(src: string, { build, emitError, transpileOnly, pr
 
 		return es.duplex(input, output);
 	}
-	pipeline.tsProjectSrc = () => {
-		return compilation.src({ base: src });
-	};
 	pipeline.projectPath = projectPath;
 	return pipeline;
 }
@@ -121,7 +111,7 @@ export function transpileTask(src: string, out: string, esbuild?: boolean): task
 	return task;
 }
 
-export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean; preserveEnglish?: boolean } = {}): task.Task {
+export function compileTask(src: string, out: string): task.Task {
 
 	const task = async () => {
 
@@ -129,40 +119,14 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 			throw new Error('compilation requires 4GB of RAM');
 		}
 
-		// For dev builds we can transpile with esbuild for speed and type-check with tsgo (no emit).
-		// For `build`, keep the full tsb pipeline because the NLS step requires `file.sourceMap`.
-		const compile = createCompile(src, { build, emitError: true, transpileOnly: build ? false : { esbuild: true }, preserveEnglish: !!options.preserveEnglish });
+		const compile = createCompile(src, { build: false, emitError: true, transpileOnly: { esbuild: true }, preserveEnglish: false });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 		const generator = new MonacoGenerator(false);
 		if (src === 'src') {
 			generator.execute();
 		}
 
-		// mangle: TypeScript to TypeScript
-		let mangleStream = es.through();
-		if (build && !options.disableMangle) {
-			let ts2tsMangler: Mangler | undefined = new Mangler(compile.projectPath, (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data), { mangleExports: true, manglePrivateFields: true });
-			const newContentsByFileName = ts2tsMangler.computeNewFileContents(new Set(['saveState']));
-			mangleStream = es.through(async function write(data: File & { sourceMap?: RawSourceMap }) {
-				type TypeScriptExt = typeof ts & { normalizePath(path: string): string };
-				const tsNormalPath = (ts as TypeScriptExt).normalizePath(data.path);
-				const newContents = (await newContentsByFileName).get(tsNormalPath);
-				if (newContents !== undefined) {
-					data.contents = Buffer.from(newContents.out);
-					data.sourceMap = newContents.sourceMap && JSON.parse(newContents.sourceMap);
-				}
-				this.push(data);
-			}, async function end() {
-				// free resources
-				(await newContentsByFileName).clear();
-
-				this.push(null);
-				ts2tsMangler = undefined;
-			});
-		}
-
 		const emit = util.streamToPromise(srcPipe
-			.pipe(mangleStream)
 			.pipe(generator.stream)
 			.pipe(compile())
 			.pipe(gulp.dest(out)));

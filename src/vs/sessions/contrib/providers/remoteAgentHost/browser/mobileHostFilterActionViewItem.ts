@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -38,10 +39,10 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		action: IAction,
 		@IAgentHostFilterService filterService: IAgentHostFilterService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IHoverService hoverService: IHoverService,
+		@IHoverService private readonly sheetHoverService: IHoverService,
 		@ICommandService commandService: ICommandService,
 	) {
-		super(action, 'titlebar', filterService, contextMenuService, hoverService, commandService);
+		super(action, 'titlebar', filterService, contextMenuService, sheetHoverService, commandService);
 	}
 
 	/**
@@ -60,6 +61,10 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 	 */
 	protected override _retriesOnClick(): boolean {
 		return false;
+	}
+
+	protected override _renderDiagnosticsButton(): void {
+		// Connection information belongs inside the Hosts sheet on phones.
 	}
 
 	protected override _showMenu(_e: Event): void {
@@ -121,7 +126,25 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		// --- Header (drag-handle + title + close) ----------------------------
 		dom.append(sheet, $('div.host-picker-sheet-handle'));
 		const header = dom.append(sheet, $('div.host-picker-sheet-header'));
-		dom.append(header, $('div.host-picker-sheet-title')).textContent = localize('agentHostFilter.sheet.title', "Hosts");
+		const heading = dom.append(header, $('div.host-picker-sheet-heading'));
+		dom.append(heading, $('div.host-picker-sheet-title')).textContent = localize('agentHostFilter.sheet.title', "Hosts");
+		const information = dom.append(heading, $('button.host-picker-sheet-close.host-picker-sheet-information', { type: 'button' })) as HTMLButtonElement;
+		const informationLabel = localize('agentHostFilter.sheet.information', "Open Connection Information");
+		information.setAttribute('aria-label', informationLabel);
+		disposables.add(this.sheetHoverService.setupManagedHover(getDefaultHoverDelegate('element'), information, () => informationLabel));
+		dom.append(information, $('span.codicon.codicon-info', { 'aria-hidden': 'true' }));
+		disposables.add(Gesture.addTarget(information));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			disposables.add(dom.addDisposableListener(information, eventType, e => {
+				dom.EventHelper.stop(e, true);
+				if (dismissing || this._sheet.value !== disposables) {
+					return;
+				}
+				dismissing = true;
+				this._sheet.clear();
+				this._showConnectionInformation();
+			}));
+		}
 		const closeBtn = dom.append(header, $('button.host-picker-sheet-close', { type: 'button' })) as HTMLButtonElement;
 		closeBtn.setAttribute('aria-label', localize('agentHostFilter.sheet.close', "Close"));
 		dom.append(closeBtn, $('span.codicon.codicon-close'));
@@ -148,12 +171,19 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		// initial focus pass can pick the most relevant element without
 		// querying the DOM by selector.
 		const focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement; rediscover?: HTMLButtonElement } = {};
+		const hostRows = new Map<string, HTMLButtonElement>();
 		const renderBody = () => {
+			const activeElement = dom.getActiveElement();
+			const focusedHostId = [...hostRows].find(([, row]) => row === activeElement)?.[0];
 			bodyDisposables.clear();
 			dom.clearNode(body);
+			hostRows.clear();
 			focusRefs.firstHost = undefined;
 			focusRefs.firstCheckedHost = undefined;
-			this._renderHostList(bodyDisposables, body, finish, focusRefs);
+			this._renderHostList(bodyDisposables, body, finish, focusRefs, hostRows);
+			if (focusedHostId !== undefined) {
+				(hostRows.get(focusedHostId) ?? focusRefs.firstCheckedHost ?? focusRefs.firstHost ?? focusRefs.rediscover)?.focus();
+			}
 		};
 		renderBody();
 		disposables.add(this._filterService.onDidChange(renderBody));
@@ -190,7 +220,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		(focusRefs.firstCheckedHost ?? focusRefs.firstHost ?? focusRefs.rediscover)?.focus();
 	}
 
-	private _renderHostList(disposables: DisposableStore, body: HTMLElement, finish: () => void, focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement }): void {
+	private _renderHostList(disposables: DisposableStore, body: HTMLElement, finish: () => void, focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement }, hostRows: Map<string, HTMLButtonElement>): void {
 		const hosts = this._filterService.hosts;
 		const selectedId = this._filterService.selectedHostId;
 
@@ -207,6 +237,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 
 		for (const host of hosts) {
 			const row = this._renderHostItem(disposables, body, host, selectedId === host.id, finish);
+			hostRows.set(host.id, row);
 			focusRefs.firstHost ??= row;
 			if (selectedId === host.id) {
 				focusRefs.firstCheckedHost ??= row;

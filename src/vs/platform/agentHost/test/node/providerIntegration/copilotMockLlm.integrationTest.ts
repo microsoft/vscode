@@ -15,8 +15,9 @@ import { timeout } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallReadyAction } from '../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, ResponsePartKind, SessionStatus, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
+import { ActionType, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../../../common/state/sessionActions.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
+import { buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ISessionWithDefaultChat, type ToolDefinition } from '../../../common/state/sessionState.js';
 import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
 import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnvVar } from '../../../common/agentService.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
@@ -30,6 +31,8 @@ const COPILOT_CONFIG: IAgentHostProviderTestConfig = {
 
 const DETACHED_SHELL_SCENARIO_ID = 'detached-shell-idle-release';
 const DETACHED_SHELL_DELAY_MS = 6000;
+const STEERING_OWNER_SCENARIO_ID = 'steering-client-tool-owner';
+const STEERING_RESPONSE_DELAY_MS = 10_000;
 
 function quoteShellArgument(value: string): string {
 	return isWindows ? `'${value.replace(/'/g, '\'\'')}'` : `'${value.replace(/'/g, `'\\''`)}'`;
@@ -50,6 +53,29 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 			mockLlm: true,
 			homeDir: suiteHome,
 			userDataDir: join(suiteHome, 'user-data'),
+			mockScenarios: [{
+				id: STEERING_OWNER_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'content',
+							chunks: [
+								{ content: 'Initial response started.', delayMs: 0 },
+								{ content: ' Initial response finished.', delayMs: STEERING_RESPONSE_DELAY_MS },
+							],
+						},
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^route_probe$/,
+								arguments: {},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'STEERING_CLIENT_RESULT', delayMs: 0 }] },
+					],
+				},
+			}],
 		});
 	});
 
@@ -104,6 +130,153 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 		const markdownText = turn?.responseParts.map(p => p.kind === ResponsePartKind.Markdown ? p.content : '').join('\n') ?? ``;
 		assert.ok(markdownText.trim().length > 0, `expected non-empty assistant markdown; got: ${JSON.stringify(markdownText)}`);
 		assert.match(markdownText, new RegExp(`\\b${probeToken}\\b`, 'i'), `expected probe token in assistant markdown; got: ${JSON.stringify(markdownText)}`);
+	});
+
+	test('routes a client tool after steering to the client that sent the steering message', async function () {
+		this.timeout(180_000);
+		const originalClientId = 'steering-original-client';
+		const steeringClientId = 'steering-sender-client';
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-steering-owner`);
+		tempDirs.push(workspaceDir);
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, originalClientId, createdSessions, URI.file(workspaceDir));
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const steeringClient = new TestProtocolClient(server.port);
+		const tools: ToolDefinition[] = [{
+			name: 'route_probe',
+			description: 'Returns the steering owner marker.',
+			inputSchema: { type: 'object', properties: {} },
+		}];
+		await steeringClient.connect();
+		try {
+			await steeringClient.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: steeringClientId,
+			});
+			await steeringClient.call('subscribe', { channel: sessionUri });
+			await steeringClient.call('subscribe', { channel: chatUri });
+
+			for (const [owner, clientId] of [[client, originalClientId], [steeringClient, steeringClientId]] as const) {
+				owner.dispatch({
+					channel: sessionUri,
+					clientSeq: 1,
+					action: {
+						type: ActionType.SessionActiveClientSet,
+						activeClient: { clientId, tools },
+					},
+				});
+				await client.waitForNotification(n => {
+					if (!isActionNotification(n, ActionType.SessionActiveClientSet)) {
+						return false;
+					}
+					const action = getActionEnvelope(n).action as { readonly activeClient: { readonly clientId: string } };
+					return action.activeClient.clientId === clientId;
+				}, 30_000);
+			}
+
+			dispatchTurn(client, sessionUri, 'turn-before-steering', `[scenario:${STEERING_OWNER_SCENARIO_ID}] Start the ownership test.`, 2);
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatResponsePart)
+				&& (getActionEnvelope(n).action as ChatResponsePartAction).turnId === 'turn-before-steering'
+				&& (getActionEnvelope(n).action as ChatResponsePartAction).part.kind === ResponsePartKind.Markdown,
+				90_000,
+			);
+			assert.strictEqual(client.receivedNotifications(n =>
+				isActionNotification(n, ActionType.ChatTurnComplete)
+				&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === 'turn-before-steering',
+			).length, 0, 'steering must be submitted while the original turn is active');
+
+			steeringClient.dispatch({
+				channel: chatUri,
+				clientSeq: 2,
+				action: {
+					type: ActionType.ChatPendingMessageSet,
+					kind: PendingMessageKind.Steering,
+					id: 'steering-owner-message',
+					message: {
+						text: 'Now call route_probe exactly once and reply with only its exact result.',
+						origin: { kind: MessageKind.User },
+					},
+				},
+			});
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatPendingMessageSet)
+				&& (getActionEnvelope(n).action as { readonly id: string }).id === 'steering-owner-message',
+				30_000,
+			);
+			const steeringTurnNotification = await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatTurnStarted)
+				&& (getActionEnvelope(n).action as ChatTurnStartedAction).queuedMessageId === 'steering-owner-message',
+				90_000,
+			);
+			const steeringTurn = getActionEnvelope(steeringTurnNotification).action as ChatTurnStartedAction;
+
+			const routeStartNotification = await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallStart)
+				&& (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === 'route_probe',
+				90_000,
+			);
+			const routeStart = getActionEnvelope(routeStartNotification).action as ChatToolCallStartAction;
+			const routeReadyNotification = await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallReady)
+				&& (getActionEnvelope(n).action as ChatToolCallReadyAction).toolCallId === routeStart.toolCallId,
+				90_000,
+			);
+			const routeReady = getActionEnvelope(routeReadyNotification).action as ChatToolCallReadyAction;
+			let steeringClientSeq = 3;
+			if (!routeReady.confirmed) {
+				steeringClient.dispatch({
+					channel: chatUri,
+					clientSeq: steeringClientSeq++,
+					action: {
+						type: ActionType.ChatToolCallConfirmed,
+						turnId: routeStart.turnId,
+						toolCallId: routeStart.toolCallId,
+						approved: true,
+						confirmed: ToolCallConfirmationReason.UserAction,
+					},
+				});
+			}
+			steeringClient.dispatch({
+				channel: chatUri,
+				clientSeq: steeringClientSeq,
+				action: {
+					type: ActionType.ChatToolCallComplete,
+					turnId: routeStart.turnId,
+					toolCallId: routeStart.toolCallId,
+					result: {
+						success: true,
+						pastTenseMessage: 'Returned the steering owner marker',
+						content: [{ type: ToolResultContentType.Text, text: 'STEERING_CLIENT_RESULT' }],
+					},
+				},
+			});
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatTurnComplete)
+				&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === routeStart.turnId,
+				90_000,
+			);
+
+			const state = await fetchSessionWithChat(client, sessionUri);
+			const completedSteeringTurn = state.turns.find(turn => turn.id === routeStart.turnId);
+			const response = completedSteeringTurn?.responseParts
+				.filter(part => part.kind === ResponsePartKind.Markdown)
+				.map(part => part.content)
+				.join('') ?? '';
+			assert.deepStrictEqual({
+				steeringContributor: routeStart.contributor,
+				steeringTurnId: steeringTurn.turnId,
+				routeTurnId: routeStart.turnId,
+				response: response.trim(),
+			}, {
+				steeringContributor: { kind: ToolCallContributorKind.Client, clientId: steeringClientId },
+				steeringTurnId: routeStart.turnId,
+				routeTurnId: routeStart.turnId,
+				response: 'STEERING_CLIENT_RESULT',
+			});
+		} finally {
+			steeringClient.close();
+		}
 	});
 });
 

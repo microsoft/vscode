@@ -12,7 +12,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { Action, IAction } from '../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -135,8 +135,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// --- Passive connection status + information button --------------------
 		this._connectElement = dom.append(this.element, dom.$('div.agent-host-filter-connect'));
 		this._connectElement.setAttribute('aria-hidden', 'true');
-		this._diagnosticsElement = dom.append(this.element, dom.$('div.agent-host-filter-diagnostics'));
-		this._renderDiagnosticsButton(this._diagnosticsElement);
+		this._renderDiagnosticsButton(this.element);
 	}
 
 	/**
@@ -203,18 +202,18 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// Connection state is passive; the adjacent information control opens management.
 		this._connectElement = dom.append(this.element, dom.$('div.agent-host-filter-connect'));
 		this._connectElement.setAttribute('aria-hidden', 'true');
-		this._diagnosticsElement = dom.append(this.element, dom.$('div.agent-host-filter-diagnostics'));
-		this._renderDiagnosticsButton(this._diagnosticsElement);
+		this._renderDiagnosticsButton(this.element);
 	}
 
-	private _renderDiagnosticsButton(element: HTMLElement): void {
+	protected _renderDiagnosticsButton(container: HTMLElement): void {
+		const element = this._diagnosticsElement = dom.append(container, dom.$('div.agent-host-filter-diagnostics'));
 		const label = localize('agentHostFilter.connectionInformation', "Open Connection Information");
 		element.setAttribute('role', 'button');
 		element.setAttribute('aria-label', label);
 		element.tabIndex = 0;
 		element.append(...renderLabelWithIcons(`$(${Codicon.info.id})`));
 		this._diagnosticsHover.value = this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, () => label);
-		const show = () => void this._commandService.executeCommand(ShowConnectionDiagnosticsCommandId);
+		const show = () => this._showConnectionInformation();
 		this._register(Gesture.addTarget(element));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._register(dom.addDisposableListener(element, eventType, event => {
@@ -229,6 +228,10 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 				show();
 			}
 		}));
+	}
+
+	protected _showConnectionInformation(): void {
+		void this._commandService.executeCommand(ShowConnectionDiagnosticsCommandId);
 	}
 
 	private _renderSidebarButtonAffordances(interactive: boolean, retryOnClick: boolean): void {
@@ -450,6 +453,9 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 
 	private _updateDiagnosticsLabel(status?: string): void {
 		if (!this._diagnosticsElement) {
+			if (status && this._dropdownElement) {
+				this._dropdownElement.setAttribute('aria-label', localize('agentHostFilter.aria.withStatus', "{0} Current host status: {1}.", this._dropdownElement.getAttribute('aria-label') ?? '', status));
+			}
 			return;
 		}
 		const label = status
@@ -487,13 +493,13 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 				: host.status === AgentHostFilterConnectionStatus.Connecting
 					? localize('agentHostFilter.hostConnecting', "{0} (connecting…)", host.label)
 					: localize('agentHostFilter.hostDisconnected', "{0} (disconnected)", host.label);
-			actions.push(new Action(
-				`agentHostFilter.host.${host.id}`,
+			actions.push(toAction({
+				id: `agentHostFilter.host.${host.id}`,
 				label,
-				selectedId === host.id ? 'codicon codicon-check' : undefined,
-				true,
-				async () => this._filterService.setSelectedHostId(host.id),
-			));
+				tooltip: '',
+				class: selectedId === host.id ? 'codicon codicon-check' : undefined,
+				run: () => this._filterService.setSelectedHostId(host.id),
+			}));
 		}
 
 		const anchor = dom.isMouseEvent(e)

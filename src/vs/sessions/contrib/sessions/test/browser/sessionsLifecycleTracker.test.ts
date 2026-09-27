@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
@@ -29,6 +30,9 @@ interface ICreateSessionOptions {
 function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
 	const providerId = opts.providerId ?? 'test-provider';
 	const sessionType = opts.sessionType ?? 'test-type';
+	const mainChat = upcastPartial<IChat>({
+		changes: observableValue(`changes-${id}`, opts.changes ?? []),
+	});
 	return {
 		sessionId: id,
 		resource: URI.parse(`session://${id}`),
@@ -40,8 +44,6 @@ function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, new Date()),
 		status: observableValue(`status-${id}`, SessionStatus.Completed),
-		changesets: observableValue(`changesets-${id}`, []),
-		changes: observableValue(`changes-${id}`, opts.changes ?? []),
 		changesSummary: opts.changesSummary !== undefined ? observableValue(`changesSummary-${id}`, opts.changesSummary as ISessionChangesSummary | undefined) : undefined,
 		artifacts: opts.artifacts !== undefined ? observableValue(`artifacts-${id}`, opts.artifacts) : undefined,
 		modelId: observableValue(`modelId-${id}`, undefined),
@@ -51,8 +53,8 @@ function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
 		isRead: observableValue(`isRead-${id}`, true),
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
-		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
-		mainChat: constObservable<IChat>(undefined!),
+		chats: observableValue<readonly IChat[]>(`chats-${id}`, [mainChat]),
+		mainChat: constObservable(mainChat),
 		capabilities: constObservable({ supportsMultipleChats: false }),
 		isExternal: opts.isExternal,
 	};

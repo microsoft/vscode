@@ -375,7 +375,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
 	}),
 	StickyBackgroundContinuity: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A real scrolled Agents chat keeps its long user request pinned above a continuous Codicons canvas. The sticky viewport shows the same glyph coordinates as the full transcript background, opaque session color fills the gaps between glyphs, and the request bubble remains opaque above the decorative replica.'],
+		expectedVisualDescriptions: ['A real scrolled Agents chat keeps its long user request pinned above a continuous, static layered Codicons canvas. The background stays fixed as the transcript scrolls, and the sticky viewport preserves the same depth, pattern, and alignment. Opaque session color fills the gaps between glyphs, and the request bubble remains opaque above the decorative replica.'],
 		render: renderStickyBackgroundContinuity,
 	}),
 });

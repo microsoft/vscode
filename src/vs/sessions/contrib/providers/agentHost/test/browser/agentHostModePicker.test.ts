@@ -90,13 +90,13 @@ suite('AgentHostModePicker', () => {
 		const phone = observableValue('phone', false);
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 		const configuration = new class extends TestConfigurationService {
+			policyRestricted = policyRestricted;
 			override inspect<T>(key: string): IConfigurationValue<T> {
 				const result = super.inspect<T>(key);
-				return { ...result, policyValue: policyRestricted && key === ChatConfiguration.GlobalAutoApprove ? result.value : undefined };
+				return { ...result, policyValue: this.policyRestricted && key === ChatConfiguration.GlobalAutoApprove ? result.value : undefined };
 			}
 		}({
 			[ChatConfiguration.ExperimentalModePermissionsPicker]: enabled,
-			[ChatConfiguration.AssistedPermissionsEnabled]: true,
 			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
 			[ChatConfiguration.GlobalAutoApprove]: false,
 		});
@@ -520,22 +520,55 @@ suite('AgentHostModePicker', () => {
 	});
 
 	test('preserves enterprise policy restrictions in the permission choices', async () => {
-		const { trigger, actionWidget, managedSandboxEnforced } = setup(true, true, true);
+		const { trigger, actionWidget, managedSandboxEnforced, writes } = setup(true, true, true);
 		await timeout(0);
 		managedSandboxEnforced.set(true, undefined);
 		trigger.click();
 		const items = actionWidget.items;
+		await actionWidget.select('Assisted permissions');
 		assert.deepStrictEqual({
-			levels: items.filter(item => item.detail).map(item => ({ label: item.label, disabled: item.disabled })),
+			levels: items.filter(item => item.detail).map(item => ({ label: item.label, disabled: item.disabled, badge: item.badge })),
 			sandboxDisabled: items.find(item => item.standaloneToggle)?.standaloneToggle?.disabled,
+			writes,
 		}, {
 			levels: [
-				{ label: 'Manual permissions', disabled: false },
-				{ label: 'Assisted permissions', disabled: true },
-				{ label: 'Allow all', disabled: true },
+				{ label: 'Manual permissions', disabled: false, badge: undefined },
+				{ label: 'Assisted permissions', disabled: true, badge: 'Experimental' },
+				{ label: 'Allow all', disabled: true, badge: undefined },
 			],
 			sandboxDisabled: true,
+			writes: [],
 		});
+	});
+
+	test('offers experimental Assisted permissions without opting in or changing the default', async () => {
+		const { trigger, configuration, actionWidget, writes, config } = setup();
+		await configuration.setUserConfiguration('chat.assistedPermissions.enabled', false);
+		trigger.click();
+		const levels = actionWidget.items.filter(item => item.detail).map(item => ({ label: item.label, disabled: item.disabled, badge: item.badge }));
+		const initialLevel = config.values.autoApprove;
+
+		await actionWidget.select('Assisted permissions');
+
+		assert.deepStrictEqual({ levels, initialLevel, writes }, {
+			levels: [
+				{ label: 'Manual permissions', disabled: false, badge: undefined },
+				{ label: 'Assisted permissions', disabled: false, badge: 'Experimental' },
+				{ label: 'Allow all', disabled: false, badge: undefined },
+			],
+			initialLevel: 'default',
+			writes: [{ session: 'test-session', property: 'autoApprove', value: 'assisted' }],
+		});
+	});
+
+	test('does not apply Assisted permissions when enterprise policy changes during confirmation', async () => {
+		const { trigger, configuration, actionWidget, writes } = setup();
+		trigger.click();
+		const selection = actionWidget.select('Assisted permissions');
+		configuration.policyRestricted = true;
+		await selection;
+
+		assert.deepStrictEqual(writes, []);
 	});
 
 	test('always shows the shield on the sandbox toggle row', async () => {

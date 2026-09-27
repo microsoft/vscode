@@ -37,11 +37,10 @@ export interface ISessionsPartService {
 	setContentVisible(visible: boolean): void;
 
 	/**
-	 * Fires with the session id of a grid slot that received keyboard focus. The
-	 * view service listens to promote that session to the active session. Only
-	 * fires for non-placeholder slots.
+	 * Fires with the session id of a focused grid slot, or undefined for the empty new-session slot.
+	 * The view service promotes that slot to active.
 	 */
-	readonly onDidFocusSession: Event<string>;
+	readonly onDidFocusSession: Event<string | undefined>;
 
 	/**
 	 * Toggles the maximized state of the session view hosting the given session

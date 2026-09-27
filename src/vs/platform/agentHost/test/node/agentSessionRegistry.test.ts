@@ -4,15 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { join } from '../../../../base/common/path.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { Promises } from '../../../../base/node/pfs.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 
 class TestAgentHostDatabase implements IAgentHostDatabase {
+	declare readonly _serviceBrand: undefined;
+
 	readonly sessions = new Map<string, IAgentHostDatabaseSession>();
 	readonly agentMergeEnabled = new Set<string>();
+	readonly provisionalSessions = new Set<string>();
 	backfilled = false;
 	private readonly _providerBackfilled = new Set<string>();
 	private readonly _sessionsV2Backfilled = new Set<string>();
@@ -185,7 +192,11 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
-		return this.registerSessionV2(session, sessionOptions, registerOptions);
+		const registered = await this.registerSessionV2(session, sessionOptions, registerOptions);
+		if (registerOptions.provisional) {
+			this.provisionalSessions.add(session);
+		}
+		return registered;
 	}
 
 	unregisterRuntimeSession(session: string): Promise<void> {
@@ -212,6 +223,20 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
 		this._throwReadFailure();
 		return [...this.agentMergeEnabled];
+	}
+
+	async setSessionProvisional(session: string, provisional: boolean): Promise<void> {
+		this._throwWriteFailure();
+		if (provisional) {
+			this.provisionalSessions.add(session);
+		} else {
+			this.provisionalSessions.delete(session);
+		}
+	}
+
+	async listProvisionalSessions(): Promise<readonly string[]> {
+		this._throwReadFailure();
+		return [...this.provisionalSessions];
 	}
 
 	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
@@ -524,6 +549,95 @@ suite('AgentSessionRegistry', () => {
 			source: entry.source,
 			startTime: entry.startTime,
 		})), [{ external: false, source: 'explicit', startTime: 100 }]);
+	});
+
+	test('external session adoption is durable, idempotent, and protected from rediscovery', async () => {
+		const registry = createRegistry();
+		const adopted: string[] = [];
+		disposables.add(registry.onDidAdoptSession(session => adopted.push(session.toString())));
+		await registerDiscovered(registry, a, 'copilot', 100);
+		await registry.adoptExternalSession(a);
+		await registry.adoptExternalSession(a);
+
+		const restartedRegistry = createRegistry();
+		await registerRestored(restartedRegistry, a, 'copilot', 200);
+		await registerDiscovered(restartedRegistry, a, 'copilot', 300);
+		const expected = { session: a.toString(), provider: 'copilot', startTime: 100, modifiedTime: 300, external: false, source: 'explicit' };
+		assert.deepStrictEqual({
+			adopted,
+			legacy: await database.getSession(a.toString()),
+			current: await database.getSessionV2Registration(a.toString()),
+		}, { adopted: [a.toString()], legacy: expected, current: expected });
+	});
+
+	test('external session adoption survives closing and reopening the database', async () => {
+		const directory = join(tmpdir(), `vscode-external-adoption-${generateUuid()}`);
+		const databasePath = join(directory, 'agent-host.db');
+		await database.close();
+		database = new AgentHostDatabase(databasePath);
+		try {
+			const registry = createRegistry();
+			await registerDiscovered(registry, a, 'copilot', 100);
+			await registry.adoptExternalSession(a);
+			await database.close();
+			database = new AgentHostDatabase(databasePath);
+			const restarted = createRegistry();
+			await registerDiscovered(restarted, a, 'copilot', 200);
+			assert.deepStrictEqual(await database.getSessionV2Registration(a.toString()), {
+				session: a.toString(), provider: 'copilot', startTime: 100, modifiedTime: 200, external: false, source: 'explicit',
+			});
+		} finally {
+			await database.close();
+			await Promises.rm(directory);
+		}
+	});
+
+	test('external session adoption does not revive a session deleted during registration', async () => {
+		class DeletingDatabase extends AgentHostDatabase {
+			override async registerRuntimeSession(session: string, options: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+				if (options.source === 'explicit') {
+					await this.tombstoneAndUnregisterSession(session);
+				}
+				return super.registerRuntimeSession(session, options, registerOptions);
+			}
+		}
+		await database.close();
+		database = new DeletingDatabase(':memory:');
+		const registry = createRegistry();
+		const adopted: string[] = [];
+		disposables.add(registry.onDidAdoptSession(session => adopted.push(session.toString())));
+		await registerDiscovered(registry, a, 'copilot', 100);
+
+		await registry.adoptExternalSession(a);
+		assert.deepStrictEqual({
+			adopted,
+			legacy: await database.getSession(a.toString()),
+			current: await database.getSessionV2Registration(a.toString()),
+			rediscovered: await registerDiscovered(registry, a, 'copilot', 200),
+		}, { adopted: [], legacy: undefined, current: undefined, rediscovered: false });
+	});
+
+	test('external session adoption only announces successful persistence', async () => {
+		await database.close();
+		const failingDatabase = new TestAgentHostDatabase();
+		database = failingDatabase;
+		const registry = createRegistry();
+		const adopted: string[] = [];
+		disposables.add(registry.onDidAdoptSession(session => adopted.push(session.toString())));
+		await registerDiscovered(registry, a, 'copilot', 100);
+		failingDatabase.failNextWrite();
+
+		await assert.rejects(registry.adoptExternalSession(a), /write failed/);
+		assert.deepStrictEqual({
+			adopted,
+			external: (await registry.get(a))?.external,
+		}, { adopted: [], external: true });
+
+		await registry.adoptExternalSession(a);
+		assert.deepStrictEqual({
+			adopted,
+			external: (await registry.get(a))?.external,
+		}, { adopted: [a.toString()], external: false });
 	});
 
 	test('backfill marker gates the one-time provider seed', async () => {

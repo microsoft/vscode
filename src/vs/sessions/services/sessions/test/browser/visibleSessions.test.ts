@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -17,10 +17,12 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionRemoteConnec
 const stubChat: IChat = {
 	resource: URI.parse('test:///chat'),
 	createdAt: new Date(),
+	workspace: constObservable(undefined),
 	title: constObservable('Chat'),
 	updatedAt: constObservable(new Date()),
 	status: constObservable(0),
 	changes: constObservable([]),
+	changesets: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
 	modelSource: constObservable(undefined),
@@ -44,8 +46,6 @@ function stubSession(sessionId: string): ISession {
 		title: constObservable(sessionId),
 		updatedAt: constObservable(new Date()),
 		status: constObservable(0),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
@@ -760,6 +760,30 @@ suite('VisibleSessions', () => {
 				active: 'Anew',
 				sticky: [],
 			});
+		});
+
+		test('publishes replacement focus intent atomically with the active session', () => {
+			const model = createModel();
+			const draft = stubSession('draft');
+			const replacement = stubSession('replacement');
+			const other = stubSession('other');
+			model.setActive(draft);
+			const states: { active: string | undefined; preserveFocus: boolean }[] = [];
+			disposables.add(autorun(reader => {
+				states.push({
+					active: model.activeSession.read(reader)?.sessionId,
+					preserveFocus: model.activePreserveFocus.read(reader),
+				});
+			}));
+
+			model.updateSession(draft, replacement, true);
+			model.setActive(other);
+
+			assert.deepStrictEqual(states, [
+				{ active: 'draft', preserveFocus: false },
+				{ active: 'replacement', preserveFocus: true },
+				{ active: 'other', preserveFocus: false },
+			]);
 		});
 
 		test('replaces the wrapper even when the session id is unchanged', () => {

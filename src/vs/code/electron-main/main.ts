@@ -106,13 +106,17 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Create services
+		mark('code/willCreateMainServices');
 		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogger, productService, userDataProfilesMainService] = this.createServices();
+		mark('code/didCreateMainServices');
 
 		try {
 
 			// Init services
 			try {
+				mark('code/willInitMainServices');
 				await this.initServices(environmentMainService, userDataProfilesMainService, configurationService, stateMainService, productService);
+				mark('code/didInitMainServices');
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user

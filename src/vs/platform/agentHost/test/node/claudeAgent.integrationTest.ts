@@ -89,6 +89,10 @@ import {
 
 const noopOTelService: IAgentHostOTelService = {
 	_serviceBrand: undefined,
+	diagnosticsEnabled: false,
+	emitTurnTiming: () => { },
+	emitFirstResponse: () => { },
+	emitUserInteraction: () => { },
 	getSdkTelemetryConfig: async () => undefined,
 	getNativeSdkTelemetryConfig: async () => undefined,
 	getSessionTraceContext: () => undefined,
@@ -563,6 +567,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	accountInfo(): never { throw new Error('not modeled'); }
 	rewindFiles(): never { throw new Error('not modeled'); }
 	readFile(): never { throw new Error('not modeled'); }
+	readMcpResource(): never { throw new Error('not modeled'); }
 	seedReadState(): never { throw new Error('not modeled'); }
 	reconnectMcpServer(): never { throw new Error('not modeled'); }
 	toggleMcpServer(): never { throw new Error('not modeled'); }
@@ -570,6 +575,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	streamInput(): never { throw new Error('not modeled'); }
 	stopTask(): never { throw new Error('not modeled'); }
 	reloadSkills(): never { throw new Error('not modeled'); }
+	reloadOutputStyles(): never { throw new Error('not modeled'); }
 	backgroundTasks(): never { throw new Error('not modeled'); }
 	close(): void { /* no-op */ }
 	[Symbol.asyncDispose](): Promise<void> { return Promise.resolve(); }

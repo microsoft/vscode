@@ -5,6 +5,7 @@
 
 import './media/connectionDiagnostics.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Gesture } from '../../../../../base/browser/touch.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -33,6 +34,7 @@ export class ConnectionDiagnosticsReport extends Disposable {
 	private readonly bodyFocusTargets: HTMLElement[] = [];
 	private readonly hostFocusTargets = new Map<string, HTMLElement>();
 	private snapshot: IConnectionDiagnosticsSnapshot;
+	private snapshotRequest = 0;
 	private pendingHostId: string | undefined;
 	private actionError: { readonly hostId: string; readonly message: string } | undefined;
 
@@ -59,6 +61,13 @@ export class ConnectionDiagnosticsReport extends Disposable {
 			vertical: ScrollbarVisibility.Auto,
 			consumeMouseWheelIfScrollbarIsNeeded: true,
 		}));
+		// Keep native touch/keyboard scrolling while retaining the workbench scrollbar and wheel handling.
+		this.content.style.overflow = '';
+		this._register(Gesture.ignoreTarget(this.content));
+		this._register(dom.addDisposableListener(this.content, dom.EventType.SCROLL, () => this.scrollable.setScrollPosition({
+			scrollTop: this.content.scrollTop,
+			scrollLeft: this.content.scrollLeft,
+		})));
 		dom.append(container, this.scrollable.getDomNode());
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ConnectionDiagnosticsReport.scrollable', () => this.scrollable.scanDomNode()));
 		this._register(resizeObserver.observe(this.scrollable.getDomNode()));
@@ -81,9 +90,14 @@ export class ConnectionDiagnosticsReport extends Disposable {
 	}
 
 	async refresh(): Promise<void> {
+		const request = ++this.snapshotRequest;
 		try {
 			const discoverySucceeded = !this.options.rediscoverOnRefresh || await this.diagnosticsService.rediscover();
-			this.snapshot = this.diagnosticsService.getSnapshot();
+			const snapshot = await this.diagnosticsService.getSnapshot();
+			if (this._store.isDisposed || request !== this.snapshotRequest) {
+				return;
+			}
+			this.snapshot = snapshot;
 			this.render();
 			this.announce(this.options.rediscoverOnRefresh
 				? discoverySucceeded
@@ -91,7 +105,9 @@ export class ConnectionDiagnosticsReport extends Disposable {
 					: localize('connectionDiagnostics.discoveryFailed', "Snapshot refreshed, but one or more host discovery operations failed.")
 				: localize('connectionDiagnostics.snapshotRefreshed', "Snapshot refreshed."));
 		} catch (error) {
-			this.announce(localize('connectionDiagnostics.refreshFailed', "Could not refresh connection information. {0}", toErrorMessage(error)));
+			if (request === this.snapshotRequest) {
+				this.announce(localize('connectionDiagnostics.refreshFailed', "Could not refresh connection information. {0}", toErrorMessage(error)));
+			}
 		}
 	}
 
@@ -145,7 +161,7 @@ export class ConnectionDiagnosticsReport extends Disposable {
 			this.renderHiddenHosts(hosts.filter(host => host.hidden));
 			dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.liveSummaries', "Host summaries and controls are live. Details and exports use the captured snapshot.");
 		}
-		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.sharing', "Local snapshot. Review host names and addresses before sharing.");
+		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.sharing', "Local snapshot, including connection-related Window logs. Known credentials are redacted, but host names, addresses, and messages can contain personal information. Review before sharing.");
 		dom.append(this.content, dom.$('p.connection-diagnostics-caption')).textContent = localize('connectionDiagnostics.captured', "Captured: {0}", this.snapshot.capturedAt);
 		const snapshotAddresses = new Set(this.snapshot.sections.map(section => section.hostAddress));
 		const newHostSections = hosts.filter(host => !host.hidden && host.address && !snapshotAddresses.has(host.address)).map(host => ({

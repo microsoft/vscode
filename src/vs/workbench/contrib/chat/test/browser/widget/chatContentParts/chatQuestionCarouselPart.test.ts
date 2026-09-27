@@ -15,6 +15,8 @@ import { IChatQuestionAnswerValue, IChatQuestionCarousel } from '../../../../com
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import '../../../../../../browser/media/style.css';
 
 function createMockCarousel(questions: IChatQuestionCarousel['questions'], allowSkip: boolean = true): IChatQuestionCarousel {
@@ -36,8 +38,14 @@ suite('ChatQuestionCarouselPart', () => {
 	let widget: ChatQuestionCarouselPart;
 	let submittedAnswers: Map<string, IChatQuestionAnswerValue> | undefined | null = null;
 
-	function createWidget(carousel: IChatQuestionCarousel, onSubmit?: () => void, container: HTMLElement = mainWindow.document.body): ChatQuestionCarouselPart {
+	function createWidget(
+		carousel: IChatQuestionCarousel,
+		onSubmit?: () => void,
+		container: HTMLElement = mainWindow.document.body,
+		configureServices?: (instantiationService: ReturnType<typeof workbenchInstantiationService>) => void,
+	): ChatQuestionCarouselPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		configureServices?.(instantiationService);
 		const options: IChatQuestionCarouselOptions = {
 			onSubmit: (answers) => {
 				submittedAnswers = answers;
@@ -106,6 +114,40 @@ suite('ChatQuestionCarouselPart', () => {
 			const title = widget.domNode.querySelector('.chat-question-title');
 			assert.ok(title, 'title element should exist');
 			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
+		});
+
+		test('uses workbench hovers for markdown links', () => {
+			const carousel = createMockCarousel([{
+				id: 'q1',
+				type: 'text',
+				title: 'Question',
+				message: new MarkdownString('[Question docs](https://example.com/question)'),
+				detailedMessage: new MarkdownString('[Detailed docs](https://example.com/detailed)')
+			}]);
+			carousel.message = new MarkdownString('[Carousel docs](https://example.com/carousel)');
+			const hoverContents: Parameters<IHoverService['setupManagedHover']>[2][] = [];
+
+			createWidget(carousel, undefined, mainWindow.document.body, instantiationService => {
+				instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupManagedHover: (...args: Parameters<IHoverService['setupManagedHover']>) => {
+						hoverContents.push(args[2]);
+						return NullHoverService.setupManagedHover(...args);
+					}
+				});
+			});
+
+			assert.deepStrictEqual({
+				nativeTitles: Array.from(widget.domNode.querySelectorAll<HTMLAnchorElement>('.rendered-markdown a'), link => link.title),
+				hoverContents,
+			}, {
+				nativeTitles: ['', '', ''],
+				hoverContents: [
+					'https://example.com/carousel',
+					'https://example.com/question',
+					'https://example.com/detailed',
+				],
+			});
 		});
 
 		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {

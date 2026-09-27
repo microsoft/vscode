@@ -6,9 +6,10 @@
 import assert from 'assert';
 import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -16,7 +17,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestHostService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { SpotlightPresentation } from '../../browser/spotlight/spotlightPresentation.js';
-import { IOnboardingTargetOptions, markOnboardingTarget } from '../../browser/spotlight/onboardingTarget.js';
+import { IOnboardingTargetOptions, markOnboardingTarget, ONBOARDING_TARGET_ATTR, registerOnboardingTargetProvider } from '../../browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../browser/spotlight/spotlightTypes.js';
 import { IOnboardingScenario, OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
 
@@ -64,7 +65,98 @@ suite('SpotlightPresentation', () => {
 		};
 	}
 
-	test('waits for a late target and skips a missing target immediately', async () => {
+	test('resolves a target within the prepared instance scope', async () => {
+		const container = createContainer();
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
+		const opened: string[] = [];
+		const targetId = 'test.spotlight.scoped';
+		createTarget(container, targetId, { scope: 'first', open: () => { opened.push('first'); } });
+		const second = createTarget(container, targetId, {
+			scope: 'second',
+			open: () => {
+				opened.push('second');
+				second.click();
+			},
+		});
+
+		const result = await presentation.run(createScenario('test.spotlight.scoped', {
+			id: 'scoped',
+			targetId,
+			title: 'Scoped target',
+			description: 'Use the prepared target.',
+			openTarget: true,
+			advanceOnTargetClick: true,
+		}), {
+			targetWindow: mainWindow,
+			targetScope: 'second',
+			onAbort: Event.None,
+		});
+
+		assert.deepStrictEqual({ opened, result }, {
+			opened: ['second'],
+			result: {
+				outcome: OnboardingOutcome.Completed,
+				shown: true,
+				dismissReason: OnboardingDismissReason.TargetClick,
+				lastStepIndex: 0,
+				stepCount: 1,
+			},
+		});
+	});
+
+	for (const runAsSequenceStep of [false, true]) {
+		test(`waits for an owner-provided control and invokes its opener (runAsSequenceStep: ${runAsSequenceStep})`, () => runWithFakedTimers({}, async () => {
+			const container = createContainer();
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
+			const target = $('button');
+			target.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 100px; height: 30px;';
+			container.appendChild(target);
+			let ready = false;
+			let opened = 0;
+			disposables.add(registerOnboardingTargetProvider('test.provided', scope => ready && scope === 'prepared' ? {
+				element: target,
+				open: () => {
+					opened++;
+					target.click();
+				},
+			} : undefined));
+			const step: ISpotlightStep = {
+				id: 'provided',
+				targetId: 'test.provided',
+				title: 'Provided control',
+				description: 'Use the control exposed by its owner.',
+				openTarget: true,
+				advanceOnTargetClick: true,
+				missingTarget: { kind: 'wait', timeoutMs: 500 },
+				onBeforeShow: () => {
+					disposables.add(disposableTimeout(() => ready = true, 100));
+				},
+			};
+			const context = { targetWindow: mainWindow, targetScope: 'prepared', onAbort: Event.None };
+			const result = runAsSequenceStep
+				? await presentation.runStep({ id: step.id, kind: SPOTLIGHT_PRESENTATION_KIND, payload: step }, {
+					...context,
+					cancellationToken: CancellationToken.None,
+					stepIndex: 0,
+					visualStepIndex: 0,
+					visualStepCount: 1,
+					canGoBack: false,
+					isLastVisualStep: true,
+				})
+				: await presentation.run(createScenario('test.provided', step), context);
+
+			assert.deepStrictEqual({
+				shown: result.shown,
+				completed: hasKey(result, { action: true }) ? result.action === 'next' : result.outcome === OnboardingOutcome.Completed,
+				opened,
+				marked: target.hasAttribute(ONBOARDING_TARGET_ATTR),
+			}, { shown: true, completed: true, opened: 1, marked: false });
+		}));
+	}
+
+	test('waits for a late target and skips a missing target immediately', () => runWithFakedTimers({}, async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
@@ -113,7 +205,7 @@ suite('SpotlightPresentation', () => {
 			},
 			shown: 1,
 		});
-	});
+	}));
 
 	test('excludes skipped steps from displayed progress', async () => {
 		const container = createContainer();
@@ -376,7 +468,7 @@ suite('SpotlightPresentation', () => {
 		}
 	}
 
-	test('hides the previous step while waiting for the next target', async () => {
+	test('hides the previous step while waiting for the next target', () => runWithFakedTimers({}, async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
@@ -420,7 +512,7 @@ suite('SpotlightPresentation', () => {
 				stepCount: 2,
 			},
 		});
-	});
+	}));
 
 	test('aborts immediately while waiting for a target', async () => {
 		const container = createContainer();
@@ -486,6 +578,183 @@ suite('SpotlightPresentation', () => {
 				lastStepIndex: 0,
 				stepCount: 1,
 			},
+		});
+	});
+
+	for (const preselected of [false, true]) {
+		for (const action of ['next', 'select'] as const) {
+			test(`conditionally opens the target and advances via ${action} with preselected=${preselected}`, async () => {
+				const container = createContainer();
+				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+				contextKeyService.createKey('testSpotlightWorkspaceSelected', false);
+				const selected = disposables.add(new Emitter<Promise<boolean>>());
+				let opened = 0;
+				const targetId = 'test.spotlight.optionalWorkspace';
+				createTarget(container, targetId, { open: () => { opened++; }, hasSelection: () => preselected, onDidSelect: selected.event });
+				let modelOpened = 0;
+				createTarget(container, 'test.spotlight.collapsedModel', { open: () => { modelOpened++; } });
+				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
+				const buttons: { readonly hidden: boolean; readonly label: string | null }[] = [];
+				const result = await presentation.run(createScenario('test.spotlight.optionalSelection', {
+					id: 'workspace',
+					targetId,
+					title: 'Workspace',
+					description: 'Choose a workspace or continue',
+					openTarget: 'ifUnselected',
+					allowTargetInteraction: true,
+					advanceOnTargetSelection: true,
+				}, {
+					id: 'model',
+					targetId: 'test.spotlight.collapsedModel',
+					title: 'Model',
+					description: 'Choose a model',
+					openTarget: false,
+					allowTargetInteraction: true,
+				}), {
+					targetWindow: mainWindow,
+					onAbort: Event.None,
+					onDidShow: () => {
+						const next = container.getElementsByClassName('monaco-button')[2] as HTMLElement;
+						buttons.push({ hidden: next.style.display === 'none', label: next.textContent });
+						const isWorkspaceStep = buttons.length === 1;
+						disposables.add(disposableTimeout(() => {
+							if (isWorkspaceStep && action === 'select') {
+								selected.fire(Promise.resolve(true));
+							} else {
+								next.click();
+							}
+						}, 0));
+					},
+				});
+				assert.deepStrictEqual({ opened, modelOpened, buttons, selectionListenerRetained: selected.hasListeners(), result }, {
+					opened: preselected ? 0 : 1,
+					modelOpened: 0,
+					buttons: [{ hidden: false, label: 'Next' }, { hidden: false, label: 'Done' }],
+					selectionListenerRetained: false,
+					result: {
+						outcome: OnboardingOutcome.Completed,
+						shown: true,
+						dismissReason: OnboardingDismissReason.Completed,
+						lastStepIndex: 1,
+						stepCount: 2,
+					},
+				});
+			});
+		}
+	}
+
+	for (const accepted of [true, false]) {
+		test(`waits for selection acceptance beyond the next target timeout (accepted: ${accepted})`, () => runWithFakedTimers({}, async () => {
+			const container = createContainer();
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
+			const selection = disposables.add(new Emitter<Promise<boolean>>());
+			const acceptance = new DeferredPromise<boolean>();
+			createTarget(container, 'test.spotlight.pendingWorkspace', { onDidSelect: selection.event });
+			const shown: string[] = [];
+			let shownBeforeAcceptance: string[] = [];
+			const result = await presentation.run(createScenario('test.spotlight.pendingAcceptance', {
+				id: 'workspace',
+				targetId: 'test.spotlight.pendingWorkspace',
+				title: 'Workspace',
+				description: 'Choose a workspace',
+				advanceOnTargetSelection: true,
+			}, {
+				id: 'model',
+				targetId: 'test.spotlight.acceptedModel',
+				title: 'Model',
+				description: 'Choose a model',
+				missingTarget: { kind: 'wait', timeoutMs: 5_000 },
+			}), {
+				targetWindow: mainWindow,
+				onAbort: Event.None,
+				onDidShow: () => {
+					const title = container.getElementsByClassName('spotlight-callout-title')[0].textContent!;
+					shown.push(title);
+					if (title === 'Model') {
+						(container.getElementsByClassName('monaco-button')[2] as HTMLElement).click();
+						return;
+					}
+					selection.fire(acceptance.p);
+					disposables.add(disposableTimeout(async () => {
+						shownBeforeAcceptance = [...shown];
+						createTarget(container, 'test.spotlight.acceptedModel');
+						await acceptance.complete(accepted);
+						if (!accepted) {
+							await Promise.resolve();
+							(container.getElementsByClassName('monaco-button')[0] as HTMLElement).click();
+						}
+					}, 6_000));
+				},
+			});
+			assert.deepStrictEqual({ shownBeforeAcceptance, shown, outcome: result.outcome }, {
+				shownBeforeAcceptance: ['Workspace'],
+				shown: accepted ? ['Workspace', 'Model'] : ['Workspace'],
+				outcome: accepted ? OnboardingOutcome.Completed : OnboardingOutcome.Skipped,
+			});
+		}));
+	}
+
+	test('resolves the step variation at run time', async () => {
+		const container = createContainer();
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
+		createTarget(container, 'test.spotlight.resolvedTarget');
+		const scenario = createScenario('test.spotlight.resolvedSteps');
+		const result = await presentation.run({
+			...scenario,
+			presentation: {
+				...scenario.presentation,
+				payload: {
+					steps: [],
+					resolveSteps: async () => [{
+						id: 'resolved',
+						targetId: 'test.spotlight.resolvedTarget',
+						title: 'Resolved step',
+						description: 'Selected variation',
+					}],
+				},
+			},
+		}, {
+			targetWindow: mainWindow,
+			onAbort: Event.None,
+			onDidShow: () => (container.getElementsByClassName('monaco-button')[2] as HTMLElement).click(),
+		});
+		assert.deepStrictEqual(result, {
+			outcome: OnboardingOutcome.Completed,
+			shown: true,
+			dismissReason: OnboardingDismissReason.Completed,
+			lastStepIndex: 0,
+			stepCount: 1,
+		});
+	});
+
+	test('does not show a step after aborting during variation resolution', async () => {
+		const container = createContainer();
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
+		const abort = disposables.add(new Emitter<void>());
+		const steps = new DeferredPromise<readonly ISpotlightStep[]>();
+		const scenario = createScenario('test.spotlight.abortedResolution');
+		let shown = 0;
+		const result = presentation.run({
+			...scenario,
+			presentation: {
+				...scenario.presentation,
+				payload: { steps: [], resolveSteps: () => steps.p },
+			},
+		}, { targetWindow: mainWindow, onAbort: abort.event, onDidShow: () => shown++ });
+		abort.fire();
+		await steps.complete([]);
+		assert.deepStrictEqual({ result: await result, shown }, {
+			result: {
+				outcome: OnboardingOutcome.Aborted,
+				shown: false,
+				dismissReason: OnboardingDismissReason.Aborted,
+				lastStepIndex: 0,
+				stepCount: 0,
+			},
+			shown: 0,
 		});
 	});
 });

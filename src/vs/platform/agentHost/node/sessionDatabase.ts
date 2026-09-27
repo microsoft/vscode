@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, SessionCatalogSyncWriteResult } from '../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type ILocalTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type SessionCatalogSyncWriteResult } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
@@ -188,6 +188,14 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			),
 			CHECK (acknowledged_hash IS NOT NULL OR pending_hash IS NOT NULL)
 		)`].join(';\n'),
+	},
+	{
+		version: 14,
+		sql: `CREATE TABLE IF NOT EXISTS terminal_outputs (
+			tool_call_id TEXT PRIMARY KEY NOT NULL,
+			turn_id      TEXT NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			output       BLOB NOT NULL
+		)`,
 	},
 ];
 
@@ -419,6 +427,10 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._track(() => this._turnUsageSequencer.queue(() => this._queueMutation(operation)));
 	}
 
+	private _queueTurnData<T>(operation: (db: Database) => Promise<T>): Promise<T> {
+		return this._turnUsageSequencer.queue(() => this._queueOperation(operation));
+	}
+
 	/**
 	 * Runs an atomic mutation touching metadata and sequenced turn data.
 	 * Always acquire sequencers in metadata, turn-data, mutation order.
@@ -567,6 +579,13 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._queueOperation(async db => {
 			const row = await dbGet(db, 'SELECT event_id FROM turns ORDER BY rowid LIMIT 1', []);
 			return row?.event_id as string | undefined ?? undefined;
+		});
+	}
+
+	hasConversationTurns(): Promise<boolean> {
+		return this._queueOperation(async db => {
+			const row = await dbGet(db, `SELECT EXISTS(SELECT 1 FROM turns LIMIT 1) AS has_turns, EXISTS(SELECT 1 FROM local_turns LIMIT 1) AS has_local_turns`, []);
+			return !!row?.has_turns || !!row?.has_local_turns;
 		});
 	}
 
@@ -856,7 +875,10 @@ export class SessionDatabase implements ISessionDatabase {
 			db,
 			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines
 				FROM file_edits
-				WHERE turn_id = ?
+				WHERE turn_id = COALESCE(
+					(SELECT id FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1),
+					?1
+				)
 				ORDER BY rowid`,
 			[turnId],
 		);
@@ -888,6 +910,57 @@ export class SessionDatabase implements ISessionDatabase {
 				beforeContent: row.before_content ? toUint8Array(row.before_content) : undefined,
 				afterContent: row.after_content ? toUint8Array(row.after_content) : undefined,
 			};
+		});
+	}
+
+	// ---- Terminal outputs -----------------------------------------------
+
+	storeTerminalOutput(turnId: string, toolCallId: string, content: Uint8Array): Promise<void> {
+		if (content.byteLength > MAX_TERMINAL_OUTPUT_BYTES) {
+			return Promise.reject(new Error(`Terminal output exceeds the ${MAX_TERMINAL_OUTPUT_BYTES}-byte limit`));
+		}
+		return this._mutateTurnUsage(async db => {
+			const result = await dbRun(
+				db,
+				`INSERT INTO terminal_outputs (tool_call_id, turn_id, output)
+					SELECT ?, ?, ?
+					WHERE EXISTS (SELECT 1 FROM turns WHERE id = ?)
+					ON CONFLICT(tool_call_id) DO UPDATE SET
+						turn_id = excluded.turn_id,
+						output = excluded.output`,
+				[toolCallId, turnId, Buffer.from(content), turnId],
+			);
+			if (result.changes === 0) {
+				throw new Error(`Cannot store terminal output for missing turn '${turnId}'`);
+			}
+		});
+	}
+
+	deleteTerminalOutput(toolCallId: string): Promise<void> {
+		return this._mutateTurnUsage(async db => {
+			await dbRun(db, 'DELETE FROM terminal_outputs WHERE tool_call_id = ?', [toolCallId]);
+		});
+	}
+
+	getTerminalOutputSize(toolCallId: string): Promise<number | undefined> {
+		return this._queueTurnData(async db => {
+			const row = await dbGet(db, 'SELECT length(output) AS size FROM terminal_outputs WHERE tool_call_id = ?', [toolCallId]);
+			return row?.size as number | undefined ?? undefined;
+		});
+	}
+
+	readTerminalOutput(toolCallId: string): Promise<Uint8Array | undefined> {
+		return this._queueTurnData(async db => {
+			const sizeRow = await dbGet(db, 'SELECT length(output) AS size FROM terminal_outputs WHERE tool_call_id = ?', [toolCallId]);
+			if (!sizeRow) {
+				return undefined;
+			}
+			const size = sizeRow.size as number;
+			if (size > MAX_TERMINAL_OUTPUT_BYTES) {
+				throw new Error(`Stored terminal output exceeds the ${MAX_TERMINAL_OUTPUT_BYTES}-byte limit`);
+			}
+			const row = await dbGet(db, 'SELECT output FROM terminal_outputs WHERE tool_call_id = ?', [toolCallId]);
+			return row ? toUint8Array(row.output) : undefined;
 		});
 	}
 
@@ -1171,6 +1244,7 @@ export class SessionDatabase implements ISessionDatabase {
 			for (const [oldId, newId] of mapping) {
 				await dbRun(db, 'UPDATE turns SET id = ? WHERE id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE terminal_outputs SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 			}
 			for (const [turnId, eventId] of eventIds ?? []) {
 				await dbRun(db, 'UPDATE turns SET event_id = ? WHERE id = ?', [eventId, turnId]);

@@ -27,6 +27,7 @@ import { IMarkdownRendererService } from '../../../markdown/browser/markdownRend
 import type { IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { AnchorAlignment } from '../../../../base/common/layout.js';
+import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import '../../browser/hover.css';
 
 suite('HoverService', () => {
@@ -752,7 +753,105 @@ suite('HoverService', () => {
 		}));
 	});
 
+	suite('getStickyHover', () => {
+		test('returns only a visible sticky hover for the requested target', () => {
+			const target = createTarget();
+			const otherTarget = createTarget();
+			const beforeShow = hoverService.getStickyHover(target);
+			const hover = showHover('Test', target, { persistence: { sticky: true } });
+			const whileVisible = hoverService.getStickyHover(target);
+			const forOtherTarget = hoverService.getStickyHover(otherTarget);
+			hover.dispose();
+
+			assert.deepStrictEqual({
+				beforeShow,
+				matchesVisibleHover: whileVisible === hover,
+				forOtherTarget,
+				afterDispose: hoverService.getStickyHover(target),
+			}, {
+				beforeShow: undefined,
+				matchesVisibleHover: true,
+				forOtherTarget: undefined,
+				afterDispose: undefined,
+			});
+		});
+
+		test('ignores passive previews even when temporarily locked', () => {
+			const target = createTarget();
+			const hover = store.add(showHover('Test', target));
+			asHoverWidget(hover).isLocked = true;
+
+			assert.strictEqual(hoverService.getStickyHover(target), undefined);
+		});
+
+		test('matches each element of a structured hover target', () => {
+			const firstTarget = createTarget();
+			const secondTarget = createTarget();
+			const hover = showHover('Test', undefined, {
+				target: { targetElements: [firstTarget, secondTarget] },
+				persistence: { sticky: true },
+			});
+			const matches = [firstTarget, secondTarget].map(target => hoverService.getStickyHover(target) === hover);
+			hoverService.hideHover(true);
+
+			assert.deepStrictEqual({
+				matches,
+				afterHide: [firstTarget, secondTarget].map(target => hoverService.getStickyHover(target)),
+			}, {
+				matches: [true, true],
+				afterHide: [undefined, undefined],
+			});
+		});
+	});
+
 	suite('setupManagedHover', () => {
+		test('updates a pinned hover without losing its content or focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, (_options, focus) => ({
+				persistence: { sticky: focus },
+			})));
+			const tokens: CancellationToken[] = [];
+			const content = (text: string) => ({
+				element: (token: CancellationToken) => {
+					tokens.push(token);
+					const element = mainWindow.document.createElement('div');
+					element.textContent = text;
+					return element;
+				},
+			});
+			const hover = store.add(hoverService.setupManagedHover(delegate, createTarget(), content('Initial')));
+			hover.show(true);
+			await timeout(0);
+			await hover.update(content('Updated'));
+			const element = fixture.querySelector<HTMLElement>('.monaco-hover');
+			const updated = {
+				text: element?.textContent,
+				focused: !!element?.contains(document.activeElement),
+				cancelled: tokens.map(token => token.isCancellationRequested),
+			};
+			hover.hide();
+			assert.deepStrictEqual({
+				updated,
+				afterHide: tokens.map(token => token.isCancellationRequested),
+			}, { updated: { text: 'Updated', focused: true, cancelled: [true, false] }, afterHide: [true, true] });
+		}));
+
+		test('forwards onDidShow only for a displayed managed hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const calls: string[] = [];
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			const hover = store.add(hoverService.setupManagedHover(delegate, createTarget(), 'Promo', {
+				onDidShow: () => calls.push('show'),
+			}));
+			const blocker = showHover('Locked', undefined, { persistence: { sticky: true } });
+			hover.show();
+			await timeout(0);
+			const blocked = [...calls];
+			blocker.dispose();
+			hover.show();
+			await timeout(0);
+			hover.hide();
+			assert.deepStrictEqual({ blocked, calls }, { blocked: [], calls: ['show'] });
+		}));
+
 		test('should use native title attribute when showNativeHover is true', () => {
 			const target = createTarget();
 			const hover = hoverService.setupManagedHover(
@@ -826,6 +925,84 @@ suite('HoverService', () => {
 				isCompact: true,
 				contentOwnsPadding: true,
 			});
+		}));
+
+		test('should cancel managed HTML content when mouseleave closes the rendered hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			let contentToken: CancellationToken | undefined;
+			store.add(hoverService.setupManagedHover(delegate, target, {
+				element: token => {
+					contentToken = token;
+					return mainWindow.document.createElement('div');
+				},
+			}));
+
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: document.body }));
+			await timeout(0);
+			const beforeHide = contentToken?.isCancellationRequested;
+			target.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }));
+			await timeout(0);
+			const afterMouseLeave = contentToken?.isCancellationRequested;
+			hoverService.hideHover(true);
+
+			assert.deepStrictEqual({
+				beforeHide,
+				afterMouseLeave,
+				afterDismissal: contentToken?.isCancellationRequested,
+			}, {
+				beforeHide: false,
+				afterMouseLeave: false,
+				afterDismissal: true,
+			});
+		}));
+
+		test('should focus an already visible managed hover when shown explicitly', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			store.add(hoverService.setupManagedHover(delegate, target, 'Test'));
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: document.body }));
+			await timeout(0);
+			const firstHover = fixture.querySelector<HTMLElement>('.monaco-hover');
+
+			hoverService.showManagedHover(target);
+			await timeout(0);
+			const focusedHover = fixture.querySelector<HTMLElement>('.monaco-hover');
+
+			assert.deepStrictEqual({
+				firstHoverVisible: !!firstHover,
+				recreated: focusedHover !== firstHover,
+				focused: focusedHover?.contains(document.activeElement),
+				hoverCount: fixture.querySelectorAll('.monaco-hover').length,
+			}, {
+				firstHoverVisible: true,
+				recreated: true,
+				focused: true,
+				hoverCount: 1,
+			});
+		}));
+
+		test('should retain replacement managed HTML content when updating a visible hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			const tokens: CancellationToken[] = [];
+			const hover = store.add(hoverService.setupManagedHover(delegate, target, {
+				element: token => {
+					tokens.push(token);
+					return mainWindow.document.createElement('div');
+				},
+			}));
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: document.body }));
+			await timeout(0);
+
+			await hover.update({
+				element: token => {
+					tokens.push(token);
+					return mainWindow.document.createElement('div');
+				},
+			});
+
+			assert.deepStrictEqual(tokens.map(token => token.isCancellationRequested), [true, false]);
 		}));
 
 		test('should not re-show hover on focus when relatedTarget is from a dismissed hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

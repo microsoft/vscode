@@ -73,6 +73,7 @@ export interface IManagedSettingsResponse {
 		readonly endpoint?: string;
 		readonly protocol?: 'grpc' | 'http/protobuf' | 'http/json';
 		readonly captureContent?: boolean;
+		readonly capture?: { readonly identity?: boolean };
 		readonly lockCaptureContent?: boolean;
 		readonly serviceName?: string;
 		readonly resourceAttributes?: Record<string, string>;

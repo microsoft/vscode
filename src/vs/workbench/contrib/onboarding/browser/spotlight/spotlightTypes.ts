@@ -55,14 +55,17 @@ export interface ISpotlightStep {
 	/** Defaults to waiting two seconds before skipping; `abort` ends the run immediately if the target is missing. */
 	readonly missingTarget?: SpotlightMissingTargetBehavior;
 
-	/** Opens or expands the target through its owner before the step begins. */
-	readonly openTarget?: boolean;
+	/** Opens the target through its owner; `ifUnselected` only opens controls without a selected value. */
+	readonly openTarget?: boolean | 'ifUnselected';
 
 	/** Allow the spotlighted element to remain interactive. Defaults to `false`. */
 	readonly allowTargetInteraction?: boolean;
 
 	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
 	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
+
+	/** Advances when the target reports a selection, without hiding Next. */
+	readonly advanceOnTargetSelection?: boolean;
 
 	/** Overrides hiding Next when advancing on target clicks. `advanceWhen` always hides Next. */
 	readonly hideNext?: boolean;
@@ -85,4 +88,7 @@ export interface ISpotlightStep {
  */
 export interface ISpotlightPayload {
 	readonly steps: readonly ISpotlightStep[];
+
+	/** Resolves experiment-selected steps when the tour runs, replacing the default steps. */
+	readonly resolveSteps?: () => Promise<readonly ISpotlightStep[]>;
 }

@@ -202,6 +202,7 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 }
 
+.monaco-workbench.monaco-enable-motion .sessions-chat-loading-spinner .codicon-loading-compact.codicon-modifier-spin,
 .monaco-workbench.monaco-enable-motion .sessions-chat-voice-toolbar .action-label.codicon-loading-compact::before,
 .monaco-workbench.monaco-enable-motion .sessions-chat-stt-button .codicon-loading-compact.codicon-modifier-spin {
 	display: inline-block;

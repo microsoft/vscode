@@ -20,6 +20,7 @@ import {
 	type ITunnelSocketFactory,
 } from '../../common/tunnelAgentHostConnector.js';
 import type { ITunnelDuplexStream, ITunnelMessageSocket, ITunnelSocketCloseEvent } from '../../common/tunnelMessageSocket.js';
+import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 
 class FakeStream implements ITunnelDuplexStream {
 	on(_event: 'data', _listener: (data: Uint8Array) => void): this;
@@ -183,6 +184,49 @@ suite('TunnelAgentHostConnector', () => {
 			'LPJNul-wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ',
 			'a-Vv_dDaSd407TSoKmBuY8Jrx1w_cDjpHarRcBiCPpxc',
 		]);
+	});
+
+	test('reports relay phase failure and releases the relay without changing the rejection', async () => {
+		const events: IConnectionDiagnosticEvent[] = [];
+		const failure = new Error('Relay authorization rejected');
+		const pending = new DeferredPromise<void>();
+		const relay = new FakeRelayClient(pending.p);
+		const socket = new FakeSocket();
+		const { connector } = createConnector({ tunnelId: 'test', clusterId: 'cluster', labels: ['protocolv5'] }, relay, new FakeSocketFactory(socket));
+		try {
+			const connect = connector.connect('private-token', 'github', 'test', 'cluster', event => events.push(event));
+			const rejected = assert.rejects(connect, error => error === failure);
+			await pending.error(failure);
+			await rejected;
+			assert.deepStrictEqual({
+				phases: events.map(event => `${event.phase}:${event.outcome}`),
+				error: events.at(-1)?.error?.message,
+				disposed: relay.disposeCalls,
+				tokenLeaked: JSON.stringify(events).includes('private-token'),
+			}, {
+				phases: ['tunnel.lookup:started', 'tunnel.lookup:succeeded', 'relay.create:started', 'relay.create:succeeded', 'relay.connect:started', 'relay.connect:failed'],
+				error: 'Relay authorization rejected',
+				disposed: 1,
+				tokenLeaked: false,
+			});
+		} finally {
+			connector.dispose();
+			socket.dispose();
+		}
+	});
+
+	test('captures observed relay close code and redacts its reason', async () => {
+		const events: IConnectionDiagnosticEvent[] = [];
+		const socket = new FakeSocket();
+		const { connector } = createConnector({ tunnelId: 'test', clusterId: 'cluster', labels: ['protocolv5'] }, new FakeRelayClient(), new FakeSocketFactory(socket));
+		try {
+			await connector.connect('private-token', 'github', 'test', 'cluster', event => events.push(event));
+			socket.fireClose({ code: 1011, reason: 'token=private-value' });
+			const close = events.find(event => event.phase === 'relay.closed');
+			assert.deepStrictEqual({ detail: close?.detail, outcome: close?.outcome }, { detail: 'code=1011; reason=token=[redacted]', outcome: 'info' });
+		} finally {
+			connector.dispose();
+		}
 	});
 
 	test('uses the legacy root route for v5 and the gateway route for v6', async () => {

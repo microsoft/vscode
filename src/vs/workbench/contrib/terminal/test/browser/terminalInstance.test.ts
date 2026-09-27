@@ -306,6 +306,46 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
 		});
 
+		for (const title of ['', undefined]) {
+			test(`clearing a custom title with ${JSON.stringify(title)} restores process title updates`, async () => {
+				const instance = await createTerminalInstance();
+				await instance.rename('custom');
+				await instance.rename(title);
+				await instance.rename('next-process', TitleEventSource.Process);
+
+				deepStrictEqual({
+					staticTitle: instance.staticTitle,
+					processName: instance.processName,
+					title: instance.title,
+					titleSource: instance.titleSource
+				}, {
+					staticTitle: undefined,
+					processName: 'next-process',
+					title: 'next-process',
+					titleSource: TitleEventSource.Process
+				});
+			});
+		}
+
+		test('clearing a custom title restores shell title sequence updates', async () => {
+			const instance = await createTerminalInstance();
+			await instance.rename('custom');
+			await instance.rename('');
+			await writeP(instance.xterm!.raw, '\x1b]0;next-title\x07');
+
+			deepStrictEqual({
+				staticTitle: instance.staticTitle,
+				sequence: instance.sequence,
+				title: instance.title,
+				titleSource: instance.titleSource
+			}, {
+				staticTitle: undefined,
+				sequence: 'next-title',
+				title: 'next-title',
+				titleSource: TitleEventSource.Sequence
+			});
+		});
+
 		test('should preserve agent shell type detected from sequence until the parent shell returns', async () => {
 			const instance = await createTerminalInstance() as TerminalInstance;
 			const onTitleChange = (title: string) => (instance as unknown as Record<string, (value: string) => void>)['_onTitleChange'](title);
