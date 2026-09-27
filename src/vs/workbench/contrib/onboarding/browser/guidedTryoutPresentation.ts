@@ -63,9 +63,7 @@ export class GuidedTryoutPresentation extends Disposable implements IOnboardingT
 				if (!this.didLaunch(launchResult) || context.token.isCancellationRequested) {
 					return context.token.isCancellationRequested ? { kind: 'cancelled' } : launchResult;
 				}
-				const targetScope = launchResult.kind === 'opened' || launchResult.kind === 'executed' || launchResult.kind === 'prepared'
-					? launchResult.targetScope
-					: undefined;
+				context.onDidLaunch?.(launchResult.kind);
 
 				const guidanceStore = new DisposableStore();
 				const abort = guidanceStore.add(new Emitter<void>());
@@ -79,9 +77,10 @@ export class GuidedTryoutPresentation extends Disposable implements IOnboardingT
 				}, {
 					targetWindow: mainWindow,
 					onAbort: abort.event,
-					targetScope,
+					targetScope: launchResult.targetScope,
 				}).finally(() => guidanceStore.dispose());
 
+				context.onDidFinishGuidance?.(guidanceResult);
 				if (context.token.isCancellationRequested) {
 					return { kind: 'cancelled' };
 				}
@@ -114,7 +113,7 @@ export class GuidedTryoutPresentation extends Disposable implements IOnboardingT
 		return { ...scenario, presentation: payload.launch };
 	}
 
-	private didLaunch(result: OnboardingTryoutResult): boolean {
+	private didLaunch(result: OnboardingTryoutResult): result is Extract<OnboardingTryoutResult, { kind: 'opened' | 'executed' | 'prepared' }> {
 		return result.kind === 'opened' || result.kind === 'executed' || result.kind === 'prepared';
 	}
 

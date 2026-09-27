@@ -782,6 +782,30 @@
       }
     },
     {
+      "name": "rename_chat",
+      "description": "Rename one specific chat when the user explicitly asks to rename it. Automatic naming is handled by the host; do not call this tool to name a fresh chat. Renaming the default chat also names its owning session, while peer-chat titles remain independent. Use a short, human-friendly chat name in sentence case (1-4 words). Pass an `agent-host-session://` session or chat link to target another chat, or omit `chat` to rename the chat in which this tool is running. Every invocation replaces the current title.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "type": "string",
+            "description": "Optional owning session: a session URI from `list_sessions` or an `agent-host-session://` link. When provided with `chat`, it must match that chat's session."
+          },
+          "chat": {
+            "type": "string",
+            "description": "The chat to rename: pass an `agent-host-session://` session or chat link. Omit when renaming the chat in which this tool is running."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short, descriptive chat title, ideally 1-4 words.\n\n{maxLength: 200}"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      }
+    },
+    {
       "name": "send_message",
       "description": "Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. If the target chat is busy, the message is queued and starts after the active turn completes successfully. Delivery is asynchronous — this tool does not wait for or return the reply.",
       "input_schema": {
