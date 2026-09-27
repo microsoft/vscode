@@ -18,12 +18,12 @@ import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 suite('ExtHostCodeMapper provider lifetime', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	function createMapper() {
+	function createMapper(unregistration?: Promise<void>) {
 		const handles: number[] = [];
 		const unregistered: number[] = [];
 		const proxy = new class extends mock<MainThreadCodeMapperShape>() {
 			override $registerCodeMapperProvider(handle: number): void { handles.push(handle); }
-			override $unregisterCodeMapperProvider(handle: number): void { unregistered.push(handle); }
+			override async $unregisterCodeMapperProvider(handle: number): Promise<void> { unregistered.push(handle); await unregistration; }
 		};
 		const mapper = new ExtHostCodeMapper(SingleProxyRPCProtocol(proxy));
 		return {
@@ -56,7 +56,7 @@ suite('ExtHostCodeMapper provider lifetime', () => {
 		let calls = 0;
 		const { registration, handle } = register({ provideMappedEdits() { calls++; return {}; } });
 		await mapper.$mapCode(handle, request, CancellationToken.None);
-		registration.dispose();
+		await registration.dispose();
 		await assert.rejects(mapper.$mapCode(handle, request, CancellationToken.None), /unknown provider handle/);
 		assert.deepStrictEqual({ calls, unregistered }, { calls: 1, unregistered: [handle] });
 	});
@@ -67,11 +67,38 @@ suite('ExtHostCodeMapper provider lifetime', () => {
 		const provider: vscode.MappedEditsProvider2 = { provideMappedEdits: () => result };
 		const first = register(provider);
 		const second = register(provider);
-		first.registration.dispose();
+		await first.registration.dispose();
 		await assert.rejects(mapper.$mapCode(first.handle, request, CancellationToken.None), /unknown provider handle/);
 		assert.deepStrictEqual(await mapper.$mapCode(second.handle, request, CancellationToken.None), result);
-		second.registration.dispose();
+		await second.registration.dispose();
 		await assert.rejects(mapper.$mapCode(second.handle, request, CancellationToken.None), /unknown provider handle/);
+	});
+
+	test('serves requests arriving before unregistration is acknowledged', async () => {
+		const acknowledged = new DeferredPromise<void>();
+		const { mapper, register } = createMapper(acknowledged.p);
+		const result = { errorMessage: 'Request already in transit' };
+		const { registration, handle } = register({ provideMappedEdits: () => result });
+		const disposal = registration.dispose();
+		try {
+			assert.deepStrictEqual(await mapper.$mapCode(handle, request, CancellationToken.None), result);
+		} finally {
+			await acknowledged.complete();
+			await disposal;
+		}
+		await assert.rejects(mapper.$mapCode(handle, request, CancellationToken.None), /unknown provider handle/);
+	});
+
+	test('releases the provider even when unregistration fails', async () => {
+		const acknowledged = new DeferredPromise<void>();
+		const { mapper, register } = createMapper(acknowledged.p);
+		const { registration, handle } = register({ provideMappedEdits: () => ({}) });
+		const failure = new Error('Unregistration failed');
+		const disposal = registration.dispose();
+		const rejected = assert.rejects(Promise.resolve(disposal), error => error === failure);
+		await acknowledged.error(failure);
+		await rejected;
+		await assert.rejects(mapper.$mapCode(handle, request, CancellationToken.None), /unknown provider handle/);
 	});
 
 	test('lets an in-flight request finish without restoring a disposed registration', async () => {
@@ -79,7 +106,7 @@ suite('ExtHostCodeMapper provider lifetime', () => {
 		const pending = new DeferredPromise<vscode.MappedEditsResult>();
 		const { registration, handle } = register({ provideMappedEdits: () => pending.p });
 		const mapping = mapper.$mapCode(handle, request, CancellationToken.None);
-		registration.dispose();
+		await registration.dispose();
 		const result = { errorMessage: 'Completed in flight' };
 		await pending.complete(result);
 		assert.deepStrictEqual(await mapping, result);
