@@ -8,6 +8,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IListContextMenuEvent, IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
@@ -37,10 +38,8 @@ import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../.
 import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 import { countEnabledCustomizationTools, getToolSetTriState, IAgentHostToolSetEnablementService, isToolEnabledInSet, IToolEnablementState } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
-import { asTreeRenderer, CustomizationListLayout, CustomizationTreeTabs, getCustomizationListLayout, getSelectedCustomizationGroup, ICustomizationTreeGroup } from './customizationTree.js';
+import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import './media/aiCustomizationManagement.css';
 
@@ -442,14 +441,11 @@ export class ToolsListWidget extends Disposable {
 	private readonly _searchQuery = observableValue<string>('toolsSearchQuery', '');
 	private readonly _expanded = observableValue<ReadonlySet<string>>('toolsExpanded', new Set());
 	private readonly _delayedSearch = this._register(new Delayer<void>(200));
-	private readonly _tabActionDisposables = this._register(new DisposableStore());
-
 	private _searchInput!: InputBox;
 	private _header!: HTMLElement;
 	private _searchRow!: HTMLElement;
 	private _treeContainer!: HTMLElement;
 	private _tree!: WorkbenchObjectTree<IToolsTreeEntry>;
-	private _treeTabs!: CustomizationTreeTabs;
 	private _emptyState!: HTMLElement;
 	private _backButtonContainer!: HTMLElement;
 	private _galleryContainer!: HTMLElement;
@@ -464,7 +460,6 @@ export class ToolsListWidget extends Disposable {
 	private _lastWidth = 0;
 
 	private readonly _collapsedGroups = new Set<string>();
-	private _selectedGroupKey: string | undefined;
 	private _currentModel: readonly IToolSetViewModel[] = [];
 	private _setRenderer!: ToolsSetRowRenderer;
 
@@ -483,7 +478,6 @@ export class ToolsListWidget extends Disposable {
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
@@ -493,13 +487,6 @@ export class ToolsListWidget extends Disposable {
 		this.element = $('.tools-list-widget');
 		this._createHeader();
 		this._createSearchRow();
-
-		this._treeTabs = this._register(new CustomizationTreeTabs(this.element, localize('toolsGroups', "Tool Groups")));
-		this._treeTabs.element.classList.add('tools-tree-tabs');
-		this._register(this._treeTabs.onDidSelect(groupKey => {
-			this._selectedGroupKey = groupKey;
-			this._renderTreeGroups();
-		}));
 
 		this._treeContainer = DOM.append(this.element, $('.tools-list-tree.customization-tree-container'));
 		this._createTree();
@@ -519,13 +506,6 @@ export class ToolsListWidget extends Disposable {
 			this._expanded.read(reader);
 			this._renderTreeGroups();
 		}));
-		this._register(this._configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsListLayout)) {
-				this._renderTreeGroups();
-				this.layout(this._lastHeight, this._lastWidth);
-			}
-		}));
-
 		this._register(autorun(reader => {
 			// Badge counts enabled individual tools across all visible sets, ignoring the search filter.
 			const count = countEnabledCustomizationTools(this._toolsService.toolSets.read(reader), this._readState(reader), reader);
@@ -608,7 +588,9 @@ export class ToolsListWidget extends Disposable {
 			],
 			{
 				indent: 8,
+				renderIndentGuides: RenderIndentGuides.None,
 				hideTwistiesOfChildlessElements: false,
+				overrideStyles: customizationTreeStyles,
 				multipleSelectionSupport: false,
 				horizontalScrolling: false,
 				openOnSingleClick: true,
@@ -786,10 +768,7 @@ export class ToolsListWidget extends Disposable {
 		}
 		this.element.classList.toggle('narrow-layout', width < 500);
 		this._searchInput.layout();
-		const headerHeight = this._header.offsetHeight;
-		const searchHeight = this._searchRow.offsetHeight;
-		const tabsHeight = this._treeTabs.element.style.display === 'none' ? 0 : this._treeTabs.element.offsetHeight;
-		const treeHeight = Math.max(0, height - headerHeight - searchHeight - tabsHeight);
+		const treeHeight = getCustomizationTreeContentHeight(this.element, this._treeContainer, height);
 		this._treeContainer.style.height = `${treeHeight}px`;
 		this._tree.layout(treeHeight, width);
 
@@ -808,7 +787,6 @@ export class ToolsListWidget extends Disposable {
 		this._browseMode = browse;
 
 		this._treeContainer.style.display = browse ? 'none' : '';
-		this._treeTabs.element.style.display = browse ? 'none' : getCustomizationListLayout(this._configurationService) === CustomizationListLayout.Tabs ? '' : 'none';
 		this._emptyState.style.display = 'none';
 		this._galleryContainer.style.display = browse ? '' : 'none';
 		this._backButtonContainer.style.display = browse ? '' : 'none';
@@ -936,7 +914,6 @@ export class ToolsListWidget extends Disposable {
 		if (this._currentModel.length === 0 && query) {
 			this._tree.setChildren(null);
 			this._treeContainer.style.display = 'none';
-			this._treeTabs.element.style.display = 'none';
 			this._showTreeEmptyState(
 				localize('noMatchingTools', "No tools match '{0}'", query),
 				localize('tryDifferentSearch', "Try a different search term"),
@@ -970,36 +947,16 @@ export class ToolsListWidget extends Disposable {
 
 		this._emptyState.style.display = 'none';
 		this._treeContainer.style.display = '';
-		this._treeTabs.clearActions();
-		this._tabActionDisposables.clear();
-		const layout = getCustomizationListLayout(this._configurationService);
-		this.element.classList.toggle('tabs-layout', layout === CustomizationListLayout.Tabs);
-		this.element.classList.toggle('tree-layout', layout === CustomizationListLayout.Tree);
-		this._treeTabs.element.style.display = layout === CustomizationListLayout.Tabs ? '' : 'none';
-
-		if (layout === CustomizationListLayout.Tabs) {
-			const selected = getSelectedCustomizationGroup(groups, this._selectedGroupKey);
-			this._selectedGroupKey = selected?.id;
-			if (selected) {
-				this._treeTabs.setGroups(groups, selected.id);
-				if (selected.id === 'extensions') {
-					this._renderBrowseToolsAction(this._treeTabs.actionsElement, this._tabActionDisposables);
-				}
-				this._tree.setChildren(null);
-				this._tree.setChildren(null, selected.children.map(element => ({ element })));
-			}
-		} else {
-			const children: IObjectTreeElement<IToolsTreeEntry>[] = groups.map(group => ({
-				element: group.element,
-				collapsible: true,
-				collapsed: this._collapsedGroups.has(group.id)
-					? ObjectTreeElementCollapseState.PreserveOrCollapsed
-					: ObjectTreeElementCollapseState.PreserveOrExpanded,
-				children: group.children.map(element => ({ element })),
-			}));
-			this._tree.setChildren(null);
-			this._tree.setChildren(null, children);
-		}
+		const children: IObjectTreeElement<IToolsTreeEntry>[] = groups.map(group => ({
+			element: group.element,
+			collapsible: true,
+			collapsed: this._collapsedGroups.has(group.id)
+				? ObjectTreeElementCollapseState.PreserveOrCollapsed
+				: ObjectTreeElementCollapseState.PreserveOrExpanded,
+			children: group.children.map(element => ({ element })),
+		}));
+		this._tree.setChildren(null);
+		this._tree.setChildren(null, children);
 		if (this._lastHeight > 0) {
 			this.layout(this._lastHeight, this._lastWidth);
 		}
@@ -1024,7 +981,7 @@ export class ToolsListWidget extends Disposable {
 	}
 
 	private _renderTreeGroupActions(entry: IToolsGroupEntry, container: HTMLElement, disposables: DisposableStore): void {
-		if (getCustomizationListLayout(this._configurationService) === CustomizationListLayout.Tree && entry.groupKey === 'extensions') {
+		if (entry.groupKey === 'extensions') {
 			this._renderBrowseToolsAction(container, disposables);
 		}
 	}

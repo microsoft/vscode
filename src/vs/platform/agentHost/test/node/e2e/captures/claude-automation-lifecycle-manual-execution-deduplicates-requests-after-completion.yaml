@@ -1,0 +1,12 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "AUTOMATION_FIRST".
+    response:
+      content: AUTOMATION_FIRST
+      stopReason: end_turn

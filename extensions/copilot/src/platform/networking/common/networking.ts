@@ -384,6 +384,13 @@ export interface IChatEndpoint extends IEndpoint {
 	 */
 	readonly ownsAuthorization?: boolean;
 	/**
+	 * When true, explicit Responses API prompt caching (`prompt_cache_breakpoint` markers) is only
+	 * used if the user explicitly enables `chat.responsesApi.promptCacheBreakpoint.enabled`; the
+	 * setting's default and experiment treatments are ignored. Set by client-side BYOK endpoints,
+	 * whose gateways may forward the explicit cache mode but drop the markers, disabling caching.
+	 */
+	readonly promptCacheBreakpointsRequireOptIn?: boolean;
+	/**
 	 * Handles processing of responses from a chat endpoint. Each endpoint can have different response formats.
 	 * @param telemetryService The telemetry service
 	 * @param logService The log service

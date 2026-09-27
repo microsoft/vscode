@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { equalSets } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { derived, derivedOpts, IObservable, mapObservableArrayCached, observableFromPromise, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent, observableFromPromise, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -63,22 +63,32 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		@ISCMService scmService: ISCMService,
 	) {
 		super(cloudSandboxService, apiService, remoteAgentHostService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService);
+		const enabled = observableFromEvent(this, Event.any(configurationService.onDidChangeConfiguration, chatEntitlementService.onDidChangeSentiment), () => this._isEnabled());
 		const workspaceChanged = observableSignalFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders);
 		const repositoriesChanged = observableSignalFromEvent(this, Event.any(scmService.onDidAddRepository, scmService.onDidRemoveRepository));
 		const repositoryRoots = derived(this, reader => {
+			if (!enabled.read(reader)) {
+				return [];
+			}
 			workspaceChanged.read(reader);
 			repositoriesChanged.read(reader);
 			const folders = workspaceContextService.getWorkspace().folders;
-			return Array.from(scmService.repositories).flatMap(repository => {
+			const roots = Array.from(scmService.repositories).flatMap(repository => {
 				const root = repository.provider.rootUri;
 				return repository.provider.providerId === 'git' && root && folders.some(folder =>
 					extUriBiasedIgnorePathCase.isEqualOrParent(root, folder.uri) || extUriBiasedIgnorePathCase.isEqualOrParent(folder.uri, root))
-					? [root] : [];
+					? [{ root, key: repository }] : [];
 			});
+			const unresolvedFolders = folders.filter(folder => !roots.some(({ root }) =>
+				extUriBiasedIgnorePathCase.isEqualOrParent(root, folder.uri) || extUriBiasedIgnorePathCase.isEqualOrParent(folder.uri, root)));
+			return [
+				...roots,
+				...unresolvedFolders.map(folder => ({ root: folder.uri, key: extUriBiasedIgnorePathCase.getComparisonKey(folder.uri) })),
+			];
 		});
 		const repositories = mapObservableArrayCached(this, repositoryRoots,
-			root => observableFromPromise(this._resolveRepository(root)),
-			root => extUriBiasedIgnorePathCase.getComparisonKey(root));
+			({ root }) => observableFromPromise(this._resolveRepository(root)),
+			({ key }) => key);
 		this._workspaceRepositories = derivedOpts<ReadonlySet<string> | undefined>({
 			owner: this,
 			equalsFn: (a, b) => a === b || (a !== undefined && b !== undefined && equalSets(a, b)),
@@ -103,8 +113,13 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 
 	private async _resolveRepository(root: URI): Promise<IGitRepository | undefined> {
 		try {
-			return Array.from(this._gitService.repositories).find(repository => extUriBiasedIgnorePathCase.isEqual(repository.rootUri, root))
+			const repository = Array.from(this._gitService.repositories).find(repository => extUriBiasedIgnorePathCase.isEqual(repository.rootUri, root))
 				?? await this._gitService.openRepository(root);
+			if (repository && !extUriBiasedIgnorePathCase.isEqualOrParent(root, repository.rootUri)) {
+				this._editorLogService.warn('[CloudSandbox] Ignoring repository outside the requested workspace folder', root.toString(), repository.rootUri.toString());
+				return undefined;
+			}
+			return repository;
 		} catch (error) {
 			this._editorLogService.warn('[CloudSandbox] Failed to resolve workspace repository', root.toString(), error);
 			return undefined;
@@ -123,6 +138,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				displayName: localize('cloudSandbox.discoveryName', "GitHub Sandboxes"),
 				description: localize('cloudSandbox.discoveryDescription', "Existing cloud sandbox sessions."),
 				sessionListGroup: SessionType.CopilotCloud,
+				hideFromSessionTypePicker: true,
 				when: ChatContextKeys.enabled.key,
 				canDelegate: false,
 				requiresCopilotSignIn: true,
@@ -149,6 +165,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			displayName: localize('cloudSandbox.sessionName', "GitHub Sandbox"),
 			description: env.name,
 			sessionListGroup: SessionType.CopilotCloud,
+			hideFromSessionTypePicker: true,
 			when: ChatContextKeys.enabled.key,
 			icon: '$(cloud)',
 			canDelegate: false,

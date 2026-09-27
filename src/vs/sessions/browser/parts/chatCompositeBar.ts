@@ -37,12 +37,14 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, RENAME_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, RENAME_CHAT_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { clearConnectedTabClipping, updateConnectedTabClipping } from '../../../workbench/browser/parts/editor/connectedTabClipping.js';
 import { CONNECTED_EDITOR_TABS_SELECTOR } from '../../../workbench/browser/parts/editor/editor.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -152,6 +154,7 @@ export class ChatCompositeBar extends Disposable {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -333,6 +336,7 @@ export class ChatCompositeBar extends Disposable {
 			viewportRight: this._tabsContainer.clientWidth,
 			shoulderExtent: parseFloat(targetWindow.getComputedStyle(activeTab.fill, '::after').width),
 		}, scrollLeft);
+		this._connectedTabOverflowEdge.classList.toggle('connected-tab-hovered', activeTab.element.matches(':hover'));
 	}
 
 	private _createTab(chat: IChat, isMainChat: boolean): void {
@@ -380,6 +384,12 @@ export class ChatCompositeBar extends Disposable {
 			tab,
 			() => chat.title.get(),
 		));
+		this._tabDisposables.add(addDisposableListener(tab, EventType.MOUSE_ENTER, () => {
+			this._connectedTabOverflowEdge.classList.toggle('connected-tab-hovered', tab.classList.contains('active'));
+		}));
+		this._tabDisposables.add(addDisposableListener(tab, EventType.MOUSE_LEAVE, () => {
+			this._connectedTabOverflowEdge.classList.remove('connected-tab-hovered');
+		}));
 
 		// Track untitled state for styling (dirty dot + close button)
 		this._tabDisposables.add(autorun(reader => {
@@ -566,6 +576,17 @@ export class ChatCompositeBar extends Disposable {
 				await this._sessionsManagementService.deleteChat(delegate.session, chat.resource);
 			}
 		}));
+		const archivePresentation = getChatSessionArchiveActionPresentation(getChatSessionArchiveActionWording(this._configurationService));
+		const archiveAction = this._tabDisposables.add(new Action(ARCHIVE_CHAT_COMMAND_ID, archivePresentation.archive.title.value, undefined, true, async () => {
+			if (delegate) {
+				await this._commandService.executeCommand(ARCHIVE_CHAT_COMMAND_ID, { session: delegate.session, chat });
+			}
+		}));
+		const unarchiveAction = this._tabDisposables.add(new Action(UNARCHIVE_CHAT_COMMAND_ID, archivePresentation.unarchive.title.value, undefined, true, async () => {
+			if (delegate) {
+				await this._commandService.executeCommand(UNARCHIVE_CHAT_COMMAND_ID, { session: delegate.session, chat });
+			}
+		}));
 
 		// Double-click the tab to start an inline rename, mirroring the session title.
 		this._tabDisposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
@@ -593,6 +614,7 @@ export class ChatCompositeBar extends Disposable {
 					const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
 					return Separator.join(
 						capabilities.canRename ? [renameAction] : [],
+						capabilities.canArchive ? [chat.isArchived.get() ? unarchiveAction : archiveAction] : [],
 						capabilities.canDelete ? [deleteAction] : [],
 						provider && isAgentHostProvider(provider) ? [copyLinkAction] : [],
 					);

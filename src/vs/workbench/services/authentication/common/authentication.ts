@@ -36,6 +36,8 @@ export interface AuthenticationSession {
 	scopes: ReadonlyArray<string>;
 	idToken?: string;
 	expiresAfter?: number;
+	/** The issuing OAuth server, not a REST API endpoint or resource audience. */
+	readonly authorizationServer?: URI;
 }
 
 export interface AuthenticationSessionsChangeEvent {

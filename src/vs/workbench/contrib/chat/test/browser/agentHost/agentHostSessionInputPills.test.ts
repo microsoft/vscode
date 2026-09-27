@@ -335,36 +335,21 @@ suite('AgentHostSessionInputPills', () => {
 			referenceIds: metadata.references.map(reference => reference.id),
 		}, {
 			pullRequestUrls: [
-				'https://github.com/microsoft/vscode/pull/4',
-				'https://github.com/microsoft/vscode/pull/1/',
 				'https://github.com/microsoft/vscode/pull/3',
 				'https://github.com/microsoft/vscode/pull/2',
+				'https://github.com/microsoft/vscode/pull/1',
 			],
-			pullRequestTitles: [
-				['https://github.com/microsoft/vscode/pull/4', 'Related PR'],
-				['https://github.com/microsoft/vscode/pull/1', 'Existing PR'],
-				['https://github.com/microsoft/vscode/pull/2', 'Created PR'],
-			],
+			pullRequestTitles: [['https://github.com/microsoft/vscode/pull/2', 'Created PR']],
 			pullRequestArtifactIds: [
-				['https://github.com/microsoft/vscode/pull/4', 'pr-reference'],
-				['https://github.com/microsoft/vscode/pull/1', 'duplicate-pr'],
 				['https://github.com/microsoft/vscode/pull/3', 'untitled-pr'],
 				['https://github.com/microsoft/vscode/pull/2', 'created-pr'],
 			],
-			issueUrls: [
-				'https://github.com/microsoft/vscode/issues/4',
-				'https://github.com/microsoft/vscode/issues/3',
-			],
-			issueTitles: [
-				['https://github.com/microsoft/vscode/issues/4', 'Related Issue'],
-				['https://github.com/microsoft/vscode/issues/3', 'Created Issue'],
-			],
-			issueArtifactIds: [
-				['https://github.com/microsoft/vscode/issues/4', 'issue-reference'],
-				['https://github.com/microsoft/vscode/issues/3', 'created-issue'],
-			],
+			issueUrls: ['https://github.com/microsoft/vscode/issues/3'],
+			issueTitles: [['https://github.com/microsoft/vscode/issues/3', 'Created Issue']],
+			issueArtifactIds: [['https://github.com/microsoft/vscode/issues/3', 'created-issue']],
 			artifactIds: ['website'],
-			referenceIds: ['resource'],
+			// Only artifacts are promoted; references stay listed newest first, even when the pull request pill shows their link.
+			referenceIds: ['resource', 'issue-reference', 'pr-reference', 'duplicate-pr'],
 		});
 	});
 
@@ -427,8 +412,8 @@ suite('AgentHostSessionInputPills', () => {
 		const entries: readonly ISessionArtifact[] = [
 			{ id: 'old-pr', type: SessionArtifactType.PullRequest, label: 'Old PR', link: pullRequestUrl, isGitHub: true, isArtifact: true },
 			{ id: 'old-issue', type: SessionArtifactType.Issue, label: 'Old Issue', link: issueUrl, isGitHub: true, isArtifact: true },
-			{ id: 'new-pr', type: SessionArtifactType.PullRequest, label: 'New PR Reference', link: `${pullRequestUrl}/`, isGitHub: true, isArtifact: false },
-			{ id: 'new-issue', type: SessionArtifactType.Issue, label: 'New Issue Reference', link: `${issueUrl}/`, isGitHub: true, isArtifact: false },
+			{ id: 'new-pr', type: SessionArtifactType.PullRequest, label: 'New PR', link: `${pullRequestUrl}/`, isGitHub: true, isArtifact: true },
+			{ id: 'new-issue', type: SessionArtifactType.Issue, label: 'New Issue', link: `${issueUrl}/`, isGitHub: true, isArtifact: true },
 		];
 		const metadata = getAgentHostSessionPillMetadata(withSessionArtifacts(undefined, entries), undefined);
 
@@ -441,10 +426,10 @@ suite('AgentHostSessionInputPills', () => {
 			issueArtifactId: metadata.issueArtifacts.get(issueUrl)?.id,
 		}, {
 			pullRequestUrls: [`${pullRequestUrl}/`],
-			pullRequestTitle: 'New PR Reference',
+			pullRequestTitle: 'New PR',
 			pullRequestArtifactId: 'new-pr',
 			issueUrls: [`${issueUrl}/`],
-			issueTitle: 'New Issue Reference',
+			issueTitle: 'New Issue',
 			issueArtifactId: 'new-issue',
 		});
 	});
@@ -471,7 +456,7 @@ suite('AgentHostSessionInputPills', () => {
 						label: 'Agent Window issue pill discards the recorded issue title',
 						link: issueUrl,
 						isGitHub: true,
-						isArtifact: false,
+						isArtifact: true,
 					},
 					{
 						id: 'first-pr',
@@ -487,7 +472,7 @@ suite('AgentHostSessionInputPills', () => {
 						label: 'Chat: unify Agent Host status pills across chat surfaces',
 						link: secondPullRequestUrl,
 						isGitHub: true,
-						isArtifact: false,
+						isArtifact: true,
 					},
 				]),
 			} as unknown as SessionState],
@@ -664,9 +649,9 @@ suite('AgentHostSessionInputPills', () => {
 				hoverText: 'microsoft/vscodeon Sep 1Live pull request 332982 #332982OpenLive pull request bodymain←feature@pr-author opened this pull request',
 				actionLabels: [
 					'Copy Pull Request URL',
-					'Remove Chat: unify Agent Host status pills across chat surfaces from Session',
+					'Remove Artifact Chat: unify Agent Host status pills across chat surfaces from Session',
 					'Copy Pull Request URL',
-					'Remove sessions: preserve recorded issue titles in pills from Session',
+					'Remove Artifact sessions: preserve recorded issue titles in pills from Session',
 				],
 			},
 			issue: {
@@ -834,7 +819,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('marks floating persistent content visible from a legacy session catalogue', () => {
+	test('uses cached recomputing files in floating persistent content from a legacy session catalogue', () => {
 		const instantiationService = createInstantiationService();
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
@@ -847,16 +832,17 @@ suite('AgentHostSessionInputPills', () => {
 			} as unknown as SessionState],
 			[StateComponents.Chat, {} as ChatState],
 			[StateComponents.Changeset, {
-				status: ChangesetStatus.Ready,
-				files: [{
-					id: 'change',
-					edit: {
-						after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
-						diff: { added: 3, removed: 1 },
-					},
-				}],
+				status: ChangesetStatus.Computing,
+				files: [],
 			} as unknown as ChangesetState],
 		]));
+		const cachedFiles: ChangesetState['files'] = [{
+			id: 'change',
+			edit: {
+				after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
+				diff: { added: 3, removed: 1 },
+			},
+		}];
 		const otherConnection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChatState | ChangesetState>([
 			[StateComponents.Session, {
 				defaultChat: backendChat.toString(),
@@ -925,12 +911,27 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
+		const initial = {
+			hidden: row?.classList.contains('hidden'),
+			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
+			persistentContentHeight,
+		};
+		connection.setState(StateComponents.Changeset, {
+			status: ChangesetStatus.Recomputing,
+			files: cachedFiles,
+		} as ChangesetState);
 		const button = row?.querySelector('.chat-pill-button');
+		const recomputing = {
+			hidden: row?.classList.contains('hidden'),
+			label: row?.querySelector('.changes-stats-files')?.textContent,
+			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
+			persistentContentHeight,
+		};
 		connection.setState(StateComponents.Changeset, {
 			status: ChangesetStatus.Computing,
 			files: [],
 		} as ChangesetState);
-		const recomputing = {
+		const computing = {
 			hidden: row?.classList.contains('hidden'),
 			buttonPreserved: row?.querySelector('.chat-pill-button') === button,
 			persistentContentVisible: persistentContent.classList.contains(chatPersistentContentVisibleClass),
@@ -947,13 +948,7 @@ suite('AgentHostSessionInputPills', () => {
 		};
 		connection.setState(StateComponents.Changeset, {
 			status: ChangesetStatus.Ready,
-			files: [{
-				id: 'change',
-				edit: {
-					after: { uri: URI.file('/changed.ts').toString(), content: { uri: 'git-blob://after' } },
-					diff: { added: 3, removed: 1 },
-				},
-			}],
+			files: cachedFiles,
 		} as ChangesetState);
 		connection.setState(StateComponents.Changeset, {
 			status: ChangesetStatus.Computing,
@@ -964,7 +959,9 @@ suite('AgentHostSessionInputPills', () => {
 		resolutionChanged.fire();
 
 		assert.deepStrictEqual({
+			initial,
 			recomputing,
+			computing,
 			readyEmpty,
 			otherConnection: {
 				hidden: row?.classList.contains('hidden'),
@@ -976,7 +973,18 @@ suite('AgentHostSessionInputPills', () => {
 				return [`${value.kind}:${value.resource}`, value];
 			})).values()],
 		}, {
+			initial: {
+				hidden: true,
+				persistentContentVisible: false,
+				persistentContentHeight: undefined,
+			},
 			recomputing: {
+				hidden: false,
+				label: '1 File',
+				persistentContentVisible: true,
+				persistentContentHeight: 28,
+			},
+			computing: {
 				hidden: false,
 				buttonPreserved: true,
 				persistentContentVisible: true,
@@ -1258,7 +1266,7 @@ suite('AgentHostSessionInputPills', () => {
 			copied.push(await clipboardService.readText());
 		}
 		connection.removeSessionArtifactError = new Error('write failed');
-		await dropdownActions.find(action => action.label === 'Remove Preview from Session')?.run();
+		await dropdownActions.find(action => action.label === 'Remove Reference Preview from Session')?.run();
 
 		assert.deepStrictEqual({
 			pills: Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
@@ -1273,13 +1281,13 @@ suite('AgentHostSessionInputPills', () => {
 			empty: false,
 			dropdownActionLabels: [
 				'Copy Commit URL',
-				'Remove Commit from Session',
+				'Remove Reference Commit from Session',
 				'Copy Website URL',
-				'Remove Preview from Session',
+				'Remove Reference Preview from Session',
 				'Copy Path',
-				'Remove README from Session',
+				'Remove Reference README from Session',
 				'Copy URI',
-				'Remove Chat settings from Session',
+				'Remove Reference Chat settings from Session',
 			],
 			dropdownFooterActionLabels: ['Copy Hash', 'Copy Relative Path'],
 			copied: [

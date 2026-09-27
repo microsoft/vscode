@@ -43,6 +43,7 @@ import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/prom
 import { CustomizationMigrationType, getCustomizationMigrationEnablementSetting } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpCopilotGlobalConfigurationService } from '../../../../mcp/common/mcpCopilotGlobalConfigurationService.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 
@@ -202,6 +203,9 @@ class CustomizationMigrationService extends BaseCustomizationMigrationService {
 		configurationService: TestConfigurationService,
 		configurationResolverService: TestConfigurationResolverService,
 		mcpService = new TestMcpService(),
+		copilotGlobalConfigurationService: IMcpCopilotGlobalConfigurationService = new class extends mock<IMcpCopilotGlobalConfigurationService>() {
+			override async getConfigurationResource() { return undefined; }
+		}(),
 	) {
 		super(promptsService, harnessService, configurationService, mcpService);
 		harnessService.mcpServerMigrationProvider = this._register(new AgentHostMcpServerMigrationProvider(
@@ -213,6 +217,7 @@ class CustomizationMigrationService extends BaseCustomizationMigrationService {
 			configurationService,
 			configurationResolverService,
 			mcpService,
+			copilotGlobalConfigurationService,
 		));
 	}
 
@@ -625,6 +630,75 @@ suite('CustomizationMigrationService', () => {
 		});
 	});
 
+	for (const sessionType of [SessionType.AgentHostCopilot, SessionType.AgentHostClaude]) {
+		test(`offers profile MCP migration only for the window's Copilot host (${sessionType})`, async () => {
+			const sourceUri = URI.from({ scheme: Schemas.vscodeUserData, path: '/profile/mcp.json' });
+			const targetUri = URI.file('/custom-copilot/mcp-config.json');
+			let currentTarget = targetUri;
+			const fileService = store.add(new FileService(new NullLogService()));
+			store.add(fileService.registerProvider(Schemas.vscodeUserData, store.add(new InMemoryFileSystemProvider())));
+			store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+			await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"},"null-env":{"command":"node","env":{"REMOVE_ME":null}}}}'));
+			const workspaceSnapshot = createWorkspaceMcpSupportSnapshot(URI.file('/workspace'));
+			const snapshot: IAgentHostMcpServerSupportSnapshot = {
+				...workspaceSnapshot,
+				servers: workspaceSnapshot.servers.flatMap(server => [{
+					...server,
+					source: { ...server.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri },
+					enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledProfile },
+				}, {
+					...server,
+					id: 'mcp.config.usrlocal.null-env',
+					name: 'null-env',
+					source: { ...server.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri },
+					enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledProfile },
+					projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', env: { REMOVE_ME: null } },
+				}]),
+			};
+			const harnessService = new TestCustomizationHarnessService(sessionType);
+			const supportScope = new MutableMcpServerSupportScope(snapshot);
+			const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
+				override acquireMcpServerSupportScope() { return supportScope; }
+			}();
+			const customizationService = new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getClientWorkingDirectoryUris() { return []; }
+			}();
+			const globalConfigurationService = new class extends mock<IMcpCopilotGlobalConfigurationService>() {
+				override async getConfigurationResource() { return currentTarget; }
+			}();
+			const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, customizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration()), configurationResolverService, new TestMcpService(), globalConfigurationService));
+			const session = harnessService.activeSessionResource.get();
+			const migration = await service.computeMigration(session, CustomizationMigrationType.McpServers);
+			const hint = await service.computeMigrationHint(session);
+			currentTarget = URI.file('/changed-copilot/mcp-config.json');
+			const staleResult = await service.migrateMcpServers(session, migration.candidates);
+			currentTarget = targetUri;
+			const result = await service.migrateMcpServers(session, migration.candidates);
+			const copilot = sessionType === SessionType.AgentHostCopilot;
+
+			assert.deepStrictEqual({
+				candidates: migration.candidates.map(candidate => [candidate.storage, candidate.sourceUri.toString(), candidate.targetUri.toString()]),
+				exclusions: migration.exclusions.map(exclusion => [exclusion.name, exclusion.details]),
+				hint: hint?.message,
+				staleFailures: staleResult.failures.map(failure => failure.reason),
+				result,
+				target: await fileService.exists(targetUri) ? JSON.parse((await fileService.readFile(targetUri)).value.toString()) : undefined,
+				source: JSON.parse((await fileService.readFile(sourceUri)).value.toString()),
+			}, {
+				candidates: copilot ? [[PromptsStorage.user, sourceUri.toString(), targetUri.toString()]] : [],
+				exclusions: copilot ? [['null-env', ['Environment variables with null values are not supported in the destination MCP configuration. Remove or replace the null value to migrate this server.']]] : [],
+				hint: copilot ? '1 user customization needs an update to keep working.' : undefined,
+				staleFailures: copilot ? ['noLongerEligible'] : [],
+				result: { migratedCount: copilot ? 1 : 0, failures: [] },
+				target: copilot ? { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } } : undefined,
+				source: copilot
+					? { servers: { 'null-env': { command: 'node', env: { REMOVE_ME: null } } } }
+					: { servers: { server: { command: 'node' }, 'null-env': { command: 'node', env: { REMOVE_ME: null } } } },
+			});
+		});
+	}
+
 	test('does not report non-migratable MCP servers', async () => {
 		const promptsService = store.add(new TestPromptsService([]));
 		const harnessService = new TestCustomizationHarnessService();
@@ -789,7 +863,7 @@ suite('CustomizationMigrationService', () => {
 			enabledExecutionResult: { migratedCount: 1, failures: [] },
 			enabledExecutionWrites: ['/workspace/.mcp.json', '/workspace/.vscode/mcp.json'],
 			source: { servers: {} },
-			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -822,6 +896,7 @@ suite('CustomizationMigrationService', () => {
 		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration()), configurationResolverService));
 		const requested = [{
 			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
 			id: 'mcp.config.ws0.server',
 			name: 'server',
 			sourceUri,
@@ -861,7 +936,7 @@ suite('CustomizationMigrationService', () => {
 			],
 			writes: ['/queued-before-plan/.mcp.json', '/queued-before-plan/.vscode/mcp.json'],
 			source: { servers: {} },
-			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -1096,7 +1171,7 @@ suite('CustomizationMigrationService', () => {
 			changedDuringWriteResult: { migratedCount: 1, failures: [] },
 			sourceBeforeSupportSettled: '{"servers":{"server":{"command":"node"}}}',
 			source: '{\n\t"servers": {}\n}',
-			target: '{\n\t"mcpServers": {\n\t\t"server": {\n\t\t\t"type": "stdio",\n\t\t\t"command": "node"\n\t\t}\n\t}\n}',
+			target: '{\n\t"mcpServers": {\n\t\t"server": {\n\t\t\t"type": "local",\n\t\t\t"command": "node",\n\t\t\t"args": [],\n\t\t\t"tools": [\n\t\t\t\t"*"\n\t\t\t]\n\t\t}\n\t}\n}',
 		});
 	});
 
@@ -1135,6 +1210,7 @@ suite('CustomizationMigrationService', () => {
 		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration()), configurationResolverService));
 		const requested = [{
 			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
 			id: 'server',
 			name: 'server',
 			sourceUri: URI.joinPath(root, '.vscode', 'mcp.json'),
@@ -1205,7 +1281,7 @@ suite('CustomizationMigrationService', () => {
 			failures: [],
 			sourceBeforeSupportSettled: { servers: { server: { command: 'node' } } },
 			source: { servers: {} },
-			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -1266,8 +1342,8 @@ suite('CustomizationMigrationService', () => {
 			result: { migratedCount: 2, failures: [] },
 			sources: [{ servers: {} }, { servers: {} }],
 			targets: [
-				{ mcpServers: { server0: { type: 'stdio', command: 'node' } } },
-				{ mcpServers: { server1: { type: 'stdio', command: 'node' } } },
+				{ mcpServers: { server0: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+				{ mcpServers: { server1: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 			],
 		});
 	});
@@ -1535,7 +1611,7 @@ suite('CustomizationMigrationService', () => {
 				localSource: sourceContent,
 				localTargetExists: false,
 				remoteSource: disconnected ? { servers: { server: { command: 'node' } } } : { servers: {} },
-				remoteTarget: disconnected ? undefined : { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+				remoteTarget: disconnected ? undefined : { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 			});
 		});
 	}

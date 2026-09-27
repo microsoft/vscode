@@ -500,12 +500,13 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private async loadSourceDefinition(server: IMcpServerDetailInput, source: NonNullable<IMcpServerDetailInput['source']>, renderGeneration: number): Promise<void> {
 		try {
 			const content = (await this.fileService.readFile(source.uri)).value.toString();
-			if (this.current !== server || this.renderGeneration !== renderGeneration) {
+			if (this.renderGeneration !== renderGeneration) {
 				return;
 			}
-			this.setDefinition(source.range ? getTextInRange(content, source.range) : content);
+			const range = source.range ?? getMcpServerConfigurationRange(content, server.name);
+			this.setDefinition(range ? getTextInRange(content, range) : content);
 		} catch {
-			if (this.current === server && this.renderGeneration === renderGeneration) {
+			if (this.renderGeneration === renderGeneration) {
 				this.setDefinition(undefined, localize('mcpDefinitionLoadFailed', "The MCP server definition could not be loaded."));
 			}
 		}

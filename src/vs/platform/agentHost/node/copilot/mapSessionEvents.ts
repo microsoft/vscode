@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, Attachment, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, Attachment, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData } from '@github/copilot-sdk';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename, isAbsolute, join } from '../../../../base/common/path.js';
@@ -23,6 +23,7 @@ import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '
 import { COPILOT_FUSION_PHASE_AGENT_NAME, formatFusionReviewContent, getFusionPhaseToolCallId, isCopilotFusionEvent, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
 import { FusionReplayState } from './copilotFusionReplay.js';
 import { isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
+import { CopilotFusionMessageChunks } from './copilotFusionMessageChunks.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
@@ -350,6 +351,8 @@ export async function mapSessionEvents(
 			fusionPhaseToolCallIds.add(getFusionPhaseToolCallId(event.data.fusionId, event.data.phaseId));
 		}
 	}
+	const fusionMessageChunks = new CopilotFusionMessageChunks();
+	const fusionToolRoundMessages = new Set<SessionEventPayload<'assistant.message'>>();
 	for (const event of events) {
 		if (event.type === 'assistant.message') {
 			for (const request of event.data.toolRequests ?? []) {
@@ -357,6 +360,17 @@ export async function mapSessionEvents(
 					toolTitlesByCallId.set(request.toolCallId, request.toolTitle);
 				}
 			}
+			const phaseToolCallId = resolveFusionPhaseToolCallId(event.agentId, event.data.fusion);
+			if (phaseToolCallId !== undefined && !isProvisionalFusionConversationEvent(event)) {
+				const call = fusionMessageChunks.accept(event, phaseToolCallId);
+				if (call?.hasToolRequests) {
+					for (const message of call.messages) {
+						fusionToolRoundMessages.add(message);
+					}
+				}
+			}
+		} else if (event.type === 'user.message' && !event.agentId && !isSyntheticUserMessage(event)) {
+			fusionMessageChunks.clear();
 		}
 	}
 
@@ -658,8 +672,8 @@ export async function mapSessionEvents(
 				const content = d.content ?? '';
 				const reasoningText = d.reasoningText;
 				const hasToolRequests = !!d.toolRequests && d.toolRequests.length > 0;
-				// A phase's final answer, the round without tool requests, is the response itself.
-				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? (hasToolRequests ? resolveFusionPhaseToolCallId(e.agentId, d.fusion) : undefined);
+				const isPhaseWork = hasToolRequests || fusionToolRoundMessages.has(e);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? (isPhaseWork ? resolveFusionPhaseToolCallId(e.agentId, d.fusion) : undefined);
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
 					break;

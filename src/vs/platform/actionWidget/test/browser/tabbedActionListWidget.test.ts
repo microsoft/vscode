@@ -218,7 +218,7 @@ suite('TabbedActionListWidget', () => {
 		assert.strictEqual(widget.isVisible, false);
 	});
 
-	test('details preserve the live search and capture Escape from a real radio', async () => {
+	test('Escape from a Details radio dismisses the entire popup, including retained search', async () => {
 		const { widget, input, selected } = createSearchableWidget(disposables, ['first match', 'second match']);
 		let radio: Radio | undefined;
 		widget.showDetails({
@@ -239,12 +239,10 @@ suite('TabbedActionListWidget', () => {
 		};
 		radio.optionElements[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
 		await settleLayout();
-		const after = { visible: widget.isVisible, details: widget.isShowingDetails, filter: input.value, focused: document.activeElement === input };
-		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-		assert.deepStrictEqual({ during, after, closed: !widget.isVisible, selected }, {
+		const after = { visible: widget.isVisible, details: widget.isShowingDetails, inputConnected: input.isConnected };
+		assert.deepStrictEqual({ during, after, selected }, {
 			during: { details: true, mainInert: true, inputConnected: true },
-			after: { visible: true, details: false, filter: 'match', focused: true },
-			closed: true,
+			after: { visible: false, details: false, inputConnected: false },
 			selected: [],
 		});
 	});
@@ -335,7 +333,7 @@ suite('TabbedActionListWidget', () => {
 		updated = true;
 		widget.refreshActiveList({ focusItemId: 'new' });
 		const during = { builds, focused: button.hasFocus() };
-		button.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		contextView.getContextViewElement().querySelector<HTMLElement>('.tabbed-action-list-details-header .monaco-button')!.click();
 		await settleLayout();
 		assert.deepStrictEqual({
 			during,
@@ -403,7 +401,7 @@ suite('TabbedActionListWidget', () => {
 		button.focus();
 		button.element.click();
 		const during = { focused: button.hasFocus(), collapsed: result.body.inert, pageInert: !!button.element.closest('[inert]') };
-		button.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		result.contextView.getContextViewElement().querySelector<HTMLElement>('.tabbed-action-list-details-header .monaco-button')!.click();
 		await settleLayout();
 		assert.deepStrictEqual({ during, visible: result.widget.isVisible, collapsed: result.body.inert }, {
 			during: { focused: true, collapsed: true, pageInert: false },

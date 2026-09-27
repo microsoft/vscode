@@ -34,7 +34,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillEntries, getChatPillResourceLocation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode, withChatPillHoverLabel } from '../../../../../browser/chatPills.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillEntries, getChatPillResourceLocation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode, withChatPillHoverLabel } from '../../../../../browser/chatPills.js';
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
@@ -114,8 +114,10 @@ function setsEqual<T>(first: ReadonlySet<T>, second: ReadonlySet<T>): boolean {
 	return first === second || (first.size === second.size && [...first].every(value => second.has(value)));
 }
 
-function isPromotedGitHubReference(artifact: ISessionArtifact, type: SessionArtifactType): artifact is ISessionArtifact & { readonly link: string } {
-	return artifact.type === type
+/** Only artifacts are promoted into the dedicated pills; references stay in the references pill. */
+function isPromotedGitHubArtifact(artifact: ISessionArtifact, type: SessionArtifactType): artifact is ISessionArtifact & { readonly link: string } {
+	return artifact.isArtifact
+		&& artifact.type === type
 		&& artifact.isGitHub === true
 		&& typeof artifact.link === 'string'
 		&& isGitHubArtifactLink(artifact.link);
@@ -129,8 +131,8 @@ function isPromotedGitHubReference(artifact: ISessionArtifact, type: SessionArti
 export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined): IAgentHostSessionPillMetadata {
 	const entries = readSessionArtifactsNewestFirst(meta);
 	const github = readSessionGitHubState(meta, sessionWorkingDirectory);
-	const recordedPullRequests = distinct(entries.filter(entry => isPromotedGitHubReference(entry, SessionArtifactType.PullRequest)), entry => linkKey(entry.link));
-	const recordedIssues = distinct(entries.filter(entry => isPromotedGitHubReference(entry, SessionArtifactType.Issue)), entry => linkKey(entry.link));
+	const recordedPullRequests = distinct(entries.filter(entry => isPromotedGitHubArtifact(entry, SessionArtifactType.PullRequest)), entry => linkKey(entry.link));
+	const recordedIssues = distinct(entries.filter(entry => isPromotedGitHubArtifact(entry, SessionArtifactType.Issue)), entry => linkKey(entry.link));
 	// Recorded pull requests lead discovered ones, as in the Agents Window.
 	const pullRequestUrls = dedupeLinks(recordedPullRequests.map(entry => entry.link), getSessionRelatedPullRequestUrls(github));
 	const pullRequestTitles = new Map(recordedPullRequests.filter(entry => entry.label).map(entry => [linkKey(entry.link), entry.label]));
@@ -139,7 +141,6 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 	const issueTitles = new Map(recordedIssues.map(entry => [linkKey(entry.link), entry.label]));
 	const issueArtifacts = new Map(recordedIssues.map(entry => [linkKey(entry.link), entry]));
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
-	const remaining = entries.filter(entry => !entry.link || !promotedLinks.has(linkKey(entry.link)));
 	return {
 		pullRequestUrls,
 		pullRequestTitles,
@@ -147,8 +148,9 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 		issueUrls,
 		issueTitles,
 		issueArtifacts,
-		artifacts: remaining.filter(entry => entry.isArtifact),
-		references: remaining.filter(entry => !entry.isArtifact),
+		artifacts: entries.filter(entry => entry.isArtifact && (!entry.link || !promotedLinks.has(linkKey(entry.link)))),
+		// References always stay in the references pill, even for a pull request or issue the dedicated pills show.
+		references: entries.filter(entry => !entry.isArtifact),
 	};
 }
 
@@ -566,7 +568,8 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!currentResolution || !chat) {
 				return undefined;
 			}
-			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, sessionState.read(reader)?.changesets);
+			const session = sessionState.read(reader);
+			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, session?.defaultChat);
 			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
 			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), currentResolution.defaultChangesetKind);
 			const selectedEntry = selectableEntries?.find(({ changeset }) => changeset === selectedChangeset);
@@ -595,7 +598,10 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!state) {
 				return lastValue?.connectionAuthority === currentResolution.connectionAuthority && isEqual(lastValue.resource, target.resource) ? lastValue : undefined;
 			}
-			if (state.status !== ChangesetStatus.Ready && lastValue?.connectionAuthority === currentResolution.connectionAuthority && isEqual(lastValue.resource, target.resource)) {
+			if (state.status !== ChangesetStatus.Ready
+				&& state.status !== ChangesetStatus.Recomputing
+				&& lastValue?.connectionAuthority === currentResolution.connectionAuthority
+				&& isEqual(lastValue.resource, target.resource)) {
 				return lastValue;
 			}
 			return { connectionAuthority: currentResolution.connectionAuthority, resource: target.resource, files: state.files };
@@ -1030,10 +1036,12 @@ export class AgentHostSessionInputPills extends Disposable {
 	private _createRemoveAction(artifact: ISessionArtifact, removeArtifact: (artifact: ISessionArtifact) => Promise<void>) {
 		return withChatPillHoverLabel(toAction({
 			id: `chat.agentHost.sessionPills.removeArtifact.${artifact.id}`,
-			label: localize('agentHostSessionPills.removeArtifact', "Remove {0} from Session", artifact.label),
+			label: artifact.isArtifact
+				? localize('agentHostSessionPills.removeArtifact', "Remove Artifact {0} from Session", artifact.label)
+				: localize('agentHostSessionPills.removeReference', "Remove Reference {0} from Session", artifact.label),
 			class: ThemeIcon.asClassName(Codicon.close),
 			run: () => removeArtifact(artifact),
-		}), chatPillRemoveReferenceHoverLabel);
+		}), artifact.isArtifact ? chatPillRemoveArtifactHoverLabel : chatPillRemoveReferenceHoverLabel);
 	}
 
 	private async _removeArtifact(resolution: IAgentHostSessionResolution, artifact: ISessionArtifact): Promise<void> {
