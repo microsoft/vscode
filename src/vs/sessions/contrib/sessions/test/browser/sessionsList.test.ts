@@ -884,7 +884,9 @@ suite('Sessions - SessionsList', () => {
 			list.layout(1000, 400);
 
 			const groupHeader = container.querySelector<HTMLElement>('.session-group');
-			const labelContainer = groupHeader?.querySelector<HTMLElement>('.session-section-label-container');
+			assert.ok(groupHeader);
+			const labelContainer = groupHeader.querySelector<HTMLElement>('.session-section-label-container');
+			assert.ok(labelContainer);
 			assert.deepStrictEqual({
 				labelContainerParent: labelContainer.parentElement?.classList.contains('session-group'),
 				labelParent: labelContainer.querySelector('.session-section-label')?.parentElement?.classList.contains('session-section-label-container'),
