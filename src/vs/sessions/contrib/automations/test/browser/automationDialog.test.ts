@@ -29,6 +29,7 @@ import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -48,22 +49,205 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { IAutomationDescriptor, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionTypePicker } from '../../../chat/browser/mobile/mobileSessionTypePicker.js';
-import { ModelPicker } from '../../../chat/browser/modelPicker.js';
 import { SessionModelSelection } from '../../../chat/browser/sessionModelSelection.js';
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IAutomationSessionConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { AutomationDialogService } from '../../browser/automationDialogService.js';
 import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
 const FOLDER = URI.file('/workspace');
+
+suite('Automation dialog creation', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function openDialog(options: IShowAutomationDialogOptions = {}) {
+		const configurationService = new TestConfigurationService();
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService,
+			contextKeyService: () => contextKeyService,
+		}, disposables);
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
+		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+		instantiationService.stub(IActionWidgetService, new RecordingActionWidgetService());
+		instantiationService.stub(IGitService, upcastPartial<IGitService>({ openRepository: async () => undefined }));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+			onDidChangeProviders: Event.None,
+			getProviders: () => [],
+			getProvider: () => undefined,
+		}));
+		const types = [{
+			providerId: 'host',
+			sessionType: { id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.None },
+		}];
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			automationSession: constObservable(undefined),
+			onDidChangeSessionTypes: Event.None,
+			getSessionTypesForFolder: () => types,
+			getQuickChatSessionTypes: () => types,
+			isNewSessionTargetAvailable: () => true,
+			isQuickChatTargetAvailable: () => true,
+			resolveWorkspace: () => ({ providerId: 'host', workspace: createWorkspace(false) }),
+			createAutomationQuickChat: () => upcastPartial<ISession>({ sessionId: 'draft' }),
+			createAutomationSession: () => upcastPartial<ISession>({ sessionId: 'draft' }),
+			supportsAutomationSessionConfiguration: () => false,
+			getAutomationSessionConfiguration: async () => null,
+			discardAutomationSession: () => { },
+		}));
+		instantiationService.stub(IAutomationService, upcastPartial<IAutomationService>({
+			availableProviders: constObservable([{ id: 'host', label: 'Host' }]),
+			automations: constObservable(options.existing ? [options.existing] : []),
+			catalogueState: constObservable('ready'),
+			canUpdateAutomation: () => true,
+		}));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		let targetModel: AutomationIsolationModel | undefined;
+		let selectedWorkspace: URI | undefined;
+		instantiationService.stubInstance(MobileAutomationsWorkspacePicker, {
+			setTargetModel: model => { targetModel = model; },
+			setLayoutService: () => { },
+			setSelectedWorkspace: uri => { selectedWorkspace = uri; },
+			onDidSelectWorkspace: Event.None,
+			render: container => container,
+			dispose: () => { },
+		});
+		instantiationService.stubInstance(SessionModelSelection, { dispose: () => { } });
+		instantiationService.stubInstance(AutomationInputCompletions, { dispose: () => { } });
+		const promptChanged = disposables.add(new Emitter<void>());
+		const promptInput = document.createElement('textarea');
+		instantiationService.stubInstance(ChatInputPart, {
+			render: (container, value) => {
+				promptInput.value = value ?? '';
+				container.appendChild(promptInput);
+			},
+			inputToolbarElement: DOM.$('div'),
+			setInputToolbarAriaLabel: () => { },
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
+				updateOptions: () => { },
+				onDidChangeModelContent: Event.map(promptChanged.event, () => ({
+					changes: [], eol: '\n', versionId: 1, isUndoing: false, isRedoing: false, isFlush: false, isEolChange: false,
+					detailedReasons: [], detailedReasonsChangeLengths: [],
+				})),
+				getValue: () => promptInput.value,
+			}),
+			layout: () => { },
+			dispose: () => { },
+		});
+		const result = instantiationService.createInstance(AutomationDialogService).showAutomationDialog(options);
+		const container = instantiationService.get(IWorkbenchLayoutService).activeContainer;
+		const buttons = Array.from(container.querySelectorAll<HTMLElement>('.automation-dialog-footer-actions .monaco-button'));
+		const saveButton = buttons.find(button => button.textContent === (options.existing ? 'Save' : 'Create'))!;
+		const cancelButton = buttons.find(button => button.textContent === 'Cancel')!;
+		disposables.add(toDisposable(() => cancelButton.click()));
+		const nameInput = container.querySelector<HTMLInputElement>('.automation-form-input-host input')!;
+		return {
+			result, saveButton, nameInput,
+			getTarget: () => ({ quickChat: targetModel?.isQuickChat, workspace: selectedWorkspace }),
+			setPrompt: (prompt: string) => {
+				promptInput.value = prompt;
+				promptChanged.fire();
+			},
+			setName: (name: string) => {
+				nameInput.value = name;
+				nameInput.dispatchEvent(new InputEvent('input'));
+			},
+		};
+	}
+
+	for (const { label, prompt, name } of [
+		{ label: 'short prompt', prompt: '  Review changes  ', name: 'Review changes' },
+		{ label: 'multiline whitespace', prompt: '\n Review\t the  changes\n today ', name: 'Review the changes today' },
+		{ label: 'word boundary', prompt: 'Review the recent changes and summarize outstanding work for the team', name: 'Review the recent changes and summarize' },
+		{ label: 'exact limit', prompt: 'a'.repeat(50), name: 'a'.repeat(50) },
+		{ label: 'word ending at limit', prompt: `${'a'.repeat(50)} next`, name: 'a'.repeat(50) },
+		{ label: 'long word', prompt: 'a'.repeat(60), name: 'a'.repeat(50) },
+		{ label: 'Unicode characters', prompt: '\u{1F600}'.repeat(60), name: '\u{1F600}'.repeat(50) },
+	]) {
+		test(`creates from prompt only (${label}), deriving the name and defaulting to quick chat`, async () => {
+			const dialog = openDialog();
+			dialog.setPrompt(prompt);
+			assert.deepStrictEqual({
+				name: dialog.nameInput.value,
+				target: dialog.getTarget(),
+				disabled: dialog.saveButton.getAttribute('aria-disabled'),
+			}, { name: '', target: { quickChat: true, workspace: undefined }, disabled: 'false' });
+			dialog.saveButton.click();
+			const result = await dialog.result;
+			assert.ok(result?.kind === 'create');
+			assert.deepStrictEqual(result.value, {
+				name, prompt,
+				target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+				schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+				enabled: true,
+			});
+		});
+	}
+
+	test('requires a non-whitespace prompt and derives a whitespace-only name', async () => {
+		const dialog = openDialog();
+		dialog.setName(' \t ');
+		const initialDisabled = dialog.saveButton.getAttribute('aria-disabled');
+		dialog.setPrompt(' \n\t ');
+		const whitespaceDisabled = dialog.saveButton.getAttribute('aria-disabled');
+		dialog.setPrompt('Summarize changes');
+		assert.deepStrictEqual([initialDisabled, whitespaceDisabled, dialog.saveButton.getAttribute('aria-disabled')], ['true', 'true', 'false']);
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.ok(result?.kind === 'create');
+		assert.strictEqual(result.value.name, 'Summarize changes');
+	});
+
+	test('preserves a supplied quick-chat target and custom name', async () => {
+		const initialValues = {
+			name: ' Custom title ', prompt: 'Review changes',
+			target: { kind: 'quickChat' as const, providerId: 'host', sessionTypeId: 'copilotcli' },
+			schedule: { interval: 'daily' as const, scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+			enabled: true,
+		};
+		const dialog = openDialog({ initialValues });
+		assert.deepStrictEqual(dialog.getTarget(), { quickChat: true, workspace: undefined });
+		dialog.saveButton.click();
+		assert.deepStrictEqual(await dialog.result, { kind: 'create', value: initialValues });
+	});
+
+	for (const editing of [false, true]) {
+		test(`preserves a supplied title and workspace when ${editing ? 'editing' : 'creating'}`, async () => {
+			const existing: IAutomationDescriptor = {
+				id: 'existing', name: 'My custom title', prompt: 'Review changes',
+				target: { kind: 'workspace', folderUri: FOLDER, providerId: 'host', sessionTypeId: 'copilotcli', isolation: { kind: 'folder' } },
+				schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+				enabled: false, createdAt: '', updatedAt: '',
+			};
+			const dialog = openDialog(editing ? { existing } : { initialValues: existing });
+			assert.deepStrictEqual({ name: dialog.nameInput.value, target: dialog.getTarget() }, {
+				name: existing.name, target: { quickChat: false, workspace: FOLDER },
+			});
+			if (editing) {
+				dialog.setName(' ');
+				assert.strictEqual(dialog.saveButton.getAttribute('aria-disabled'), 'true');
+				dialog.setName(existing.name);
+			}
+			dialog.saveButton.click();
+			const result = await dialog.result;
+			assert.deepStrictEqual(result, {
+				kind: editing ? 'update' : 'create',
+				...(editing ? { id: existing.id } : {}),
+				value: { name: existing.name, prompt: existing.prompt, target: existing.target, schedule: existing.schedule, enabled: existing.enabled },
+			});
+		});
+	}
+});
 
 suite('Automation dialog layout', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -109,15 +293,28 @@ suite('Automation dialog layout', () => {
 			dispose: () => { },
 		});
 		instantiationService.stubInstance(SessionModelSelection, { dispose: () => { } });
-		instantiationService.stubInstance(ModelPicker, { render: () => { }, dispose: () => { } });
 		instantiationService.stubInstance(AutomationInputCompletions, { dispose: () => { } });
 		const promptInput = document.createElement('textarea');
 		promptInput.setAttribute('aria-label', 'Prompt');
+		disposables.add(MenuRegistry.appendMenuItem(Menus.AutomationsDialogInputToolbar, {
+			command: { id: 'test.automation.agent', title: 'Agent' },
+			group: 'navigation',
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(Menus.NewSessionControl, {
+			command: { id: 'test.automation.executionMode', title: 'Interactive' },
+			group: 'navigation',
+		}));
+		const inputToolbarWidget = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, DOM.$('div'), Menus.AutomationsDialogInputToolbar, {}));
+		const inputToolbar = inputToolbarWidget.getElement();
+		inputToolbar.classList.add('chat-input-toolbar');
 		instantiationService.stubInstance(ChatInputPart, {
 			render: (container, value) => {
 				promptInput.value = value ?? '';
-				container.appendChild(promptInput);
+				const inputContainer = DOM.append(container, DOM.$('.chat-input-container'));
+				inputContainer.append(promptInput, inputToolbar);
 			},
+			inputToolbarElement: inputToolbar,
+			setInputToolbarAriaLabel: label => inputToolbarWidget.setAriaLabel(label),
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
 				updateOptions: () => { },
 				onDidChangeModelContent: Event.None,
@@ -146,6 +343,8 @@ suite('Automation dialog layout', () => {
 
 		const targetRow = form.querySelector('.automation-target-row')!;
 		const promptSection = form.querySelector('.automation-prompt-section')!;
+		const inputContainer = form.querySelector('.chat-input-container')!;
+		const sessionControls = form.querySelector('.automation-session-configuration')!;
 		assert.deepStrictEqual({
 			targetLabel: targetRow.querySelector('.automation-form-label')?.textContent,
 			targetContainsWorkspace: targetRow.contains(workspaceButton),
@@ -155,6 +354,17 @@ suite('Automation dialog layout', () => {
 			promptFocused: document.activeElement === promptInput,
 			prompt: handle.getPrompt(),
 			targetUnselected: !state.isQuickChat && state.folderUri === undefined && state.sessionTypeId === undefined,
+			configurationInsideInput: inputContainer.contains(inputToolbar),
+			controlsInsideInput: inputContainer.contains(sessionControls),
+			controlsAfterInput: !!(inputContainer.compareDocumentPosition(sessionControls) & Node.DOCUMENT_POSITION_FOLLOWING),
+			configurationHeader: form.querySelector('#automation-session-configuration-label'),
+			inputToolbarWrapperRole: inputToolbar.getAttribute('role'),
+			inputToolbarLabel: inputToolbar.querySelector('[role="toolbar"]')?.getAttribute('aria-label'),
+			inputToolbarLabelCount: form.querySelectorAll('[aria-label="Session configuration options"]').length,
+			controlsWrapperRole: sessionControls.getAttribute('role'),
+			controlsLabel: sessionControls.querySelector('[role="toolbar"]')?.getAttribute('aria-label'),
+			controlsLabelCount: form.querySelectorAll('[aria-label="Session controls"]').length,
+			inputToolbarHidden: inputToolbar.style.display === 'none',
 		}, {
 			targetLabel: 'Target',
 			targetContainsWorkspace: true,
@@ -164,11 +374,36 @@ suite('Automation dialog layout', () => {
 			promptFocused: true,
 			prompt: 'Review the workspace',
 			targetUnselected: true,
+			configurationInsideInput: true,
+			controlsInsideInput: false,
+			controlsAfterInput: true,
+			configurationHeader: null,
+			inputToolbarWrapperRole: null,
+			inputToolbarLabel: 'Session configuration options',
+			inputToolbarLabelCount: 1,
+			controlsWrapperRole: null,
+			controlsLabel: 'Session controls',
+			controlsLabelCount: 1,
+			inputToolbarHidden: true,
 		});
 
 		assert.ok(targetModel);
 		targetModel.setQuickChat(true);
-		assert.strictEqual(form.querySelector('.automation-session-configuration-unavailable')?.textContent, 'Session configuration unavailable');
+		assert.deepStrictEqual({
+			status: form.querySelector('.automation-session-configuration-unavailable')?.textContent,
+			inputToolbarVisible: inputToolbar.style.display !== 'none',
+			inputToolbarInert: inputToolbar.inert,
+			inputToolbarAriaHidden: inputToolbar.getAttribute('aria-hidden'),
+			promptInert: promptInput.inert || !!promptInput.closest('[inert]'),
+			controlsInert: form.querySelector('.automation-session-controls')?.hasAttribute('inert'),
+		}, {
+			status: 'Session configuration unavailable',
+			inputToolbarVisible: true,
+			inputToolbarInert: true,
+			inputToolbarAriaHidden: 'true',
+			promptInert: false,
+			controlsInert: true,
+		});
 
 		const targetGroup = form.querySelector('.automation-target-toolbar')!;
 		const targetError = form.querySelector<HTMLElement>('.automation-target-error')!;
@@ -248,7 +483,10 @@ suite('Automation dialog layout', () => {
 
 	test('keeps target actions out of the prompt toolbar', () => {
 		const targetActions = MenuRegistry.getMenuItems(Menus.AutomationsDialogTargetToolbar).filter(isIMenuItem);
-		const promptActions = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter(isIMenuItem);
+		const promptActions = [
+			...MenuRegistry.getMenuItems(Menus.AutomationsDialogInputToolbar),
+			...MenuRegistry.getMenuItems(MenuId.ChatInputSecondary),
+		].filter(isIMenuItem);
 		assert.deepStrictEqual({
 			target: targetActions.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(item => item.command.id),
 			duplicatedInPrompt: promptActions.some(item => targetActions.some(target => target.command.id === item.command.id)),

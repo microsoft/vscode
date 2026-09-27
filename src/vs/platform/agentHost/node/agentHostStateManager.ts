@@ -25,7 +25,10 @@ import { preserveProviderBackedRootConfigValues } from '../common/agentCustomiza
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
 import { type IChatSurfaceMeta, readChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
+import { withAgentHostResources } from '../common/meta/agentHostResources.js';
+import { withRemoteSessionsCapability } from '../common/meta/agentRemoteSessionMeta.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
+import { collectAgentHostResources } from './agentHostResources.js';
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
@@ -299,6 +302,9 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _onDidEmitEnvelope = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidEmitEnvelope: Event<ActionEnvelope> = this._onDidEmitEnvelope.event;
 
+	private readonly _onDidRejectClientAction = this._register(new Emitter<ActionEnvelope>());
+	readonly onDidRejectClientAction: Event<ActionEnvelope> = this._onDidRejectClientAction.event;
+
 	private readonly _onDidEmitNotification = this._register(new Emitter<INotification>());
 	readonly onDidEmitNotification: Event<INotification> = this._onDidEmitNotification.event;
 	private readonly _onDidChangeSessionActiveTurn = this._register(new Emitter<{ session: string; active: boolean }>());
@@ -341,7 +347,7 @@ export class AgentHostStateManager extends Disposable {
 					[AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.USAGE),
 				}),
 			},
-			_meta: withHostBuildInfo(this._rootState._meta, options.hostBuildInfo),
+			_meta: withRemoteSessionsCapability(withAgentHostResources(withHostBuildInfo(this._rootState._meta, options.hostBuildInfo), collectAgentHostResources())),
 		};
 		this._summaryNotifier = this._register(new SessionSummaryNotifier(
 			session => {
@@ -838,6 +844,11 @@ export class AgentHostStateManager extends Disposable {
 		return this._changesets.get(changeset);
 	}
 
+	/** Whether the cached changeset has produced a complete file list, including an empty one. */
+	hasCompletedChangesetResult(changeset: URI): boolean {
+		return this._changesets.hasCompletedResult(changeset);
+	}
+
 	/** Reconsiders changeset state retention after subscribers or computes release their pins. */
 	onChangesetLivenessChanged(): void {
 		this._changesets.trimEvictableEntries();
@@ -1270,7 +1281,7 @@ export class AgentHostStateManager extends Disposable {
 	 * creating conversation state. The state-manager-owned resolver installs a
 	 * complete state only through {@link resolveChatState}.
 	 */
-	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly workingDirectories?: readonly string[]; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
+	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly archived?: boolean; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly workingDirectories?: readonly string[]; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] registerRestoredChatSummary for unknown session: ${session}`);
@@ -1285,6 +1296,7 @@ export class AgentHostStateManager extends Disposable {
 					...existing,
 					...(options.origin !== undefined ? { origin: options.origin } : {}),
 					interactivity: options.interactivity ?? existing.interactivity,
+					...(options.archived !== undefined ? { status: withSessionStatusFlag(existing.status ?? SessionStatus.Idle, SessionStatus.IsArchived, options.archived) } : {}),
 					...(options.workingDirectories !== undefined ? { workingDirectories: [...options.workingDirectories] } : {}),
 				};
 				entry.state.chats = entry.state.chats.map(chat => chat.resource === chatUri ? summary : chat);
@@ -1301,7 +1313,7 @@ export class AgentHostStateManager extends Disposable {
 		const chatSummary: ChatSummary = {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
 			title: options.title ?? '',
-			status: SessionStatus.Idle,
+			status: withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, options.archived === true),
 			// A persisted catalog entry with no recorded origin is a plain
 			// user-created chat; keep the default rather than restoring it
 			// without provenance.
@@ -1767,12 +1779,13 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Reject a client-originated action without applying it to state. Emits an
+	 * Reject a client-originated action without applying it to state. Emits a
 	 * {@link ActionEnvelope} that carries the original {@link ActionOrigin} and a
 	 * {@link ActionEnvelope.rejectionReason | rejectionReason} so the originating
 	 * client can reconcile (roll back) its optimistic write-ahead action through
 	 * the normal path instead of leaving it pending until reconnect. The reducer
-	 * is deliberately NOT run, so no synchronized state changes.
+	 * is deliberately NOT run and the envelope is not emitted to host-side action
+	 * consumers.
 	 */
 	rejectClientAction(channel: URI, action: StateAction, origin: ActionOrigin, reason: string): void {
 		const envelope: ActionEnvelope = {
@@ -1782,8 +1795,8 @@ export class AgentHostStateManager extends Disposable {
 			origin,
 			rejectionReason: reason,
 		};
-		this._logService.trace(`[AgentHostStateManager] Emitting rejection envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}, origin=${origin.clientId}:${origin.clientSeq}, reason=${reason}`);
-		this._onDidEmitEnvelope.fire(envelope);
+		this._logService.trace(`[AgentHostStateManager] Created rejection envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}, origin=${origin.clientId}:${origin.clientSeq}, reason=${reason}`);
+		this._onDidRejectClientAction.fire(envelope);
 	}
 
 	// ---- Internal -----------------------------------------------------------

@@ -150,14 +150,7 @@ export const enum ChatInteractivity {
 	Hidden = 'hidden',
 }
 
-/**
- * The effective interactivity of a chat given its session's archived state.
- *
- * An archived session is read-only: its interactive chats must hide their
- * composer. `Hidden` chats are internal workers filtered out of the UI, so they
- * stay hidden — archiving only downgrades `Full` chats to `ReadOnly`. When not
- * archived, the chat keeps its own interactivity.
- */
+/** Returns a chat's interactivity after applying chat or session archival. */
 export function effectiveChatInteractivity(isArchived: boolean, interactivity: ChatInteractivity): ChatInteractivity {
 	if (interactivity === ChatInteractivity.Hidden) {
 		return ChatInteractivity.Hidden;
@@ -180,6 +173,8 @@ export interface ISessionGitRepository {
 	readonly baseBranchName: string | undefined;
 	/** Whether the base branch is protected (drives PR vs merge workflow). */
 	readonly baseBranchProtected?: boolean;
+	/** Whether the repository has any Git remote. */
+	readonly hasGitRemote?: boolean;
 	/** Whether the repository has a github.com remote. */
 	readonly hasGitHubRemote?: boolean;
 	/** Upstream tracking branch name (e.g. `origin/feature`). */
@@ -445,6 +440,8 @@ export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange
 /** A last-turn file change classified against its owning session workspace. */
 export type ISessionTurnFileChange = ISessionFileChange & {
 	readonly isOutsideWorkspace: boolean;
+	/** Workspace URI before a rename in this turn, used to replace the cumulative entry for the old path. */
+	readonly renamedFromUri?: URI;
 };
 
 /**
@@ -630,7 +627,7 @@ export interface IChatOrigin {
 }
 
 /**
- * Per-chat capabilities. Consumers gate chat-management UI (rename, delete) on
+ * Per-chat capabilities. Consumers gate chat-management UI (rename, archive, delete) on
  * these flags rather than on the chat's origin/provider, so the affordances are
  * offered exactly where the backing chat supports them. A worker (subagent)
  * chat, for example, is neither renameable nor deletable.
@@ -638,12 +635,14 @@ export interface IChatOrigin {
 export interface IChatCapabilities {
 	/** Whether this chat's title can be renamed. */
 	readonly canRename: boolean;
+	/** Whether this chat can be archived independently of its session. */
+	readonly canArchive: boolean;
 	/** Whether this chat can be permanently deleted. */
 	readonly canDelete: boolean;
 }
 
 /** Capabilities assumed for a chat that does not advertise its own. */
-export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canDelete: true };
+export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canArchive: false, canDelete: true };
 
 /**
  * Whether a chat's model is the chat's own or one put there on its behalf. This is the only
@@ -732,8 +731,8 @@ export interface IChat {
 	/** How the chat came into existence, if provided by the backend. */
 	readonly origin?: IChatOrigin;
 	/**
-	 * Capabilities of this chat (rename/delete). Absent means the chat inherits
-	 * {@link DEFAULT_CHAT_CAPABILITIES} (fully capable); read via
+	 * Capabilities of this chat (rename/archive/delete). Absent means the chat inherits
+	 * {@link DEFAULT_CHAT_CAPABILITIES}; read via
 	 * {@link getChatCapabilities}.
 	 */
 	readonly capabilities?: IObservable<IChatCapabilities>;
@@ -750,13 +749,14 @@ export function isSideChatOf(chat: IChat, parentChat: URI): boolean {
  * Resolve a chat's effective capabilities. Combines the chat's own advertised
  * {@link IChat.capabilities} (falling back to {@link DEFAULT_CHAT_CAPABILITIES})
  * with the session-level invariant that a session's main chat can never be
- * deleted — it lives and dies with the session. Pass the owning session so the
- * main-chat rule applies; omit it to read only the chat's own capabilities.
+ * archived independently or deleted — it lives and dies with the session. Pass
+ * the owning session so the main-chat rule applies; omit it to read only the
+ * chat's own capabilities.
  */
 export function getChatCapabilities(chat: IChat, session: ISession | undefined, reader: IReader | undefined): IChatCapabilities {
 	const own = chat.capabilities?.read(reader) ?? DEFAULT_CHAT_CAPABILITIES;
 	if (session && isEqual(chat.resource, session.mainChat.read(reader).resource)) {
-		return own.canDelete ? { ...own, canDelete: false } : own;
+		return own.canArchive || own.canDelete ? { ...own, canArchive: false, canDelete: false } : own;
 	}
 	return own;
 }
@@ -791,7 +791,7 @@ export interface ISession {
 	readonly isQuickChat?: IObservable<boolean>;
 	/** Whether this session is associated with an automation run. Absent means `false`. */
 	readonly isAutomation?: IObservable<boolean>;
-	/** Whether this session was discovered in an application other than the current host. Absent means `false`. */
+	/** Whether this session is still treated as external to the current host. Absent means `false`. */
 	readonly isExternal?: IObservable<boolean>;
 	/** Connection state of the backing remote host. Absent when the session has no remote host. */
 	readonly remoteConnectionStatus?: IObservable<SessionRemoteConnectionStatus>;
@@ -884,6 +884,8 @@ export function toSessionId(providerId: string, resource: URI): string {
  * Consumers check these before surfacing session-specific features in the UI.
  */
 export interface ISessionCapabilities {
+	/** Whether this external session can be imported without sending a message. */
+	readonly supportsImport?: boolean;
 	/** Whether recorded artifacts can be removed from this session. */
 	readonly supportsRemoveArtifacts?: boolean;
 	/** Whether this session supports multiple chats. */
@@ -1051,7 +1053,9 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 
 /** Structural equality for arrays of {@link ISessionTurnFileChange}. */
 export function sessionTurnFileChangesEqual(a: readonly ISessionTurnFileChange[], b: readonly ISessionTurnFileChange[]): boolean {
-	return sessionFileChangesEqual(a, b) && a.every((change, index) => change.isOutsideWorkspace === b[index].isOutsideWorkspace);
+	return sessionFileChangesEqual(a, b) && a.every((change, index) =>
+		change.isOutsideWorkspace === b[index].isOutsideWorkspace &&
+		isEqual(change.renamedFromUri, b[index].renamedFromUri));
 }
 
 /**
@@ -1156,6 +1160,7 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 		&& a.branchName === b.branchName
 		&& a.baseBranchName === b.baseBranchName
 		&& a.baseBranchProtected === b.baseBranchProtected
+		&& a.hasGitRemote === b.hasGitRemote
 		&& a.hasGitHubRemote === b.hasGitHubRemote
 		&& a.upstreamBranchName === b.upstreamBranchName
 		&& a.incomingChanges === b.incomingChanges

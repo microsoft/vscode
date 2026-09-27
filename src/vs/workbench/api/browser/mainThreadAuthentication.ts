@@ -35,12 +35,13 @@ import { IProductService } from '../../../platform/product/common/productService
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IMcpEnterpriseManagedAuthIdpConfig, mcpEnterpriseManagedAuthIdpSection } from '../../contrib/mcp/common/mcpConfiguration.js';
 
-/**
- * The account icon is a {@link URI} that does not survive being sent over the RPC boundary,
- * so it needs to be revived when sessions are received from the extension host.
- */
-export function reviveSessionAccountIcon(session: Dto<AuthenticationSession>): AuthenticationSession {
-	return { ...session, account: { ...session.account, icon: URI.revive(session.account.icon) } };
+/** Revives session URIs received from the extension host. */
+export function reviveAuthenticationSession(session: Dto<AuthenticationSession>): AuthenticationSession {
+	return {
+		...session,
+		account: { ...session.account, icon: URI.revive(session.account.icon) },
+		authorizationServer: URI.revive(session.authorizationServer)
+	};
 }
 
 function prepareSessionRequest(options: AuthenticationGetSessionOptions) {
@@ -81,11 +82,11 @@ class MainThreadAuthenticationProvider extends Disposable implements IAuthentica
 
 	async getSessions(scopes: string[] | undefined, options: IAuthenticationProviderSessionOptions) {
 		const sessions = await this._proxy.$getSessions(this.id, scopes, options);
-		return sessions.map(reviveSessionAccountIcon);
+		return sessions.map(reviveAuthenticationSession);
 	}
 
 	async createSession(scopes: string[], options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		return reviveSessionAccountIcon(await this._proxy.$createSession(this.id, scopes, options));
+		return reviveAuthenticationSession(await this._proxy.$createSession(this.id, scopes, options));
 	}
 
 	async removeSession(sessionId: string): Promise<void> {
@@ -117,11 +118,11 @@ class MainThreadAuthenticationProviderWithChallenges extends MainThreadAuthentic
 
 	async getSessionsFromChallenges(constraint: IAuthenticationConstraint, options: IAuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]> {
 		const sessions = await this._proxy.$getSessionsFromChallenges(this.id, constraint, options);
-		return sessions.map(reviveSessionAccountIcon);
+		return sessions.map(reviveAuthenticationSession);
 	}
 
 	async createSessionFromChallenges(constraint: IAuthenticationConstraint, options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		return reviveSessionAccountIcon(await this._proxy.$createSessionFromChallenges(this.id, constraint, options));
+		return reviveAuthenticationSession(await this._proxy.$createSessionFromChallenges(this.id, constraint, options));
 	}
 }
 
@@ -291,9 +292,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const obj = this._registrations.get(providerId);
 		if (obj instanceof Emitter) {
 			obj.fire({
-				added: event.added?.map(reviveSessionAccountIcon),
-				removed: event.removed?.map(reviveSessionAccountIcon),
-				changed: event.changed?.map(reviveSessionAccountIcon)
+				added: event.added?.map(reviveAuthenticationSession),
+				removed: event.removed?.map(reviveAuthenticationSession),
+				changed: event.changed?.map(reviveAuthenticationSession)
 			});
 		}
 	}

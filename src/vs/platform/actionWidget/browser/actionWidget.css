@@ -225,6 +225,13 @@
 	opacity: 1;
 }
 
+.action-widget .monaco-list-row.action .action-item-additional-badges {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	gap: var(--vscode-spacing-size40, 4px);
+}
+
 .action-widget .monaco-list-row.action .action-item-badge {
 	padding: 0 var(--vscode-spacing-size60, 6px);
 	border-radius: var(--vscode-cornerRadius-circle, 9999px);
@@ -592,6 +599,11 @@
 	 * and the hover highlight stops short of the right edge. */
 	min-width: 0;
 	outline: none;
+	overflow: hidden;
+}
+
+.action-list-submenu-panel > .hover-row.status-bar {
+	margin: 0 calc(-1 * var(--vscode-spacing-size40, 4px)) calc(-1 * var(--vscode-spacing-size40, 4px));
 }
 
 .action-list-submenu-hover-header {

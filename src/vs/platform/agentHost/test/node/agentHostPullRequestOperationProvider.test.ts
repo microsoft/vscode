@@ -222,7 +222,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		});
 	});
 
-	test('records a pull request created from another folder in that folder and withholds lifecycle operations there', async () => {
+	test('records a pull request created from another folder in that folder and offers that pull request\'s lifecycle operations there', async () => {
 		const sessionKey = 'agent:/session';
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		stateManager.restoreSession({
@@ -254,7 +254,8 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			stateManager,
 			disposables.add(new InstantiationService()),
 			gitStateService,
-			createStatusService(openPullRequest({ mergeReady: true })),
+			// Only the other folder's pull request is mergeable.
+			{ ...createStatusService(), getPullRequestStatus: key => key === peerScopeOwner ? openPullRequest({ mergeReady: true }) : openPullRequest({ draft: true }) },
 			new class extends mock<IAgentConfigurationService>() {
 				override readonly onDidRootConfigChange = Event.None;
 				override getRootValue() { return undefined as never; }
@@ -281,8 +282,8 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		}, {
 			artifacts: [{ type: SessionArtifactType.PullRequest, label: 'Tools change', isArtifact: true, link: 'https://github.com/contoso/tools/pull/7', isGitHub: true }],
 			recordedGitHubStates: [[peerScopeOwner, { pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], associatedPullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'feature/tools' }]],
-			defaultScopeOperations: ['pr-merge'],
-			peerScopeOperations: undefined,
+			defaultScopeOperations: ['pr-mark-ready'],
+			peerScopeOperations: ['pr-merge'],
 		});
 	});
 

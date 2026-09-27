@@ -21,6 +21,8 @@ export interface ICopilotSlashCommandHandler {
 	readonly getInvocation?: (input: string) => CopilotSlashCommandInvocation | undefined;
 	/** Returning undefined preserves the SDK result's existing rendering and lifecycle. */
 	readonly getOutput?: (input: string, result: CopilotSlashCommandResult) => CopilotSlashCommandOutput | undefined | Promise<CopilotSlashCommandOutput | undefined>;
+	/** Returning undefined preserves the SDK invocation error. */
+	readonly getErrorOutput?: (input: string, error: Error) => CopilotSlashCommandOutput | undefined | Promise<CopilotSlashCommandOutput | undefined>;
 }
 
 export type ResolvedCopilotSlashCommand = RuntimeSlashCommandInfo & ICopilotSlashCommandHandler;

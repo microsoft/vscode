@@ -30,6 +30,7 @@ import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ReadonlyChatSessionOptionsMap } from '../chatSessionsService.js';
 import { ChatAgentLocation, SessionTypeSelectionReason, ChatModeKind } from '../constants.js';
 import { IChatEditingSession } from '../editing/chatEditingService.js';
+import type { getAutoModelTier } from '../languageModels.js';
 import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from '../model/chatModel.js';
 import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from '../participants/chatAgents.js';
@@ -433,6 +434,8 @@ export interface IChatTextEdit {
 	kind: 'textEdit';
 	done?: boolean;
 	isExternalEdit?: boolean;
+	/** The Auto routing tier that produced these edits. */
+	autoTier?: ReturnType<typeof getAutoModelTier>;
 }
 
 export interface IChatClearToPreviousToolInvocation {
@@ -446,6 +449,7 @@ export interface IChatNotebookEdit {
 	kind: 'notebookEdit';
 	done?: boolean;
 	isExternalEdit?: boolean;
+	autoTier?: IChatTextEdit['autoTier'];
 }
 
 export interface IChatWorkspaceFileEdit {
@@ -472,6 +476,8 @@ export type ChatExternalEditKind = 'create' | 'delete' | 'rename' | 'edit';
  */
 export interface IChatExternalEdit {
 	kind: 'externalEdit';
+	/** The parent subagent tool call whose inline trace owns this edit. */
+	subAgentInvocationId?: string;
 	/** The resulting file URI (after-URI for create/edit/rename, before-URI for delete). */
 	uri: URI;
 	/** The kind of file operation. */
@@ -741,6 +747,8 @@ export interface IChatTerminalToolInvocationData {
 		text: string;
 		truncated?: boolean;
 		lineCount?: number;
+		/** Preview to show after retained full output availability is confirmed. */
+		fullOutputPreview?: string;
 	};
 	/** Stored theme colors at execution time to style detached output */
 	terminalTheme?: {
@@ -946,6 +954,7 @@ export namespace IChatToolInvocation {
 
 	interface IChatToolInvocationPostExecuteState extends IChatToolInvocationPostConfirmState {
 		resultDetails: IToolResult['toolResultDetails'];
+		resultError?: IToolResult['toolResultError'];
 	}
 
 	interface IChatToolWaitingForPostApprovalState extends IChatToolInvocationStateBase, IChatToolInvocationPostExecuteState {
@@ -1081,6 +1090,14 @@ export namespace IChatToolInvocation {
 		return undefined;
 	}
 
+	export function resultError(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): IToolResult['toolResultError'] {
+		if (invocation.kind === 'toolInvocationSerialized') {
+			return invocation.resultError;
+		}
+		const state = invocation.state.read(reader);
+		return state.type === StateKind.Completed || state.type === StateKind.WaitingForPostApproval ? state.resultError : undefined;
+	}
+
 	export function isComplete(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
 		if (invocation.kind === 'toolInvocationSerialized') {
 			return true; // always cancelled or complete
@@ -1161,12 +1178,13 @@ export interface IChatToolInvocationSerialized {
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetailsSerialized;
+	resultError?: IToolResult['toolResultError'];
 	/** boolean used by pre-1.104 versions */
 	isConfirmed: ConfirmedReason | boolean | undefined;
 	isComplete: boolean;
 	toolCallId: string;
 	toolId: string;
-	readonly icon?: undefined;
+	readonly icon?: ThemeIcon;
 	source: ToolDataSource | undefined; // undefined on pre-1.104 versions
 	readonly subAgentInvocationId?: string;
 	generatedTitle?: string;
@@ -1456,8 +1474,9 @@ export interface IChatMcpAuthenticationRequiredServer {
  * starts being received, or the turn ends — whichever happens first.
  *
  * Unlike {@link IChatMcpServersStarting} (used by the in-process MCP autostart
- * flow), this is a lightweight progress hint with no interactive affordance
- * (there is no "Skip" button).
+ * flow), this is a lightweight progress hint. A server that is blocking
+ * message processing may provide an action to continue its startup in the
+ * background.
  */
 export interface IChatMcpServersStartingSlow {
 	readonly kind: 'mcpServersStartingSlow';
@@ -1468,6 +1487,8 @@ export interface IChatMcpServersStartingSlow {
 export interface IChatMcpStartingServer {
 	readonly id: string;
 	readonly name: string;
+	readonly blocking?: boolean;
+	readonly background?: () => Promise<void>;
 }
 
 export interface IChatDisabledClaudeHooksPart {
@@ -1949,6 +1970,8 @@ export interface IRemotePendingRequest {
 }
 
 export interface IChatSendRequestOptions {
+	/** UI-only observation of this send's response and dispatch outcome. Queued/rejected sends have no response. Not persisted or sent to an agent. */
+	onDidCreateResponse?: (response: IChatResponseModel | undefined, kind?: ChatSendResult['kind']) => void;
 	modeInfo?: IChatRequestModeInfo;
 	isVoiceModeInput?: boolean;
 	userSelectedModelId?: string;
@@ -2177,7 +2200,8 @@ export interface IChatService {
 	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>;
 	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: IChatQuestionAnswers | undefined): void;
 
-	readonly onDidDisposeSession: Event<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>;
+	/** Fires on model unload (`disposed`) or explicit session deletion (`cleared`). Unload does not delete persisted history. */
+	readonly onDidDisposeSession: Event<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>;
 
 	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;
 
