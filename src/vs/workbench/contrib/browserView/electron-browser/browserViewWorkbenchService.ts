@@ -75,6 +75,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	private readonly _browserViewService: IBrowserViewService;
 	private readonly _known = new Map<string, BrowserEditorInput>();
+	private readonly _pendingCreations = new Map<string, number>();
 	private readonly _contextualFilters = new Set<IBrowserViewContextualFilter>();
 	private readonly _openHandlers = new Set<IBrowserViewOpenHandler>();
 	private readonly _mainWindowId: number;
@@ -189,6 +190,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this._register(this._browserViewService.onDidCreateBrowserView(e => {
 			if (e.info.host.windowId !== this._mainWindowId) {
 				return; // Not for this window
+			}
+
+			if (this._pendingCreations.has(e.info.id) && !this._known.has(e.info.id)) {
+				return;
 			}
 
 			// Eagerly create the model from the state we already have
@@ -372,27 +377,38 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		const { id, associatedResource } = data;
 		if (!this._known.has(id)) {
 			const input = this.instantiationService.createInstance(BrowserEditorInput, data, async () => {
-				const info = await this._browserViewService.getOrCreateBrowserView(
-					id,
-					{
-						host: {
-							windowId: this._mainWindowId
-						},
-						owner: createOptions?.owner ?? { type: 'user' },
-						associatedResource,
-						session: createOptions?.session ?? { scope: await this._resolveStorageScope() },
-						initialAudiences: createOptions?.initialAudiences,
-						initialUrl: createOptions ? createOptions.initialUrl : data.url,
-						openSource: createOptions?.openSource
+				this._pendingCreations.set(id, (this._pendingCreations.get(id) ?? 0) + 1);
+				try {
+					const info = await this._browserViewService.getOrCreateBrowserView(
+						id,
+						{
+							host: {
+								windowId: this._mainWindowId
+							},
+							owner: createOptions?.owner ?? { type: 'user' },
+							associatedResource,
+							session: createOptions?.session ?? { scope: await this._resolveStorageScope() },
+							initialAudiences: createOptions?.initialAudiences,
+							initialUrl: createOptions ? createOptions.initialUrl : data.url,
+							openSource: createOptions?.openSource
+						}
+					);
+					// A replacement input may now own the same native view.
+					if (input.isDisposed()) {
+						if (!this._known.has(id)) {
+							await this._browserViewService.destroyBrowserView(id);
+						}
+						throw new CancellationError();
 					}
-				);
-				// The creation event can resolve the model before this reply. Closing it
-				// in the meantime must not recreate the input and its subscriptions.
-				if (input.isDisposed()) {
-					await this._browserViewService.destroyBrowserView(id);
-					throw new CancellationError();
+					return this._createModel(info);
+				} finally {
+					const remaining = this._pendingCreations.get(id)! - 1;
+					if (remaining) {
+						this._pendingCreations.set(id, remaining);
+					} else {
+						this._pendingCreations.delete(id);
+					}
 				}
-				return this._createModel(info);
 			});
 			Event.once(input.onWillDispose)(() => {
 				this._known.delete(id);

@@ -27,10 +27,11 @@ import { BrowserViewWorkbenchService } from '../../electron-browser/browserViewW
 suite('BrowserViewWorkbenchService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService() {
+	function createService(replacementReply?: DeferredPromise<IBrowserViewInfo>) {
 		const created = disposables.add(new Emitter<IBrowserViewCreatedEvent>());
 		const closed = disposables.add(new Emitter<void>());
 		const requested = new DeferredPromise<void>();
+		const replacementRequested = new DeferredPromise<void>();
 		const reply = new DeferredPromise<IBrowserViewInfo>();
 		const destroyed: string[] = [];
 		const channel: IChannel = {
@@ -40,6 +41,10 @@ suite('BrowserViewWorkbenchService', () => {
 					case 'getBrowserViews': return [] as T;
 					case 'updateWindowConfiguration': return undefined as T;
 					case 'getOrCreateBrowserView':
+						if (requested.isSettled && replacementReply) {
+							void replacementRequested.complete();
+							return await replacementReply.p as T;
+						}
 						void requested.complete();
 						return await reply.p as T;
 					case 'destroyBrowserView':
@@ -80,7 +85,7 @@ suite('BrowserViewWorkbenchService', () => {
 		};
 		// Also clean up any unexpectedly resurrected input when a regression fails.
 		disposables.add({ dispose: () => { for (const input of service.getKnownBrowserViews().values()) { input.dispose(); } } });
-		return { service, created, requested, reply, destroyed, info };
+		return { service, created, requested, replacementRequested, reply, destroyed, info };
 	}
 
 	test('does not recreate a closed browser when its creation reply arrives', async () => {
@@ -102,6 +107,7 @@ suite('BrowserViewWorkbenchService', () => {
 		await requested.p;
 		input.dispose();
 		created.fire({ info });
+		assert.strictEqual(service.getKnownBrowserViews().size, 0);
 		await reply.complete(info);
 		await assert.rejects(resolution, isCancellationError);
 		assert.deepStrictEqual({ known: service.getKnownBrowserViews().size, released: destroyed.includes(info.id) }, { known: 0, released: true });
@@ -139,6 +145,36 @@ suite('BrowserViewWorkbenchService', () => {
 			}, { inputPreserved: true, modelPreserved: true, destroyed: [] });
 			input.dispose();
 			assert.deepStrictEqual({ known: service.getKnownBrowserViews().size, destroyed }, { known: 0, destroyed: [info.id] });
+		});
+	}
+
+	for (const oldReplyFirst of [false, true]) {
+		test(`preserves a reopened input with the same ID (old reply first: ${oldReplyFirst})`, async () => {
+			const replacementReply = new DeferredPromise<IBrowserViewInfo>();
+			const { service, created, requested, replacementRequested, reply, info, destroyed } = createService(replacementReply);
+			const oldInput = service.getOrCreateLazy({ id: info.id });
+			const oldResolution = oldInput.resolve();
+			await requested.p;
+			oldInput.dispose();
+			const replacement = service.getOrCreateLazy({ id: info.id });
+			const replacementResolution = replacement.resolve();
+			await replacementRequested.p;
+			created.fire({ info });
+			if (oldReplyFirst) {
+				await reply.complete(info);
+				await assert.rejects(oldResolution, isCancellationError);
+			}
+			await replacementReply.complete(info);
+			const model = await replacementResolution;
+			if (!oldReplyFirst) {
+				await reply.complete(info);
+				await assert.rejects(oldResolution, isCancellationError);
+			}
+			assert.deepStrictEqual({
+				inputPreserved: service.getKnownBrowserViews().get(info.id) === replacement,
+				modelPreserved: replacement.model === model,
+				destroyed
+			}, { inputPreserved: true, modelPreserved: true, destroyed: [] });
 		});
 	}
 
