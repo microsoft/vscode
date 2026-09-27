@@ -630,11 +630,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.configurationResource.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
-		const sandboxConfig = () => {
+		const sandboxConfig = async (session: CopilotSessionWrapper['session']) => {
 			if (!managedSettingsResolved) {
 				this._logService.error(`[Copilot:${plan.sessionId}] Copilot runtime did not report its resolved managed settings; continuing with available sandbox configuration`);
 			}
-			return this._computeSandboxConfig(runtime.configurationResource.toString());
+			const owner = runtime.configurationResource.toString();
+			const config = this._computeSandboxConfig(owner);
+			await applySandboxConfig(session, config, plan.sessionId, this._logService);
+			this._configurationService.setSessionSandboxEnabled(owner, config.enabled);
 		};
 		if (plan.kind === 'create') {
 			return this._createSession(plan, config, sandboxConfig);
@@ -707,7 +710,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return this._otelService.withTraceContext(this._otelService.getSessionTraceContext(sessionId, sessionUri), fn);
 	}
 
-	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: () => SandboxConfig): Promise<CopilotSessionWrapper> {
+	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>): Promise<CopilotSessionWrapper> {
 		const raw = await this._withTraceContext(plan.sessionId, () => plan.client.createSession({
 			...config,
 			sessionId: plan.sessionId,
@@ -721,10 +724,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.model?.id);
 	}
 
-	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: () => SandboxConfig, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
+	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
 		try {
 			await this._applyScriptSafety(raw, sessionId);
-			await applySandboxConfig(raw, sandboxConfig(), sessionId, this._logService);
+			await sandboxConfig(raw);
 		} catch (err) {
 			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
 			// to disconnect it here or the runtime keeps an orphaned session alive.
@@ -960,10 +963,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onEvent: event => {
 				const owner = runtime.configurationResource.toString();
 				if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
-					this._configurationService.setSessionSandboxPolicy(owner, projectCopilotSandboxPolicy(event.data));
+					this._configurationService.setSessionSandboxPolicy(owner, projectCopilotSandboxPolicy(event.data, plan.sessionId, this._logService));
 					onManagedSettingsResolved();
 				} else if (event.type === 'session.managed_settings_enforced' && event.data.setting === 'sandbox.enabled') {
-					this._configurationService.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false });
+					this._configurationService.setSessionSandboxPolicy(owner, {
+						...this._configurationService.getSessionSandboxPolicy(owner),
+						enabled: true,
+						allowBypass: false,
+					});
 				}
 			},
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,

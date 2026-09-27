@@ -42,7 +42,7 @@ import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentPendingMessageSender, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
@@ -62,7 +62,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
-import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
@@ -897,9 +897,12 @@ export class CopilotAgentSession extends Disposable {
 		reported: boolean;
 	}>();
 	/** Pending permission requests awaiting a renderer-side decision. */
-	private readonly _pendingPermissions = new PendingRequestRegistry<PermissionRequestResult, {
+	private readonly _pendingPermissions = new PendingRequestRegistry<PermissionRequestResult | { kind: 'disable-sandbox'; context: IAgentPermissionResponseContext }, {
 		readonly managedApprovalRequired: boolean;
+		readonly sdkSandboxBypass?: boolean;
 	}>();
+	private readonly _sandboxBypassRequests = new Map<string, string>();
+	private _sandboxDisabledForSession = false;
 	/** Cancels callbacks that began before or during an SDK abort. */
 	private readonly _abortCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	/** Delays cancelled callbacks until the SDK abort settles or the session is disposed. */
@@ -4246,6 +4249,7 @@ export class CopilotAgentSession extends Disposable {
 	private async _handlePermissionRequest(
 		request: PermissionRequest,
 	): Promise<PermissionRequestResult> {
+		let sandboxRequestId: string | undefined;
 		try {
 			const abortToken = this._abortToken;
 			const toolCallId = request.toolCallId;
@@ -4394,7 +4398,7 @@ export class CopilotAgentSession extends Disposable {
 
 			this._logService.info(`[Copilot:${this.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
 
-			const pendingPermission = this._pendingPermissions.register(toolCallId, { managedApprovalRequired });
+			const pendingPermission = this._pendingPermissions.register(toolCallId, { managedApprovalRequired, sdkSandboxBypass: requestSandboxBypass === true });
 
 			// Auto-approve shell commands that run sandboxed by default, since the
 			// sandbox already contains them. Commands that opted OUT of the sandbox
@@ -4449,6 +4453,7 @@ export class CopilotAgentSession extends Disposable {
 			// parent session, which has no matching ChatToolCallStart.
 			const trackedToolCall = this._activeToolCalls.get(toolCallId);
 			const parentToolCallId = trackedToolCall?.parentToolCallId;
+			sandboxRequestId = this._sandboxBypassRequests.get(toolCallId);
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
 				chat: this._chatChannelUri,
@@ -4479,11 +4484,15 @@ export class CopilotAgentSession extends Disposable {
 				permissionPath,
 				managedApprovalRequired,
 				requestSandboxBypass,
+				canAllowSessionSandboxBypass: requestSandboxBypass === true && sandboxRequestId !== undefined && this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString())?.allowBypass !== false,
 				shellLanguage,
 				parentToolCallId,
 			});
 
 			const result = await pendingPermission;
+			if (result.kind === 'disable-sandbox') {
+				return await this._disableSandboxForPendingRequest(toolCallId, sandboxRequestId, result.context, abortToken);
+			}
 			this._logService.info(`[Copilot:${this.sessionId}] Permission response: toolCallId=${toolCallId}, result=${result.kind}`);
 			if (!abortToken.isCancellationRequested && !managedApprovalRequired && result.kind === 'approve-once' && (request.kind === 'write' || request.kind === 'read' || request.kind === 'shell')) {
 				this._approvedDuplicablePermissionSignatures.set(toolCallId, safeStringify(request));
@@ -4492,6 +4501,37 @@ export class CopilotAgentSession extends Disposable {
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to handle permission request: kind=${request.kind}, toolCallId=${request.toolCallId ?? 'missing'}`);
 			throw error;
+		} finally {
+			if (request.toolCallId && this._sandboxBypassRequests.get(request.toolCallId) === sandboxRequestId) {
+				this._sandboxBypassRequests.delete(request.toolCallId);
+			}
+		}
+	}
+
+	private async _disableSandboxForPendingRequest(toolCallId: string, requestId: string | undefined, context: IAgentPermissionResponseContext, token: CancellationToken): Promise<PermissionRequestResult> {
+		const owner = this._ownerSessionUri.toString();
+		let enabled = this._configurationService.getSessionSandboxEnabled(owner) ?? true;
+		let resolved = false;
+		try {
+			await this._sandboxConfigSequencer.queue(async () => {
+				if (token.isCancellationRequested || !requestId || this._sandboxBypassRequests.get(toolCallId) !== requestId) {
+					throw new Error('Sandbox bypass permission request is no longer pending');
+				}
+				const result = await this._wrapper.session.rpc.sandbox.disableForSession({ requestId });
+				resolved = result.success;
+				enabled = result.enabled;
+				if (!result.success || result.enabled) {
+					throw new Error('Copilot SDK did not disable sandboxing for this session');
+				}
+				this._sandboxDisabledForSession = true;
+				this._configurationService.setSessionSandboxEnabled(owner, result.enabled);
+				this._configurationService.updateSessionConfig(owner, { [SessionConfigKey.SandboxEnabled]: 'off' });
+			});
+			return { kind: 'no-result' };
+		} catch (error) {
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to disable sandboxing from a permission request`);
+			this._configurationService.setSessionSandboxEnabled(owner, enabled, context.origin && { ...context.origin, message: getErrorMessage(error) });
+			return resolved ? { kind: 'no-result' } : { kind: 'reject' };
 		}
 	}
 
@@ -4650,7 +4690,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			if (Object.hasOwn(event.config, SessionConfigKey.AutoApprove) || Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled)) {
-				void this._syncPermissionModeAfterConfigChange();
+				void this._syncPermissionModeAfterConfigChange(event);
 			}
 			if (Object.hasOwn(event.config, SessionConfigKey.ShellInitScripts)) {
 				void this._syncShellInitScript();
@@ -4670,14 +4710,20 @@ export class CopilotAgentSession extends Disposable {
 		return this._shellInitScriptSequencer.queue(() => this._clearShellInitScript());
 	}
 
-	private async _syncPermissionModeAfterConfigChange(): Promise<void> {
+	private async _syncPermissionModeAfterConfigChange(event?: IAgentSessionConfigurationChangeEvent): Promise<void> {
+		const owner = this._ownerSessionUri.toString();
+		const values = this._configurationService.getSessionConfigValues(owner);
 		try {
 			if (this.hasActiveTurn) {
 				await this.syncPermissionMode('config-change');
 			}
-			await this._applyEffectiveSandboxConfig(true);
+			const requestDisable = !!event?.origin && event.config[SessionConfigKey.SandboxEnabled] === 'off';
+			await this._applyEffectiveSandboxConfig(true, requestDisable);
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply permission config change${this.hasActiveTurn ? '; aborting active turn' : ''}`);
+			if (event?.origin && Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled)) {
+				this._configurationService.rejectSessionSandboxChange(owner, values, event.origin, getErrorMessage(error));
+			}
 			if (!this.hasActiveTurn) {
 				return;
 			}
@@ -4733,15 +4779,24 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Apply the SDK sandbox policy before a request or after configuration changes, including while idle.
 	 */
-	private async _applyEffectiveSandboxConfig(failOnError = true): Promise<void> {
-		return this._sandboxConfigSequencer.queue(() => this._updateEffectiveSandboxConfig(failOnError));
+	private async _applyEffectiveSandboxConfig(failOnError = true, requestDisable = false): Promise<void> {
+		return this._sandboxConfigSequencer.queue(() => this._updateEffectiveSandboxConfig(failOnError, requestDisable));
 	}
 
-	private async _updateEffectiveSandboxConfig(failOnError: boolean): Promise<void> {
+	private async _updateEffectiveSandboxConfig(failOnError: boolean, requestDisable: boolean): Promise<void> {
 		const base = this._computeSdkSandboxConfig();
-		const sandboxConfig: SandboxConfig = base ?? { enabled: false };
+		if (!base && this._sandboxDisabledForSession) {
+			// disableForSession already applied the opt-out. A bare disabled
+			// options.update does not preserve the runtime's managed sandbox floor.
+			return;
+		}
+		const sandboxConfig: SandboxConfig = requestDisable && this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString())?.failClosed
+			? { enabled: false }
+			: base ?? { enabled: false };
 		try {
 			await applySandboxConfig(this._wrapper.session, sandboxConfig, this.sessionId, this._logService);
+			this._sandboxDisabledForSession = false;
+			this._configurationService.setSessionSandboxEnabled(this._ownerSessionUri.toString(), sandboxConfig.enabled);
 		} catch (err) {
 			if (failOnError) {
 				throw err;
@@ -4913,8 +4968,12 @@ export class CopilotAgentSession extends Disposable {
 		return { items: [edit] };
 	}
 
-	respondToPermissionRequest(requestId: string, approved: boolean): boolean {
-		if (this._pendingPermissions.respond(requestId, approved ? { kind: 'approve-once' } : USER_DENIED_PERMISSION_RESULT)) {
+	respondToPermissionRequest(requestId: string, approved: boolean, context?: IAgentPermissionResponseContext): boolean {
+		const metadata = this._pendingPermissions.getMetadata(requestId);
+		const result = approved && context?.selectedOptionId === 'allow-session' && metadata?.sdkSandboxBypass && !metadata.managedApprovalRequired
+			? { kind: 'disable-sandbox', context } as const
+			: approved ? { kind: 'approve-once' } as const : USER_DENIED_PERMISSION_RESULT;
+		if (this._pendingPermissions.respond(requestId, result)) {
 			this._deletePendingEditContent(requestId);
 			return true;
 		}
@@ -5632,6 +5691,9 @@ export class CopilotAgentSession extends Disposable {
 			this._recordAutoApproval(toolCallId, e.data.promptRequest?.assistedApproval);
 			const existing = this._toolApprovalRecords.get(toolCallId);
 			const permissionRequest = e.data.permissionRequest as { requestSandboxBypass?: boolean; toolName?: string };
+			if (permissionRequest.requestSandboxBypass && !e.data.resolvedByHook) {
+				this._sandboxBypassRequests.set(toolCallId, e.data.requestId);
+			}
 			this._toolApprovalRecords.set(toolCallId, {
 				permissionRequested: true,
 				resolvedByHook: existing?.resolvedByHook || e.data.resolvedByHook === true,
@@ -5647,6 +5709,9 @@ export class CopilotAgentSession extends Disposable {
 			const toolCallId = e.data.toolCallId;
 			if (!toolCallId) {
 				return;
+			}
+			if (this._sandboxBypassRequests.get(toolCallId) === e.data.requestId) {
+				this._sandboxBypassRequests.delete(toolCallId);
 			}
 			const existing = this._toolApprovalRecords.get(toolCallId);
 			const record = {
@@ -7946,6 +8011,7 @@ export class CopilotAgentSession extends Disposable {
 			this._deletePendingEditContent(toolCallId);
 		}
 		this._pendingPermissions.denyAll({ kind: 'reject' });
+		this._sandboxBypassRequests.clear();
 		this._approvedDuplicablePermissionSignatures.clear();
 	}
 

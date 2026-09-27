@@ -5357,6 +5357,9 @@ suite('AgentSideEffects', () => {
 
 		test('tool_ready for an additional chat is emitted on that chat channel', async () => {
 			setupSession();
+			const responses: Parameters<IAgent['respondToPermissionRequest']>[] = [];
+			const provider: IAgent = agent;
+			provider.respondToPermissionRequest = (...args) => { responses.push(args); };
 			const chatUri = buildChatUri(sessionUri.toString(), 'peer');
 			stateManager.addChat(sessionUri.toString(), chatUri);
 			stateManager.setSessionConfig(sessionUri.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Permissions]: { allow: [], deny: [] } } });
@@ -5415,10 +5418,10 @@ suite('AgentSideEffects', () => {
 				approved: true,
 				confirmed: 'user-action' as const,
 				selectedOptionId: 'allow-session',
-			} as ChatAction);
+			} as ChatAction, 'test-client', undefined, undefined, false, 7);
 
-			assert.deepStrictEqual(agent.respondToPermissionCalls, [
-				{ requestId: 'tc-peer-perm', approved: true },
+			assert.deepStrictEqual(responses, [
+				['tc-peer-perm', true, { selectedOptionId: 'allow-session', origin: { clientId: 'test-client', clientSeq: 7 } }],
 			]);
 			assert.deepStrictEqual(stateManager.getSessionState(sessionUri.toString())?.config?.values[SessionConfigKey.Permissions], { allow: ['write'], deny: [] });
 		});

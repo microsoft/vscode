@@ -43,6 +43,7 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/ag
 import { IChatWidget } from '../../../browser/chat.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -50,6 +51,8 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
+import { withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -98,7 +101,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		return { container, widget };
 	}
 
-	function setup(combined = true, getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo> = async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] })) {
+	function setup(combined = true, getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo> = async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] }), remoteAuthority?: string) {
 		const configuration = new class extends TestConfigurationService {
 			policyRestricted = false;
 			override inspect<T>(key: string): IConfigurationValue<T> {
@@ -231,6 +234,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const managedSandboxAllowsBypass = observableValue('managedSandboxAllowsBypass', false);
 		instantiationService.stub(IAgentHostEnablementService, { managedSandboxEnforced, managedSandboxAllowsBypass });
 		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
+		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority });
 		const modePicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.Mode));
 		const permissionPicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.AutoApprove));
 		const sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });
@@ -243,23 +247,26 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		modePicker.render(modeContainer);
 		permissionPicker.render(permissionContainer);
 		const sandboxReady = () => Promise.all([modePicker['_hostOperatingSystemRequest'], permissionPicker['_hostOperatingSystemRequest']]);
-		const setSession = (sessionResource: URI, backendSession: URI, host: IAgentConnection) => {
+		const setSession = (sessionResource: URI, backendSession: URI, host: IAgentConnection, provider = backendSession.scheme) => {
 			sessionResolutions.set(sessionResource.toString(), { connection: host, backendSession, connectionAuthority: 'test-host' });
 			widget.viewModel = new class extends mock<IChatViewModel>() {
 				override readonly sessionResource = sessionResource;
 			}();
+			const state = new class extends mock<SessionState>() {
+				override readonly provider = provider;
+				override readonly config = config;
+				override _meta: Record<string, unknown> | undefined;
+			}();
 			for (const picker of [modePicker, permissionPicker]) {
 				const sub = new class extends mock<IAgentSubscription<SessionState>>() {
-					override readonly value = new class extends mock<SessionState>() {
-						override readonly provider = backendSession.scheme;
-						override readonly config = config;
-					}();
+					override readonly value = state;
 				}();
 				picker['_initialResolved'] = undefined;
 				picker['_subRef'].value = Object.assign(toDisposable(() => { }), {
 					sessionResource, backendSession, connection: host, generation: picker['_sessionGeneration'], sub,
 				});
 			}
+			return state;
 		};
 		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, instantiationService, branchCompletionQueries, branchCompletionItems, dispatches, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
 	}
@@ -397,17 +404,58 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	});
 
-	test('preserves managed sandbox enforcement and session overrides for remote Copilot', async () => {
-		const { permissionPicker, sandboxReady, setSession, config, managedSandboxEnforced, managedSandboxAllowsBypass } = setup(false);
+	test('uses local managed policy until host sandbox policy arrives', async () => {
+		const { permissionPicker, sandboxReady, setSession, config, actionWidget, managedSandboxEnforced, managedSandboxAllowsBypass, instantiationService, widget, dispatches } = setup(false);
 		await sandboxReady();
-		const remote = createRemoteConnection(async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] }));
-		setSession(URI.from({ scheme: remoteAgentHostSessionTypeId('test-host', 'copilotcli'), path: '/session' }), URI.parse('copilotcli:/session'), remote);
+		config.values[SessionConfigKey.SandboxEnabled] = 'off';
+		const read = () => {
+			const toggle = permissionPicker['_getSandboxStandaloneToggle']()!;
+			return { checked: toggle.checked, disabled: toggle.disabled };
+		};
+		managedSandboxEnforced.set(true, undefined);
+		const draft = read();
+		managedSandboxAllowsBypass.set(true, undefined);
+		const bypassAllowed = read();
+		managedSandboxAllowsBypass.set(false, undefined);
+		const resource = widget.viewModel!.sessionResource;
+		const state = setSession(resource, toAgentHostBackendSessionUri(resource)!, instantiationService.get(IAgentHostService));
+		const running = read();
+		await permissionPicker['_showPicker'](dom.$('div'));
+		const toggle = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;
+		toggle.onChange(false);
+		state._meta = withSessionSandboxPolicy(undefined, { enabled: false });
+		permissionPicker['_sandboxConfigChanged'].trigger(undefined);
+		const published = read();
+		actionWidget.hide();
+		assert.deepStrictEqual({ draft, bypassAllowed, running, published, dispatches }, {
+			draft: { checked: true, disabled: true },
+			bypassAllowed: { checked: true, disabled: true },
+			running: { checked: true, disabled: true },
+			published: { checked: false, disabled: false },
+			dispatches: [],
+		});
+	});
+
+	test('does not use renderer sandbox policy for the ambient host in a remote window', async () => {
+		const { permissionPicker, sandboxReady, config, managedSandboxEnforced } = setup(false, undefined, 'ssh-remote+test');
+		await sandboxReady();
 		config.values[SessionConfigKey.SandboxEnabled] = 'off';
 		managedSandboxEnforced.set(true, undefined);
+		const toggle = permissionPicker['_getSandboxStandaloneToggle']()!;
+		assert.deepStrictEqual({ checked: toggle.checked, disabled: toggle.disabled }, { checked: false, disabled: false });
+	});
+
+	test('preserves managed sandbox enforcement and session overrides for remote Copilot', async () => {
+		const { permissionPicker, sandboxReady, setSession, config } = setup(false);
+		await sandboxReady();
+		const remote = createRemoteConnection(async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] }));
+		const state = setSession(URI.from({ scheme: remoteAgentHostSessionTypeId('test-host', 'copilotcli'), path: '/session' }), URI.parse('ahp://remote/session/123'), remote, 'copilotcli');
+		config.values[SessionConfigKey.SandboxEnabled] = 'off';
+		state._meta = withSessionSandboxPolicy(undefined, { enabled: true });
 		const required = permissionPicker['_getSandboxStandaloneToggle']()!;
 		required.onChange(false);
 		const requiredState = { checked: required.checked, disabled: required.disabled, writes: remote.writes.length };
-		managedSandboxAllowsBypass.set(true, undefined);
+		state._meta = withSessionSandboxPolicy(undefined, { enabled: true, allowBypass: true });
 		const optional = permissionPicker['_getSandboxStandaloneToggle']()!;
 		const optionalState = { checked: optional.checked, disabled: optional.disabled };
 		config.values[SessionConfigKey.SandboxEnabled] = 'on';
@@ -418,8 +466,61 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			sessionEnabled: permissionPicker['_getSandboxStandaloneToggle']()?.checked,
 		}, {
 			requiredState: { checked: true, disabled: true, writes: 0 },
-			optionalState: { checked: false, disabled: false },
+			optionalState: { checked: true, disabled: true },
 			sessionEnabled: true,
+		});
+
+	});
+
+	test('uses host-confirmed sandbox defaults while preserving optimistic session choices', async () => {
+		const { permissionPicker, sandboxReady, setSession, config, configuration, widget, instantiationService } = setup(false);
+		await sandboxReady();
+		const resource = widget.viewModel!.sessionResource;
+		const state = setSession(resource, toAgentHostBackendSessionUri(resource)!, instantiationService.get(IAgentHostService));
+		await configuration.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'off');
+		delete config.values[SessionConfigKey.SandboxEnabled];
+		state._meta = withSessionSandboxState(undefined, { enabled: true });
+		const confirmed = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
+		config.values[SessionConfigKey.SandboxEnabled] = 'off';
+		const optimistic = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
+		config.values[SessionConfigKey.SandboxEnabled] = 'on';
+		const restored = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
+		assert.deepStrictEqual({ confirmed, optimistic, restored }, { confirmed: true, optimistic: false, restored: true });
+	});
+
+	test('remote sandbox policy updates the open picker and does not leak across hosts', async () => {
+		const { permissionPicker, sandboxReady, setSession, config, actionWidget, managedSandboxEnforced } = setup(false);
+		await sandboxReady();
+		const remote = createRemoteConnection(async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] }));
+		const state = setSession(URI.from({ scheme: remoteAgentHostSessionTypeId('first', 'copilotcli'), path: '/session' }), URI.parse('ahp://first/session/1'), remote, 'copilotcli');
+		config.values[SessionConfigKey.SandboxEnabled] = 'off';
+		managedSandboxEnforced.set(true, undefined);
+		const withoutMetadata = permissionPicker['_getSandboxStandaloneToggle']()!.disabled;
+		await sandboxReady();
+		await permissionPicker['_showPicker'](dom.$('div'));
+		const staleToggle = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;
+		state._meta = withSessionSandboxPolicy(undefined, { enabled: true, allowBypass: false });
+		permissionPicker['_sandboxConfigChanged'].trigger(undefined);
+		staleToggle.onChange(true);
+		const required = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;
+		const enforced = { checked: required.checked, disabled: required.disabled, title: required.title };
+		state._meta = withSessionSandboxPolicy(undefined, { enabled: false });
+		permissionPicker['_sandboxConfigChanged'].trigger(undefined);
+		const removed = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;
+		actionWidget.hide();
+		setSession(URI.from({ scheme: remoteAgentHostSessionTypeId('second', 'copilotcli'), path: '/session' }), URI.parse('ahp://second/session/1'), remote, 'copilotcli');
+		assert.deepStrictEqual({
+			withoutMetadata,
+			enforced,
+			removed: { checked: removed.checked, disabled: removed.disabled },
+			otherHost: permissionPicker['_getSandboxStandaloneToggle']()!.disabled,
+			writes: remote.writes,
+		}, {
+			withoutMetadata: false,
+			enforced: { checked: true, disabled: true, title: 'Sandboxing is required by your organization' },
+			removed: { checked: false, disabled: false },
+			otherHost: false,
+			writes: [],
 		});
 	});
 
@@ -1302,6 +1403,9 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 					return backendSession ? { connection, backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined;
 				}
 			}(),
+			new class extends mock<IWorkbenchEnvironmentService>() {
+				override readonly remoteAuthority = undefined;
+			}(),
 		));
 		widget.viewModel = new class extends mock<IChatViewModel>() {
 			override readonly sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });
@@ -1322,6 +1426,23 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 
 		picker['_getSandboxSettingId']();
 		await picker['_hostOperatingSystemRequest'];
+		const sessionConfig = picker['_initialResolved'].result;
+		const state = new class extends mock<SessionState>() {
+			override readonly provider = 'copilotcli';
+			override readonly config = sessionConfig;
+			override get _meta() {
+				return withSessionSandboxPolicy(undefined, { enabled: managedSandboxEnforced.get(), allowBypass });
+			}
+		}();
+		picker['_subRef'].value = Object.assign(toDisposable(() => { }), {
+			sessionResource: widget.viewModel.sessionResource,
+			backendSession: URI.parse('copilotcli:/test-session'),
+			connection,
+			generation: picker['_sessionGeneration'],
+			sub: new class extends mock<IAgentSubscription<SessionState>>() {
+				override readonly value = state;
+			}(),
+		});
 		for (const managed of [false, true]) {
 			managedSandboxEnforced.set(managed, undefined);
 			for (const bypass of [undefined, false, true]) {
@@ -1333,12 +1454,12 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 					writes.length = 0;
 					toggle.onChange(false);
 					toggle.onChange(true);
-					const disabled = managed && bypass !== true;
+					const disabled = managed;
 					assert.deepStrictEqual({ checked: toggle.checked, disabled: toggle.disabled, title: toggle.title, writes }, {
 						checked: true,
 						disabled,
 						title: managed
-							? disabled ? 'Sandboxing is required by your organization' : 'Sandboxing is enabled by your organization, but you may disable it'
+							? 'Sandboxing is required by your organization'
 							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.',
 						writes: disabled ? [] : (managed || configured === AgentSandboxEnabledValue.On ? ['off', 'on'] : ['on']).map(value => ({
 							channel: 'copilotcli:/test-session', action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: value } },
@@ -1348,7 +1469,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			}
 		}
 
-		const sessionConfig = picker['_initialResolved'].result;
+		managedSandboxEnforced.set(false, undefined);
 		sessionConfig.values[SessionConfigKey.SandboxEnabled] = 'off';
 		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.checked, false);
 		sessionConfig.values[SessionConfigKey.SandboxEnabled] = 'on';
@@ -1357,6 +1478,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		delete sessionConfig.values[SessionConfigKey.SandboxEnabled];
 
 		const toggle = picker['_getSandboxStandaloneToggle']()!;
+		managedSandboxEnforced.set(true, undefined);
 		allowBypass = false;
 		managedSettingsChanged.fire();
 		writes.length = 0;
@@ -1364,7 +1486,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		assert.deepStrictEqual({ writes, disabled: picker['_getSandboxStandaloneToggle']()!.disabled }, { writes: [], disabled: true });
 		allowBypass = true;
 		managedSettingsChanged.fire();
-		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.disabled, false);
+		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.disabled, true);
 
 		allowBypass = false;
 		managedSettingsChanged.fire();
@@ -1384,9 +1506,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		managedSettingsChanged.fire();
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
-			{ disabled: false, title: 'Sandboxing is enabled by your organization, but you may disable it' },
 			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.' },
-			{ disabled: false, title: 'Sandboxing is enabled by your organization, but you may disable it' },
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
 		]);
 		delete sessionConfig.schema.properties[SessionConfigKey.SandboxEnabled];

@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -400,6 +400,66 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 			}]]),
 			suppressedTelemetry: new Map(),
 			activeSources: ['server'],
+		});
+	});
+
+	for (const key of [COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY]) {
+		test(`${key} is deny-wins across every channel combination`, () => {
+			const values = [undefined, false, true];
+			for (const native of values) {
+				for (const server of values) {
+					for (const file of values) {
+						const pick = pickManagedSettings(
+							native === undefined ? undefined : { [key]: native },
+							server === undefined ? undefined : { [key]: server },
+							file === undefined ? undefined : { [key]: file },
+						);
+						const denied = [native, server, file].includes(false);
+						assert.deepStrictEqual(pick.values[key], denied ? false : native ?? server ?? file, JSON.stringify({ native, server, file }));
+					}
+				}
+			}
+		});
+
+		test(`${key} reports the restrictive source and restores the remaining value after removal`, () => {
+			const pick = pickManagedSettings({ [key]: true }, { [key]: false }, { [key]: true });
+			assert.deepStrictEqual({
+				value: pick.values[key],
+				resolution: pick.resolutions.get(key),
+				activeSources: pick.activeSources,
+				removed: pickManagedSettings({ [key]: true }, undefined, { [key]: true }).values[key],
+				malformed: pickManagedSettings({ [key]: 'true' }, { [key]: false }, undefined).values[key],
+			}, {
+				value: false,
+				resolution: {
+					value: false,
+					source: 'server',
+					contributions: [
+						{ channel: 'nativeMdm', value: true },
+						{ channel: 'server', value: false },
+						{ channel: 'file', value: true },
+					],
+				},
+				activeSources: ['server'],
+				removed: true,
+				malformed: false,
+			});
+		});
+	}
+
+	test('outbound network access is projected from the canonical boolean managed setting', () => {
+		const project = (value: boolean | string) => projectManagedSettings(
+			normalizeManagedSettings({ sandbox: { userPolicy: { network: { allowOutbound: value } } } }),
+			MANAGED_SETTINGS_CONTROL_DEFINITIONS,
+		);
+		assert.deepStrictEqual({
+			denied: project(false),
+			allowed: project(true),
+			invalid: project('false'),
+		}, {
+			denied: { [COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY]: false },
+			allowed: { [COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY]: true },
+			invalid: {},
 		});
 	});
 
