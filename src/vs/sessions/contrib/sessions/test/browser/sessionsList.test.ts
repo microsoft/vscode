@@ -43,6 +43,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
@@ -1937,6 +1938,50 @@ suite('Sessions - SessionsList', () => {
 				onOpen,
 			},
 			updatedAt: createdSession.updatedAt.get(),
+		});
+	});
+
+	test('remote session hover shows the remote name after the session type', () => {
+		const localSession = createSession('Fix remote reconnection', { workspaceLabel: 'Workspace' });
+		const remoteSession: ISession = {
+			...localSession,
+			remoteConnectionStatus: constObservable({ kind: 'connected' }),
+		};
+		const provider = upcastPartial<ISessionsProvider>({
+			label: 'Remote Mac',
+			sessionTypes: [upcastPartial({ id: 'test', label: 'Copilot CLI' })],
+		});
+		const providersService = upcastPartial<ISessionsProvidersService>({
+			getProvider: () => provider,
+		});
+		const createHoverData = (session: ISession) => getSessionSummaryHoverData(
+			session,
+			providersService,
+			upcastPartial<IOpenerService>({}),
+			upcastPartial<ILabelService>({}),
+			upcastPartial<IPreferencesService>({}),
+		);
+		const remoteData = createHoverData(remoteSession);
+		const titleLine = new SessionSummaryHoverWidget(remoteData).domNode.querySelector('.session-summary-hover-title')?.textContent;
+		const disconnectedData = getSessionSummaryHoverData(
+			remoteSession,
+			upcastPartial<ISessionsProvidersService>({ getProvider: () => ({ ...provider, sessionTypes: [] }) }),
+			upcastPartial<IOpenerService>({}),
+			upcastPartial<ILabelService>({}),
+			upcastPartial<IPreferencesService>({}),
+		);
+		const disconnectedTitleLine = new SessionSummaryHoverWidget(disconnectedData).domNode.querySelector('.session-summary-hover-title')?.textContent;
+
+		assert.deepStrictEqual({
+			titleLine,
+			remoteName: remoteData.remoteName,
+			disconnectedTitleLine,
+			localRemoteName: createHoverData(localSession).remoteName,
+		}, {
+			titleLine: 'Fix remote reconnection · Copilot CLI · Remote Mac',
+			remoteName: 'Remote Mac',
+			disconnectedTitleLine: 'Fix remote reconnection · Remote Mac',
+			localRemoteName: undefined,
 		});
 	});
 
