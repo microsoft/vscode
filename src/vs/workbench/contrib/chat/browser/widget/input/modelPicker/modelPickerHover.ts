@@ -32,7 +32,7 @@ export interface IModelPickerHoverContent {
 export function getModelHoverContent(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	isUBB: boolean | undefined,
-	onConfigure: ((group: string) => void) | undefined,
+	onConfigure: ((group: string, fromKeyboard: boolean) => void) | undefined,
 	openerService: IOpenerService,
 ): IModelPickerHoverContent | undefined {
 	const isAuto = isAutoModel(model);
@@ -182,7 +182,7 @@ export function getModelHoverContent(
 					title: label,
 				}));
 				button.label = label;
-				disposables.add(button.onDidClick(() => onConfigure?.(group)));
+				disposables.add(button.onDidClick(e => onConfigure?.(group, dom.isKeyboardEvent(e))));
 			}
 			configRow.appendChild(buttonsContainer);
 			container.appendChild(configRow);

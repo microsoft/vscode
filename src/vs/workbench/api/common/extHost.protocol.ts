@@ -2076,6 +2076,7 @@ export interface SCMProviderFeatures {
 	actionButton?: SCMActionButtonDto | null;
 	statusBarCommands?: ICommandDto[];
 	contextValue?: string;
+	activeRepositoryName?: string | null;
 }
 
 export interface SCMActionButtonDto {
@@ -2755,6 +2756,7 @@ export interface IChatNotebookEditDto {
 	edits: ICellEditOperationDto[];
 	kind: 'notebookEdit';
 	done?: boolean;
+	autoTier?: IChatNotebookEdit['autoTier'];
 }
 
 export interface IChatResponseClearToPreviousToolInvocationDto {

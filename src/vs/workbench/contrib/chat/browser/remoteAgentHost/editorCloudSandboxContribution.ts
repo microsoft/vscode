@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { equalSets } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { derived, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent, observableFromPromise, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -16,10 +20,14 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IGitRepository, IGitService } from '../../../git/common/gitService.js';
+import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
+import { ISCMService } from '../../../scm/common/scm.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatSessionItemController, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -34,6 +42,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	readonly onDidChangeChatSessionItems = Event.None;
 
 	private readonly _discoveryRegistration = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _workspaceRepositories: IObservable<ReadonlySet<string> | undefined>;
 
 	constructor(
 		@ICloudSandboxAgentHostService cloudSandboxService: ICloudSandboxAgentHostService,
@@ -43,15 +52,78 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatSessionsService private readonly _editorChatSessionsService: IChatSessionsService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly _editorLogService: ILogService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IHostService hostService: IHostService,
 		@IStorageService storageService: IStorageService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IGitService private readonly _gitService: IGitService,
+		@ISCMService scmService: ISCMService,
 	) {
-		super(cloudSandboxService, apiService, remoteAgentHostService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, logService, chatEntitlementService, hostService, storageService);
+		super(cloudSandboxService, apiService, remoteAgentHostService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService);
+		const enabled = observableFromEvent(this, Event.any(configurationService.onDidChangeConfiguration, chatEntitlementService.onDidChangeSentiment), () => this._isEnabled());
+		const workspaceChanged = observableSignalFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders);
+		const repositoriesChanged = observableSignalFromEvent(this, Event.any(scmService.onDidAddRepository, scmService.onDidRemoveRepository));
+		const repositoryRoots = derived(this, reader => {
+			if (!enabled.read(reader)) {
+				return [];
+			}
+			workspaceChanged.read(reader);
+			repositoriesChanged.read(reader);
+			const folders = workspaceContextService.getWorkspace().folders;
+			const roots = Array.from(scmService.repositories).flatMap(repository => {
+				const root = repository.provider.rootUri;
+				return repository.provider.providerId === 'git' && root && folders.some(folder =>
+					extUriBiasedIgnorePathCase.isEqualOrParent(root, folder.uri) || extUriBiasedIgnorePathCase.isEqualOrParent(folder.uri, root))
+					? [{ root, key: repository }] : [];
+			});
+			const unresolvedFolders = folders.filter(folder => !roots.some(({ root }) =>
+				extUriBiasedIgnorePathCase.isEqualOrParent(root, folder.uri) || extUriBiasedIgnorePathCase.isEqualOrParent(folder.uri, root)));
+			return [
+				...roots,
+				...unresolvedFolders.map(folder => ({ root: folder.uri, key: extUriBiasedIgnorePathCase.getComparisonKey(folder.uri) })),
+			];
+		});
+		const repositories = mapObservableArrayCached(this, repositoryRoots,
+			({ root }) => observableFromPromise(this._resolveRepository(root)),
+			({ key }) => key);
+		this._workspaceRepositories = derivedOpts<ReadonlySet<string> | undefined>({
+			owner: this,
+			equalsFn: (a, b) => a === b || (a !== undefined && b !== undefined && equalSets(a, b)),
+		}, reader => {
+			workspaceChanged.read(reader);
+			if (workspaceContextService.getWorkspace().folders.length === 0) {
+				return undefined;
+			}
+			const names = new Set<string>();
+			for (const repository of repositories.read(reader)) {
+				for (const remote of repository.read(reader).value?.state.read(reader).remotes ?? []) {
+					const info = remote.fetchUrl ? getGitHubRepositoryFromRemoteUrl(remote.fetchUrl) : undefined;
+					if (info) {
+						names.add(`${info.owner}/${info.repo}`.toLowerCase());
+					}
+				}
+			}
+			return names;
+		});
 		this._updateRegistration();
+	}
+
+	private async _resolveRepository(root: URI): Promise<IGitRepository | undefined> {
+		try {
+			const repository = Array.from(this._gitService.repositories).find(repository => extUriBiasedIgnorePathCase.isEqual(repository.rootUri, root))
+				?? await this._gitService.openRepository(root);
+			if (repository && !extUriBiasedIgnorePathCase.isEqualOrParent(root, repository.rootUri)) {
+				this._editorLogService.warn('[CloudSandbox] Ignoring repository outside the requested workspace folder', root.toString(), repository.rootUri.toString());
+				return undefined;
+			}
+			return repository;
+		} catch (error) {
+			this._editorLogService.warn('[CloudSandbox] Failed to resolve workspace repository', root.toString(), error);
+			return undefined;
+		}
 	}
 
 	protected override _updateRegistration(): void {
@@ -66,6 +138,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				displayName: localize('cloudSandbox.discoveryName', "GitHub Sandboxes"),
 				description: localize('cloudSandbox.discoveryDescription', "Existing cloud sandbox sessions."),
 				sessionListGroup: SessionType.CopilotCloud,
+				hideFromSessionTypePicker: true,
 				when: ChatContextKeys.enabled.key,
 				canDelegate: false,
 				requiresCopilotSignIn: true,
@@ -80,7 +153,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 
 	protected override _createProvider(env: ICloudSandboxSessionEnvironment, store: DisposableStore): CloudSandboxSessionListController {
 		const address = cloudSandboxAddress(env.environmentId);
-		const provider = store.add(this._instantiationService.createInstance(CloudSandboxSessionListController, address));
+		const provider = store.add(this._instantiationService.createInstance(CloudSandboxSessionListController, address, this._workspaceRepositories));
 		store.add(this._connectionsService.registerSessionResolutionPolicy(agentHostAuthority(address), {
 			sessionSchemeAlias: { ui: CLOUD_SANDBOX_AGENT_PROVIDER, backend: CLOUD_SANDBOX_SESSION_SCHEME },
 			defaultChangesetKind: ChangesetKind.Session,
@@ -92,6 +165,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			displayName: localize('cloudSandbox.sessionName', "GitHub Sandbox"),
 			description: env.name,
 			sessionListGroup: SessionType.CopilotCloud,
+			hideFromSessionTypePicker: true,
 			when: ChatContextKeys.enabled.key,
 			icon: '$(cloud)',
 			canDelegate: false,

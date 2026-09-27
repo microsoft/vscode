@@ -24,9 +24,10 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { getSingletonServiceDescriptors } from '../../../../../platform/instantiation/common/extensions.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { INativeHostService, IOpenAgentsWindowOptions } from '../../../../../platform/native/common/native.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IWorkspaceContextService, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -39,7 +40,7 @@ import { ChatInputNotificationActionKind, IChatInputNotificationCommandAction, I
 import { ChatInputNotificationWidget } from '../../browser/widget/input/chatInputNotificationWidget.js';
 import { IChatDraft, reviveChatDraft } from '../../common/attachments/chatDraft.js';
 import { IChatRequestVariableEntry, toFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { SessionType } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
@@ -89,6 +90,7 @@ suite('Agents invitation widget ownership', () => {
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 		instantiation.stub(IContextKeyService, contextService);
+		instantiation.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ onDidCommitSession: Event.None }));
 		instantiation.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			get lastFocusedWidget() { return lastFocused; },
 			getAllWidgets: () => widgets,
@@ -102,12 +104,19 @@ suite('Agents invitation widget ownership', () => {
 		instantiation.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
 			model: upcastPartial<IAgentSessionsModel>({
 				onDidChangeSessions: Event.None,
-				sessions: [upcastPartial<IAgentSession>({ providerType: SessionType.AgentHostCopilot, status: AgentSessionStatus.InProgress, isArchived: () => false })],
+				sessions: Array.from({ length: 6 }, (_, index) => upcastPartial<IAgentSession>({
+					providerType: SessionType.AgentHostCopilot,
+					status: index === 0 ? AgentSessionStatus.InProgress : AgentSessionStatus.Completed,
+					isArchived: () => false,
+				})),
 			}),
 		}));
 		instantiation.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			getWorkspace: () => ({ id: 'source', folders: [new WorkspaceFolder({ uri: URI.file('/source'), name: 'source', index: 0 })] }),
+			getWorkbenchState: () => WorkbenchState.FOLDER,
+			onDidChangeWorkbenchState: Event.None,
 		}));
+		instantiation.stub(IOpenerService, upcastPartial<IOpenerService>({ open: async () => false }));
 		instantiation.stub(IEditorService, upcastPartial<IEditorService>({ activeEditor: undefined }));
 		instantiation.stub(INativeHostService, upcastPartial<INativeHostService>({
 			openAgentsWindow: async options => { opened.push(options ?? {}); },
