@@ -2678,6 +2678,114 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(fired, 1, 'onWillDispose should fire exactly once when the session is disposed');
 		});
 
+		test('disposing the handler settles an in-flight turn without cancelling it on the host', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			// A replaced remote connection disposes its handler while the turn is
+			// still running on the host. The old connection can never report the
+			// turn's end, so the invocation must settle here rather than hang and
+			// keep its ChatModel in progress.
+			sessionHandler.dispose();
+			await turnPromise;
+
+			assert.deepStrictEqual(
+				agentHostService.dispatchedActions.map(a => a.action.type).filter(type => type === 'chat/turnStarted' || type === 'chat/turnCancelled'),
+				['chat/turnStarted'],
+			);
+		}));
+
+		test('disposing the handler settles an in-flight resumed turn without cancelling it on the host', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/dispose-during-resume' });
+			const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({
+				type: ActionType.ChatError,
+				turnId,
+				duration: 100,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'requestFailed', message: 'failed' }, resumable: true },
+			});
+			const retryButton = (await turnPromise).errorDetails?.confirmationButtons?.at(-1);
+			assert.ok(retryButton);
+
+			agentHostService.dispatchedActions.length = 0;
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(registered);
+			const retryPromise = registered.impl.invoke(
+				makeRequest({ sessionResource, requestId: turnId, acceptedConfirmationData: [retryButton.data] }),
+				() => { },
+				[],
+				CancellationToken.None,
+			);
+			await timeout(10);
+
+			sessionHandler.dispose();
+			const retryResult = await retryPromise;
+
+			assert.deepStrictEqual({
+				errorDetails: retryResult.errorDetails,
+				dispatched: agentHostService.dispatchedActions.map(a => a.action.type).filter(type => type === ActionType.ChatTurnResume || type === ActionType.ChatTurnCancelled),
+			}, {
+				errorDetails: undefined,
+				dispatched: [ActionType.ChatTurnResume],
+			});
+		}));
+
+		test('a handler disposed while a turn is being prepared does not dispatch the turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const folder = URI.file('/untrusted-dispose');
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, { workingDirectoryResolver: { resolve: () => folder } });
+			const decision = new DeferredPromise<boolean>();
+			const requested = new DeferredPromise<void>();
+			instantiationService.get(IWorkspaceTrustRequestService).requestResourcesTrust = () => {
+				void requested.complete();
+				return decision.p;
+			};
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-dispose-while-preparing' });
+			const pending = startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			await requested.p;
+
+			sessionHandler.dispose();
+			await decision.complete(true);
+			const { turnPromise } = await pending;
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				createSessionCalls: agentHostService.createSessionCalls.length,
+				turnStarted: agentHostService.dispatchedActions.filter(a => a.action.type === 'chat/turnStarted').length,
+			}, {
+				createSessionCalls: 0,
+				turnStarted: 0,
+			});
+		}));
+
+		test('a handler disposed while its session is being created does not subscribe or dispatch the turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const created = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const createSession = agentHostService.createSession.bind(agentHostService);
+			agentHostService.createSession = async config => {
+				void created.complete();
+				await release.p;
+				return createSession(config);
+			};
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-dispose-while-creating' });
+			const pending = startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			await created.p;
+
+			sessionHandler.dispose();
+			await release.complete();
+			const { turnPromise } = await pending;
+			const outcome = await turnPromise.then(() => 'resolved', error => isCancellationError(error) ? 'cancelled' : String(error));
+
+			assert.deepStrictEqual({
+				outcome,
+				turnStarted: agentHostService.dispatchedActions.filter(a => a.action.type === 'chat/turnStarted').length,
+			}, {
+				outcome: 'cancelled',
+				turnStarted: 0,
+			});
+		}));
+
 		test('disposing one chat does not tear down a sibling peer chat subscription (peer chat never loads after reload)', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
@@ -12314,6 +12422,25 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(markdownPart!.content.value, 'Partial response so far');
 		});
 
+		test('disposing the session completes its active turn', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-dispose');
+			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString()));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-dispose' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			const completion: boolean[] = [session.isCompleteObs!.get()];
+
+			// A ChatModel bound to this session stays in progress (and alive)
+			// until `isCompleteObs` is set, which a disposed session can no
+			// longer do on its own.
+			session.dispose();
+			completion.push(session.isCompleteObs!.get());
+
+			assert.deepStrictEqual(completion, [false, true]);
+		});
+
 		test('does not duplicate system notification progress when reconnecting', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const sessionUri = AgentSession.uri('copilot', 'reconnect-system-notification');
@@ -14413,6 +14540,28 @@ suite('AgentHostChatContribution', () => {
 			cancellation.cancel();
 			await rejected;
 			await pending.complete();
+			assert.deepStrictEqual({ created: agentHostService.createSessionCalls.length, turns: agentHostService.turnActions.length }, { created: 0, turns: 0 });
+		});
+
+		test('disposing the handler during working-directory preparation prevents session creation', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const pending = new DeferredPromise<void>();
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				prepareSession: () => pending.p,
+			}));
+			const { turnPromise } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const rejected = assert.rejects(turnPromise, isCancellationError);
+			// e.g. the remote connection was replaced while the repository was cloning.
+			sessionHandler.dispose();
+			await pending.complete();
+			await rejected;
 			assert.deepStrictEqual({ created: agentHostService.createSessionCalls.length, turns: agentHostService.turnActions.length }, { created: 0, turns: 0 });
 		});
 
