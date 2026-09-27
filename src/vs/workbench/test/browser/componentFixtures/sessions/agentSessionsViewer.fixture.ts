@@ -209,7 +209,7 @@ function renderSessionHierarchy(ctx: ComponentFixtureContext, withApproval = fal
 		},
 	});
 	const childHeight = new AgentSessionsListDelegate(approvalModel).getHeight(child);
-	const parentHeight = 52;
+	const parentHeight = AgentSessionsListDelegate.ITEM_HEIGHT;
 
 	container.classList.add('monaco-workbench');
 	container.style.width = '350px';
