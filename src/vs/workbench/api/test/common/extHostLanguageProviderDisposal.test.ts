@@ -80,6 +80,10 @@ suite('ExtHostLanguageFeatures provider disposal', () => {
 						const action = new CodeAction('Test');
 						action.command = command;
 						return [action];
+					},
+					resolveCodeAction: async action => {
+						await resolvePending?.p;
+						return action;
 					}
 				}));
 				return { registration, request: () => features.$provideCodeActions(handle, resource, range, { trigger: CodeActionTriggerType.Invoke }, CancellationToken.None) };
@@ -151,20 +155,32 @@ suite('ExtHostLanguageFeatures provider disposal', () => {
 		});
 	}
 
-	for (const kind of ['completion', 'inlayHint'] as const) {
+	for (const kind of ['codeAction', 'completion', 'inlayHint'] as const) {
 		test(`${kind} ignores an in-flight resolve after provider unregistration`, async () => {
 			const pending = new DeferredPromise<void>();
 			const provider = createProvider(kind, undefined, pending);
 			const result = await provider.request();
 			assert.ok(result);
-			const cacheId = kind === 'completion' ? (result as ISuggestResultDto).x : (result as IInlayHintsDto).cacheId;
+			const cacheId = kind === 'completion' ? (result as ISuggestResultDto).x : (result as IInlayHintsDto | ICodeActionListDto).cacheId;
 			assert.ok(typeof cacheId === 'number');
-			const resolve = kind === 'completion'
-				? features.$resolveCompletionItem(handle, [cacheId, 0], CancellationToken.None)
-				: features.$resolveInlayHint(handle, [cacheId, 0], CancellationToken.None);
-			provider.registration.dispose();
-			await pending.complete();
-			assert.strictEqual(await resolve, undefined);
+			const convert = sinon.spy(commands.converter, 'toInternal');
+			try {
+				const resolve = kind === 'completion'
+					? features.$resolveCompletionItem(handle, [cacheId, 0], CancellationToken.None)
+					: kind === 'codeAction'
+						? features.$resolveCodeAction(handle, [cacheId, 0], CancellationToken.None)
+						: features.$resolveInlayHint(handle, [cacheId, 0], CancellationToken.None);
+				convert.resetHistory();
+				provider.registration.dispose();
+				await pending.complete();
+				assert.deepStrictEqual({ result: await resolve, conversions: convert.callCount }, {
+					result: kind === 'codeAction' ? {} : undefined,
+					conversions: 0
+				});
+			} finally {
+				for (const call of convert.getCalls()) { call.args[1].dispose(); }
+				convert.restore();
+			}
 		});
 	}
 });
