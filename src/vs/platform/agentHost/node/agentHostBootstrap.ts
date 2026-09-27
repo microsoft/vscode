@@ -21,7 +21,6 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentService } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { IAgent } from '../common/agent.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
@@ -153,6 +152,8 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		services.set(IByokLmBridgeRegistry, byokBridgeRegistry);
 		registerAgentHostCoreServices(services, {
 			storageResource: agentServiceOptions.storageResource,
+			rootConfigResource: agentServiceOptions.rootConfigResource,
+			orchestratorDatabase: agentServiceOptions.orchestratorDatabase,
 			fetchFn,
 			gitHubServiceOptions: foundation.gitHubServiceOptions,
 		});
@@ -179,8 +180,6 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
 			octoKitService,
 			copilotApiService,
-			isActiveAgentTitleGenerationEnabled: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
-			isDeferredTitleGenerationEnabled: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey) === true,
 		})));
 		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 		services.set(IAgentHostLocalTurns, localTurns);

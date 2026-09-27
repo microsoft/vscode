@@ -464,11 +464,57 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 		stubMeteredConnectionService(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
-		await service.fetchMarketplacePlugins(CancellationToken.None);
+		const errors: string[] = [];
+		const plugins = await service.fetchMarketplacePlugins(CancellationToken.None, undefined, {
+			onMarketplaceError: (reference, error) => errors.push(`${reference.displayLabel}: ${error instanceof Error ? error.message : String(error)}`),
+		});
 
-		assert.ok(requestUrls.length > 0);
-		assert.ok(requestUrls.every(url => url.includes('/marketplace/')));
-		assert.ok(requestUrls.every(url => !url.includes('/main/')));
+		assert.deepStrictEqual({
+			queriedPinnedRevision: requestUrls.length > 0 && requestUrls.every(url => url.includes('/marketplace/')) && requestUrls.every(url => !url.includes('/main/')),
+			plugins,
+			errors,
+		}, {
+			queriedPinnedRevision: true,
+			plugins: [],
+			errors: ['microsoft/vscode#marketplace: Unable to read marketplace \'microsoft/vscode#marketplace\' (HTTP 500).'],
+		});
+	});
+
+	test('reports an unreadable cloned marketplace rather than a successful empty catalog', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/vscode'],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, {
+			readFile: async () => { throw new Error('Permission denied'); },
+		} as Partial<IFileService> as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, {
+			agentPluginsHome: URI.file('/agent-plugins'),
+			ensureRepository: async () => URI.file('/cache/marketplace'),
+		} as Partial<IAgentPluginRepositoryService> as IAgentPluginRepositoryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {
+			request: async () => ({ res: { headers: {}, statusCode: 404 }, stream: bufferToStream(VSBuffer.fromString('')) }),
+		} as Partial<IRequestService> as IRequestService);
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'on' } as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		stubMeteredConnectionService(instantiationService);
+		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
+		const errors: string[] = [];
+		const plugins = await service.fetchMarketplacePlugins(CancellationToken.None, undefined, {
+			onMarketplaceError: (_reference, error) => errors.push(error instanceof Error ? error.message : String(error)),
+		});
+		assert.deepStrictEqual({ plugins, errors }, { plugins: [], errors: ['Permission denied'] });
 	});
 
 	test('a cancelled fetch does not clear the last fetched plugins', async () => {
@@ -737,6 +783,89 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 	test('installedPlugins observable is empty with no plugins', () => {
 		const service = createService();
 		assert.deepStrictEqual(service.installedPlugins.get(), []);
+	});
+
+	test('queries selected marketplaces with stable opaque pagination and errors', async () => {
+		const service = createService();
+		const first = makePlugin('first', 'first');
+		const second = { ...makePlugin('second', 'second'), marketplaceType: MarketplaceType.Claude };
+		let calls = 0;
+		const fetch = sinon.stub(service, 'fetchMarketplacePlugins').callsFake(async (_token, _marketplaceIds, options) => {
+			calls++;
+			options?.onMarketplaceError?.(marketplaceRef, new Error('Unavailable'));
+			return [first, second];
+		});
+		const query = {
+			text: 'description',
+			pageSize: 1,
+			marketplaceIds: new Set([marketplaceRef.canonicalId]),
+			marketplaceTypes: new Set([MarketplaceType.Copilot, MarketplaceType.Claude]),
+		};
+		const firstPage = await service.queryMarketplacePlugins(query, CancellationToken.None);
+		const secondPage = await service.queryMarketplacePlugins({ ...query, cursor: firstPage.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({
+			pages: [firstPage, secondPage].map(page => ({
+				items: page.items.map(plugin => plugin.name),
+				total: page.total,
+				hasMore: !!page.nextCursor,
+				errors: page.errors,
+			})),
+			calls,
+			opaqueCursor: firstPage.nextCursor !== undefined && !Number.isSafeInteger(Number(firstPage.nextCursor)),
+			requestedIds: [...fetch.firstCall.args[1]!],
+		}, {
+			pages: [
+				{ items: ['first'], total: undefined, hasMore: true, errors: [{ marketplace: 'microsoft/plugins', message: 'Unavailable' }] },
+				{ items: ['second'], total: undefined, hasMore: false, errors: [{ marketplace: 'microsoft/plugins', message: 'Unavailable' }] },
+			],
+			calls: 1,
+			opaqueCursor: true,
+			requestedIds: [marketplaceRef.canonicalId],
+		});
+	});
+
+	test('invalidates query continuations when configured marketplaces change', async () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/plugins'],
+			[ChatConfiguration.PluginsEnabled]: true,
+		});
+		const service = createService({ configurationService });
+		sinon.stub(service, 'fetchMarketplacePlugins').resolves([makePlugin('first', 'first'), makePlugin('second', 'second')]);
+		const query = {
+			pageSize: 1,
+			marketplaceIds: new Set([marketplaceRef.canonicalId]),
+			marketplaceTypes: new Set([MarketplaceType.Copilot]),
+		};
+		const page = await service.queryMarketplacePlugins(query, CancellationToken.None);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([ChatConfiguration.PluginMarketplaces]),
+			change: { keys: [ChatConfiguration.PluginMarketplaces], overrides: [] },
+			affectsConfiguration: key => key === ChatConfiguration.PluginMarketplaces,
+		} satisfies IConfigurationChangeEvent);
+		await assert.rejects(service.queryMarketplacePlugins({ ...query, cursor: page.nextCursor }, CancellationToken.None), /invalid/);
+	});
+
+	test('filters unsupported marketplace types before paging and totals', async () => {
+		const service = createService();
+		sinon.stub(service, 'fetchMarketplacePlugins').resolves([
+			{ ...makePlugin('unsupported', 'unsupported'), marketplaceType: 'cursor' as MarketplaceType },
+			makePlugin('supported', 'supported'),
+		]);
+		const page = await service.queryMarketplacePlugins({
+			pageSize: 1,
+			marketplaceIds: new Set([marketplaceRef.canonicalId]),
+			marketplaceTypes: new Set([MarketplaceType.Copilot, MarketplaceType.OpenPlugin]),
+		}, CancellationToken.None);
+		assert.deepStrictEqual({
+			items: page.items.map(plugin => plugin.name),
+			total: page.total,
+			nextCursor: page.nextCursor,
+		}, {
+			items: ['supported'],
+			total: 1,
+			nextCursor: undefined,
+		});
 	});
 
 	test('addInstalledPlugin makes plugin appear in installedPlugins', () => {

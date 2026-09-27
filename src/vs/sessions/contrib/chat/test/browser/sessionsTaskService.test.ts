@@ -101,7 +101,7 @@ suite('SessionsTasksService', () => {
 	let service: ISessionsTasksService;
 	let fileContents: Map<string, string>;
 	let jsonEdits: { uri: URI; values: IJSONValue[] }[];
-	let ranTasks: { label: string; session: ISession }[];
+	let ranTasks: { label: string; session: ISession; chat: IChat | undefined }[];
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
 	let runnerCanRun: (session: ISession) => boolean;
@@ -152,7 +152,7 @@ suite('SessionsTasksService', () => {
 			id: 'fake',
 			priority: 0,
 			canRun: session => runnerCanRun(session),
-			runTask: async (task, session) => { ranTasks.push({ label: task.label, session }); },
+			runTask: async (task, session, chat) => { ranTasks.push({ label: task.label, session, chat }); },
 		};
 		store.add(registry.register(fakeRunner));
 		instantiationService.stub(ISessionTaskRunnerRegistry, registry);
@@ -652,12 +652,14 @@ suite('SessionsTasksService', () => {
 
 	test('runTask delegates to the registry runner', async () => {
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const chat = session.mainChat.get();
 
-		await service.runTask(makeTask('build', 'npm run build'), session);
+		await service.runTask(makeTask('build', 'npm run build'), session, chat);
 
 		assert.strictEqual(ranTasks.length, 1);
 		assert.strictEqual(ranTasks[0].label, 'build');
 		assert.strictEqual(ranTasks[0].session, session);
+		assert.strictEqual(ranTasks[0].chat, chat);
 	});
 
 	test('runTask is a no-op when no runner claims the session', async () => {

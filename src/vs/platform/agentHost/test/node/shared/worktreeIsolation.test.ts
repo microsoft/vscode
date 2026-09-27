@@ -80,7 +80,7 @@ suite('WorktreeIsolation', () => {
 	let removeCalls: { worktree: URI; force: boolean }[];
 	let commitCalls: { worktree: URI; message: string }[];
 	let commitError: Error | undefined;
-	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[] }[];
+	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[]; sessionId: string }[];
 	let copyIncludeError: Error | undefined;
 	let branchName: string;
 	let hasUncommittedChanges: boolean;
@@ -115,8 +115,8 @@ suite('WorktreeIsolation', () => {
 				addWorktreeCalls.push(options);
 				mkdirSync(options.path.fsPath, { recursive: true });
 			},
-			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs) => {
-				copyIncludeCalls.push({ repositoryRoot, worktree, globs: [...globs] });
+			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs, sessionId) => {
+				copyIncludeCalls.push({ repositoryRoot, worktree, globs: [...globs], sessionId });
 				if (copyIncludeError) {
 					throw copyIncludeError;
 				}
@@ -275,6 +275,24 @@ suite('WorktreeIsolation', () => {
 			noUpstream: 'main',
 			branchLookups: ['feature', 'feature', 'feature'],
 		});
+	});
+
+	test('branchCompletions returns all branches in priority order', async () => {
+		const gitService = createGitService();
+		gitService.getBranches = async () => [
+			...Array.from({ length: 35 }, (_, index) => ({
+				ref: `refs/heads/branch-${index}`,
+				name: `branch-${index}`,
+				kind: GitRefType.Head as const,
+			})),
+			{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head },
+			{ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head },
+		];
+		const isolation = createIsolation(disposables, { gitService });
+
+		const all = await isolation.branchCompletions(repoRoot);
+
+		assert.deepStrictEqual(all.items.map(item => item.value), ['feature', 'main', ...Array.from({ length: 35 }, (_, index) => `branch-${index}`)]);
 	});
 
 	test('uses the selected local default branch as the worktree start point', async () => {
@@ -637,7 +655,7 @@ suite('WorktreeIsolation', () => {
 			await timeout(50);
 			options.onProgress?.({ filesDone: 800, filesTotal: 800 });
 		};
-		gitService.copyWorktreeIncludeFiles = async (_root, _worktree, _globs, onProgress) => {
+		gitService.copyWorktreeIncludeFiles = async (_root, _worktree, _globs, _sessionId, onProgress) => {
 			onProgress?.({ filesDone: 1, filesTotal: 4 });
 			onProgress?.({ filesDone: 4, filesTotal: 4 });
 		};
@@ -817,6 +835,7 @@ suite('WorktreeIsolation', () => {
 				repositoryRoot: call.repositoryRoot.toString(),
 				worktree: call.worktree.toString(),
 				globs: call.globs,
+				sessionId: call.sessionId,
 			})),
 			resolvedWorktree: isolation.getResolvedWorktree(sessionId)?.toString(),
 		}, {
@@ -825,6 +844,7 @@ suite('WorktreeIsolation', () => {
 				repositoryRoot: repoRoot.toString(),
 				worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 				globs: includeFiles,
+				sessionId,
 			}],
 			resolvedWorktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 		});

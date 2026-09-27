@@ -39,6 +39,7 @@ import { MockLanguageModelToolsConfirmationService } from '../../common/tools/mo
 import { IToolResultCompressor } from '../../../common/tools/toolResultCompressor.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
+import { TerminalToolId } from '../../../common/tools/terminalToolIds.js';
 import { ChatUrlFetchingConfirmationContribution } from '../../../common/tools/builtinTools/chatUrlFetchingConfirmation.js';
 import { InternalFetchWebPageToolId } from '../../../common/tools/builtinTools/tools.js';
 
@@ -572,6 +573,26 @@ suite('LanguageModelToolsService', () => {
 			parameters: {},
 			context: undefined,
 		}, async () => 0, CancellationToken.None), /Tool removedTool was not contributed/);
+	});
+
+	test('passes the invocation request id to prepareToolInvocation', async () => {
+		const preparedRequestIds: (string | undefined)[] = [];
+		const tool = registerToolForTest(service, store, 'invocationRequestTool', {
+			prepareToolInvocation: async context => {
+				preparedRequestIds.push(context.invocationRequestId);
+				return undefined;
+			},
+			invoke: async () => ({ content: [{ kind: 'text', value: 'ok' }] }),
+		});
+		const sessionId = 'invocationRequestSession';
+		stubGetSession(chatService, sessionId);
+
+		const withoutRequestId = tool.makeDto({}, { sessionId }, 'call-without-request-id');
+		const withRequestId = tool.makeDto({}, { sessionId }, 'call-with-request-id');
+		await service.invokeTool(withoutRequestId, async () => 0, CancellationToken.None);
+		await service.invokeTool({ ...withRequestId, context: { ...withRequestId.context!, requestId: 'subagent-request' } }, async () => 0, CancellationToken.None);
+
+		assert.deepStrictEqual(preparedRequestIds, [undefined, 'subagent-request']);
 	});
 
 	test('invocation parameters are overridden by input toolSpecificData', async () => {
@@ -2297,6 +2318,72 @@ suite('LanguageModelToolsService', () => {
 			CancellationToken.None
 		);
 		assert.strictEqual(result.content[0].value, 'auto approved for local');
+	});
+
+	test('bypass approvals never auto-approves create and run task', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store);
+		const tool = registerToolForTest(testService, store, TerminalToolId.CreateAndRunTask, {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Create and run task?',
+					message: 'This writes tasks.json and runs the task.',
+					allowAutoConfirm: false,
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'confirmed' }] })
+		});
+
+		const sessionId = 'test-create-task-always-confirm';
+		const capture: { invocation?: ChatToolInvocation } = {};
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove },
+			capture,
+		});
+
+		const dto = tool.makeDto({ task: { label: 'build', command: 'npm run build' } }, { sessionId });
+		dto.preApproved = { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'pre-approved by caller' };
+		const resultPromise = testService.invokeTool(
+			dto,
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+
+		assert.deepStrictEqual({
+			state: published.state.get().type,
+			allowAutoConfirm: published.confirmationMessages?.allowAutoConfirm,
+		}, {
+			state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			allowAutoConfirm: false,
+		});
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		await resultPromise;
+	});
+
+	test('create and run task rejection does not require confirmation', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store);
+		const tool = registerToolForTest(testService, store, TerminalToolId.CreateAndRunTask, {
+			prepareToolInvocation: async () => ({
+				invocationMessage: 'Task already exists.',
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'Task already exists.' }] })
+		});
+
+		const sessionId = 'test-create-task-rejection';
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove },
+		});
+
+		const result = await testService.invokeTool(
+			tool.makeDto({ task: { label: 'build', command: 'npm run build' } }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual(result, { content: [{ kind: 'text', value: 'Task already exists.' }] });
 	});
 
 	test('shouldAutoConfirm with basic configuration', async () => {

@@ -15,10 +15,50 @@ import { nullExtensionDescription } from '../../../services/extensions/common/ex
 import { ChatAgentResponseStream } from '../../common/extHostChatAgents2.js';
 import { CommandsConverter } from '../../common/extHostCommands.js';
 import { IChatAgentProgressShape, IChatProgressDto } from '../../common/extHost.protocol.js';
-import { ChatResponseAnchorPart } from '../../common/extHostTypes.js';
+import { ChatResponseAnchorPart, ChatResponseTextEditPart, Range, TextEdit } from '../../common/extHostTypes.js';
 
 suite('ExtHostChatAgents2', function () {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards the Auto tier on edit parts and omits it when unset', async () => {
+		const progress: { requestId: string; chunks: IChatProgressDto[] }[] = [];
+		const stream = new ChatAgentResponseStream(
+			{ ...nullExtensionDescription, enabledApiProposals: ['chatParticipantAdditions'] },
+			{
+				sessionResource: URI.parse('chat-session:/test'),
+				requestId: 'auto-request',
+				agentId: 'agent',
+				message: '',
+				variables: { variables: [] },
+				location: ChatAgentLocation.Chat,
+			},
+			{
+				async $handleProgressChunk(requestId, chunks) {
+					progress.push({ requestId, chunks: chunks.map(chunk => Array.isArray(chunk) ? chunk[0] : chunk) });
+				},
+				$handleAnchorResolve() { },
+			},
+			undefined as unknown as CommandsConverter,
+			disposables.add(new DisposableStore()),
+			new Map(),
+			CancellationToken.None,
+		);
+		const uri = URI.file('/test/file.ts');
+		const edit = new ChatResponseTextEditPart(uri, [new TextEdit(new Range(0, 0, 0, 0), 'text')]);
+		edit.autoTier = 'efficiency';
+		stream.apiObject.push(edit);
+		stream.apiObject.push(new ChatResponseTextEditPart(uri, true));
+		stream.close();
+		await Promise.resolve();
+
+		assert.deepStrictEqual(progress, [{
+			requestId: 'auto-request',
+			chunks: [
+				{ kind: 'textEdit', uri, edits: [{ range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, text: 'text', eol: undefined }], done: undefined, autoTier: 'efficiency' },
+				{ kind: 'textEdit', uri, edits: [], done: true },
+			],
+		}]);
+	});
 
 	test('reports anchor before resolving it', async function () {
 		const sessionDisposables = disposables.add(new DisposableStore());

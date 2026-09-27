@@ -34,6 +34,7 @@ A session appears in exactly one primary section. Higher-precedence states win:
 Archived
     > Pinned
     > Custom group
+    > External (when dedicated sectioning is enabled)
     > Quick chat
     > Workspace or date group
 ```
@@ -41,6 +42,7 @@ Archived
 - Archived sessions appear only in the final archived section.
 - Pinned sessions appear in the pinned section.
 - A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat.
+- When dedicated external sectioning is enabled, remaining external sessions appear together before the archived section. Pinning and custom-group membership retain their precedence; disabling sectioning returns external sessions to the ordinary grouping rules without changing that presentation state.
 - Remaining unpinned quick chats appear in the dedicated chats section.
 - Remaining sessions follow the selected workspace or date grouping.
 - A regular session created by another regular session is initially placed

@@ -28,8 +28,10 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalClaim, type TerminalInfo } from '../../common/state/protocol/state.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { formatTerminalText, IAgentHostTerminalManager, type ICommandFinishedEvent, type ISendTextOptions } from '../../node/agentHostTerminalManager.js';
 import { createShellTools, type IUnsandboxedCommandConfirmationRequest, isMultilineCommand, ShellManager, prefixForHistorySuppression, shellTypeForExecutable } from '../../node/copilot/copilotShellTools.js';
+import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 
 /** Chat that owns the terminals created by the shells under test. */
 const TEST_CHAT_URI = URI.parse(buildDefaultChatUri('copilot:/session-1'));
@@ -99,6 +101,7 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	createOutputTerminal(): void { }
 	appendOutputTerminalData(): void { }
 	resetOutputTerminal(): void { }
+	replaceOutputTerminalData(): void { }
 	finalizeOutputTerminal(): void { }
 	fireCommandFinished(event: ICommandFinishedEvent): void { this._onCommandFinished.fire(event); }
 	fireData(data: string): void { this._onData.fire(data); }
@@ -204,6 +207,7 @@ suite('CopilotShellTools', () => {
 		services.set(ILogService, new NullLogService());
 		services.set(IAgentHostTerminalManager, terminalManager);
 		services.set(IAgentConfigurationService, agentConfigurationService.service);
+		services.set(ISessionDataService, createNullSessionDataService());
 		services.set(IFileService, {
 			createFile: async (uri: URI, content: VSBuffer) => {
 				if (options?.createdFiles) {
@@ -1007,6 +1011,8 @@ suite('CopilotShellTools', () => {
 		const readablePaths: string[] = platform.isWindows ? config.filesystem.readonlyPaths : config.filesystem.allowRead;
 		assert.ok(Array.isArray(readablePaths), `Expected readable paths array. Got: ${JSON.stringify(config.filesystem)}`);
 		assert.ok(readablePaths.includes(configuredReadPath), `Expected configured read path in readable paths. Got: ${JSON.stringify(readablePaths)}`);
+		const expectedAttachmentPath = URI.from({ scheme: 'inmemory', path: '/session-data/session-1/attachments' }).fsPath;
+		assert.ok(readablePaths.includes(expectedAttachmentPath), `Expected session attachments in readable paths. Got: ${JSON.stringify(readablePaths)}`);
 	});
 
 	test('primary shell tool requests confirmation before rerunning outside the sandbox', async function () {

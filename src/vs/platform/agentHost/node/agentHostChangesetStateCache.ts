@@ -48,6 +48,7 @@ export interface IAgentHostChangesetStateRetentionOptions {
 export class AgentHostChangesetStateCache {
 
 	private readonly _states = new Map<string, ChangesetState>();
+	private readonly _completedResults = new Set<string>();
 	private readonly _lru = new LinkedMap<string, true>();
 	private readonly _softLimit: number;
 	private readonly _canEvict: (changeset: URI) => boolean;
@@ -65,6 +66,10 @@ export class AgentHostChangesetStateCache {
 		return this._states.has(changeset);
 	}
 
+	hasCompletedResult(changeset: URI): boolean {
+		return this._completedResults.has(changeset);
+	}
+
 	get(changeset: URI): ChangesetState | undefined {
 		this._touch(changeset);
 		return this._states.get(changeset);
@@ -72,12 +77,16 @@ export class AgentHostChangesetStateCache {
 
 	set(changeset: URI, state: ChangesetState): void {
 		this._states.set(changeset, state);
+		if (state.status === ChangesetStatus.Ready) {
+			this._completedResults.add(changeset);
+		}
 		this._touch(changeset);
 		this._evictIfOverLimit();
 	}
 
 	delete(changeset: URI): void {
 		this._states.delete(changeset);
+		this._completedResults.delete(changeset);
 		this._lru.delete(changeset);
 	}
 

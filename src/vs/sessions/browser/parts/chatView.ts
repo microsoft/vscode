@@ -28,6 +28,8 @@ export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
  * Options passed to a chat view when it is created.
  */
 export interface IChatViewOptions {
+	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
+	readonly hostVisible?: IObservable<boolean>;
 }
 
 export interface ISelectWorkspaceOptions {
