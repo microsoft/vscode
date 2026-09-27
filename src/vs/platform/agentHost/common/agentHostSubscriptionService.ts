@@ -7,6 +7,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { parseAnnotationsUri } from './annotationsUri.js';
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from './changesetUri.js';
+import { parseNonPtyShellTerminalUri } from './nonPtyShellTerminalUri.js';
 import { parseChatUri, parseSubagentSessionUri } from './state/sessionState.js';
 
 export const IAgentHostSubscriptionService = createDecorator<IAgentHostSubscriptionService>('agentHostSubscriptionService');
@@ -31,7 +32,8 @@ export function resolveAgentHostSession(resource: URI): URI {
 	const annotationsSession = parseAnnotationsUri(resourceString)?.sessionUri;
 	const folderSession = parseFolderChangesetOwnerUri(resourceString)?.sessionUri;
 	const chatSession = parseChatUri(resourceString)?.session;
-	let session = URI.parse(changesetSession ?? annotationsSession ?? folderSession ?? chatSession ?? resourceString);
+	const terminalSession = parseNonPtyShellTerminalUri(resource)?.session.toString();
+	let session = URI.parse(changesetSession ?? annotationsSession ?? folderSession ?? chatSession ?? terminalSession ?? resourceString);
 	let subagent;
 	while ((subagent = parseSubagentSessionUri(session))) {
 		session = subagent.parentSession;

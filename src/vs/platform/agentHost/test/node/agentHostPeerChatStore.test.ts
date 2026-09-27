@@ -472,6 +472,36 @@ suite('AgentHostPeerChatStore', () => {
 		]);
 	});
 
+	test('updates working directories without dropping provider data', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'backing', origin, 'inherited-turn', ['file:///workspace/first']);
+		await store.setArchived(session, first, true);
+
+		await store.updateWorkingDirectories(session, first, ['file:///workspace/second']);
+
+		assert.deepStrictEqual(await store.tryRead(session), [
+			{ uri: first.toString(), archived: true, providerData: 'backing', origin, inheritedTurnId: 'inherited-turn', workingDirectories: ['file:///workspace/second'] },
+		]);
+	});
+
+	test('persists archived state across updates and restores', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'old', origin, 'inherited-turn');
+		await store.setArchived(session, first, true);
+		await store.upsert(session, first, 'refreshed');
+		const archived = await store.tryRead(session);
+
+		await store.setArchived(session, first, false);
+		const restored = await store.tryRead(session);
+
+		assert.deepStrictEqual({ archived, restored }, {
+			archived: [{ uri: first.toString(), archived: true, providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+			restored: [{ uri: first.toString(), providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+		});
+	});
+
 	test('persists and reads the explicit empty sentinel', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);

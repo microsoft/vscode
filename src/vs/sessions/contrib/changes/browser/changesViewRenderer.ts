@@ -32,7 +32,7 @@ import { IChangesViewService } from '../common/changesViewService.js';
 
 const $ = dom.$;
 
-function getChangesFileUri(change: ISessionFileChange): URI {
+export function getChangesFileUri(change: ISessionFileChange): URI {
 	return isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
 }
 

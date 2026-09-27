@@ -220,6 +220,11 @@ export interface IToolInvocation {
 export interface IToolInvocationContext {
 	readonly sessionResource: URI;
 	/**
+	 * The id of the chat request that the tool is invoked for. For a subagent
+	 * started by the run subagent tool, this is the id of the subagent's request.
+	 */
+	readonly requestId?: string;
+	/**
 	 * The working directory URI associated with this session.
 	 * Only set in the agents window context where each session can
 	 * have its own working directory that differs from the workspace folders.
@@ -239,6 +244,8 @@ export interface IToolInvocationPreparationContext {
 	chatRequestId?: string;
 	chatSessionResource: URI | undefined;
 	chatInteractionId?: string;
+	/** The {@link IToolInvocationContext.requestId} of the invocation. */
+	invocationRequestId?: string;
 	modelId?: string;
 	/** If set, tells the tool that it should include confirmation messages. */
 	forceConfirmationReason?: string;
