@@ -4828,9 +4828,10 @@ export class CopilotAgentSession extends Disposable {
 			? { enabled: false }
 			: base ?? { enabled: false };
 		try {
-			await applySandboxConfig(this._wrapper.session, sandboxConfig, this.sessionId, this._logService);
-			this._sandboxDisabledForSession = false;
-			this._configurationService.setSessionSandboxEnabled(this._ownerSessionUri.toString(), sandboxConfig.enabled);
+			if (await applySandboxConfig(this._wrapper.session, sandboxConfig, this.sessionId, this._logService)) {
+				this._sandboxDisabledForSession = false;
+				this._configurationService.setSessionSandboxEnabled(this._ownerSessionUri.toString(), sandboxConfig.enabled);
+			}
 		} catch (err) {
 			if (failOnError) {
 				throw err;
