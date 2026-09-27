@@ -4,6 +4,10 @@ The **agent host** is a separate utility process (under `src/vs/platform/agentHo
 
 This is the architecture and integration reference for OTel in Agent Host sessions. It lives next to `IAgentHostOTelService` in [node/otel/agentHostOTelService.ts](node/otel/agentHostOTelService.ts) because Agent Host runs outside the extension host. Local Copilot Chat remains an independent extension-host pipeline configured with `github.copilot.chat.otel.*` and documented in [`extensions/copilot/docs/monitoring/agent_monitoring.md`](../../../../extensions/copilot/docs/monitoring/agent_monitoring.md).
 
+Product startup telemetry and its host-lifetime correlation ID are documented in
+[`PERFORMANCE.md`](PERFORMANCE.md). They use the existing usage-telemetry consent,
+not the OTel exporter or its configuration.
+
 | Property | Agent Host OTel | Extension OTel |
 |---|---|---|
 | Process | Separate utility process (`src/vs/platform/agentHost/node/`) | Extension host |
