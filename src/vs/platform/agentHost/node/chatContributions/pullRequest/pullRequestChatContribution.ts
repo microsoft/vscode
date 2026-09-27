@@ -6,9 +6,8 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IIncomingRequest, type IncomingRequestDisposition, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../../../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeFolderState, withAgentMergeFolderState } from '../../../common/agentMerge.js';
 import { readPullRequestChatMeta } from '../../../common/meta/agentPullRequestOperationMeta.js';
-import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { resolveGitHubStateFolder } from '../../agentHostBranchChangesetScope.js';
@@ -35,41 +34,29 @@ export class PullRequestChatContribution extends Disposable implements IAgentHos
 				stage: 'validation',
 			};
 		}
-		if (options?.agentMerge && !this._followsSessionPullRequest(request.chat)) {
-			return {
-				kind: 'reject',
-				error: { errorType: 'invalidParams', message: localize('agentHost.pullRequestChat.agentMergeFolder', "Agent Merge is not available for chats working in other folders yet.") },
-				stage: 'validation',
-			};
-		}
 		return undefined;
 	}
 
 	onOutgoingTurn(turn: IOutgoingTurn): ISendContribution | undefined {
 		const options = readPullRequestChatMeta(turn.message);
 		// Preparation can be cancelled before this hook runs; never configure an idle session.
-		// Session Agent Merge follows the session folder's pull request, so a chat
-		// working in another folder leaves it unchanged.
-		if (!options || this._stateManager.getChatState(turn.chat)?.activeTurn?.id !== turn.turnId || !this._followsSessionPullRequest(turn.chat)) {
+		if (!options || this._stateManager.getChatState(turn.chat)?.activeTurn?.id !== turn.turnId) {
 			return undefined;
 		}
-		const current = readAgentMergeSessionState(this._configurationService.getSessionConfigValues(turn.session));
+		const folder = resolveGitHubStateFolder(this._stateManager, turn.chat);
+		if (folder.folderKey === undefined) {
+			return undefined;
+		}
+		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, turn.session).folderKey;
+		const values = this._configurationService.getSessionConfigValues(turn.session);
+		const current = readAgentMergeFolderState(values, folder.folderKey, sessionFolderKey);
 		if (options.agentMerge) {
 			const overrides = { ...current?.overrides, ...options.agentMergeOptions };
-			this._configurationService.updateSessionConfig(turn.session, {
-				[SessionConfigKey.AgentMerge]: { enabled: true, overrides },
-				[SessionConfigKey.AgentMergeController]: current?.injectedConfiguration ? { injectedConfiguration: current.injectedConfiguration } : {},
-			});
+			// A new pull request binds afresh, so the folder's earlier lifecycle state is not carried over.
+			this._configurationService.updateSessionConfig(turn.session, withAgentMergeFolderState(values, folder.folderKey, sessionFolderKey, { enabled: true, overrides, chat: turn.chat }));
 		} else if (current?.enabled) {
-			this._configurationService.updateSessionConfig(turn.session, {
-				[SessionConfigKey.AgentMerge]: { enabled: false, ...(current.overrides ? { overrides: current.overrides } : {}) },
-			});
+			this._configurationService.updateSessionConfig(turn.session, withAgentMergeFolderState(values, folder.folderKey, sessionFolderKey, { ...current, enabled: false }));
 		}
 		return undefined;
-	}
-
-	/** Whether the chat works in the session folder, whose pull request session Agent Merge follows. */
-	private _followsSessionPullRequest(chat: string): boolean {
-		return resolveGitHubStateFolder(this._stateManager, chat).isSessionFolder;
 	}
 }

@@ -9,16 +9,7 @@ import { type IAgentHostChatContribution, type IAgentHostChatContributionContext
 import { isChatReadOnly, SessionStatus } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
-/**
- * Rejects requests that target chats made read-only directly or by session archival.
- *
- * Read-only chats reject user-dispatched turns. `interactivity` is the general signal
- * (e.g. subagent worker chats are `ReadOnly`), and an archived session downgrades its
- * interactive chats to read-only too — so enforce off the chat's effective interactivity
- * rather than special-casing archived. This is the enforcement behind the UI hiding the
- * composer, so a buggy or remote client cannot run work in a read-only or archived session
- * (which may no longer have its isolated worktree on disk).
- */
+/** Rejects requests to read-only chats, including chats made read-only by chat or session archival. */
 export class TurnAdmissionContribution extends Disposable implements IAgentHostChatContribution {
 
 	static readonly id = 'turnAdmission';
@@ -36,11 +27,12 @@ export class TurnAdmissionContribution extends Disposable implements IAgentHostC
 		const chatState = this._stateManager.getChatState(request.chat);
 		const sessionStatus = this._stateManager.getSessionSummary(request.session)?.status ?? 0;
 		const sessionArchived = (sessionStatus & SessionStatus.IsArchived) === SessionStatus.IsArchived;
-		if (isChatReadOnly(chatState?.interactivity, sessionArchived)) {
-			const error = sessionArchived
-				? { errorType: 'archived', message: 'This session is archived and read-only. Restore the session to continue the conversation.' }
+		const chatArchived = ((chatState?.status ?? 0) & SessionStatus.IsArchived) === SessionStatus.IsArchived;
+		if (isChatReadOnly(chatState?.interactivity, sessionArchived || chatArchived)) {
+			const error = sessionArchived || chatArchived
+				? { errorType: 'archived', message: sessionArchived ? 'This session is archived and read-only. Restore the session to continue the conversation.' : 'This chat is archived and read-only. Restore the chat to continue the conversation.' }
 				: { errorType: 'readOnly', message: 'This chat is read-only.' };
-			this._logService.warn(`[TurnAdmissionContribution] Rejecting turn on read-only chat=${request.chat} (archived=${sessionArchived}), turnId=${request.turnId}`);
+			this._logService.warn(`[TurnAdmissionContribution] Rejecting turn on read-only chat=${request.chat} (archived=${sessionArchived || chatArchived}), turnId=${request.turnId}`);
 			return { kind: 'reject', error, stage: 'validation' };
 		}
 		return undefined;

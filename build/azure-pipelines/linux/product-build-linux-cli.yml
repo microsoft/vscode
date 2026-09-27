@@ -6,13 +6,16 @@ parameters:
     default: false
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_POOL_NAME
+    type: string
+    default: 1es-ubuntu-22.04-x64
 
 jobs:
   - job: LinuxCLI_${{ parameters.VSCODE_ARCH }}
     displayName: Linux CLI (${{ upper(parameters.VSCODE_ARCH) }})
     timeoutInMinutes: 60
     pool:
-      name: 1es-ubuntu-22.04-x64
+      name: ${{ parameters.VSCODE_POOL_NAME }}
       os: linux
     variables:
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
