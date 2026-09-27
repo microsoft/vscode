@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -628,7 +629,7 @@ suite('AgentHostModePicker', () => {
 		});
 	});
 
-	test('locks the combined sandbox menu from local settings before host policy publication', async () => {
+	test('locks the combined sandbox menu from local settings only on desktop before host policy publication', async () => {
 		const { trigger, actionWidget, config, managedSandboxEnforced, writes } = setup(true, true, false, false);
 		config.values[SessionConfigKey.SandboxEnabled] = 'off';
 		await timeout(0);
@@ -641,10 +642,10 @@ suite('AgentHostModePicker', () => {
 		trigger.click();
 		const toggle = actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle;
 		assert.deepStrictEqual({ closedOnPolicyChange, checked: toggle?.checked, disabled: toggle?.disabled, writes }, {
-			closedOnPolicyChange: true,
+			closedOnPolicyChange: !isWeb,
 			checked: true,
-			disabled: true,
-			writes: [],
+			disabled: !isWeb,
+			writes: isWeb ? [{ session: 'test-session', property: SessionConfigKey.SandboxEnabled, value: 'on' }] : [],
 		});
 	});
 

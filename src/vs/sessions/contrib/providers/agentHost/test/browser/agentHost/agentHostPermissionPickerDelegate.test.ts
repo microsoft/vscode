@@ -23,6 +23,7 @@ import { AgentHostPermissionPickerActionItem } from '../../../browser/agentHostP
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../../base/common/platform.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
@@ -536,7 +537,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 	});
 
 	for (const sessionId of ['local-agent-host:draft', SESSION_ID]) {
-		test(`uses local managed policy until host sandbox policy arrives for ${sessionId}`, async () => {
+		test(`uses local managed policy only on desktop until host sandbox policy arrives for ${sessionId}`, async () => {
 			const { delegate, provider, localManagedSandboxEnforced, localManagedSandboxAllowsBypass } = setup(store, { ...makeActiveSession(), sessionId }, 'default');
 			provider.config!.values[SessionConfigKey.SandboxEnabled] = 'off';
 			localManagedSandboxEnforced.set(true, undefined);
@@ -553,9 +554,9 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			const bypassDenied = read();
 			localManagedSandboxEnforced.set(false, undefined);
 			assert.deepStrictEqual({ required, bypassAllowed, bypassDenied, removed: read(), writes: provider.setCalls }, {
-				required: { checked: true, disabled: true },
-				bypassAllowed: { checked: true, disabled: true },
-				bypassDenied: { checked: true, disabled: true },
+				required: { checked: !isWeb, disabled: !isWeb },
+				bypassAllowed: { checked: !isWeb, disabled: !isWeb },
+				bypassDenied: { checked: !isWeb, disabled: !isWeb },
 				removed: { checked: false, disabled: false },
 				writes: [],
 			});
@@ -584,7 +585,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			pending,
 			enabled: delegate.managedSandboxEnforced.get(),
 			allowBypass: delegate.managedSandboxAllowsBypass.get(),
-		}, { pending: true, enabled: false, allowBypass: true });
+		}, { pending: !isWeb, enabled: false, allowBypass: true });
 	});
 
 	test('managed sandbox can be re-enabled only after a host-confirmed opt-out', async () => {

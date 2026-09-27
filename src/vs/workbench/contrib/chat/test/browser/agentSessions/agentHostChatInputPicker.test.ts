@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -404,7 +405,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	});
 
-	test('uses local managed policy until host sandbox policy arrives', async () => {
+	test('uses local managed policy only on desktop until host sandbox policy arrives', async () => {
 		const { permissionPicker, sandboxReady, setSession, config, actionWidget, managedSandboxEnforced, managedSandboxAllowsBypass, instantiationService, widget, dispatches } = setup(false);
 		await sandboxReady();
 		config.values[SessionConfigKey.SandboxEnabled] = 'off';
@@ -428,9 +429,9 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const published = read();
 		actionWidget.hide();
 		assert.deepStrictEqual({ draft, bypassAllowed, running, published, dispatches }, {
-			draft: { checked: true, disabled: true },
-			bypassAllowed: { checked: true, disabled: true },
-			running: { checked: true, disabled: true },
+			draft: { checked: !isWeb, disabled: !isWeb },
+			bypassAllowed: { checked: !isWeb, disabled: !isWeb },
+			running: { checked: !isWeb, disabled: !isWeb },
 			published: { checked: false, disabled: false },
 			dispatches: [],
 		});
