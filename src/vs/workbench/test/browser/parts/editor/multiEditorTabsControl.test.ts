@@ -1148,6 +1148,31 @@ suite('MultiEditorTabsControl', () => {
 		]);
 	});
 
+	test('connected tabs do not overflow vertically while dragging', async () => {
+		const group = connectedGroup();
+		group.style.setProperty('--modern-ui-connected-tab-surface', '#ffffff');
+		model.openEditor(model.getEditorByIndex(1)!, { active: true });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const measurements = [];
+		for (const [wrapTabs, width] of [[false, 320], [true, 150]] as const) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, wrapTabs, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
+			control.updateOptions(oldOptions, partOptions);
+			await layoutConnectedGroup(group, width);
+			const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+			tabs.classList.add('scroll');
+			measurements.push({
+				wrapTabs,
+				wrapping: tabs.closest('.tabs-and-actions-container')!.classList.contains('wrapping'),
+				verticalOverflow: tabs.scrollHeight - tabs.clientHeight,
+			});
+		}
+		assert.deepStrictEqual(measurements, [
+			{ wrapTabs: false, wrapping: false, verticalOverflow: 0 },
+			{ wrapTabs: true, wrapping: true, verticalOverflow: 0 },
+		]);
+	});
+
 	test('connected tabs reserve separator height without changing classic or shared modern tabs', async () => {
 		const readHeight = async () => {
 			control.layout({ container: Dimension.None, available: Dimension.None });
