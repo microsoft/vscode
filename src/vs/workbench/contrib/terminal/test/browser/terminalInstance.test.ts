@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { createSandbox } from 'sinon';
+import { Dimension } from '../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -33,9 +36,10 @@ import { EnvironmentVariableService } from '../../common/environmentVariableServ
 import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
 import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
-import { TestTerminalProfileResolverService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestTerminalProfileResolverService, TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { writeP } from '../../browser/terminalTestHelpers.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
 const root1 = '/foo/root1';
 const ROOT_1 = fixPath(root1);
@@ -76,7 +80,7 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 		super();
 	}
 	updateProperty(property: any, value: any): Promise<void> {
-		throw new Error('Method not implemented.');
+		return Promise.resolve();
 	}
 
 	readonly onProcessOverrideDimensions?: Event<any> | undefined;
@@ -189,6 +193,7 @@ suite('Workbench - TerminalInstance', () => {
 				instantiationService.stub(IWorkspaceContextService, new TestContextService(workspace));
 			}
 			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+			instantiationService.stub(IViewsService, new TestViewsService());
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
 			instantiationService.stub(ITerminalInstanceService, terminalInstanceService ?? store.add(new TestTerminalInstanceService()));
 			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
@@ -213,6 +218,79 @@ suite('Workbench - TerminalInstance', () => {
 			dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(['/test/file.txt']));
 			container.dispatchEvent(new DragEvent('drop', { dataTransfer }));
 		}
+
+		async function createTerminalWithLongLine(): Promise<TerminalInstance> {
+			const instance = await createTerminalInstance();
+			const container = document.createElement('div');
+			container.style.width = '800px';
+			container.style.height = '300px';
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			instance.attachToElement(container);
+			instance.setVisible(true);
+			instance.layout(new Dimension(800, 300));
+			await writeP(instance.xterm!.raw, 'long-line '.repeat(50) + '\r\n');
+			return instance;
+		}
+
+		for (const removeBeforeDispose of [true, false]) {
+			test(`${removeBeforeDispose ? 'removed' : 'active'} horizontal scrollbars are released from terminal lifetime ownership`, async () => {
+				const instance = await createTerminalWithLongLine();
+				// TestInstantiationService disposes the default Sinon sandbox during
+				// terminal teardown. Keep observing the scrollbar through that teardown.
+				const sandbox = createSandbox();
+				const additions = sandbox.spy(instance.store, 'add');
+				try {
+					await instance.toggleSizeToContentWidth();
+					ok(instance.domElement.classList.contains('fixed-dims'));
+					const scrollbar = additions.getCalls().map(call => call.args[0]).find(value => value instanceof DomScrollableElement);
+					ok(scrollbar instanceof DomScrollableElement);
+					const disposal = sandbox.spy(scrollbar, 'dispose');
+					if (removeBeforeDispose) {
+						await instance.toggleSizeToContentWidth();
+					}
+					strictEqual(instance.isDisposed, false);
+					strictEqual(disposal.callCount, removeBeforeDispose ? 1 : 0);
+					instance.dispose();
+					strictEqual(disposal.callCount, 1);
+				} finally {
+					sandbox.restore();
+				}
+			});
+		}
+
+		test('repeated horizontal scrollbar toggles preserve terminal output and restore its parent', async () => {
+			const instance = await createTerminalWithLongLine();
+			const wrapper = instance.domElement;
+			const parent = wrapper.parentElement;
+			for (let cycle = 0; cycle < 3; cycle++) {
+				await instance.toggleSizeToContentWidth();
+				ok(instance.fixedCols);
+				ok(wrapper.parentElement !== parent);
+				await instance.toggleSizeToContentWidth();
+				strictEqual(wrapper.parentElement, parent);
+				deepStrictEqual({
+					fixedCols: instance.fixedCols,
+					fixedClass: wrapper.classList.contains('fixed-dims'),
+					output: instance.xterm!.raw.buffer.active.getLine(0)?.translateToString(true).slice(0, 9)
+				}, { fixedCols: undefined, fixedClass: false, output: 'long-line' });
+			}
+		});
+
+		test('horizontal scrollbar removal does not affect another terminal', async () => {
+			const first = await createTerminalWithLongLine();
+			const second = await createTerminalWithLongLine();
+			await first.toggleSizeToContentWidth();
+			await second.toggleSizeToContentWidth();
+			await first.toggleSizeToContentWidth();
+			deepStrictEqual({
+				firstFixed: first.domElement.classList.contains('fixed-dims'),
+				secondFixed: second.domElement.classList.contains('fixed-dims'),
+				secondDisposed: second.isDisposed
+			}, { firstFixed: false, secondFixed: true, secondDisposed: false });
+			await second.toggleSizeToContentWidth();
+			strictEqual(second.fixedCols, undefined);
+		});
 
 		test('should create an instance of TerminalInstance with env from default profile', async () => {
 			terminalInstance = await createTerminalInstance();
