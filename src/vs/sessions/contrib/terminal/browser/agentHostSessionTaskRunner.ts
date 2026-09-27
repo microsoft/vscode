@@ -160,7 +160,10 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 
 	private _shouldReuseTerminal(task: ITaskEntry): boolean {
 		const presentation = task.presentation;
-		return typeof presentation !== 'object' || presentation === null || !('panel' in presentation) || presentation.panel !== 'new';
+		if (typeof presentation !== 'object' || presentation === null) {
+			return true;
+		}
+		return (presentation as { readonly panel?: unknown }).panel !== 'new';
 	}
 
 	private _getAddress(session: ISession): string | undefined {
