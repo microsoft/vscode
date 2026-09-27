@@ -1745,6 +1745,10 @@ export interface IEditorFindOptions {
 	 * Controls if Find in Selection flag is turned on in the editor.
 	 */
 	autoFindInSelection?: 'never' | 'always' | 'multiline';
+	/**
+	 * Controls whether the search is case-insensitive unless the search string contains an uppercase character, in which case the search becomes case-sensitive.
+	 */
+	smartCase?: boolean;
 	/*
 	 * Controls whether the Find Widget should add extra lines on top of the editor.
 	 */
@@ -1787,6 +1791,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			findOnType: true,
 			seedSearchStringFromSelection: 'always',
 			autoFindInSelection: 'never',
+			smartCase: false,
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
 			loop: true,
@@ -1823,6 +1828,11 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in Selection automatically when multiple lines of content are selected.')
 					],
 					description: nls.localize('find.autoFindInSelection', "Controls the condition for turning on Find in Selection automatically.")
+				},
+				'editor.find.smartCase': {
+					type: 'boolean',
+					default: defaults.smartCase,
+					description: nls.localize('find.smartCase', "Controls whether the search is case-insensitive unless the search string contains an uppercase character, in which case the search becomes case-sensitive, similar to the `#search.smartCase#` setting.")
 				},
 				'editor.find.globalFindClipboard': {
 					type: 'boolean',
@@ -1888,6 +1898,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			autoFindInSelection: typeof input.autoFindInSelection === 'boolean'
 				? (input.autoFindInSelection ? 'always' : 'never')
 				: stringSet<'never' | 'always' | 'multiline'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline']),
+			smartCase: boolean(input.smartCase, this.defaultValue.smartCase),
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
