@@ -8,8 +8,10 @@ import * as vscode from 'vscode';
 import { AccountLinks } from '../common/accountLinks';
 import { IGitHubUserInfo } from '../common/gitHubAccount';
 import { Log } from '../common/logger';
-import { EntraTokenExchangeError, EntraTokenExchangeFailure, IEntraRenewal, IEntraRenewedToken } from '../entraTokenExchange';
+import { EntraTokenExchangeError, EntraTokenExchangeFailure, IEntraExchangedToken, IEntraLoginOptions, IEntraRenewal, IEntraRenewedToken } from '../entraTokenExchange';
+import { GitHubSignInProvider } from '../flows';
 import { AuthProviderType, GitHubAuthenticationProvider } from '../github';
+import { IGitHubServer } from '../githubServer';
 import { TestMemento } from './testMemento';
 
 interface TestGitHubAuthenticationProvider {
@@ -18,6 +20,7 @@ interface TestGitHubAuthenticationProvider {
 		deleteToken(): Promise<void>;
 	};
 	readonly _githubServer: {
+		getFallbackBaseUri(): vscode.Uri;
 		getUserInfo(token: string): Promise<{ id: string; accountName: string; avatarUrl: string | undefined }>;
 	};
 	readonly _logger: {
@@ -46,6 +49,7 @@ suite('GitHub session persistence', () => {
 				deleteToken: async () => { }
 			},
 			_githubServer: {
+				getFallbackBaseUri: () => vscode.Uri.parse('https://github.com'),
 				getUserInfo: async _token => {
 					userInfoRequests++;
 					return {
@@ -75,6 +79,7 @@ suite('GitHub session persistence', () => {
 		await Promise.all(secretChangeReads);
 
 		assert.deepStrictEqual({
+			authorizationServer: sessions[0].authorizationServer?.toString(),
 			account: {
 				id: sessions[0].account.id,
 				label: sessions[0].account.label,
@@ -83,6 +88,7 @@ suite('GitHub session persistence', () => {
 			userInfoRequests,
 			secretWrites
 		}, {
+			authorizationServer: 'https://github.com/login/oauth',
 			account: {
 				id: 'account-id',
 				label: 'octocat',
@@ -103,7 +109,7 @@ suite('GitHub session persistence', () => {
  * calling the private methods one at a time would test the pieces rather than the order they run in,
  * which is where every one of these bugs lives.
  */
-suite('GitHub Microsoft-brokered sessions', () => {
+function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: vscode.Uri, authorizationServer: string): void {
 
 	const STORAGE_KEY = 'github.auth.microsoftAccountLinks';
 	const SCOPES = ['read:user', 'repo'];
@@ -128,7 +134,9 @@ suite('GitHub Microsoft-brokered sessions', () => {
 		_microsoftGeneration: number;
 		_microsoft: { getAccounts(): Promise<vscode.AuthenticationSessionAccountInformation[]> };
 		_githubServer: {
-			renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken>;
+			getFallbackBaseUri(): vscode.Uri;
+			loginWithMicrosoft: IGitHubServer['loginWithMicrosoft'];
+			renewWithMicrosoft: IGitHubServer['renewWithMicrosoft'];
 			sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
 		};
 		_sessionChangeEmitter: { fire(e: vscode.AuthenticationProviderAuthenticationSessionsChangeEvent): void };
@@ -140,6 +148,8 @@ suite('GitHub Microsoft-brokered sessions', () => {
 		readonly accountLinks: AccountLinks;
 		/** Every renewal the provider put on the wire, in order. */
 		readonly renewals: IEntraRenewal[];
+		/** Every interactive Microsoft exchange the provider put on the wire, in order. */
+		readonly logins: Array<{ readonly scopes: readonly string[]; readonly options: IEntraLoginOptions | undefined }>;
 		/** What the provider told VS Code changed, as `verb account` for each session. */
 		readonly announced: string[];
 		/** The sessions still held in memory, as `account until` for each. */
@@ -149,11 +159,11 @@ suite('GitHub Microsoft-brokered sessions', () => {
 	let logger: Log;
 
 	suiteSetup(() => {
-		logger = new Log(AuthProviderType.github);
+		logger = new Log(type);
 	});
 
 	function sessionFor(account: string, id: string, accessToken: string): vscode.AuthenticationSession {
-		return { id, accessToken, account: { id: '42', label: account }, scopes: SCOPES };
+		return { id, accessToken, account: { id: '42', label: account }, scopes: SCOPES, authorizationServer: vscode.Uri.parse(authorizationServer) };
 	}
 
 	function createHarness(overrides: {
@@ -162,9 +172,12 @@ suite('GitHub Microsoft-brokered sessions', () => {
 		persisted?: readonly vscode.AuthenticationSession[];
 		/** Sessions already held in memory, and how long each has left in milliseconds. */
 		transient?: readonly (readonly [vscode.AuthenticationSession, number])[];
+		serverBaseUri?: vscode.Uri;
 		microsoftAccounts?: (call: number) => vscode.AuthenticationSessionAccountInformation[];
+		login?: (call: number, scopes: readonly string[], options: IEntraLoginOptions | undefined) => Promise<IEntraExchangedToken>;
 		renew?: (call: number, renewal: IEntraRenewal) => Promise<IEntraRenewedToken>;
 	} = {}): IHarness {
+		const logins: Array<{ scopes: readonly string[]; options: IEntraLoginOptions | undefined }> = [];
 		const renewals: IEntraRenewal[] = [];
 		const announced: string[] = [];
 		const accountLinks = new AccountLinks(new TestMemento(), STORAGE_KEY, logger);
@@ -186,17 +199,27 @@ suite('GitHub Microsoft-brokered sessions', () => {
 				getAccounts: async () => overrides.microsoftAccounts?.(microsoftReads++) ?? [MICROSOFT_ACCOUNT]
 			},
 			_githubServer: {
+				getFallbackBaseUri: () => overrides.serverBaseUri ?? baseUri,
+				loginWithMicrosoft: async (scopes, options) => {
+					logins.push({ scopes, options });
+					const exchanged = overrides.login
+						? await overrides.login(logins.length - 1, scopes, options)
+						: { token: `gho_login_${logins.length}`, expiresAfter: 7_200_000, account: GITHUB_ACCOUNT };
+					return { ...exchanged, authorizationServer: vscode.Uri.parse(authorizationServer) };
+				},
 				renewWithMicrosoft: async renewal => {
 					renewals.push(renewal);
-					return overrides.renew
+					const renewed = overrides.renew
 						? await overrides.renew(renewals.length - 1, renewal)
-						: { token: `gho_${renewals.length}`, expiresIn: 3600, account: GITHUB_ACCOUNT, scopes: renewal.scopes ?? SCOPES };
+						: { token: `gho_${renewals.length}`, expiresAfter: 3_600_000, account: GITHUB_ACCOUNT, scopes: renewal.scopes ?? SCOPES };
+					return { ...renewed, authorizationServer: vscode.Uri.parse(authorizationServer) };
 				},
 				sendAdditionalTelemetryInfo: async () => { }
 			},
 			_sessionChangeEmitter: {
 				fire: e => {
 					for (const [verb, sessions] of [['added', e.added], ['removed', e.removed], ['changed', e.changed]] as const) {
+						assert.deepStrictEqual(sessions?.map(session => session.authorizationServer?.toString()), sessions?.map(() => authorizationServer));
 						announced.push(...(sessions ?? []).map(session => `${verb} ${session.account.label}`));
 					}
 				}
@@ -210,6 +233,7 @@ suite('GitHub Microsoft-brokered sessions', () => {
 			provider: provider as GitHubAuthenticationProvider,
 			state: provider as IProviderState,
 			accountLinks,
+			logins,
 			renewals,
 			announced,
 			heldSessions: () => [...transientSessions.values()]
@@ -218,10 +242,87 @@ suite('GitHub Microsoft-brokered sessions', () => {
 		};
 	}
 
+	test('publishes the lifetime reported by an interactive Microsoft exchange', async () => {
+		const harness = createHarness();
+
+		const session = await harness.provider.createSession(SCOPES, { provider: GitHubSignInProvider.Microsoft });
+
+		assert.deepStrictEqual({
+			token: session.accessToken,
+			authorizationServer: session.authorizationServer?.toString(),
+			expiresAfter: session.expiresAfter,
+			logins: harness.logins,
+			announced: harness.announced,
+		}, {
+			token: 'gho_login_1',
+			authorizationServer,
+			expiresAfter: 7_200_000,
+			logins: [{ scopes: SCOPES, options: { microsoftAccount: undefined } }],
+			announced: ['added mona_contoso'],
+		});
+	});
+
 	async function withLink(harness: IHarness): Promise<IHarness> {
 		await harness.accountLinks.link(MICROSOFT_ACCOUNT.label, { id: GITHUB_ACCOUNT.id, label: GITHUB_ACCOUNT.accountName });
 		return harness;
 	}
+
+	test('uses the issuer returned with Microsoft tokens during creation, restoration, and renewal', async () => {
+		const serverBaseUri = vscode.Uri.parse('https://unrelated.example');
+		const interactive = createHarness({ serverBaseUri });
+		const created = await interactive.provider.createSession(SCOPES, { provider: GitHubSignInProvider.Microsoft });
+		const restored = await (await withLink(createHarness({ serverBaseUri }))).provider.getSessions(SCOPES);
+		const oldSession = { ...sessionFor('mona_contoso', 'expiring', 'gho_stale'), authorizationServer: vscode.Uri.parse('https://old.example/login/oauth') };
+		const renewed = await (await withLink(createHarness({ serverBaseUri, transient: [[oldSession, 0]] }))).provider.getSessions(SCOPES);
+
+		assert.deepStrictEqual([created, ...restored, ...renewed].map(session => session.authorizationServer?.toString()), [
+			authorizationServer, authorizationServer, authorizationServer
+		]);
+	});
+
+	test('creates Microsoft sessions with provenance and retains it on sign-out', async () => {
+		const harness = await withLink(createHarness());
+		const session = await harness.provider.createSession(SCOPES, { provider: GitHubSignInProvider.Microsoft });
+		const native = harness.state._transientSessions.get(session.id)!.session;
+		await harness.provider.removeSession(session.id);
+		assert.deepStrictEqual({
+			authorizationServer: session.authorizationServer?.toString(),
+			nativeAuthorizationServer: native.authorizationServer?.toString(),
+			sameSession: session === native,
+			account: session.account,
+			nativeAccount: native.account,
+			announced: harness.announced,
+			links: harness.accountLinks.linkedAccounts(),
+			remaining: await harness.provider.getSessions(SCOPES)
+		}, {
+			authorizationServer,
+			nativeAuthorizationServer: authorizationServer,
+			sameSession: true,
+			account: native.account,
+			nativeAccount: native.account,
+			announced: ['added mona_contoso', 'removed mona_contoso'],
+			links: [],
+			remaining: []
+		});
+	});
+
+	test('expired Microsoft sessions publish removal provenance without erasing account links', async () => {
+		const harness = await withLink(createHarness({
+			transient: [[sessionFor('mona_contoso', 'expired', 'gho_expired'), -1]],
+			renew: async () => { throw new EntraTokenExchangeError(EntraTokenExchangeFailure.Network, 'offline'); }
+		}));
+		assert.deepStrictEqual({
+			sessions: await harness.provider.getSessions(SCOPES),
+			announced: harness.announced,
+			held: harness.heldSessions(),
+			links: harness.accountLinks.linkedAccounts().length
+		}, {
+			sessions: [],
+			announced: ['removed mona_contoso'],
+			held: [],
+			links: 1
+		});
+	});
 
 	test('rebuilds a remembered account in a window that never had the session', async () => {
 		const harness = await withLink(createHarness());
@@ -232,17 +333,35 @@ suite('GitHub Microsoft-brokered sessions', () => {
 			// The token never survives a reload; the row recording what the user agreed to does, and
 			// that is enough to mint the session again with nothing shown to them.
 			accounts: sessions.map(session => session.account.label),
+			authorizationServers: sessions.map(session => session.authorizationServer?.toString()),
 			scopes: sessions.map(session => session.scopes),
 			renewals: harness.renewals,
 			announced: harness.announced,
-			held: harness.heldSessions()
+			held: harness.heldSessions(),
+			hasUsableLifetime: sessions.every(session => session.expiresAfter !== undefined && session.expiresAfter > 0 && session.expiresAfter <= 3_600_000),
 		}, {
 			accounts: ['mona_contoso'],
+			authorizationServers: [authorizationServer],
 			scopes: [SCOPES],
 			renewals: [{ scopes: SCOPES, gitHubAccountId: '42', microsoftAccount: MICROSOFT_ACCOUNT }],
 			announced: ['added mona_contoso'],
-			held: ['mona_contoso live']
+			held: ['mona_contoso live'],
+			hasUsableLifetime: true
 		});
+	});
+
+	test('recomputes the remaining lifetime of a cached Microsoft-brokered session', async () => {
+		const session = sessionFor('mona_contoso', 'cached', 'gho_cached');
+		const harness = createHarness({
+			transient: [[session, 2 * 60 * 60 * 1000]]
+		});
+
+		const [resolved] = await harness.provider.getSessions(SCOPES);
+
+		assert.deepStrictEqual({
+			authorizationServer: resolved.authorizationServer?.toString(),
+			hasUsableLifetime: resolved.expiresAfter !== undefined && resolved.expiresAfter > 3_600_000 && resolved.expiresAfter <= 7_200_000
+		}, { authorizationServer, hasUsableLifetime: true });
 	});
 
 	test('keeps what the user agreed to when a restore fails for a reason that says nothing about who they are', async () => {
@@ -296,7 +415,7 @@ suite('GitHub Microsoft-brokered sessions', () => {
 			// eviction it triggers cannot see, because the session does not exist yet.
 			renew: async (_call, renewal) => {
 				harness.state._microsoftGeneration++;
-				return { token: 'gho_late', expiresIn: 3600, account: GITHUB_ACCOUNT, scopes: renewal.scopes ?? SCOPES };
+				return { token: 'gho_late', expiresAfter: 3_600_000, account: GITHUB_ACCOUNT, scopes: renewal.scopes ?? SCOPES };
 			}
 		}));
 
@@ -315,29 +434,63 @@ suite('GitHub Microsoft-brokered sessions', () => {
 		});
 	});
 
-	test('settles every session whose token has run out, not only when there is nothing to hand back', async () => {
+	test('renews every session in the renewal window, not only when there is nothing else to hand back', async () => {
 		const harness = await withLink(createHarness({
 			// Another account, signed in the ordinary way, so it has no expiry and is always usable.
 			persisted: [sessionFor('hubot', 'persisted', 'gho_persisted')],
-			transient: [[sessionFor('mona_contoso', 'expired', 'gho_stale'), -1000]]
+			transient: [[sessionFor('mona_contoso', 'expiring', 'gho_stale'), 60 * 60 * 1000]]
 		}));
 
 		const sessions = await harness.provider.getSessions(SCOPES);
 
 		assert.deepStrictEqual({
 			accounts: sessions.map(session => session.account.label).sort(),
-			// An expired session left unprocessed is never handed out, never renewed and never
+			authorizationServers: sessions.map(session => session.authorizationServer?.toString()),
+			// A stale session left unprocessed is never handed out, never renewed and never
 			// reported as removed, but stays a candidate on every read for the life of the window.
 			held: harness.heldSessions(),
 			// Renewed in place, so it keeps its id and is reported as changed rather than as one
 			// account going away and another arriving.
 			announced: harness.announced,
-			tokens: sessions.map(session => session.accessToken).sort()
+			tokens: sessions.map(session => session.accessToken).sort(),
+			expirations: sessions.map(session => [session.account.label, session.expiresAfter]).sort(),
 		}, {
 			accounts: ['hubot', 'mona_contoso'],
+			authorizationServers: [authorizationServer, authorizationServer],
 			held: ['mona_contoso live'],
 			announced: ['changed mona_contoso'],
-			tokens: ['gho_1', 'gho_persisted']
+			tokens: ['gho_1', 'gho_persisted'],
+			expirations: [['hubot', undefined], ['mona_contoso', 3_600_000]]
 		});
 	});
-});
+
+	test('keeps a still-valid session when proactive renewal fails', async () => {
+		const harness = await withLink(createHarness({
+			transient: [[sessionFor('mona_contoso', 'expiring', 'gho_still_valid'), 60 * 60 * 1000]],
+			renew: async () => { throw new EntraTokenExchangeError(EntraTokenExchangeFailure.Network, 'offline'); }
+		}));
+
+		const sessions = await harness.provider.getSessions(SCOPES);
+
+		assert.deepStrictEqual({
+			tokens: sessions.map(session => session.accessToken),
+			hasUsableLifetime: sessions.every(session => session.expiresAfter !== undefined && session.expiresAfter > 0 && session.expiresAfter <= 3_600_000),
+			held: harness.heldSessions(),
+			announced: harness.announced,
+			renewals: harness.renewals.length
+		}, {
+			tokens: ['gho_still_valid'],
+			hasUsableLifetime: true,
+			held: ['mona_contoso live'],
+			announced: [],
+			renewals: 1
+		});
+	});
+}
+
+for (const { name, type, base, issuer } of [
+	{ name: 'GitHub', type: AuthProviderType.github, base: 'https://github.com', issuer: 'https://github.com/login/oauth' },
+	{ name: 'GitHub Enterprise', type: AuthProviderType.githubEnterprise, base: 'https://octocat.ghe.com:443/Team%20Space', issuer: 'https://octocat.ghe.com:443/Team%20Space/login/oauth' }
+]) {
+	suite(`${name} Microsoft-brokered sessions`, () => registerMicrosoftBrokeredSessionTests(type, vscode.Uri.parse(base), issuer));
+}

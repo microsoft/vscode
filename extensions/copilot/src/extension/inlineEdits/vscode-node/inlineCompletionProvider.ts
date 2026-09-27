@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
-import { CancellationToken, Command, EndOfLine, InlineCompletionContext, InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionItem, InlineCompletionItemProvider, InlineCompletionList, InlineCompletionModelInfo, InlineCompletionProviderOption, InlineCompletionsDisposeReason, InlineCompletionsDisposeReasonKind, NotebookCell, NotebookCellKind, Position, Range, TextDocument, TextDocumentShowOptions, Uri, window, workspace } from 'vscode';
+import { CancellationToken, Command, EndOfLine, env, InlineCompletionContext, InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionItem, InlineCompletionItemProvider, InlineCompletionList, InlineCompletionModelInfo, InlineCompletionProviderOption, InlineCompletionsDisposeReason, InlineCompletionsDisposeReasonKind, InlineCompletionTriggerKind, NotebookCell, NotebookCellKind, Position, Range, TextDocument, TextDocumentShowOptions, Uri, window, workspace } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { stringEditFromDiff } from '../../../platform/editing/common/edit';
@@ -38,6 +38,7 @@ import { basename } from '../../../util/vs/base/common/path';
 import { StringEdit } from '../../../util/vs/editor/common/core/edits/stringEdit';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { createCorrelationId } from '../common/correlationId';
+import { learnMoreCommandId, learnMoreLink } from '../common/inlineEditCommands';
 import { NesChangeHint } from '../common/nesTriggerHint';
 import { NESInlineCompletionContext } from '../node/nextEditProvider';
 import { NextEditProviderTelemetryBuilder, TelemetrySender } from '../node/nextEditProviderTelemetry';
@@ -47,7 +48,6 @@ import { InlineCompletionCommand, InlineEditDebugComponent } from './components/
 import { LogContextRecorder } from './components/logContextRecorder';
 import { DiagnosticsNextEditResult } from './features/diagnosticsInlineEditProvider';
 import { InlineEditModel } from './inlineEditModel';
-import { learnMoreCommandId, learnMoreLink } from './inlineEditProviderFeature';
 import { toInlineSuggestion } from './isInlineSuggestion';
 import { LineCheck } from './naturalLanguageHint';
 import { InlineEditLogger } from './parts/inlineEditLogger';
@@ -61,7 +61,7 @@ const learnMoreAction: Command = {
 	tooltip: learnMoreLink
 };
 
-export interface NesCompletionItem extends InlineCompletionItem {
+interface NesCompletionItem extends InlineCompletionItem {
 	readonly telemetryBuilder: NextEditProviderTelemetryBuilder;
 	readonly info: NesCompletionInfo;
 	wasShown: boolean;
@@ -74,7 +74,7 @@ export interface NesCompletionItem extends InlineCompletionItem {
 	isInlineCompletion?: boolean;
 }
 
-export class NesCompletionList extends InlineCompletionList {
+class NesCompletionList extends InlineCompletionList {
 
 	public override enableForwardStability = true;
 
@@ -123,8 +123,6 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 	private readonly _logger: ILogger;
 
 	public readonly onDidChange = this.model.onChange;
-	public readonly handleDidPartiallyAcceptCompletionItem = undefined;
-	public readonly handleDidRejectCompletionItem = undefined;
 
 	//#region Model picker
 	private _isModelPickerEnabled: IObservable<boolean> = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsModelPickerEnabled, this._expService);
@@ -230,16 +228,20 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 	public async provideInlineCompletionItems(
 		document: TextDocument,
 		position: Position,
-		context: InlineCompletionContext | NESInlineCompletionContext,
+		context: InlineCompletionContext,
 		token: CancellationToken
 	): Promise<NesCompletionList | undefined> {
+		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && env.isMeteredConnection) {
+			return undefined;
+		}
+
 		const label = `NES | ${basename(document.uri.fsPath)} (v${document.version})`;
 
 		const capturingToken = new CapturingToken(label, undefined);
 
 		assert(context.changeHint === undefined || NesChangeHint.is(context.changeHint), 'Expected changeHint to be of type TriggerNes or undefined');
 		const changeHint = context.changeHint as NesChangeHint | undefined;
-		const nesContext: NESInlineCompletionContext = { enforceCacheDelay: true, ...context, changeHint };
+		const nesContext: NESInlineCompletionContext = { ...context, changeHint };
 
 		return this._requestLogger.captureInvocation(capturingToken, () => this._provideInlineCompletionItems(document, position, nesContext, token));
 	}

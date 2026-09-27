@@ -6,7 +6,8 @@
 import type WebSocket from 'ws';
 import * as cp from 'child_process';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { autorun } from '../../../base/common/observable.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -14,6 +15,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
+import { redactToken, RemoteAgentHostBootstrapProgressReporter } from '../common/remoteAgentHostBootstrapProgress.js';
 import type { IRelayMessage } from '../common/relayTransport.js';
 import {
 	IWSLRemoteAgentHostMainService,
@@ -22,7 +24,7 @@ import {
 	type IWSLConnectResult,
 	type IWSLDistro,
 } from '../common/wslRemoteAgentHost.js';
-import { redactToken, resolveRemotePlatform } from './sshRemoteAgentHostHelpers.js';
+import { resolveRemotePlatform } from './sshRemoteAgentHostHelpers.js';
 import {
 	composeAgentHostBootstrapScript,
 	decodeWslOutput,
@@ -37,7 +39,14 @@ import {
 
 const LOG_PREFIX = '[WSLRemoteAgentHost]';
 
-/** Max time `code agent host` may be silent before printing its `ws://` URL. */
+/**
+ * Max time a stopped WSL distro may take to boot and produce the bootstrap's
+ * first output. This intentionally includes VM startup and login-shell profile
+ * sourcing, which can legitimately exceed the post-output idle budget.
+ */
+const AGENT_HOST_INITIAL_OUTPUT_TIMEOUT_MS = 3 * 60_000;
+
+/** Max time `code agent host` may be silent after bootstrap output has started. */
 const AGENT_HOST_OUTPUT_IDLE_TIMEOUT_MS = 60_000;
 
 /** Absolute upper bound for bootstrap, including CLI and server downloads. */
@@ -251,9 +260,28 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			}
 		};
 
+		const bootstrapProgressDisposables = new DisposableStore();
+		const bootstrapProgressReporter = bootstrapProgressDisposables.add(new RemoteAgentHostBootstrapProgressReporter());
+		bootstrapProgressDisposables.add(autorun(reader => {
+			const progress = bootstrapProgressReporter.progress.read(reader);
+			if (progress?.phase === 'serverDownload') {
+				reportProgress(localize('wslProgressDownloadingServer', "Downloading server ({0}%)", progress.percentage));
+			}
+		}));
+		const flushBootstrapProgress = () => {
+			bootstrapProgressReporter.flush();
+		};
+
+		let initialOutputTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
 		let outputIdleTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
 		let overallTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+		let hasProducedOutput = false;
+		let readySettled = false;
 		const clearReadyTimeouts = () => {
+			if (initialOutputTimeoutHandle !== undefined) {
+				clearTimeout(initialOutputTimeoutHandle);
+				initialOutputTimeoutHandle = undefined;
+			}
 			if (outputIdleTimeoutHandle !== undefined) {
 				clearTimeout(outputIdleTimeoutHandle);
 				outputIdleTimeoutHandle = undefined;
@@ -263,19 +291,27 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 				overallTimeoutHandle = undefined;
 			}
 		};
-		const rejectForTimeout = (message: string) => {
+		const rejectReady = (error: Error) => {
+			if (readySettled) {
+				return;
+			}
+			readySettled = true;
 			clearReadyTimeouts();
-			urlReject?.(new Error(`${LOG_PREFIX} ${message}\nOutput: ${outputLines.join('\n')}`));
+			flushBootstrapProgress();
+			urlReject?.(error);
+		};
+		const rejectForTimeout = (message: string) => {
+			rejectReady(new Error(`${LOG_PREFIX} ${message}\nOutput: ${outputLines.join('\n')}`));
 		};
 		const armOutputIdleTimeout = () => {
-			if (url) {
+			if (readySettled) {
 				return;
 			}
 			if (outputIdleTimeoutHandle !== undefined) {
 				clearTimeout(outputIdleTimeoutHandle);
 			}
 			outputIdleTimeoutHandle = setTimeout(() => {
-				rejectForTimeout(`Timed out waiting for agent host in '${distro}' to print its WebSocket URL: no output for ${AGENT_HOST_OUTPUT_IDLE_TIMEOUT_MS}ms.`);
+				rejectForTimeout(`Timed out waiting for agent host in '${distro}' to print its WebSocket URL: exceeded the ${AGENT_HOST_OUTPUT_IDLE_TIMEOUT_MS}ms output-idle budget after output started.`);
 			}, AGENT_HOST_OUTPUT_IDLE_TIMEOUT_MS);
 		};
 
@@ -287,17 +323,32 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			// etc. — arrive on stderr without `WSL_UTF8=1`).
 			const cleanText = removeAnsiEscapeCodes(decodeWslOutput(data));
 			for (const rawLine of cleanText.split(/\r\n|\r|\n/)) {
+				if (readySettled) {
+					return;
+				}
 				const line = rawLine.trimEnd();
 				if (!line) {
 					continue;
 				}
+				if (!hasProducedOutput) {
+					hasProducedOutput = true;
+					if (initialOutputTimeoutHandle !== undefined) {
+						clearTimeout(initialOutputTimeoutHandle);
+						initialOutputTimeoutHandle = undefined;
+					}
+				}
 				armOutputIdleTimeout();
-				appendLine(line);
-				this._logService.trace(`${LOG_PREFIX} [${distro}] ${redactToken(line)}`);
+				const redactedLine = redactToken(line);
+				appendLine(redactedLine);
+				this._logService.trace(`${LOG_PREFIX} [${distro}] ${redactedLine}`);
+				bootstrapProgressReporter.acceptLine(line);
 				if (!url) {
 					const match = extractAgentHostWebSocketURL(line);
 					if (match) {
+						flushBootstrapProgress();
 						url = match.url;
+						readySettled = true;
+						clearReadyTimeouts();
 						urlResolve?.({ url: match.url, token: match.token });
 					}
 				}
@@ -307,25 +358,28 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		child.stdout?.on('data', onStreamData);
 		child.stderr?.on('data', onStreamData);
 
-		// Race the URL parse against the child dying, output going idle, and
-		// an overall ceiling. Bootstrap downloads regularly report progress,
-		// so only a period of silence indicates that it has become stuck.
+		// Race the URL parse against the child dying, initial startup silence,
+		// post-output silence, and an overall ceiling. Bootstrap downloads
+		// regularly report progress, so once output starts only silence indicates
+		// that it has become stuck.
 		// `outputLines` is already redacted in `appendLine` — no extra wrap needed.
-		armOutputIdleTimeout();
+		if (!hasProducedOutput) {
+			initialOutputTimeoutHandle = setTimeout(() => {
+				rejectForTimeout(`Timed out waiting for agent host in '${distro}' to produce initial output: exceeded the ${AGENT_HOST_INITIAL_OUTPUT_TIMEOUT_MS}ms startup budget.`);
+			}, AGENT_HOST_INITIAL_OUTPUT_TIMEOUT_MS);
+		}
 		overallTimeoutHandle = setTimeout(() => {
 			rejectForTimeout(`Timed out waiting for agent host in '${distro}' to print its WebSocket URL: exceeded the overall ${AGENT_HOST_READY_OVERALL_TIMEOUT_MS}ms bootstrap ceiling.`);
 		}, AGENT_HOST_READY_OVERALL_TIMEOUT_MS);
 
 		child.once('exit', (code, signal) => {
 			if (!url) {
-				clearReadyTimeouts();
-				urlReject?.(new Error(`${LOG_PREFIX} Agent host in '${distro}' exited (code=${code}, signal=${signal}) before printing its WebSocket URL.\nOutput: ${outputLines.join('\n')}`));
+				rejectReady(new Error(`${LOG_PREFIX} Agent host in '${distro}' exited (code=${code}, signal=${signal}) before printing its WebSocket URL.\nOutput: ${outputLines.join('\n')}`));
 			}
 		});
 		child.once('error', err => {
 			if (!url) {
-				clearReadyTimeouts();
-				urlReject?.(new Error(`${LOG_PREFIX} Failed to start agent host in '${distro}': ${err.message}\nOutput: ${outputLines.join('\n')}`));
+				rejectReady(new Error(`${LOG_PREFIX} Failed to start agent host in '${distro}': ${err.message}\nOutput: ${outputLines.join('\n')}`));
 			}
 		});
 
@@ -334,9 +388,12 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			resolvedUrl = await urlPromise;
 		} catch (err) {
 			clearReadyTimeouts();
+			flushBootstrapProgress();
+			bootstrapProgressDisposables.dispose();
 			this._killChild(child);
 			throw err;
 		}
+		bootstrapProgressDisposables.dispose();
 		clearReadyTimeouts();
 
 		reportProgress(localize('wslProgressConnecting', "Connecting to agent host in {0}...", distro));

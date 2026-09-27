@@ -56,7 +56,7 @@ async function renderColorDecorators(context: ComponentFixtureContext, selectFir
 	await timeout(0);
 	if (selectFirstColor) {
 		editor.setSelection(new Range(1, 14, 1, editor.getModel()!.getLineMaxColumn(1)));
-		editor.focus();
+		context.focus(editor);
 	}
 }
 

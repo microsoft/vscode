@@ -76,8 +76,8 @@ export interface IPolicyData {
 	 * the user is governed by GitHub Copilot managed settings at all, independent of which keys
 	 * were set.
 	 *
-	 * Unlike {@link managedSettings}, this is not projected onto the keys VS Code declares, so it
-	 * also reflects runtime-owned keys VS Code never reads.
+	 * Unlike {@link managedSettings}, this also reflects structured runtime-owned keys that the
+	 * policy projection does not retain.
 	 */
 	readonly managedSettingsActive?: boolean;
 }

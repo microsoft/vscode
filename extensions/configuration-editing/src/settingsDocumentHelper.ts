@@ -239,6 +239,7 @@ export class SettingsDocument {
 		// Value
 		else if (location.path.length === 2 && this.isCompletingPropertyValue(location, position)) {
 			const range = this.getReplaceRange(location, position);
+			completions.push(this.newSimpleCompletionItem('true', range));
 			completions.push(this.newSnippetCompletionItem({
 				label: vscode.l10n.t("Files with Siblings by Name"),
 				documentation: vscode.l10n.t("Match files that have siblings with the same name but a different extension."),

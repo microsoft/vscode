@@ -25,7 +25,7 @@ export interface IAgentHostChangesetSubscriptionService {
 	readonly onDidChangeSessionSubscriptions: Event<ProtocolURI>;
 
 	/**
-	 * Returns the set of changeset URIs currently subscribed for `session`.
+	 * Returns explicit changeset URIs and the session URI for implicit summary interest.
 	 * Empty when the session has no active changeset subscribers.
 	 */
 	getSessionSubscriptions(session: ProtocolURI): ReadonlySet<ProtocolURI>;

@@ -12,6 +12,7 @@ export const DEV_CONTAINER_AGENT_HOST_CHANNEL = 'devContainerAgentHost';
 /** Inputs required to start or reuse a workspace's Dev Container Agent Host. */
 export interface IDevContainerAgentHostConfig {
 	readonly connectionId: string;
+	/** Native workspace path; the remote protocol facade also accepts a host URI's path. */
 	readonly workspaceFolder: string;
 	readonly name: string;
 }
@@ -22,6 +23,8 @@ export interface IDevContainerAgentHostConnectResult {
 	readonly address: string;
 	readonly name: string;
 	readonly remoteWorkspaceFolder: string;
+	/** Native source workspace path on the parent host, when reported by the launcher. */
+	readonly hostWorkspaceFolder?: string;
 }
 
 /** One chunk of output from a Dev Container CLI process. */
@@ -32,7 +35,7 @@ export interface IDevContainerAgentHostOutput {
 
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
 
-/** Shared-process service that owns Dev Container CLI processes and protocol relays. */
+/** Host-side service that owns Dev Container CLI processes and protocol relays. */
 export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	readonly _serviceBrand: undefined;
 

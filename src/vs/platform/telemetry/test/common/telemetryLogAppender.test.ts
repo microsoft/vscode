@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
@@ -56,14 +57,21 @@ export class TestTelemetryLoggerService implements ILoggerService {
 	_serviceBrand: undefined;
 
 	logger?: TestTelemetryLogger;
+	loggerId?: string | URI;
 
 	constructor(private readonly logLevel: LogLevel) { }
 
-	getLogger() {
+	getLogger(id?: string | URI) {
+		if (id) {
+			this.loggerId = id;
+		}
 		return this.logger;
 	}
 
-	createLogger() {
+	createLogger(id?: string | URI) {
+		if (id) {
+			this.loggerId = id;
+		}
 		if (!this.logger) {
 			this.logger = new TestTelemetryLogger(this.logLevel);
 		}
@@ -111,6 +119,17 @@ suite('TelemetryLogAdapter', () => {
 				isTrue: 1, numberBetween1And3: 2
 			}
 		}]));
+		testObject.dispose();
+		testInstantiationService.dispose();
+	});
+
+	test('Use custom logger id', () => {
+		const testLoggerService = new TestTelemetryLoggerService(LogLevel.Trace);
+		const testInstantiationService = new TestInstantiationService();
+		const testObject = new TelemetryLogAppender({ prefix: '', loggerId: 'agentHostTelemetry' }, false, testLoggerService, testInstantiationService.stub(IEnvironmentService, {}), testInstantiationService.stub(IProductService, {}));
+
+		assert.strictEqual(testLoggerService.loggerId, 'agentHostTelemetry');
+
 		testObject.dispose();
 		testInstantiationService.dispose();
 	});

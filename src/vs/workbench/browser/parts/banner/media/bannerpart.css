@@ -78,3 +78,15 @@
 .monaco-workbench .part.banner .action-container .codicon {
 	color: var(--vscode-banner-foreground);
 }
+
+.monaco-workbench .part.banner.neutral {
+	background-color: var(--vscode-sideBar-background);
+	color: var(--vscode-foreground);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+}
+
+.monaco-workbench .part.banner.neutral .message-actions-container a,
+.monaco-workbench .part.banner.neutral .action-container .codicon,
+.monaco-workbench .part.banner.neutral .icon-container .codicon {
+	color: var(--vscode-foreground);
+}

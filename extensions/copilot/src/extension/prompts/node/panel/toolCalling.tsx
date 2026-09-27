@@ -141,7 +141,9 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses'
 			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking);
 		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || apiSupportsHistoricalThinking);
-		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} />;
+		// Record which API produced this round so the request builders can tell replayable
+		// reasoning from foreign state without guessing from the payload's id.
+		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} originApi={round.originApi} />;
 		const phase = (round.phase && roundModelId === this.promptEndpoint.model) ? <PhaseDataContainer phase={round.phase} /> : undefined;
 		const compaction = round.compaction && <CompactionDataContainer compaction={round.compaction} />;
 		children.push(
@@ -311,6 +313,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 						toolInvocationToken: props.toolInvocationToken,
 						tokenizationOptions,
 						chatRequestId: props.requestId,
+						chatSessionResource: promptContext.request?.sessionResource,
 						subAgentInvocationId,
 						// Split on `__vscode` so it's the chat stream id
 						// TODO @lramos15 - This is a gross hack

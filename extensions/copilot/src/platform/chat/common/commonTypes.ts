@@ -116,7 +116,21 @@ export enum ChatFetchResponseType {
 
 export const RESPONSE_CONTAINED_NO_CHOICES = 'Response contained no choices.';
 
-export type ChatFetchError =
+export function isVisionAttachmentInaccessibleError(input: { type: ChatFetchResponseType; reason?: string; reasonDetail?: string }): boolean {
+	if (input.type !== ChatFetchResponseType.BadRequest && input.type !== ChatFetchResponseType.Failed) {
+		return false;
+	}
+	const haystack = `${input.reason ?? ''} ${input.reasonDetail ?? ''}`.toLowerCase();
+	return haystack.includes('vision_attachment_not_accessible') || (haystack.includes('attachment') && haystack.includes('not accessible'));
+}
+
+/**
+ * CAPI's `X-Copilot-Service-Request-Id` from the response that produced this result. Joins the
+ * client-side event with CAPI's server-side logs, traces and Sentry reports.
+ */
+type WithCopilotServiceRequestId = { copilotServiceRequestId?: string };
+
+export type ChatFetchError = WithCopilotServiceRequestId & (
 	/**
 	 * We requested conversation, but the message was deemed off topic by the intent classifier.
 	 */
@@ -186,16 +200,17 @@ export type ChatFetchError =
 	 * The `statefulMarker` present in the request was invalid or expired. The
 	 * request may be retried without that marker to resubmit it anew.
 	 */
-	| { type: ChatFetchResponseType.InvalidStatefulMarker; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined };
+	| { type: ChatFetchResponseType.InvalidStatefulMarker; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined }
+);
 
-export type ChatFetchRetriableError<T> =
-	/**
-	 * We requested conversation, the response was filtered by RAI, but we want to retry.
-	 */
-	{ type: ChatFetchResponseType.FilteredRetry; reason: string; category: FilterReason; value: T; requestId: string; serverRequestId: string | undefined };
+export type ChatFetchRetriableError<T> = WithCopilotServiceRequestId &
+/**
+ * We requested conversation, the response was filtered by RAI, but we want to retry.
+ */
+{ type: ChatFetchResponseType.FilteredRetry; reason: string; category: FilterReason; value: T; requestId: string; serverRequestId: string | undefined };
 
-export type FetchSuccess<T> =
-	{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string; modelCallId?: string };
+export type FetchSuccess<T> = WithCopilotServiceRequestId &
+{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string; modelCallId?: string };
 
 export type FetchResponse<T> = FetchSuccess<T> | ChatFetchError;
 
@@ -441,11 +456,19 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 			};
 			break;
 		case ChatFetchResponseType.BadRequest:
-		case ChatFetchResponseType.Failed:
-			details = fetchResult.serverRequestId
-				? { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
-				: { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
+		case ChatFetchResponseType.Failed: {
+			const isVisionExpired = isVisionAttachmentInaccessibleError(fetchResult);
+			if (isVisionExpired) {
+				details = fetchResult.serverRequestId
+					? { message: l10n.t(`An image attached earlier in this conversation is no longer accessible, so the request failed. Remove the image attachment or start a new conversation.\n\nClient Request Id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
+					: { message: l10n.t(`An image attached earlier in this conversation is no longer accessible, so the request failed. Remove the image attachment or start a new conversation.\n\nClient Request Id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
+			} else {
+				details = fetchResult.serverRequestId
+					? { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
+					: { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
+			}
 			break;
+		}
 		case ChatFetchResponseType.NetworkError:
 			details = { message: l10n.t(`Sorry, there was a network error. Please try again later. Request id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
 			break;

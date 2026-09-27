@@ -15,11 +15,13 @@ import type { GitHubAccountHandle } from '../../github/common/githubTypes.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, isSessionStatusArchived, readSessionGitHubState, readSessionGitState } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, isSessionStatusArchived, parseChatUri, readFolderGitHubState, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { parsePullRequestUrl } from './agentMergeController.js';
-import { isAgentMergePullRequestReadyForReview, readAgentMergeSessionState } from '../common/agentMerge.js';
+import { isAgentMergePullRequestReadyForReview, readAgentMergeFolderState } from '../common/agentMerge.js';
+import { resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 
 /**
  * Merge states GitHub reports for a pull request that can still be merged
@@ -53,42 +55,54 @@ export interface IAgentHostPullRequestStatus {
 export const IAgentHostPullRequestStatusService = createDecorator<IAgentHostPullRequestStatusService>('agentHostPullRequestStatusService');
 
 /**
- * Tracks the live GitHub state of the pull request belonging to each session a
- * client is currently watching.
+ * Tracks the live GitHub state of the pull request of each folder of the
+ * sessions a client is currently watching, or the lifecycle service is
+ * refreshing. Each folder a chat works in (its first folder) has its own pull
+ * request. Methods taking a `key` accept a session, chat channel or folder
+ * changeset owner URI and use the pull request of the folder it resolves to.
  *
  * A pull request subscription costs GitHub API budget, so the watcher is scoped
  * to sessions that have at least one changeset subscriber — in practice the
- * session whose changes the user has open. It normally subscribes only to the
- * `core` and `mergeability` fragments. While Agent Merge is enabled it adds
- * the required-check and review fragments already needed by Agent Merge so the
- * host can advertise the correct draft pull request operation.
+ * session whose changes the user has open — or a short-lived lifecycle refresh.
+ * Lifecycle refreshes subscribe only to `core`. Visible sessions normally add
+ * `mergeability`; while Agent Merge is enabled they also add the required-check
+ * and review fragments needed to advertise the correct pull request operation.
  */
 export interface IAgentHostPullRequestStatusService extends IDisposable {
 	readonly _serviceBrand: undefined;
 
-	/** Fires with the session key whose pull request status changed. */
+	/** Fires with the session key whose pull request status, in any folder, changed. */
 	readonly onDidChangePullRequestStatus: Event<string>;
 
 	/**
-	 * The last observed pull request status for `sessionKey`, or `undefined`
-	 * while the session has no watched pull request or its first snapshot has
-	 * not resolved yet. Callers MUST treat `undefined` as "unknown" rather than
-	 * "no pull request".
+	 * The last observed status of the pull request of the folder `key`
+	 * resolves to, or `undefined` while that folder has no watched pull request
+	 * or its first snapshot has not resolved yet. Callers MUST treat
+	 * `undefined` as "unknown" rather than "no pull request".
 	 */
-	getPullRequestStatus(sessionKey: string): IAgentHostPullRequestStatus | undefined;
+	getPullRequestStatus(key: string): IAgentHostPullRequestStatus | undefined;
 
 	/** Records a successful direct merge before the next GitHub refresh completes. */
-	markPullRequestMerged(sessionKey: string, pullRequestUrl: string): void;
+	markPullRequestMerged(key: string, pullRequestUrl: string): void;
 
 	/**
-	 * Re-reads the pull request from GitHub, bypassing cached fragments. Used
-	 * after a mutation so the advertised operations reflect the new state
-	 * without waiting for the next poll.
+	 * Re-reads the pull request of the folder `key` resolves to from GitHub,
+	 * bypassing cached fragments. Used after a mutation so the advertised
+	 * operations reflect the new state without waiting for the next poll.
 	 */
-	refresh(sessionKey: string): Promise<void>;
+	refresh(key: string): Promise<void>;
+
+	/**
+	 * Resolves an authoritative pull request status for a background lifecycle
+	 * check without requiring a client changeset subscription. A supplied pull
+	 * request URL lets cleanup check a cold session without restoring it first.
+	 */
+	resolveForLifecycle(sessionKey: string, pullRequestUrl: string): Promise<IAgentHostPullRequestStatus | undefined>;
 }
 
 interface IWatch extends IDisposable {
+	readonly sessionUri: ProtocolURI;
+	folder: IGitHubStateFolder;
 	readonly ref: PullRequestRef;
 	readonly subscription: PullRequestSubscription;
 	awaitingAuthoritativeRefresh: boolean;
@@ -104,6 +118,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 
 	declare readonly _serviceBrand: undefined;
 
+	/** Watches keyed by {@link watchKey}. */
 	private readonly _watches = new Map<string, IWatch>();
 	private readonly _pendingSyncs = new Map<string, Promise<void>>();
 	private readonly _staleSyncs = new Set<string>();
@@ -120,13 +135,19 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(session => this._sync(session)));
-		this._register(this._gitStateService.onDidRefreshSessionGitState(session => this._sync(session)));
+		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(owner => this._sync(containingSession(owner))));
+		this._register(this._gitStateService.onDidRefreshSessionGitState(key => this._sync(containingSession(key))));
 		this._register(this._gitStateService.onDidChangeSessionGitHubState(session => this._sync(session)));
-		this._register(this._stateManager.onDidRemoveSession(session => this._stopWatch(session)));
+		this._register(this._stateManager.onDidRemoveSession(session => this._stopSessionWatches(session)));
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
-			if (envelope.action.type === ActionType.SessionIsArchivedChanged || envelope.action.type === ActionType.SessionConfigChanged) {
-				this._sync(envelope.channel);
+			switch (envelope.action.type) {
+				case ActionType.SessionIsArchivedChanged:
+				case ActionType.SessionConfigChanged:
+				// The folders chats work in determine which pull requests are watched.
+				case ActionType.SessionChatAdded:
+				case ActionType.SessionChatRemoved:
+				case ActionType.SessionChatUpdated:
+					this._sync(envelope.channel);
 			}
 		}));
 		this._register(this._gitHubService.credentials.onDidInvalidate(event => this._handleCredentialInvalidation(event)));
@@ -146,23 +167,28 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		if (event.reason === 'replacement' || event.reason === 'authentication') {
 			return;
 		}
-		for (const [sessionKey, watch] of [...this._watches]) {
+		for (const [key, watch] of [...this._watches]) {
 			if (event.credential && !sameAccount(event.credential.account, watch.ref)) {
 				continue;
 			}
-			this._stopWatch(sessionKey, `the GitHub credential was invalidated (${event.reason})`);
+			this._stopWatch(key, `the GitHub credential was invalidated (${event.reason})`);
 			if (event.reason !== 'shutdown') {
-				this._sync(sessionKey);
+				this._sync(watch.sessionUri);
 			}
 		}
 	}
 
-	getPullRequestStatus(sessionKey: string): IAgentHostPullRequestStatus | undefined {
-		return this._watches.get(sessionKey)?.status;
+	getPullRequestStatus(key: string): IAgentHostPullRequestStatus | undefined {
+		const folder = this._resolveFolder(key);
+		return folder ? this._watches.get(watchKey(folder))?.status : undefined;
 	}
 
-	markPullRequestMerged(sessionKey: string, pullRequestUrl: string): void {
-		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+	markPullRequestMerged(key: string, pullRequestUrl: string): void {
+		const folder = this._resolveFolder(key);
+		if (!folder) {
+			return;
+		}
+		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(folder.sessionUri)?._meta, folder.folderKey);
 		const currentPullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0] ?? gitHubState?.pullRequestUrls?.[0];
 		const mergedPullRequest = parsePullRequestUrl(pullRequestUrl);
 		const currentPullRequest = currentPullRequestUrl ? parsePullRequestUrl(currentPullRequestUrl) : undefined;
@@ -170,14 +196,15 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			return;
 		}
 
-		const watch = this._watches.get(sessionKey);
+		const folderWatchKey = watchKey(folder);
+		const watch = this._watches.get(folderWatchKey);
 		const status = watch?.status;
 		if (!watch || !status || !sameRefAndHost(watch.ref, mergedPullRequest)) {
-			this._publishPullRequestState(sessionKey, pullRequestUrl, 'merged');
-			this._onDidChangePullRequestStatus.fire(sessionKey);
+			this._publishPullRequestState(folder, pullRequestUrl, 'merged');
+			this._onDidChangePullRequestStatus.fire(folder.sessionUri);
 			return;
 		}
-		this._setStatus(sessionKey, watch, {
+		this._setStatus(folderWatchKey, watch, {
 			...status,
 			state: 'merged',
 			draft: false,
@@ -187,17 +214,44 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		});
 	}
 
-	async refresh(sessionKey: string): Promise<void> {
-		const watch = this._watches.get(sessionKey);
+	async refresh(key: string): Promise<void> {
+		const folder = this._resolveFolder(key);
+		const watch = folder ? this._watches.get(watchKey(folder)) : undefined;
 		if (!watch) {
-			this._logService.trace(`[AgentHostPullRequestStatusService] Refresh skipped because no pull request is being watched: session=${sessionKey}`);
+			this._logService.trace(`[AgentHostPullRequestStatusService] Refresh skipped because no pull request is being watched: key=${key}`);
 			return;
 		}
 		try {
-			this._logService.trace(`[AgentHostPullRequestStatusService] Refreshing pull request: session=${sessionKey}, pr=${describeRef(watch.ref)}`);
+			this._logService.trace(`[AgentHostPullRequestStatusService] Refreshing pull request: session=${watch.sessionUri}, pr=${describeRef(watch.ref)}`);
 			await watch.subscription.refresh(undefined, undefined, { authoritative: true });
 		} catch (error) {
-			this._logService.warn(`[AgentHostPullRequestStatusService] Refresh failed: session=${sessionKey}, pr=${describeRef(watch.ref)}, error=${error}`);
+			this._logService.warn(`[AgentHostPullRequestStatusService] Refresh failed: session=${watch.sessionUri}, pr=${describeRef(watch.ref)}, error=${error}`);
+		}
+	}
+
+	async resolveForLifecycle(sessionKey: string, pullRequestUrl: string): Promise<IAgentHostPullRequestStatus | undefined> {
+		const parsed = parsePullRequestUrl(pullRequestUrl);
+		if (!parsed) {
+			this._logService.debug(`[AgentHostPullRequestStatusService] Lifecycle refresh skipped because the pull request URL could not be parsed: session=${sessionKey}, pr=${pullRequestUrl}`);
+			return undefined;
+		}
+		const credential = await this._gitHubService.credentials.getCredential(this._abortController.signal);
+		if (this._abortController.signal.aborted || credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
+			return undefined;
+		}
+		const ref: PullRequestRef = { ...credential.account, owner: parsed.owner, repo: parsed.repo, number: parsed.number };
+		const subscription = this._gitHubService.pullRequests.subscribePullRequest(ref, {
+			priority: 'background',
+			core: true,
+		});
+		try {
+			await subscription.refresh('core', undefined, { authoritative: true });
+			return toPullRequestStatus(subscription.resource.snapshot.get());
+		} catch (error) {
+			this._logService.warn(`[AgentHostPullRequestStatusService] Lifecycle refresh failed: session=${sessionKey}, pr=${describeRef(ref)}, error=${error}`);
+			return undefined;
+		} finally {
+			subscription.dispose();
 		}
 	}
 
@@ -211,13 +265,19 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		super.dispose();
 	}
 
+	/** The folder whose pull request `key` refers to, or `undefined` when it has none. */
+	private _resolveFolder(key: string): IGitHubStateFolder | undefined {
+		const folder = resolveGitHubStateFolder(this._stateManager, key);
+		return folder.folderKey !== undefined ? folder : undefined;
+	}
+
 	/**
-	 * Starts, replaces, or stops the watch for `sessionKey` so it matches the
-	 * session's current eligibility. Serialized per session because resolving
-	 * the pull request ref needs a credential, and two overlapping syncs would
-	 * otherwise race to install different subscriptions. Changes observed while
-	 * a sync is in flight are coalesced into one follow-up run so the watch
-	 * never settles on state that was already stale when it was read.
+	 * Starts, replaces, or stops the watches of `sessionKey`'s folders so they
+	 * match the session's current eligibility. Serialized per session because
+	 * resolving a pull request ref needs a credential, and two overlapping syncs
+	 * would otherwise race to install different subscriptions. Changes observed
+	 * while a sync is in flight are coalesced into one follow-up run so the
+	 * watches never settle on state that was already stale when it was read.
 	 */
 	private _sync(sessionKey: string): void {
 		if (this._pendingSyncs.has(sessionKey)) {
@@ -248,22 +308,57 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			return;
 		}
 
-		const target = this._getWatchTarget(sessionKey);
+		const folders = this._getFolders(sessionKey);
+		const wanted = new Set(folders.map(watchKey));
+		for (const [key, watch] of [...this._watches]) {
+			if (watch.sessionUri === sessionKey && !wanted.has(key)) {
+				this._stopWatch(key, 'the folder no longer belongs to a chat');
+			}
+		}
+		for (const folder of folders) {
+			await this._syncFolder(folder);
+			if (this._abortController.signal.aborted || this._staleSyncs.has(sessionKey)) {
+				return;
+			}
+		}
+	}
+
+	/** The folders of a session that have their own pull request: the session folder and each chat's first folder. */
+	private _getFolders(sessionKey: string): readonly IGitHubStateFolder[] {
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (!state) {
+			return [];
+		}
+		const folders = new Map<string, IGitHubStateFolder>();
+		const defaultChat = buildDefaultChatUri(sessionKey);
+		for (const source of [sessionKey, ...state.chats.map(chat => chat.resource).filter(chat => chat !== defaultChat)]) {
+			const folder = this._resolveFolder(source);
+			if (folder && !folders.has(watchKey(folder))) {
+				folders.set(watchKey(folder), folder);
+			}
+		}
+		return [...folders.values()];
+	}
+
+	private async _syncFolder(folder: IGitHubStateFolder): Promise<void> {
+		const key = watchKey(folder);
+		const target = this._getWatchTarget(folder);
 		if (target.kind === 'skip') {
-			this._stopWatch(sessionKey, target.reason);
+			this._stopWatch(key, target.reason);
 			return;
 		}
 
 		const parsed = parsePullRequestUrl(target.pullRequestUrl);
 		if (!parsed) {
-			this._stopWatch(sessionKey, `pull request URL could not be parsed: ${target.pullRequestUrl}`);
+			this._stopWatch(key, `pull request URL could not be parsed: ${target.pullRequestUrl}`);
 			return;
 		}
 
-		const existing = this._watches.get(sessionKey);
+		const existing = this._watches.get(key);
 		if (existing && sameRefAndHost(existing.ref, parsed)) {
-			existing.subscription.update(this._getSubscriptionOptions(sessionKey));
-			this._updateStatus(sessionKey, existing, existing.subscription.resource.snapshot.get());
+			existing.folder = folder;
+			existing.subscription.update(this._getSubscriptionOptions(folder));
+			this._updateStatus(key, existing, existing.subscription.resource.snapshot.get());
 			return;
 		}
 
@@ -276,51 +371,55 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		// instance, which must never be read with this account's credential.
 		if (credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
 			const reason = `the signed in account (${credential.account.host}) does not host ${parsed.owner}/${parsed.repo}#${parsed.number} (${parsed.apiHost})`;
-			this._stopWatch(sessionKey, reason);
-			this._logService.debug(`[AgentHostPullRequestStatusService] Not watching pull request: session=${sessionKey}, reason=${reason}`);
+			this._stopWatch(key, reason);
+			this._logService.debug(`[AgentHostPullRequestStatusService] Not watching pull request: session=${folder.sessionUri}, reason=${reason}`);
 			return;
 		}
 		const ref: PullRequestRef = { ...credential.account, owner: parsed.owner, repo: parsed.repo, number: parsed.number };
 
 		// Eligibility can have changed while the credential was in flight; the
-		// follow-up run installs the watch the session actually needs.
-		const current = this._getWatchTarget(sessionKey);
+		// follow-up run installs the watch the folder actually needs.
+		const current = this._getWatchTarget(folder);
 		if (current.kind === 'skip' || current.pullRequestUrl !== target.pullRequestUrl) {
-			this._logService.trace(`[AgentHostPullRequestStatusService] Retrying sync because the session changed while resolving credentials: session=${sessionKey}`);
-			this._staleSyncs.add(sessionKey);
+			this._logService.trace(`[AgentHostPullRequestStatusService] Retrying sync because the session changed while resolving credentials: session=${folder.sessionUri}`);
+			this._staleSyncs.add(folder.sessionUri);
 			return;
 		}
 
-		this._stopWatch(sessionKey, `replaced by ${describeRef(ref)}`);
+		this._stopWatch(key, `replaced by ${describeRef(ref)}`);
 		const store = new DisposableStore();
-		const subscription = store.add(this._gitHubService.pullRequests.subscribePullRequest(ref, this._getSubscriptionOptions(sessionKey)));
+		const subscription = store.add(this._gitHubService.pullRequests.subscribePullRequest(ref, this._getSubscriptionOptions(folder)));
 		const watch: IWatch = {
+			sessionUri: folder.sessionUri,
+			folder,
 			ref,
 			subscription,
-			awaitingAuthoritativeRefresh: this._hasPersistedMergedState(sessionKey, ref),
+			awaitingAuthoritativeRefresh: this._hasPersistedMergedState(folder, ref),
 			dispose: () => store.dispose(),
 		};
-		this._watches.set(sessionKey, watch);
+		this._watches.set(key, watch);
 		store.add(autorun(reader => {
 			const snapshot = subscription.resource.snapshot.read(reader);
 			if (watch.awaitingAuthoritativeRefresh) {
 				return;
 			}
-			this._updateStatus(sessionKey, watch, snapshot);
+			this._updateStatus(key, watch, snapshot);
 		}));
 		if (watch.awaitingAuthoritativeRefresh) {
-			void this._refreshRecreatedMergedWatch(sessionKey, watch);
+			void this._refreshRecreatedMergedWatch(key, watch);
 		}
-		this._logService.debug(`[AgentHostPullRequestStatusService] Watching pull request: session=${sessionKey}, pr=${describeRef(ref)}`);
+		this._logService.debug(`[AgentHostPullRequestStatusService] Watching pull request: session=${folder.sessionUri}, pr=${describeRef(ref)}`);
 	}
 
-	private _getSubscriptionOptions(sessionKey: string): PullRequestSubscriptionOptions {
-		const agentMergeEnabled = readAgentMergeSessionState(this._stateManager.getSessionState(sessionKey)?.config?.values)?.enabled === true;
+	private _getSubscriptionOptions(folder: IGitHubStateFolder): PullRequestSubscriptionOptions {
+		const visible = this._changesetSubscriptions.getSessionSubscriptions(folder.sessionUri).size > 0;
+		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, folder.sessionUri).folderKey;
+		const agentMergeEnabled = readAgentMergeFolderState(this._stateManager.getSessionState(folder.sessionUri)?.config?.values, folder.folderKey, sessionFolderKey)?.enabled === true;
 		return {
-			priority: 'visible',
+			priority: visible ? 'visible' : 'background',
 			core: true,
-			mergeability: true,
-			...(agentMergeEnabled ? {
+			...(visible ? { mergeability: true } : {}),
+			...(visible && agentMergeEnabled ? {
 				conversation: {
 					topLevelComments: true,
 					submittedReviews: true,
@@ -332,57 +431,58 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		};
 	}
 
-	private _hasPersistedMergedState(sessionKey: string, ref: PullRequestRef): boolean {
-		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+	private _hasPersistedMergedState(folder: IGitHubStateFolder, ref: PullRequestRef): boolean {
+		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(folder.sessionUri)?._meta, folder.folderKey);
 		const persistedPullRequest = gitHubState?.pullRequestStateUrl ? parsePullRequestUrl(gitHubState.pullRequestStateUrl) : undefined;
 		return gitHubState?.pullRequestState === 'merged'
 			&& persistedPullRequest !== undefined
 			&& sameRefAndHost(ref, persistedPullRequest);
 	}
 
-	private async _refreshRecreatedMergedWatch(sessionKey: string, watch: IWatch): Promise<void> {
+	private async _refreshRecreatedMergedWatch(key: string, watch: IWatch): Promise<void> {
 		try {
 			await watch.subscription.refresh(undefined, undefined, { authoritative: true });
 		} catch (error) {
-			this._logService.warn(`[AgentHostPullRequestStatusService] Failed to refresh recreated merged pull request watch: session=${sessionKey}, pr=${describeRef(watch.ref)}, error=${error}`);
+			this._logService.warn(`[AgentHostPullRequestStatusService] Failed to refresh recreated merged pull request watch: session=${watch.sessionUri}, pr=${describeRef(watch.ref)}, error=${error}`);
 			return;
 		}
-		if (this._watches.get(sessionKey) !== watch) {
+		if (this._watches.get(key) !== watch) {
 			return;
 		}
 		watch.awaitingAuthoritativeRefresh = false;
-		this._updateStatus(sessionKey, watch, watch.subscription.resource.snapshot.get());
+		this._updateStatus(key, watch, watch.subscription.resource.snapshot.get());
 	}
 
 	/**
-	 * The pull request this session should be watching, or the reason it is not
+	 * The pull request a folder should be watching, or the reason it is not
 	 * eligible. The reason is carried rather than collapsed into `undefined` so
 	 * a missing button bar can be explained from the logs alone.
 	 */
-	private _getWatchTarget(sessionKey: string): IWatchTarget {
-		const state = this._stateManager.getSessionState(sessionKey);
+	private _getWatchTarget(folder: IGitHubStateFolder): IWatchTarget {
+		const state = this._stateManager.getSessionState(folder.sessionUri);
 		if (!state) {
 			return { kind: 'skip', reason: 'session is unknown' };
 		}
 		if (isSessionStatusArchived(state.status)) {
 			return { kind: 'skip', reason: 'session is archived' };
 		}
-		if (this._changesetSubscriptions.getSessionSubscriptions(sessionKey).size === 0) {
+		if (this._changesetSubscriptions.getSessionSubscriptions(folder.sessionUri).size === 0) {
 			return { kind: 'skip', reason: 'no client is subscribed to the session changes' };
 		}
-		const gitHubState = readSessionGitHubState(state._meta);
-		const gitState = readSessionGitState(state._meta);
+		const gitHubState = readFolderGitHubState(state._meta, folder.folderKey);
+		// The session's Git state describes the session folder; another folder's comes from its chat.
+		const gitState = folder.isSessionFolder ? readSessionGitState(state._meta) : this._gitStateService.getSessionGitState?.(folder.sourceUri);
 		if (!hasSessionPullRequestForBranch(gitHubState, gitState?.branchName)) {
 			return { kind: 'skip', reason: `no pull request is known for branch '${gitState?.branchName ?? 'unknown'}'` };
 		}
 		const pullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0] ?? gitHubState?.pullRequestUrls?.[0];
 		return pullRequestUrl
 			? { kind: 'watch', pullRequestUrl }
-			: { kind: 'skip', reason: 'the session has no pull request URL' };
+			: { kind: 'skip', reason: 'the folder has no pull request URL' };
 	}
 
-	private _updateStatus(sessionKey: string, watch: IWatch, snapshot: PullRequestSnapshot): void {
-		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+	private _updateStatus(key: string, watch: IWatch, snapshot: PullRequestSnapshot): void {
+		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(watch.sessionUri)?._meta, watch.folder.folderKey);
 		const persistedPullRequest = gitHubState?.pullRequestStateUrl ? parsePullRequestUrl(gitHubState.pullRequestStateUrl) : undefined;
 		const persistedMergedStateApplies = gitHubState?.pullRequestState === 'merged'
 			&& persistedPullRequest !== undefined
@@ -390,49 +490,70 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		if (snapshot.core.status !== 'ready' && (watch.status?.state === 'merged' || persistedMergedStateApplies)) {
 			return;
 		}
-		const agentMerge = readAgentMergeSessionState(this._stateManager.getSessionState(sessionKey)?.config?.values);
-		this._setStatus(sessionKey, watch, toPullRequestStatus(snapshot, agentMerge?.enabled ? agentMerge.target?.commentWatermark : undefined));
+		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, watch.sessionUri).folderKey;
+		const agentMerge = readAgentMergeFolderState(this._stateManager.getSessionState(watch.sessionUri)?.config?.values, watch.folder.folderKey, sessionFolderKey);
+		this._setStatus(key, watch, toPullRequestStatus(snapshot, agentMerge?.enabled ? agentMerge.target?.commentWatermark : undefined));
 	}
 
-	private _setStatus(sessionKey: string, watch: IWatch, status: IAgentHostPullRequestStatus | undefined): void {
+	private _setStatus(key: string, watch: IWatch, status: IAgentHostPullRequestStatus | undefined): void {
 		if (structuralEquals(watch.status, status)) {
 			return;
 		}
 		const previous = watch.status;
 		watch.status = status;
-		if (this._watches.get(sessionKey) !== watch) {
+		if (this._watches.get(key) !== watch) {
 			return;
 		}
 		// The single most useful line when a button bar shows the "wrong"
 		// action: it names every flag the operation provider branches on.
-		this._logService.debug(`[AgentHostPullRequestStatusService] Status changed: session=${sessionKey}, pr=${describeRef(watch.ref)}, from=[${describeStatus(previous)}], to=[${describeStatus(status)}]`);
+		this._logService.debug(`[AgentHostPullRequestStatusService] Status changed: session=${watch.sessionUri}, pr=${describeRef(watch.ref)}, from=[${describeStatus(previous)}], to=[${describeStatus(status)}]`);
 		if (status) {
-			this._publishPullRequestState(sessionKey, status.url, status.state);
+			this._publishPullRequestState(watch.folder, status.url, status.state);
 		}
-		this._onDidChangePullRequestStatus.fire(sessionKey);
+		this._onDidChangePullRequestStatus.fire(watch.sessionUri);
 	}
 
-	private _publishPullRequestState(sessionKey: string, pullRequestUrl: string, state: IAgentHostPullRequestStatus['state']): void {
-		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+	private _publishPullRequestState(folder: IGitHubStateFolder, pullRequestUrl: string, state: IAgentHostPullRequestStatus['state']): void {
+		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(folder.sessionUri)?._meta, folder.folderKey);
 		if (gitHubState?.pullRequestState === state && gitHubState.pullRequestStateUrl === pullRequestUrl) {
 			return;
 		}
-		void this._gitStateService.setSessionGitHubState(sessionKey, {
+		// The session folder's state is keyed by the session; another folder's by the chat working in it.
+		const key = folder.isSessionFolder ? folder.sessionUri : folder.sourceUri;
+		void this._gitStateService.setSessionGitHubState(key, {
 			pullRequestState: state,
 			pullRequestStateUrl: pullRequestUrl,
-		}).catch(error => this._logService.warn(`[AgentHostPullRequestStatusService] Failed to publish pull request state: session=${sessionKey}, pr=${pullRequestUrl}, state=${state}, error=${error}`));
+		}).catch(error => this._logService.warn(`[AgentHostPullRequestStatusService] Failed to publish pull request state: session=${folder.sessionUri}, pr=${pullRequestUrl}, state=${state}, error=${error}`));
 	}
 
-	private _stopWatch(sessionKey: string, reason?: string): void {
-		const watch = this._watches.get(sessionKey);
+	private _stopSessionWatches(sessionKey: string): void {
+		for (const [key, watch] of [...this._watches]) {
+			if (watch.sessionUri === sessionKey) {
+				this._stopWatch(key);
+			}
+		}
+	}
+
+	private _stopWatch(key: string, reason?: string): void {
+		const watch = this._watches.get(key);
 		if (!watch) {
 			return;
 		}
-		this._watches.delete(sessionKey);
+		this._watches.delete(key);
 		watch.dispose();
-		this._logService.debug(`[AgentHostPullRequestStatusService] Stopped watching pull request: session=${sessionKey}, pr=${describeRef(watch.ref)}, reason=${reason ?? 'session removed'}`);
-		this._onDidChangePullRequestStatus.fire(sessionKey);
+		this._logService.debug(`[AgentHostPullRequestStatusService] Stopped watching pull request: session=${watch.sessionUri}, pr=${describeRef(watch.ref)}, reason=${reason ?? 'session removed'}`);
+		this._onDidChangePullRequestStatus.fire(watch.sessionUri);
 	}
+}
+
+/** Identifies the watch of a folder's pull request. */
+function watchKey(folder: IGitHubStateFolder): string {
+	return `${folder.sessionUri}\u0001${folder.folderKey}`;
+}
+
+/** The session a session, chat channel or folder changeset owner URI belongs to. */
+function containingSession(key: ProtocolURI): ProtocolURI {
+	return parseFolderChangesetOwnerUri(key)?.sessionUri ?? parseChatUri(key)?.session ?? key;
 }
 
 /** Compact `owner/repo#number` form used in every log line. */
