@@ -157,7 +157,8 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 					this._treeViews.delete(viewId);
 					this._proxy.$disposeTree(viewId);
 				}
-				treeView.dispose();
+				this._store.deleteAndLeak(view);
+				this._store.delete(treeView);
 			}
 		};
 		this._register(view);
