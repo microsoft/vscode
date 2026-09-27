@@ -31,7 +31,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import product from '../../../../../platform/product/common/product.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -208,14 +208,15 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				return true;
 			},
 		}));
-		instantiation.stub(ITelemetryService, {
-			...NullTelemetryService,
-			publicLog2: (name?: string, data?: unknown) => {
+		const telemetryService = new class extends TestExperimentTriggerTelemetryService {
+			override publicLog2(name?: string, data?: object): void {
+				super.publicLog2(name, data);
 				if (name) {
 					telemetryEvents.push({ name, data });
 				}
-			},
-		});
+			}
+		}();
+		instantiation.stub(ITelemetryService, telemetryService);
 		instantiation.stub(ICommandService, upcastPartial<ICommandService>({
 			executeCommand: async (id, ...args) => {
 				if (id === OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID) {
@@ -232,6 +233,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		}));
 		return {
 			instantiation, configuration, calls, warnings, focused, sessionsChanged, models, treatmentWarnings, treatmentNames, openedResources, telemetryEvents, widget, inputUri,
+			triggers: telemetryService.triggers,
 			focusWidget: (value: IChatWidget | undefined) => { lastFocusedWidget = value; focused.fire(); },
 			sendMessage: (timestamp = Date.now(), isSystemInitiated = false) => {
 				const request = upcastPartial<IChatRequestModel>({ timestamp, isSystemInitiated });
@@ -533,6 +535,32 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
+	test('reports the draft transfer trigger for drafts with content, whether or not they transfer', async () => {
+		const results = [];
+		for (const { transfer, input, attachments } of [
+			{ transfer: true, input: 'Prompt', attachments: false },
+			{ transfer: false, input: 'Prompt', attachments: false },
+			{ transfer: false, input: '', attachments: true },
+			{ transfer: false, input: ' ', attachments: false },
+		]) {
+			const h = createHarness({ transfer });
+			h.input = input;
+			if (!attachments) {
+				h.attachments = [];
+			}
+			await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+			results.push({ triggers: h.triggers, transferred: !!h.calls[0].draft });
+		}
+
+		const trigger = [`config.${ChatConfiguration.OpenInAgentsWindowTransferDraft}`];
+		assert.deepStrictEqual(results, [
+			{ triggers: trigger, transferred: true },
+			{ triggers: trigger, transferred: false },
+			{ triggers: trigger, transferred: false },
+			{ triggers: [], transferred: false },
+		]);
+	});
+
 	test('does not transfer from hidden AI, inline chat or Quick Chat', async () => {
 		const h = createHarness();
 		h.allowed = false;
@@ -665,6 +693,20 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				harness: undefined,
 			}],
 		});
+	});
+
+	test('reports the parallel-work trigger where the invitation would show, whether or not it is enabled', () => {
+		const results = [true, false].map(banner => {
+			const h = createHarness({ banner });
+			h.showBanner();
+			return { triggers: h.triggers, title: h.notification?.message };
+		});
+
+		const trigger = `config.${ChatConfiguration.AgentsParallelWorkBannerEnabled}`;
+		assert.deepStrictEqual(results, [
+			{ triggers: [trigger, titleTreatment, descriptionTreatment], title: defaultTitle },
+			{ triggers: [trigger], title: undefined },
+		]);
 	});
 
 	test('logs actual introduction exposure and session materialization once with correlation context', () => {
@@ -1029,6 +1071,26 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		assert.strictEqual(h.notification?.id, 'chat.agentsHandoff.openInAgentsWindow');
 	});
 
+	test('reports the parallel-work trigger where the invitation replaces the empty-workspace tip, even for a draft it does not invite', () => {
+		const trigger = `config.${ChatConfiguration.AgentsParallelWorkBannerEnabled}`;
+		const results = [true, false].map(banner => {
+			// The draft predates the running session, so it never becomes eligible for the invitation.
+			const h = createHarness({ banner, running: false });
+			h.workbenchState = WorkbenchState.EMPTY;
+			h.showGenericTip();
+			h.showBanner();
+			const beforeRunning = { triggers: h.triggers.filter(name => name === trigger), notification: h.notification?.id };
+			h.status = AgentSessionStatus.InProgress;
+			return { beforeRunning, afterRunning: { triggers: h.triggers.filter(name => name === trigger), notification: h.notification?.id } };
+		});
+
+		const tip = 'chat.agentsHandoff.openInAgentsWindow';
+		assert.deepStrictEqual(results, [
+			{ beforeRunning: { triggers: [], notification: tip }, afterRunning: { triggers: [trigger], notification: undefined } },
+			{ beforeRunning: { triggers: [], notification: tip }, afterRunning: { triggers: [trigger], notification: tip } },
+		]);
+	});
+
 	test('switches between the generic tip and invitation when its experiment changes', async () => {
 		const h = createHarness({ banner: false });
 		h.workbenchState = WorkbenchState.EMPTY;
@@ -1133,6 +1195,25 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				});
 			});
 		}
+
+		test('reports the delay trigger when an eligible request starts and the copy triggers once the tip shows', async () => {
+			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
+				const h = createTimedHandoff();
+				h.showGenericTip();
+				const beforeMessage = [...h.triggers];
+				h.sendMessage();
+				const whileWaiting = [...h.triggers];
+				await timeout(5001);
+
+				const delayTrigger = `config.${ChatConfiguration.AgentsHandoffTipDelaySeconds}`;
+				assert.deepStrictEqual({ beforeMessage, whileWaiting, afterDelay: h.triggers, visible: !!h.notification }, {
+					beforeMessage: [],
+					whileWaiting: [delayTrigger],
+					afterDelay: [delayTrigger, 'chatAgentsHandoffTipTitle', 'chatAgentsHandoffTipDescription'],
+					visible: true,
+				});
+			});
+		});
 
 		test('does not show for a request that finishes before the deadline', async () => {
 			await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {

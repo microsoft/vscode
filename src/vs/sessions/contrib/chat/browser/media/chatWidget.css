@@ -368,7 +368,8 @@
 
 /* Over a chat background, use the same opaque secondary-control surface as the
  * in-session toolbar rather than relying on the transparent session view. */
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .action-label:not(.separator) {
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .action-label:not(.separator),
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label {
 	background-color: var(--vscode-chat-list-background, var(--session-view-background));
 	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
 	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder);
@@ -376,7 +377,7 @@
 	color: var(--vscode-button-secondaryForeground);
 }
 
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar {
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-repo-config-container .monaco-action-bar {
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	background-color: var(--vscode-chat-list-background, var(--session-view-background));
@@ -386,18 +387,20 @@
 	color: var(--vscode-button-secondaryForeground);
 }
 
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .action-label:not(.separator) {
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-repo-config-container .monaco-action-bar .action-label:not(.separator) {
 	background-color: transparent;
 	background-image: none;
 	border: none;
 }
 
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container:hover .monaco-action-bar,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container[data-picker-open='true'] .monaco-action-bar {
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-repo-config-container:hover .monaco-action-bar,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-repo-config-container[data-picker-open='true'] .monaco-action-bar {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .action-label:not(.agent-host-mode-permissions-trigger):not(.disabled):hover {
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .action-label:not(.agent-host-mode-permissions-trigger):not(.disabled):hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label:not(.disabled):hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label[aria-expanded='true'] {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
