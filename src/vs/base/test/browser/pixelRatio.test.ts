@@ -7,7 +7,6 @@ import assert from 'assert';
 import { registerWindow } from '../../browser/dom.js';
 import { PixelRatio } from '../../browser/pixelRatio.js';
 import { ensureCodeWindow, mainWindow } from '../../browser/window.js';
-import { timeout } from '../../common/async.js';
 import { toDisposable } from '../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
@@ -26,42 +25,34 @@ suite('PixelRatio', () => {
 		return { targetWindow, registration };
 	}
 
-	test('releases the second window monitor after another window closes first', async function () {
-		if (typeof globalThis.gc !== 'function') {
-			this.skip(); // Run the Electron suite with --js-flags=--expose-gc.
-		}
+	test('releases the second window monitor after another window closes first', () => {
 		const first = createWindow();
 		const second = createWindow();
 		PixelRatio.getInstance(first.targetWindow);
-		const monitor = new WeakRef(PixelRatio.getInstance(second.targetWindow));
+		const monitor = PixelRatio.getInstance(second.targetWindow);
 
 		first.registration.dispose();
-		const liveMonitorPreserved = PixelRatio.getInstance(second.targetWindow) === monitor.deref();
+		const liveMonitorPreserved = PixelRatio.getInstance(second.targetWindow) === monitor;
 		second.registration.dispose();
-		await timeout(0);
-		await globalThis.gc!({ type: 'major', execution: 'async' });
+		store.add(registerWindow(second.targetWindow));
 
-		assert.deepStrictEqual({ liveMonitorPreserved, released: monitor.deref() === undefined }, {
+		assert.deepStrictEqual({ liveMonitorPreserved, released: PixelRatio.getInstance(second.targetWindow) !== monitor }, {
 			liveMonitorPreserved: true,
 			released: true,
 		});
 	});
 
-	test('releases a monitor after a window without a monitor closes first', async function () {
-		if (typeof globalThis.gc !== 'function') {
-			this.skip(); // Run the Electron suite with --js-flags=--expose-gc.
-		}
+	test('releases a monitor after a window without a monitor closes first', () => {
 		const unrelated = createWindow();
 		const monitored = createWindow();
-		const monitor = new WeakRef(PixelRatio.getInstance(monitored.targetWindow));
+		const monitor = PixelRatio.getInstance(monitored.targetWindow);
 
 		unrelated.registration.dispose();
 		monitored.registration.dispose();
 		monitored.registration.dispose();
-		await timeout(0);
-		await globalThis.gc!({ type: 'major', execution: 'async' });
+		store.add(registerWindow(monitored.targetWindow));
 
-		assert.strictEqual(monitor.deref(), undefined, 'An unrelated window close consumed monitor cleanup');
+		assert.notStrictEqual(PixelRatio.getInstance(monitored.targetWindow), monitor, 'An unrelated window close consumed monitor cleanup');
 	});
 
 	test('preserves the main window monitor when an auxiliary window closes', () => {
