@@ -171,6 +171,8 @@ The render promise must resolve only when the fixture represents its named state
 - Supply deterministic display data through existing services/options, such as a single custom thinking phrase. A seeded random generator alone does not make labels independent of render order or async callback order.
 - Use bounded, condition-based waits that throw on failure, not fixed sleeps or extra frames that silently accept an incomplete state.
 
+Keep source-map formatting lazy. Reading `Error.stack` just to warm diagnostic source maps performs synchronous loading and parsing, which can stall cold headless renders and delay the resource callbacks needed for readiness. Successful renders should not load diagnostic source maps; actual errors and disposable-leak reports still map their stacks on demand.
+
 Fixtures that depend on native browser image decoding or resize/scroll callbacks can use `virtualTime: { enabled: false }` and explicitly await those operations. Virtual JavaScript time does not advance the browser's image decoder or layout pipeline.
 
 For async fixtures with paint-order-sensitive edges, `deferPaint: true` keeps the headless fixture transparent until rendering has finished, without changing its layout or interactive preview. It prevents intermediate paints from affecting the final rasterization; it does **not** replace awaiting readiness.

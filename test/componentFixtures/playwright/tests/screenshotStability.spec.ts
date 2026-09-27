@@ -9,7 +9,11 @@ import { getBaseURL } from './utils.js';
 
 // Supplied by the Component Explorer headless page.
 declare const __componentExplorer__: {
-	renderFixture(fixtureId: string): Promise<{ hasError: boolean; previousDispose?: { hasError: boolean } }>;
+	renderFixture(fixtureId: string): Promise<{
+		hasError: boolean;
+		error?: { message: string; stack?: string };
+		previousDispose?: { hasError: boolean };
+	}>;
 	disposeCurrentFixture(): Promise<{ hasError: boolean }>;
 };
 
@@ -29,6 +33,36 @@ async function renderFixture(page: Page, fixtureId: string): Promise<void> {
 		disposeError: report.previousDispose?.hasError ?? false,
 	}, JSON.stringify(report)).toEqual({ renderError: false, disposeError: false });
 }
+
+test('successful cold renders do not eagerly load diagnostic source maps', async ({ page }) => {
+	const sourceMapRequests: string[] = [];
+	page.on('request', request => {
+		if (new URL(request.url()).pathname.endsWith('.js.map')) {
+			sourceMapRequests.push(request.url());
+		}
+	});
+
+	await renderFixture(page, 'imageCarousel/imageCarousel/SingleImage/Dark');
+
+	expect(sourceMapRequests).toEqual([]);
+});
+
+test('fixture setup failures still report their original error with a mapped stack', async ({ page }) => {
+	await page.route('**/extensions/theme-seti/icons/vs-seti-icon-theme.json', route => route.fulfill({
+		status: 503,
+		body: 'Fixture resource unavailable',
+	}));
+
+	const report = await page.evaluate(() => __componentExplorer__.renderFixture('imageCarousel/imageCarousel/SingleImage/Dark'));
+
+	expect(report).toMatchObject({
+		hasError: true,
+		error: {
+			message: expect.stringMatching(/^Failed to load fixture file icon theme .*: 503/),
+			stack: expect.stringContaining('fixtureUtils.ts:'),
+		},
+	});
+});
 
 async function expectStableScreenshot(page: Page, fixtureId: string, precedingFixtureId: string): Promise<void> {
 	const container = page.locator('#root > div').last();
