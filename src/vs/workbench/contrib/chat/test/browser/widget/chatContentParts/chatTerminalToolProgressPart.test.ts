@@ -20,7 +20,7 @@ import { DisposableStore, toDisposable } from '../../../../../../../base/common/
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -1287,6 +1287,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 	// sliced-last-row symptom of #328299: the box height must derive from the mirror's
 	// painted cell height, not the configuration-font estimate.
 	let instantiationService: TestInstantiationService;
+	let configurationService: TestConfigurationService;
 	let XTermBaseCtor: typeof Terminal;
 	let fakes: ReturnType<typeof createFakeDetachedTerminal>[];
 	let mirrorFont: ITerminalFont;
@@ -1294,7 +1295,8 @@ suite('ChatTerminalToolOutputSection layout', () => {
 	let themeService: TestThemeService;
 
 	setup(async () => {
-		instantiationService = workbenchInstantiationService(undefined, store);
+		configurationService = new TestConfigurationService();
+		instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, store);
 		themeService = new TestThemeService();
 		instantiationService.stub(IThemeService, themeService);
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
@@ -1518,6 +1520,74 @@ suite('ChatTerminalToolOutputSection layout', () => {
 	});
 
 	/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Keep private layout access type-checked without exposing test-only APIs. */
+	for (const reflow of [undefined, true, false]) {
+		for (const streamed of [false, true]) {
+			test(`respects ${reflow === undefined ? 'default' : reflow ? 'enabled' : 'disabled'} reflow for ${streamed ? 'streamed' : 'snapshot'} output`, async () => {
+				await configurationService.setUserConfiguration(ChatConfiguration.TerminalOutputReflow, reflow);
+				container.style.width = '220px';
+				const text = 'x'.repeat(100);
+				const section = createSection(streamed ? undefined : { text }, undefined, streamed ? {
+					source: { output: text, onDidChange: Event.None, hasExited: false, exitCode: undefined },
+				} : undefined);
+				await section.toggle(true);
+				const fake = fakes[0];
+				const initialColumns = fake.raw.cols;
+				const initialWriteCalls = fake.counters.writeCalls;
+				container.style.width = '800px';
+				await section['_handleResize']();
+
+				assert.deepStrictEqual({
+					initiallyFixed: initialColumns === 80,
+					resized: fake.raw.cols !== initialColumns,
+					heightMatchesRows: boxHeight(section) === expectedHeight(section, Math.ceil(text.length / fake.raw.cols), 20),
+					rewrites: fake.counters.writeCalls - initialWriteCalls,
+				}, {
+					initiallyFixed: reflow === false,
+					resized: reflow !== false,
+					heightMatchesRows: true,
+					rewrites: 0,
+				});
+			});
+		}
+	}
+
+	for (const collapsed of [false, true]) {
+		test(`applies reflow setting changes to ${collapsed ? 'collapsed' : 'expanded'} output`, async () => {
+			container.style.width = '220px';
+			const section = createSection({ text: 'x'.repeat(100) });
+			await section.toggle(true);
+			const fake = fakes[0];
+			const reflowColumns = fake.raw.cols;
+			const results = [];
+			for (const reflow of [false, true]) {
+				if (collapsed) {
+					await section.toggle(false);
+				}
+				await configurationService.setUserConfiguration(ChatConfiguration.TerminalOutputReflow, reflow);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					affectsConfiguration: key => key === ChatConfiguration.TerminalOutputReflow,
+					affectedKeys: new Set([ChatConfiguration.TerminalOutputReflow]),
+					source: ConfigurationTarget.USER,
+					change: { keys: [ChatConfiguration.TerminalOutputReflow], overrides: [] },
+				});
+				if (collapsed) {
+					await section.toggle(true);
+				} else {
+					await timeout(0);
+				}
+				results.push({
+					cols: fake.raw.cols,
+					heightMatchesRows: boxHeight(section) === expectedHeight(section, Math.ceil(100 / fake.raw.cols), 20),
+					writeCalls: fake.counters.writeCalls,
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{ cols: 80, heightMatchesRows: true, writeCalls: 1 },
+				{ cols: reflowColumns, heightMatchesRows: true, writeCalls: 1 },
+			]);
+		});
+	}
+
 	test('scans output once after resizing and preserves native reflow', async () => {
 		const text = 'x'.repeat(100);
 		const section = createSection({ text });
