@@ -610,6 +610,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		mergeBranch: async () => '',
 		restore: async () => { },
 		hasUpstream: async () => false,
+		fetch: async () => { },
 		pull: async () => { },
 		push: async () => { },
 		getSessionGitState: async () => undefined,

@@ -417,6 +417,7 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		},
 		onManageModels: () => { },
 		onDidToggleOtherModels: () => { },
+		onDidSearch: () => { },
 		onConfigurationChanged: () => { },
 		unavailableContext: {
 			show: true,
@@ -728,9 +729,6 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	}),
 	PickerDirectDetails: defineComponentFixture({
 		render: context => renderPicker(context, { anchored: true, openSelectedDetails: true, cacheWarm: true }),
-	}),
-	PickerHydraFusionDetails: defineComponentFixture({
-		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: HYDRA_FUSION_MODEL.identifier, openSelectedDetails: true }),
 	}),
 	PickerPinning: defineComponentFixture({
 		render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, openDetailsFor: 'GPT-5.5', motionReduced: false }),
