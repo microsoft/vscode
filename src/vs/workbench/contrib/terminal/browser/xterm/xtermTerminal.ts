@@ -50,7 +50,7 @@ import { isNumber } from '../../../../../base/common/types.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { getTerminalAllowTransparency, updateTerminalFontRendering } from './terminalFontRendering.js';
+import { updateTerminalFontRendering } from './terminalFontRendering.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -277,7 +277,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				kittyKeyboard: config.enableKittyKeyboardProtocol,
 				win32InputMode: config.enableWin32InputMode,
 			},
-			allowTransparency: getTerminalAllowTransparency(config.fontRendering, config.enableImages),
+			allowTransparency: config.enableImages,
 			windowOptions: {
 				getWinSizePixels: true,
 				getCellSizePixels: true,
@@ -613,7 +613,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.scrollbar = this._getScrollbarOptions();
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
-		this.raw.options.allowTransparency = getTerminalAllowTransparency(config.fontRendering, config.enableImages);
+		this.raw.options.allowTransparency = config.enableImages;
 		updateTerminalFontRendering(this.raw, config.fontRendering);
 		this.raw.options.vtExtensions = {
 			kittyKeyboard: config.enableKittyKeyboardProtocol,

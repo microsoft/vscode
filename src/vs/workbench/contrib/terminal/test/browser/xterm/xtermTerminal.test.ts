@@ -23,7 +23,6 @@ import { TestColorTheme, TestThemeService } from '../../../../../../platform/the
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../../common/theme.js';
 import { IViewDescriptor, IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { getTerminalAllowTransparency } from '../../../browser/xterm/terminalFontRendering.js';
 import { XtermTerminal } from '../../../browser/xterm/xtermTerminal.js';
 import { ITerminalConfiguration, TERMINAL_VIEW_ID } from '../../../common/terminal.js';
 import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from '../../../common/terminalColorRegistry.js';
@@ -131,22 +130,6 @@ suite('XtermTerminal', () => {
 	});
 
 	suite('fontRendering', () => {
-		test('uses an alpha-capable glyph canvas for crisp rendering outside macOS', () => {
-			deepStrictEqual({
-				macInherit: getTerminalAllowTransparency('inherit', false, true),
-				macCrisp: getTerminalAllowTransparency('crisp', false, true),
-				otherInherit: getTerminalAllowTransparency('inherit', false, false),
-				otherCrisp: getTerminalAllowTransparency('crisp', false, false),
-				imagesEnabled: getTerminalAllowTransparency('inherit', true, true)
-			}, {
-				macInherit: false,
-				macCrisp: false,
-				otherInherit: false,
-				otherCrisp: true,
-				imagesEnabled: true
-			});
-		});
-
 		async function setTerminalConfiguration(configuration: Partial<ITerminalConfiguration>): Promise<void> {
 			await configurationService.setUserConfiguration('terminal.integrated', {
 				...defaultTerminalConfig,
@@ -159,7 +142,7 @@ suite('XtermTerminal', () => {
 			});
 		}
 
-		function setFontRendering(fontRendering: 'inherit' | 'crisp'): Promise<void> {
+		function setFontRendering(fontRendering: ITerminalConfiguration['fontRendering']): Promise<void> {
 			return setTerminalConfiguration({ fontRendering });
 		}
 
@@ -174,27 +157,43 @@ suite('XtermTerminal', () => {
 		test('inherits the workbench font policy by default', () => {
 			attach();
 			deepStrictEqual({
-				crispClass: xterm.raw.element!.classList.contains('terminal-font-rendering-crisp'),
+				grayscaleClass: xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
 				allowTransparency: xterm.raw.options.allowTransparency
 			}, {
-				crispClass: false,
+				grayscaleClass: false,
 				allowTransparency: false
 			});
 		});
 
 		test('applies the configured policy when the terminal is opened', async () => {
-			await setFontRendering('crisp');
+			await setFontRendering('grayscale');
 			attach();
 			deepStrictEqual({
-				crispClass: xterm.raw.element!.classList.contains('terminal-font-rendering-crisp'),
+				grayscaleClass: xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
 				allowTransparency: xterm.raw.options.allowTransparency
 			}, {
-				crispClass: isMacintosh,
-				allowTransparency: !isMacintosh
+				grayscaleClass: isMacintosh,
+				allowTransparency: false
 			});
 		});
 
-		test('refreshes the atlas after changing the policy without changing font options', async () => {
+		test('restores the inherited policy when the optional setting is unset', async () => {
+			await setFontRendering('grayscale');
+			attach();
+			const initiallyGrayscale = xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale');
+			await setFontRendering(undefined);
+			deepStrictEqual({
+				initiallyGrayscale,
+				grayscaleClass: xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
+				allowTransparency: xterm.raw.options.allowTransparency
+			}, {
+				initiallyGrayscale: isMacintosh,
+				grayscaleClass: false,
+				allowTransparency: false
+			});
+		});
+
+		test('updates the CSS class and clears glyph bitmaps without changing font options', async () => {
 			attach();
 			const initialOptions = {
 				fontFamily: xterm.raw.options.fontFamily,
@@ -204,11 +203,11 @@ suite('XtermTerminal', () => {
 			};
 			const statesAtRedraw: boolean[] = [];
 			const listener = stub(xterm.raw, 'clearTextureAtlas').callsFake(() => {
-				statesAtRedraw.push(xterm.raw.element!.classList.contains('terminal-font-rendering-crisp'));
+				statesAtRedraw.push(xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale'));
 			});
 			store.add(toDisposable(() => listener.restore()));
-			await setFontRendering('crisp');
-			await setFontRendering('crisp');
+			await setFontRendering('grayscale');
+			await setFontRendering('grayscale');
 			await setFontRendering('inherit');
 			deepStrictEqual({
 				statesAtRedraw,
@@ -224,12 +223,18 @@ suite('XtermTerminal', () => {
 			});
 		});
 
-		test('preserves image transparency when inheriting the workbench policy', async () => {
-			await setTerminalConfiguration({ enableImages: true });
-			strictEqual(xterm.raw.options.allowTransparency, true);
+		test('keeps transparency controlled by images rather than font rendering', async () => {
+			const transparencyStates: (boolean | undefined)[] = [];
+			for (const enableImages of [false, true]) {
+				for (const fontRendering of ['grayscale', 'inherit'] as const) {
+					await setTerminalConfiguration({ enableImages, fontRendering });
+					transparencyStates.push(xterm.raw.options.allowTransparency);
+				}
+			}
+			deepStrictEqual(transparencyStates, [false, false, true, true]);
 		});
 
-		test('applies updates forwarded to detached terminals', async () => {
+		test('applies configuration changes when a detached terminal is updated', async () => {
 			const terminal = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
 				cols: 80,
 				rows: 30,
@@ -240,22 +245,22 @@ suite('XtermTerminal', () => {
 				detached: true
 			}, undefined));
 			attach(terminal);
-			await setFontRendering('crisp');
+			await setFontRendering('grayscale');
 			terminal.updateConfig();
 			deepStrictEqual({
-				crispClass: terminal.raw.element!.classList.contains('terminal-font-rendering-crisp'),
+				grayscaleClass: terminal.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
 				allowTransparency: terminal.raw.options.allowTransparency
 			}, {
-				crispClass: isMacintosh,
-				allowTransparency: !isMacintosh
+				grayscaleClass: isMacintosh,
+				allowTransparency: false
 			});
 			await setFontRendering('inherit');
 			terminal.updateConfig();
 			deepStrictEqual({
-				crispClass: terminal.raw.element!.classList.contains('terminal-font-rendering-crisp'),
+				grayscaleClass: terminal.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
 				allowTransparency: terminal.raw.options.allowTransparency
 			}, {
-				crispClass: false,
+				grayscaleClass: false,
 				allowTransparency: false
 			});
 		});

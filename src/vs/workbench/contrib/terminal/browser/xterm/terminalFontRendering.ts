@@ -9,12 +9,7 @@ import type { ITerminalConfiguration } from '../../common/terminal.js';
 import './terminalFontRendering.css';
 
 const enum CssClasses {
-	Crisp = 'terminal-font-rendering-crisp'
-}
-
-export function getTerminalAllowTransparency(fontRendering: ITerminalConfiguration['fontRendering'], enableImages: boolean, platformIsMacintosh = isMacintosh): boolean {
-	// Alpha-capable canvases disable LCD/subpixel antialiasing in Chromium.
-	return enableImages || (!platformIsMacintosh && fontRendering === 'crisp');
+	Grayscale = 'terminal-font-rendering-grayscale'
 }
 
 export function updateTerminalFontRendering(terminal: Terminal, fontRendering: ITerminalConfiguration['fontRendering']): void {
@@ -23,12 +18,12 @@ export function updateTerminalFontRendering(terminal: Terminal, fontRendering: I
 		return;
 	}
 
-	const crisp = isMacintosh && fontRendering === 'crisp';
-	if (element.classList.contains(CssClasses.Crisp) === crisp) {
+	const grayscale = isMacintosh && fontRendering === 'grayscale';
+	if (element.classList.contains(CssClasses.Grayscale) === grayscale) {
 		return;
 	}
-	element.classList.toggle(CssClasses.Crisp, crisp);
+	element.classList.toggle(CssClasses.Grayscale, grayscale);
 
-	// The atlas canvas inherits this policy, but cached glyphs retain their previous pixels.
+	// This clears glyph bitmaps, but xterm's cached Canvas2D font state can still retain the previous policy.
 	terminal.clearTextureAtlas();
 }

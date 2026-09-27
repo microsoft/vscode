@@ -181,15 +181,16 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		type: 'string',
 	},
 	[TerminalSettingId.FontRendering]: {
-		markdownDescription: localize('terminal.integrated.fontRendering', "Controls the experimental font rendering style of terminal text without changing its font, size, or weight. On Windows and Linux, this currently affects GPU-accelerated terminals."),
+		markdownDescription: localize('terminal.integrated.fontRendering', "Controls the experimental antialiasing style of terminal text on macOS high-DPI displays without changing its font, size, or configured weight."),
 		type: 'string',
-		enum: ['inherit', 'crisp'],
+		enum: ['inherit', 'grayscale'],
 		markdownEnumDescriptions: [
-			localize('terminal.integrated.fontRendering.inherit', "Use the platform's default font rendering. On macOS, this follows the workbench font smoothing configured by {0}.", '`#workbench.fontAliasing#`'),
-			localize('terminal.integrated.fontRendering.crisp', "Use grayscale antialiasing when supported. Text may appear lighter and more defined. On macOS this applies to high-DPI displays; on Windows and Linux it disables LCD/subpixel antialiasing in the terminal's WebGL glyph canvas.")
+			localize('terminal.integrated.fontRendering.inherit', "Use the workbench font smoothing configured by {0}.", '`#workbench.fontAliasing#`'),
+			localize('terminal.integrated.fontRendering.grayscale', "Request grayscale antialiasing, which may make text appear lighter. With GPU acceleration, this currently takes effect only after a window reload while terminals are open. New terminals do not pick it up after all terminals are closed or after a restart.")
 		],
 		default: 'inherit',
-		tags: ['experimental', 'advanced']
+		tags: ['experimental', 'advanced'],
+		included: isMacintosh
 	},
 	[TerminalSettingId.FontLigaturesEnabled]: {
 		markdownDescription: localize('terminal.integrated.fontLigatures.enabled', "Controls whether font ligatures are enabled in the terminal. Ligatures will only work if the configured {0} supports them.", `\`#${TerminalSettingId.FontFamily}#\``),
