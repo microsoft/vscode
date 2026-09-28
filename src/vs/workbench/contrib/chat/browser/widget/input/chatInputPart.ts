@@ -3699,7 +3699,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
-					const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getInputPickerOptions(action.id));
+					const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getInputPickerOptions(action.id), this.inputUri);
 					inputOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 					const picker = createPicker();
 					if (picker instanceof DelegationSessionPickerActionItem) {
@@ -3907,7 +3907,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
-					const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getSecondaryPickerOptions(action.id));
+					const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getSecondaryPickerOptions(action.id), this.inputUri);
 					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 					const picker = createPicker();
 					if (picker instanceof DelegationSessionPickerActionItem) {
@@ -4441,9 +4441,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatArtifactsWidget.value?.setSessionResource(undefined);
 	}
 
-	renderQuestionCarousel(carousel: IChatQuestionCarousel, context: IChatContentPartRenderContext, options: IChatQuestionCarouselOptions): ChatQuestionCarouselPart {
+	renderQuestionCarousel(carousel: IChatQuestionCarousel, context: IChatContentPartRenderContext | undefined, options: IChatQuestionCarouselOptions): ChatQuestionCarouselPart {
+		if (!context && !carousel.resolveId) {
+			throw new Error('A question carousel without response context must provide a resolveId.');
+		}
 
-		const carouselKey = carousel.resolveId ?? `${isResponseVM(context.element) ? context.element.requestId : ''}_${context.contentIndex}`;
+		const carouselKey = carousel.resolveId ?? `${context && isResponseVM(context.element) ? context.element.requestId : ''}_${context?.contentIndex ?? 0}`;
 
 		// If a carousel with the same key already exists, return it
 		const existing = this._chatQuestionCarouselWidgets.get(carouselKey);
@@ -4452,7 +4455,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Track the response id and session for this carousel
-		if (isResponseVM(context.element)) {
+		if (context && isResponseVM(context.element)) {
 			this._questionCarouselResponseIds.set(carouselKey, context.element.requestId);
 			this._questionCarouselSessionResources.set(carouselKey, context.element.sessionResource);
 		}

@@ -50,6 +50,8 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
@@ -902,7 +904,9 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	});
 	services.set(IAgentHostSessionTitleController, new RecordingTitleController(observed, enableSendInstructions ? 'rename instruction' : undefined));
 	const queueAgent = new MockAgent();
-	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => queueAgent));
+	const providerService = createTestAgentHostProviderService(() => queueAgent);
+	services.set(IAgentHostProviderService, providerService);
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
 	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -2585,6 +2589,31 @@ suite('AgentHostChatContributions', () => {
 				error: {
 					errorType: 'readOnly',
 					message: 'This chat is read-only.',
+				},
+				stage: 'validation',
+			},
+		});
+	});
+
+	test('admits an unarchived session default chat with a stale archive flag', () => {
+		const contributions = createBuiltInContributions(disposables, undefined, false, SessionStatus.IsRead | SessionStatus.IsArchived);
+		const defaultChat = buildDefaultChatUri(contributions.session);
+		const archivedPeerChat = buildChatUri(contributions.session, 'archived');
+		contributions.stateManager.addChat(contributions.session, archivedPeerChat, { title: 'Archived' });
+		contributions.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		contributions.stateManager.dispatchServerAction(archivedPeerChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		contributions.stateManager.dispatchServerAction(contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: false });
+
+		assert.deepStrictEqual({
+			defaultChat: contributions.service.incomingRequest(incomingRequest(contributions.session, defaultChat)),
+			peerChat: contributions.service.incomingRequest(incomingRequest(contributions.session, archivedPeerChat)),
+		}, {
+			defaultChat: { kind: 'accept' },
+			peerChat: {
+				kind: 'reject',
+				error: {
+					errorType: 'archived',
+					message: 'This chat is archived and read-only. Restore the chat to continue the conversation.',
 				},
 				stage: 'validation',
 			},
