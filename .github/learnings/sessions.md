@@ -39,6 +39,20 @@ Scope: `src/vs/sessions/**`
 - **Evidence:** Historical issues included actions targeting the window-global session, stale repository context on recycled rows, and late async results publishing into a replacement view.
 - **Disposition:** Candidate for focused UI specifications and lifecycle tests.
 
+## Attribute a console error to the provider that backs the surface
+
+- **Scope:** `src/vs/sessions/contrib/providers/**`
+- **Learning:** The sessions list resolves every registered provider, so an error in the console may come from a provider unrelated to the surface the user was operating. Identify which provider backs that surface before editing; a stack trace shows where an error was thrown, not which feature produced it. Several providers share a product name across the workbench and the Copilot extension without sharing an implementation.
+- **Evidence:** A cloud sandbox report was traced into the Copilot extension's similarly named cloud provider, which shares neither code nor identifier with the Agents Window sandbox provider.
+- **Disposition:** Candidate for the Sessions skill if provider-attribution mistakes recur.
+
+## Rule out local product configuration before suspecting product code
+
+- **Scope:** `src/vs/sessions/**`, `src/vs/platform/agentHost/**`
+- **Learning:** Features reading `product.defaultChatAgent` can misbehave in dev builds because `product.overrides.json` is gitignored and drifts from the shipped configuration without appearing in any diff. Compare the specific keys a feature reads against the distro mixin before treating the behavior as a code defect, and note that ordered configuration arrays carry meaning by index.
+- **Evidence:** A rotated `providerScopes` array left index 0 — the permissive scope set that the cloud sandbox client reads directly — without repository access, presenting as an authentication bug in feature code.
+- **Disposition:** Candidate for repository onboarding or debugging guidance if dev-only configuration drift recurs.
+
 ## Capture live editor state independently of persistence
 
 - **Scope:** `src/vs/sessions/contrib/layout/**`

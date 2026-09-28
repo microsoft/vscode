@@ -106,13 +106,17 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Create services
+		mark('code/willCreateMainServices');
 		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogger, productService, userDataProfilesMainService] = this.createServices();
+		mark('code/didCreateMainServices');
 
 		try {
 
 			// Init services
 			try {
+				mark('code/willInitMainServices');
 				await this.initServices(environmentMainService, userDataProfilesMainService, configurationService, stateMainService, productService);
+				mark('code/didInitMainServices');
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
@@ -148,14 +152,6 @@ class CodeMain {
 					configurationService.dispose();
 					evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
-
-				// Check if Inno Setup is running. Briefly wait for the updating mutex to be released before refusing to launch.
-				const innoSetupActive = await this.checkInnoSetupMutex(productService, logService);
-				if (innoSetupActive) {
-					const message = `${productService.nameShort} is currently being updated. Please wait for the update to complete before launching.`;
-					instantiationService.invokeFunction(this.quit, new Error(message));
-					return;
-				}
 
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
 			});
@@ -359,6 +355,19 @@ class CodeMain {
 			mark('code/willStartMainServer');
 			mainProcessNodeIpcServer = await nodeIPCServe(environmentMainService.mainIPCHandle);
 			mark('code/didStartMainServer');
+
+			let releasedServerForUpdate = false;
+			const innoSetupActive = await this.checkInnoSetupMutex(productService, logService, () => {
+				mainProcessNodeIpcServer.dispose();
+				releasedServerForUpdate = true;
+			});
+			if (innoSetupActive) {
+				throw new Error(localize('innoSetupActive', "{0} is currently being updated. Please wait for the update to complete before launching.", productService.nameShort));
+			}
+			if (releasedServerForUpdate) {
+				return this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, retry);
+			}
+
 			Event.once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
 		} catch (error) {
 
@@ -544,8 +553,8 @@ class CodeMain {
 		lifecycleMainService.kill(exitCode);
 	}
 
-	private async checkInnoSetupMutex(productService: IProductService, logService: ILogService): Promise<boolean> {
-		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate && isInnoSetupInstall())) {
+	private async checkInnoSetupMutex(productService: IProductService, logService: ILogService, onActive: () => void): Promise<boolean> {
+		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate && isInnoSetupInstall(productService.target))) {
 			return false;
 		}
 
@@ -556,6 +565,8 @@ class CodeMain {
 			if (!mutex.isActive(updatingMutexName)) {
 				return false;
 			}
+
+			onActive();
 
 			// Wait briefly for setup teardown to release the mutex; Inno's `nowait postinstall` runcode can race the setup process exit.
 			const pollIntervalMs = 250, retries = 120; // 30s total

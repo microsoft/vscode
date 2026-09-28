@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../../../../../platform/contextview/browser/contextView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { extractIssueData } from '../../browser/issueFormService.js';
 import { IssueReporterOverlay } from '../../browser/issueReporterOverlay.js';
+import { ScreenshotAnnotationEditor } from '../../browser/screenshotAnnotation.js';
 import { IssueSource, IssueType } from '../../common/issue.js';
 
 const nesContext = `# Inline Edits Debug Info
@@ -60,6 +62,73 @@ class TestContextViewService implements IContextViewService {
 
 suite('IssueReporterOverlay', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const createScreenshotReporter = () => {
+		const container = document.createElement('div');
+		const overlay = store.add(new IssueReporterOverlay({
+			styles: {},
+			zoomLevel: 0,
+			enabledExtensions: [],
+			restrictedMode: false,
+			isInstallationPure: true,
+			isSessionsWindow: false,
+			githubAccessToken: '',
+		}, false, container, new TestContextViewService()));
+		overlay.show();
+		const canvas = document.createElement('canvas');
+		const screenshot = { dataUrl: canvas.toDataURL(), width: canvas.width, height: canvas.height };
+		return { overlay, container, screenshot };
+	};
+
+	const closeAnnotation = (container: HTMLElement, action: 'Save' | 'Discard') => {
+		const editor = Array.from(container.querySelectorAll('.issue-reporter-annotation-overlay')).at(-1)!;
+		const button = Array.from(editor.querySelectorAll<HTMLElement>('.monaco-button')).find(button => button.textContent === action)!;
+		button.click();
+	};
+
+	for (const action of ['Save', 'Discard'] as const) {
+		test(`releases closed annotation editors after ${action}`, () => {
+			const { overlay, container, screenshot } = createScreenshotReporter();
+			const disposeSpy = spy(ScreenshotAnnotationEditor.prototype, 'dispose');
+			try {
+				overlay.addScreenshot(screenshot);
+				closeAnnotation(container, action);
+				disposeSpy.resetHistory();
+				overlay.dispose();
+				assert.strictEqual(disposeSpy.callCount, 0, 'The reporter must no longer own a closed annotation editor');
+			} finally {
+				disposeSpy.restore();
+			}
+		});
+	}
+
+	test('keeps lower annotation editors open until the reporter closes', () => {
+		const { overlay, container, screenshot } = createScreenshotReporter();
+		const disposeSpy = spy(ScreenshotAnnotationEditor.prototype, 'dispose');
+		try {
+			overlay.addScreenshot(screenshot);
+			overlay.addScreenshot({ ...screenshot });
+			closeAnnotation(container, 'Discard');
+			const remainingEditors = container.querySelectorAll('.issue-reporter-annotation-overlay').length;
+			disposeSpy.resetHistory();
+			overlay.dispose();
+			assert.deepStrictEqual({ remainingEditors, disposedEditors: disposeSpy.callCount }, { remainingEditors: 1, disposedEditors: 1 });
+		} finally {
+			disposeSpy.restore();
+		}
+	});
+
+	test('removes listeners from replaced screenshot thumbnails', () => {
+		const { overlay, container, screenshot } = createScreenshotReporter();
+		overlay.restoreAttachments([screenshot], []);
+		const oldCard = container.querySelector<HTMLElement>('.wizard-screenshot-card')!;
+		overlay.restoreAttachments([screenshot], []);
+		oldCard.click();
+		const afterOldCard = container.querySelectorAll('.issue-reporter-annotation-overlay').length;
+		container.querySelector<HTMLElement>('.wizard-screenshot-card')!.click();
+		const afterCurrentCard = container.querySelectorAll('.issue-reporter-annotation-overlay').length;
+		assert.deepStrictEqual({ afterOldCard, afterCurrentCard }, { afterOldCard: 0, afterCurrentCard: 1 });
+	});
 
 	test('stops responding to issue data requests after disposal', async () => {
 		const overlay = store.add(new IssueReporterOverlay(

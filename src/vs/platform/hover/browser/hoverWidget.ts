@@ -647,9 +647,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 					this._hoverPointer.style.top = `${target.center.y - (this._y - hoverHeight) - Constants.PointerSize}px`;
 				}
 
-				// Otherwise show the pointer at the center of hover
+				// Otherwise show the pointer at the center of hover, unrounded so it stays centred
 				else {
-					this._hoverPointer.style.top = `${Math.round((hoverHeight / 2)) - Constants.PointerSize}px`;
+					this._hoverPointer.style.top = `${(hoverHeight / 2) - Constants.PointerSize}px`;
 				}
 
 				break;
@@ -659,8 +659,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				this._hoverPointer.classList.add(this._hoverPosition === HoverPosition.ABOVE ? 'bottom' : 'top');
 				const hoverWidth = this._hover.containerDomNode.clientWidth;
 
-				// Position pointer at the center of the hover
-				let pointerLeftPosition = Math.round((hoverWidth / 2)) - Constants.PointerSize;
+				// Position pointer at the center of the hover, unrounded so it stays centred
+				let pointerLeftPosition = (hoverWidth / 2) - Constants.PointerSize;
 
 				// If pointer goes beyond target then position it at the center of the target
 				const pointerX = this._x + pointerLeftPosition;

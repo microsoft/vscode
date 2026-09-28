@@ -5,7 +5,7 @@
 
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { Part } from '../../part.js';
-import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement, isHTMLElement, computeScreenAwareSize } from '../../../../base/browser/dom.js';
 import { Event, Emitter, Relay, PauseableEmitter } from '../../../../base/common/event.js';
 import { contrastBorder, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart, GroupActivationReason, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
@@ -243,9 +243,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private _contentRightInset = 0;
 
 	/**
-	 * Reserves an inset (px) on the right of the editor content of the group(s) at the
-	 * right edge of the editor part, while the title stays full width, so a docked panel
-	 * can sit beside the editor content under one full-width tab bar. Only the right-edge
+	 * Reserves an inset (px) on the right of the editor header and content of the group(s)
+	 * at the right edge of the editor part, while tabs stay full width, so a docked panel
+	 * can sit beside the editor under one full-width tab bar. Only the right-edge
 	 * groups (no neighbor to the right) are inset; interior groups in a split layout keep
 	 * full-width content. Recomputed when the group topology changes. `0` (default)
 	 * restores full-width content for all groups.
@@ -1061,6 +1061,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		// Container
 		this.element = parent;
+		const updateEditorTabsClass = () => parent.classList.toggle('editor-tabs-multiple', this.partOptions.showTabs === 'multiple');
+		updateEditorTabsClass();
+		this._register(this.onDidChangeEditorPartOptions(updateEditorTabsClass));
 		if (this.windowId !== mainWindow.vscodeWindowId) {
 			this.container.classList.add('auxiliary');
 		}
@@ -1419,14 +1422,17 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this.centeredLayoutWidget.boundarySashes = sashes;
 	}
 
+	protected getFloatingBorderWidth(): number {
+		return computeScreenAwareSize(mainWindow, EDITOR_FRAME_BORDER_WIDTH);
+	}
+
 	override layout(width: number, height: number, top: number, left: number): void {
 		this.top = top;
 		this.left = left;
 
 		// When the floating panels experiment is enabled, reserve a margin around the
-		// main editor so it floats like the side bar and panel cards. Scope to the main
-		// window (auxiliary editor windows do not apply the matching CSS).
-		if (this.windowId === mainWindow.vscodeWindowId && this.layoutService.isFloatingPanelsEnabled()) {
+		// main editor so it floats like the side bar and panel cards.
+		if (this === this.editorPartsView.mainPart && this.layoutService.isFloatingPanelsEnabled()) {
 
 			// When the editor becomes the outermost card on a side (no floating part
 			// sits between it and the window edge) it adopts the same doubled gutter the
@@ -1441,19 +1447,21 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 			width = Math.max(0, width - leftMargin - rightMargin);
 			const { top, bottom } = getFloatingEditorVerticalMargins(this.layoutService, mainWindow);
+			// Fill the grid cell after margins so fractional-scale rounding cannot widen vertical gaps.
+			this.element.style.height = `calc(100% - ${top + bottom}px)`;
 			height = Math.max(0, height - top - bottom);
 
 			// Reserve space for the Modern UI editor border (modernUI/media/editorBorder.css) so content doesn't get clipped.
-			if (!this.element.classList.contains('modal-editor-part')) {
-				width = Math.max(0, width - EDITOR_FRAME_BORDER_WIDTH * 2);
-				height = Math.max(0, height - EDITOR_FRAME_BORDER_WIDTH * 2);
-			}
+			const borderTotal = this.getFloatingBorderWidth() * 2;
+			width = Math.max(0, width - borderTotal);
+			height = Math.max(0, height - borderTotal);
 
 			this.element.classList.toggle('floating-editor-outer-left', outerLeft);
 			this.element.classList.toggle('floating-editor-outer-right', outerRight);
 			this.element.classList.toggle('floating-editor-outer-top', verticalOuterEdges.top);
 			this.element.classList.toggle('floating-editor-outer-bottom', verticalOuterEdges.bottom);
 		} else {
+			this.element.style.height = '';
 			this.element.classList.remove('floating-editor-outer-left', 'floating-editor-outer-right', 'floating-editor-outer-top', 'floating-editor-outer-bottom');
 		}
 

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, evaluateAgentMerge, getNonMergeSessionConfigValues, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeEnabledNotice, evaluateAgentMerge, getNonMergeSessionConfigValues, isAgentMergePullRequestReadyForReview, mergeClientAgentMergeFolders, readAgentMergeFolderState, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeFolderState } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
@@ -70,8 +70,64 @@ suite('Agent Merge gate', () => {
 		assert.deepStrictEqual(evaluateAgentMerge(snapshot, configuration, '2026-08-02T00:00:00.000Z'), {
 			kind: 'prompt',
 			actions: ['addressReviews', 'fixCI'],
-			fingerprint: JSON.stringify({ actions: ['addressReviews', 'fixCI'], context: expectedContext }),
+			fingerprint: JSON.stringify({ actions: ['addressReviews', 'fixCI'], context: expectedContext, failedCheckIds: ['required'] }),
 			context: expectedContext,
+		});
+	});
+
+	test('repairs draft pull requests without merging them', () => {
+		const repair = evaluateAgentMerge(readySnapshot({
+			draft: true,
+			reviewThreads: [{
+				id: 'thread-1',
+				isResolved: false,
+				comments: [{ id: 'comment-1', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this' }],
+			}],
+			checks: [{ id: 'required', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' }],
+		}), configuration, '2026-08-02T00:00:00.000Z');
+		const ready = evaluateAgentMerge(readySnapshot({ draft: true }), configuration, '2026-08-02T00:00:00.000Z');
+
+		assert.deepStrictEqual({
+			repair: repair.kind === 'prompt' ? repair.actions : repair.kind,
+			ready: ready.kind,
+		}, {
+			repair: ['addressReviews', 'fixCI'],
+			ready: 'noWork',
+		});
+	});
+
+	test('reports when required checks and review feedback are ready', () => {
+		const watermark = '2026-08-02T00:00:00.000Z';
+		assert.deepStrictEqual({
+			ready: isAgentMergePullRequestReadyForReview(readySnapshot({ draft: true }), watermark),
+			notDraft: isAgentMergePullRequestReadyForReview(readySnapshot(), watermark),
+			pendingChecks: isAgentMergePullRequestReadyForReview(readySnapshot({
+				draft: true,
+				checks: [{ id: 'required', type: 'checkRun', name: 'Build', required: true, status: 'IN_PROGRESS' }],
+			}), watermark),
+			failingChecks: isAgentMergePullRequestReadyForReview(readySnapshot({
+				draft: true,
+				checks: [{ id: 'required', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' }],
+			}), watermark),
+			reviewComments: isAgentMergePullRequestReadyForReview(readySnapshot({
+				draft: true,
+				reviewThreads: [{
+					id: 'thread-1',
+					isResolved: false,
+					comments: [{ id: 'comment-1', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this' }],
+				}],
+			}), watermark),
+			newComments: isAgentMergePullRequestReadyForReview(readySnapshot({
+				draft: true,
+				topLevelComments: [{ id: 'comment-1', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this', createdAt: '2026-08-03T00:00:00.000Z' }],
+			}), watermark),
+		}, {
+			ready: true,
+			notDraft: undefined,
+			pendingChecks: false,
+			failingChecks: false,
+			reviewComments: false,
+			newComments: false,
 		});
 	});
 
@@ -116,6 +172,47 @@ suite('Agent Merge gate', () => {
 				},
 			}),
 		});
+	});
+
+	test('repairs failed checks while other checks are still pending', () => {
+		const result = evaluateAgentMerge(readySnapshot({
+			checks: [
+				{ id: 'failed', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' },
+				{ id: 'pending', type: 'checkRun', name: 'Slow test', required: true, status: 'IN_PROGRESS' },
+			],
+		}), configuration, '2026-08-02T00:00:00.000Z');
+
+		assert.deepStrictEqual(result.kind === 'prompt' ? { actions: result.actions, failedChecks: result.context.failedChecks } : result.kind, {
+			actions: ['fixCI'],
+			failedChecks: ['Build'],
+		});
+	});
+
+	test('deferred failures still block merging but do not block new repair work', () => {
+		const failedCheck = { id: 'deferred', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' } as const;
+		const deferredCheckIds = new Set(['deferred']);
+		const watermark = '2026-08-02T00:00:00.000Z';
+		const waiting = evaluateAgentMerge(readySnapshot({ checks: [failedCheck] }), configuration, watermark, deferredCheckIds);
+		const repair = evaluateAgentMerge(readySnapshot({
+			checks: [failedCheck, { ...failedCheck, id: 'new', name: 'Test' }],
+			topLevelComments: [{ id: 'feedback', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this', createdAt: '2026-08-03T00:00:00.000Z' }],
+		}), configuration, watermark, deferredCheckIds);
+
+		assert.deepStrictEqual({
+			waiting: waiting.kind === 'noWork' ? { kind: waiting.kind, waitingOnChecks: waiting.waitingOnChecks } : waiting.kind,
+			repair: repair.kind === 'prompt' ? { actions: repair.actions, failedChecks: repair.context.failedChecks } : repair.kind,
+		}, {
+			waiting: { kind: 'noWork', waitingOnChecks: true },
+			repair: { actions: ['addressReviews', 'fixCI'], failedChecks: ['Test'] },
+		});
+	});
+
+	test('distinguishes a newly failed check from an earlier failure with the same name', () => {
+		const check = { id: 'attempt-1', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' } as const;
+		const first = evaluateAgentMerge(readySnapshot({ checks: [check] }), configuration, '');
+		const next = evaluateAgentMerge(readySnapshot({ checks: [{ ...check, id: 'attempt-2' }] }), configuration, '');
+
+		assert.ok(first.kind === 'prompt' && next.kind === 'prompt' && first.fingerprint !== next.fingerprint);
 	});
 
 	test('keeps feedback bounded for a comment-heavy pull request', () => {
@@ -192,6 +289,105 @@ suite('Agent Merge gate', () => {
 		});
 	});
 
+	test('migrates legacy Agent Merge state into the session folder slot on read and first write', () => {
+		const folderKey = 'file:///repo';
+		const legacy = {
+			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { fixCI: false } },
+			[SessionConfigKey.AgentMergeController]: {
+				target: {
+					branchName: 'feature',
+					enabledAt: '2026-08-01T00:00:00.000Z',
+					commentWatermark: '2026-08-02T00:00:00.000Z',
+				},
+				totalPromptCount: 2,
+			},
+		};
+		const read = readAgentMergeFolderState(legacy, folderKey, folderKey);
+		const patch = withAgentMergeFolderState(legacy, folderKey, folderKey, read ? { ...read, enabled: false } : undefined);
+
+		assert.deepStrictEqual({ read, patch }, {
+			read: {
+				enabled: true,
+				overrides: { fixCI: false },
+				target: {
+					branchName: 'feature',
+					enabledAt: '2026-08-01T00:00:00.000Z',
+					commentWatermark: '2026-08-02T00:00:00.000Z',
+				},
+				totalPromptCount: 2,
+			},
+			patch: {
+				[SessionConfigKey.AgentMergeFolders]: {
+					[folderKey]: { enabled: false, overrides: { fixCI: false } },
+				},
+				[SessionConfigKey.AgentMergeControllerFolders]: {
+					[folderKey]: {
+						target: {
+							branchName: 'feature',
+							enabledAt: '2026-08-01T00:00:00.000Z',
+							commentWatermark: '2026-08-02T00:00:00.000Z',
+						},
+						totalPromptCount: 2,
+					},
+				},
+				[SessionConfigKey.AgentMerge]: undefined,
+				[SessionConfigKey.AgentMergeController]: undefined,
+			},
+		});
+	});
+
+	test('moves the elevated configuration of earlier versions to its own key when writing the session folder', () => {
+		const folderKey = 'file:///repo';
+		const injectedConfiguration = { previous: { [SessionConfigKey.Mode]: 'interactive' }, applied: { [SessionConfigKey.Mode]: 'autopilot' } };
+		const legacy = {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+			[SessionConfigKey.AgentMergeController]: { injectedConfiguration },
+		};
+
+		assert.deepStrictEqual({
+			sessionFolder: withAgentMergeFolderState(legacy, folderKey, folderKey, { enabled: false })[SessionConfigKey.AgentMergeInjectedConfiguration],
+			otherFolder: withAgentMergeFolderState(legacy, 'file:///other', folderKey, { enabled: true })[SessionConfigKey.AgentMergeInjectedConfiguration],
+		}, {
+			sessionFolder: injectedConfiguration,
+			otherFolder: undefined,
+		});
+	});
+
+	test('lifecycle updates keep the user settings as they are', () => {
+		const folderKey = 'file:///other';
+		const values = {
+			[SessionConfigKey.AgentMergeFolders]: { [folderKey]: { enabled: true, overrides: { mergePullRequest: 'never' }, chat: 'copilot:/session#peer' } },
+			[SessionConfigKey.AgentMergeControllerFolders]: { [folderKey]: { totalPromptCount: 1 } },
+			[SessionConfigKey.AgentMergeInjectedConfiguration]: { previous: {}, applied: {} },
+		};
+
+		assert.deepStrictEqual(withAgentMergeFolderControllerState(values, folderKey, 'file:///repo', { totalPromptCount: 2 }), {
+			[SessionConfigKey.AgentMergeFolders]: { [folderKey]: { enabled: true, overrides: { mergePullRequest: 'never' }, chat: 'copilot:/session#peer' } },
+			[SessionConfigKey.AgentMergeControllerFolders]: { [folderKey]: { totalPromptCount: 2 } },
+		});
+	});
+
+	test('merges a client write into the other folders, keying it on the host and dropping foreign folders and chats', () => {
+		const values = {
+			[SessionConfigKey.AgentMergeFolders]: {
+				'file:///repo': { enabled: false, overrides: { fixCI: false } },
+				'file:///other': { enabled: true, chat: 'copilot:/session#peer' },
+			},
+		};
+		const merged = mergeClientAgentMergeFolders(values, {
+			'file:///other': { enabled: false, chat: 'copilot:/session#peer' },
+			'file:///third': { enabled: true, chat: 'copilot:/another-session#chat' },
+			'file:///invalid': { enabled: 'yes' },
+			'file:///unrelated': { enabled: true },
+		}, folderKey => folderKey !== 'file:///unrelated', chat => chat === 'copilot:/session#peer');
+
+		assert.deepStrictEqual(merged, {
+			'file:///repo': { enabled: false, overrides: { fixCI: false } },
+			'file:///other': { enabled: false, chat: 'copilot:/session#peer' },
+			'file:///third': { enabled: true },
+		});
+	});
+
 	test('reads the merge choice as an enum, migrating the retired boolean form', () => {
 		const overridesFor = (mergePullRequest: unknown) => readAgentMergeSessionState({
 			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { mergePullRequest } },
@@ -208,6 +404,139 @@ suite('Agent Merge gate', () => {
 			ifUnchanged: { mergePullRequest: 'ifUnchanged' },
 			unknown: undefined,
 		});
+	});
+
+	test('explains what Agent Merge does when it starts', () => {
+		assert.strictEqual(agentMergeEnabledNotice({ branchName: 'feature' }, {
+			...configuration,
+			mergePullRequest: 'never',
+		}), [
+			'Agent Merge is enabled for `feature`. Monitoring only; automatic merge is off.',
+			'It will wait for a pull request on this branch, then monitor it.',
+			'It will ask the agent to address new pull request review comments.',
+			'It will ask the agent to fix failing CI checks.',
+			'It will ask the agent to resolve merge conflicts and update the branch when it falls behind.',
+			'Replies it posts will identify Agent Merge as the source.',
+			'After each update, it will wait for new CI results and review comments.',
+			'It will not merge the pull request automatically and will keep monitoring it.',
+		].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'));
+	});
+
+	test('keeps the effective merge policy in the visible notice summary', () => {
+		const target = { branchName: 'feature', pullRequestUrl: 'https://github.com/octo/repo/pull/1' };
+		assert.deepStrictEqual((['always', 'ifUnchanged', 'never'] as const).map(mergePullRequest =>
+			agentMergeEnabledNotice(target, { ...configuration, mergePullRequest }).split('\n')[0]
+		), [
+			'Agent Merge is enabled for `feature`. Automatic merge is on.',
+			'Agent Merge is enabled for `feature`. Automatic merge is on only while unchanged.',
+			'Agent Merge is enabled for `feature`. Monitoring only; automatic merge is off.',
+		]);
+	});
+
+	test('identifies the expected and current branch and explains how to resume', () => {
+		assert.deepStrictEqual({
+			changed: agentMergeDisableReasons.branchChanged('feature', 'main'),
+			unavailable: agentMergeDisableReasons.branchUnavailable('feature'),
+		}, {
+			changed: {
+				log: 'branch changed from feature to main',
+				notice: 'Agent Merge was disabled because the checked-out branch changed from `feature` to `main`. To resume, check out the branch you want to monitor and enable Agent Merge again.',
+			},
+			unavailable: {
+				log: 'the checked-out branch could not be confirmed while refreshing pull request state; expected feature',
+				notice: 'Agent Merge was disabled because it could not confirm that `feature` is still checked out. To resume, check out the branch you want to monitor and enable Agent Merge again.',
+			},
+		});
+	});
+
+	test('reports when Agent Merge merges a pull request', () => {
+		assert.strictEqual(
+			agentMergeDisableReasons.pullRequestMerged(123, 'https://github.com/octo/repo/pull/123').notice,
+			'Agent Merge merged pull request [#123](https://github.com/octo/repo/pull/123).',
+		);
+	});
+
+	test('distinguishes observed merges from pull requests closed without merging', () => {
+		assert.deepStrictEqual({
+			merged: agentMergeDisableReasons.pullRequestAlreadyMerged(123, 'https://github.com/octo/repo/pull/123').notice,
+			closed: agentMergeDisableReasons.pullRequestClosed().notice,
+		}, {
+			merged: 'Pull request [#123](https://github.com/octo/repo/pull/123) was merged. Agent Merge is now disabled.',
+			closed: 'Agent Merge was disabled because its pull request was closed without merging.',
+		});
+	});
+
+	test('describes effective Agent Merge configuration changes, and who they apply to', () => {
+		const previous: AgentMergeConfiguration = {
+			...configuration,
+			mergePullRequest: 'never',
+			mergeMethod: 'auto',
+			replyAttribution: true,
+		};
+		const current: AgentMergeConfiguration = {
+			...previous,
+			addressReviews: false,
+			fixCI: false,
+			resolveConflicts: false,
+			mergePullRequest: 'always',
+			mergeMethod: 'squash',
+			replyAttribution: false,
+		};
+		const changes = [
+			'It will no longer address new pull request review comments or wait for them before merging.',
+			'It will no longer fix failing CI checks.',
+			'It will no longer resolve merge conflicts or update a behind branch.',
+			'It will now merge the pull request automatically when it is ready.',
+			'It will now squash-merge the pull request.',
+		];
+		const noticeFor = (heading: string) => [heading, ...changes]
+			.map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n');
+
+		assert.deepStrictEqual({
+			session: agentMergeConfigurationChangedNotice(previous, current, 'session'),
+			global: agentMergeConfigurationChangedNotice(previous, current, 'global'),
+		}, {
+			session: noticeFor('Agent Merge settings changed for this session. Automatic merge is on.'),
+			global: noticeFor('Agent Merge default settings changed for all sessions. For this session: Automatic merge is on.'),
+		});
+	});
+
+	test('describes an already-bound pull request without claiming disabled review behavior', () => {
+		assert.strictEqual(agentMergeEnabledNotice({
+			branchName: 'feature',
+			pullRequestUrl: 'https://github.com/octo/repo/pull/1',
+		}, {
+			...configuration,
+			addressReviews: false,
+			mergePullRequest: 'always',
+			mergeMethod: 'squash',
+		}), [
+			'Agent Merge is enabled for `feature`. Automatic merge is on.',
+			'It is monitoring the pull request for this branch.',
+			'It will ask the agent to fix failing CI checks.',
+			'It will ask the agent to resolve merge conflicts and update the branch when it falls behind.',
+			'After each update, it will wait for new CI results.',
+			'When the pull request is ready, Agent Merge will merge it automatically.',
+			'It will squash-merge the pull request.',
+		].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'));
+	});
+
+	test('announces reply-attribution changes only while review replies are enabled', () => {
+		assert.deepStrictEqual({
+			enabled: agentMergeConfigurationChangedNotice(configuration, { ...configuration, replyAttribution: false }, 'session'),
+			reviewsDisabled: agentMergeConfigurationChangedNotice(
+				{ ...configuration, addressReviews: false },
+				{ ...configuration, addressReviews: false, replyAttribution: false },
+				'session',
+			),
+		}, {
+			enabled: 'Agent Merge settings changed for this session. Automatic merge is on.\n\n- Replies it posts will no longer identify Agent Merge as the source.',
+			reviewsDisabled: undefined,
+		});
+	});
+
+	test('omits an Agent Merge configuration notice when effective behavior is unchanged', () => {
+		assert.strictEqual(agentMergeConfigurationChangedNotice(configuration, { ...configuration }, 'session'), undefined);
 	});
 
 	test('only merges automatically when the merge choice is not "never"', () => {
@@ -294,6 +623,7 @@ suite('Agent Merge gate', () => {
 });
 
 function readySnapshot(overrides?: {
+	readonly draft?: boolean;
 	readonly topLevelComments?: NonNullable<PullRequestSnapshot['topLevelComments']['value']>;
 	readonly submittedReviews?: NonNullable<PullRequestSnapshot['submittedReviews']['value']>;
 	readonly reviewThreads?: NonNullable<PullRequestSnapshot['reviewThreads']['value']>;
@@ -312,7 +642,7 @@ function readySnapshot(overrides?: {
 				title: 'Change',
 				url: 'https://github.com/octo/repo/pull/1',
 				state: 'open',
-				draft: false,
+				draft: overrides?.draft ?? false,
 				headSha: 'head',
 				headRef: 'feature',
 				baseSha: 'base',

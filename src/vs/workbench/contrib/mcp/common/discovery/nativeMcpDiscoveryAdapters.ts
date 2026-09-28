@@ -8,6 +8,7 @@ import { Platform } from '../../../../../base/common/platform.js';
 import { Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { INativeMcpDiscoveryData } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
+import { getCopilotGlobalMcpConfigurationResource } from '../../../../../platform/mcp/common/mcpCopilotGlobalConfiguration.js';
 import { ExternalDiscoverySource } from '../mcpConfiguration.js';
 import { McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../mcpTypes.js';
 
@@ -89,6 +90,19 @@ export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapt
 
 	adaptFile(contents: VSBuffer, { homedir }: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined> {
 		return claudeConfigToServerDefinition(this.id, contents, { cwd: homedir });
+	}
+}
+
+export class CopilotMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
+	public override readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.Copilot;
+
+	constructor(remoteAuthority: string | null) {
+		super(remoteAuthority);
+		this.id = `copilot.${this.remoteAuthority}`;
+	}
+
+	override getFilePath(details: INativeMcpDiscoveryData): URI | undefined {
+		return getCopilotGlobalMcpConfigurationResource(details);
 	}
 }
 

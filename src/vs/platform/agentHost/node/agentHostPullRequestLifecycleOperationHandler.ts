@@ -38,6 +38,7 @@ export type PullRequestLifecycleAction = 'mark-ready' | 'merge' | 'enable-auto-m
 export class AgentHostPullRequestLifecycleOperationHandler implements IChangesetOperationHandler {
 
 	public static readonly OPERATION_MARK_READY = AgentHostPullRequestOperationId.MarkReady;
+	public static readonly OPERATION_MARK_READY_WITH_AGENT_MERGE = AgentHostPullRequestOperationId.MarkReadyWithAgentMerge;
 	public static readonly OPERATION_MERGE = AgentHostPullRequestOperationId.Merge;
 	public static readonly OPERATION_ENABLE_AUTO_MERGE = AgentHostPullRequestOperationId.EnableAutoMerge;
 	public static readonly OPERATION_DISABLE_AUTO_MERGE = AgentHostPullRequestOperationId.DisableAutoMerge;
@@ -69,7 +70,9 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a changeset URI: ${params.channel}`);
 		}
 		const sessionUri = parsed.sessionUri;
-		const status = this._statusService.getPullRequestStatus(sessionUri);
+		// Each folder has its own pull request; the changeset owner identifies the folder.
+		const ownerUri = parsed.ownerUri;
+		const status = this._statusService.getPullRequestStatus(ownerUri);
 		if (!status) {
 			this._logService.warn(`[AgentHostPullRequestLifecycleOperationHandler] Rejected '${this._action}': session=${sessionUri}, reason=pull request state is not available`);
 			throw new ProtocolError(
@@ -82,8 +85,8 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 
 		const startedAt = Date.now();
 		try {
-			const message = await this._runAction(sessionUri, ref, status, signal);
-			await this._statusService.refresh(sessionUri);
+			const message = await this._runAction(sessionUri, ownerUri, ref, status, signal);
+			await this._statusService.refresh(ownerUri);
 			return { message };
 		} catch (error) {
 			this._logService.error(`[AgentHostPullRequestLifecycleOperationHandler] Failed '${this._action}': session=${sessionUri}, pr=${status.url}, durationMs=${Date.now() - startedAt}, error=${error instanceof Error ? error.message : String(error)}`);
@@ -91,12 +94,12 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 			// state, so a rejection usually means that state has drifted. A
 			// refresh re-derives the button bar rather than leaving the user on
 			// an action GitHub already refuses.
-			await this._statusService.refresh(sessionUri);
+			await this._statusService.refresh(ownerUri);
 			throw error;
 		}
 	}
 
-	private async _runAction(sessionUri: string, ref: PullRequestRef, status: IAgentHostPullRequestStatus, signal: AbortSignal): Promise<string> {
+	private async _runAction(sessionUri: string, ownerUri: string, ref: PullRequestRef, status: IAgentHostPullRequestStatus, signal: AbortSignal): Promise<string> {
 		switch (this._action) {
 			case 'mark-ready': {
 				await this._gitHubService.mutations.markReadyForReview(ref, { pullRequestId: this._requireNodeId(status) }, signal);
@@ -115,7 +118,7 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 				return localize('agentHost.changeset.pr.autoMergeDisabled', "Auto-merge is disabled.");
 			}
 			case 'merge':
-				return await this._merge(sessionUri, ref, status, signal);
+				return await this._merge(sessionUri, ownerUri, ref, status, signal);
 		}
 	}
 
@@ -125,7 +128,7 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 	 * against, so a pull request that stopped being mergeable between the button
 	 * being rendered and clicked is rejected rather than force-merged.
 	 */
-	private async _merge(sessionUri: string, ref: PullRequestRef, status: IAgentHostPullRequestStatus, signal: AbortSignal): Promise<string> {
+	private async _merge(sessionUri: string, ownerUri: string, ref: PullRequestRef, status: IAgentHostPullRequestStatus, signal: AbortSignal): Promise<string> {
 		if (!status.headSha) {
 			throw new ProtocolError(
 				JsonRpcErrorCodes.InternalError,
@@ -147,7 +150,7 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 
 		const method = this._requireMergeMethod(mergeability?.allowedMergeMethods ?? []);
 		const result = await this._gitHubService.mutations.merge(preparation, { method, authorization }, signal);
-		this._statusService.markPullRequestMerged(sessionUri, status.url);
+		this._statusService.markPullRequestMerged(ownerUri, status.url);
 		this._logService.info(`[AgentHostPullRequestLifecycleOperationHandler] Pull request merged: session=${sessionUri}, pr=${status.url}, method=${method}, outcome=${result.outcome}`);
 		return localize('agentHost.changeset.pr.merged', "Pull request was merged.");
 	}

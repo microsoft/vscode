@@ -16,7 +16,6 @@ import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../../workbench/c
 import { OpenSubagentChatActionViewItem, shouldShowSubagentModel, subagentChatOpenerRegistry } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { fillSessionChatDragData } from '../../../../browser/dnd.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../services/sessions/common/session.js';
 
@@ -62,13 +61,12 @@ function findSubagentChat(sessionsService: ISessionsService, resource: string, r
 	return undefined;
 }
 
-class OpenSubagentChatActionViewItemContribution extends Disposable implements IWorkbenchContribution {
+export class OpenSubagentChatActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.openSubagentChatActionViewItem';
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@ISessionsService sessionsService: ISessionsService,
-		@ISessionsPartService sessionsPartService: ISessionsPartService,
 		@ILogService logService: ILogService,
 	) {
 		super();
@@ -77,12 +75,9 @@ class OpenSubagentChatActionViewItemContribution extends Disposable implements I
 				const resource = context.chatResource;
 				const match = findSubagentChat(sessionsService, resource);
 				if (match) {
-					const view = sessionsPartService.getSessionView(match.session.sessionId);
-					if (context.toSide && view) {
-						await view.openChatToSide(match.chat.resource);
-					} else {
-						await sessionsService.openChat(match.session, match.chat.resource);
-					}
+					await sessionsService.openChatToSide(match.session, match.chat.resource, context.parentSessionResource
+						? { referenceChatResource: URI.parse(context.parentSessionResource) }
+						: undefined);
 					return true;
 				}
 				const active = sessionsService.activeSession.get();

@@ -18,7 +18,6 @@ interface IHasAgentMergeMessageMeta {
  * tells them apart.
  */
 export function isAgentMergeMessage(source: IHasAgentMergeMessageMeta): boolean {
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the namespaced Agent Merge slot; validated here.
 	return source._meta?.[AGENT_MERGE_MESSAGE_META_KEY] === true;
 }
 

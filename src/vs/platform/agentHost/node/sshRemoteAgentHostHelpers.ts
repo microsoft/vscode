@@ -9,6 +9,7 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { vArray, vObj, vString, vUnknown } from '../../../base/common/validation.js';
 import { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
 import { getAgentHostEndpointIdentityKey, IAgentHostEndpointMetadata, parseAgentHostEndpointRegistry } from '../common/agentHostEndpointRegistry.js';
+export { redactToken } from '../common/remoteAgentHostBootstrapProgress.js';
 
 /**
  * Validate that a quality string is safe for bare interpolation in shell commands.
@@ -238,14 +239,15 @@ export function buildCleanupOldCLIsCommand(serverDataFolderName: string, quality
  */
 export function buildFindFallbackCLICommand(serverDataFolderName: string, quality: string): string {
 	const root = getRemoteCLIInstallRoot(serverDataFolderName);
+	const relativeRoot = root.slice(2);
 	const archive = getRemoteCLIArchiveName(quality);
 	const commitGlob = '[0-9a-f]'.repeat(40);
 	const q = validateShellToken(quality, 'quality');
 	const legacyDir = q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
 	const legacyBin = `${legacyDir}/${archive}`;
 	return [
-		`ls -1t -- ${root}/${archive}-${commitGlob} 2>/dev/null`,
-		`ls -1 -- ${legacyBin} 2>/dev/null`,
+		`(cd ~ && ls -1t -- ${relativeRoot}/${archive}-${commitGlob} 2>/dev/null | sed 's#^#~/#')`,
+		`test ! -f ${legacyBin} || printf '%s\\n' ${shellEscape(legacyBin)}`,
 		'true',
 	].join('; ');
 }
@@ -278,11 +280,6 @@ export function isValidFallbackCLIPath(candidate: string, serverDataFolderName: 
 		return /^[0-9a-f]{40}$/.test(suffix);
 	}
 	return false;
-}
-
-/** Redact connection tokens from log output. */
-export function redactToken(text: string): string {
-	return text.replace(/\?tkn=[^\s&]+/g, '?tkn=***');
 }
 
 /**
@@ -503,7 +500,7 @@ export interface IWaitForNewEndpointOptions {
 const DEFAULT_ENDPOINT_REGISTRATION_POLL_COUNT = 20;
 const MAX_ENDPOINT_REGISTRATION_POLL_INTERVAL_MS = 5_000;
 const ENDPOINT_REGISTRATION_PROGRESS_INTERVAL_MS = 10_000;
-const COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS = 300_000;
+export const COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS = 300_000;
 
 /** Gets the endpoint-registration deadline for a newly installed CLI. */
 export function getNewAgentHostRegistrationTimeoutMs(installedCLI: boolean): number | undefined {

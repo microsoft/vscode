@@ -85,3 +85,13 @@
 .chat-inline-references-link-style .chat-inline-anchor-widget .icon-label {
 	padding: 0;
 }
+
+.chat-inline-anchor-widget.chat-markdown-preview-link,
+.interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget.chat-markdown-preview-link {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget.chat-markdown-preview-link:hover,
+.interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget.chat-markdown-preview-link:active {
+	color: var(--vscode-textLink-activeForeground);
+}

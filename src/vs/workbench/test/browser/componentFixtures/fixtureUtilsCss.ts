@@ -25,6 +25,7 @@ const activeOverrides: {
 }[] = [];
 let originalDisabledStates: readonly boolean[] | undefined;
 let iconsStyleSheetCache: CSSStyleSheet | undefined;
+const fileIconThemeStyleSheetCache = new Map<string, CSSStyleSheet>();
 const themeStyleSheetCache = new WeakMap<ColorThemeData, CSSStyleSheet>();
 const installedThemes = new WeakSet<ColorThemeData>();
 
@@ -175,6 +176,21 @@ function getIconsStyleSheetCached(): CSSStyleSheet {
 	return iconsStyleSheetCache;
 }
 
+function getFileIconThemeStyleSheetCached(scopeSelector: string, styleSheetContent: string): CSSStyleSheet {
+	let fileIconThemeStyleSheet = fileIconThemeStyleSheetCache.get(scopeSelector);
+	if (!fileIconThemeStyleSheet) {
+		const fontFaceRules: string[] = [];
+		const scopedRules = styleSheetContent.replace(/@font-face\s*\{[^}]*\}/g, rule => {
+			fontFaceRules.push(rule);
+			return '';
+		});
+		fileIconThemeStyleSheet = new CSSStyleSheet();
+		fileIconThemeStyleSheet.replaceSync(`${fontFaceRules.join('\n')}\n@scope (${scopeSelector}) {\n${scopedRules}\n}`);
+		fileIconThemeStyleSheetCache.set(scopeSelector, fileIconThemeStyleSheet);
+	}
+	return fileIconThemeStyleSheet;
+}
+
 function createScopedThemingParticipant(scopeSelector: string, scopeRootSelector: string, participants: readonly IThemingParticipant[]): IThemingParticipant {
 	return (theme, collector, environment) => {
 		const rules = new Set<string>();
@@ -187,19 +203,21 @@ function createScopedThemingParticipant(scopeSelector: string, scopeRootSelector
 	};
 }
 
-function getThemeStyleSheet(theme: ColorThemeData, scopeThemingParticipants: boolean): CSSStyleSheet {
+export function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 	const cachedStyleSheet = themeStyleSheetCache.get(theme);
 	if (cachedStyleSheet) {
 		return cachedStyleSheet;
 	}
 
-	const scopeSelector = '.' + theme.classNames[0];
+	const themeScopeSelector = '.' + theme.classNames.join('.');
+	// Keep matching nested editor theme roots without increasing selector specificity.
+	const scopeSelector = `.${theme.classNames[0]}:where(${themeScopeSelector}, ${themeScopeSelector} *)`;
 	const themingParticipants = themingRegistry.getThemingParticipants();
 	const sheet = new CSSStyleSheet();
 	const css = generateColorThemeCSS(
 		theme,
 		scopeSelector,
-		scopeThemingParticipants ? [createScopedThemingParticipant(scopeSelector, '.monaco-workbench', themingParticipants)] : themingParticipants,
+		[createScopedThemingParticipant(themeScopeSelector, '.monaco-workbench', themingParticipants)],
 		mockEnvironmentService
 	);
 	sheet.replaceSync(css.code);
@@ -212,7 +230,10 @@ function getThemeStyleSheet(theme: ColorThemeData, scopeThemingParticipants: boo
  * Installs shared global styles once and appends a scoped stylesheet for each newly requested theme.
  * The reversal overlay keeps a stable identity and position for {@link overrideStylesheetOrder}.
  */
-export async function ensureGlobalStylesInstalled(theme: ColorThemeData, scopeThemingParticipants: boolean): Promise<void> {
+export async function ensureGlobalStylesInstalled(
+	theme: ColorThemeData,
+	fileIconThemeStyles?: { readonly scopeSelector: string; readonly styleSheetContent: string }
+): Promise<void> {
 	baseStylesInstalledPromise ??= (async () => {
 		await readBundle();
 		const overlay = overlaySheet = new CSSStyleSheet();
@@ -224,12 +245,19 @@ export async function ensureGlobalStylesInstalled(theme: ColorThemeData, scopeTh
 	})();
 	await baseStylesInstalledPromise;
 
+	if (fileIconThemeStyles && !fileIconThemeStyleSheetCache.has(fileIconThemeStyles.scopeSelector)) {
+		document.adoptedStyleSheets = [
+			...document.adoptedStyleSheets,
+			getFileIconThemeStyleSheetCached(fileIconThemeStyles.scopeSelector, fileIconThemeStyles.styleSheetContent),
+		];
+	}
+
 	if (installedThemes.has(theme)) {
 		return;
 	}
 	document.adoptedStyleSheets = [
 		...document.adoptedStyleSheets,
-		getThemeStyleSheet(theme, scopeThemingParticipants),
+		getThemeStyleSheet(theme),
 	];
 	installedThemes.add(theme);
 }

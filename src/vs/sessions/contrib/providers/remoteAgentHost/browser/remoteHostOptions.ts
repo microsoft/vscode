@@ -36,7 +36,9 @@ export async function reconnectRemoteHost(provider: IAgentHostSessionsProvider, 
 }
 
 export async function removeRemoteHost(provider: IAgentHostSessionsProvider, remoteAgentHostService: IRemoteAgentHostService, configurationService: IConfigurationService): Promise<void> {
-	if (provider.disconnect) {
+	if (provider.remove) {
+		await provider.remove();
+	} else if (provider.disconnect) {
 		await provider.disconnect();
 	} else if (provider.remoteAddress) {
 		await removeWebSocketRemoteAgentHostEntry(configurationService, provider.remoteAddress);
@@ -320,10 +322,7 @@ export interface IBuildRemoteHostOptionItemsOptions {
 }
 
 /**
- * Build the per-remote management option items (Reconnect / Remove / Copy
- * Address / Open Settings / Change Preferred Agent Location) for a single
- * host, given its resolved status. Pure so it can be unit-tested without a
- * quickpick or DI.
+ * Build the management options for a remote host from its resolved status.
  */
 export function buildRemoteHostOptionItems(options: IBuildRemoteHostOptionItemsOptions): RemoteOptionPickItem[] {
 	const items: RemoteOptionPickItem[] = [];
@@ -334,6 +333,7 @@ export function buildRemoteHostOptionItems(options: IBuildRemoteHostOptionItemsO
 		items.push({ label: '$(debug-restart) ' + localize('workspacePicker.reconnect', "Reconnect"), id: 'reconnect' });
 	}
 	items.push(
+		{ label: '$(edit) ' + localize('workspacePicker.renameRemote', "Rename..."), id: 'rename' },
 		{ label: '$(trash) ' + localize('workspacePicker.removeRemote', "Remove Remote"), id: 'remove' },
 		{ label: '$(copy) ' + localize('workspacePicker.copyAddress', "Copy Address"), id: 'copy' },
 	);
@@ -419,9 +419,7 @@ export async function changeRemoteAgentHostLocationPreference(options: IChangeRe
 }
 
 /**
- * Show the per-remote management options quickpick (Reconnect / Remove /
- * Copy Address / Open Settings / Change Preferred Agent Location) for the
- * given provider.
+ * Show the per-remote management options quickpick for the given provider.
  *
  * Used by both the Workspace Picker's Manage submenu and the F1
  * "Manage Remote Agent Hosts..." command, so both surfaces drive the
@@ -520,6 +518,23 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 		case 'reconnect':
 			await reconnectRemoteHost(provider, remoteAgentHostService);
 			break;
+		case 'rename': {
+			const name = await quickInputService.input({
+				title: localize('workspacePicker.renameRemoteTitle', "Rename Remote Agent Host"),
+				prompt: localize('workspacePicker.renameRemotePrompt', "Enter a display name for this remote agent host in this client. Leave empty to use the default name."),
+				value: provider.label,
+				valueSelection: [0, provider.label.length],
+				ignoreFocusLost: true,
+			});
+			if (name !== undefined) {
+				try {
+					remoteAgentHostService.setDisplayName(address, name);
+				} catch (err) {
+					notificationService.error(localize('workspacePicker.renameRemoteFailed', "Failed to rename {0}: {1}", provider.label, err instanceof Error ? err.message : String(err)));
+				}
+			}
+			break;
+		}
 		case 'remove':
 			await removeRemoteHost(provider, remoteAgentHostService, configurationService);
 			break;

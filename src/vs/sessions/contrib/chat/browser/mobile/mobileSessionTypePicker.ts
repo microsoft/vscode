@@ -4,24 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { getSessionTypeAvailability, getSessionTypeUnavailableLabel, SessionTypeAvailability } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
+import { getSessionTypeUnavailableLabel, SessionTypeAvailability } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { IObservable } from '../../../../../base/common/observable.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SessionTypePicker, ISessionTypePickerOptions } from '../sessionTypePicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 
 /**
  * Phone variant of {@link SessionTypePicker} that renders the picker as
@@ -48,11 +51,13 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IChatInputNotificationService chatInputNotificationService: IChatInputNotificationService,
+		@ICommandService commandService: ICommandService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IHoverService hoverService: IHoverService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, chatInputNotificationService, contextKeyService);
+		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, commandService, contextMenuService, hoverService, keybindingService);
 	}
 
 	override render(container: HTMLElement, options?: { className?: string }): void {
@@ -99,7 +104,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		for (const [groupTitle, types] of groups) {
 			let isFirstInGroup = true;
 			for (const { providerId, sessionType } of types) {
-				const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.chatSessionType ?? sessionType.id);
+				const availability = this._getPickerAvailability(sessionType);
 				sheetItems.push({
 					id: `${providerId}\u0000${sessionType.id}`,
 					label: sessionType.label,
@@ -118,19 +123,28 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 			return;
 		}
 		trigger.setAttribute('aria-expanded', 'true');
-		showMobilePickerSheet(
-			this.layoutService.mainContainer,
-			localize('mobileSessionTypePicker.title', "Session Type"),
-			sheetItems,
-		).then(id => {
+		void this._showMobilePicker(trigger, sheetItems);
+	}
+
+	private async _showMobilePicker(trigger: HTMLElement, sheetItems: readonly IMobilePickerSheetItem[]): Promise<void> {
+		try {
+			const id = await showMobilePickerSheet(
+				this.layoutService.mainContainer,
+				localize('mobileSessionTypePicker.title', "Session Type"),
+				sheetItems,
+			);
 			trigger.setAttribute('aria-expanded', 'false');
 			trigger.focus();
 			if (id !== undefined) {
 				const [providerId, sessionTypeId] = id.split('\u0000');
 				if (providerId && sessionTypeId) {
-					this._handleSelectedSessionType({ providerId, sessionTypeId });
+					await this._selectSessionType({ providerId, sessionTypeId });
 				}
 			}
-		});
+		} catch (error) {
+			trigger.setAttribute('aria-expanded', 'false');
+			trigger.focus();
+			onUnexpectedError(error);
+		}
 	}
 }
