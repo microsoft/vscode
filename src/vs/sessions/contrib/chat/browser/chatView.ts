@@ -18,6 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { scrollbarShadow } from '../../../../platform/theme/common/colorRegistry.js';
@@ -278,6 +279,7 @@ export class ChatView extends AbstractChatView {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IOpenerService openerService: IOpenerService,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
@@ -286,7 +288,7 @@ export class ChatView extends AbstractChatView {
 		this.element.classList.add('chat-view-chat');
 		this._widgetContainer = $('.chat-view-widget');
 		this.element.appendChild(this._widgetContainer);
-		this._register(registerOpenGitHubLinksInExternalBrowser(this._widgetContainer, openerService));
+		this._register(registerOpenGitHubLinksInExternalBrowser(this._widgetContainer, openerService, () => defaultAccountService.resolveGitHubUrl('')));
 
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(

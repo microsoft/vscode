@@ -6,33 +6,10 @@
 import { addDisposableListener, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
+import { isGitHubIssueOrPullRequestUrl } from '../../../../platform/github/common/githubUrl.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
-export function isGitHubIssueOrPullRequestLink(href: string): boolean {
-	let uri: URI;
-	try {
-		uri = URI.parse(href);
-	} catch {
-		return false;
-	}
-
-	if ((uri.scheme !== Schemas.http && uri.scheme !== Schemas.https)
-		|| (uri.authority.toLowerCase() !== 'github.com' && uri.authority.toLowerCase() !== 'www.github.com')) {
-		return false;
-	}
-
-	const segments = uri.path.split('/').filter(Boolean);
-	if (segments.length < 4 || (segments[2] !== 'issues' && segments[2] !== 'pull') || !/^\d+$/.test(segments[3])) {
-		return false;
-	}
-
-	const number = Number(segments[3]);
-	return Number.isSafeInteger(number) && number > 0;
-}
-
-export function registerOpenGitHubLinksInExternalBrowser(container: HTMLElement, openerService: IOpenerService): IDisposable {
+export function registerOpenGitHubLinksInExternalBrowser(container: HTMLElement, openerService: IOpenerService, resolveGitHubBaseUrl: () => string | undefined): IDisposable {
 	const store = new DisposableStore();
 	const openLink = (event: MouseEvent | KeyboardEvent): void => {
 		if (!isHTMLElement(event.target)) {
@@ -40,7 +17,7 @@ export function registerOpenGitHubLinksInExternalBrowser(container: HTMLElement,
 		}
 
 		const href = event.target.closest<HTMLElement>('a[data-href]')?.dataset.href;
-		if (!href || !isGitHubIssueOrPullRequestLink(href)) {
+		if (!href || !isGitHubIssueOrPullRequestUrl(href, resolveGitHubBaseUrl())) {
 			return;
 		}
 

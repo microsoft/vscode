@@ -8,27 +8,32 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { isGitHubIssueOrPullRequestUrl } from '../../../../../platform/github/common/githubUrl.js';
 import { IOpenerService, type OpenExternalOptions, type OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
-import { isGitHubIssueOrPullRequestLink, registerOpenGitHubLinksInExternalBrowser } from '../../browser/sessionLinkOpenHandler.js';
+import { registerOpenGitHubLinksInExternalBrowser } from '../../browser/sessionLinkOpenHandler.js';
 
 suite('Sessions - Link Open Handler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('recognizes GitHub issue and pull request links', () => {
 		assert.deepStrictEqual({
-			issue: isGitHubIssueOrPullRequestLink('https://github.com/microsoft/vscode/issues/338472'),
-			issueComment: isGitHubIssueOrPullRequestLink('https://www.github.com/microsoft/vscode/issues/338472#issuecomment-1'),
-			pullRequest: isGitHubIssueOrPullRequestLink('https://github.com/microsoft/vscode/pull/338472/files'),
-			repository: isGitHubIssueOrPullRequestLink('https://github.com/microsoft/vscode'),
-			invalidNumber: isGitHubIssueOrPullRequestLink('https://github.com/microsoft/vscode/issues/0'),
-			differentHost: isGitHubIssueOrPullRequestLink('https://example.com/microsoft/vscode/issues/338472'),
+			issue: isGitHubIssueOrPullRequestUrl('https://github.com/microsoft/vscode/issues/338472'),
+			issueComment: isGitHubIssueOrPullRequestUrl('https://www.github.com/microsoft/vscode/issues/338472#issuecomment-1'),
+			pullRequest: isGitHubIssueOrPullRequestUrl('https://github.com/microsoft/vscode/pull/338472/files'),
+			enterprise: isGitHubIssueOrPullRequestUrl('https://github.example.com/microsoft/vscode/pull/338472', 'https://github.example.com'),
+			repository: isGitHubIssueOrPullRequestUrl('https://github.com/microsoft/vscode'),
+			invalidNumber: isGitHubIssueOrPullRequestUrl('https://github.com/microsoft/vscode/issues/0'),
+			differentHost: isGitHubIssueOrPullRequestUrl('https://example.com/microsoft/vscode/issues/338472'),
+			differentEnterpriseHost: isGitHubIssueOrPullRequestUrl('https://other.example.com/microsoft/vscode/issues/338472', 'https://github.example.com'),
 		}, {
 			issue: true,
 			issueComment: true,
 			pullRequest: true,
+			enterprise: true,
 			repository: false,
 			invalidNumber: false,
 			differentHost: false,
+			differentEnterpriseHost: false,
 		});
 	});
 
@@ -44,8 +49,9 @@ suite('Sessions - Link Open Handler', () => {
 		const pullRequestLink = dom.append(container, dom.$('a', { 'data-href': 'https://github.com/microsoft/vscode/pull/338472' }));
 		const pullRequestLabel = dom.append(pullRequestLink, dom.$('span', undefined, 'Pull request'));
 		const issueLink = dom.append(container, dom.$('a', { 'data-href': 'https://github.com/microsoft/vscode/issues/338472' }));
+		const enterpriseIssueLink = dom.append(container, dom.$('a', { 'data-href': 'https://github.example.com/microsoft/vscode/issues/338472' }));
 		const repository = dom.append(container, dom.$('a', { 'data-href': 'https://github.com/microsoft/vscode' }));
-		disposables.add(registerOpenGitHubLinksInExternalBrowser(container, openerService));
+		disposables.add(registerOpenGitHubLinksInExternalBrowser(container, openerService, () => 'https://github.example.com'));
 
 		pullRequestLabel.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
 		repository.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ctrlKey: true }));
@@ -54,6 +60,7 @@ suite('Sessions - Link Open Handler', () => {
 		issueLink.dispatchEvent(ctrlRightClick);
 		issueLink.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 0, ctrlKey: true }));
 		pullRequestLink.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', metaKey: true }));
+		enterpriseIssueLink.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ctrlKey: true }));
 
 		assert.deepStrictEqual({
 			opened,
@@ -70,6 +77,10 @@ suite('Sessions - Link Open Handler', () => {
 				},
 				{
 					resource: 'https://github.com/microsoft/vscode/pull/338472',
+					options: { openExternal: true, allowContributedOpeners: false, fromUserGesture: true },
+				},
+				{
+					resource: 'https://github.example.com/microsoft/vscode/issues/338472',
 					options: { openExternal: true, allowContributedOpeners: false, fromUserGesture: true },
 				},
 			],
