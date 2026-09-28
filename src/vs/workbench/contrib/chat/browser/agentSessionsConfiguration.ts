@@ -42,6 +42,13 @@ export const agentsWindowHandoffConfigurationProperties = {
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},
+	[ChatConfiguration.HarnessSwitchFeedbackSurveyEnabled]: {
+		type: 'boolean',
+		description: nls.localize('chat.harnessSwitchFeedbackSurvey.enabled', "Show a one-time feedback survey after switching from Copilot to Local."),
+		default: false,
+		tags: ['experimental'],
+		experiment: { mode: 'auto' },
+	},
 	[ChatConfiguration.AgentsHandoffTipDelaySeconds]: {
 		type: 'number',
 		minimum: 0,

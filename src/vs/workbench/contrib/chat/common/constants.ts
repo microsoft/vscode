@@ -114,6 +114,7 @@ export enum ChatConfiguration {
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
 	CopilotHarnessIntroductionMode = 'chat.copilotHarnessIntroduction.mode',
+	HarnessSwitchFeedbackSurveyEnabled = 'chat.harnessSwitchFeedbackSurvey.enabled',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	ChatCustomizationsToggleStyle = 'chat.experimental.customizations.toggleStyle',
