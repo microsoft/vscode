@@ -328,7 +328,7 @@ export class ModelCard extends DisposableStore {
 	}
 
 	private _renderDescription(tooltip: string): void {
-		const element = renderModelDescription(tooltip, this._options.openerService, this._contentDisposables);
+		const { element } = renderModelDescription(tooltip, this._options.openerService, this._contentDisposables);
 		element.classList.add('chat-model-card-description');
 		this.element.appendChild(element);
 	}

@@ -88,7 +88,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { IChatInputNotificationContext, IChatInputNotificationService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
@@ -475,13 +475,64 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._secondaryPickerResponsiveLayout?.layout();
 	}
 
+	private _navigateRepositionedRepositoryControls(event: KeyboardEvent): void {
+		const repositoryControls = this._repositoryControlsContainer;
+		const repositoryControlsHome = this._repositoryControlsHome;
+		if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey || !repositoryControls || !repositoryControlsHome || repositoryControls.parentElement === repositoryControlsHome) {
+			return;
+		}
+
+		const currentSlot = dom.isHTMLElement(event.target) ? dom.findParentWithClass(event.target, 'sessions-chat-picker-slot') : undefined;
+		const slots: HTMLElement[] = [];
+		const collectSlots = (element: HTMLElement): void => {
+			if (element.classList.contains('sessions-chat-picker-slot')) {
+				slots.push(element);
+				return;
+			}
+			for (const child of element.children) {
+				if (dom.isHTMLElement(child)) {
+					collectSlots(child);
+				}
+			}
+		};
+		collectSlots(repositoryControls);
+		const findControl = (element: HTMLElement): HTMLElement | undefined => {
+			if (element.hasAttribute('tabindex')) {
+				return element;
+			}
+			for (const child of element.children) {
+				if (dom.isHTMLElement(child)) {
+					const control = findControl(child);
+					if (control) {
+						return control;
+					}
+				}
+			}
+			return undefined;
+		};
+		const controls = slots.flatMap(slot => {
+			const control = findControl(slot);
+			return control && control.getAttribute('aria-disabled') !== 'true' ? [{ slot, control }] : [];
+		});
+		const currentIndex = controls.findIndex(entry => entry.slot === currentSlot);
+		const nextIndex = currentIndex + (event.shiftKey ? -1 : 1);
+		if (currentIndex < 0 || nextIndex < 0 || nextIndex >= controls.length) {
+			return;
+		}
+
+		dom.EventHelper.stop(event, true);
+		controls[nextIndex].control.focus();
+	}
+
 	get onDidChangeWorkspaceSelection(): Event<void> {
 		return this.options.onDidChangeWorkspaceSelection ?? Event.None;
 	}
 
 	get hasInput(): boolean {
-		return !!this._editor?.getValue() || this._contextAttachments.attachments.length > 0;
+		return !!this._editor?.getValue() || this._contextAttachments.attachments.length > 0 || !!this.options.hasAdditionalSendContent?.get();
 	}
+
+	readonly sessionResource = derived(this, reader => this.options.session.read(reader)?.resource);
 
 	get isInputReady(): boolean {
 		return !!this._editor?.getModel();
@@ -657,6 +708,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this.options.hasAdditionalSendContent?.read(reader);
 			this._updateSendButtonState();
 		}));
+		if (this.options.hasAdditionalSendContent) {
+			this._register(runOnChange(this.options.hasAdditionalSendContent, () => this._onDidChangeInput.fire()));
+		}
 	}
 
 	private _setHistoryKey(historyKey: string | undefined): void {
@@ -837,6 +891,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const secondaryControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-secondary-controls-container'));
 		this._repositoryControlsHome = secondaryControlsContainer;
 		const repoConfigContainer = this._repositoryControlsContainer = dom.append(secondaryControlsContainer, dom.$('.new-chat-repo-config-container'));
+		this._register(dom.addDisposableListener(repoConfigContainer, dom.EventType.KEY_DOWN, event => this._navigateRepositionedRepositoryControls(event)));
 		let repoConfigToolbar: MenuWorkbenchToolBar | undefined;
 		if (this.options.renderRepositoryControls !== false) {
 			const session = this.options.session;

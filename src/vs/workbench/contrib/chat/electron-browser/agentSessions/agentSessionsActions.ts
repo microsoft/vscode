@@ -62,7 +62,7 @@ import { serializeChatDraft, UnsupportedChatDraftAttachmentError } from '../../c
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
-import { AgentSessionStatus, isAgentHostAgentSessionItem } from '../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionStatus, IAgentSession, isAgentHostAgentSessionItem } from '../../browser/agentSessions/agentSessionsModel.js';
 import { isNewConversation } from '../../browser/widget/input/chatInputModelUtils.js';
 
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWindow', "Open in Agents");
@@ -109,8 +109,8 @@ function isAgentHostDraftWidget(widget: IChatWidget | undefined): widget is ICha
 	return !!resource && isDraftWidget(widget) && isAgentHostTarget(getChatSessionType(resource));
 }
 
-function hasRunningAgentHostSession(service: IAgentSessionsService): boolean {
-	return service.model.sessions.some(session => session.status === AgentSessionStatus.InProgress && !session.isArchived() && isAgentHostAgentSessionItem(session));
+function getRunningAgentHostSession(service: IAgentSessionsService): IAgentSession | undefined {
+	return service.model.sessions.find(session => session.status === AgentSessionStatus.InProgress && !session.isArchived() && isAgentHostAgentSessionItem(session));
 }
 
 function isCopilotHarnessSessionType(chatSessionsService: IChatSessionsService, sessionType: string): boolean {
@@ -158,7 +158,7 @@ function captureDraftHandoffOptions(accessor: ServicesAccessor, widget: IChatWid
 	}
 }
 
-async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, source: AgentsWindowOpenSource, sessionResource?: URI, draftOptions?: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'>): Promise<void> {
+async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, source: AgentsWindowOpenSource, sessionResource?: URI, draftOptions?: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault' | 'onboardingSessionResource'>): Promise<void> {
 	ensureAgentModeEnabled(accessor.get(IConfigurationService));
 	const nativeHostService = accessor.get(INativeHostService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
@@ -751,7 +751,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			&& (!sessionResource || isUntitledChatSession(sessionResource))
 			&& widgetSessionType === SessionType.AgentHostCopilot;
 		// The parallel-work invitation replaces this tip while another session runs, whether or not it shows for the draft.
-		const parallelWorkReplacesTip = emptyWorkspaceCandidate && hasRunningAgentHostSession(this._agentSessionsService);
+		const parallelWorkReplacesTip = emptyWorkspaceCandidate && !!getRunningAgentHostSession(this._agentSessionsService);
 		if (parallelWorkReplacesTip) {
 			logSettingExperimentTrigger(this._telemetryService, ChatConfiguration.AgentsParallelWorkBannerEnabled);
 		}
@@ -921,8 +921,9 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 				return;
 			}
 			const draft = captureDraftHandoffOptions(accessor, widget);
+			const onboardingSessionResource = getRunningAgentHostSession(this._agentSessionsService)?.resource.toJSON();
 			this._dismissChat(resource);
-			return openCurrentWorkspaceInAgentsWindow(accessor, AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff, resource, draft);
+			return openCurrentWorkspaceInAgentsWindow(accessor, AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff, resource, { ...draft, onboardingSessionResource });
 		}));
 		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.LEARN_MORE_COMMAND_ID, (_accessor, inputUri: URI, resource: URI) => {
 			if (!this._getPostedWidget(inputUri, resource, AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction)) {
@@ -934,11 +935,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			if (typeof helpful !== 'boolean' || !this._getPostedWidget(inputUri, resource, AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction)) {
 				return;
 			}
-			if (helpful) {
-				this._dismissChat(resource);
-			} else {
-				this._ignoreCopilotHarnessIntroduction();
-			}
+			this._ignoreCopilotHarnessIntroduction();
 		}));
 		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.IGNORE_COMMAND_ID, () => {
 			const posted = this._posted;
@@ -1043,7 +1040,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		const resource = widget.viewModel?.sessionResource;
 		if (resource && !this._seen.has(resource)) {
 			this._seen.add(resource);
-			if (hasRunningAgentHostSession(this._agentSessionsService)) {
+			if (getRunningAgentHostSession(this._agentSessionsService)) {
 				this._eligible.add(resource);
 			}
 		}
@@ -1109,7 +1106,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 		const parallelWorkEligible = parallelWorkEnabled
 			&& isAgentHostDraftWidget(widget)
 			&& this._eligible.has(resource)
-			&& hasRunningAgentHostSession(this._agentSessionsService);
+			&& !!getRunningAgentHostSession(this._agentSessionsService);
 		if (!isCopilotHarnessSessionType(this._chatSessionsService, getChatSessionType(resource))) {
 			return parallelWorkEligible ? AgentsParallelWorkNotificationKind.ParallelWork : undefined;
 		}
