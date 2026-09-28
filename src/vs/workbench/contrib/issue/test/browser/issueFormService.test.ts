@@ -46,7 +46,7 @@ suite('IssueFormService', () => {
 		instantiationService.stub(IAuxiliaryWindowService, {
 			open: async () => new class extends mock<IAuxiliaryWindow>() {
 				override readonly window = targetWindow;
-				override readonly container = targetWindow.document.createElement('div');
+				override readonly container = document.createElement('div');
 				override readonly whenStylesHaveLoaded = Promise.resolve();
 				override dispose(): void { events.push('window disposed'); }
 			}()
