@@ -564,9 +564,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const headingStyle = targetWindow.getComputedStyle(heading);
 	assert(experimentalComposerLayout
 		? headingStyle.display !== 'none'
-			&& headingStyle.textAlign === 'center'
-			&& headingStyle.fontSize === headingStyle.getPropertyValue('--vscode-fontSize-heading1').trim()
-			&& headingStyle.fontWeight === headingStyle.getPropertyValue('--vscode-fontWeight-semiBold').trim()
+		&& headingStyle.textAlign === 'center'
+		&& headingStyle.fontSize === headingStyle.getPropertyValue('--vscode-fontSize-heading1').trim()
+		&& headingStyle.fontWeight === headingStyle.getPropertyValue('--vscode-fontWeight-semiBold').trim()
 		: headingStyle.display === 'none',
 		'The welcome heading must use the heading type role only in the experimental composer.');
 	const promptBox = view.element.querySelector<HTMLElement>('.new-chat-input-container');
