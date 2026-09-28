@@ -11,12 +11,11 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildExternalOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
+import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProviderId } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { Menus } from '../../../../browser/menus.js';
-import { isAgentHostProviderId } from '../../../../common/agentHostSessionsProvider.js';
 
 interface ISessionChatLinkContext {
 	readonly session: ISession;
