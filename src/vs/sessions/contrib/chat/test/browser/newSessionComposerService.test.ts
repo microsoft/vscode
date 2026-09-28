@@ -79,10 +79,12 @@ suite('NewSessionComposerService', () => {
 		hasInput = true;
 		changed.fire();
 		const occupied = service.hasDraftInput;
+		const scopedOccupied = service.getDraftInputStateForSession(undefined);
+		const draftInputVersion = service.draftInputVersion.get();
 		registration.dispose();
 		changed.fire();
-		assert.deepStrictEqual({ beforeReady, empty, occupied, disposed: service.hasDraftInput, version: service.inputVersion.get() }, {
-			beforeReady: undefined, empty: false, occupied: true, disposed: undefined, version: 3,
+		assert.deepStrictEqual({ beforeReady, empty, occupied, scopedOccupied, draftInputVersion, disposed: service.hasDraftInput, version: service.inputVersion.get() }, {
+			beforeReady: undefined, empty: false, occupied: true, scopedOccupied: true, draftInputVersion: 1, disposed: undefined, version: 3,
 		});
 	});
 

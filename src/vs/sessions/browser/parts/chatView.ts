@@ -40,6 +40,11 @@ export interface ISelectWorkspaceOptions {
 	readonly isDefault?: boolean;
 }
 
+export interface ISelectNoWorkspaceOptions {
+	readonly userSelection?: boolean;
+	readonly preserveNavigation?: boolean;
+}
+
 export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
 
 /**
@@ -125,7 +130,7 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		return Promise.resolve('notReady');
 	}
 
-	selectNoWorkspace(): void {
+	selectNoWorkspace(_options?: ISelectNoWorkspaceOptions): void {
 		// no-op by default
 	}
 
