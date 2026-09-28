@@ -1,12 +1,15 @@
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DragAndDropController } from '../../browser/dnd.js';
-import { MouseTargetType } from '../../../browser/editorBrowser.js';
-import { IPartialEditorMouseEvent } from '../../../browser/controller/mouseTarget.js';
-import { Position } from '../../../../editor/common/core/position.js';
-import { Selection } from '../../../../editor/common/core/selection.js';
-import { withTestCodeEditor } from '../../../test/browser/testCodeEditor.js';
-import { EditorPagePosition } from '../../../browser/editorDom.js';
+import { MouseTargetType, IPartialEditorMouseEvent } from '../../../../browser/editorBrowser.js';
+import { Position } from '../../../../common/core/position.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { EditorPagePosition } from '../../../../browser/editorDom.js';
 
 suite('DragAndDropController', () => {
 
@@ -33,7 +36,7 @@ suite('DragAndDropController', () => {
 				target: { type: MouseTargetType.OUTSIDE_EDITOR, position: new Position(1, 1) }
 			};
 
-			(controller as any)._onEditorMouseDrop(dropEventExplorer);
+			(editor as any)._onMouseDrop.fire(dropEventExplorer);
 			assert.strictEqual(executeCommandCalled, false);
 			assert.strictEqual(setSelectionsCalled, false);
 			
@@ -49,7 +52,7 @@ suite('DragAndDropController', () => {
 				target: { type: MouseTargetType.OUTSIDE_EDITOR, position: new Position(1, 5) }
 			};
 
-			(controller as any)._onEditorMouseDrop(dropEventPadding);
+			(editor as any)._onMouseDrop.fire(dropEventPadding);
 			// Since we mock executeCommand and it drops at (1, 5) which is not in selection (1, 1), it should execute command
 			assert.strictEqual(executeCommandCalled, true);
 		});
