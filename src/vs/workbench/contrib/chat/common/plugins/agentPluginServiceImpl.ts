@@ -97,16 +97,16 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
-		@IWorkspacePluginSettingsService workspacePluginSettingsService: IWorkspacePluginSettingsService,
+		@IWorkspacePluginSettingsService private readonly _workspacePluginSettingsService: IWorkspacePluginSettingsService,
 	) {
 		super();
 
 		const baseEnablementModel = this._register(new EnablementModel('agentPlugins.enablement', storageService));
 
-		const pluginsEnabled = observableConfigValue(ChatConfiguration.PluginsEnabled, true, configurationService);
+		const pluginsEnabled = observableConfigValue(ChatConfiguration.PluginsEnabled, true, this._configurationService);
 
 		const discoveries: IAgentPluginDiscoveryWithPriority[] = [];
 		for (const registration of agentPluginDiscoveryRegistry.getAll()) {
@@ -119,14 +119,14 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 		// policy is honored regardless of which discovery source surfaces a
 		// plugin (local paths, marketplace, CLI install dir).
 		const enabledPluginsPolicy = observableFromEvent(this,
-			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EnabledPlugins)),
-			() => configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue,
+			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EnabledPlugins)),
+			() => this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue,
 		);
 
 		const configuredEnablement = derived(reader => {
 			const discoveredPlugins = readDiscoveredAgentPlugins(discoveries, reader);
 			const policy = enabledPluginsPolicy.read(reader);
-			const workspaceEnabledPlugins = workspacePluginSettingsService.enabledPlugins.read(reader);
+			const workspaceEnabledPlugins = this._workspacePluginSettingsService.enabledPlugins.read(reader);
 			const result = new Map<string, ContributionEnablementState>();
 			if (discoveredPlugins) {
 				for (const { plugins } of discoveredPlugins) {
@@ -192,6 +192,19 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 				}
 			});
 		}));
+	}
+
+	getWorkspaceConfiguredEnablement(plugin: IAgentPlugin): boolean | undefined {
+		const configuredState = getAgentPluginConfiguredEnablement(
+			plugin,
+			this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue,
+			this._workspacePluginSettingsService.enabledPlugins.get(),
+		);
+		return configuredState === ContributionEnablementState.EnabledWorkspace
+			? true
+			: configuredState === ContributionEnablementState.DisabledWorkspace
+				? false
+				: undefined;
 	}
 }
 

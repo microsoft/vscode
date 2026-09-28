@@ -85,11 +85,16 @@ function globalEnablement(enabled: boolean): CustomizationEnablement[] {
 	return [{ kind: CustomizationEnablementKind.Global, enabled }];
 }
 
-function makeAgentPluginService(plugins: readonly IAgentPlugin[] = [], profileEnablement = new Map<string, boolean>()): IAgentPluginService {
+function makeAgentPluginService(
+	plugins: readonly IAgentPlugin[] = [],
+	profileEnablement = new Map<string, boolean>(),
+	workspaceConfiguredEnablement = new Map<string, boolean>(),
+): IAgentPluginService {
 	return {
 		_serviceBrand: undefined,
 		plugins: observableValue('plugins', plugins),
 		enablementModel: { readProfileEnabled: (key: string) => profileEnablement.get(key) ?? true },
+		getWorkspaceConfiguredEnablement: (plugin: IAgentPlugin) => workspaceConfiguredEnablement.get(plugin.uri.toString()),
 	} as unknown as IAgentPluginService;
 }
 
@@ -690,6 +695,39 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(true), globalEnablement(true)]);
 		assert.deepStrictEqual(bundler.receivedMcp[0].map(entry => entry.enablement), [globalEnablement(true)]);
+	});
+
+	test('publishes repository enablement for the agent host workspace', async () => {
+		const enabledUri = URI.file('/plugins/repository-enabled');
+		const disabledUri = URI.file('/plugins/repository-disabled');
+		const workingDirectory = URI.file('/workspace');
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(
+				[makePlugin(enabledUri, { mcpServers: 1 }), makePlugin(disabledUri, { mcpServers: 1 })],
+				new Map([[enabledUri.toString(), false], [disabledUri.toString(), true]]),
+				new Map([[enabledUri.toString(), true], [disabledUri.toString(), false]]),
+			),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			new FakeBundler() as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			undefined,
+			[workingDirectory],
+		);
+
+		assert.deepStrictEqual(refs.map(ref => ref.enablement), [
+			[
+				{ kind: CustomizationEnablementKind.Workspace, uri: workingDirectory.toString(), enabled: true },
+				{ kind: CustomizationEnablementKind.Global, enabled: false },
+			],
+			[
+				{ kind: CustomizationEnablementKind.Workspace, uri: workingDirectory.toString(), enabled: false },
+				{ kind: CustomizationEnablementKind.Global, enabled: true },
+			],
+		]);
 	});
 
 	test('excludes workspace-discovered `.mcp.json` servers (the agent host discovers those itself)', async () => {
