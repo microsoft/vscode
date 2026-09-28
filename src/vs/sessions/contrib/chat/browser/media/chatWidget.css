@@ -142,6 +142,19 @@
 	margin: var(--vscode-spacing-size160) auto 0;
 }
 
+/* As a standalone card (not attached above the input) the tip takes a full border and
+	rounds every corner, unlike the input-attached notice that squares its joined bottom. */
+.new-session-getting-started-tip-below .chat-input-notice {
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/* The session options tray joins the input at its top-left corner, so square that corner
+	while the exposed top-right stays rounded. Quick chat has no tray above the input. */
+.experimental-new-session-composer:not(.quick-chat) .new-chat-input-area {
+	border-top-left-radius: 0;
+}
+
 .new-chat-session-options .new-chat-session-options-details {
 	display: flex;
 	flex: 0 0 auto;
@@ -258,6 +271,13 @@
 
 .new-chat-session-options .sessions-chat-dropdown-label {
 	margin-left: 0;
+}
+
+/* Collapsed icon rail: keep the repository and harness pickers as icons only, so they
+	stay reachable without their labels taking up space. The workspace picker keeps its
+	label as the composer's anchor. */
+.new-chat-session-options .new-chat-session-options-details.collapsed-icon-rail .sessions-chat-dropdown-label {
+	display: none;
 }
 
 .new-chat-session-options .new-chat-repo-config-container {

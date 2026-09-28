@@ -66,7 +66,7 @@ import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTrac
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
@@ -134,6 +134,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
 	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
 	private readonly _screenReaderOptimized: IObservable<boolean>;
+	private readonly _collapsedSessionOptionsShowIcons: IObservable<boolean>;
 	private readonly _showWelcomePhrases: IObservable<boolean>;
 
 	/** Draft comments shared by every uncreated new-session composer. */
@@ -221,6 +222,11 @@ export class NewChatWidget extends Disposable {
 			this,
 			this.accessibilityService.onDidChangeScreenReaderOptimized,
 			() => this.accessibilityService.isScreenReaderOptimized(),
+		);
+		this._collapsedSessionOptionsShowIcons = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING)),
+			() => this.configurationService.getValue<boolean>(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING),
 		);
 		this._showWelcomePhrases = observableFromEvent(
 			this,
@@ -641,7 +647,9 @@ export class NewChatWidget extends Disposable {
 		// experimental layout (which requires the unified workspace picker) moves the tip without
 		// recreating the presenter.
 		const inputTipSlot = this._newChatInput.gettingStartedTipContainerElement;
-		const tipBelowHost = dom.append(chatWidgetContent, dom.$('.new-session-getting-started-tip-below'));
+		// The below host carries the tip container class so the shared tip styling applies in the
+		// demoted position exactly as it does in the input's own slot.
+		const tipBelowHost = dom.append(chatWidgetContent, dom.$('.new-session-getting-started-tip-below.chat-getting-started-tip-container'));
 		const chatTipContainer = dom.$('.new-session-getting-started-tip');
 		this._register(autorun(reader => {
 			(this._useExperimentalComposerLayout.read(reader) ? tipBelowHost : inputTipSlot)?.appendChild(chatTipContainer);
@@ -1296,6 +1304,15 @@ export class NewChatWidget extends Disposable {
 			dom.EventHelper.stop(event, true);
 			controls[(nextIndex + controls.length) % controls.length].focus();
 		}, true));
+		const responsiveLayout = store.add(new ChatInputPickerResponsiveLayout('NewChatWidget.sessionOptions', container, {
+			usePreferredWidth: true,
+			getItems: () => getLabeledPickerResponsiveItems(row).map(item =>
+				item.element && sessionOptions.contains(item.element) ? item : {
+					...item,
+					// Include the workspace's full label in the width budget, but never compact it.
+					setCompact: () => { },
+				}),
+		}));
 		store.add(autorun(reader => {
 			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
 			const screenReaderOptimized = this._screenReaderOptimized.read(reader);
@@ -1303,9 +1320,13 @@ export class NewChatWidget extends Disposable {
 			// tree: keep the tray expanded and drop the disclosure toggle entirely.
 			const disclosureAvailable = useExperimentalLayout && !screenReaderOptimized;
 			const expanded = this._sessionOptionsExpanded.read(reader);
-			const showDetails = !disclosureAvailable || expanded;
+			// When collapsed, keep the repository and harness pickers as an always-available icon
+			// rail (labels hidden) unless the user has opted to hide them entirely.
+			const iconRail = disclosureAvailable && !expanded && this._collapsedSessionOptionsShowIcons.read(reader);
+			const showDetails = !disclosureAvailable || expanded || iconRail;
 			row.classList.toggle('new-chat-session-options', useExperimentalLayout);
 			sessionOptions.classList.toggle('legacy-session-options-details', !useExperimentalLayout);
+			sessionOptions.classList.toggle('collapsed-icon-rail', iconRail);
 			toggle.element.hidden = !disclosureAvailable;
 			if (!showDetails && sessionOptions.contains(dom.getActiveElement())) {
 				toggle.focus();
@@ -1319,15 +1340,8 @@ export class NewChatWidget extends Disposable {
 				: localize('newSessionOptions.expand', "Show Session Options");
 			toggle.setAriaLabel(label);
 			toggle.setTitle(label);
-		}));
-		const responsiveLayout = store.add(new ChatInputPickerResponsiveLayout('NewChatWidget.sessionOptions', container, {
-			usePreferredWidth: true,
-			getItems: () => getLabeledPickerResponsiveItems(row).map(item =>
-				item.element && sessionOptions.contains(item.element) ? item : {
-					...item,
-					// Include the workspace's full label in the width budget, but never compact it.
-					setCompact: () => { },
-				}),
+			// Re-measure so labels compact or restore for the new expanded/rail state.
+			responsiveLayout.layout();
 		}));
 		responsiveLayout.layout();
 		this._newChatInput.pickerVisibility.setVisible('workspace', true);

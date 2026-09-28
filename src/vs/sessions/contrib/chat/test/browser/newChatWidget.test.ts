@@ -252,6 +252,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
 	readonly _useExperimentalComposerLayout: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
+	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
 }
 
 interface ISelectNoWorkspaceHarness {
@@ -410,6 +411,8 @@ suite('NewChatWidget', () => {
 			_sessionOptionsExpanded: observableValue('sessionOptionsExpanded', false),
 			_useExperimentalComposerLayout: observableValue('experimentalComposerLayout', false),
 			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
+			// Keep this test focused on the fully-hidden collapse; the icon rail has its own test.
+			_collapsedSessionOptionsShowIcons: observableValue('collapsedSessionOptionsShowIcons', false),
 		};
 
 		disposables.add(renderWorkspacePicker.call(harness, container));
@@ -511,6 +514,25 @@ suite('NewChatWidget', () => {
 			hidden: false,
 			inert: false,
 			storedPreference: false,
+		});
+
+		// The icon rail keeps the collapsed options interactive with the disclosure toggle still
+		// available; a class hides only their labels while the pickers stay in the tree.
+		harness._screenReaderOptimized.set(false, undefined);
+		harness._collapsedSessionOptionsShowIcons.set(true, undefined);
+		harness._sessionOptionsExpanded.set(false, undefined);
+		assert.deepStrictEqual({
+			toggleHidden: toggle.hidden,
+			hidden: details.hidden,
+			inert: details.inert,
+			iconRailClass: details.classList.contains('collapsed-icon-rail'),
+			expanded: toggle.getAttribute('aria-expanded'),
+		}, {
+			toggleHidden: false,
+			hidden: false,
+			inert: false,
+			iconRailClass: true,
+			expanded: 'false',
 		});
 	});
 

@@ -82,7 +82,7 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackSt
 import { IAquariumService } from '../../../aquarium/browser/aquariumOverlay.js';
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../../github/common/types.js';
 import { NewChatView } from '../../browser/chatView.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { INewSessionComposerService, INewSessionPromptOption, NewSessionComposerService, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
@@ -120,6 +120,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly chatBackground?: 'codicons' | 'loud';
 	readonly migrationCount?: number;
 	readonly experimentalComposerLayout?: boolean;
+	readonly collapsedSessionOptionsShowIcons?: boolean;
 }
 
 class FixturePickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
@@ -247,6 +248,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		chatBackground,
 		migrationCount = 0,
 		experimentalComposerLayout = false,
+		collapsedSessionOptionsShowIcons = false,
 	} = options;
 	const hasChatBackground = chatBackground !== undefined;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
@@ -274,6 +276,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: withControlPickers,
 		[UNIFIED_WORKSPACE_PICKER_SETTING]: experimentalComposerLayout,
 		[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalComposerLayout,
+		[COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING]: collapsedSessionOptionsShowIcons,
 		...(chatBackground === 'codicons' ? {
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
 			[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
@@ -595,6 +598,14 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				'The collapsed tray must join the top of the prompt.');
 		}
 		assert(collapsedTrayBounds.width < promptBounds.width, 'The collapsed tray must fit its controls, not the prompt width.');
+		if (collapsedSessionOptionsShowIcons) {
+			const detailLabels = [...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')];
+			const detailControls = [...sessionOptions.querySelectorAll<HTMLElement>('.action-label[role="button"]')].filter(control => control.checkVisibility());
+			assert(!sessionOptions.hidden && !sessionOptions.inert && sessionOptions.classList.contains('collapsed-icon-rail')
+				&& !optionsToggle.hidden && optionsToggle.getAttribute('aria-expanded') === 'false'
+				&& detailControls.length > 0 && detailLabels.every(label => !label.checkVisibility()),
+				'The collapsed icon rail keeps the pickers reachable as icons with the disclosure toggle available.');
+		}
 		if (expandSessionOptions) {
 			optionsToggle.click();
 			assert(!sessionOptions.hidden && !sessionOptions.inert && optionsToggle.getAttribute('aria-expanded') === 'true');
@@ -833,6 +844,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	NewSessionOptionsCollapsed: defineComponentFixture({
 		virtualTime: { enabled: false },
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, expandSessionOptions: false, experimentalComposerLayout: true }),
+	}),
+	NewSessionOptionsIconRail: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, expandSessionOptions: false, collapsedSessionOptionsShowIcons: true, experimentalComposerLayout: true }),
 	}),
 	NewSessionOptionsAnimated: defineComponentFixture({
 		virtualTime: { enabled: false },
