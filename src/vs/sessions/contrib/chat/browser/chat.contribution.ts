@@ -72,7 +72,7 @@ import { FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPAC
 import { FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_WIDGET_SETTING, DEFAULT_RESPONSE_SELECTION_WIDGET_MODE, ResponseSelectionWidgetMode } from './responseSelectionSideChatController.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, SessionsChatBackgroundTint, ToggleChatBackgroundTintAction } from './chatBackgroundTint.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 
@@ -522,13 +522,24 @@ AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
 // register configuration
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
-		[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: {
-			type: 'boolean',
-			default: false,
+		[AGENT_SESSIONS_RESPONSE_SELECTION_WIDGET_SETTING]: {
+			type: 'string',
+			enum: [ResponseSelectionWidgetMode.Ask, ResponseSelectionWidgetMode.MenuWithCopy, ResponseSelectionWidgetMode.Menu],
+			enumItemLabels: [
+				localize('chat.agentSessions.responseSelectionWidget.ask.label', "Ask Question"),
+				localize('chat.agentSessions.responseSelectionWidget.menuWithCopy.label', "Action Menu with Copy"),
+				localize('chat.agentSessions.responseSelectionWidget.menu.label', "Action Menu"),
+			],
+			enumDescriptions: [
+				localize('chat.agentSessions.responseSelectionWidget.ask.description', "Shows an Ask Question input."),
+				localize('chat.agentSessions.responseSelectionWidget.menuWithCopy.description', "Shows an action menu with Ask in a Side Chat, Quote, and Copy."),
+				localize('chat.agentSessions.responseSelectionWidget.menu.description', "Shows an action menu with Ask in a Side Chat and Quote."),
+			],
+			default: DEFAULT_RESPONSE_SELECTION_WIDGET_MODE,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
-			description: localize('chat.agentSessions.responseSelectionMenu.enabled', "Shows an enhanced action menu with Ask in a Side Chat, Quote, and Copy when selecting assistant response text in the Agents Window."),
+			description: localize('chat.agentSessions.responseSelectionWidget', "Controls which widget appears when selecting assistant response text in the Agents Window."),
 		},
 		[SESSION_ARCHIVE_NUDGE_SETTING]: {
 			type: 'boolean',

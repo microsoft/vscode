@@ -6,8 +6,8 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Menu } from '../../../../base/browser/ui/menu/menu.js';
-import { Action, Separator } from '../../../../base/common/actions.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Action, type IAction, Separator } from '../../../../base/common/actions.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { clamp } from '../../../../base/common/numbers.js';
@@ -38,7 +38,55 @@ import { createAndSendSideChat } from './sideChatOrchestration.js';
  */
 const selectionHighlightName = 'chat-response-selection';
 
-export const AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING = 'chat.agentSessions.responseSelectionMenu.enabled';
+export const AGENT_SESSIONS_RESPONSE_SELECTION_WIDGET_SETTING = 'chat.agentSessions.responseSelectionWidget';
+
+export const enum ResponseSelectionWidgetMode {
+	Ask = 'ask',
+	MenuWithCopy = 'menuWithCopy',
+	Menu = 'menu',
+}
+
+export const DEFAULT_RESPONSE_SELECTION_WIDGET_MODE = ResponseSelectionWidgetMode.Ask;
+
+export function getResponseSelectionWidgetMode(configurationService: IConfigurationService): ResponseSelectionWidgetMode {
+	const mode = configurationService.getValue<string>(AGENT_SESSIONS_RESPONSE_SELECTION_WIDGET_SETTING);
+	switch (mode) {
+		case ResponseSelectionWidgetMode.Ask:
+		case ResponseSelectionWidgetMode.MenuWithCopy:
+		case ResponseSelectionWidgetMode.Menu:
+			return mode;
+		default:
+			return DEFAULT_RESPONSE_SELECTION_WIDGET_MODE;
+	}
+}
+
+export function getResponseSelectionWidgetAccessibilityHelp(configurationService: IConfigurationService): string[] {
+	const mode = getResponseSelectionWidgetMode(configurationService);
+	if (mode === ResponseSelectionWidgetMode.Ask) {
+		return [
+			localize('sessionsChat.responseSelectionInput', "When you select assistant response text, an Ask Question input appears. Type a side question and press Enter to send it, press Shift+Enter to insert a new line, or press Escape to dismiss the input."),
+		];
+	}
+
+	const content = [
+		localize('sessionsChat.responseSelectionMenu', "When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask in a Side Chat opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive."),
+	];
+	if (mode === ResponseSelectionWidgetMode.MenuWithCopy) {
+		content.push(localize('sessionsChat.responseSelectionMenu.copy', "Copy copies the selected text."));
+	}
+	return content;
+}
+
+function getTelemetryVariant(mode: ResponseSelectionWidgetMode): ResponseSelectionWidgetVariant {
+	switch (mode) {
+		case ResponseSelectionWidgetMode.Ask:
+			return 'askQuestionInput';
+		case ResponseSelectionWidgetMode.MenuWithCopy:
+			return 'actionMenu';
+		case ResponseSelectionWidgetMode.Menu:
+			return 'actionMenuWithoutCopy';
+	}
+}
 
 // Highlight pseudo-elements inherit custom properties from the root element
 // only, so they cannot see the `--vscode-*` theme variables (which are scoped
@@ -98,7 +146,11 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 	private readonly _input: FeedbackInputWidget;
 	private readonly _menuDomNode: HTMLElement;
-	private readonly _menu: Menu;
+	private _menu: Menu;
+	private readonly _menuDisposables = this._register(new DisposableStore());
+	private readonly _menuCancelListener = this._register(new MutableDisposable<IDisposable>());
+	private readonly _menuActions: readonly IAction[];
+	private readonly _menuWithCopyActions: readonly IAction[];
 	private readonly _quoteAction: Action;
 	private readonly _chatInteractivity = this._register(new MutableDisposable());
 	private readonly _selectionChangeScheduler: dom.AnimationFrameScheduler;
@@ -108,7 +160,8 @@ export class ResponseSelectionSideChatController extends Disposable {
 	private _lastFocusRect: { top: number; bottom: number; left: number } | undefined;
 	private _lastTranscriptBounds: { top: number; bottom: number } | undefined;
 	private _visibleSurface: 'input' | 'menu' | undefined;
-	private _visibleVariant: ResponseSelectionWidgetVariant | undefined;
+	private _visibleMode: ResponseSelectionWidgetMode | undefined;
+	private _menuIncludesCopy = false;
 	private _resolved: IResolvedResponseSelection | undefined;
 	/** Range currently painted via the CSS custom highlight, if any. */
 	private _paintedRange: Range | undefined;
@@ -171,15 +224,17 @@ export class ResponseSelectionSideChatController extends Disposable {
 			true,
 			() => this._copySelection(),
 		));
-		this._menu = this._register(new Menu(this._menuDomNode, [
+		this._menuActions = [
 			askQuestionAction,
 			this._quoteAction,
+		];
+		this._menuWithCopyActions = [
+			...this._menuActions,
 			new Separator(),
 			copyAction,
-		], {
-			ariaLabel: localize('sessions.responseSelection.menuAriaLabel', "Selected response text actions"),
-		}, defaultMenuStyles));
-		this._register(this._menu.onDidCancel(() => this._dismiss()));
+		];
+		this._menu = this._createMenu(this._menuActions);
+		this._menuCancelListener.value = this._menu.onDidCancel(() => this._dismiss());
 		this._register(dom.addStandardDisposableListener(this._menuDomNode, 'mousedown', e => e.preventDefault()));
 
 		this._register(this._input.onDidTriggerPrimary(() => this._submit()));
@@ -222,6 +277,14 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._register(this._widget.onDidScroll(() => this._reposition(true)));
 		this._register(dom.addDisposableListener(this._widget.domNode, 'scroll', () => this._reposition(true), true));
 		this._register(toDisposable(() => this._paintHighlight(undefined)));
+	}
+
+	private _createMenu(actions: readonly IAction[]): Menu {
+		this._menuDisposables.clear();
+		dom.clearNode(this._menuDomNode);
+		return this._menuDisposables.add(new Menu(this._menuDomNode, actions, {
+			ariaLabel: localize('sessions.responseSelection.menuAriaLabel', "Selected response text actions"),
+		}, defaultMenuStyles));
 	}
 
 	/**
@@ -364,9 +427,10 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 	private _showFor(): void {
 		const wasVisible = this._visibleSurface !== undefined;
-		const variant = this._visibleVariant ?? this._getConfiguredVariant();
-		this._visibleVariant = variant;
-		if (variant === 'actionMenu' && this._visibleSurface !== 'input') {
+		const mode = this._visibleMode ?? getResponseSelectionWidgetMode(this._configurationService);
+		this._visibleMode = mode;
+		if (mode !== ResponseSelectionWidgetMode.Ask && this._visibleSurface !== 'input') {
+			this._updateMenuActions(mode);
 			this._input.hide();
 			this._menuDomNode.style.display = '';
 			this._visibleSurface = 'menu';
@@ -378,17 +442,27 @@ export class ResponseSelectionSideChatController extends Disposable {
 			this._visibleSurface = 'input';
 		}
 		if (!wasVisible) {
-			logResponseSelectionWidgetAction(this._telemetryService, variant, 'shown');
+			logResponseSelectionWidgetAction(this._telemetryService, getTelemetryVariant(mode), 'shown');
 		}
 		this._syncHighlight();
 		this._reposition();
+	}
+
+	private _updateMenuActions(mode: ResponseSelectionWidgetMode): void {
+		const includeCopy = mode === ResponseSelectionWidgetMode.MenuWithCopy;
+		if (includeCopy === this._menuIncludesCopy) {
+			return;
+		}
+		this._menuIncludesCopy = includeCopy;
+		this._menu = this._createMenu(includeCopy ? this._menuWithCopyActions : this._menuActions);
+		this._menuCancelListener.value = this._menu.onDidCancel(() => this._dismiss());
 	}
 
 	private _openQuestionInput(): void {
 		if (!this._resolved) {
 			return;
 		}
-		logResponseSelectionWidgetAction(this._telemetryService, this._visibleVariant ?? this._getConfiguredVariant(), 'askQuestionOpened');
+		logResponseSelectionWidgetAction(this._telemetryService, getTelemetryVariant(this._visibleMode ?? getResponseSelectionWidgetMode(this._configurationService)), 'askQuestionOpened');
 		this._menuDomNode.style.display = 'none';
 		this._input.show();
 		this._input.autoSize();
@@ -404,7 +478,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		if (!resolved || this._chat?.interactivity.get() !== ChatInteractivity.Full) {
 			return;
 		}
-		const variant = this._visibleVariant ?? this._getConfiguredVariant();
+		const variant = getTelemetryVariant(this._visibleMode ?? getResponseSelectionWidgetMode(this._configurationService));
 		const existingInput = this._widget.getInput();
 		const separator = existingInput.length > 0 && !existingInput.endsWith('\n') ? '\n' : '';
 		logResponseSelectionWidgetAction(this._telemetryService, variant, 'quote');
@@ -419,7 +493,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		if (!resolved) {
 			return;
 		}
-		const variant = this._visibleVariant ?? this._getConfiguredVariant();
+		const variant = getTelemetryVariant(this._visibleMode ?? getResponseSelectionWidgetMode(this._configurationService));
 		logResponseSelectionWidgetAction(this._telemetryService, variant, 'copy');
 		this._dismiss();
 		try {
@@ -429,10 +503,6 @@ export class ResponseSelectionSideChatController extends Disposable {
 			this._logService.error('[responseSelection] Failed to copy selected response text', err);
 			this._notificationService.error(localize('sessions.responseSelection.copyFailed', "The selected response text could not be copied."));
 		}
-	}
-
-	private _getConfiguredVariant(): ResponseSelectionWidgetVariant {
-		return this._configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING) ? 'actionMenu' : 'askQuestionInput';
 	}
 
 	private _hasAffordanceFocus(): boolean {
@@ -559,7 +629,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._menuDomNode.style.display = 'none';
 		this._input.clearInput();
 		this._visibleSurface = undefined;
-		this._visibleVariant = undefined;
+		this._visibleMode = undefined;
 		this._verticalPlacement = undefined;
 		this._lastFocusRect = undefined;
 		this._lastTranscriptBounds = undefined;
@@ -577,7 +647,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		if (!resolved || !chat || !query || this._input.isBusy) {
 			return;
 		}
-		logResponseSelectionWidgetAction(this._telemetryService, this._visibleVariant ?? this._getConfiguredVariant(), 'askQuestionSubmitted');
+		logResponseSelectionWidgetAction(this._telemetryService, getTelemetryVariant(this._visibleMode ?? getResponseSelectionWidgetMode(this._configurationService)), 'askQuestionSubmitted');
 
 		const found = this._sessionsManagementService.getSessionForChatResource(chat.resource);
 		if (!found) {

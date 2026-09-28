@@ -85,7 +85,7 @@ export function logSessionsInteraction(telemetryService: ITelemetryService, butt
 }
 
 /** Presentation shown for a response-text selection in the Agents window. */
-export type ResponseSelectionWidgetVariant = 'askQuestionInput' | 'actionMenu';
+export type ResponseSelectionWidgetVariant = 'askQuestionInput' | 'actionMenu' | 'actionMenuWithoutCopy';
 
 /** User interaction with the response-selection widget. */
 export type ResponseSelectionWidgetAction = 'shown' | 'askQuestionOpened' | 'askQuestionSubmitted' | 'quote' | 'copy';
@@ -98,7 +98,7 @@ type ResponseSelectionWidgetEvent = {
 type ResponseSelectionWidgetClassification = {
 	owner: 'ulugbekna';
 	comment: 'Measures exposure to and use of the response-text selection widget in the Agents window.';
-	variant: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The widget presentation shown: the existing ask-question input or the experimental action menu.' };
+	variant: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The widget presentation shown: the ask-question input, the action menu with Copy, or the action menu without Copy.' };
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The widget exposure or action: shown, question opened or submitted, quote, or copy.' };
 };
 
