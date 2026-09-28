@@ -196,15 +196,20 @@ interface IResolvedSessionIssue {
 	readonly issue: IGitHubIssue | undefined;
 }
 
+function groupSessionIssues(issues: readonly IResolvedSessionIssue[]) {
+	const groups = groupBy(issues, ({ ref }) => `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`);
+	return coalesce(Object.values(groups)).map(group => ({
+		ref: group[0].ref,
+		issue: group.find(candidate => candidate.issue)?.issue,
+		recordedReferenceIds: distinct(group.flatMap(({ ref }) => ref.recordedReferenceId ? [ref.recordedReferenceId] : [])),
+	}));
+}
+
 /** Builds one pill entry per issue, grouping comment links and enriching entries with live details. */
 export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, referenceActions?: IRecordedReferenceActions, dropdownHoverCache?: WeakMap<IGitHubIssueRef, ICachedHover>): readonly IChatPillSection[] {
-	const groups = groupBy(issues, ({ ref }) => `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`);
-	const entries = coalesce(Object.values(groups)).map(group => {
-		const { ref } = group[0];
-		const issue = group.find(candidate => candidate.issue)?.issue;
+	const entries = groupSessionIssues(issues).map(({ ref, issue, recordedReferenceIds }) => {
 		const uri = ref.uri.with({ scheme: Schemas.https, authority: 'github.com', path: `/${ref.owner}/${ref.repo}/issues/${ref.number}`, query: '', fragment: '' });
 		const title = issue?.title ?? ref.title;
-		const recordedReferenceIds = distinct(group.flatMap(({ ref }) => ref.recordedReferenceId ? [ref.recordedReferenceId] : []));
 		const recordedReferenceId = recordedReferenceIds[0];
 		let hoverTabbableElements: readonly HTMLElement[] = [];
 		const createHover = issue ? (density: 'default' | 'compact') => createIssueHover({
@@ -432,7 +437,7 @@ export class SessionChatInputToolbar extends Disposable {
 			return buildSessionIssueSections(issues.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, session ? referenceActions(session, reader) : undefined, this._issueDropdownHoverCache);
 		});
 		const issueIcon = derived(this, reader => {
-			const resolved = issues.read(reader);
+			const resolved = groupSessionIssues(issues.read(reader));
 			if (resolved.length === 1) {
 				const issue = resolved[0].issue;
 				return issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined);

@@ -1095,6 +1095,53 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('aggregates issue icons from the same grouped identities as the dropdown', () => {
+		const { instantiationService } = createServices();
+		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [
+			{ id: 'comment', kind: SessionArtifactKind.Issue, label: 'Issue 42', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/Microsoft/VSCode/issues/42#issuecomment-1') },
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue 42', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/issues/42') },
+			{ id: 'other-issue', kind: SessionArtifactKind.Issue, label: 'Issue 43', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/issues/43') },
+		]);
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,
+			capabilities: constObservable({ supportsMultipleChats: false }),
+			chats: constObservable([chat]),
+			workspace: constObservable(undefined),
+		});
+		const closed = upcastPartial<IGitHubIssue>({ title: 'Closed issue', state: GitHubIssueState.Closed, stateReason: GitHubIssueStateReason.Completed });
+		const otherIssue = observableValue<IGitHubIssue | undefined>('otherIssue', closed);
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			createIssueModelReference: (owner, _repo, number) => new ImmortalReference(upcastPartial<GitHubIssueModel>({
+				issue: number === 43 ? otherIssue : constObservable(owner === 'microsoft' ? closed : undefined),
+				refresh: async () => { }, startPolling: () => toDisposable(() => { }),
+			})),
+		}));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		const presentation = () => {
+			const pill = toolbar.element.querySelector('.chat-dropdown-pill-button');
+			return {
+				label: pill?.getAttribute('aria-label'),
+				closed: !!pill?.querySelector(`.codicon-${Codicon.issueClosed.id}`),
+				open: !!pill?.querySelector(`.codicon-${Codicon.issueOpened.id}`),
+			};
+		};
+		const allClosed = presentation();
+		otherIssue.set(undefined, undefined);
+		const unresolvedDistinctIssue = presentation();
+		otherIssue.set({ ...closed, state: GitHubIssueState.Open }, undefined);
+		const openDistinctIssue = presentation();
+		otherIssue.set(closed, undefined);
+
+		assert.deepStrictEqual({ allClosed, unresolvedDistinctIssue, openDistinctIssue, resolvedAgain: presentation() }, {
+			allClosed: { label: 'Show 2 issues', closed: true, open: false },
+			unresolvedDistinctIssue: { label: 'Show 2 issues', closed: false, open: true },
+			openDistinctIssue: { label: 'Show 2 issues', closed: false, open: true },
+			resolvedAgain: { label: 'Show 2 issues', closed: true, open: false },
+		});
+	});
+
 	test('shows three recorded issue links as one pill and keeps failed removals available for retry', async () => {
 		const { instantiationService } = createServices();
 		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', ['', '#issuecomment-1', '#issuecomment-2'].map((fragment, index) => ({
