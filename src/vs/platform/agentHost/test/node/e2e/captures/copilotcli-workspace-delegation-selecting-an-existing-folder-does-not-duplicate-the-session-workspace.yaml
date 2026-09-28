@@ -1,0 +1,46 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call create_session exactly once with relationship "currentSession", workspace "${workdir}/secondary", worktree false, prompt "/rename Directory Peer", and title "Directory Peer". Then reply exactly "created".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: create_session
+          input:
+            relationship: currentSession
+            workspace: ${workdir}/secondary
+            worktree: false
+            prompt: /rename Directory Peer
+            title: Directory Peer
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call create_session exactly once with relationship "currentSession", workspace "${workdir}/secondary", worktree false, prompt "/rename Directory Peer", and title "Directory Peer". Then reply exactly "created".
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: create_session
+              input:
+                relationship: currentSession
+                workspace: ${workdir}/secondary
+                worktree: false
+                prompt: /rename Directory Peer
+                title: Directory Peer
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Chat created in the current session (agent-host-session://copilotcli/${uuid_0}?chat=${uuid_1}).
+    response:
+      content: created
+      stopReason: end_turn

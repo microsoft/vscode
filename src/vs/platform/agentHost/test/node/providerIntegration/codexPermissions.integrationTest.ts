@@ -62,7 +62,9 @@ suite('Agent Host Provider Integration — Codex Permissions', function () {
 		if (!CODEX_SDK_ROOT || process.platform !== 'darwin') {
 			this.skip();
 		}
-		testRoot = await mkdtemp(join(tmpdir(), 'codex-permissions-'));
+		// Prefer CI-owned temp roots because Codex grants macOS system temp roots by design.
+		const fixtureParent = process.env.AGENT_TEMPDIRECTORY || process.env.RUNNER_TEMP || tmpdir();
+		testRoot = await mkdtemp(join(fixtureParent, 'codex-permissions-'));
 		homeDir = join(testRoot, 'home');
 		workspaceDir = join(testRoot, 'workspace');
 		temporaryDir = join(testRoot, 'tmp');

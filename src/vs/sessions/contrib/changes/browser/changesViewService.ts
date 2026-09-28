@@ -20,7 +20,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
-import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewSectionCollapseState, IChangesViewService } from '../common/changesViewService.js';
+import { ActiveSessionState, ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewSectionCollapseState, IChangesViewService } from '../common/changesViewService.js';
 
 export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
 export const ChangesetReviewedFilesContext = new RawContextKey<string[]>('sessions.changesetReviewedFiles', []);
@@ -312,13 +312,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 				};
 			}
 
-			const defaultChangeset = activeSessionChangesets
-				.find(c => c.isDefault.read(reader));
-
-			const firstEnabledChangeset = activeSessionChangesets
-				.find(c => c.isEnabled.read(reader));
-
-			const changeset = defaultChangeset ?? firstEnabledChangeset;
+			const changeset = findDefaultChangeset(activeSessionChangesets, reader);
 			return {
 				sessionResource: activeSession?.resource,
 				workspace: changeset?.id === SESSION_CHANGES_CHANGESET_ID ? activeSession?.workspace.read(reader) : chatWorkspace,

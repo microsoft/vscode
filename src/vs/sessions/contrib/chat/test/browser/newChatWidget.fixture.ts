@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -35,6 +38,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../platform
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { IChatTipService } from '../../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
@@ -52,8 +56,10 @@ import { ICustomizationMigrationTelemetryService } from '../../../../../workbenc
 import { IMcpWorkbenchService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatPhoneInputPresenter } from '../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
+import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
@@ -76,13 +82,10 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackSt
 import { IAquariumService } from '../../../aquarium/browser/aquariumOverlay.js';
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../../github/common/types.js';
 import { NewChatView } from '../../browser/chatView.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { INewSessionComposerService, INewSessionPromptOption, NewSessionComposerService, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
-// eslint-disable-next-line local/code-import-patterns -- Exercise the real nested provider pickers in the composer fixture.
-import { AgentHostSessionConfigPicker, PickerActionViewItem } from '../../../providers/agentHost/browser/agentHostSessionConfigPicker.js';
-// eslint-disable-next-line local/code-import-patterns -- Render the same mode/permissions component used by the provider.
-import { AgentHostModePicker } from '../../../providers/agentHost/browser/agentHostModePicker.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 
 import '../../../../browser/media/style.css';
@@ -114,8 +117,43 @@ interface INewChatWidgetFixtureOptions {
 	readonly withConfiguredModel?: boolean;
 	readonly primaryToolbarWidth?: number;
 	readonly phoneLayout?: boolean;
-	readonly withChatBackground?: boolean;
+	readonly chatBackground?: 'codicons' | 'loud';
 	readonly migrationCount?: number;
+	readonly experimentalComposerLayout?: boolean;
+}
+
+class FixturePickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
+	private _compact = false;
+
+	constructor(private readonly _kind: 'mode' | 'isolation' | 'branch') {
+		super(undefined, toAction({ id: `fixture.${_kind}`, label: _kind, run: () => { } }));
+	}
+
+	override render(container: HTMLElement): void {
+		this.element = container;
+		container.classList.toggle('compact-picker', this._compact);
+		const trigger = dom.append(container, dom.$('a.action-label'));
+		trigger.role = 'button';
+		trigger.tabIndex = 0;
+		if (this._kind === 'mode') {
+			trigger.classList.add('agent-host-mode-permissions-trigger');
+			dom.append(trigger, renderIcon(Codicon.agent));
+			dom.append(trigger, dom.$('span.chat-input-picker-label', undefined, 'Plan'));
+			dom.append(trigger, dom.$('span.agent-host-permissions-button', undefined, 'Default'));
+			return;
+		}
+		dom.append(trigger, renderIcon(this._kind === 'isolation' ? Codicon.worktree : Codicon.gitBranch));
+		dom.append(trigger, dom.$('span.sessions-chat-dropdown-label', undefined, this._kind === 'isolation' ? 'New Worktree' : 'Branch'));
+	}
+
+	setCompact(compact: boolean): void {
+		this._compact = compact;
+		this.element?.classList.toggle('compact-picker', compact);
+	}
+
+	isCompact(): boolean {
+		return this._compact;
+	}
 }
 
 class AutoModelFixtureMenuService extends FixtureMenuService {
@@ -151,6 +189,14 @@ class AutoModelFixtureMenuService extends FixtureMenuService {
 		});
 	}
 }
+
+const loudChatBackground: ISessionsChatBackground = {
+	kind: 'image',
+	backgroundImage: 'repeating-linear-gradient(135deg, #ff00a8 0 16px, #00e5ff 16px 32px, #ffe600 32px 48px, #4b00ff 48px 64px)',
+	backgroundRepeat: 'repeat',
+	backgroundSize: 'auto',
+	backgroundPosition: 'left top',
+};
 
 /** Wraps the composer in the Agents Window host and paints its resolved background. */
 function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore, background: ISessionsChatBackground | undefined): HTMLElement {
@@ -198,9 +244,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		withConfiguredModel = false,
 		primaryToolbarWidth,
 		phoneLayout = false,
-		withChatBackground = false,
+		chatBackground,
 		migrationCount = 0,
+		experimentalComposerLayout = false,
 	} = options;
+	const hasChatBackground = chatBackground !== undefined;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
 		id: `feedback-${index}`,
 		text: `Comment ${index + 1}`,
@@ -217,11 +265,16 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const activeSessionObservable = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
+		override readonly initialRestoreComplete = constObservable(true);
 		override readonly activeSession = activeSessionObservable;
 	}();
 	const configurationService = new TestConfigurationService({
+		[NEW_SESSION_WELCOME_NAME_SETTING]: '',
+		[NEW_SESSION_WELCOME_PHRASES_SETTING]: false,
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: withControlPickers,
-		...(withChatBackground ? {
+		[UNIFIED_WORKSPACE_PICKER_SETTING]: experimentalComposerLayout,
+		[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalComposerLayout,
+		...(chatBackground === 'codicons' ? {
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
 			[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
 		} : {}),
@@ -233,6 +286,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
 			reg.defineInstance(IConfigurationService, configurationService);
+			reg.defineInstance(IAuthenticationService, new class extends mock<IAuthenticationService>() { }());
+			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
 			if (migrationCount > 0) {
 				reg.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 			}
@@ -266,6 +321,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.defineInstance(ISearchService, new class extends mock<ISearchService>() { }());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessionTypes = Event.None;
+				override isQuickChatTargetAvailable(): boolean { return false; }
 				override getSessionTypesForFolder() {
 					return activeSession ? sessionTypes.map(sessionType => ({ providerId: provider.id, sessionType })) : [];
 				}
@@ -419,8 +475,13 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.classList.toggle('phone-layout', phoneLayout);
 
-	const sessionView = dom.append(withChatBackground ? createChatBackgroundPart(container, disposableStore, instantiationService.get(ISessionsChatBackgroundService).getBackground()) : container, dom.$('.session-view.is-active'));
-	if (withChatBackground && isHighContrast(context.theme.type)) {
+	const background = isHighContrast(context.theme.type)
+		? undefined
+		: chatBackground === 'loud'
+			? loudChatBackground
+			: instantiationService.get(ISessionsChatBackgroundService).getBackground();
+	const sessionView = dom.append(hasChatBackground ? createChatBackgroundPart(container, disposableStore, background) : container, dom.$('.session-view.is-active'));
+	if (hasChatBackground && isHighContrast(context.theme.type)) {
 		assert(!container.querySelector('.has-chat-background')
 			&& container.querySelectorAll('.sessions-chat-codicon-background .codicon').length === 0
 			&& container.querySelector<HTMLElement>('.sessions-chat-codicon-hit-target')?.hidden === true,
@@ -428,7 +489,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	sessionView.style.width = '100%';
 	sessionView.style.height = '100%';
-	if (!withChatBackground) {
+	if (!hasChatBackground) {
 		sessionView.style.backgroundColor = asCssVariable(activeSessionViewBackground);
 	}
 	sessionView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
@@ -457,11 +518,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			onDidChange: Event.None,
 			lookUp: (menu, command) => {
 				if (menu === Menus.NewSessionControl && command === 'fixture.mode') {
-					return (_action, _options, service) => new PickerActionViewItem(service.createInstance(AgentHostModePicker, activeSessionObservable));
+					return () => new FixturePickerActionViewItem('mode');
 				}
 				const property = command === 'fixture.worktree' ? SessionConfigKey.Isolation : command === 'fixture.branch' ? SessionConfigKey.Branch : undefined;
 				return menu === Menus.NewSessionRepositoryConfig && property
-					? (_action, _options, service) => new PickerActionViewItem(service.createInstance(AgentHostSessionConfigPicker, activeSessionObservable, property), undefined, true)
+					? () => new FixturePickerActionViewItem(property === SessionConfigKey.Isolation ? 'isolation' : 'branch')
 					: undefined;
 			},
 		});
@@ -498,130 +559,140 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		}
 	}
 	await nextFrame();
-	const optionsToggle = view.element.querySelector<HTMLElement>('.new-chat-session-options-toggle');
-	const sessionOptions = view.element.querySelector<HTMLElement>('.new-chat-session-options-details');
-	const optionsTray = view.element.querySelector<HTMLElement>('.new-chat-session-options');
-	const promptBox = view.element.querySelector<HTMLElement>('.new-chat-input-container');
-	assert(!!optionsToggle && !!sessionOptions && !!optionsTray && !!promptBox && !sessionOptions.hidden && !sessionOptions.inert,
-		'Session options must be expanded by default.');
-	if (withControlPickers && width >= 800) {
-		assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => label.checkVisibility()),
-			'Wide composers must initially show every picker label.');
-	}
-	optionsToggle.click();
-	for (const animation of sessionOptions.getAnimations()) {
-		animation.finish();
-	}
-	await nextFrame();
 	const heading = view.element.querySelector<HTMLElement>('h1.new-session-heading');
 	assert(heading?.textContent === 'What should we build?');
 	const headingStyle = targetWindow.getComputedStyle(heading);
-	assert(headingStyle.textAlign === 'center'
-		&& headingStyle.fontSize === headingStyle.getPropertyValue('--vscode-fontSize-heading1').trim(),
-		'The welcome heading must use the largest heading token and be centered.');
-	const collapsedTrayBounds = optionsTray.getBoundingClientRect();
-	const promptBounds = promptBox.getBoundingClientRect();
-	assert(!!(optionsTray.compareDocumentPosition(promptBox) & Node.DOCUMENT_POSITION_FOLLOWING),
-		'The tray must precede the prompt in reading and keyboard order.');
-	if (!phoneLayout) {
-		assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
-			'The collapsed tray must join the top of the prompt.');
-	}
-	assert(collapsedTrayBounds.width < promptBounds.width, 'The collapsed tray must fit its controls, not the prompt width.');
-	if (expandSessionOptions) {
+	assert(experimentalComposerLayout
+		? headingStyle.display !== 'none'
+			&& headingStyle.textAlign === 'center'
+			&& headingStyle.fontSize === headingStyle.getPropertyValue('--vscode-fontSize-heading1').trim()
+			&& headingStyle.fontWeight === headingStyle.getPropertyValue('--vscode-fontWeight-semiBold').trim()
+		: headingStyle.display === 'none',
+		'The welcome heading must use the heading type role only in the experimental composer.');
+	const promptBox = view.element.querySelector<HTMLElement>('.new-chat-input-container');
+	assert(!!promptBox);
+	if (experimentalComposerLayout) {
+		const optionsToggle = view.element.querySelector<HTMLElement>('.new-chat-session-options-toggle');
+		const sessionOptions = view.element.querySelector<HTMLElement>('.new-chat-session-options-details');
+		const optionsTray = view.element.querySelector<HTMLElement>('.new-chat-session-options');
+		assert(!!optionsToggle && !!sessionOptions && !!optionsTray && !sessionOptions.hidden && !sessionOptions.inert,
+			'Session options must be expanded by default.');
+		if (withControlPickers && width >= 800) {
+			assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => label.checkVisibility()),
+				'Wide composers must initially show every picker label.');
+		}
 		optionsToggle.click();
-		assert(!sessionOptions.hidden && !sessionOptions.inert && optionsToggle.getAttribute('aria-expanded') === 'true');
 		for (const animation of sessionOptions.getAnimations()) {
 			animation.finish();
 		}
 		await nextFrame();
-		assert(optionsTray.getBoundingClientRect().width > collapsedTrayBounds.width, 'The tray must grow with its revealed controls.');
-	}
-	const trayBounds = optionsTray.getBoundingClientRect();
-	if (expandSessionOptions && withControlPickers && !phoneLayout) {
-		assert(Math.abs(trayBounds.height - collapsedTrayBounds.height) < 1,
-			'Expanding the tray must compact pickers rather than increase its height.');
-	}
-	if (!phoneLayout) {
-		assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
-			'The tray must remain joined to the top of the prompt after expansion.');
-	}
-	const trayStyle = targetWindow.getComputedStyle(optionsTray);
-	assert(parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0
-		&& trayStyle.borderBottomLeftRadius === '0px' && trayStyle.borderBottomRightRadius === '0px',
-		'The tray must round its outer top corners and keep its joined bottom edge square.');
-	assert(trayBounds.left > promptBounds.left && trayBounds.right < promptBounds.right,
-		'The tray must remain inset from the prompt.');
-	if (phoneLayout) {
-		assert(Math.abs(trayBounds.left + trayBounds.width / 2 - promptBounds.left - promptBounds.width / 2) < 1,
-			'The phone workspace picker must retain its centered layout.');
-	} else {
-		const inset = parseFloat(trayStyle.getPropertyValue('--vscode-spacing-size160'));
-		assert(Math.abs(trayBounds.left - promptBounds.left - inset) < 1
-			&& Math.abs(collapsedTrayBounds.left - trayBounds.left) < 1,
-			'The tray must remain left-aligned at the same token inset when expanded or collapsed.');
-	}
-	const toggleStyle = targetWindow.getComputedStyle(optionsToggle);
-	assert(toggleStyle.display === 'flex' && toggleStyle.alignItems === 'center' && toggleStyle.justifyContent === 'center',
-		'The disclosure chevron must be centered within its button.');
-	const controls = [...optionsTray.querySelectorAll<HTMLElement>('.action-label[role="button"]')].filter(control => control.checkVisibility());
-	const referenceStyle = controls[0] && targetWindow.getComputedStyle(controls[0]);
-	for (const [index, control] of controls.entries()) {
-		const style = targetWindow.getComputedStyle(control);
-		const bounds = control.getBoundingClientRect();
-		const label = control.querySelector<HTMLElement>('.sessions-chat-dropdown-label');
-		const labelBounds = label?.checkVisibility() ? label.getBoundingClientRect() : undefined;
-		assert(style.height === referenceStyle.height && style.padding === referenceStyle.padding
-			&& style.gap === referenceStyle.gap && style.fontSize === referenceStyle.fontSize,
-			'Every tray picker must have the same control size, padding, icon gap and text size.');
-		assert(!labelBounds || Math.abs(bounds.top + bounds.height / 2 - labelBounds.top - labelBounds.height / 2) < 1,
-			'Picker text must be vertically centered within the control.');
-		const next = controls[index + 1]?.getBoundingClientRect();
-		if (next && Math.abs(next.top - bounds.top) < 1) {
-			assert(Math.abs(next.left - bounds.right - parseFloat(targetWindow.getComputedStyle(optionsTray).getPropertyValue('--vscode-spacing-size80'))) < 1,
-				'Adjacent pickers must have equal design-token spacing.');
+		const collapsedTrayBounds = optionsTray.getBoundingClientRect();
+		const promptBounds = promptBox.getBoundingClientRect();
+		assert(!!(optionsTray.compareDocumentPosition(promptBox) & Node.DOCUMENT_POSITION_FOLLOWING),
+			'The tray must precede the prompt in reading and keyboard order.');
+		if (!phoneLayout) {
+			assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
+				'The collapsed tray must join the top of the prompt.');
 		}
-	}
-	const lastControl = controls.at(-1)?.getBoundingClientRect();
-	assert(controls.every(control => Math.abs(control.getBoundingClientRect().top - controls[0].getBoundingClientRect().top) < 1),
-		'Tray pickers must stay on one row instead of stacking.');
-	assert(!!controls[0]?.querySelector<HTMLElement>('.sessions-chat-dropdown-label')?.checkVisibility(),
-		'The workspace name must remain visible when other pickers compact.');
-	const toggleBounds = optionsToggle.getBoundingClientRect();
-	assert(!lastControl || Math.abs(toggleBounds.top + toggleBounds.height / 2 - lastControl.top - lastControl.height / 2) < 1,
-		'The chevron and the picker text must share the same center line.');
-	for (const decoration of optionsTray.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-chevron, .repository-config-separator')) {
-		assert(targetWindow.getComputedStyle(decoration).display === 'none', 'Tray pickers must not show separators or dropdown chevrons.');
-	}
-	const harnessLabel = optionsTray.querySelector<HTMLElement>('.sessions-chat-session-type-picker .sessions-chat-dropdown-label');
-	assert(!harnessLabel || targetWindow.getComputedStyle(harnessLabel).marginLeft === '0px',
-		'The harness must use the picker gap without an additional label margin.');
-	if (expandSessionOptions && withControlPickers && width < 400 && !phoneLayout) {
-		assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => !label.checkVisibility()),
-			'Narrow trays must show repository and harness icons without labels.');
-		const states: boolean[][] = [];
-		for (const resizedWidth of [800, 480, 440, 380, 440, 480, 800]) {
-			container.style.width = `${resizedWidth}px`;
-			view.layout(resizedWidth, height, 0, 0);
+		assert(collapsedTrayBounds.width < promptBounds.width, 'The collapsed tray must fit its controls, not the prompt width.');
+		if (expandSessionOptions) {
+			optionsToggle.click();
+			assert(!sessionOptions.hidden && !sessionOptions.inert && optionsToggle.getAttribute('aria-expanded') === 'true');
+			for (const animation of sessionOptions.getAnimations()) {
+				animation.finish();
+			}
+			await nextFrame();
+			assert(optionsTray.getBoundingClientRect().width > collapsedTrayBounds.width, 'The tray must grow with its revealed controls.');
+		}
+		const trayBounds = optionsTray.getBoundingClientRect();
+		if (expandSessionOptions && withControlPickers && !phoneLayout) {
+			assert(Math.abs(trayBounds.height - collapsedTrayBounds.height) < 1,
+				'Expanding the tray must compact pickers rather than increase its height.');
+		}
+		if (!phoneLayout) {
+			assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
+				'The tray must remain joined to the top of the prompt after expansion.');
+		}
+		const trayStyle = targetWindow.getComputedStyle(optionsTray);
+		assert(parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0
+			&& trayStyle.borderBottomLeftRadius === '0px' && trayStyle.borderBottomRightRadius === '0px',
+			'The tray must round its outer top corners and keep its joined bottom edge square.');
+		assert(trayBounds.left > promptBounds.left && trayBounds.right < promptBounds.right,
+			'The tray must remain inset from the prompt.');
+		if (phoneLayout) {
+			assert(Math.abs(trayBounds.left + trayBounds.width / 2 - promptBounds.left - promptBounds.width / 2) < 1,
+				'The phone workspace picker must retain its centered layout.');
+		} else {
+			const inset = parseFloat(trayStyle.getPropertyValue('--vscode-spacing-size160'));
+			assert(Math.abs(trayBounds.left - promptBounds.left - inset) < 1
+				&& Math.abs(collapsedTrayBounds.left - trayBounds.left) < 1,
+				'The tray must remain left-aligned at the same token inset when expanded or collapsed.');
+		}
+		const toggleStyle = targetWindow.getComputedStyle(optionsToggle);
+		assert(toggleStyle.display === 'flex' && toggleStyle.alignItems === 'center' && toggleStyle.justifyContent === 'center',
+			'The disclosure chevron must be centered within its button.');
+		const controls = [...optionsTray.querySelectorAll<HTMLElement>('.action-label[role="button"]')].filter(control => control.checkVisibility());
+		const referenceStyle = controls[0] && targetWindow.getComputedStyle(controls[0]);
+		for (const [index, control] of controls.entries()) {
+			const style = targetWindow.getComputedStyle(control);
+			const bounds = control.getBoundingClientRect();
+			const label = control.querySelector<HTMLElement>('.sessions-chat-dropdown-label');
+			const labelBounds = label?.checkVisibility() ? label.getBoundingClientRect() : undefined;
+			assert(style.height === referenceStyle.height && style.padding === referenceStyle.padding
+				&& style.gap === referenceStyle.gap && style.fontSize === referenceStyle.fontSize,
+				'Every tray picker must have the same control size, padding, icon gap and text size.');
+			assert(!labelBounds || Math.abs(bounds.top + bounds.height / 2 - labelBounds.top - labelBounds.height / 2) < 1,
+				'Picker text must be vertically centered within the control.');
+			const next = controls[index + 1]?.getBoundingClientRect();
+			if (next && Math.abs(next.top - bounds.top) < 1) {
+				const trayStyle = targetWindow.getComputedStyle(optionsTray);
+				const spacing = parseFloat(trayStyle.getPropertyValue('--vscode-spacing-size80'));
+				const stroke = parseFloat(trayStyle.getPropertyValue('--vscode-strokeThickness'));
+				assert(Math.abs(next.left - bounds.right - spacing) <= stroke,
+					'Adjacent pickers must have equal design-token spacing.');
+			}
+		}
+		const lastControl = controls.at(-1)?.getBoundingClientRect();
+		assert(controls.every(control => Math.abs(control.getBoundingClientRect().top - controls[0].getBoundingClientRect().top) < 1),
+			'Tray pickers must stay on one row instead of stacking.');
+		assert(!!controls[0]?.querySelector<HTMLElement>('.sessions-chat-dropdown-label')?.checkVisibility(),
+			'The workspace name must remain visible when other pickers compact.');
+		const toggleBounds = optionsToggle.getBoundingClientRect();
+		assert(!lastControl || Math.abs(toggleBounds.top + toggleBounds.height / 2 - lastControl.top - lastControl.height / 2) < 1,
+			'The chevron and the picker text must share the same center line.');
+		for (const decoration of optionsTray.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-chevron, .repository-config-separator')) {
+			assert(targetWindow.getComputedStyle(decoration).display === 'none', 'Tray pickers must not show separators or dropdown chevrons.');
+		}
+		const harnessLabel = optionsTray.querySelector<HTMLElement>('.sessions-chat-session-type-picker .sessions-chat-dropdown-label');
+		assert(!harnessLabel || targetWindow.getComputedStyle(harnessLabel).marginLeft === '0px',
+			'The harness must use the picker gap without an additional label margin.');
+		if (expandSessionOptions && withControlPickers && width < 400 && !phoneLayout) {
+			assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => !label.checkVisibility()),
+				'Narrow trays must show repository and harness icons without labels.');
+			const states: boolean[][] = [];
+			for (const resizedWidth of [800, 480, 440, 380, 440, 480, 800]) {
+				container.style.width = `${resizedWidth}px`;
+				view.layout(resizedWidth, height, 0, 0);
+				await nextFrame();
+				await nextFrame();
+				states.push([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].map(label => label.checkVisibility()));
+			}
+			assert(equals(states, [
+				[true, true, true],
+				[true, true, false],
+				[true, false, false],
+				[false, false, false],
+				[true, false, false],
+				[true, true, false],
+				[true, true, true],
+			]), 'Pickers must compact one at a time from right to left and restore as the chat widens.');
+			container.style.width = `${width}px`;
+			view.layout(width, height, 0, 0);
 			await nextFrame();
 			await nextFrame();
-			states.push([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].map(label => label.checkVisibility()));
+			assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => !label.checkVisibility()),
+				'Picker labels must compact again when the tray narrows.');
 		}
-		assert(equals(states, [
-			[true, true, true],
-			[true, true, false],
-			[true, false, false],
-			[false, false, false],
-			[true, false, false],
-			[true, true, false],
-			[true, true, true],
-		]), 'Pickers must compact one at a time from right to left and restore as the chat widens.');
-		container.style.width = `${width}px`;
-		view.layout(width, height, 0, 0);
-		await nextFrame();
-		await nextFrame();
-		assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => !label.checkVisibility()),
-			'Picker labels must compact again when the tray narrows.');
 	}
 	if (withConfiguredModel && withControlPickers && width >= 800) {
 		for (const selector of ['.agent-host-permissions-button', '.model-picker-config']) {
@@ -647,19 +718,29 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	const repositoryConfigContainer = view.element.querySelector<HTMLElement>('.new-chat-repo-config-container');
 	if (withControlPickers) {
-		assert(!!repositoryConfigContainer && sessionOptions.contains(repositoryConfigContainer));
+		const sessionOptions = view.element.querySelector<HTMLElement>('.new-chat-session-options-details');
+		const sessionControls = view.element.querySelector<HTMLElement>('.new-chat-session-controls');
+		assert(!!repositoryConfigContainer);
+		assert(!!sessionOptions && !!sessionControls);
 		assert(repositoryConfigContainer.querySelectorAll('.action-label:not(.separator)').length === 2);
 		const primaryToolbar = promptBox.querySelector<HTMLElement>('.sessions-chat-toolbar');
-		assert(!!primaryToolbar);
-		const [attach, controls, models] = [...primaryToolbar.children];
-		assert(attach.classList.contains('sessions-chat-attach-button')
-			&& controls.classList.contains('new-chat-session-controls')
-			&& models.classList.contains('sessions-chat-config-toolbar'),
-			'Prompt controls must appear in attachment, agent/mode, model order.');
-		const controlItems = controls.querySelectorAll<HTMLElement>('.actions-container > .action-item');
-		assert(controlItems[0]?.textContent === 'Agent' && !!controlItems[1]?.querySelector('.agent-host-mode-permissions-trigger'),
-			'The agent picker must precede the shared mode/permissions trigger inside the prompt.');
-	} else if (withChatBackground) {
+		const secondaryControls = view.element.querySelector<HTMLElement>('.new-chat-controls-container');
+		assert(!!primaryToolbar && !!secondaryControls);
+		if (experimentalComposerLayout) {
+			const [attach, controls, models] = [...primaryToolbar.children];
+			assert(sessionOptions.contains(repositoryConfigContainer)
+				&& attach.classList.contains('sessions-chat-attach-button')
+				&& controls.classList.contains('new-chat-session-controls')
+				&& models.classList.contains('sessions-chat-config-toolbar'),
+				'Experimental controls must appear in workspace/repository/harness order above and attachment, agent/mode, model order inside the prompt.');
+			const controlItems = controls.querySelectorAll<HTMLElement>('.actions-container > .action-item');
+			assert(controlItems[0]?.textContent === 'Agent' && !!controlItems[1]?.querySelector('.agent-host-mode-permissions-trigger'),
+				'The agent picker must precede the shared mode/permissions trigger inside the prompt.');
+		} else {
+			assert(secondaryControls.contains(sessionControls) && !sessionOptions.contains(repositoryConfigContainer),
+				'Legacy controls must remain below the prompt.');
+		}
+	} else if (hasChatBackground) {
 		assert(!!repositoryConfigContainer
 			&& repositoryConfigContainer.classList.contains('has-no-actions')
 			&& targetWindow.getComputedStyle(repositoryConfigContainer).display === 'none');
@@ -735,48 +816,58 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { withWorkspace: true }),
 	}),
+	NewSessionExperimentalComposer: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The experimental new-session composer places workspace, worktree, branch, and harness controls in one row above the chat input. The model remains inside the input, while mode and permissions remain below it.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true }),
+	}),
+	NewSessionExperimentalComposerBackground: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer renders the workspace, worktree and branch group, and harness controls on opaque bordered surfaces above the chat input. None of the stripes show through the controls.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, chatBackground: 'loud', experimentalComposerLayout: true }),
+	}),
 	NewSessionOptionsExpanded: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, expandSessionOptions: true }),
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, expandSessionOptions: true, experimentalComposerLayout: true }),
 	}),
 	NewSessionOptionsCollapsed: defineComponentFixture({
 		virtualTime: { enabled: false },
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, expandSessionOptions: false }),
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, expandSessionOptions: false, experimentalComposerLayout: true }),
 	}),
 	NewSessionOptionsAnimated: defineComponentFixture({
 		virtualTime: { enabled: false },
 		render: context => {
 			context.container.classList.remove('disable-animations');
-			return renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true });
+			return renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true });
 		},
 	}),
 	NewSessionOptionsExpandedNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderNewChatWidget(context, { width: 380, withWorkspace: true, withControlPickers: true, expandSessionOptions: true }),
+		render: context => renderNewChatWidget(context, { width: 380, withWorkspace: true, withControlPickers: true, expandSessionOptions: true, experimentalComposerLayout: true }),
 	}),
 	NewSessionPromptPickers: defineComponentFixture({
 		virtualTime: { enabled: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, withConfiguredModel: true }),
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, withConfiguredModel: true, experimentalComposerLayout: true }),
 	}),
 	NewSessionPromptPickersNarrow: defineComponentFixture({
 		virtualTime: { enabled: false },
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, withConfiguredModel: true, width: 480 }),
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, withConfiguredModel: true, width: 480, experimentalComposerLayout: true }),
 	}),
 	NewSessionPromptPickersCompact: defineComponentFixture({
 		virtualTime: { enabled: false },
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, withConfiguredModel: true, expandSessionOptions: true, width: 320 }),
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, withConfiguredModel: true, expandSessionOptions: true, width: 320, experimentalComposerLayout: true }),
 	}),
 	NewSessionChatBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['In regular themes, the new-session composer sits on a static layered Codicon constellation with compact, softer distant icons, brighter base-size near icons, and a quieter center. There is no card behind the composer; its controls have opaque surfaces and thin borders. High-contrast themes omit the wallpaper and Celebrate button, preserving opaque surfaces and visible control borders.'],
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, withChatBackground: true }),
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, chatBackground: 'codicons' }),
 	}),
 	NewSessionBackgroundControls: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withChatBackground: true, withControlPickers: true }),
+		render: context => renderNewChatWidget(context, { withWorkspace: true, chatBackground: 'codicons', withControlPickers: true }),
 	}),
 	NewSessionAutoModel: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

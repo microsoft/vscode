@@ -8,6 +8,7 @@ import { stub } from 'sinon';
 import { Emitter } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -15,6 +16,8 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatWidget, IChatWidgetViewModelChangeEvent } from '../../browser/chat.js';
 import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../browser/chatUserInteractionTelemetry.js';
+import { IChatUserInteractionOTelService } from '../../browser/chatUserInteractionOTel.js';
+import { IChatUserInteractionTiming } from '../../../../../platform/otel/common/chatUserInteraction.js';
 import { ChatResponseModelChangeReason, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../common/model/chatModel.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
 
@@ -47,10 +50,17 @@ export function createChatUserInteractionTestHarness(disposables: Pick<Disposabl
 	});
 	const element = upcastPartial<HTMLElement>({ ownerDocument: window.document });
 	const events: { name: string; data: Record<string, unknown> }[] = [];
+	const otel: IChatUserInteractionTiming[] = [];
+	const otelRoutes: { resource: URI | undefined; sessionType: string | undefined }[] = [];
 	const logs: { message: string; args: unknown[] }[] = [];
 	const starts: number[] = [];
 	const observers: (() => boolean)[] = [];
 	const instantiationService = disposables.add(new TestInstantiationService());
+	let interactionOrdinal = 0;
+	instantiationService.stub(IChatUserInteractionOTelService, {
+		begin: () => ({ rendererId: 'test-renderer', interactionOrdinal: ++interactionOrdinal }),
+		report: (data, resource, sessionType) => { otel.push(data); otelRoutes.push({ resource, sessionType }); },
+	});
 	instantiationService.stub(ITelemetryService, {
 		publicLog2: (name: string, data: Record<string, unknown> = {}) => { events.push({ name, data }); },
 	});
@@ -77,6 +87,7 @@ export function createChatUserInteractionTestHarness(disposables: Pick<Disposabl
 		const response = upcastPartial<IChatResponseModel>({
 			session: upcastPartial<IChatModel>({
 				sessionResource: resource, onDidDispose: disposed.event,
+				isInputBlocked: constObservable(false),
 				getRequests: () => [upcastPartial<IChatRequestModel>({ id: requestId })],
 			}),
 			requestId,
@@ -133,7 +144,7 @@ export function createChatUserInteractionTestHarness(disposables: Pick<Disposabl
 	}
 
 	return {
-		window, element, frames, cancelledFrames, events, logs, starts, instantiationService, createResponse, createWidget,
+		window, element, frames, cancelledFrames, events, otel, otelRoutes, logs, starts, instantiationService, createResponse, createWidget,
 		createInteraction: (options: Partial<IChatUserInteractionOptions> = {}) => instantiationService.createInstance(ChatUserInteraction, { window, visible: true, ...options }),
 		assertFinished: (...results: ChatUserInteractionTimingResult[]) => {
 			assert.deepStrictEqual({

@@ -9,6 +9,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -23,16 +24,72 @@ import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge
 import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const { name, hostsEnabled, toolsEnabled, aiDisabled, enabled } of [
+		{ name: 'default', hostsEnabled: true, toolsEnabled: undefined, aiDisabled: false, enabled: false },
+		{ name: 'enabled', hostsEnabled: true, toolsEnabled: true, aiDisabled: false, enabled: true },
+		{ name: 'tools disabled', hostsEnabled: true, toolsEnabled: false, aiDisabled: false, enabled: false },
+		{ name: 'hosts disabled', hostsEnabled: false, toolsEnabled: true, aiDisabled: false, enabled: false },
+		{ name: 'AI disabled', hostsEnabled: true, toolsEnabled: true, aiDisabled: true, enabled: false },
+	]) {
+		test(`describes remote delegation only when available: ${name}`, () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({
+				[RemoteAgentHostsEnabledSettingId]: hostsEnabled,
+				[RemoteSessionToolsEnabledSettingId]: toolsEnabled,
+				'chat.disableAIFeatures': aiDisabled,
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+			const content = provider.provideContent();
+			assert.deepStrictEqual({
+				delegation: content.includes('originating chat while this Agents window remains connected'),
+				inspection: content.includes('inspect a remote session using its session link'),
+				readOnly: content.includes('without changing focus, marking the chat as read, or approving pending requests'),
+			}, { delegation: enabled, inspection: enabled, readOnly: enabled });
+		});
+	}
 
 	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = false): void {
 		const contextKeyService = store.add(new ContextKeyService(configuration));
 		SessionsListPromoteNewChatActionContext.bindTo(contextKeyService).set(promoteNewChatAction);
 		instantiationService.stub(IContextKeyService, contextKeyService);
 	}
+
+	test('describes welcome name editing only when welcome phrases are enabled', () => {
+		const snapshots = [false, true].map(enabled => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [NEW_SESSION_WELCOME_PHRASES_SETTING]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			return {
+				nameEditing: content.includes('Press Tab to reach Set Welcome Name'),
+				announcementSetting: content.includes('set accessibility.verbosity.newSessionWelcome to false'),
+			};
+		});
+
+		assert.deepStrictEqual(snapshots, [
+			{ nameEditing: false, announcementSetting: false },
+			{ nameEditing: true, announcementSetting: true },
+		]);
+	});
 
 	test('describes automatic external session adoption', () => {
 		const instantiationService = store.add(new TestInstantiationService());
@@ -50,6 +107,29 @@ suite('SessionsChatAccessibilityHelp', () => {
 			content.split('\n').find(line => line.startsWith('Once you send a message to an external session')),
 			'Once you send a message to an external session\'s agent, it becomes a regular session. Its banner and External hover label disappear, and it is no longer grouped or filtered as external.',
 		);
+	});
+
+	test('documents the Copilot to Local feedback survey', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			survey: content.includes('a two-step feedback survey may appear above the chat input'),
+			keyboard: content.includes('use Up and Down Arrow to choose why you switched'),
+			acknowledgement: content.includes('the questions are replaced above the input by a message that your feedback was recorded'),
+		}, {
+			survey: true,
+			keyboard: true,
+			acknowledgement: true,
+		});
 	});
 
 	test('describes External section keyboard actions only when the section is enabled', () => {
@@ -107,6 +187,52 @@ suite('SessionsChatAccessibilityHelp', () => {
 			contextMenuKeybinding: true,
 			mouseOnly: false,
 		});
+	});
+
+	test('describes controls according to the effective new-session layout', () => {
+		const getLayoutHelp = (unifiedPicker: boolean, experimentalLayout: boolean) => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({
+				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
+				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent().split('\n');
+			return {
+				controls: content.find(line => line.startsWith('Inside the new-session prompt')),
+				sync: content.find(line => line.startsWith('When available for a folder session with incoming or outgoing commits')),
+			};
+		};
+
+		assert.deepStrictEqual([
+			getLayoutHelp(false, false),
+			getLayoutHelp(true, false),
+			getLayoutHelp(false, true),
+			getLayoutHelp(true, true),
+		], [
+			{
+				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
+			},
+			{
+				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
+			},
+			{
+				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
+			},
+			{
+				controls: 'Inside the new-session prompt, the controls appear in this order: Add Context, Agent, Mode and Permissions, and Model. Which controls are available depends on the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
+			},
+		]);
 	});
 
 	for (const sessionCreationProviderId of [undefined, 'creation']) {

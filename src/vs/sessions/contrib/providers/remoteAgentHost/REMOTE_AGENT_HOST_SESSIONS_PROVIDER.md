@@ -14,7 +14,7 @@ Kind-specific contributions create and register one provider for each remote hos
 
 Agent discovery is dynamic. Changes to a host's advertised agents update the provider's session types without recreating the provider.
 
-Both windows use [CloudSandboxSessionContribution](../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionContribution.ts) for sandbox discovery, connection-on-open, and offline history. Each supplies its own session-list adapter. Discovery remains account-wide; the Editor adapter scopes its list to the workspace's GitHub repositories, or all projects in an empty window, and groups its filters under Cloud. Repository scope applies to cached and connected sessions without changing their routing; opening one preserves its host and session identity and does not provision a replacement. Sandbox creation remains an Agents Window operation.
+Both windows use [CloudSandboxSessionContribution](../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionContribution.ts) for sandbox discovery, connection-on-open, and offline history. Each supplies its own session-list adapter. Discovery remains account-wide; the Editor adapter scopes its list to the workspace's GitHub repositories, or all projects in an empty window, and groups its filters under Cloud. Repository scope applies to cached and connected sessions without changing their routing; opening one preserves its host and session identity and does not provision a replacement. Sandbox creation remains an Agents Window operation. The Editor keeps the discovery and environment providers registered for existing conversations but excludes them from the harness picker and automatic new-chat selection.
 
 Sandbox session discovery is window-owned and does not establish host connections. A full refresh reconciles absent disconnected environments; incremental refreshes retain absent entries and reconcile only explicitly removed or replaced tasks. Both preserve connected and provisioning environments. Failed or cancelled scans must not advance incremental discovery progress.
 
@@ -34,6 +34,8 @@ Remote sessions use separate logical and routing identities:
 Copilot agents may share a logical session type with local and cloud Copilot providers while retaining a connection-specific resource scheme. Other agents use a connection-specific logical type.
 
 Never use the logical session type where host-specific routing is required. Resource schemes and provider IDs are created through the shared Agent Host identifier helpers rather than hand-built strings.
+
+The remote Agent Host service owns client-local display-name overrides in machine-local application storage, keyed by normalized connection address. Overrides take precedence over configured or discovered names in provider and resource labels without changing connection details or routing identities; clearing an override restores the current default name.
 
 In the Editor Window, a chat session contribution's `sessionListGroup` selects its provider filter without changing its controller, resource scheme, or content-provider routing. Disconnected discovery supplies activity, not authoritative read/archive flags or proof that the host is available.
 
@@ -64,8 +66,13 @@ The remote Agent Host service owns protocol connection construction, handshake c
 
 Transport-specific callers own discovery, on-demand staging, credentials, and connection leases. They stage
 their context by address, request an explicit reconnect, and wait for the service to report the connection.
+Factories may declare that their protocol client owns automatic recovery. Its terminal close then ends recovery rather than starting another service-owned retry cycle.
 
 The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
+
+Hosts may publish execution-platform, CPU, and memory-capacity metadata in the root state's namespaced metadata. Remote delegation consumes these host-reported facts alongside the host-wide running-session count. Missing facts remain unknown, including when connecting to an older host; they must not satisfy explicit resource requirements. The execution environment is authoritative, so a Linux container or WSL instance reports Linux regardless of the client operating system.
+
+Hosts explicitly advertise support for preserving remote-session origins. Creation tools require that capability rather than using resource metadata or build versions as a proxy. The origin and cumulative spawn depth are included in initial publication and persisted by the host before creation succeeds; listing and restoration rehydrate them independently of provider-owned metadata.
 
 Providers may expose `showConnectionLog` for the connection recovery surface. The provider owns log routing, so restored Dev Container providers can open their source workspace's output channel before a live connection exists.
 
@@ -121,6 +128,14 @@ Container entries retain the source host's VS Code authority and native workspac
 The service persists the source-workspace identity once the connected provider publishes a session and keeps that `RemoteAgentHostSessionsProvider` registered independently of its live transport. On startup it reconstructs providers for persisted workspaces so their cached sessions remain visible; opening one of those sessions, using the provider's connect action, or another operation that requires the remote host starts the Dev Container and restores the transport on demand. The connection factory's `DevContainer` entry remains runtime-only because it carries the live connector and transport state. The shared remote Agent Host contribution observes connected transports and supplies connection-level filesystem, model, terminal, and log integration. Dev Container CLI output is streamed into one stable `Dev Container (<workspace>)` Output channel per source workspace, which is reused across connection attempts.
 
 When both worktree isolation and Dev Container execution are selected, the source Agent Host creates the worktree before the container starts. The connector opens the Dev Container on that host worktree, and the container-backed session uses folder isolation so it does not create a second worktree inside the container. The container session stores only an opaque worktree handle in its metadata; authoritative host paths stay in the source host's detached-worktree record. Archive, unarchive, delete, and reconciliation resolve that handle through the source Agent Host, reconnecting it on demand for remote sources. Cleanup and recreation match ordinary worktree sessions without retaining a hidden source session; cleanup removes only clean worktrees and preserves dirty work.
+
+Each VS Code instance has one Agents Window. The dynamic provider remains registered after its sessions become idle, but withdraws its runtime connection and stops the Dev Container after the configured inactivity period with no session actively working, waiting for input, or holding an unsent draft. New activity and new connections reset the idle countdown. Releasing the last draft's connection lease retains an empty provider until idle shutdown succeeds. Agent Host processes inside the container carry `VSCODE_REMOTE_CONTAINERS_SESSION` with the current VS Code session ID. Before stopping or removing the container, the shared-process service scans the container for this marker and refuses teardown while a process from another VS Code session remains. A refused teardown preserves the connection and starts a fresh idle grace period before retrying. A later send restarts the container and reconnects the same provider on demand.
+
+Archiving first records the remote archived state, then removes the container before removing its mounted worktree without waiting for the idle countdown. If another VS Code session still owns a process in the container, neither the container nor its mounted worktree is removed. Unarchiving recreates the worktree before starting a replacement container and starts the idle countdown when the restored session is still idle.
+
+Automatic idle shutdown is controlled by `chat.agentHost.devContainer.idleTimeout`, in seconds, with a default of 300. Setting it to 0 cancels pending idle shutdown without restarting stopped containers. Changing it to a positive value starts a fresh inactivity grace period for connected containers. Explicit archive and delete cleanup is unaffected.
+
+An empty new-session composer does not hold a container open. Draft text, attachments, feedback, and first-request preparation do. Draft input is scoped to its session, so a composer for another provider does not block this container's cleanup.
 
 ## Change policy
 

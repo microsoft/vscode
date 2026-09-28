@@ -28,7 +28,7 @@ suite('SessionTurnChanges', () => {
 		}();
 	}
 
-	test('activates the chat and selects Last Turn Changes from the live input pill', async () => {
+	test('activates the chat and reveals Last Turn Changes when the Changes editor is hidden or already open', async () => {
 		const chatResource = URI.parse('chat:session');
 		const lastTurnChanges = observableValue<readonly ISessionTurnFileChange[]>('lastTurnChanges', [{
 			uri: URI.file('/workspace/first.ts'),
@@ -58,9 +58,10 @@ suite('SessionTurnChanges', () => {
 			}
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
-			override async openChat(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
-				calls.push({ openChat: session.resource.toString(), chatResource: chatResource.toString(), preserveFocus: options?.preserveFocus });
+			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			override async openChat(targetSession: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+				calls.push({ openChat: targetSession.resource.toString(), chatResource: chatResource.toString(), preserveFocus: options?.preserveFocus });
+				this.activeSession.set(session, undefined);
 			}
 		}();
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
@@ -74,8 +75,10 @@ suite('SessionTurnChanges', () => {
 				return undefined;
 			}
 		}();
+		let changesVisible = false;
 		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
 			override revealEditorPartExplicitly(): void {
+				changesVisible = true;
 				calls.push({ revealEditorPartExplicitly: true });
 			}
 		}();
@@ -90,6 +93,7 @@ suite('SessionTurnChanges', () => {
 
 		service.openChangesForRequest(chatResource, undefined, { isLastTurn: true });
 		await Promise.resolve();
+		const visibleAfterFirstOpen = changesVisible;
 		lastTurnChanges.set([{
 			uri: URI.file('/workspace/second.ts'),
 			modifiedUri: URI.file('/workspace/second.ts'),
@@ -97,16 +101,22 @@ suite('SessionTurnChanges', () => {
 			deletions: 1,
 			isOutsideWorkspace: false,
 		}], undefined);
+		service.openChangesForRequest(chatResource, undefined, { isLastTurn: true });
+		await Promise.resolve();
 
 		assert.deepStrictEqual({
 			calls,
+			visibility: [visibleAfterFirstOpen, changesVisible],
 			selectedChanges: selectedChanges?.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : undefined),
 		}, {
 			calls: [
 				{ openChat: session.resource.toString(), chatResource: chat.resource.toString(), preserveFocus: true },
 				{ revealEditorPartExplicitly: true },
 				{ openChangesEditor: session.resource.toString(), changesetId: TURN_CHANGES_CHANGESET_ID },
+				{ revealEditorPartExplicitly: true },
+				{ openChangesEditor: session.resource.toString(), changesetId: TURN_CHANGES_CHANGESET_ID },
 			],
+			visibility: [true, true],
 			selectedChanges: undefined,
 		});
 	});

@@ -44,10 +44,8 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
-import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -78,12 +76,6 @@ import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/
 import { type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
-const ExperimentalSessionComposerLayout = ContextKeyExpr.and(
-	IsSessionsWindowContext,
-	ContextKeyExpr.equals(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`, true),
-	ContextKeyExpr.equals(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true),
-	IsPhoneLayoutContext.negate(),
-)!;
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
 const AGENT_HOST_SESSION_CONFIG_PICKER_ID_PREFIX = 'sessions.agentHost.sessionConfigPicker';
@@ -172,16 +164,17 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		const uncommittedChangesDescription = uncommittedChanges !== undefined
 			? formatUncommittedChanges(uncommittedChanges)
 			: undefined;
+		const detail = policyDisabled
+			? localize('agentHostSessionConfig.policyDisabled', "Disabled by your organization. Contact your administrator.")
+			: uncommittedChangesDescription ?? item.description;
 
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
 			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value) : {}),
-			detail: policyDisabled
-				? localize('agentHostSessionConfig.policyDisabled', "Disabled by your organization. Contact your administrator.")
-				: uncommittedChangesDescription ?? item.description,
+			detail,
 			group: { title: '', icon: getConfigIcon(property, item.value, uncommittedChanges !== undefined) },
-			ariaDescription: uncommittedChangesDescription,
+			ariaDescription: detail,
 			disabled,
 			item: { ...item, checked: property === SessionConfigKey.Branch ? undefined : checked, ...(property === SessionConfigKey.Branch ? { id: item.value } : {}) },
 			toolbarActions: property === SessionConfigKey.Branch && item.value === branchContext?.branchName && branchContext.onShowChanges
@@ -1672,11 +1665,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				));
 			},
 		));
-		const registerRunningSessionPicker = (actionId: string, factory: IActionViewItemFactory) => {
-			this._register(actionViewItemService.register(MenuId.ChatInput, actionId, factory));
-			this._register(actionViewItemService.register(MenuId.ChatInputSecondary, actionId, factory));
-		};
-		registerRunningSessionPicker(
+		this._register(actionViewItemService.register(
+			MenuId.ChatInputSecondary,
 			RUNNING_SESSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
@@ -1685,7 +1675,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 					session,
 				));
 			},
-		);
+		));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionControl,
 			NEW_SESSION_APPROVE_PICKER_ID,
@@ -1707,24 +1697,27 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, session));
 			},
 		));
-		registerRunningSessionPicker(
+		this._register(actionViewItemService.register(
+			MenuId.ChatInputSecondary,
 			RUNNING_SESSION_CONFIG_PICKER_ID,
 			this._createRunningSessionPermissionPickerFactory(),
-		);
-		registerRunningSessionPicker(
+		));
+		this._register(actionViewItemService.register(
+			MenuId.ChatInputSecondary,
 			RUNNING_SESSION_PERMISSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, session));
 			},
-		);
-		registerRunningSessionPicker(
+		));
+		this._register(actionViewItemService.register(
+			MenuId.ChatInputSecondary,
 			RUNNING_SESSION_CODEX_APPROVALS_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, session));
 			},
-		);
+		));
 	}
 
 	private _watchProviders(providers: readonly ISessionsProvider[], actionViewItemService: IActionViewItemService): void {
@@ -1948,15 +1941,10 @@ registerAction2(class extends Action2 {
 			title: localize2('agentHostRunningSessionConfigPicker', "Session Approvals"),
 			f1: false,
 			menu: [{
-				id: MenuId.ChatInput,
-				group: 'navigation',
-				order: 0.2,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout),
-			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
+				when: ChatContextKeyExprs.isAgentHostSession,
 			}],
 		});
 	}
@@ -1973,15 +1961,10 @@ registerAction2(class extends Action2 {
 			title: localize2('agentHostRunningSessionPermissionModePicker', "Approvals"),
 			f1: false,
 			menu: [{
-				id: MenuId.ChatInput,
-				group: 'navigation',
-				order: 0.3,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout),
-			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
+				when: ChatContextKeyExprs.isAgentHostSession,
 			}],
 		});
 	}
@@ -2003,15 +1986,10 @@ registerAction2(class extends Action2 {
 			title: localize2('agentHostRunningSessionCodexApprovalsPicker', "Approvals"),
 			f1: false,
 			menu: [{
-				id: MenuId.ChatInput,
-				group: 'navigation',
-				order: 0.4,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout),
-			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 12,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
+				when: ChatContextKeyExprs.isAgentHostSession,
 			}],
 		});
 	}
@@ -2031,15 +2009,6 @@ registerAction2(class extends Action2 {
 			title: localize2('agentHostRunningSessionModePicker', "Agent Mode"),
 			f1: false,
 			menu: [{
-				id: MenuId.ChatInput,
-				group: 'navigation',
-				order: 0.1,
-				when: ContextKeyExpr.and(
-					ChatContextKeyExprs.isAgentHostSession,
-					ChatContextKeys.hasPendingDelegationTarget.negate(),
-					ExperimentalSessionComposerLayout,
-				),
-			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 9,
@@ -2047,7 +2016,6 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatContextKeyExprs.isAgentHostSession,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),
-					ExperimentalSessionComposerLayout.negate(),
 				),
 			}],
 		});

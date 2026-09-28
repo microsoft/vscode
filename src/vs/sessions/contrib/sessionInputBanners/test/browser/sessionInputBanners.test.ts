@@ -41,12 +41,12 @@ suite('SessionInputBanners', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const isDraft of [false, true]) {
-		test(`groups actionable ${isDraft ? 'draft' : 'ready'} PRs, scopes the combined request, and dismisses one carousel item`, () => testActionablePullRequests(isDraft));
+		test(`groups actionable ${isDraft ? 'draft' : 'ready'} PRs, hides merged PR comments, scopes the combined request, and dismisses one carousel item`, () => testActionablePullRequests(isDraft));
 	}
 
 	async function testActionablePullRequests(isDraft: boolean): Promise<void> {
 		const sessionResource = URI.parse('local-agent-host:/session-1');
-		const pullRequests = [pullRequest(42), pullRequest(41), pullRequest(40), pullRequest(39)];
+		const pullRequests = [pullRequest(42), pullRequest(41), pullRequest(40), pullRequest(39), { ...pullRequest(37), liveState: 'merged' as const }];
 		const sessionWorkspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceWithPullRequests('/workspace', pullRequests));
 		const mainChat = upcastPartial<IChat>({
 			resource: URI.parse('local-agent-host-chat:/session-1/main'),
@@ -81,12 +81,14 @@ suite('SessionInputBanners', () => {
 			}
 		}();
 
-		const prModels = new Map([
+		const pullRequest41Model = pullRequestModel(41, 'Older pull request', isDraft);
+		const prModels = new Map<number, GitHubPullRequestModel>([
 			[42, pullRequestModel(42, 'Newest pull request', isDraft)],
-			[41, pullRequestModel(41, 'Older pull request', isDraft)],
+			[41, pullRequest41Model],
 			[40, pullRequestModel(40, 'Closed pull request', isDraft, GitHubPullRequestState.Closed)],
 			[39, pullRequestModel(39, 'Merged pull request', false, GitHubPullRequestState.Merged)],
 			[38, pullRequestModel(38, 'Secondary chat pull request', isDraft)],
+			[37, unresolvedPullRequestModel()],
 		]);
 		const ciModels = new Map([
 			[42, ciModel([failedCheck(1), failedCheck(2)])],
@@ -108,6 +110,8 @@ suite('SessionInputBanners', () => {
 			prFeedback('pr-42-a', sessionResource, 42),
 			prFeedback('pr-42-b', sessionResource, 42),
 			prFeedback('pr-41', sessionResource, 41),
+			prFeedback('pr-39', sessionResource, 39),
+			prFeedback('pr-37', sessionResource, 37),
 			agentFeedback('agent', sessionResource),
 		];
 		const onDidChangeFeedback = store.add(new Emitter<{ sessionResource: URI; feedbackItems: readonly IAgentFeedback[] }>());
@@ -250,7 +254,15 @@ suite('SessionInputBanners', () => {
 			splitButtons: 0,
 			actions: ['Address Comments', 'Reveal'],
 		});
-		banners.domNode.querySelector<HTMLElement>('.session-input-banner-navigation-button.next')?.click();
+		pullRequest41Model.setState(GitHubPullRequestState.Merged);
+		assert.deepStrictEqual(currentBanner(banners), {
+			position: '2/2',
+			reference: 'Agent Review',
+			text: '1 Agent Comment',
+			splitButtons: 0,
+			actions: ['Address Comments', 'Reveal'],
+		});
+		pullRequest41Model.setState(GitHubPullRequestState.Open);
 		assert.deepStrictEqual(currentBanner(banners), {
 			position: '3/3',
 			reference: 'Agent Review',
@@ -340,16 +352,27 @@ function workspaceWithPullRequests(path: string, pullRequests: readonly IGitHubP
 	};
 }
 
-function pullRequestModel(number: number, title: string, isDraft: boolean, state = GitHubPullRequestState.Open): GitHubPullRequestModel {
-	const pullRequest = upcastPartial<IGitHubPullRequest>({
+function pullRequestModel(number: number, title: string, isDraft: boolean, state = GitHubPullRequestState.Open): GitHubPullRequestModel & { setState(state: GitHubPullRequestState): void } {
+	const pullRequest = observableValue<IGitHubPullRequest | undefined>('pullRequest', upcastPartial<IGitHubPullRequest>({
 		number,
 		title,
 		state,
 		isDraft,
 		headSha: `sha-${number}`,
-	});
+	}));
 	return new class extends mock<GitHubPullRequestModel>() {
-		override readonly pullRequest = observableValue<IGitHubPullRequest | undefined>('pullRequest', pullRequest);
+		override readonly pullRequest = pullRequest;
+		setState(state: GitHubPullRequestState): void {
+			pullRequest.set({ ...pullRequest.get()!, state }, undefined);
+		}
+		override refresh(): Promise<void> { return Promise.resolve(); }
+		override startPolling(): IDisposable { return Disposable.None; }
+	}();
+}
+
+function unresolvedPullRequestModel(): GitHubPullRequestModel {
+	return new class extends mock<GitHubPullRequestModel>() {
+		override readonly pullRequest = observableValue<IGitHubPullRequest | undefined>('pullRequest', undefined);
 		override refresh(): Promise<void> { return Promise.resolve(); }
 		override startPolling(): IDisposable { return Disposable.None; }
 	}();

@@ -1155,6 +1155,7 @@ suite('AgentHostAutomationStore', () => {
 						[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
 						[SessionConfigKey.WorktreeBranchPrefix]: 'host-prefix/',
 						[SessionConfigKey.WorktreeIncludeFiles]: ['host.json'],
+						[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
 						[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
 						[SessionConfigKey.AgentMerge]: true,
 					},
@@ -1198,6 +1199,7 @@ suite('AgentHostAutomationStore', () => {
 				[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
 				[SessionConfigKey.WorktreeBranchPrefix]: 'host-prefix/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['host.json'],
+				[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
 				[SessionConfigKey.AgentMerge]: true,
 			},
 		});
