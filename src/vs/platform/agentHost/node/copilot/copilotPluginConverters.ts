@@ -20,6 +20,7 @@ import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDire
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+type PostToolUseHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>, void>;
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
 type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
 type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
@@ -328,14 +329,14 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 
 /**
  * Runs a list of hook commands sequentially, passing `input` as JSON stdin.
- * Returns the parsed output of the first command that emits a valid JSON object,
- * or `undefined` if no command produces parseable JSON output.
+ * Returns every valid JSON object so callers can combine all hook results.
  * Command failures are swallowed — hooks are non-fatal.
  */
-async function runHookCommands(commands: readonly IParsedHookCommand[] | undefined, input: unknown): Promise<object | undefined> {
+async function runHookCommands(commands: readonly IParsedHookCommand[] | undefined, input: unknown): Promise<object[]> {
 	if (!commands) {
-		return undefined;
+		return [];
 	}
+	const results: object[] = [];
 	const stdin = JSON.stringify(input);
 	for (const cmd of commands) {
 		try {
@@ -344,7 +345,7 @@ async function runHookCommands(commands: readonly IParsedHookCommand[] | undefin
 				try {
 					const parsed = JSON.parse(output);
 					if (parsed && typeof parsed === 'object') {
-						return parsed;
+						results.push(parsed);
 					}
 				} catch {
 					// Non-JSON output is fine — no modification
@@ -354,7 +355,71 @@ async function runHookCommands(commands: readonly IParsedHookCommand[] | undefin
 			// Hook failures are non-fatal
 		}
 	}
-	return undefined;
+	return results;
+}
+
+function mergeHookCommandOutputs(outputs: readonly object[]): Record<string, unknown> | undefined {
+	if (outputs.length === 0) {
+		return undefined;
+	}
+
+	const merged: Record<string, unknown> = {};
+	const additionalContext: string[] = [];
+	for (const output of outputs) {
+		Object.assign(merged, output);
+		const context = (output as { additionalContext?: unknown }).additionalContext;
+		if (typeof context === 'string' && context.length > 0) {
+			additionalContext.push(context);
+		}
+	}
+	if (additionalContext.length > 0) {
+		merged.additionalContext = additionalContext.join('\n\n');
+	}
+	return merged;
+}
+
+const permissionDecisionPriority = {
+	allow: 1,
+	ask: 2,
+	deny: 3,
+} as const;
+
+function mergePreToolUseHookOutputs(outputs: readonly object[]): Exclude<PreToolUseHookOutput, void> | undefined {
+	const merged = mergeHookCommandOutputs(outputs);
+	if (!merged) {
+		return undefined;
+	}
+
+	let winningDecision: keyof typeof permissionDecisionPriority | undefined;
+	let winningReason: string | undefined;
+	const denyReasons: string[] = [];
+	for (const output of outputs) {
+		const candidate = output as { permissionDecision?: unknown; permissionDecisionReason?: unknown };
+		const decision = candidate.permissionDecision;
+		if (decision !== 'allow' && decision !== 'ask' && decision !== 'deny') {
+			continue;
+		}
+		const reason = typeof candidate.permissionDecisionReason === 'string' ? candidate.permissionDecisionReason : undefined;
+		if (decision === 'deny' && reason) {
+			denyReasons.push(reason);
+		}
+		if (!winningDecision || permissionDecisionPriority[decision] > permissionDecisionPriority[winningDecision]) {
+			winningDecision = decision;
+			winningReason = reason;
+		}
+	}
+
+	if (winningDecision) {
+		merged.permissionDecision = winningDecision;
+		const reason = winningDecision === 'deny' && denyReasons.length > 0 ? denyReasons.join('\n') : winningReason;
+		if (reason !== undefined) {
+			merged.permissionDecisionReason = reason;
+		} else {
+			delete merged.permissionDecisionReason;
+		}
+	}
+
+	return merged;
 }
 
 /**
@@ -408,7 +473,7 @@ export function toSdkHooks(
 			if (internalResult !== undefined) {
 				return internalResult;
 			}
-			return runHookCommands(preToolCommands, input);
+			return mergePreToolUseHookOutputs(await runHookCommands(preToolCommands, input));
 		};
 	}
 
@@ -417,7 +482,7 @@ export function toSdkHooks(
 	if (postToolCommands?.length || editTrackingHooks) {
 		hooks.onPostToolUse = async (input: PostToolUseHookInput) => {
 			await editTrackingHooks?.onPostToolUse(input);
-			return runHookCommands(postToolCommands, input);
+			return mergeHookCommandOutputs(await runHookCommands(postToolCommands, input)) as PostToolUseHookOutput | undefined;
 		};
 	}
 
