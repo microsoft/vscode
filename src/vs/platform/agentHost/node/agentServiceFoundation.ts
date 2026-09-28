@@ -50,6 +50,10 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
 		isEnabled: () => this.value.artifactServerToolAccessor.isEnabled(),
 		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
+		associatePullRequest: (chat, url) => this.value.artifactServerToolAccessor.associatePullRequest?.(chat, url) ?? Promise.resolve(false),
+		associatePullRequests: (chat, urls) => this.value.artifactServerToolAccessor.associatePullRequests?.(chat, urls) ?? Promise.resolve({ pending: [], unmatched: [...urls] }),
+		removePendingPullRequest: (session, url) => this.value.artifactServerToolAccessor.removePendingPullRequest?.(session, url) ?? Promise.resolve(),
+		reportAssociationError: error => this.value.artifactServerToolAccessor.reportAssociationError?.(error),
 	};
 
 	bind(callbacks: IAgentServiceCallbacks): void {

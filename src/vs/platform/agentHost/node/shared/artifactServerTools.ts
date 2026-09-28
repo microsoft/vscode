@@ -5,11 +5,12 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import type { IRecordedPullRequestAssociationResult } from '../../common/agentHostGitStateService.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../common/openSessionLink.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
 import { parseSessionArtifactInputs, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
-import { SESSION_ARTIFACT_TYPES, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { parseRequiredSessionUriFromChatUri, type ToolDefinition } from '../../common/state/sessionState.js';
 import type { IServerToolDisplay, IServerToolGroup } from './agentServerToolHost.js';
 import { SessionArtifacts } from './sessionArtifacts.js';
@@ -97,6 +98,12 @@ export interface IArtifactServerToolAccessor {
 	readonly isEnabled: () => boolean;
 	/** Persists a session's artifacts and references so they survive a host restart. */
 	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>;
+	/** Verifies a PR against the invoking chat's folder and associates it when its head branch matches. */
+	readonly associatePullRequest?: (chat: string, pullRequestUrl: string) => Promise<boolean>;
+	/** Verifies a batch in one GitHub request and persists candidates that need retrying. */
+	readonly associatePullRequests?: (chat: string, urls: readonly string[]) => Promise<IRecordedPullRequestAssociationResult>;
+	readonly removePendingPullRequest?: (session: string, url: string) => Promise<void>;
+	readonly reportAssociationError?: (error: unknown) => void;
 }
 
 /** The noun an entry is described by, so every message names what it acted on. */
@@ -192,16 +199,45 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					}
 					const result = await artifacts.mutate(collection => {
 						const messages: string[] = [];
+						const pullRequestUrls = new Set<string>();
 						for (const input of inputs) {
 							const result = collection.addOrPromoteArtifact(input, generateUuid);
 							const status = result.added
 								? `Added ${entryNoun(result.artifact.isArtifact)}`
 								: result.artifacts !== collection.artifacts ? 'Promoted artifact' : 'Already recorded';
 							messages.push(`${status}: ${result.artifact.id}`);
+							if (input.isArtifact && result.artifact.type === SessionArtifactType.PullRequest && result.artifact.isGitHub && result.artifact.link) {
+								pullRequestUrls.add(result.artifact.link);
+							}
 							collection = new SessionArtifactCollection(result.artifacts);
 						}
-						return { artifacts: collection.artifacts, messages };
+						return { artifacts: collection.artifacts, messages, pullRequestUrls };
 					});
+					if (accessor.associatePullRequests && result.pullRequestUrls.size) {
+						try {
+							const associated = await accessor.associatePullRequests(context.chatUri, [...result.pullRequestUrls]);
+							for (const url of associated.pending) {
+								result.messages.push(`Pull request ${url} was recorded; folder association is pending verification.`);
+							}
+							for (const url of associated.unmatched) {
+								result.messages.push(`Pull request ${url} was recorded but not associated with this chat's working folder.`);
+							}
+						} catch (error) {
+							accessor.reportAssociationError?.(error);
+							result.messages.push('Pull request artifacts were recorded, but folder association could not be queued.');
+						}
+					} else if (accessor.associatePullRequest) {
+						for (const url of result.pullRequestUrls) {
+							try {
+								if (!await accessor.associatePullRequest(context.chatUri, url)) {
+									result.messages.push(`Pull request ${url} was recorded but not associated with this chat's working folder.`);
+								}
+							} catch (error) {
+								accessor.reportAssociationError?.(error);
+								result.messages.push(`Pull request ${url} was recorded, but folder association could not be verified.`);
+							}
+						}
+					}
 					return result.messages.join('\n');
 				}
 				case ArtifactServerToolName.RemoveArtifactOrReference: {
@@ -212,6 +248,13 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					const result = await artifacts.mutate(collection => collection.remove(id));
 					if (!result.removed) {
 						return `No artifact or reference with id ${id}.`;
+					}
+					if (result.removed.type === SessionArtifactType.PullRequest && result.removed.link && accessor.removePendingPullRequest) {
+						try {
+							await accessor.removePendingPullRequest(context.sessionUri, result.removed.link);
+						} catch (error) {
+							accessor.reportAssociationError?.(error);
+						}
 					}
 					const message = result.removed.isArtifact ? REMOVED_ARTIFACT_MESSAGE : REMOVED_REFERENCE_MESSAGE;
 					return `${message}: ${result.removed.id}`;
