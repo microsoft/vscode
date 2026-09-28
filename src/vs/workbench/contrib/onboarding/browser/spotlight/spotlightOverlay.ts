@@ -188,6 +188,18 @@ export class SpotlightOverlay extends Disposable {
 
 		this._stepListeners.add(addDisposableListener(targetWindow, EventType.RESIZE, () => this.scheduleLayout()));
 		this._stepListeners.add(addDisposableListener(targetWindow, EventType.SCROLL, () => this.scheduleLayout(), true));
+		if (externalUiParticipates) {
+			this._stepListeners.add(addDisposableListener(targetWindow, EventType.KEY_DOWN, event => {
+				const eventTarget = event.target;
+				if (!isHTMLElement(eventTarget) || this._root.contains(eventTarget) || target.contains(eventTarget)) {
+					return;
+				}
+				const keyboardEvent = new StandardKeyboardEvent(event);
+				if (keyboardEvent.equals(KeyCode.Escape)) {
+					this._onDidSkip.fire(OnboardingDismissReason.EscapeKey);
+				}
+			}, true));
+		}
 
 		// Cancel any pending scheduled frame when the step changes. Registered
 		// once here (not per schedule) so high-frequency scroll/resize events

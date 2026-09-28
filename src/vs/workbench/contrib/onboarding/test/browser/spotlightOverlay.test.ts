@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -313,6 +313,40 @@ suite('SpotlightOverlay', () => {
 			primaryFocused: true,
 			skipReasons: [OnboardingDismissReason.EscapeKey, OnboardingDismissReason.EscapeKey],
 			advances: ['button'],
+		});
+	});
+
+	test('Escape in external target UI skips without consuming the native dismissal', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 0, 0, 50, 50);
+		const popup = $('div.test-spotlight-external-ui');
+		mainWindow.document.body.appendChild(popup);
+		disposables.add({ dispose: () => popup.remove() });
+		const skipReasons: OnboardingDismissReason[] = [];
+		let nativeDismissals = 0;
+		disposables.add(overlay.onDidSkip(reason => skipReasons.push(reason)));
+		disposables.add(addDisposableListener(popup, EventType.KEY_DOWN, event => {
+			if (event.key === 'Escape') {
+				nativeDismissals++;
+				popup.remove();
+			}
+		}));
+
+		overlay.show(target, content(), { targetOverlayVisible: true });
+		const event = new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true });
+		popup.dispatchEvent(event);
+
+		assert.deepStrictEqual({
+			skipReasons,
+			nativeDismissals,
+			popupConnected: popup.isConnected,
+			defaultPrevented: event.defaultPrevented,
+		}, {
+			skipReasons: [OnboardingDismissReason.EscapeKey],
+			nativeDismissals: 1,
+			popupConnected: false,
+			defaultPrevented: false,
 		});
 	});
 
