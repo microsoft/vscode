@@ -14,11 +14,12 @@ import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTel
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { buildSubagentChatUri, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
-import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
+import { ClaudeMapperState, clearClaudeTurnState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
 interface IClaudeSdkMessageContext {
 	readonly turnDuration?: number;
+	readonly isIntermediateResult?: boolean;
 	readonly mode?: PermissionMode;
 	readonly clientContext?: IAgentHostClientTelemetryContext;
 }
@@ -66,12 +67,24 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		this._clientToolOwner = clientToolOwner;
 	}
 
+	clearTurnState(): void {
+		clearClaudeTurnState(this._mapperState, this._subagents, this._logService);
+	}
+
+	handleResult(message: Extract<SDKMessage, { type: 'result' }>, turnId: string | undefined, context?: IClaudeSdkMessageContext): void {
+		this._mapMessage(message, turnId, context);
+	}
+
 	async handle(message: SDKMessage, turnId: string | undefined, context?: IClaudeSdkMessageContext): Promise<void> {
 		if (message.type === 'assistant') {
 			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext, this._getEditChatUri(message.parent_tool_use_id));
 		} else if (message.type === 'user' && turnId !== undefined) {
 			await this._editObserver.observeUser(message, turnId, this._mapperState, this._getEditChatUri(message.parent_tool_use_id));
 		}
+		this._mapMessage(message, turnId, context);
+	}
+
+	private _mapMessage(message: SDKMessage, turnId: string | undefined, context?: IClaudeSdkMessageContext): void {
 		if (turnId === undefined) {
 			return;
 		}
@@ -85,6 +98,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 				this._subagents,
 				this._clientToolOwner,
 				context?.turnDuration,
+				context?.isIntermediateResult,
 			);
 			for (const signal of signals) {
 				this._onDidProduceSignal.fire(signal);

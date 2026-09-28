@@ -105,6 +105,22 @@ suite('ClaudePromptQueue', () => {
 		assert.strictEqual(queue.isEmpty, true);
 	});
 
+	test('hasPendingAfterHead includes both queued and yielded prompts', async () => {
+		const { queue } = createQueue(disposables);
+		const iterator = queue.iterable[Symbol.asyncIterator]();
+		assert.strictEqual(queue.hasPendingAfterHead, false);
+		void queue.push(makeEntry('first'));
+		await drainOne(iterator);
+		assert.strictEqual(queue.hasPendingAfterHead, false);
+		void queue.push(makeEntry('steer', { steeringPendingId: 'steer' }));
+		assert.strictEqual(queue.hasPendingAfterHead, true);
+		await drainOne(iterator);
+		assert.strictEqual(queue.hasPendingAfterHead, true);
+		queue.settleHead();
+		assert.strictEqual(queue.hasPendingAfterHead, false);
+		queue.settleHead();
+	});
+
 	test('failAll rejects every pending, yielded, and popped entry and clears all lists', async () => {
 		const { queue } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();

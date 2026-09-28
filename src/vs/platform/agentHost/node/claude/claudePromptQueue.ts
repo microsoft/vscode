@@ -97,6 +97,11 @@ export class ClaudePromptQueue extends Disposable {
 	get isEmpty(): boolean {
 		return this._toYield.length === 0 && this._yielded.length === 0;
 	}
+	/** Whether settling the yielded head would leave another prompt pending. */
+	get hasPendingAfterHead(): boolean {
+		return this._yielded.length > 1 || this._toYield.length > 0;
+	}
+
 	/**
 	 * Push an entry. Resolves with the entry's deferred (which the
 	 * consumer settles on `result` via {@link settleHead}).
