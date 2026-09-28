@@ -914,14 +914,14 @@ suite('NewChatWidget', () => {
 		]);
 	});
 
-	test('uses only the first configured or GitHub name', () => {
+	test('uses the full configured name or the first GitHub name', () => {
 		const harness = { _getFirstName: getFirstName };
 		const configuredName = getWelcomeName.call(harness, 'Octo Cat', '  Megan Rogge  ');
 		const gitHubName = getWelcomeName.call(harness, '  Octo   Cat  ', '');
 		const missingName = getWelcomeName.call(harness, undefined, '');
 
 		assert.deepStrictEqual({ configuredName, gitHubName, missingName }, {
-			configuredName: 'Megan',
+			configuredName: 'Megan Rogge',
 			gitHubName: 'Octo',
 			missingName: undefined,
 		});

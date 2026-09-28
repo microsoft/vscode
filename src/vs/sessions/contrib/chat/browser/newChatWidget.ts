@@ -733,7 +733,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _getWelcomeName(gitHubName: string | undefined, configuredName = this.configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim()): string | undefined {
-		return this._getFirstName(configuredName || gitHubName);
+		return configuredName.trim() || this._getFirstName(gitHubName);
 	}
 
 	private _getFirstName(name: string | undefined): string | undefined {
