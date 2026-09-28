@@ -1602,31 +1602,39 @@ export class ActionListWidget<T> extends Disposable {
 			this._onDidRequestLayout.fire();
 		}
 
+		const restoreItemFocus = (): boolean => {
+			const itemId = focusItemId ?? (focusedItem?.item as { id?: string } | undefined)?.id;
+			if (!itemId) {
+				return false;
+			}
+			for (let i = 0; i < this._list.length; i++) {
+				const element = this._list.element(i);
+				if ((element.item as { id?: string } | undefined)?.id === itemId) {
+					this._list.setFocus([i]);
+					this._list.reveal(i);
+					return true;
+				}
+			}
+			return false;
+		};
+
 		// Restore focus after splice destroyed DOM elements,
 		// otherwise the blur handler in ActionWidgetService closes the widget.
 		// Keep focus on the filter input if the user is typing a filter.
 		if (filterInputHasFocus) {
 			this._filterInput?.focus();
 			// Keep a highlighted item in the list so Enter works without pressing DownArrow first
-			this._focusCheckedOrFirst();
+			if (!restoreItemFocus()) {
+				this._focusCheckedOrFirst();
+			}
 		} else if (this._hasLaidOut) {
 			// Restore focus to the previously focused item
 			if (focusedItem || focusItemId) {
-				const focusedItemId = focusItemId ?? (focusedItem?.item as { id?: string })?.id;
-				if (focusedItemId) {
-					for (let i = 0; i < this._list.length; i++) {
-						const el = this._list.element(i);
-						if ((el.item as { id?: string })?.id === focusedItemId) {
-							this._list.setFocus([i]);
-							this._list.reveal(i);
-							break;
-						}
-					}
-					if (listHasFocus) {
-						// The focused row or its toolbar may have been removed by the update.
-						this._focusCheckedOrFirst();
-						this._list.domFocus();
-					}
+				restoreItemFocus();
+				if (listHasFocus) {
+					// The focused row or its toolbar may have been removed by the update.
+					this._focusCheckedOrFirst();
+					this._list.domFocus();
 				}
 			}
 		}
