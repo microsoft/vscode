@@ -225,8 +225,8 @@ export class NewChatWidget extends Disposable {
 			canRestoreWorkspace: () => !this._isQuickChatComposer.get() || this._newChatInput?.canApplyWorkspaceDefault === true,
 			onUserSelection: () => newSessionComposerService.notifyUserWorkspaceSelection(),
 			whenSelectionAccepted: async () => {
-				const result = await this._pendingWorkspaceCreation;
-				return !!result?.session && this._session.get()?.sessionId === result.session.sessionId;
+				const session = this._pendingWorkspaceCreation ? (await this._pendingWorkspaceCreation).session : this._session.get();
+				return !!session && this._session.get()?.sessionId === session.sessionId;
 			},
 			getWorkspaceGroupAction: group => {
 				if (group === SESSION_WORKSPACE_GROUP_GITHUB && shouldShowGitHubWorkspaceGroupSignIn(
@@ -380,7 +380,9 @@ export class NewChatWidget extends Disposable {
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
-			await this._onWorkspaceSelected(folderUri);
+			if (!this._isCurrentWorkspaceSelection(folderUri)) {
+				await this._onWorkspaceSelected(folderUri);
+			}
 			this._newChatInput.focus();
 		}));
 		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
@@ -1179,7 +1181,11 @@ export class NewChatWidget extends Disposable {
 					id: `newSessionWorkspacePicker.quickChat.${provider.id}`,
 					label,
 					checked: provider.id === activeProviderId,
-					run: () => this.selectNoWorkspace({ providerId: provider.id }),
+					run: () => {
+						if (provider.id !== activeProviderId) {
+							this.selectNoWorkspace({ providerId: provider.id });
+						}
+					},
 				});
 				return Object.assign(action, { icon: provider.icon });
 			})
@@ -1190,7 +1196,11 @@ export class NewChatWidget extends Disposable {
 			selectedLabel: activeProvider && activeProvider.id !== LOCAL_AGENT_HOST_PROVIDER_ID
 				? localize('newSessionWorkspacePicker.remoteQuickChat', "Chat [{0}]", activeProvider.label)
 				: undefined,
-			select: () => this.selectNoWorkspace(providers.length === 1 ? { providerId: providers[0].id } : undefined),
+			select: () => {
+				if (!isWorkspacePickerQuickChat) {
+					this.selectNoWorkspace(providers.length === 1 ? { providerId: providers[0].id } : undefined);
+				}
+			},
 			submenuActions,
 		};
 	}
@@ -1492,6 +1502,18 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 		this._newChatInput.focus();
+	}
+
+	private _isCurrentWorkspaceSelection(folderUri: URI | undefined): boolean {
+		const session = this._session.get();
+		if (!folderUri || !session || session.isCreated.get() || this._pendingWorkspaceCreation
+			|| !this.uriIdentityService.extUri.isEqual(session.workspace.get()?.folders[0]?.root, folderUri)
+			|| this._workspacePicker.selectedResolved?.providerId !== session.providerId) {
+			return false;
+		}
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		const devContainerEnabled = !!provider && isAgentHostProvider(provider) && provider.isDevContainerEnabled?.(session.sessionId) === true;
+		return devContainerEnabled === this.uriIdentityService.extUri.isEqual(this._preferredDevContainerFolderUri, folderUri);
 	}
 
 	/**
