@@ -523,7 +523,9 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 					this._fireCustomAgentsChanged();
 					break;
 				case ActionType.SessionCustomizationToggled:
-					this._syncClientMcpEnablement(envelope.channel, envelope.action.id, envelope.action.enablement);
+					if (!envelope.rejectionReason) {
+						this._syncClientMcpEnablement(envelope.channel, envelope.action.id, envelope.action.enablement);
+					}
 					this._fireCustomizationsChanged();
 					this._fireCustomAgentsChanged();
 					break;
