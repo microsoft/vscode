@@ -180,6 +180,10 @@ Each `PluginSourceKind` has a strategy that knows how to compute cache paths, pr
 | `chat.pluginLocations` | `Record<string, boolean>` | `{}` | Local plugin directories to discover |
 | `chat.pluginMarketplaces` | `string[]` | `[]` | Marketplace references to fetch from |
 
+### Repository-scoped activation
+
+Trusted workspace settings in `.claude/settings(.local).json` and `.github/copilot/settings(.local).json` can define `extraKnownMarketplaces` and `enabledPlugins`. An `enabledPlugins` entry set to `true` installs a missing plugin and overlays workspace enablement; `false` overlays workspace disablement; an absent entry leaves the stored user state unchanged. Repository-installed plugins receive a disabled profile baseline so that leaving the workspace does not activate them globally. Enterprise policy remains authoritative, and none of these workspace decisions are exposed while the workspace is untrusted.
+
 ### Enterprise customization lockdown
 
 The managed customization controls are complementary:

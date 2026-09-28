@@ -83,6 +83,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 	private _initialized = false;
 
 	readonly value: IObservable<readonly IStoredInstalledPlugin[]> = this._installed;
+	readonly whenInitialized: Promise<void>;
 
 	constructor(
 		private readonly _agentPluginsHome: URI,
@@ -94,7 +95,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		super();
 		this._fileUri = joinPath(_agentPluginsHome, INSTALLED_JSON_FILENAME);
 		this._writeDelayer = this._register(new ThrottledDelayer<void>(100));
-		void this._initialize();
+		this.whenInitialized = this._initialize();
 	}
 
 	get(): readonly IStoredInstalledPlugin[] {

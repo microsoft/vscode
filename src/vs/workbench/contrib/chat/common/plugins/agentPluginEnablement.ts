@@ -28,37 +28,41 @@ interface IAgentPluginCandidate {
  */
 const COPILOT_CLI_INSTALL_PATH_FRAGMENT = '/.copilot/installed-plugins/';
 
-class AgentPluginPolicyEnablementModel implements IEnablementModel {
+class AgentPluginConfiguredEnablementModel implements IEnablementModel {
 	constructor(
 		private readonly base: IEnablementModel,
-		private readonly policyEnablement?: IObservable<ReadonlyMap<string, boolean>>,
+		private readonly configuredEnablement?: IObservable<ReadonlyMap<string, ContributionEnablementState>>,
 	) { }
 
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState {
-		const policyValue = this.policyEnablement?.read(reader).get(key);
-		return policyValue === true
-			? ContributionEnablementState.EnabledProfile
-			: policyValue === false
-				? ContributionEnablementState.DisabledProfile
-				: this.base.readEnabled(key, reader);
+		return this.configuredEnablement?.read(reader).get(key) ?? this.base.readEnabled(key, reader);
 	}
 
 	readProfileEnabled(key: string, reader?: IReader): boolean {
-		return this.policyEnablement?.read(reader).get(key) ?? this.base.readProfileEnabled(key, reader);
+		const configuredState = this.configuredEnablement?.read(reader).get(key);
+		if (configuredState === ContributionEnablementState.EnabledProfile) {
+			return true;
+		}
+		if (configuredState === ContributionEnablementState.DisabledProfile) {
+			return false;
+		}
+		return this.base.readProfileEnabled(key, reader);
 	}
 
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
-		const policy = this.policyEnablement?.get();
-		if (policy?.has(key)) {
+		const configuredState = this.configuredEnablement?.get().get(key);
+		if (configuredState === ContributionEnablementState.EnabledProfile || configuredState === ContributionEnablementState.DisabledProfile) {
 			return;
 		}
 		this.base.setEnabled(key, state, tx);
 	}
 
 	remove(key: string): void {
-		if (!this.policyEnablement?.get().has(key)) {
-			this.base.remove(key);
+		const configuredState = this.configuredEnablement?.get().get(key);
+		if (configuredState === ContributionEnablementState.EnabledProfile || configuredState === ContributionEnablementState.DisabledProfile) {
+			return;
 		}
+		this.base.remove(key);
 	}
 }
 
@@ -66,14 +70,17 @@ export class AgentPluginCollisionEnablementModel extends CollisionEnablementMode
 	constructor(
 		base: IEnablementModel,
 		private readonly collisionGroups: IObservable<ReadonlyMap<string, readonly string[]>>,
-		private readonly policyEnablement?: IObservable<ReadonlyMap<string, boolean>>,
+		private readonly configuredEnablement?: IObservable<ReadonlyMap<string, ContributionEnablementState>>,
 	) {
-		super(new AgentPluginPolicyEnablementModel(base, policyEnablement), collisionGroups);
+		super(new AgentPluginConfiguredEnablementModel(base, configuredEnablement), collisionGroups);
 	}
 
 	override setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
 		const group = isContributionEnabled(state) ? this.collisionGroups.get().get(key) : undefined;
-		if (group?.some(otherId => otherId !== key && this.policyEnablement?.get().get(otherId) === true)) {
+		if (group?.some(otherId => {
+			const configuredState = this.configuredEnablement?.get().get(otherId);
+			return otherId !== key && configuredState !== undefined && isContributionEnabled(configuredState);
+		})) {
 			return;
 		}
 		super.setEnabled(key, state, tx);
@@ -146,6 +153,25 @@ export function getAgentPluginPolicyEnablement(
 ): boolean | undefined {
 	const pluginId = getAgentPluginPolicyId(plugin);
 	return pluginId === undefined ? undefined : enabledPluginsPolicy?.[pluginId];
+}
+
+export function getAgentPluginConfiguredEnablement(
+	plugin: IAgentPlugin,
+	enabledPluginsPolicy: Record<string, boolean> | undefined,
+	workspaceEnabledPlugins: ReadonlyMap<string, boolean> | undefined,
+): ContributionEnablementState | undefined {
+	const policyEnablement = getAgentPluginPolicyEnablement(plugin, enabledPluginsPolicy);
+	if (policyEnablement !== undefined) {
+		return policyEnablement ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile;
+	}
+
+	const pluginId = getAgentPluginPolicyId(plugin);
+	const workspaceEnablement = pluginId === undefined ? undefined : workspaceEnabledPlugins?.get(pluginId);
+	if (workspaceEnablement !== undefined) {
+		return workspaceEnablement ? ContributionEnablementState.EnabledWorkspace : ContributionEnablementState.DisabledWorkspace;
+	}
+
+	return undefined;
 }
 
 export function getAgentPluginPolicyId(plugin: IAgentPlugin): string | undefined {

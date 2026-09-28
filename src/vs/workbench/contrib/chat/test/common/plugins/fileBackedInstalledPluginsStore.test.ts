@@ -102,6 +102,37 @@ suite('FileBackedInstalledPluginsStore', () => {
 		assert.fail('Condition not met in time');
 	}
 
+	test('signals when the installed plugin inventory is ready', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const fileService = new TestFileService();
+		const agentPluginsHome = URI.file('/home/user/.vscode/agent-plugins');
+		const pluginUri = URI.file('/home/user/.vscode/agent-plugins/github.com/owner/repo/plugin');
+		fileService.setFile(URI.joinPath(agentPluginsHome, 'installed.json'), JSON.stringify({
+			version: 1,
+			installed: [{ pluginUri: pluginUri.toString(), marketplace: 'owner/repo', name: 'plugin' }],
+		}));
+
+		const pluginsStore = store.add(new FileBackedInstalledPluginsStore(
+			agentPluginsHome,
+			undefined,
+			fileService as unknown as IFileService,
+			new NullLogService(),
+			storageService,
+		));
+
+		await pluginsStore.whenInitialized;
+
+		assert.deepStrictEqual(pluginsStore.get().map(entry => ({
+			pluginUri: entry.pluginUri.toString(),
+			marketplace: entry.marketplace,
+			name: entry.name,
+		})), [{
+			pluginUri: pluginUri.toString(),
+			marketplace: 'owner/repo',
+			name: 'plugin',
+		}]);
+	});
+
 	test('migrates legacy storage to installed.json and removes legacy keys', async () => {
 		const storageService = store.add(new InMemoryStorageService());
 		const fileService = new TestFileService();

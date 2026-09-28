@@ -13,6 +13,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { CLAUDE_CONFIG_FOLDER } from '../promptSyntax/config/promptFileLocations.js';
 import { IMarketplaceReference, parseMarketplaceObjectEntry } from './marketplaceReference.js';
 
@@ -36,15 +37,14 @@ export interface IWorkspacePluginSettingsService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Marketplace references parsed from `extraKnownMarketplaces` in workspace
-	 * settings files (`.claude/settings.json`, `.github/copilot/settings.json`).
+	 * Marketplace references parsed from `extraKnownMarketplaces` in trusted
+	 * workspace settings files (`.claude/settings.json`, `.github/copilot/settings.json`).
 	 */
 	readonly extraMarketplaces: IObservable<readonly IWorkspaceMarketplaceEntry[]>;
 
 	/**
-	 * Plugin recommendation map parsed from `enabledPlugins` in workspace
-	 * settings files.
-	 * Keys are `"pluginName@marketplaceName"`, values indicate recommendation.
+	 * Repository-scoped plugin activation map parsed from `enabledPlugins` in
+	 * trusted workspace settings files. Keys are `"pluginName@marketplaceName"`.
 	 */
 	readonly enabledPlugins: IObservable<ReadonlyMap<string, boolean>>;
 }
@@ -118,6 +118,7 @@ const EMPTY_DATA: IWorkspaceSettingsData = { marketplaces: [], enabledPlugins: n
 class WorkspaceSettingsReader extends Disposable {
 
 	private readonly _data = observableValue<IWorkspaceSettingsData>('data', EMPTY_DATA);
+	private _readVersion = 0;
 	readonly data: IObservable<IWorkspaceSettingsData> = this._data;
 
 	constructor(
@@ -155,12 +156,13 @@ class WorkspaceSettingsReader extends Disposable {
 				}));
 			}
 
-			// Perform initial read immediately.
-			this._readSettings(dirs, logPrefix, fileService);
+			this._data.set(EMPTY_DATA, undefined);
+			void this._readSettings(dirs, logPrefix, fileService);
 		}));
 	}
 
 	private async _readSettings(dirs: readonly URI[], logPrefix: string, fileService: IFileService): Promise<void> {
+		const readVersion = ++this._readVersion;
 		const allMarketplaces: IWorkspaceMarketplaceEntry[] = [];
 		const mergedEnabled = new Map<string, boolean>();
 
@@ -196,7 +198,9 @@ class WorkspaceSettingsReader extends Disposable {
 			}
 		}
 
-		this._data.set({ marketplaces: allMarketplaces, enabledPlugins: mergedEnabled }, undefined);
+		if (readVersion === this._readVersion) {
+			this._data.set({ marketplaces: allMarketplaces, enabledPlugins: mergedEnabled }, undefined);
+		}
 	}
 }
 
@@ -212,6 +216,7 @@ export class WorkspacePluginSettingsService extends Disposable implements IWorks
 		@IFileService fileService: IFileService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ILogService logService: ILogService,
+		@IWorkspaceTrustManagementService workspaceTrustService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -225,8 +230,13 @@ export class WorkspacePluginSettingsService extends Disposable implements IWorks
 			fileService, workspaceContextService, logService,
 		));
 
+		const workspaceTrusted = observableFromEvent(this, workspaceTrustService.onDidChangeTrust, () => workspaceTrustService.isWorkspaceTrusted());
+
 		// Merge marketplaces from all readers, deduplicating by canonical ID.
 		this.extraMarketplaces = derived(reader => {
+			if (!workspaceTrusted.read(reader)) {
+				return [];
+			}
 			const claude = claudeReader.data.read(reader).marketplaces;
 			const copilot = copilotReader.data.read(reader).marketplaces;
 			const byCanonicalId = new Map<string, IWorkspaceMarketplaceEntry>();
@@ -241,6 +251,9 @@ export class WorkspacePluginSettingsService extends Disposable implements IWorks
 		// Merge enabledPlugins from all readers. Claude entries take
 		// precedence for keys that exist in both (first-writer wins).
 		this.enabledPlugins = derived(reader => {
+			if (!workspaceTrusted.read(reader)) {
+				return new Map<string, boolean>();
+			}
 			const claude = claudeReader.data.read(reader).enabledPlugins;
 			const copilot = copilotReader.data.read(reader).enabledPlugins;
 			const merged = new Map<string, boolean>();
