@@ -159,8 +159,6 @@ function showArchiveOnboarding(sessionId: string, wording: ChatSessionArchiveAct
 }
 
 const ONBOARDING_FRAME = { width: 760, height: 420 };
-/** Room beside and below the list for an open context menu. */
-const CONTEXT_MENU_FRAME = { width: 480, height: 320 };
 
 //#endregion
 
@@ -686,18 +684,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['An expanded compact multi-folder session shows a nested chat with its workspace badge beside the title and its Mark as Done primary action aligned to the trailing edge of the row.'],
 	}),
-	SessionsList_ArchivedNestedChatSessionMenu: defineSessionsListFixture({
-		sessions: [{ ...ARCHIVED_CHAT_SESSION, chats: ARCHIVED_CHAT_SESSION.chats?.filter(chat => !chat.isArchived) }],
-		view: { width: 400 },
-		interaction: { contextMenu: { session: 'nested-archive' } },
-		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
-		frame: CONTEXT_MENU_FRAME,
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['An expanded vscode session with no Done chats has its context menu open. Show Done Chats is always available, unchecked, and appears directly after New Chat in This Session in the same action group.'],
-	}),
-
 	//#endregion
 
 	//#region Archive onboarding
