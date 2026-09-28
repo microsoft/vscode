@@ -591,6 +591,35 @@ suite('SinglePane layout strategies', () => {
 		});
 	});
 
+	test('Existing Session grid does not reveal the side pane', () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/existing'));
+		const otherSession = makeSession(URI.parse('session:/other'));
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			harness.instaService.createInstance(SinglePaneVisibilityProfileStore),
+			createDetailPanel()
+		));
+		harness.setPartHiddenCalls.length = 0;
+
+		harness.sessionGridLayoutObs.set('grid', undefined);
+		harness.visibleSessionsObs.set([session, otherSession], undefined);
+		harness.activeSessionObs.set(session, undefined);
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+			visibilityChanges: [],
+		});
+	});
+
 	test('Quick Chat closes the side pane when its last editor closes', () => {
 		const ctx = setup();
 		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });

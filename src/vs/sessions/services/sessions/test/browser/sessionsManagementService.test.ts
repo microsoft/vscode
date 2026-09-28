@@ -42,9 +42,9 @@ import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/cha
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService, IActiveSession, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
-import { SessionsService } from '../../browser/sessionsService.js';
+import { OpenSessionsInGridOutcome, SessionsService } from '../../browser/sessionsService.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
-import { ISessionsPartService } from '../../browser/sessionsPartService.js';
+import { ISessionsPartService, SessionGridLayout } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
@@ -273,12 +273,15 @@ function createSessionsManagementService(
 class TestSessionsPartService extends mock<ISessionsPartService>() {
 	readonly sessionViews = new Map<string | undefined, SessionView>();
 	readonly focusedSessions: (string | undefined)[] = [];
+	readonly updates: { ids: (string | undefined)[]; layout: SessionGridLayout | undefined }[] = [];
 	focusedSessionView: SessionView | undefined;
 	constructor(override readonly onDidFocusSession: Event<string | undefined> = Event.None) {
 		super();
 	}
 	override readonly onDidToggleMaximizeSession = Event.None;
-	override updateVisibleSessions(): void { }
+	override updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], _active: IActiveSession | undefined, layout?: SessionGridLayout): void {
+		this.updates.push({ ids: visible.map(session => session?.sessionId), layout });
+	}
 	override focusSession(session: IActiveSession | undefined): void { this.focusedSessions.push(session?.sessionId); }
 	override getSessionView(sessionId: string | undefined): SessionView | undefined { return this.sessionViews.get(sessionId); }
 	override getFocusedSessionView(): SessionView | undefined { return this.focusedSessionView; }
@@ -2054,9 +2057,9 @@ suite('SessionsManagementService', () => {
 		storage.store(
 			'agentSessions.activeSessionStates',
 			JSON.stringify([
-				{ sessionResource: sessionA.resource.toString(), visibleOrder: 0, isSticky: true, isActive: false },
-				{ sessionResource: sessionB.resource.toString(), visibleOrder: 1, isSticky: false, isActive: true },
-				{ sessionResource: sessionC.resource.toString(), visibleOrder: 2, isSticky: false, isActive: false },
+				{ sessionResource: sessionA.resource.toString(), visibleOrder: 0, isSticky: true, isActive: false, gridLayout: 'grid' },
+				{ sessionResource: sessionB.resource.toString(), visibleOrder: 1, isSticky: false, isActive: true, gridLayout: 'grid' },
+				{ sessionResource: sessionC.resource.toString(), visibleOrder: 2, isSticky: false, isActive: false, gridLayout: 'grid' },
 			]),
 			1 /* StorageScope.WORKSPACE */,
 			1 /* StorageTarget.MACHINE */,
@@ -2082,10 +2085,80 @@ suite('SessionsManagementService', () => {
 			visible: view.visibleSessions.get().map(s => s?.sessionId ?? null),
 			sticky: view.visibleSessions.get().map(s => s?.sticky.get() ?? false),
 			active: view.activeSession.get()?.sessionId,
+			layout: view.sessionGridLayout.get(),
 		}, {
 			visible: ['a', 'b', 'c'],
 			sticky: [true, false, false],
 			active: 'b',
+			layout: 'grid',
+		});
+	});
+
+	test('openSessionsInGrid atomically opens the requested sessions in tiled mode', async () => {
+		const sessionA = stubSession({ sessionId: 'a', providerId: 'test' });
+		const sessionB = stubSession({ sessionId: 'b', providerId: 'test' });
+		const sessionC = stubSession({ sessionId: 'c', providerId: 'test' });
+		const sessions = [sessionA, sessionB, sessionC];
+		const preparations: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(sessionA); }
+			override getSessions(): ISession[] { return sessions; }
+			override async prepareSessionForOpen(session: ISession, reason: 'open' | 'restore'): Promise<void> {
+				preparations.push(`${session.sessionId}:${reason}`);
+			}
+		};
+		const { view, sessionsPartService } = createSessionsManagementService(sessionA, disposables, provider);
+		await view.openSession(sessionA.resource);
+		sessionsPartService.updates.length = 0;
+
+		const outcome = await view.openSessionsInGrid([sessionB, sessionA, sessionB, sessionC]);
+
+		assert.deepStrictEqual({
+			outcome,
+			visible: view.visibleSessions.get().map(session => session?.sessionId),
+			active: view.activeSession.get()?.sessionId,
+			layout: view.sessionGridLayout.get(),
+			updates: sessionsPartService.updates,
+			preparations,
+		}, {
+			outcome: OpenSessionsInGridOutcome.Committed,
+			visible: ['b', 'a', 'c'],
+			active: 'a',
+			layout: 'grid',
+			updates: [{ ids: ['b', 'a', 'c'], layout: 'grid' }],
+			preparations: ['a:open', 'b:open', 'a:open', 'c:open'],
+		});
+	});
+
+	test('openSessionsInGrid does not replace newer explicit navigation', async () => {
+		const sessionA = stubSession({ sessionId: 'a', providerId: 'test' });
+		const sessionB = stubSession({ sessionId: 'b', providerId: 'test' });
+		const preparation = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(sessionA); }
+			override getSessions(): ISession[] { return [sessionA, sessionB]; }
+			override prepareSessionForOpen(session: ISession): Promise<void> {
+				return session === sessionB ? preparation.p : Promise.resolve();
+			}
+		};
+		const { view } = createSessionsManagementService(sessionA, disposables, provider);
+		await view.openSession(sessionA.resource);
+
+		const opening = view.openSessionsInGrid([sessionB, sessionA]);
+		await timeout(0);
+		await view.openSession(sessionA.resource);
+		preparation.complete();
+
+		assert.deepStrictEqual({
+			outcome: await opening,
+			visible: view.visibleSessions.get().map(session => session?.sessionId),
+			active: view.activeSession.get()?.sessionId,
+			layout: view.sessionGridLayout.get(),
+		}, {
+			outcome: OpenSessionsInGridOutcome.NotCommitted,
+			visible: ['a'],
+			active: 'a',
+			layout: 'columns',
 		});
 	});
 

@@ -11,6 +11,19 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 suite('Sessions - Mobile Sessions Part', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('uses one grid column on phone layouts', () => {
+		const getGridColumnCount = Reflect.get(MobileSessionsPart.prototype, 'getGridColumnCount') as (this: { layoutService: object }, count: number) => number;
+		const layoutService = {
+			mainContainer: {
+				classList: {
+					contains: (className: string) => className === 'phone-layout',
+				},
+			},
+		};
+
+		assert.strictEqual(getGridColumnCount.call({ layoutService }, 5), 1);
+	});
+
 	test('layouts the internal session grid at full phone dimensions', () => {
 		let layoutContentsArgs: readonly [number, number] | undefined;
 		let gridLayoutArgs: readonly [number, number, number, number] | undefined;
@@ -30,10 +43,8 @@ suite('Sessions - Mobile Sessions Part', () => {
 					contentSize: { width: width - 2, height: height - 4 },
 				};
 			},
-			_gridWidget: {
-				layout: (width: number, height: number, top: number, left: number) => {
-					gridLayoutArgs = [width, height, top, left];
-				},
+			layoutSessionGrid: (width: number, height: number, top: number, left: number) => {
+				gridLayoutArgs = [width, height, top, left];
 			},
 		};
 

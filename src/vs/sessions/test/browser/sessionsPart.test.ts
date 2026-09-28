@@ -124,6 +124,31 @@ suite('Sessions - Sessions Part', () => {
 		assertActivation(() => new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, button: 0 }));
 	});
 
+	test('grid rearrangement preserves view identity, focus, and maximized state', () => {
+		const { part } = createSessionsPartTestHarness(store);
+		const first = createTestActiveSession('first', false);
+		const second = createTestActiveSession('second', false);
+		const third = createTestActiveSession('third', false);
+		part.updateVisibleSessions([first, second, third], second);
+		const views = [first, second, third].map(session => part.getSessionView(session.sessionId)!);
+		assert.strictEqual(part.toggleMaximizeSession(second.sessionId), true);
+		const focusedElement = document.createElement('button');
+		views[1].element.appendChild(focusedElement);
+		focusedElement.focus();
+
+		part.updateVisibleSessions([first, second, third], second, 'grid');
+
+		assert.deepStrictEqual({
+			sameViews: [first, second, third].map((session, index) => part.getSessionView(session.sessionId) === views[index]),
+			focused: document.activeElement === focusedElement,
+			wasMaximized: part.toggleMaximizeSession(second.sessionId),
+		}, {
+			sameViews: [true, true, true],
+			focused: true,
+			wasMaximized: false,
+		});
+	});
+
 	test('projects only the active view while retaining explicit, independent scoped picker values', () => {
 		const { part, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
 		const first = createTestActiveSession('first', false);

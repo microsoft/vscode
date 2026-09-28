@@ -136,6 +136,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 
 		this._register(autorun(reader => {
 			const multipleSessionsVisible = this._ctx.multipleSessionsVisibleObs.read(reader);
+			const sessionGridLayout = this._sessionsService.sessionGridLayout.read(reader);
 			const activeSession = this._sessionsService.activeSession.read(reader);
 			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
 			const wasQuickChatActive = previousQuickChatResource !== undefined;
@@ -146,6 +147,10 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 			}
 
 			if (multipleSessionsVisible) {
+				if (sessionGridLayout === 'grid') {
+					wasExistingActive = false;
+					return;
+				}
 				const activeChat = activeSession?.activeChat.read(reader);
 				const workspace = activeChat?.workspace.read(reader);
 				const isCreated = activeSession?.isCreated.read(reader);
