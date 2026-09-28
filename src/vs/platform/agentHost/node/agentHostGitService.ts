@@ -305,9 +305,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * So we: retry with a capped exponential backoff to let the racing process
 	 * finish; switch to `prune` once the working tree is already gone; only retry
 	 * transient lock / "directory not empty" failures (a dirty-tree "use --force"
-	 * still fails fast); treat a non-retryable failure as success when git no
-	 * longer tracks the worktree (idempotent re-removal of an already-removed or
-	 * archived worktree); and verify the worktree is truly de-registered before
+	 * still fails fast); finish forced removal directly when git no longer tracks
+	 * a residual directory; and verify the worktree is truly de-registered before
 	 * returning, so a silent `prune` no-op cannot mask a leaked entry.
 	 */
 	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void> {
@@ -329,27 +328,42 @@ export class AgentHostGitService implements IAgentHostGitService {
 					// Working tree already gone (a prior attempt removed it): prune clears the stale admin entry.
 					await this._runGit(repositoryRoot, ['worktree', 'prune'], { timeout: 60_000, throwOnError: true });
 				}
-				// A zero exit is not proof of success (see the doc above), so confirm de-registration.
-				if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
-					return;
-				}
-				lastError = new Error(`git worktree removal left '${worktree.fsPath}' registered (admin directory not deleted)`);
 			} catch (error) {
 				lastError = error;
 				if (!isRetryableWorktreeRemovalError(error)) {
-					// Idempotent: if git no longer tracks the worktree the removal goal is already met (e.g. an archived session removed it earlier).
 					if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
-						this._logService.trace(`[agentHostGitService] worktree '${worktree.fsPath}' already de-registered; treating removal as complete`);
+						await this._removeResidualWorktreeDirectory(worktree, options?.force === true);
 						return;
 					}
 					throw error;
 				}
 			}
+			// A zero exit is not proof of success (see the doc above), so confirm de-registration.
+			if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
+				await this._removeResidualWorktreeDirectory(worktree, options?.force === true);
+				return;
+			}
+			lastError = new Error(`git worktree removal left '${worktree.fsPath}' registered (admin directory not deleted)`);
 			if (attempt < WORKTREE_REMOVAL_MAX_ATTEMPTS - 1) {
 				this._logService.warn(`[agentHostGitService] worktree removal attempt ${attempt + 1}/${WORKTREE_REMOVAL_MAX_ATTEMPTS} did not complete for '${worktree.fsPath}', retrying: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 			}
 		}
 		throw lastError;
+	}
+
+	private async _removeResidualWorktreeDirectory(worktree: URI, force: boolean): Promise<void> {
+		if (!await this._pathExists(worktree.fsPath)) {
+			return;
+		}
+		if (!force) {
+			throw new Error(`Worktree '${worktree.fsPath}' is de-registered, but its directory remains and cannot be removed without force`);
+		}
+		await fsPromises.rm(worktree.fsPath, {
+			recursive: true,
+			force: true,
+			maxRetries: WORKTREE_REMOVAL_MAX_ATTEMPTS,
+			retryDelay: WORKTREE_REMOVAL_RETRY_BASE_DELAY_MS,
+		});
 	}
 
 	private async _pathExists(fsPath: string): Promise<boolean> {
