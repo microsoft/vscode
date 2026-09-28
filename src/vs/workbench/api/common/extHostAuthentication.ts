@@ -130,7 +130,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 	registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
 		const disposables = new DisposableStore();
-		const sessionChanges = Event.buffer<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>(
+		// Capture changes before queueing, but forward them only after the main thread acknowledges registration.
+		const bufferedSessionChanges = Event.buffer<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>(
 			listener => provider.onDidChangeSessions(listener), 'authentication provider registration', false, [], disposables);
 		const providerData: ProviderWithMetadata = { label, provider, disposable: disposables, options: options ?? { supportsMultipleAccounts: false } };
 		// register
@@ -152,7 +153,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 					supportedAuthorizationServers: options?.supportedAuthorizationServers,
 					supportsChallenges: options?.supportsChallenges
 				});
-				disposables.add(sessionChanges(e => this._proxy.$sendDidChangeSessions(id, e)));
+				disposables.add(bufferedSessionChanges(e => this._proxy.$sendDidChangeSessions(id, e)));
 			} catch (error) {
 				disposables.dispose();
 				this._authenticationProviders.delete(id);

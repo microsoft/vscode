@@ -235,6 +235,37 @@ suite('GitHub Enterprise provider lifecycle', () => {
 		assert.deepStrictEqual({ retired: factory.engines[0].disposed, registrations: registration.callCount }, { retired: true, registrations: 1 });
 	});
 
+	test('disposal releases a preparing engine and prevents in-flight and queued updates from registering', async () => {
+		const { provider, factory } = await create(a);
+		const preparing = Promise.withResolvers<void>();
+		const pending = Promise.withResolvers<vscode.AuthenticationSession[]>();
+		sinon.stub(TestSessionEngine.prototype, 'getSessions').callsFake(() => {
+			preparing.resolve();
+			return pending.promise;
+		});
+		const update = provider.update(b);
+		await preparing.promise;
+		const queued = provider.update(a);
+		provider.dispose();
+		const disposedBeforeCompletion = factory.engines.map(engine => engine.disposed);
+		pending.resolve(factory.engines[1].sessions);
+		await Promise.all([
+			assert.rejects(update, vscode.CancellationError),
+			assert.rejects(queued, vscode.CancellationError)
+		]);
+		assert.deepStrictEqual({
+			disposedBeforeCompletion,
+			engines: factory.engines.length,
+			registrations: registration.callCount,
+			sessions: await provider.getSessions()
+		}, {
+			disposedBeforeCompletion: [true, true],
+			engines: 2,
+			registrations: 1,
+			sessions: []
+		});
+	});
+
 	test('late logging after engine disposal is harmless', () => {
 		const logger = new Log(github.AuthProviderType.githubEnterprise, a);
 		disposables.push(logger);

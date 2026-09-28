@@ -36,7 +36,7 @@ function reconcileInitialSessions(host: EnterpriseHost, sessions: readonly vscod
 export class GitHubEnterpriseAuthenticationProvider implements vscode.AuthenticationProvider, vscode.Disposable {
 	private readonly _onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;
-	private readonly _lifetime = new vscode.CancellationTokenSource();
+	private readonly _disposeCancellation = new vscode.CancellationTokenSource();
 	private _host: EnterpriseHost | undefined;
 	private _registration: vscode.Disposable | undefined;
 	private _pendingUpdate: Promise<void> = Promise.resolve();
@@ -60,7 +60,7 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 	}
 
 	private handleUpdateError(error: unknown): void {
-		this.checkCancellation();
+		this.throwIfDisposed();
 		if (this._host) {
 			return;
 		}
@@ -71,19 +71,19 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 	}
 
 	private async applyConfiguration(uri: vscode.Uri | undefined, error: string | undefined): Promise<void> {
-		this.checkCancellation();
+		this.throwIfDisposed();
 		this._configurationError = error ?? vscode.l10n.t('Configure github-enterprise.uri before signing in to GitHub Enterprise.');
 		if (this._registration && this._host?.uri.toString() === uri?.toString()) {
 			return;
 		}
 		const next = uri && this.createHost(uri, `${uri.authority}${uri.path}.ghes.auth`);
-		const cancellation = this._lifetime.token.onCancellationRequested(() => disposeHost(next));
+		const cancellation = this._disposeCancellation.token.onCancellationRequested(() => disposeHost(next));
 		try {
 			const initialSessions = next ? await next.engine.getSessions(undefined, {}) : [];
-			this.checkCancellation();
+			this.throwIfDisposed();
 			const previous = this._host;
 			const removed = previous ? await previous.engine.getCachedSessions() : [];
-			this.checkCancellation();
+			this.throwIfDisposed();
 			const added = next ? reconcileInitialSessions(next, initialSessions) : [];
 			this._host = next;
 			this.registerProvider();
@@ -158,15 +158,15 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 		return this._host;
 	}
 
-	private checkCancellation(): void {
-		if (this._lifetime.token.isCancellationRequested) {
+	private throwIfDisposed(): void {
+		if (this._disposeCancellation.token.isCancellationRequested) {
 			throw new vscode.CancellationError();
 		}
 	}
 
 	dispose(): void {
-		this._lifetime.cancel();
-		this._lifetime.dispose();
+		this._disposeCancellation.cancel();
+		this._disposeCancellation.dispose();
 		this._registration?.dispose();
 		disposeHost(this._host);
 		this._host = undefined;
