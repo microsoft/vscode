@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { appendEscapedMarkdownCodeBlockFence } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceTree, type IResourceNode } from '../../../../../base/common/resourceTree.js';
@@ -12,18 +13,30 @@ import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources
 import { compare } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
-import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
-import type { Turn } from '../../../common/state/sessionState.js';
+import { AgentSession } from '../../../common/agent.js';
+import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAppliedClientAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
+import { ActionType } from '../../../common/state/sessionActions.js';
+import { ChatOriginKind, isAhpChatChannel, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { AgentHostWorkspaceFiles, type IAgentHostWorkspaceFilesResult } from '../../agentHostWorkspaceFiles.js';
+import { IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
 
 const firstTurnSeenMemento = createChatMementoKey<boolean>('firstTurnSeen', () => false);
 const MAX_STRUCTURE_LENGTH = 2000;
-const SNAPSHOT_TIMEOUT_MS = 2000;
+/**
+ * Longest the first send waits for a root's file list before sending without
+ * it. Enumeration normally starts when the turn is accepted, so it overlaps
+ * working-directory, model, and attachment resolution; this only bounds how
+ * much a slow or very large checkout can add to time to first token.
+ */
+const SNAPSHOT_TIMEOUT_MS = 1000;
 type WorkspaceNode = IResourceNode<true, undefined>;
 
-/** Supplies an initial file-name snapshot without changing the user's task text. */
+/**
+ * Supplies a file-name snapshot on the first turn of a new conversation
+ * without changing the user's task text.
+ */
 export class WorkspaceContextContribution extends Disposable implements IAgentHostChatContribution {
 
 	static readonly id = 'workspaceContext';
@@ -33,22 +46,37 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	constructor(
 		private readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
-		@ILogService logService: ILogService,
+		@IAgentHostWorktreeIsolation private readonly _worktreeIsolation: IAgentHostWorktreeIsolation,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._workspaceFiles = this._register(new AgentHostWorkspaceFiles(logService));
+		this._workspaceFiles = this._register(new AgentHostWorkspaceFiles(_logService));
+	}
+
+	/**
+	 * Starts enumerating as soon as a first turn is accepted, so the list is
+	 * usually cached by the time {@link onOutgoingTurn} needs it. Skipped while a
+	 * worktree is pending: the worktree does not exist yet, and scanning the
+	 * source checkout would compete with its creation.
+	 */
+	onDidApplyClientAction({ channel, session, action }: IAppliedClientAction): void {
+		if (action.type !== ActionType.ChatTurnStarted || !isAhpChatChannel(channel) || this._worktreeIsolation.isWorkingDirectoryPending(AgentSession.id(session))) {
+			return;
+		}
+		const workingDirectories = this._firstTurnWorkingDirectories(channel);
+		if (!workingDirectories) {
+			return;
+		}
+		for (const root of resolveAgentHostFileCompletionRoots(workingDirectories).enumerationRoots) {
+			this._workspaceFiles.getFiles(root, CancellationToken.None).catch(() => { /* Reported when the outgoing turn reads it. */ });
+		}
 	}
 
 	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
-		const state = this._stateManager.getSessionState(turn.chat);
-		if (state?.provider !== 'copilotcli') {
+		if (!this._firstTurnWorkingDirectories(turn.chat)) {
 			return undefined;
 		}
-		const firstTurnSeen = this._context.memento(firstTurnSeenMemento, turn.chat);
-		if (firstTurnSeen.get()) {
-			return undefined;
-		}
-		firstTurnSeen.set(true, undefined);
+		this._context.memento(firstTurnSeenMemento, turn.chat).set(true, undefined);
 		// Use the directories the provider will run in, not session state: a worktree created on this send is not in state until the provider materializes.
 		const { enumerationRoots } = resolveAgentHostFileCompletionRoots(turn.workingDirectories ?? []);
 		if (enumerationRoots.length === 0) {
@@ -61,8 +89,11 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		try {
 			const budget = Math.floor(MAX_STRUCTURE_LENGTH / enumerationRoots.length);
 			const structures = await Promise.all(enumerationRoots.map(async root => {
+				const result = await this._getFilesWithinDeadline(root, cancellation.token);
+				if (!result) {
+					return '';
+				}
 				const heading = JSON.stringify(root.fsPath).slice(1, -1);
-				const result = await this._workspaceFiles.getFiles(root, cancellation.token);
 				const tree = renderWorkspaceTree(root, result, budget - heading.length - 3);
 				return tree ? `${heading}\n${tree}` : '';
 			}));
@@ -83,6 +114,37 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			this._context.memento(firstTurnSeenMemento, context.chat).set(true, undefined);
 		}
 		return turns;
+	}
+
+	/**
+	 * The chat's working directories when its next turn starts a new Copilot
+	 * conversation, otherwise `undefined`. Forks and side chats inherit history
+	 * that already carries the source chat's context, and tool-spawned chats
+	 * receive a focused task from the chat that delegated it.
+	 */
+	private _firstTurnWorkingDirectories(chat: ProtocolURI): URI[] | undefined {
+		const state = this._stateManager.getSessionState(chat);
+		if (state?.provider !== 'copilotcli' || state.turns.length > 0 || this._context.memento(firstTurnSeenMemento, chat).get()) {
+			return undefined;
+		}
+		const origin = this._stateManager.getChatOrigin(chat);
+		if ((origin && origin.kind !== ChatOriginKind.User) || this._stateManager.getChatInheritedTurnId(chat) !== undefined) {
+			return undefined;
+		}
+		return (state.workingDirectories ?? []).map(directory => URI.parse(directory));
+	}
+
+	/** Returns `undefined` when the deadline passes, so one slow root does not drop the others. */
+	private async _getFilesWithinDeadline(root: URI, token: CancellationToken): Promise<IAgentHostWorkspaceFilesResult | undefined> {
+		try {
+			return await this._workspaceFiles.getFiles(root, token);
+		} catch (err) {
+			if (!isCancellationError(err)) {
+				throw err;
+			}
+			this._logService.trace(`[WorkspaceContext] Sent the first turn without ${root.fsPath}: its file list was not ready within ${SNAPSHOT_TIMEOUT_MS}ms`);
+			return undefined;
+		}
 	}
 }
 

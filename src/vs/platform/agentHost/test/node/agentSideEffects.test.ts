@@ -141,6 +141,13 @@ class NoopGitStateService implements IAgentHostGitStateService {
 
 class NoopWorktreeIsolation extends NullAgentHostWorktreeIsolation { }
 
+/** Models a worktree session before its first send creates the worktree. */
+class PendingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
+	override isWorkingDirectoryPending(): boolean {
+		return true;
+	}
+}
+
 function createNoopCustomizationEnablementService(): IAgentHostCustomizationEnablementService {
 	return {
 		_serviceBrand: undefined,
@@ -173,6 +180,7 @@ function createTestSideEffects(
 		localTurns?: AgentHostLocalTurns;
 		gitStateService?: IAgentHostGitStateService;
 		initialTitleGenerationStrategy?: AutomaticTitleGenerationStrategy;
+		worktreeIsolation?: IAgentHostWorktreeIsolation;
 	},
 	_gitService?: IAgentHostGitService,
 	telemetryService: ITelemetryService = NullTelemetryService,
@@ -183,7 +191,7 @@ function createTestSideEffects(
 	const logService = new NullLogService();
 	const contributionFileService = disposables.add(new FileService(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
-	const worktreeIsolation = new NoopWorktreeIsolation();
+	const worktreeIsolation = options.worktreeIsolation ?? new NoopWorktreeIsolation();
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
@@ -1582,6 +1590,7 @@ suite('AgentSideEffects', () => {
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
 				resolveWorkingDirectoryBeforeSend: async () => [worktree],
+				worktreeIsolation: new PendingWorktreeIsolation(),
 			});
 			disposables.add(localSideEffects.registerProgressListener(agent));
 
