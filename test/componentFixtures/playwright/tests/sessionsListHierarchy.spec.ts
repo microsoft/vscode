@@ -6,6 +6,11 @@
 import { expect, Locator, Page, test } from '@playwright/test';
 import { getBaseURL } from './utils.js';
 
+// TODO@benibenj https://github.com/microsoft/vscode/issues/338488
+// Cold fixture renders intermittently exceed the 3000ms fixture timeout.
+// Re-enable once https://github.com/microsoft/vscode/pull/338259 lands.
+test.fixme(true, 'Cold fixture renders exceed the 3000ms fixture timeout, see https://github.com/microsoft/vscode/issues/338488');
+
 declare const __componentExplorer__: {
 	renderFixture(fixtureId: string): Promise<{ hasError: boolean; previousDispose?: { hasError: boolean } }>;
 	disposeCurrentFixture(): Promise<{ hasError: boolean }>;
