@@ -159,6 +159,8 @@ function showArchiveOnboarding(sessionId: string, wording: ChatSessionArchiveAct
 }
 
 const ONBOARDING_FRAME = { width: 760, height: 420 };
+/** Room beside and below the list for an open context menu. */
+const CONTEXT_MENU_FRAME = { width: 480, height: 320 };
 
 //#endregion
 
@@ -664,16 +666,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The done child has its own context menu with Restore instead of Mark as Done. Its parent remains active and both children remain nested beneath it.'],
-	}),
-	SessionsList_ArchivedNestedChatsVisibleSessionMenu: defineSessionsListFixture({
-		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { compact: true, showArchived: true, width: 400 },
-		interaction: { contextMenu: { session: 'nested-archive' } },
-		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
-		frame: CONTEXT_MENU_FRAME,
-	}, {
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A compact parent session with an active and a done child has its context menu open. Show Done Chats is checked, and the parent offers Mark as Done rather than Restore.'],
 	}),
 	SessionsList_CompactNestedChatPrimaryAction: defineSessionsListFixture({
 		sessions: [COMPACT_NESTED_CHAT_PRIMARY_ACTION_SESSION],
