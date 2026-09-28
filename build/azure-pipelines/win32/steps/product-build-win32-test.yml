@@ -61,15 +61,6 @@ steps:
           displayName: 🧪 Run unit tests (Browser, Chromium)
           timeoutInMinutes: 20
 
-  # TODO@lszomoru: Temporary, remove before merging. Fails the first attempt of the
-  # product test job once the unit tests passed, so that "Rerun failed jobs" exercises
-  # the test checkpoints (attempt 2 skips the unit tests).
-  - powershell: |
-      Write-Host "##vso[task.logissue type=error]Simulated failure after unit tests. Use 'Rerun failed jobs' to validate that the unit tests are skipped."
-      exit 1
-    condition: and(succeeded(), eq(variables['System.JobAttempt'], '1'), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
-    displayName: ⚠️ Simulate failure after unit tests (TEMPORARY)
-
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
@@ -166,15 +157,6 @@ steps:
             VSCODE_SKIP_PRELAUNCH: '1'
           displayName: 🧪 Run integration tests (Remote)
           timeoutInMinutes: 20
-
-  # TODO@lszomoru: Temporary, remove before merging. Fails the second attempt of the
-  # product test job once the integration tests passed, so that "Rerun failed jobs"
-  # exercises the test checkpoints (attempt 3 skips the unit and integration tests).
-  - powershell: |
-      Write-Host "##vso[task.logissue type=error]Simulated failure after integration tests. Use 'Rerun failed jobs' to validate that the unit and integration tests are skipped."
-      exit 1
-    condition: and(succeeded(), eq(variables['System.JobAttempt'], '2'), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
-    displayName: ⚠️ Simulate failure after integration tests (TEMPORARY)
 
   - powershell: .\build\azure-pipelines\win32\listprocesses.bat
     displayName: Diagnostics after integration test runs
