@@ -282,22 +282,75 @@ suite('Artifact Server Tools', () => {
 		});
 	});
 
-	test('reports an association failure without losing the recorded PR artifact', async () => {
+	test('verifies a batch once and reports recorded, pending and unrelated PRs separately', async () => {
+		const url = (number: number) => `https://github.com/microsoft/vscode/pull/${number}`;
+		const calls: Array<{ chat: string; urls: readonly string[] }> = [];
 		const { host, sessionUri, artifacts } = createHarness({
-			associatePullRequest: async () => { throw new Error('GitHub lookup unavailable'); },
+			associatePullRequests: async (chat, urls) => {
+				calls.push({ chat, urls });
+				return { associated: url(1), pending: [url(2)], unmatched: [url(3)] };
+			},
+		});
+
+		const result = await host.executeTool(buildDefaultChatUri(sessionUri), ArtifactServerToolName.AddArtifactOrReference, {
+			items: [1, 2, 3].map(number => ({ type: 'pullRequest', label: `PR ${number}`, isArtifact: true, link: url(number) })),
+		});
+
+		assert.deepStrictEqual({
+			calls,
+			artifacts: artifacts().map(artifact => artifact.link),
+			messages: result.split('\n').slice(3),
+		}, {
+			calls: [{ chat: buildDefaultChatUri(sessionUri), urls: [url(1), url(2), url(3)] }],
+			artifacts: [url(1), url(2), url(3)],
+			messages: [
+				`Pull request ${url(2)} was recorded; folder association is pending verification.`,
+				`Pull request ${url(3)} was recorded but not associated with this chat's working folder.`,
+			],
+		});
+	});
+
+	test('cancels pending verification when the recorded PR is removed by the tool', async () => {
+		const removed: Array<{ session: string; url: string }> = [];
+		const url = 'https://github.com/microsoft/vscode/pull/1';
+		const { execute, sessionUri, artifacts } = createHarness({
+			associatePullRequests: async () => ({ pending: [url], unmatched: [] }),
+			removePendingPullRequest: async (session, url) => { removed.push({ session, url }); },
+		});
+		await execute(ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'pullRequest', label: 'Feature PR', isArtifact: true, link: url }],
+		});
+		const id = artifacts()[0].id;
+		const message = await execute(ArtifactServerToolName.RemoveArtifactOrReference, { id });
+
+		assert.deepStrictEqual({ removed, artifacts: artifacts(), message }, {
+			removed: [{ session: sessionUri, url }],
+			artifacts: [],
+			message: `Removed artifact: ${id}`,
+		});
+	});
+
+	test('reports an association failure without losing the recorded PR artifact', async () => {
+		let reportedError: string | undefined;
+		const { host, sessionUri, artifacts } = createHarness({
+			associatePullRequests: async () => { throw new Error('GitHub lookup unavailable'); },
+			reportAssociationError: error => { reportedError = error instanceof Error ? error.message : String(error); },
 		});
 		const url = 'https://github.com/microsoft/vscode/pull/1';
 
-		await assert.rejects(
-			() => host.executeTool(buildDefaultChatUri(sessionUri), ArtifactServerToolName.AddArtifactOrReference, {
-				items: [{ type: 'pullRequest', label: 'Feature PR', isArtifact: true, link: url }],
-			}),
-			/The pull request artifact was recorded, but association with this chat's working folder failed/,
-		);
+		const result = await host.executeTool(buildDefaultChatUri(sessionUri), ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'pullRequest', label: 'Feature PR', isArtifact: true, link: url }],
+		});
 
-		assert.deepStrictEqual(artifacts().map(({ id: _id, ...artifact }) => artifact), [
-			{ type: SessionArtifactType.PullRequest, label: 'Feature PR', isArtifact: true, link: url, isGitHub: true },
-		]);
+		assert.deepStrictEqual({
+			artifacts: artifacts().map(({ id: _id, ...artifact }) => artifact),
+			messages: result.split('\n').map(message => message.replace(/: [0-9a-f-]{36}$/, ': <id>')),
+			reportedError,
+		}, {
+			artifacts: [{ type: SessionArtifactType.PullRequest, label: 'Feature PR', isArtifact: true, link: url, isGitHub: true }],
+			messages: ['Added artifact: <id>', 'Pull request artifacts were recorded, but folder association could not be queued.'],
+			reportedError: 'GitHub lookup unavailable',
+		});
 	});
 
 	test('promotes an existing reference in one batch without changing its id or downgrading it', async () => {

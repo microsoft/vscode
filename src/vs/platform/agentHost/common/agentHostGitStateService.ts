@@ -30,6 +30,16 @@ export const GIT_DB_METADATA_KEYS: Record<string, true> = {
 
 export const IAgentHostGitStateService = createDecorator<IAgentHostGitStateService>('agentHostGitStateService');
 
+/** Durable, host-owned verification intents for PR artifacts recorded from chat folders. */
+export const META_PENDING_RECORDED_PULL_REQUESTS = 'agentHost.pendingRecordedPullRequests';
+
+/** Result of associating recorded PR artifacts with one chat's working folder. */
+export interface IRecordedPullRequestAssociationResult {
+	readonly associated?: string;
+	readonly pending: readonly string[];
+	readonly unmatched: readonly string[];
+}
+
 export interface IAgentHostGitStateService {
 	readonly _serviceBrand: undefined;
 
@@ -66,6 +76,12 @@ export interface IAgentHostGitStateService {
 
 	/** Associates a recorded pull request with the invoking chat's folder only when it matches that checkout's branch. */
 	readonly associateRecordedPullRequest?: (chat: string, pullRequestUrl: string) => Promise<boolean>;
+	/** Verifies a batch of recorded PR artifacts, keeping unavailable candidates for later reconciliation. */
+	readonly associateRecordedPullRequests?: (chat: string, urls: readonly string[]) => Promise<IRecordedPullRequestAssociationResult>;
+	/** Retries persisted PR associations for a session or a chat's folder. */
+	readonly reconcilePendingRecordedPullRequests?: (sessionOrChat: string, allFolders?: boolean) => Promise<void>;
+	/** Forgets pending associations when a recorded PR artifact is removed. */
+	readonly removePendingRecordedPullRequest?: (session: string, url: string) => Promise<void>;
 
 	/**
 	 * Merges into the GitHub state of the folder a session, chat channel or

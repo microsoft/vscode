@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentHostGitStateService } from '../../../common/agentHostGitStateService.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { ILogService } from '../../../../log/common/log.js';
 import { isAhpChatChannel, isDefaultChatUri, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { resolveGitHubStateFolder } from '../../agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
@@ -21,6 +22,7 @@ export class GitHubReferencesContribution extends Disposable implements IAgentHo
 		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
@@ -32,6 +34,8 @@ export class GitHubReferencesContribution extends Disposable implements IAgentHo
 		const key = this._getPullRequestKey(turn);
 		const workingDirectory = this._stateManager.getSessionState(key)?.workingDirectories?.[0];
 		void this._gitStateService.attachSessionGitHubPullRequest(key, workingDirectory ? URI.parse(workingDirectory) : undefined);
+		void this._gitStateService.reconcilePendingRecordedPullRequests?.(turn.channel).catch(error =>
+			this._logService.warn(`[GitHubReferencesContribution] Failed to reconcile pending pull requests for ${turn.session}`, error));
 	}
 
 	/**

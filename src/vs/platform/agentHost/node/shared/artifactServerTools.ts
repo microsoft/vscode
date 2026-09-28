@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import type { IRecordedPullRequestAssociationResult } from '../../common/agentHostGitStateService.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../common/openSessionLink.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
@@ -99,6 +100,10 @@ export interface IArtifactServerToolAccessor {
 	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>;
 	/** Verifies a PR against the invoking chat's folder and associates it when its head branch matches. */
 	readonly associatePullRequest?: (chat: string, pullRequestUrl: string) => Promise<boolean>;
+	/** Verifies a batch in one GitHub request and persists candidates that need retrying. */
+	readonly associatePullRequests?: (chat: string, urls: readonly string[]) => Promise<IRecordedPullRequestAssociationResult>;
+	readonly removePendingPullRequest?: (session: string, url: string) => Promise<void>;
+	readonly reportAssociationError?: (error: unknown) => void;
 }
 
 /** The noun an entry is described by, so every message names what it acted on. */
@@ -208,16 +213,28 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 						}
 						return { artifacts: collection.artifacts, messages, pullRequestUrls };
 					});
-					if (accessor.associatePullRequest) {
-						for (const url of result.pullRequestUrls) {
-							let associated: boolean;
-							try {
-								associated = await accessor.associatePullRequest(context.chatUri, url);
-							} catch (error) {
-								throw new Error(`The pull request artifact was recorded, but association with this chat's working folder failed.`, { cause: error });
+					if (accessor.associatePullRequests && result.pullRequestUrls.size) {
+						try {
+							const associated = await accessor.associatePullRequests(context.chatUri, [...result.pullRequestUrls]);
+							for (const url of associated.pending) {
+								result.messages.push(`Pull request ${url} was recorded; folder association is pending verification.`);
 							}
-							if (!associated) {
+							for (const url of associated.unmatched) {
 								result.messages.push(`Pull request ${url} was recorded but not associated with this chat's working folder.`);
+							}
+						} catch (error) {
+							accessor.reportAssociationError?.(error);
+							result.messages.push('Pull request artifacts were recorded, but folder association could not be queued.');
+						}
+					} else if (accessor.associatePullRequest) {
+						for (const url of result.pullRequestUrls) {
+							try {
+								if (!await accessor.associatePullRequest(context.chatUri, url)) {
+									result.messages.push(`Pull request ${url} was recorded but not associated with this chat's working folder.`);
+								}
+							} catch (error) {
+								accessor.reportAssociationError?.(error);
+								result.messages.push(`Pull request ${url} was recorded, but folder association could not be verified.`);
 							}
 						}
 					}
@@ -231,6 +248,13 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					const result = await artifacts.mutate(collection => collection.remove(id));
 					if (!result.removed) {
 						return `No artifact or reference with id ${id}.`;
+					}
+					if (result.removed.type === SessionArtifactType.PullRequest && result.removed.link && accessor.removePendingPullRequest) {
+						try {
+							await accessor.removePendingPullRequest(context.sessionUri, result.removed.link);
+						} catch (error) {
+							accessor.reportAssociationError?.(error);
+						}
 					}
 					const message = result.removed.isArtifact ? REMOVED_ARTIFACT_MESSAGE : REMOVED_REFERENCE_MESSAGE;
 					return `${message}: ${result.removed.id}`;

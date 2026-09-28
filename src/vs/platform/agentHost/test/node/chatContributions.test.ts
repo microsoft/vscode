@@ -133,6 +133,7 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	readonly onDidChangeSessionGitHubState = Event.None;
 
 	readonly pullRequestAttachments: { readonly sessionKey: string; readonly workingDirectory: string | undefined }[] = [];
+	readonly pendingPullRequestReconciliations: string[] = [];
 
 	constructor(private readonly _observed: string[] | undefined) { }
 
@@ -144,6 +145,9 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI): Promise<void> {
 		this.pullRequestAttachments.push({ sessionKey, workingDirectory: workingDirectory?.toString() });
 		this._observed?.push('githubReferences');
+	}
+	async reconcilePendingRecordedPullRequests(chat: string): Promise<void> {
+		this.pendingPullRequestReconciliations.push(chat);
 	}
 }
 
@@ -1580,12 +1584,18 @@ suite('AgentHostChatContributions', () => {
 			contributions.service.turnEnd({ session, channel, turnId: channel, reason: { kind: 'success' } });
 		}
 
-		assert.deepStrictEqual(contributions.gitStateService.pullRequestAttachments, [
-			{ sessionKey: session, workingDirectory: sessionFolder },
-			{ sessionKey: session, workingDirectory: sessionFolder },
-			{ sessionKey: session, workingDirectory: sessionFolder },
-			{ sessionKey: peerFolderChat, workingDirectory: peerFolder },
-		]);
+		assert.deepStrictEqual({
+			attachments: contributions.gitStateService.pullRequestAttachments,
+			pending: contributions.gitStateService.pendingPullRequestReconciliations,
+		}, {
+			attachments: [
+				{ sessionKey: session, workingDirectory: sessionFolder },
+				{ sessionKey: session, workingDirectory: sessionFolder },
+				{ sessionKey: session, workingDirectory: sessionFolder },
+				{ sessionKey: peerFolderChat, workingDirectory: peerFolder },
+			],
+			pending: [session, buildDefaultChatUri(session), sessionFolderChat, peerFolderChat],
+		});
 	});
 
 	test('resumable errors defer checkpoint capture until the logical turn ends', () => {
