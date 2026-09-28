@@ -22,6 +22,9 @@ import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../servi
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING } from '../../common/constants.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -253,6 +256,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	readonly _useExperimentalComposerLayout: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
+	readonly telemetryService: ITelemetryService;
 }
 
 interface ISelectNoWorkspaceHarness {
@@ -360,6 +364,7 @@ suite('NewChatWidget', () => {
 		const workspaceTriggers: { readonly tooltip: string | undefined; readonly icon: string | undefined; readonly attachesContext: boolean | undefined }[] = [];
 		const pickerVisibility = disposables.add(new SessionInputPickerVisibility());
 		const workspaceVisibility: boolean[] = [];
+		const telemetryService = new TestExperimentTriggerTelemetryService();
 		const harness: IRenderWorkspacePickerHarness = {
 			agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
 			_workspacePicker: {
@@ -413,6 +418,7 @@ suite('NewChatWidget', () => {
 			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
 			// Keep this test focused on the fully-hidden collapse; the icon rail has its own test.
 			_collapsedSessionOptionsShowIcons: observableValue('collapsedSessionOptionsShowIcons', false),
+			telemetryService,
 		};
 
 		disposables.add(renderWorkspacePicker.call(harness, container));
@@ -534,6 +540,10 @@ suite('NewChatWidget', () => {
 			iconRailClass: true,
 			expanded: 'false',
 		});
+
+		// Reaching the collapsed state logs the icons experiment trigger exactly once, regardless
+		// of the assigned icons value, so the scorecard only counts users who actually collapse.
+		assert.deepStrictEqual(telemetryService.triggers, [`config.${COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING}`]);
 	});
 
 	test('harness focus command expands session options before opening the picker', () => {

@@ -570,6 +570,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.chat.experimental.collapsedSessionOptionsShowIcons', "Controls whether the collapsed session options above the new-session input keep the repository and harness pickers as icons, so they stay accessible without their labels. When disabled, collapsing hides these controls entirely. This setting only applies when the new-session composer layout is enabled."),
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		[NEW_SESSION_WELCOME_PHRASES_SETTING]: {
 			type: 'boolean',

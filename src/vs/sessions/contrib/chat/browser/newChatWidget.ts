@@ -62,6 +62,8 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -184,6 +186,7 @@ export class NewChatWidget extends Disposable {
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this._register(this._pendingPreferredUpgrade);
@@ -1320,9 +1323,16 @@ export class NewChatWidget extends Disposable {
 			// tree: keep the tray expanded and drop the disclosure toggle entirely.
 			const disclosureAvailable = useExperimentalLayout && !screenReaderOptimized;
 			const expanded = this._sessionOptionsExpanded.read(reader);
+			// The icons-vs-hidden setting only changes what a collapsed tray shows, so log the
+			// experiment trigger when the composer actually reaches that collapsed state — before
+			// reading the setting, so both arms count and users who never collapse don't dilute it.
+			const collapsed = disclosureAvailable && !expanded;
+			if (collapsed) {
+				logSettingExperimentTrigger(this.telemetryService, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING);
+			}
 			// When collapsed, keep the repository and harness pickers as an always-available icon
 			// rail (labels hidden) unless the user has opted to hide them entirely.
-			const iconRail = disclosureAvailable && !expanded && this._collapsedSessionOptionsShowIcons.read(reader);
+			const iconRail = collapsed && this._collapsedSessionOptionsShowIcons.read(reader);
 			const showDetails = !disclosureAvailable || expanded || iconRail;
 			row.classList.toggle('new-chat-session-options', useExperimentalLayout);
 			sessionOptions.classList.toggle('legacy-session-options-details', !useExperimentalLayout);
