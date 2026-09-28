@@ -365,6 +365,11 @@
 	max-width: 180px;
 }
 
+.automations-cards-unavailable .automations-cards-state-description,
+.automations-cards-partial-state-message {
+	white-space: pre-line;
+}
+
 .automations-cards-partial-state {
 	display: flex;
 	align-items: center;

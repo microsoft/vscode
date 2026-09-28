@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
-import { EventType, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import type { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -1409,6 +1409,42 @@ suite('AutomationsCardsWidget', () => {
 
 		assert.strictEqual(automationDialogService.showCalls, 1);
 	});
+
+	for (const hasSavedAutomations of [false, true]) {
+		test(`groups unavailable providers on separate visual and accessible lines ${hasSavedAutomations ? 'with' : 'without'} saved automations`, () => {
+			const { automationService, widget } = setup();
+			const automations = hasSavedAutomations ? [automation()] : [];
+			automationService.setAutomations(automations);
+			const providers: IAutomationProviderDescriptor[] = [
+				{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' },
+				{ id: 'host2', label: 'Host 2', unavailableReasonCode: 'unsupported' },
+				{ id: 'host3', label: 'Host 3', unavailableReasonCode: 'disconnected' },
+			];
+			automationService.setUnavailableProviders(providers);
+			automationService.setCatalogueState('unavailable');
+			const selector = hasSavedAutomations ? '.automations-cards-partial-state-message' : '.automations-cards-unavailable .automations-cards-state-description';
+			const description = widget.element.querySelector<HTMLElement>(selector)!;
+			const expected = [
+				'Automations from these providers are unavailable: Host 1, Host 2, Host 3.',
+				'The Agent Host is disconnected on these providers: Host 1, Host 3.',
+				'These providers do not support automations: Host 2.',
+			].join('\n');
+			const initial = {
+				message: description.textContent,
+				whiteSpace: getWindow(description).getComputedStyle(description).whiteSpace,
+				accessible: buildAutomationsAccessibleContent(automations, [], 'unavailable', [], providers).includes(expected),
+			};
+			automationService.setUnavailableProviders(providers.map(provider => ({ ...provider, unavailableReasonCode: 'disabled' })));
+
+			assert.deepStrictEqual({ initial, updated: description.textContent }, {
+				initial: { message: expected, whiteSpace: 'pre-line', accessible: true },
+				updated: [
+					'Automations from these providers are unavailable: Host 1, Host 2, Host 3.',
+					'Automations are disabled on these providers: Host 1, Host 2, Host 3.',
+				].join('\n'),
+			});
+		});
+	}
 
 	test('collapses built-in templates when saved automations become available', () => {
 		const { automationService, widget } = setup();
@@ -2872,8 +2908,8 @@ suite('AutomationsCardsWidget', () => {
 		const reason = 'Update this Agent Host to support autonomous automations.';
 		const providers = [{ id: 'remote', label: 'Remote host', unavailableReason: reason }];
 		const content = buildAutomationsAccessibleContent([], [], 'unavailable', [], providers);
-		assert.deepStrictEqual(content.split('\n').slice(0, 2), [
-			'Automations', `Automations from Remote host are unavailable. ${reason}`,
+		assert.deepStrictEqual(content.split('\n').slice(0, 3), [
+			'Automations', 'Automations from Remote host are unavailable.', `${reason} Providers: Remote host.`,
 		]);
 	});
 

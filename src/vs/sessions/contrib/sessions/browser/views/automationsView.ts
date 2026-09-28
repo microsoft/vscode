@@ -918,6 +918,7 @@ class AutomationCardsSection extends Disposable {
 			&& (unavailableProviders.length !== this.partialUnavailableProviders.length
 				|| unavailableProviders.some((provider, index) => provider.id !== this.partialUnavailableProviders[index].id
 					|| provider.label !== this.partialUnavailableProviders[index].label
+					|| provider.unavailableReasonCode !== this.partialUnavailableProviders[index].unavailableReasonCode
 					|| provider.unavailableReason !== this.partialUnavailableProviders[index].unavailableReason));
 		if (this.partialState === catalogueState && !unavailableProvidersChanged) {
 			return;
