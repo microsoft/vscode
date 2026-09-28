@@ -53,7 +53,7 @@ import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentModelInfo, type IAgentSpawnChatEvent } from '../../common/agent.js';
@@ -10625,6 +10625,32 @@ suite('CopilotAgent', () => {
 						load: CustomizationLoadStatus.Loaded,
 						children: [{ type: CustomizationType.Agent, uri: agentFile.toString(), name: 'host-agent' }],
 					}]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('getSessionCustomizations includes root MCP servers before materialization', async () => {
+			const { agent } = createTestAgentContext(disposables, {
+				rootConfig: {
+					[AgentHostGitHubMcpServerEnabledConfigKey]: false,
+					[AgentHostMcpServersConfigKey]: {
+						playwright: { type: 'stdio', command: 'node' },
+						slack: { type: 'http', url: 'https://example.com/mcp' },
+					},
+				},
+			});
+
+			try {
+				const session = AgentSession.uri('copilotcli', 'root-mcp-customizations-before-materialization');
+				await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+
+				const customizations = await getDefaultChatCustomizations(agent, session);
+
+				assert.deepStrictEqual(customizations
+					.filter(customization => customization.type === CustomizationType.McpServer)
+					.map(customization => customization.name)
+					.sort(), ['playwright', 'slack']);
 			} finally {
 				await disposeAgent(agent);
 			}

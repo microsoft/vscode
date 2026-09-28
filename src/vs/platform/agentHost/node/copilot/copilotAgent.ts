@@ -1596,7 +1596,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const fromPlugins = await activeClient.pluginController.getCustomizationsSettled();
 		const sessionChat = this._findSessionChat(session);
 		const topLevelMcp = activeClient.pluginController.resolveTopLevelMcpCustomizations(
-			sessionChat?.topLevelMcpCustomizations() ?? [],
+			sessionChat?.topLevelMcpCustomizations() ?? this._rootMcpCustomizations(AgentSession.id(session), await activeClient.configuredMcpServers()),
 			sessionChat?.mcpServerOwners?.(),
 		);
 		const customizations = [...fromPlugins, ...topLevelMcp];
@@ -5818,11 +5818,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Resolves root-configured MCP servers that must be disabled when the SDK session starts. */
 	private async _disabledRootMcpServers(session: URI, sessionId: string, snapshot: IActiveClientSnapshot): Promise<readonly string[]> {
 		await this._customizationEnablementService.initializeSession(session.toString());
-		const serverNames = new Set(Object.keys(snapshot.mcpServers));
+		const rootServers = this._rootMcpCustomizations(sessionId, snapshot.mcpServers);
+		const enablement = getSdkMcpServerEnablement(resolveCustomizationEnablement(
+			this._customizationEnablementService,
+			session,
+			rootServers,
+		));
+		return rootServers.filter(server => enablement.get(server.id) !== true).map(server => server.name);
+	}
+
+	private _rootMcpCustomizations(sessionId: string, mcpServers: AgentHostMcpServers): McpServerCustomization[] {
+		const serverNames = new Set(Object.keys(mcpServers));
 		if (this._isGitHubMcpServerEnabled()) {
 			serverNames.add(GITHUB_MCP_SERVER_NAME);
 		}
-		const rootServers: McpServerCustomization[] = [...serverNames].map(name => {
+		return [...serverNames].map(name => {
 			const id = buildMcpTopLevelCustomizationId(this.id, sessionId, name);
 			return {
 				type: CustomizationType.McpServer,
@@ -5832,12 +5842,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				state: { kind: McpServerStatus.Stopped },
 			};
 		});
-		const enablement = getSdkMcpServerEnablement(resolveCustomizationEnablement(
-			this._customizationEnablementService,
-			session,
-			rootServers,
-		));
-		return rootServers.filter(server => enablement.get(server.id) !== true).map(server => server.name);
 	}
 
 	private _createChatEntry(session: CopilotAgentSession, activeClient: ActiveClient): CopilotChatEntry {
@@ -7528,6 +7532,10 @@ class ActiveClient extends Disposable {
 			plugins: await this.pluginController.getAppliedPlugins(),
 			mcpServers: await this._getMcpServers(),
 		};
+	}
+
+	async configuredMcpServers(): Promise<AgentHostMcpServers> {
+		return this._getMcpServers();
 	}
 
 	private async _getMcpServers(): Promise<AgentHostMcpServers> {

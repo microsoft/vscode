@@ -58,7 +58,7 @@ export interface ICopilotRuntimeSlashCommandQueryOptions {
  */
 export class CopilotSlashCommandCompletionProvider implements IAgentHostCompletionItemProvider {
 	readonly kinds: ReadonlySet<CompletionItemKind> = new Set([CompletionItemKind.UserMessage]);
-	readonly triggerCharacters = [CompletionTriggerCharacter.Slash] as const;
+	readonly triggerCharacters = [CompletionTriggerCharacter.Slash, CompletionTriggerCharacter.Space] as const;
 
 	constructor(
 		private readonly copilotcliId: string,
@@ -74,6 +74,10 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		const customizationCompletions = await this._getCustomizationCompletions(params.text, params.offset, sessionId);
 		if (customizationCompletions) {
 			return customizationCompletions;
+		}
+		const commandArgument = extractSlashCommandArgument(params.text, params.offset);
+		if (commandArgument) {
+			return this._getRuntimeSlashCommandCompletionInfo(sessionId, commandArgument.command, commandArgument, false, commandArgument.typed);
 		}
 		const leadingTokenForSkills = extractWhitespaceDelimitedSlashToken(params.text, params.offset);
 		const leadingTokenForCommands = extractLeadingSlashToken(params.text, params.offset);
@@ -94,13 +98,13 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		if (!range) {
 			return undefined;
 		}
-		const command = /^\/(?<command>mcp|skills)\s+(?<subcommand>enable|disable|info)\s*$/i.exec(text.slice(0, range.start));
+		const command = /^\/(?<command>mcp|skills)\s+(?<subcommand>enable|disable|show|info)\s*$/i.exec(text.slice(0, range.start));
 		if (!command?.groups) {
 			return undefined;
 		}
 
 		const { command: commandName, subcommand } = command.groups;
-		if ((commandName.toLowerCase() === 'mcp' && !['enable', 'disable', 'info'].includes(subcommand.toLowerCase()))
+		if ((commandName.toLowerCase() === 'mcp' && !['enable', 'disable', 'show'].includes(subcommand.toLowerCase()))
 			|| (commandName.toLowerCase() === 'skills' && subcommand.toLowerCase() !== 'info')) {
 			return undefined;
 		}
@@ -121,7 +125,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 		return Array.from(candidates)
 			.filter(name => matchesSlashCompletion(text.slice(range.start, offset), name))
-			.map(name => ({
+			.map((name): CompletionItem => ({
 				insertText: name,
 				rangeStart: range.start,
 				rangeEnd: range.end,
@@ -197,7 +201,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		return slashCommandName;
 	}
 
-	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean): Promise<CompletionItem[]> {
+	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean, argumentTyped?: string): Promise<CompletionItem[]> {
 		const [runtimeCommands, { known: knownSkills, syncedContainerNames }] = await Promise.all([
 			this._sessionInfo.getRuntimeSlashCommands?.(sessionId, { maxWaitMs: this._runtimeSlashCommandCompletionWaitMs }) ?? [],
 			this._getKnownSkills(sessionId)
@@ -230,7 +234,11 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (!rubberDuckEnabled && command.name === 'rubber-duck') {
 				continue;
 			}
-			if (!matchesSlashCompletion(typedLower, command.name) && !command.aliases?.some(alias => matchesSlashCompletion(typedLower, alias))) {
+			const aliases = Array.from(new Set([command.name].concat(command.aliases ?? [])));
+			const commandMatches = argumentTyped === undefined
+				? aliases.some(alias => matchesSlashCompletion(typedLower, alias))
+				: aliases.some(alias => alias.toLowerCase() === typedLower);
+			if (!commandMatches) {
 				continue;
 			}
 			// Use structured input choices as options; if there are none, emit a single item for the command and surface any free-text hint as a prompt.
@@ -247,17 +255,26 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 			// Generate completion items for each alias and option combination.
 			// If there are no options, generate a single completion item for the alias.
-			const aliases = Array.from(new Set([command.name].concat(command.aliases ?? [])));
 			aliases
 				.filter(alias => !addedAliases.has(alias))
 				.forEach(alias => {
 					options
+						.filter(option => argumentTyped === undefined
+							|| (!!option.name && matchesSlashCompletion(argumentTyped, option.name)))
 						.forEach(option => {
 							// Add a trailing space after the command (and sub command/option if present).
 							// This is so user can continue to type additional arguments after the command and option.
-							const insertText = `/${alias}${option.name ? ' ' + option.name : ''} `;
+							const insertText = argumentTyped === undefined
+								? `/${alias}${option.name ? ' ' + option.name : ''} `
+								: `${option.name} `;
 							const description = option.description ?? command.description;
 							const argumentHint = option.argumentHint;
+							const retriggerSuggestions = !option.name
+								? ['mcp', 'skills'].includes(command.name)
+								: command.name === 'mcp'
+									? ['enable', 'disable', 'show'].includes(option.name)
+									: command.name === 'skills' && option.name === 'info';
+							const submitOnAccept = ['mcp', 'skills'].includes(command.name) && ['list', 'reload'].includes(option.name);
 							addedAliases.add(alias);
 
 							completionItems.push({
@@ -266,12 +283,16 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 								rangeEnd: rangeEnd,
 								attachment: {
 									type: MessageAttachmentKind.Simple,
-									label: insertText,
+									label: argumentTyped === undefined
+										? `${alias}${option.name ? ' ' + option.name : ''}`
+										: option.name,
 									_meta: toCommandCompletionAttachmentMeta({
 										command: command.name,
 										...(command.kind === 'skill' ? { isSkill: true } : {}),
 										...(description !== undefined ? { description } : {}),
-										...(argumentHint !== undefined ? { argumentHint } : {})
+										...(argumentHint !== undefined ? { argumentHint } : {}),
+										...(retriggerSuggestions ? { retriggerSuggestions: true } : {}),
+										...(submitOnAccept ? { submitOnAccept: true } : {}),
 									}),
 								},
 							});
@@ -332,4 +353,21 @@ function getWordRangeAtOffset(text: string, offset: number): { start: number; en
 		end++;
 	}
 	return { start, end };
+}
+
+function extractSlashCommandArgument(text: string, offset: number): { command: string; typed: string; rangeStart: number; rangeEnd: number } | undefined {
+	const range = getWordRangeAtOffset(text, offset);
+	if (!range) {
+		return undefined;
+	}
+	const match = /^\/(?<command>\S+)\s+$/i.exec(text.slice(0, range.start));
+	if (!match?.groups) {
+		return undefined;
+	}
+	return {
+		command: match.groups.command,
+		typed: text.slice(range.start, offset),
+		rangeStart: range.start,
+		rangeEnd: range.end,
+	};
 }

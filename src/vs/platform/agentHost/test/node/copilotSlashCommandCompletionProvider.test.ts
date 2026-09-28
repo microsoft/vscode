@@ -309,10 +309,11 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				],
 			});
 
+			assert.deepStrictEqual(provider.triggerCharacters, ['/', ' ']);
 			assert.deepStrictEqual(await Promise.all([
 				'/mcp disable ',
 				'/mcp enable p',
-				'/mcp info ',
+				'/mcp show ',
 				'/skills info ',
 			].map(async text => (await provider.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text, offset: text.length,
@@ -587,6 +588,168 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				{ insertText: '/toggle off ', meta: { command: 'toggle', description: 'Turn the feature off' } },
 				{ insertText: '/toggle on ', meta: { command: 'toggle', description: 'Turn the feature on' } },
 			]);
+		});
+
+		test('offers structured choices at the command and argument positions', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'mcp',
+					description: 'Manage MCP servers',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: {
+						hint: '[enable|disable|show]',
+						choices: [
+							{ name: 'enable', description: 'Enable an MCP server' },
+							{ name: 'disable', description: 'Disable an MCP server' },
+							{ name: 'show', description: 'Show an MCP server' },
+						],
+					},
+				}],
+				getSessionCustomizations: async () => [],
+			});
+
+			assert.deepStrictEqual(await Promise.all(['/mcp', '/mcp ', '/mcp en'].map(async text =>
+				(await gated.provideCompletionItems({
+					kind: CompletionItemKind.UserMessage,
+					channel: session,
+					text,
+					offset: text.length,
+				}, CancellationToken.None)).map(item => ({
+					insertText: item.insertText,
+					label: item.attachment.label,
+					rangeStart: item.rangeStart,
+					rangeEnd: item.rangeEnd,
+				})))), [
+				[
+					{ insertText: '/mcp ', label: 'mcp', rangeStart: 0, rangeEnd: 4 },
+					{ insertText: '/mcp disable ', label: 'mcp disable', rangeStart: 0, rangeEnd: 4 },
+					{ insertText: '/mcp enable ', label: 'mcp enable', rangeStart: 0, rangeEnd: 4 },
+					{ insertText: '/mcp show ', label: 'mcp show', rangeStart: 0, rangeEnd: 4 },
+				],
+				[
+					{ insertText: 'disable ', label: 'disable', rangeStart: 5, rangeEnd: 5 },
+					{ insertText: 'enable ', label: 'enable', rangeStart: 5, rangeEnd: 5 },
+					{ insertText: 'show ', label: 'show', rangeStart: 5, rangeEnd: 5 },
+				],
+				[
+					{ insertText: 'enable ', label: 'enable', rangeStart: 5, rangeEnd: 7 },
+				],
+			]);
+
+			const retriggeringItems = await Promise.all(['/mcp', '/mcp ', '/mcp en'].map(async text =>
+				(await gated.provideCompletionItems({
+					kind: CompletionItemKind.UserMessage,
+					channel: session,
+					text,
+					offset: text.length,
+				}, CancellationToken.None))
+					.filter(item => item.attachment._meta?.retriggerSuggestions === true)
+					.map(item => item.insertText)));
+			assert.deepStrictEqual(retriggeringItems, [
+				['/mcp ', '/mcp disable ', '/mcp enable ', '/mcp show '],
+				['disable ', 'enable ', 'show '],
+				['enable '],
+			]);
+		});
+
+		test('retriggers suggestions after accepting skills info', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'skills',
+					description: 'Manage skills',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: {
+						hint: '[info|list]',
+						choices: [
+							{ name: 'info', description: 'Show skill information' },
+							{ name: 'list', description: 'List skills' },
+							{ name: 'reload', description: 'Reload skills' },
+						],
+					},
+				}],
+				getSessionCustomizations: async () => [],
+			});
+
+			const text = '/skills ';
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text,
+				offset: text.length,
+			}, CancellationToken.None);
+
+			assert.deepStrictEqual(items.map(item => ({
+				insertText: item.insertText,
+				retriggerSuggestions: item.attachment._meta?.retriggerSuggestions === true,
+				submitOnAccept: item.attachment._meta?.submitOnAccept === true,
+			})), [
+				{ insertText: 'info ', retriggerSuggestions: true, submitOnAccept: false },
+				{ insertText: 'list ', retriggerSuggestions: false, submitOnAccept: true },
+				{ insertText: 'reload ', retriggerSuggestions: false, submitOnAccept: true },
+			]);
+
+			const commandItems = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text: '/skills',
+				offset: '/skills'.length,
+			}, CancellationToken.None);
+			assert.deepStrictEqual(
+				commandItems.filter(item => item.attachment._meta?.submitOnAccept === true).map(item => item.insertText),
+				['/skills list ', '/skills reload '],
+			);
+			assert.strictEqual(
+				commandItems.find(item => item.insertText === '/skills ')?.attachment._meta?.retriggerSuggestions,
+				true,
+			);
+		});
+
+		test('submits terminal MCP choices on accept', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'mcp',
+					description: 'Manage MCP servers',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: {
+						hint: '[list|reload]',
+						choices: [
+							{ name: 'list', description: 'List MCP servers' },
+							{ name: 'reload', description: 'Reload MCP servers' },
+						],
+					},
+				}],
+				getSessionCustomizations: async () => [],
+			});
+
+			const text = '/mcp ';
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text,
+				offset: text.length,
+			}, CancellationToken.None);
+
+			assert.deepStrictEqual(items.map(item => ({
+				insertText: item.insertText,
+				submitOnAccept: item.attachment._meta?.submitOnAccept === true,
+			})), [
+				{ insertText: 'list ', submitOnAccept: true },
+				{ insertText: 'reload ', submitOnAccept: true },
+			]);
+
+			const commandItems = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text: '/mcp',
+				offset: '/mcp'.length,
+			}, CancellationToken.None);
+			assert.deepStrictEqual(
+				commandItems.filter(item => item.attachment._meta?.submitOnAccept === true).map(item => item.insertText),
+				['/mcp list ', '/mcp reload '],
+			);
 		});
 
 		test('includes a bare command item when a choice has an empty name', async () => {
