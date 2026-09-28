@@ -82,6 +82,13 @@ function dispatchContextMenu(target: HTMLElement): void {
 	target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
 }
 
+function selectRow(target: HTMLElement, additive = false): void {
+	const options = { bubbles: true, cancelable: true, button: 0, ctrlKey: additive, metaKey: additive };
+	target.dispatchEvent(new MouseEvent('mousedown', options));
+	target.dispatchEvent(new MouseEvent('mouseup', options));
+	target.dispatchEvent(new MouseEvent('click', options));
+}
+
 function snapshotActions(actions: readonly IAction[]): { ids: string[]; disposableIds: string[] } {
 	const allActions = actions.flatMap(action => action instanceof SubmenuAction ? [action, ...action.actions] : [action]);
 	return {
@@ -219,6 +226,48 @@ suite('Sessions list context menus', () => {
 			{ showsArchivedChats: true },
 			{ showsArchivedChats: false },
 		]);
+	});
+
+	test('multiselection disables single-session context menu actions', async () => {
+		const first = createTestSession('First');
+		const second = createTestSession('Second');
+		for (const session of [first, second]) {
+			session.capabilities.set({ ...session.capabilities.get(), supportsMultipleChats: true, supportsRename: true }, undefined);
+		}
+		const harness = createListHarness(disposables, [first.session, second.session]);
+		const contextKeyService = harness.store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		harness.instantiationService.stub(IContextKeyService, contextKeyService);
+		harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
+		const contextMenuService = new TestContextMenuService();
+		harness.instantiationService.stub(IContextMenuService, contextMenuService);
+		const container = harness.createContainer();
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Date,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(300, 400);
+		await timeout(0);
+
+		const rows = container.querySelectorAll<HTMLElement>('.session-item');
+		assert.strictEqual(rows.length, 2);
+		selectRow(rows[0]);
+		selectRow(rows[1], true);
+		dispatchContextMenu(rows[1]);
+
+		const actions = contextMenuService.delegate!.getActions();
+		assert.deepStrictEqual([
+			actions.find(action => action.id === 'sessions.chatCompositeBar.addChat'),
+			actions.find(action => action.id === RENAME_SESSION_COMMAND_ID),
+		].map(action => ({ id: action?.id, enabled: action?.enabled })), [{
+			id: 'sessions.chatCompositeBar.addChat',
+			enabled: false,
+		}, {
+			id: RENAME_SESSION_COMMAND_ID,
+			enabled: false,
+		}]);
+		contextMenuService.delegate!.onHide?.(false);
 	});
 
 	test('reports the Done default trigger when a session menu shows Show Done Chats from the default', () => {
