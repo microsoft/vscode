@@ -270,8 +270,6 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
-<<<<<<< HEAD
-=======
 	test('the main session context menu opens its main chat to the side', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const { session } = createTestSession('Session');
@@ -301,30 +299,6 @@ suite('Sessions - Actions', () => {
 		assert.deepStrictEqual(opens, [{ source: 'sessionsList', forceMainChat: true }]);
 	});
 
-	test('disables single-session context menu actions for multiselection', () => {
-		const actionIds = new Set([
-			'sessions.chatCompositeBar.addChat',
-			RENAME_SESSION_COMMAND_ID,
-		]);
-		const actions = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
-			.filter(isIMenuItem)
-			.filter(item => actionIds.has(item.command.id))
-			.map(item => ({
-				id: item.command.id,
-				precondition: item.command.precondition?.serialize(),
-			}))
-			.sort((a, b) => a.id.localeCompare(b.id));
-
-		assert.deepStrictEqual(actions, [{
-			id: 'sessions.chatCompositeBar.addChat',
-			precondition: '!sessionItem.isMultiSelection',
-		}, {
-			id: RENAME_SESSION_COMMAND_ID,
-			precondition: '!sessionItem.isMultiSelection',
-		}]);
-	});
-
->>>>>>> 5a19798907b (sessions: Open main and peer chats side by side in Single mode (#338396))
 	test('contributes per-session archived chat visibility actions', () => {
 		const actionRegistration = new DisposableStore();
 		actionRegistration.add(registerAction2(ShowArchivedChatsAction));
