@@ -4,11 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-<<<<<<< HEAD
-import { $, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
-=======
-import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
->>>>>>> a78e233e81e (Feature tryout: ignore malformed URLs, handle double-ESC sequence (#338364))
+import { $, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
