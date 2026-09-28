@@ -160,6 +160,7 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	defaultDirectory: string | undefined;
 	status = RemoteAgentHostConnectionStatus.disconnected;
 	disposed = false;
+	clearConnectionCalls = 0;
 
 	constructor(readonly config: IRemoteAgentHostSessionsProviderConfig) {
 		super();
@@ -176,6 +177,7 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	}
 
 	override clearConnection(): void {
+		this.clearConnectionCalls++;
 		this.wiredConnection = undefined;
 		this.defaultDirectory = undefined;
 	}
@@ -255,6 +257,9 @@ suite('Dev Container Agent Host Service', () => {
 
 		const first = await service.connect(sourceWorkspace, CancellationToken.None);
 		const second = await service.connect(sourceWorkspace, CancellationToken.None);
+		const lifecycle = service.provider!.config.devContainerLifecycle!;
+		const stopped = await lifecycle.stop();
+		const removed = await lifecycle.remove();
 		await first.release();
 		await first.release();
 		const afterFirstRelease = {
@@ -267,6 +272,8 @@ suite('Dev Container Agent Host Service', () => {
 		assert.deepStrictEqual({
 			target: { providerId: first.providerId, workspaceUri: first.workspaceUri },
 			reusedConnection: second.providerId === first.providerId && second.workspaceUri.toString() === first.workspaceUri.toString(),
+			stopped,
+			removed,
 			afterFirstRelease,
 			connectorCalls,
 			entry: remoteAgentHostService.stagedEntry,
@@ -294,6 +301,8 @@ suite('Dev Container Agent Host Service', () => {
 				workspaceUri: remoteWorkspace,
 			},
 			reusedConnection: true,
+			stopped: false,
+			removed: false,
 			afterFirstRelease: {
 				removedAddress: undefined,
 				connectionDisposed: false,
@@ -434,6 +443,71 @@ suite('Dev Container Agent Host Service', () => {
 				machine: ['devContainerAgentHost.connections'],
 				user: [],
 			},
+		});
+	});
+
+	test('restored providers retain container lifecycle operations across reconnects', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const sourceWorkspace = URI.file('/source');
+		const address = devContainerAddress(sourceWorkspace);
+		storageService.store('devContainerAgentHost.connections', JSON.stringify([{
+			workspaceUri: sourceWorkspace.toString(),
+			name: 'Source Dev Container',
+		}]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const instantiationService = store.add(new TestInstantiationService());
+		const sessionsProvidersService = store.add(new TestSessionsProvidersService());
+		const service = store.add(new TestDevContainerAgentHostService(
+			instantiationService,
+			store.add(new TestRemoteAgentHostService()),
+			sessionsProvidersService,
+			storageService,
+		));
+		const provider = service.provider!;
+		const lifecycle = provider.config.devContainerLifecycle!;
+		const operations: string[] = [];
+		instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+
+		const connect = lifecycle.connect();
+		store.add(service.registerConnector({
+			isAvailable: async () => true,
+			showLog: async () => { },
+			createConnection: async (_workspaceUri, stagedAddress) => {
+				operations.push('connect');
+				return {
+					address: stagedAddress,
+					name: 'Source Dev Container',
+					transportFactory: () => undefined as never,
+					workspaceUri: URI.from({
+						scheme: AGENT_HOST_SCHEME,
+						authority: agentHostAuthority(address),
+						path: '/workspaces/source',
+					}),
+				};
+			},
+			stopContainer: async () => { operations.push('stop'); return true; },
+			removeContainer: async () => { operations.push('remove'); return true; },
+		}));
+		await connect;
+		provider.publishSession();
+		await lifecycle.stop();
+		const stoppedStatus = provider.status;
+		await lifecycle.connect();
+		await lifecycle.remove();
+
+		assert.deepStrictEqual({
+			operations,
+			stoppedStatus,
+			finalStatus: provider.status,
+			reusedProvider: service.provider === provider,
+			providerDisposed: provider.disposed,
+			registeredProviders: sessionsProvidersService.getProviders().map(provider => provider.id),
+		}, {
+			operations: ['connect', 'stop', 'connect', 'remove'],
+			stoppedStatus: RemoteAgentHostConnectionStatus.disconnected,
+			finalStatus: RemoteAgentHostConnectionStatus.disconnected,
+			reusedProvider: true,
+			providerDisposed: false,
+			registeredProviders: [`agenthost-${agentHostAuthority(address)}`],
 		});
 	});
 
@@ -638,6 +712,87 @@ suite('Dev Container Agent Host Service', () => {
 		});
 	});
 
+	test('stops an idle container, reconnects it on demand, and removes it without disposing the provider', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const remoteAgentHostService = store.add(new TestRemoteAgentHostService());
+		const sessionsProvidersService = store.add(new TestSessionsProvidersService());
+		const service = store.add(new TestDevContainerAgentHostService(
+			instantiationService,
+			remoteAgentHostService,
+			sessionsProvidersService,
+			store.add(new InMemoryStorageService()),
+		));
+
+		const sourceWorkspace = URI.file('/source');
+		const address = devContainerAddress(sourceWorkspace);
+		const connection = new TestAgentConnection();
+		let connectorCalls = 0;
+		let failReconnect = false;
+		const containerOperations: string[] = [];
+		store.add(service.registerConnector({
+			isAvailable: async () => true,
+			showLog: async () => { },
+			createConnection: async (_workspaceUri, stagedAddress) => {
+				connectorCalls++;
+				if (failReconnect) {
+					throw new CancellationError();
+				}
+				return {
+					address: stagedAddress,
+					name: 'Source Dev Container',
+					transportFactory: () => undefined as never,
+					workspaceUri: URI.from({
+						scheme: AGENT_HOST_SCHEME,
+						authority: agentHostAuthority(address),
+						path: '/workspaces/source',
+					}),
+				};
+			},
+			stopContainer: async workspaceUri => { containerOperations.push(`stop:${workspaceUri.toString()}`); return true; },
+			removeContainer: async workspaceUri => { containerOperations.push(`remove:${workspaceUri.toString()}`); return true; },
+		}));
+		instantiationService.stubInstance(AgentHostProtocolClient, connection);
+
+		await service.connect(sourceWorkspace, CancellationToken.None);
+		const provider = service.provider!;
+		await provider.config.devContainerLifecycle!.stop();
+		const afterStop = {
+			providerDisposed: provider.disposed,
+			registeredProviders: sessionsProvidersService.getProviders().length,
+			status: provider.status,
+			clearConnectionCalls: provider.clearConnectionCalls,
+		};
+		failReconnect = true;
+		await assert.rejects(provider.config.devContainerLifecycle!.connect(), CancellationError);
+		failReconnect = false;
+		await provider.config.devContainerLifecycle!.connect();
+		await provider.config.devContainerLifecycle!.remove();
+
+		assert.deepStrictEqual({
+			afterStop,
+			connectorCalls,
+			containerOperations,
+			providerDisposed: provider.disposed,
+			registeredProviders: sessionsProvidersService.getProviders().length,
+			status: provider.status,
+		}, {
+			afterStop: {
+				providerDisposed: false,
+				status: RemoteAgentHostConnectionStatus.disconnected,
+				registeredProviders: 1,
+				clearConnectionCalls: 1,
+			},
+			connectorCalls: 3,
+			containerOperations: [
+				`stop:${sourceWorkspace.toString()}`,
+				`remove:${sourceWorkspace.toString()}`,
+			],
+			providerDisposed: false,
+			registeredProviders: 1,
+			status: RemoteAgentHostConnectionStatus.disconnected,
+		});
+	});
+
 	test('a canceled caller stops waiting without canceling a shared connection', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const remoteAgentHostService = store.add(new TestRemoteAgentHostService());
@@ -699,6 +854,71 @@ suite('Dev Container Agent Host Service', () => {
 			underlyingConnectionCanceled: false,
 			removedAddress: address,
 			connectionDisposed: true,
+		});
+	});
+
+	test('retains an empty provider until idle teardown succeeds', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const remoteService = store.add(new TestRemoteAgentHostService());
+		const service = store.add(new TestDevContainerAgentHostService(
+			instantiationService, remoteService, store.add(new TestSessionsProvidersService()), store.add(new InMemoryStorageService()),
+		));
+		instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+		let canStop = false;
+		store.add(service.registerConnector({
+			isAvailable: async () => true,
+			showLog: async () => { },
+			createConnection: async (_workspace, address) => ({
+				address, name: 'Container', transportFactory: () => undefined as never,
+				workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspace' }),
+			}),
+			stopContainer: async () => canStop,
+			removeContainer: async () => false,
+		}));
+		const target = await service.connect(URI.file('/source'), CancellationToken.None);
+		const provider = service.provider!;
+		await target.release();
+		const lifecycle = provider.config.devContainerLifecycle!;
+		const stopped = await lifecycle.stop();
+		const removed = await lifecycle.remove();
+		const afterRefusal = { disposed: provider.disposed, connected: !!provider.wiredConnection, removedAddress: remoteService.removedAddress };
+		canStop = true;
+		await lifecycle.stop();
+		assert.deepStrictEqual({ stopped, removed, afterRefusal, disposed: provider.disposed }, {
+			stopped: false, removed: false,
+			afterRefusal: { disposed: false, connected: true, removedAddress: undefined },
+			disposed: true,
+		});
+	});
+
+	test('reserves a connection lease while waiting for an automatic reconnect', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const remoteService = store.add(new TestRemoteAgentHostService());
+		const service = store.add(new TestDevContainerAgentHostService(
+			instantiationService, remoteService, store.add(new TestSessionsProvidersService()), store.add(new InMemoryStorageService()),
+		));
+		instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+		store.add(service.registerConnector({
+			isAvailable: async () => true,
+			showLog: async () => { },
+			createConnection: async (_workspace, address) => ({
+				address, name: 'Container', transportFactory: () => undefined as never,
+				workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspace' }),
+			}),
+		}));
+		const workspace = URI.file('/source');
+		const first = await service.connect(workspace, CancellationToken.None);
+		const provider = service.provider!;
+		remoteService.setConnectionStatus(RemoteAgentHostConnectionStatus.reconnecting);
+		const joining = service.connect(workspace, CancellationToken.None);
+		await first.release();
+		const disposedWhileConnecting = provider.disposed;
+		remoteService.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		const second = await joining;
+		const disposedWhileAcquired = provider.disposed;
+		await second.release();
+		assert.deepStrictEqual({ disposedWhileConnecting, disposedWhileAcquired, disposed: provider.disposed }, {
+			disposedWhileConnecting: false, disposedWhileAcquired: false, disposed: true,
 		});
 	});
 

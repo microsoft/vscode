@@ -19,11 +19,16 @@ import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
 import { defineMultiChatTests } from './multiChatSuite.js';
 import { defineMcpPluginTests } from './mcpPluginSuite.js';
+import { defineMcpSideChannelTests } from './mcpSideChannelSuite.js';
+import { defineProviderCheckpointTests } from './providerCheckpointSuite.js';
+import { defineProviderErrorTests } from './providerErrorSuite.js';
 import { defineCopilotRuntimeMcpTests } from './copilotRuntimeMcpSuite.js';
 import { defineStateOperationsTests } from './stateOperationsSuite.js';
 import { defineSubagentTests } from './subagentSuite.js';
 import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
+import { defineWorkingDirectoriesTests } from './workingDirectoriesSuite.js';
+import { defineWorkspaceConversionTests } from './workspaceConversionSuite.js';
 import { defineCopilotCoverageTests } from './copilotCoverageSuite.js';
 import { defineCopilotRuntimeToolsTests } from './copilotRuntimeToolsSuite.js';
 import { defineManagementExtensionTests } from './managementExtensionsSuite.js';
@@ -144,17 +149,15 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			} catch (error) {
 				errors.push(error instanceof Error ? error : new Error(String(error)));
 			}
-			try {
-				await removeTempDirs(tempDirs);
-			} catch (error) {
-				errors.push(error instanceof Error ? error : new Error(String(error)));
-			}
+			// Provider subprocesses can retain workspace handles until suite teardown stops the lease.
 			if (errors.length > 0) {
 				throw new AggregateError(errors, `Failed to dispose Agent Host E2E test resources: ${errors.map(error => error.message).join('; ')}`);
 			}
 		});
 
 		defineAutomationsTests(context);
+		defineWorkingDirectoriesTests(context);
+		defineWorkspaceConversionTests(context);
 
 		// Suites that contain only conformance-tier scenarios.
 		if (options.tier === 'conformance') {
@@ -186,6 +189,9 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		defineMultiChatTests(context);
 		defineChangesetTests(context);
 		defineMcpPluginTests(context);
+		defineMcpSideChannelTests(context);
+		defineProviderCheckpointTests(context);
+		defineProviderErrorTests(context);
 		defineServerToolsTests(context);
 		defineCustomizationDiscoveryTests(context);
 		defineSessionPersistenceTests(context);

@@ -6,6 +6,18 @@
 import { expect, test } from '@playwright/test';
 import { openFixture } from './utils.js';
 
+test('renders empty-section placeholders at the compact row height', async ({ page }) => {
+	await openFixture(page, 'sessions/sessionsList/SessionsList_Groups_Empty/Dark', '.session-placeholder');
+
+	const placeholder = page.locator('.session-placeholder').filter({ hasText: 'No session' });
+	const dimensions = await placeholder.evaluate(element => ({
+		content: element.getBoundingClientRect().height,
+		row: element.closest('.monaco-list-row')?.getBoundingClientRect().height,
+	}));
+
+	expect(dimensions).toEqual({ content: 28, row: 28 });
+});
+
 test('reveals the nested chat twistie only while hovering the session row', async ({ page }) => {
 	await openFixture(page, 'sessions/sessionsList/SessionsList_NestedChatApprovals/Dark', '.session-item');
 
@@ -119,6 +131,8 @@ for (const theme of ['Dark', 'Light', 'DarkHighContrast', 'LightHighContrast']) 
 					await readWorkspace.hover();
 					await expect(row).toHaveAttribute('aria-expanded', 'false');
 					await expect(indicator).toHaveCount(1);
+					// A hovered row reveals its toolbar actions, which would then sit in the Shift+Tab order.
+					await page.mouse.move(0, 0);
 					await page.keyboard.press('Tab');
 					await page.keyboard.press('Shift+Tab');
 					await expect(page.getByRole('tree', { name: 'Sessions', exact: true })).toBeFocused();

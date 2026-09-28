@@ -95,17 +95,13 @@ export class AICustomizationWelcomePage extends Disposable {
 		this.discoverEnabled = this.isAnySourceEnabled();
 		this.createImplementation();
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (this.isMarketplaceConfigurationChange(event) && this.discoverEnabled !== this.isAnySourceEnabled()) {
-				const hadFocus = this.container.contains(DOM.getActiveElement());
-				this.implementation.clear();
-				DOM.clearNode(this.container);
-				this.discoverEnabled = this.isAnySourceEnabled();
-				this.createImplementation();
-				if (hadFocus) {
-					this.focus();
-				}
+			if (this.isMarketplaceConfigurationChange(event)) {
+				this.updateImplementation();
 			}
 		}));
+		if (this.marketplaceService.onDidChangeSources) {
+			this._register(this.marketplaceService.onDidChangeSources(() => this.updateImplementation()));
+		}
 	}
 
 	get isDiscover(): boolean {
@@ -113,11 +109,26 @@ export class AICustomizationWelcomePage extends Disposable {
 	}
 
 	isMarketplaceConfigurationChange(event: IConfigurationChangeEvent): boolean {
-		return affectsCustomizationMarketplaceSources(event, this.marketplaceService.sources);
+		return affectsCustomizationMarketplaceSources(event, this.marketplaceService.allSources ?? this.marketplaceService.sources);
 	}
 
 	private isAnySourceEnabled(): boolean {
 		return getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).length > 0;
+	}
+
+	private updateImplementation(): void {
+		const discoverEnabled = this.isAnySourceEnabled();
+		if (this.discoverEnabled === discoverEnabled) {
+			return;
+		}
+		const hadFocus = this.container.contains(DOM.getActiveElement());
+		this.implementation.clear();
+		DOM.clearNode(this.container);
+		this.discoverEnabled = discoverEnabled;
+		this.createImplementation();
+		if (hadFocus) {
+			this.focus();
+		}
 	}
 
 	private createImplementation(): void {

@@ -455,6 +455,109 @@ suite('Sessions - Workbench', () => {
 		}
 	});
 
+	test('matches only the Agents cards next to macOS window corners', () => {
+		const root = document.createElement('div');
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-zoom-factor: 1;';
+		const grid = document.createElement('div');
+		grid.className = 'monaco-grid-view';
+		root.appendChild(grid);
+		const createPart = (classes: string) => {
+			const part = document.createElement('div');
+			part.className = `part ${classes}`;
+			grid.appendChild(part);
+			return part;
+		};
+		const sessions = createPart('sessionspart agents-part-card');
+		const customView = createPart('customviewgrid agents-part-card');
+		const editor = createPart('editor');
+		const auxiliaryBar = createPart('auxiliarybar');
+		const panel = createPart('panel');
+		const corners = (part: HTMLElement, classes: string) => {
+			root.className = `monaco-workbench agent-sessions-workbench mac macos-tahoe ${classes}`;
+			const style = mainWindow.getComputedStyle(part);
+			return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
+		};
+		document.body.appendChild(root);
+
+		try {
+			assert.deepStrictEqual({
+				sessions: corners(sessions, 'nopanel noeditorpane'),
+				sessionsWithoutSidebar: corners(sessions, 'nopanel noeditorpane nosidebar'),
+				sessionsBesideEditor: corners(sessions, 'nopanel noauxiliarybar'),
+				sessionsBesideEditorWithoutSidebar: corners(sessions, 'nopanel noauxiliarybar nosidebar'),
+				customView: corners(customView, 'nopanel noeditorpane nosessionspart'),
+				editor: corners(editor, 'nopanel noauxiliarybar'),
+				dockedEditor: corners(editor, 'nopanel dock-detail-panel'),
+				editorBesideDetails: corners(editor, 'nopanel'),
+				details: corners(auxiliaryBar, 'nopanel'),
+				detailsWithoutEditor: corners(auxiliaryBar, 'nopanel nomaineditorarea'),
+				sessionsAbovePanel: corners(sessions, 'noeditorpane'),
+				editorAbovePanel: corners(editor, 'noauxiliarybar'),
+				panel: corners(panel, ''),
+			}, {
+				sessions: ['8px', '8px', '12px', '8px'],
+				sessionsWithoutSidebar: ['8px', '8px', '12px', '12px'],
+				sessionsBesideEditor: ['8px', '8px', '8px', '8px'],
+				sessionsBesideEditorWithoutSidebar: ['8px', '8px', '8px', '12px'],
+				customView: ['8px', '8px', '12px', '8px'],
+				editor: ['8px', '8px', '12px', '8px'],
+				dockedEditor: ['8px', '8px', '12px', '8px'],
+				editorBesideDetails: ['8px', '0px', '0px', '8px'],
+				details: ['0px', '8px', '12px', '0px'],
+				detailsWithoutEditor: ['8px', '8px', '12px', '8px'],
+				sessionsAbovePanel: ['8px', '8px', '8px', '8px'],
+				editorAbovePanel: ['8px', '8px', '8px', '8px'],
+				panel: ['8px', '8px', '12px', '8px'],
+			});
+		} finally {
+			root.remove();
+		}
+	});
+
+	test('keeps Agents window corner geometry native-only and zoom-aware', () => {
+		const root = document.createElement('div');
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px;';
+		const card = document.createElement('div');
+		card.className = 'part sessionspart agents-part-card';
+		root.appendChild(card);
+		document.body.appendChild(root);
+		const radius = (classes: string, zoomFactor = 1) => {
+			root.className = `monaco-workbench agent-sessions-workbench nopanel noeditorpane ${classes}`;
+			root.style.setProperty('--window-zoom-factor', String(zoomFactor));
+			return mainWindow.getComputedStyle(card).borderBottomRightRadius;
+		};
+
+		try {
+			assert.deepStrictEqual({
+				tahoe: radius('mac macos-tahoe'),
+				olderMacOS: radius('mac'),
+				zoomedIn: radius('mac macos-tahoe', 2),
+				zoomedOut: radius('mac macos-tahoe', 0.5),
+				clamped: radius('mac macos-tahoe', 4),
+				highContrast: radius('mac macos-tahoe hc-black'),
+				fullscreen: radius('mac macos-tahoe fullscreen'),
+				web: radius('mac macos-tahoe web'),
+				phone: radius('mac macos-tahoe phone-layout'),
+				windows: radius('windows'),
+				linux: radius('linux'),
+			}, {
+				tahoe: '12px',
+				olderMacOS: '6px',
+				zoomedIn: '4px',
+				zoomedOut: '28px',
+				clamped: '0px',
+				highContrast: '12px',
+				fullscreen: '8px',
+				web: '8px',
+				phone: '0px',
+				windows: '8px',
+				linux: '8px',
+			});
+		} finally {
+			root.remove();
+		}
+	});
+
 	// --- Editor split / reveal ---------------------------------------------
 
 	test('activating a minimized Sessions or Editor Part resizes its sibling to minimum width', () => {

@@ -21,7 +21,8 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
-import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { ChatThinkingContentPart, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { getToolInvocationIcon } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { IChatExternalEdit, IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
@@ -167,15 +168,17 @@ suite('ChatThinkingContentPart', () => {
 
 	test('uses a search icon only when no problems were found', () => {
 		assert.deepStrictEqual({
-			referenceName: getToolInvocationIcon('problems', Codicon.error, 'Checked files, no problems found'),
-			internalTool: getToolInvocationIcon('get_errors', Codicon.error, 'Checked files, no problems found'),
-			contributedTool: getToolInvocationIcon('copilot_getErrors', Codicon.error, 'Checked files, no problems found'),
-			problemsFound: getToolInvocationIcon('problems', Codicon.error, 'Checked files, 2 problems found'),
-			unrelatedTool: getToolInvocationIcon('terminal', Codicon.terminal, 'No problems found'),
+			referenceName: getToolInvocationIcon('problems', { icon: Codicon.error }, 'Checked files, no problems found'),
+			internalTool: getToolInvocationIcon('get_errors', { icon: Codicon.error }, 'Checked files, no problems found'),
+			contributedTool: getToolInvocationIcon('copilot_getErrors', { icon: Codicon.error }, 'Checked files, no problems found'),
+			renderedMessage: getToolInvocationIcon('get_errors', { icon: Codicon.error }, 'Checked files, no\u00a0problems\u00a0found'),
+			problemsFound: getToolInvocationIcon('problems', { icon: Codicon.error }, 'Checked files, 2 problems found'),
+			unrelatedTool: getToolInvocationIcon('terminal', { icon: Codicon.terminal }, 'No problems found'),
 		}, {
 			referenceName: Codicon.search,
 			internalTool: Codicon.search,
 			contributedTool: Codicon.search,
+			renderedMessage: Codicon.search,
 			problemsFound: Codicon.error,
 			unrelatedTool: Codicon.terminal,
 		});
@@ -202,10 +205,10 @@ suite('ChatThinkingContentPart', () => {
 	test('uses the MCP icon instead of registered or inferred tool icons', () => {
 		const source: ToolDataSource = { type: 'mcp', label: 'Reference', serverLabel: 'Reference', collectionId: 'reference', definitionId: 'reference', instructions: '' };
 		assert.deepStrictEqual({
-			source: getToolInvocationIcon('read_file', undefined, undefined, source),
-			registered: getToolInvocationIcon('search', Codicon.tools, undefined, source),
-			problems: getToolInvocationIcon('get_errors', Codicon.error, 'No problems found', source),
-			agentHost: getToolInvocationIcon('mcp__reference__read', Codicon.book),
+			source: getToolInvocationIcon('read_file', { source }),
+			registered: getToolInvocationIcon('search', { icon: Codicon.tools, source }),
+			problems: getToolInvocationIcon('get_errors', { icon: Codicon.error, source }, 'No problems found'),
+			agentHost: getToolInvocationIcon('mcp__reference__read', { icon: Codicon.book }),
 		}, { source: Codicon.mcp, registered: Codicon.mcp, problems: Codicon.mcp, agentHost: Codicon.mcp });
 	});
 
@@ -222,6 +225,106 @@ suite('ChatThinkingContentPart', () => {
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			return part;
 		}
+
+		function appendVisibilityControlledTool(part: ChatThinkingContentPart, id: string, visible: boolean) {
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: `Read ${id}` },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				id, undefined, {},
+			);
+			const isVisible = observableValue(id, visible);
+			const element = $('div', undefined, `Read ${id}`);
+			let materialized = 0;
+			part.appendItem(() => {
+				materialized++;
+				return { domNode: element, isVisible };
+			}, tool.toolId, tool);
+			return { tool, element, isVisible, get materialized() { return materialized; } };
+		}
+
+		for (const initiallyVisible of [false, true]) {
+			for (const hiddenFirst of [false, true]) {
+				test(`tool-chain summary and expansion follow visible rows (initiallyVisible=${initiallyVisible}, hiddenFirst=${hiddenFirst})`, () => {
+					const part = createToolChain();
+					const tools = (hiddenFirst ? ['changing', 'visible'] : ['visible', 'changing']).map(id =>
+						appendVisibilityControlledTool(part, id, id === 'visible' || initiallyVisible));
+					const changing = tools.find(item => item.tool.toolCallId === 'changing')!;
+					const visible = tools.find(item => item.tool.toolCallId === 'visible')!;
+					part.finalizeTitleIfDefault();
+					const button = part.domNode.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button')!;
+					const snapshot = () => ({
+						title: part.domNode.style.display === 'none' ? undefined : button.textContent,
+						rows: [...part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-tool-wrapper')].filter(row => row.style.display !== 'none').length,
+						expandable: button.style.pointerEvents !== 'none',
+					});
+					const initial = snapshot();
+					changing.isVisible.set(false, undefined);
+					const mixed = snapshot();
+					visible.isVisible.set(false, undefined);
+					const empty = { ...snapshot(), expanded: part.expanded.get() };
+					changing.isVisible.set(true, undefined);
+					const revived = snapshot();
+					visible.isVisible.set(true, undefined);
+					const both = snapshot();
+					changing.isVisible.set(false, undefined);
+					changing.element.parentElement?.remove();
+					part.removeMaterializedItem(changing.tool.toolCallId);
+					changing.isVisible.set(true, undefined);
+					const afterRemoval = snapshot();
+					visible.isVisible.set(false, undefined);
+					const final = snapshot();
+					assert.deepStrictEqual({ initial, mixed, empty, revived, both, afterRemoval, final }, {
+						initial: { title: initiallyVisible ? 'Finished with 2 steps' : 'Finished with 1 step', rows: initiallyVisible ? 2 : 1, expandable: true },
+						mixed: { title: 'Finished with 1 step', rows: 1, expandable: true },
+						empty: { title: undefined, rows: 0, expandable: false, expanded: false },
+						revived: { title: 'Finished with 1 step', rows: 1, expandable: true },
+						both: { title: 'Finished with 2 steps', rows: 2, expandable: true },
+						afterRemoval: { title: 'Finished with 1 step', rows: 1, expandable: true },
+						final: { title: undefined, rows: 0, expandable: false },
+					});
+				});
+			}
+		}
+
+		test('materializing a hidden lazy tool updates the completed chain summary', () => {
+			const part = createToolChain(true);
+			const hidden = appendVisibilityControlledTool(part, 'hidden', false);
+			const visible = appendVisibilityControlledTool(part, 'visible', true);
+			part.finalizeTitleIfDefault();
+			const before = [hidden.materialized, visible.materialized];
+			part.expandContent();
+			const button = part.domNode.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button')!;
+			const title = button.textContent;
+			hidden.isVisible.set(true, undefined);
+			const revealedTitle = button.textContent;
+			hidden.isVisible.set(false, undefined);
+			visible.isVisible.set(false, undefined);
+			assert.deepStrictEqual({
+				before,
+				after: [hidden.materialized, visible.materialized],
+				title,
+				revealedTitle,
+				expandableWhenEmpty: button.style.pointerEvents !== 'none',
+				expandedWhenEmpty: part.expanded.get(),
+			}, {
+				before: [0, 0],
+				after: [1, 1],
+				title: 'Finished with 1 step',
+				revealedTitle: 'Finished with 2 steps',
+				expandableWhenEmpty: false,
+				expandedWhenEmpty: false,
+			});
+		});
+
+		test('visibility changes preserve generated chain summaries', () => {
+			const part = createToolChain();
+			const first = appendVisibilityControlledTool(part, 'first', true);
+			appendVisibilityControlledTool(part, 'second', true);
+			first.tool.generatedTitle = 'Reviewed the renderer';
+			part.finalizeTitleIfDefault();
+			first.isVisible.set(false, undefined);
+			assert.strictEqual(part.domNode.querySelector(':scope > .chat-used-context-label .monaco-button')?.textContent, 'Reviewed the renderer');
+		});
 
 		for (const verbosity of [undefined, ChatProgressVerbosity.Compact, ChatProgressVerbosity.Verbose]) {
 			test(`renders ${verbosity ?? 'default'} tool previews while running and after completion`, async () => {

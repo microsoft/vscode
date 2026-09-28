@@ -430,6 +430,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		await this._protocolClient?.reportFirstResponse(diagnostic);
 	}
 
+	refreshSubscription(resource: URI): Promise<void> {
+		return this._requireClient().refreshSubscription(resource);
+	}
+
 	async reportUserInteraction(timing: IChatUserInteractionTiming): Promise<void> {
 		if (!this._protocolClient) {
 			throw new Error('Agent Host is not connected; user interaction telemetry was not exported');
@@ -459,6 +463,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
 		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
+	}
+
+	refreshCopilotConnectorSessions(): Promise<void> {
+		return this._getManagementService().refreshCopilotConnectorSessions();
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
