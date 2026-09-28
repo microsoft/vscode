@@ -13,7 +13,7 @@ import { isCancellationError, onUnexpectedError } from '../../../../base/common/
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -61,7 +61,7 @@ import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chat
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -76,15 +76,27 @@ import { IAuthenticationService } from '../../../../workbench/services/authentic
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 // #region --- New Chat Widget ---
 
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
+const SESSION_OPTIONS_EXPANDED_STORAGE_KEY = 'sessions.newSession.sessionOptionsExpanded';
 const NEW_SESSION_WELCOME_PHRASE_COUNT = 5;
 let nextNewSessionWelcomePhraseIndex = 0;
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
 let sessionOptionsIdPool = 0;
+
+type NewSessionOptionsDisclosureEvent = {
+	expanded: boolean;
+};
+
+type NewSessionOptionsDisclosureClassification = {
+	expanded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the new session options disclosure was expanded.' };
+	owner: 'meganrogge';
+	comment: 'Tracks explicit use of the new session options disclosure.';
+};
 
 export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
@@ -121,7 +133,7 @@ export class NewChatWidget extends Disposable {
 	private _workspacePickerRow: HTMLElement | undefined;
 	private _workspaceRepositoryControlsHost: HTMLElement | undefined;
 	private _workspaceSessionOptionsHost: HTMLElement | undefined;
-	private readonly _sessionOptionsExpanded = observableValue(this, true);
+	private readonly _sessionOptionsExpanded: ISettableObservable<boolean>;
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
@@ -177,11 +189,13 @@ export class NewChatWidget extends Disposable {
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
+		this._sessionOptionsExpanded = observableValue(this, this.storageService.getBoolean(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE, false));
 		this._register(this._pendingPreferredUpgrade);
 		this._register(this._newSessionCreation);
 
@@ -323,6 +337,7 @@ export class NewChatWidget extends Disposable {
 			canSubmitWithoutSession,
 			hasAdditionalSendContent: hasFeedback,
 			loading,
+			useExperimentalLayout: this._useExperimentalComposerLayout,
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			placeholder: localize('newSessionPromptPlaceholder', "Pitch your idea"),
 			supportsBackground: true,
@@ -616,7 +631,7 @@ export class NewChatWidget extends Disposable {
 			const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
 			chatWidgetContent.classList.toggle('experimental-new-session-composer', useExperimentalLayout);
 			this._newChatInput.placeRepositoryControls(
-				!isQuickChat || isWorkspacePickerQuickChat
+				useExperimentalLayout && (!isQuickChat || isWorkspacePickerQuickChat)
 					? this._workspaceRepositoryControlsHost
 					: undefined
 			);
@@ -1239,7 +1254,9 @@ export class NewChatWidget extends Disposable {
 		this._workspaceRepositoryControlsHost = repositoryControlsHost;
 		this._workspaceSessionOptionsHost = sessionOptions;
 		this._renderSessionTypePicker(sessionOptions, false);
-		this._newChatInput.placeRepositoryControls(repositoryControlsHost);
+		if (this._useExperimentalComposerLayout.get()) {
+			this._newChatInput.placeRepositoryControls(repositoryControlsHost);
+		}
 		const toggle = store.add(new Button(row, {
 			...defaultButtonStyles,
 			buttonBackground: undefined,
@@ -1249,47 +1266,48 @@ export class NewChatWidget extends Disposable {
 		}));
 		toggle.element.classList.add('new-chat-session-options-toggle');
 		toggle.element.setAttribute('aria-controls', sessionOptions.id);
-		store.add(toggle.onDidClick(() => this._sessionOptionsExpanded.set(!this._sessionOptionsExpanded.get(), undefined)));
-		store.add(dom.addDisposableListener(row, dom.EventType.KEY_DOWN, event => {
-			if (event.altKey || event.ctrlKey || event.metaKey || !['Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
-				return;
-			}
-			const controls: HTMLElement[] = [];
-			const walker = row.ownerDocument.createTreeWalker(row, NodeFilter.SHOW_ELEMENT);
-			for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-				if (dom.isHTMLElement(node) && node.role === 'button'
-					&& node.getAttribute('aria-disabled') !== 'true'
-					&& !node.closest('[hidden], [inert], .disabled, .loading, .resolving')
-					&& node.checkVisibility()) {
-					controls.push(node);
-				}
-			}
-			const activeElement = dom.getActiveElement();
-			const index = controls.findIndex(control => control === activeElement);
-			if (index < 0) {
-				return;
-			}
-			const previous = event.key === 'ArrowLeft' || (event.key === 'Tab' && event.shiftKey);
-			const nextIndex = index + (previous ? -1 : 1);
-			if (event.key === 'Tab' && (nextIndex < 0 || nextIndex >= controls.length)) {
-				return;
-			}
-			dom.EventHelper.stop(event, true);
-			controls[(nextIndex + controls.length) % controls.length].focus();
-		}, true));
+		const summaryContent = dom.append(toggle.element, dom.$('.new-chat-session-options-summary'));
+		summaryContent.setAttribute('aria-hidden', 'true');
+		dom.append(summaryContent, dom.$('span.new-chat-session-options-summary-label', undefined, localize('newSessionOptions.label', "Session options")));
+		const summaryTokens = dom.append(summaryContent, dom.$('.new-chat-session-options-summary-tokens'));
+		store.add(toggle.onDidClick(() => this._setSessionOptionsExpanded(!this._sessionOptionsExpanded.get(), true)));
+		const summariesChanged = observableSignalFromEvent(store, Event.any(
+			this._newChatInput.sessionTypePicker.onDidChangeSelectedPick,
+			this.newSessionComposerService.onDidChangeOptionSummaries,
+		));
 		store.add(autorun(reader => {
+			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
 			const expanded = this._sessionOptionsExpanded.read(reader);
-			if (!expanded && sessionOptions.contains(dom.getActiveElement())) {
+			summariesChanged.read(reader);
+			const session = this._session.read(reader);
+			const summaries = [
+				this._newChatInput.sessionTypePicker.getNonDefaultOptionSummary(),
+				...(session ? this.newSessionComposerService.getNonDefaultOptions(session) : []),
+			].filter(summary => summary !== undefined);
+			dom.clearNode(summaryTokens);
+			for (const summary of summaries) {
+				dom.append(summaryTokens, dom.$('span.new-chat-session-options-summary-token', undefined, summary.label));
+			}
+			const showDetails = !useExperimentalLayout || expanded;
+			row.classList.toggle('new-chat-session-options', useExperimentalLayout);
+			sessionOptions.classList.toggle('legacy-session-options-details', !useExperimentalLayout);
+			toggle.element.hidden = !useExperimentalLayout;
+			summaryContent.hidden = expanded || summaries.length === 0;
+			toggle.element.classList.toggle('has-summary', !summaryContent.hidden);
+			if (!showDetails && sessionOptions.contains(dom.getActiveElement())) {
 				toggle.focus();
 			}
-			sessionOptions.inert = !expanded;
-			sessionOptions.hidden = !expanded;
-			toggle.icon = expanded ? Codicon.chevronLeftCompact : Codicon.chevronRightCompact;
+			sessionOptions.inert = !showDetails;
+			sessionOptions.hidden = !showDetails;
+			toggle.icon = expanded ? Codicon.chevronDownCompact : Codicon.chevronRightCompact;
 			toggle.element.setAttribute('aria-expanded', String(expanded));
 			const label = expanded
 				? localize('newSessionOptions.collapse', "Hide Session Options")
 				: localize('newSessionOptions.expand', "Show Session Options");
-			toggle.setAriaLabel(label);
+			const ariaLabel = !expanded && summaries.length > 0
+				? localize('newSessionOptions.expandWithSummary', "{0}. Non-default options: {1}", label, summaries.map(summary => summary.label).join(', '))
+				: label;
+			toggle.setAriaLabel(ariaLabel);
 			toggle.setTitle(label);
 		}));
 		const responsiveLayout = store.add(new ChatInputPickerResponsiveLayout('NewChatWidget.sessionOptions', container, {
@@ -1336,8 +1354,16 @@ export class NewChatWidget extends Disposable {
 	}
 
 	focusHarnessPicker(): void {
-		this._sessionOptionsExpanded.set(true, undefined);
+		this._setSessionOptionsExpanded(true, false);
 		this._newChatInput.sessionTypePicker.showPicker();
+	}
+
+	private _setSessionOptionsExpanded(expanded: boolean, persist: boolean): void {
+		this._sessionOptionsExpanded.set(expanded, undefined);
+		if (persist) {
+			this.storageService.store(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, expanded, StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.telemetryService.publicLog2<NewSessionOptionsDisclosureEvent, NewSessionOptionsDisclosureClassification>('newSessionOptionsDisclosureToggled', { expanded });
+		}
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {

@@ -25,6 +25,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 /**
  * Phone variant of {@link SessionTypePicker} that renders the picker as
@@ -55,9 +56,10 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
-		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, commandService, contextMenuService, hoverService, keybindingService);
+		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, commandService, contextMenuService, hoverService, keybindingService, uriIdentityService);
 	}
 
 	override render(container: HTMLElement, options?: { className?: string }): void {

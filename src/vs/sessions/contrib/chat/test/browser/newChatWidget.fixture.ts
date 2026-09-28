@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -53,6 +56,7 @@ import { ICustomizationMigrationTelemetryService } from '../../../../../workbenc
 import { IMcpWorkbenchService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatPhoneInputPresenter } from '../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
@@ -82,10 +86,6 @@ import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_N
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { INewSessionComposerService, INewSessionPromptOption, NewSessionComposerService, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
-// eslint-disable-next-line local/code-import-patterns -- Exercise the real nested provider pickers in the composer fixture.
-import { AgentHostSessionConfigPicker, PickerActionViewItem } from '../../../providers/agentHost/browser/agentHostSessionConfigPicker.js';
-// eslint-disable-next-line local/code-import-patterns -- Render the same mode/permissions component used by the provider.
-import { AgentHostModePicker } from '../../../providers/agentHost/browser/agentHostModePicker.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 
 import '../../../../browser/media/style.css';
@@ -113,6 +113,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly withAttachedContext?: boolean;
 	readonly withControlPickers?: boolean;
 	readonly expandSessionOptions?: boolean;
+	readonly nonDefaultHarness?: boolean;
 	readonly withAutoModel?: boolean;
 	readonly withConfiguredModel?: boolean;
 	readonly primaryToolbarWidth?: number;
@@ -120,6 +121,40 @@ interface INewChatWidgetFixtureOptions {
 	readonly chatBackground?: 'codicons' | 'loud';
 	readonly migrationCount?: number;
 	readonly experimentalComposerLayout?: boolean;
+}
+
+class FixturePickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
+	private _compact = false;
+
+	constructor(private readonly _kind: 'mode' | 'isolation' | 'branch') {
+		super(undefined, toAction({ id: `fixture.${_kind}`, label: _kind, run: () => { } }));
+	}
+
+	override render(container: HTMLElement): void {
+		this.element = container;
+		container.classList.toggle('compact-picker', this._compact);
+		const trigger = dom.append(container, dom.$('a.action-label'));
+		trigger.role = 'button';
+		trigger.tabIndex = 0;
+		if (this._kind === 'mode') {
+			trigger.classList.add('agent-host-mode-permissions-trigger');
+			dom.append(trigger, renderIcon(Codicon.agent));
+			dom.append(trigger, dom.$('span.chat-input-picker-label', undefined, 'Plan'));
+			dom.append(trigger, dom.$('span.agent-host-permissions-button', undefined, 'Default'));
+			return;
+		}
+		dom.append(trigger, renderIcon(this._kind === 'isolation' ? Codicon.worktree : Codicon.gitBranch));
+		dom.append(trigger, dom.$('span.sessions-chat-dropdown-label', undefined, this._kind === 'isolation' ? 'New Worktree' : 'Branch'));
+	}
+
+	setCompact(compact: boolean): void {
+		this._compact = compact;
+		this.element?.classList.toggle('compact-picker', compact);
+	}
+
+	isCompact(): boolean {
+		return this._compact;
+	}
 }
 
 class AutoModelFixtureMenuService extends FixtureMenuService {
@@ -206,6 +241,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		withAttachedContext = false,
 		withControlPickers = false,
 		expandSessionOptions = true,
+		nonDefaultHarness = false,
 		withAutoModel = false,
 		withConfiguredModel = false,
 		primaryToolbarWidth,
@@ -227,7 +263,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const workspace = createFixtureWorkspace(withRemoteWorkspace);
 	const sessionTypes = createFixtureSessionTypes();
 	const provider = createFixtureProvider(workspace, sessionTypes, withConfiguredModel ? [createFixtureConfiguredModel()] : withAutoModel ? [createFixtureAutoModel()] : [], disposableStore, withControlPickers);
-	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext ? createFixtureActiveSession(workspace, sessionTypes[0], migrationCount > 0, provider.id) : undefined;
+	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext
+		? createFixtureActiveSession(workspace, sessionTypes[nonDefaultHarness ? 1 : 0], migrationCount > 0, provider.id)
+		: undefined;
 	const activeSessionObservable = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
@@ -486,11 +524,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			onDidChange: Event.None,
 			lookUp: (menu, command) => {
 				if (menu === Menus.NewSessionControl && command === 'fixture.mode') {
-					return (_action, _options, service) => new PickerActionViewItem(service.createInstance(AgentHostModePicker, activeSessionObservable));
+					return () => new FixturePickerActionViewItem('mode');
 				}
 				const property = command === 'fixture.worktree' ? SessionConfigKey.Isolation : command === 'fixture.branch' ? SessionConfigKey.Branch : undefined;
 				return menu === Menus.NewSessionRepositoryConfig && property
-					? (_action, _options, service) => new PickerActionViewItem(service.createInstance(AgentHostSessionConfigPicker, activeSessionObservable, property), undefined, true)
+					? () => new FixturePickerActionViewItem(property === SessionConfigKey.Isolation ? 'isolation' : 'branch')
 					: undefined;
 			},
 		});
@@ -531,16 +569,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const sessionOptions = view.element.querySelector<HTMLElement>('.new-chat-session-options-details');
 	const optionsTray = view.element.querySelector<HTMLElement>('.new-chat-session-options');
 	const promptBox = view.element.querySelector<HTMLElement>('.new-chat-input-container');
-	assert(!!optionsToggle && !!sessionOptions && !!optionsTray && !!promptBox && !sessionOptions.hidden && !sessionOptions.inert,
-		'Session options must be expanded by default.');
-	if (withControlPickers && width >= 800) {
-		assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => label.checkVisibility()),
-			'Wide composers must initially show every picker label.');
-	}
-	optionsToggle.click();
-	for (const animation of sessionOptions.getAnimations()) {
-		animation.finish();
-	}
+	assert(!!optionsToggle && !!sessionOptions && !!optionsTray && !!promptBox && sessionOptions.hidden && sessionOptions.inert
+		&& optionsToggle.getAttribute('aria-expanded') === 'false', 'Session options must be collapsed by default.');
 	await nextFrame();
 	const heading = view.element.querySelector<HTMLElement>('h1.new-session-heading');
 	assert(heading?.textContent === 'What should we build?');
@@ -560,8 +590,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	if (expandSessionOptions) {
 		optionsToggle.click();
 		assert(!sessionOptions.hidden && !sessionOptions.inert && optionsToggle.getAttribute('aria-expanded') === 'true');
-		for (const animation of sessionOptions.getAnimations()) {
-			animation.finish();
+		if (withControlPickers && width >= 800) {
+			assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => label.checkVisibility()),
+				'Wide composers must show every picker label when expanded.');
 		}
 		await nextFrame();
 		assert(optionsTray.getBoundingClientRect().width > collapsedTrayBounds.width, 'The tray must grow with its revealed controls.');
@@ -780,15 +811,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, expandSessionOptions: true, experimentalComposerLayout: true }),
 	}),
 	NewSessionOptionsCollapsed: defineComponentFixture({
-		virtualTime: { enabled: false },
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, expandSessionOptions: false, experimentalComposerLayout: true }),
-	}),
-	NewSessionOptionsAnimated: defineComponentFixture({
-		virtualTime: { enabled: false },
-		render: context => {
-			context.container.classList.remove('disable-animations');
-			return renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true });
-		},
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, expandSessionOptions: false, nonDefaultHarness: true, experimentalComposerLayout: true }),
 	}),
 	NewSessionOptionsExpandedNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },

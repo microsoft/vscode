@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -17,8 +18,9 @@ import { IActionListDelegate, IActionListItem } from '../../../../../platform/ac
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -171,6 +173,7 @@ function createPicker(
 		lookupLanguageModel: () => undefined,
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(IUriIdentityService, { extUri });
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
 }
 
@@ -1017,6 +1020,57 @@ suite('SessionTypePicker', () => {
 				{ providerId: 'copilot', sessionTypeId: 'copilot-cli' },
 				{ providerId: 'local-1', sessionTypeId: 'local' },
 			],
+		});
+	});
+
+	test('folder-driven mode remembers different harnesses per repository', () => {
+		const folderA = URI.file('/a');
+		const folderB = URI.file('/b');
+		const types = [
+			sessionType('local', 'copilot-cli', 'Copilot'),
+			sessionType('cloud', 'cloud-agent', 'Cloud'),
+		];
+		management.setSessionTypesForFolder(folderA, types);
+		management.setSessionTypesForFolder(folderB, types);
+		const folderSource = observableValue<URI | undefined>('folder', folderA);
+		const picker = createPicker(disposables, session, management, storage);
+		picker.setFolderSource(folderSource);
+
+		picker.pick({ providerId: 'cloud', sessionTypeId: 'cloud-agent' });
+		folderSource.set(folderB, undefined);
+		const folderBDefault = picker.selectedPick;
+		picker.pick({ providerId: 'cloud', sessionTypeId: 'cloud-agent' });
+		picker.pick({ providerId: 'local', sessionTypeId: 'copilot-cli' });
+		folderSource.set(folderA, undefined);
+		const restoredFolderA = picker.selectedPick;
+		folderSource.set(folderB, undefined);
+		const restoredFolderB = picker.selectedPick;
+
+		assert.deepStrictEqual({ folderBDefault, restoredFolderA, restoredFolderB }, {
+			folderBDefault: { providerId: 'local', sessionTypeId: 'copilot-cli' },
+			restoredFolderA: { providerId: 'cloud', sessionTypeId: 'cloud-agent' },
+			restoredFolderB: { providerId: 'local', sessionTypeId: 'copilot-cli' },
+		});
+	});
+
+	test('repository default overrides a legacy global harness preference', () => {
+		const types = [
+			sessionType('local', 'copilot-cli', 'Copilot'),
+			sessionType('cloud', 'cloud-agent', 'Cloud'),
+		];
+		management.setSessionTypesForFolder(folder, types);
+		storage.store('sessions.userSelectedSessionType', JSON.stringify({ providerId: 'cloud', sessionTypeId: 'cloud-agent' }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const picker = createPicker(disposables, session, management, storage);
+		picker.setFolderSource(constObservable(folder));
+		const restoredLegacyPreference = picker.selectedPick;
+
+		picker.pick({ providerId: 'local', sessionTypeId: 'copilot-cli' });
+		const freshPicker = createPicker(disposables, observableValue<ISession | undefined>('session2', undefined), management, storage);
+		freshPicker.setFolderSource(constObservable(folder));
+
+		assert.deepStrictEqual({ restoredLegacyPreference, restoredRepositoryDefault: freshPicker.selectedPick }, {
+			restoredLegacyPreference: { providerId: 'cloud', sessionTypeId: 'cloud-agent' },
+			restoredRepositoryDefault: { providerId: 'local', sessionTypeId: 'copilot-cli' },
 		});
 	});
 

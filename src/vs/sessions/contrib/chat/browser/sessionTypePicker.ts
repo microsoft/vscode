@@ -26,6 +26,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { canInitializeSessionTypeOnSelection, getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
@@ -36,6 +37,8 @@ import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuth
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
+const STORAGE_KEY_SESSION_TYPES_BY_REPOSITORY = 'sessions.userSelectedSessionTypesByRepository';
+const MAX_REPOSITORY_SESSION_TYPE_PREFERENCES = 50;
 
 /**
  * A picked session type, paired with the provider that serves it. Two
@@ -66,6 +69,18 @@ function pickEquals(a: IPreferredSessionType | undefined, b: IPreferredSessionTy
 interface IStoredSessionTypePick {
 	readonly providerId?: string;
 	readonly sessionTypeId: string;
+}
+
+interface IStoredRepositorySessionTypePick {
+	readonly providerId?: string;
+	readonly sessionTypeId?: string;
+	readonly useDefault?: true;
+	readonly lastUsed: number;
+}
+
+interface IStoredRepositorySessionTypePicks {
+	readonly version: 1;
+	readonly entries: Record<string, IStoredRepositorySessionTypePick>;
 }
 
 /** Default telemetry source used when the picker serves the New Session composer. */
@@ -186,6 +201,7 @@ export class SessionTypePicker extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -360,12 +376,15 @@ export class SessionTypePicker extends Disposable {
 		this._hasResolvedFolderPick = false;
 		this._picked = options?.initialPick ?? this._readStoredPick();
 		this._pendingInitialPick = options?.preserveUnavailableInitialPick ? options.initialPick : undefined;
-		const initialFolder = source.get();
+		let previousFolder = source.get();
 		this._folderSourceWatch.value = autorun(reader => {
 			const folder = source.read(reader);
-			if (!isEqual(folder, initialFolder)) {
+			if (!isEqual(folder, previousFolder)) {
 				this._pendingInitialPick = undefined;
+				this._hasResolvedFolderPick = false;
+				this._picked = this._readStoredPick();
 			}
+			previousFolder = folder;
 			this._recompute();
 		});
 	}
@@ -394,6 +413,17 @@ export class SessionTypePicker extends Disposable {
 
 	get selectedPick(): IPreferredSessionType | undefined {
 		return this._picked;
+	}
+
+	getNonDefaultOptionSummary(): { readonly id: string; readonly label: string } | undefined {
+		const selected = this._picked && this._folderSessionTypes.find(type =>
+			type.providerId === this._picked?.providerId && type.sessionType.id === this._picked.sessionTypeId);
+		const preferred = this._folderSessionTypes[0];
+		if (!selected || !preferred
+			|| (selected.providerId === preferred.providerId && selected.sessionType.id === preferred.sessionType.id)) {
+			return undefined;
+		}
+		return { id: 'harness', label: selected.sessionType.label };
 	}
 
 	/**
@@ -743,6 +773,19 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	private _readStoredPick(): IPreferredSessionType | undefined {
+		const folderUri = this._folderSource?.get();
+		if (folderUri) {
+			const repositoryPicks = this._readRepositoryPicks();
+			const repositoryKey = this.uriIdentityService.extUri.getComparisonKey(folderUri);
+			const stored = repositoryPicks.entries[repositoryKey];
+			if (stored?.useDefault) {
+				return undefined;
+			}
+			if (stored?.sessionTypeId) {
+				return { providerId: stored.providerId, sessionTypeId: stored.sessionTypeId };
+			}
+		}
+
 		const raw = this.storageService.get(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
 		if (!raw) {
 			return undefined;
@@ -766,6 +809,20 @@ export class SessionTypePicker extends Disposable {
 
 	private _writeStoredPick(pick: IPickedSessionType): void {
 		const stored: IStoredSessionTypePick = { providerId: pick.providerId, sessionTypeId: pick.sessionTypeId };
+		const folderUri = this._folderSource?.get();
+		if (folderUri) {
+			const repositoryKey = this.uriIdentityService.extUri.getComparisonKey(folderUri);
+			const entries = {
+				...this._readRepositoryPicks().entries,
+				[repositoryKey]: { ...stored, lastUsed: Date.now() },
+			};
+			const sortedEntries = Object.entries(entries)
+				.sort(([, a], [, b]) => b.lastUsed - a.lastUsed)
+				.slice(0, MAX_REPOSITORY_SESSION_TYPE_PREFERENCES);
+			const value: IStoredRepositorySessionTypePicks = { version: 1, entries: Object.fromEntries(sortedEntries) };
+			this.storageService.store(STORAGE_KEY_SESSION_TYPES_BY_REPOSITORY, JSON.stringify(value), StorageScope.PROFILE, StorageTarget.MACHINE);
+			return;
+		}
 		this.storageService.store(STORAGE_KEY_LAST_SESSION_TYPE, JSON.stringify(stored), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
@@ -775,7 +832,37 @@ export class SessionTypePicker extends Disposable {
 	 * reading {@link getUserPickedSessionType} fall back to the preferred type.
 	 */
 	private _clearStoredPick(): void {
+		const folderUri = this._folderSource?.get();
+		if (folderUri) {
+			const repositoryKey = this.uriIdentityService.extUri.getComparisonKey(folderUri);
+			const entries = {
+				...this._readRepositoryPicks().entries,
+				[repositoryKey]: { useDefault: true as const, lastUsed: Date.now() },
+			};
+			const sortedEntries = Object.entries(entries)
+				.sort(([, a], [, b]) => b.lastUsed - a.lastUsed)
+				.slice(0, MAX_REPOSITORY_SESSION_TYPE_PREFERENCES);
+			this.storageService.store(STORAGE_KEY_SESSION_TYPES_BY_REPOSITORY, JSON.stringify({ version: 1, entries: Object.fromEntries(sortedEntries) }), StorageScope.PROFILE, StorageTarget.MACHINE);
+			return;
+		}
 		this.storageService.remove(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
+	}
+
+	private _readRepositoryPicks(): IStoredRepositorySessionTypePicks {
+		const stored = this.storageService.getObject<Partial<IStoredRepositorySessionTypePicks>>(STORAGE_KEY_SESSION_TYPES_BY_REPOSITORY, StorageScope.PROFILE, {});
+		if (stored.version !== 1 || !stored.entries || typeof stored.entries !== 'object') {
+			return { version: 1, entries: {} };
+		}
+
+		const entries: Record<string, IStoredRepositorySessionTypePick> = Object.create(null);
+		for (const [repositoryKey, pick] of Object.entries(stored.entries)) {
+			if (pick && typeof pick.lastUsed === 'number'
+				&& (pick.useDefault === true || typeof pick.sessionTypeId === 'string')
+				&& (pick.providerId === undefined || typeof pick.providerId === 'string')) {
+				entries[repositoryKey] = pick;
+			}
+		}
+		return { version: 1, entries };
 	}
 
 	private _updateTriggerLabel(): void {
