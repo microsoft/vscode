@@ -38,6 +38,7 @@ export interface MigratableConfiguration {
 	readonly name?: string;
 	readonly description?: string;
 	readonly source?: PromptFileSource;
+	readonly workspaceGroupId?: string;
 }
 
 export function getCustomizationMigrationTargetType(customization: MigratableConfiguration): PromptsType {
