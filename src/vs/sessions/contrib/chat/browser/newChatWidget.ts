@@ -43,7 +43,7 @@ import { NewChatInputWidget } from './newChatInput.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
+import { IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
@@ -1142,15 +1142,15 @@ export class NewChatWidget extends Disposable {
 		return this._isQuickChatComposer.get() ? undefined : this._workspacePicker.selectedFolderUri;
 	}
 
-	selectNoWorkspace(options?: ICreateNewSessionOptions): void {
+	selectNoWorkspace(options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions): void {
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
-		this._workspacePicker.selectNoWorkspace();
-		this._openQuickChat(options);
+		this._workspacePicker.selectNoWorkspace(selectionOptions?.userSelection !== false);
+		this._openQuickChat(options, selectionOptions?.preserveNavigation);
 	}
 
-	private _openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined {
-		return this.sessionsService.openQuickChat(options);
+	private _openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined {
+		return this.sessionsService.openQuickChat(options, preserveNavigation);
 	}
 
 	private _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
@@ -1581,7 +1581,11 @@ export class NewChatWidget extends Disposable {
 		const store = new DisposableStore();
 		const cancellation = new CancellationTokenSource(token);
 		store.add(toDisposable(() => cancellation.dispose(true)));
-		store.add(this._newChatInput.onDidChangeInput(() => cancellation.cancel()));
+		store.add(this._newChatInput.onDidChangeInput(() => {
+			if (this._newChatInput.hasInput) {
+				cancellation.cancel();
+			}
+		}));
 		try {
 			if (folderUri) {
 				const result = await this._createNewSession(folderUri, this._newChatInput.sessionTypePicker.getUserPickedSessionType(), {
