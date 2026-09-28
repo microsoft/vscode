@@ -17,7 +17,7 @@ import { IContextKey, IContextKeyService } from '../../../platform/contextkey/co
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../services/sessions/common/session.js';
-import { AbstractChatView, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
+import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
@@ -372,9 +372,9 @@ export class SessionView extends Disposable implements ISerializableView {
 		return this._standaloneView.get()?.applyDraft(draft, folderUri, options, token) ?? Promise.resolve('notReady');
 	}
 
-	selectNoWorkspace(): void {
+	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): void {
 		const standaloneView = this._visibleStandaloneView;
-		standaloneView ? standaloneView.selectNoWorkspace() : this._groupsView.selectNoWorkspace();
+		standaloneView ? standaloneView.selectNoWorkspace(options) : this._groupsView.selectNoWorkspace(options);
 	}
 
 	/** Opens the given chat beside a reference chat, or the active group ("open to the side"). */
