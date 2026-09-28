@@ -31,6 +31,11 @@ const styles: readonly IProgressStyle[] = [
 		name: 'Draw (Monochrome, No Icon)',
 		description: 'Keep the working text and its alignment, without a visible or animated icon.',
 	},
+	{
+		animation: ChatProgressAnimation.Ribbon,
+		name: 'Ribbon',
+		description: 'Use the same mark and product color as Draw with a fitted motion curve through the folds and a clean empty beat between loops.',
+	},
 ];
 
 function createLogo(context: ComponentFixtureContext, animation: ChatProgressAnimation, quality: 'stable' | 'insider', size: number): ChatWorkingLogo {
@@ -68,22 +73,24 @@ function renderStyle(context: ComponentFixtureContext, style: IProgressStyle, pa
 	}
 	dom.append(card, dom.$('p.chat-logo-motion-note', undefined, style.animation === ChatProgressAnimation.DrawMonochromeNoIcon
 		? 'The hidden icon has no running animation. The text gutter stays aligned with thinking and tool rows.'
-		: 'Three 320ms beats build the mark. Hold for 480ms, then erase in the same direction and order.'));
+		: style.animation === ChatProgressAnimation.Ribbon
+			? 'The footprint and product color match Draw. The ribbon eases into the completed mark, holds, accelerates away, then stays hidden briefly before returning.'
+			: 'Three 320ms beats build the mark. Hold for 480ms, then erase in the same direction and order.'));
 }
 
 function renderGallery(context: ComponentFixtureContext, reducedMotion = false): void {
 	context.container.classList.add('chat-logo-motion-gallery');
 	context.container.classList.toggle('monaco-reduce-motion', reducedMotion);
 	const header = dom.append(context.container, dom.$('header.chat-logo-motion-gallery-header'));
-	dom.append(header, dom.$('h2', undefined, 'Draw progress styles'));
+	dom.append(header, dom.$('h2', undefined, 'Persistent progress logo styles'));
 	dom.append(header, dom.$('p', undefined, reducedMotion
 		? 'Reduced motion keeps visible logos assembled and the no-icon variant hidden.'
-		: 'The same drawing rhythm, in color, monochrome, or with only progress text.'));
+		: 'Compare the shipped Draw motion with the smoother Ribbon option.'));
 	const grid = dom.append(context.container, dom.$('.chat-logo-motion-grid'));
 	for (const style of styles) {
 		renderStyle(context, style, grid);
 	}
-	dom.append(context.container, dom.$('p.chat-logo-motion-footer', undefined, 'Fixed SVG geometry inside three HTML wrappers. Use Enable Animations in Props to play or pause.'));
+	dom.append(context.container, dom.$('p.chat-logo-motion-footer', undefined, 'All variants use fixed production SVG geometry. Use Enable Animations in Props to play or pause.'));
 }
 
 function renderSingleStyle(context: ComponentFixtureContext, animation: ChatProgressAnimation): void {
@@ -108,10 +115,12 @@ export default defineThemedFixtureGroup({ path: 'chat/logoMotion/' }, {
 	Draw: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderSingleStyle(context, ChatProgressAnimation.Draw) }),
 	DrawMonochrome: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderSingleStyle(context, ChatProgressAnimation.DrawMonochrome) }),
 	DrawMonochromeNoIcon: defineComponentFixture({ render: context => renderSingleStyle(context, ChatProgressAnimation.DrawMonochromeNoIcon) }),
+	Ribbon: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderSingleStyle(context, ChatProgressAnimation.Ribbon) }),
 	Performance: defineThemedFixtureGroup({
 		Idle: defineComponentFixture({ render: context => renderPerformanceProbe(context, ChatProgressAnimation.Draw, false) }),
 		Draw: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderPerformanceProbe(context, ChatProgressAnimation.Draw) }),
 		DrawMonochrome: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderPerformanceProbe(context, ChatProgressAnimation.DrawMonochrome) }),
 		DrawMonochromeNoIcon: defineComponentFixture({ render: context => renderPerformanceProbe(context, ChatProgressAnimation.DrawMonochromeNoIcon) }),
+		Ribbon: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderPerformanceProbe(context, ChatProgressAnimation.Ribbon) }),
 	}),
 });

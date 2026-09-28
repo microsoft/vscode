@@ -73,9 +73,9 @@ suite('Chat configuration', () => {
 			settings: ['chat.experimental.persistentProgress', 'chat.experimental.persistentProgressVerbosity'],
 			type: 'string',
 			default: product.quality === 'insider' ? 'draw' : 'off',
-			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon'],
-			labels: ['Off', 'Draw', 'Draw (Monochrome)', 'Draw (Monochrome, No Icon)'],
-			descriptions: 4,
+			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon', 'ribbon'],
+			labels: ['Off', 'Draw', 'Draw (Monochrome)', 'Draw (Monochrome, No Icon)', 'Ribbon'],
+			descriptions: 5,
 		});
 	});
 
@@ -87,8 +87,8 @@ suite('Chat configuration', () => {
 
 	test('preserves current progress styles and absent settings during migration', async () => {
 		assert.deepStrictEqual(await Promise.all(
-			['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon', undefined, 'unsupported'].map(value => legacyProgressAnimationMigration?.migrateFn(value, () => undefined)),
-		), [[], [], [], [], [], []]);
+			['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon', 'ribbon', undefined, 'unsupported'].map(value => legacyProgressAnimationMigration?.migrateFn(value, () => undefined)),
+		), [[], [], [], [], [], [], []]);
 	});
 
 	test('defaults persistent progress verbosity to Compact tool previews', () => {

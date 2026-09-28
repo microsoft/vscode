@@ -273,6 +273,7 @@ export enum ChatProgressAnimation {
 	Draw = 'draw',
 	DrawMonochrome = 'drawMonochrome',
 	DrawMonochromeNoIcon = 'drawMonochromeNoIcon',
+	Ribbon = 'ribbon',
 }
 
 export enum ChatProgressVerbosity {

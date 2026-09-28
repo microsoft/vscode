@@ -1838,7 +1838,7 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	test('persistent progress switches Draw styles in place and keeps text visible without an icon', async () => {
+	test('persistent progress switches animation styles in place and keeps text visible without an icon', async () => {
 		const { configurationService, request, container, renderer, template, node } = createPersistentProgressRenderer();
 		configurePersistentProgressTypography(container, 13);
 		container.classList.remove('monaco-reduce-motion');
@@ -1850,7 +1850,13 @@ suite('ChatListRenderer', () => {
 		assert.ok(footer && logo && text);
 		const textLeft = text.getBoundingClientRect().left;
 		const snapshots = [];
-		for (const animation of [ChatProgressAnimation.Draw, ChatProgressAnimation.DrawMonochrome, ChatProgressAnimation.DrawMonochromeNoIcon, ChatProgressAnimation.Draw]) {
+		for (const animation of [
+			ChatProgressAnimation.Draw,
+			ChatProgressAnimation.DrawMonochrome,
+			ChatProgressAnimation.DrawMonochromeNoIcon,
+			ChatProgressAnimation.Ribbon,
+			ChatProgressAnimation.Draw,
+		]) {
 			await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
 			configurationService.onDidChangeConfigurationEmitter.fire({
 				source: ConfigurationTarget.USER,
@@ -1877,12 +1883,18 @@ suite('ChatListRenderer', () => {
 			snapshots,
 			completedFooters: template.value.querySelectorAll('.chat-working-progress').length,
 		}, {
-			snapshots: ['draw', 'drawMonochrome', 'drawMonochromeNoIcon', 'draw'].map(animation => ({
+			snapshots: [
+				{ animation: 'draw', iconAnimations: 3 },
+				{ animation: 'drawMonochrome', iconAnimations: 3 },
+				{ animation: 'drawMonochromeNoIcon', iconAnimations: 0 },
+				{ animation: 'ribbon', iconAnimations: 0 },
+				{ animation: 'draw', iconAnimations: 3 },
+			].map(({ animation, iconAnimations }) => ({
 				animation,
 				sameFooter: true,
 				sameLogo: true,
 				iconVisibility: animation === 'drawMonochromeNoIcon' ? 'hidden' : 'visible',
-				iconAnimations: animation === 'drawMonochromeNoIcon' ? 0 : 3,
+				iconAnimations,
 				text: 'Working',
 				textVisibility: 'visible',
 				textAligned: true,

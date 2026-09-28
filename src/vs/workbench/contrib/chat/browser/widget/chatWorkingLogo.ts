@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from '../../../../../base/browser/dom.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { $, append, getWindow } from '../../../../../base/browser/dom.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { ChatConfiguration, ChatProgressAnimation } from '../../common/constants.js';
 import { chatWorkingProgressInsidersIconForeground, chatWorkingProgressStableIconForeground } from '../../common/widget/chatColors.js';
+import { CHAT_WORKING_LOGO_RIBBON_PAINT_ORDER, ChatWorkingLogoRibbonBand, getChatWorkingLogoRibbonFrame } from './chatWorkingLogoRibbon.js';
 import './media/chatWorkingLogo.css';
 
 const faces = [
@@ -27,16 +29,43 @@ const faces = [
 	},
 ] as const;
 
-/** Animates HTML wrappers around fixed SVG faces instead of changing SVG geometry per frame. */
+let ribbonMaskIdPool = 0;
+
+/** Animates the fixed product mark or the same mark assembled as one continuous ribbon. */
 export class ChatWorkingLogo extends Disposable {
 	readonly domNode: HTMLElement;
 	readonly durationMs = 2400;
+	readonly ribbonDurationMs = 7600;
 
-	constructor(animation: ChatProgressAnimation, quality: 'stable' | 'insider' = 'stable') {
+	private animationFrame: MutableDisposable<IDisposable> | undefined;
+	private ribbonPaths: Map<ChatWorkingLogoRibbonBand, SVGPathElement> | undefined;
+	private ribbonPathData: Map<ChatWorkingLogoRibbonBand, string> | undefined;
+	private readonly now: () => number;
+	private readonly scheduleFrame: (targetWindow: Window, runner: () => void) => IDisposable;
+	private readonly isMotionReducedOverride: (() => boolean) | undefined;
+	private animation = ChatProgressAnimation.Off;
+	private active = false;
+	private animationStartedAt = 0;
+
+	constructor(
+		animation: ChatProgressAnimation,
+		quality: 'stable' | 'insider' = 'stable',
+		animationOptions: {
+			readonly now?: () => number;
+			readonly scheduleFrame?: (targetWindow: Window, runner: () => void) => IDisposable;
+			readonly isMotionReduced?: () => boolean;
+		} = {},
+	) {
 		super();
-		this.domNode = $('span.chat-working-logo.chat-working-logo-draw', { 'aria-hidden': 'true' });
+		this.domNode = $('span.chat-working-logo', { 'aria-hidden': 'true' });
 		this.domNode.style.animationDuration = `${this.durationMs}ms`;
 		this.domNode.style.color = asCssVariable(quality === 'insider' ? chatWorkingProgressInsidersIconForeground : chatWorkingProgressStableIconForeground);
+		this.now = animationOptions.now ?? (() => getWindow(this.domNode).performance.now());
+		this.scheduleFrame = animationOptions.scheduleFrame ?? ((targetWindow, runner) => {
+			const handle = targetWindow.requestAnimationFrame(runner);
+			return toDisposable(() => targetWindow.cancelAnimationFrame(handle));
+		});
+		this.isMotionReducedOverride = animationOptions.isMotionReduced;
 
 		for (const face of faces) {
 			const wrapper = append(this.domNode, $(`span.chat-working-logo-face.chat-working-logo-${face.name}`));
@@ -49,19 +78,149 @@ export class ChatWorkingLogo extends Disposable {
 
 	setAnimation(animation: ChatProgressAnimation): void {
 		const noIcon = animation === ChatProgressAnimation.DrawMonochromeNoIcon;
+		const draw = animation === ChatProgressAnimation.Draw || animation === ChatProgressAnimation.DrawMonochrome;
+		if (animation === ChatProgressAnimation.Ribbon) {
+			this.ensureRibbonArtwork();
+		}
+		this.animation = animation;
 		this.domNode.classList.toggle('chat-working-logo-static', animation === ChatProgressAnimation.Off || noIcon);
+		this.domNode.classList.toggle('chat-working-logo-draw', draw);
+		this.domNode.classList.toggle('chat-working-logo-ribbon', animation === ChatProgressAnimation.Ribbon);
 		this.domNode.classList.toggle('chat-working-logo-monochrome', animation === ChatProgressAnimation.DrawMonochrome || noIcon);
 		this.domNode.classList.toggle('chat-working-logo-no-icon', noIcon);
 		this.domNode.dataset.animation = animation;
+		this.restartRibbonAnimation();
 	}
 
 	setActive(active: boolean): void {
+		if (this.active === active) {
+			return;
+		}
+		this.active = active;
 		this.domNode.classList.toggle('chat-working-logo-active', active);
+		this.restartRibbonAnimation();
+	}
+
+	protected refreshMotion(): void {
+		this.restartRibbonAnimation();
 	}
 
 	override dispose(): void {
 		this.domNode.remove();
 		super.dispose();
+	}
+
+	private ensureRibbonArtwork(): void {
+		if (this.ribbonPaths) {
+			return;
+		}
+		this.animationFrame = this._register(new MutableDisposable());
+		this.ribbonPaths = new Map();
+		this.ribbonPathData = new Map();
+		const maskId = ++ribbonMaskIdPool;
+		const defs = $.SVG<SVGDefsElement>('defs');
+		const artwork = $.SVG<SVGGElement>('g', { class: 'chat-working-logo-ribbon-artwork' });
+		for (let index = 0; index < CHAT_WORKING_LOGO_RIBBON_PAINT_ORDER.length; index++) {
+			const band = CHAT_WORKING_LOGO_RIBBON_PAINT_ORDER[index];
+			const maskPath = $.SVG<SVGPathElement>('path', {
+				class: `chat-working-logo-ribbon-band chat-working-logo-ribbon-band-${band}`,
+				fill: '#fff',
+				stroke: '#fff',
+				'stroke-width': '4',
+				'stroke-linejoin': 'round',
+				transform: 'translate(6 6) scale(0.84)',
+			});
+			const mask = $.SVG<SVGMaskElement>('mask', {
+				id: `chat-working-logo-ribbon-mask-${maskId}-${band}`,
+				x: '0',
+				y: '0',
+				width: '96',
+				height: '96',
+				maskUnits: 'userSpaceOnUse',
+				'mask-type': 'alpha',
+			}, maskPath);
+			const face = faces[index];
+			const renderedFace = $.SVG<SVGPathElement>('path', {
+				class: `chat-working-logo-ribbon-face chat-working-logo-ribbon-face-${band}`,
+				d: face.path,
+				fill: 'currentColor',
+				mask: `url(#chat-working-logo-ribbon-mask-${maskId}-${band})`,
+			});
+			defs.appendChild(mask);
+			artwork.appendChild(renderedFace);
+			this.ribbonPaths.set(band, maskPath);
+		}
+		const wrapper = append(this.domNode, $('span.chat-working-logo-ribbon-container'));
+		wrapper.appendChild($.SVG<SVGSVGElement>('svg', {
+			viewBox: '6 6 84 84',
+			width: '100%',
+			height: '100%',
+			focusable: 'false',
+			'shape-rendering': 'geometricPrecision',
+		}, defs, artwork));
+		this.renderRibbonFrame(0.5);
+	}
+
+	private restartRibbonAnimation(): void {
+		this.animationFrame?.clear();
+		if (this.animation !== ChatProgressAnimation.Ribbon) {
+			return;
+		}
+		if (!this.active || this.isMotionReduced()) {
+			this.renderRibbonFrame(0.5);
+			return;
+		}
+		this.animationStartedAt = this.now();
+		this.renderRibbonFrame(0);
+		this.queueAnimationFrame();
+	}
+
+	private queueAnimationFrame(): void {
+		const animationFrame = this.animationFrame;
+		if (!animationFrame || animationFrame.value || !this.active || this.animation !== ChatProgressAnimation.Ribbon) {
+			return;
+		}
+		animationFrame.value = this.scheduleFrame(getWindow(this.domNode), () => {
+			animationFrame.clear();
+			this.renderNextRibbonFrame();
+		});
+	}
+
+	private renderNextRibbonFrame(): void {
+		if (!this.active || this.animation !== ChatProgressAnimation.Ribbon) {
+			return;
+		}
+		if (this.isMotionReduced()) {
+			this.renderRibbonFrame(0.5);
+			return;
+		}
+		this.renderRibbonFrame(((this.now() - this.animationStartedAt) % this.ribbonDurationMs) / this.ribbonDurationMs);
+		this.queueAnimationFrame();
+	}
+
+	private renderRibbonFrame(progress: number): void {
+		if (!this.ribbonPaths) {
+			return;
+		}
+		const frame = getChatWorkingLogoRibbonFrame(progress);
+		for (const band of CHAT_WORKING_LOGO_RIBBON_PAINT_ORDER) {
+			const pathData = frame.paths[band];
+			if (this.ribbonPathData?.get(band) === pathData) {
+				continue;
+			}
+			this.ribbonPaths.get(band)?.setAttribute('d', pathData);
+			this.ribbonPathData?.set(band, pathData);
+		}
+	}
+
+	private isMotionReduced(): boolean {
+		if (this.domNode.closest('.monaco-enable-motion')) {
+			return false;
+		}
+		if (this.domNode.closest('.monaco-reduce-motion, .disable-animations')) {
+			return true;
+		}
+		return this.isMotionReducedOverride?.() ?? getWindow(this.domNode).matchMedia('(prefers-reduced-motion: reduce)').matches;
 	}
 }
 
@@ -70,13 +229,17 @@ export class ChatWorkingProgressLogo extends ChatWorkingLogo {
 		quality: 'stable' | 'insider',
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
-		super(getConfiguredProgressAnimation(configurationService, logService), quality);
+		super(getConfiguredProgressAnimation(configurationService, logService), quality, {
+			isMotionReduced: () => accessibilityService.isMotionReduced(),
+		});
 		this._register(configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.PersistentProgress)) {
 				this.setAnimation(getConfiguredProgressAnimation(configurationService, logService));
 			}
 		}));
+		this._register(accessibilityService.onDidChangeReducedMotion(() => this.refreshMotion()));
 	}
 }
 
@@ -91,6 +254,7 @@ export function getConfiguredProgressAnimation(configurationService: IConfigurat
 		case ChatProgressAnimation.Draw:
 		case ChatProgressAnimation.DrawMonochrome:
 		case ChatProgressAnimation.DrawMonochromeNoIcon:
+		case ChatProgressAnimation.Ribbon:
 			return animation;
 		case 'weave':
 		case 'orbit':

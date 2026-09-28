@@ -2659,6 +2659,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			Draw: defineProgressAnimationScenarios(ChatProgressAnimation.Draw),
 			DrawMonochrome: defineProgressAnimationScenarios(ChatProgressAnimation.DrawMonochrome),
 			DrawMonochromeNoIcon: defineProgressAnimationScenarios(ChatProgressAnimation.DrawMonochromeNoIcon),
+			Ribbon: defineProgressAnimationScenarios(ChatProgressAnimation.Ribbon),
 		}),
 		ByThinkingStyle: defineThemedFixtureGroup({
 			Collapsed: defineThinkingStyleScenarios(ThinkingDisplayMode.Collapsed),

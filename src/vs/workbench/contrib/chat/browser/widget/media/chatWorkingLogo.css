@@ -33,18 +33,34 @@
 	visibility: hidden;
 }
 
-.chat-working-logo > .chat-working-logo-face {
+.chat-working-logo > .chat-working-logo-face,
+.chat-working-logo > .chat-working-logo-ribbon-container {
 	position: absolute;
 	inset: 0;
 	transform: none;
 	opacity: 1;
 }
 
-.chat-working-logo-face > svg {
+.chat-working-logo-face > svg,
+.chat-working-logo-ribbon-container > svg {
 	display: block;
 	width: 100%;
 	height: 100%;
 	overflow: visible;
+}
+
+.chat-working-logo-ribbon-container {
+	display: none;
+}
+
+.chat-working-logo-ribbon {
+	> .chat-working-logo-face {
+		display: none;
+	}
+
+	> .chat-working-logo-ribbon-container {
+		display: block;
+	}
 }
 
 .chat-working-logo-draw.chat-working-logo-active {
