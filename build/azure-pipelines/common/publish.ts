@@ -601,13 +601,25 @@ async function getPipelineArtifacts(): Promise<Artifact[]> {
 	return result.value.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
 }
 
+interface TimelineRecord {
+	readonly name: string;
+	readonly identifier?: string;
+	readonly type: string;
+	readonly state: string;
+	readonly result: string;
+}
+
 interface Timeline {
-	readonly records: {
-		readonly name: string;
-		readonly type: string;
-		readonly state: string;
-		readonly result: string;
-	}[];
+	readonly records: TimelineRecord[];
+}
+
+/**
+ * Whether the timeline record is the given stage. Stages are matched by their
+ * YAML identifier, since the record name is the stage's display name when one
+ * is set.
+ */
+function isStage(record: TimelineRecord, stage: string): boolean {
+	return record.type === 'Stage' && (record.identifier === stage || record.name === stage);
 }
 
 async function getPipelineTimeline(): Promise<Timeline> {
@@ -938,6 +950,7 @@ async function main() {
 	const stages = new Set<string>(['Quality']);
 
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
+	if (e('VSCODE_BUILD_STAGE_WINDOWS_ARM64') === 'True') { stages.add('WindowsARM64'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') { stages.add('Linux'); }
 	if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') { stages.add('Alpine'); }
 	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
@@ -950,7 +963,7 @@ async function main() {
 
 	while (true) {
 		[timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
-		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
+		const stagesCompleted = new Set<string>([...stages].filter(stage => timeline.records.some(r => isStage(r, stage) && r.state === 'completed')));
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
 
@@ -1039,7 +1052,7 @@ async function main() {
 	let shouldFail = false;
 
 	for (const stage of stages) {
-		const record = timeline.records.find(r => r.name === stage && r.type === 'Stage')!;
+		const record = timeline.records.find(r => isStage(r, stage))!;
 
 		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
 			shouldFail = true;
