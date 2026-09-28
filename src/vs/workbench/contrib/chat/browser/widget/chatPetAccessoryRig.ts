@@ -128,6 +128,8 @@ export function getChatPetAccessoryTrack(state: ChatPetState): ChatPetAccessoryT
 		case 'complete':
 		case 'yapping':
 		case 'idle':
+		// Taught moves draw their own silhouette, so they wear no accessories (see below).
+		case 'custom':
 			return 'idle';
 	}
 }
@@ -163,7 +165,7 @@ export function getChatPetAccessoryRigFrame(state: ChatPetState, frameIndex: num
 	const hideEyeAccessory = span?.hideEyeAccessory || doesChatPetStateHideEyeAccessory(state);
 	return {
 		pose: span?.pose ?? getDefaultChatPetAccessoryRigPose(state),
-		head: state === 'love' || state === 'complete' || state === 'dizzy' ? undefined : {
+		head: state === 'love' || state === 'complete' || state === 'dizzy' || state === 'custom' ? undefined : {
 			x: trackedHead.x,
 			y: trackedHead.y + CHAT_PET_HEAD_WEAR_OFFSET,
 		},
@@ -223,6 +225,7 @@ export function getChatPetReducedMotionRigFrame(state: ChatPetState): number {
 
 function doesChatPetStateHideEyeAccessory(state: ChatPetState): boolean {
 	return state === 'love'
+		|| state === 'custom'
 		|| state === 'complete'
 		|| state === 'cool'
 		|| state === 'speechless'
