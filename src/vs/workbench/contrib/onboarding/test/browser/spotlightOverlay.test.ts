@@ -466,9 +466,17 @@ suite('SpotlightOverlay', () => {
 		const nextFrame = () => new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
 		const closed = holeRect();
 
+		const calloutMouseDown = () => {
+			const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+			getButtons(container)[2].dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		const keepsFocusWhileClosed = calloutMouseDown();
+
 		popup.element = createTarget(container, 150, 150, 170, 140);
 		await nextFrame();
 		const open = holeRect();
+		const keepsFocusWhileOpen = calloutMouseDown();
 		const blockers = Array.from(container.getElementsByClassName('spotlight-blocker')).map(blocker => (blocker as HTMLElement).style.display);
 		popup.element.remove();
 		await nextFrame();
@@ -479,12 +487,16 @@ suite('SpotlightOverlay', () => {
 			reclosed: holeRect(),
 			blockers,
 			targetOverlayVisible: root.classList.contains('target-overlay-visible'),
+			keepsFocusWhileClosed,
+			keepsFocusWhileOpen,
 		}, {
 			closed: ['294px', '294px', '32px', '32px'],
 			open: ['144px', '144px', '182px', '182px'],
 			reclosed: ['294px', '294px', '32px', '32px'],
 			blockers: ['', '', '', ''],
 			targetOverlayVisible: false,
+			keepsFocusWhileClosed: false,
+			keepsFocusWhileOpen: true,
 		});
 	});
 

@@ -31,7 +31,7 @@ import { SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatOnboardingExperience } from '../../common/constants.js';
 import { EditorChatUsage } from '../../common/editorChatUsage.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { AgentHostChatInputPicker } from '../agentSessions/agentHost/agentHostChatInputPicker.js';
+import { AgentHostChatInputPicker, AgentHostPickerSection } from '../agentSessions/agentHost/agentHostChatInputPicker.js';
 import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 
 /**
@@ -106,26 +106,33 @@ export function createChatInputTour(signal: IObservable<boolean>): IOnboardingSc
 	};
 }
 
+/** How the tour opens and highlights the chat input's Agent Host pickers. */
+interface IChatInputTourPickerActions {
+	/** The picker's open menu, which the spotlight highlights together with the picker. */
+	getOpenMenu(picker: AgentHostChatInputPicker): HTMLElement | undefined;
+	/** Shows the picker's menu on `section`. */
+	open(picker: AgentHostChatInputPicker, section: AgentHostPickerSection): Promise<void>;
+}
+
 /**
  * Resolves a tour target through the chat input's pickers. With the combined
  * mode and permissions picker, both the agent mode and permissions steps point
- * at that picker and open it on the matching section. Otherwise the permissions
- * step points at the separate permissions picker. While a picker's menu is open,
- * the spotlight highlights the menu together with the picker.
+ * at that picker and show its menu on the matching section. Otherwise the
+ * permissions step points at the separate permissions picker. While a picker's
+ * menu is open, the spotlight highlights the menu together with the picker.
  */
-function resolveChatInputTourTarget(widget: IChatWidget, targetId: string, getOpenMenu: (picker: AgentHostChatInputPicker) => HTMLElement | undefined, whenMenuClosed: () => Promise<void>): IOnboardingTarget | undefined {
+function resolveChatInputTourTarget(widget: IChatWidget, targetId: string, actions: IChatInputTourPickerActions): IOnboardingTarget | undefined {
 	const input = widget.inputPart;
+	const pickerTarget = (picker: AgentHostChatInputPicker | undefined, section: AgentHostPickerSection): IOnboardingTarget | undefined => {
+		const element = picker?.triggerElement;
+		return picker && element ? { element, open: () => actions.open(picker, section), popup: () => actions.getOpenMenu(picker) } : undefined;
+	};
 	switch (targetId) {
-		case ChatInputTourTarget.AgentMode: {
-			const picker = input.getAgentHostPicker(SessionConfigKey.Mode);
-			const element = picker?.triggerElement;
-			return picker && element ? { element, open: async () => { await whenMenuClosed(); picker.open(); }, popup: () => getOpenMenu(picker) } : undefined;
-		}
+		case ChatInputTourTarget.AgentMode:
+			return pickerTarget(input.getAgentHostPicker(SessionConfigKey.Mode), 'mode');
 		case ChatInputTourTarget.Permissions: {
 			const modePicker = input.getAgentHostPicker(SessionConfigKey.Mode);
-			const picker = modePicker?.combinesPermissions ? modePicker : input.getAgentHostPicker(SessionConfigKey.AutoApprove);
-			const element = picker?.triggerElement;
-			return picker && element ? { element, open: async () => { await whenMenuClosed(); picker.open(picker === modePicker); }, popup: () => getOpenMenu(picker) } : undefined;
+			return pickerTarget(modePicker?.combinesPermissions ? modePicker : input.getAgentHostPicker(SessionConfigKey.AutoApprove), 'permissions');
 		}
 		case ChatInputTourTarget.ModelPicker: {
 			const element = input.modelPickerElement;
@@ -158,6 +165,8 @@ export class ChatInputTourTrigger extends Disposable {
 	static readonly MAX_ATTEMPTS = 40;
 	static readonly MENU_CLOSE_DELAY_MS = 50;
 	static readonly MENU_CLOSE_ATTEMPTS = 20;
+	/** How long the collapsed menu stays visible before the next section expands. */
+	static readonly SECTION_SWITCH_DELAY_MS = 400;
 
 	private readonly _trigger = observableValue<boolean>(this, false);
 	readonly signal: IObservable<boolean> = this._trigger;
@@ -182,10 +191,12 @@ export class ChatInputTourTrigger extends Disposable {
 		this._hasSentRequest = new EditorChatUsage(storageService).getMessageCount() > 0;
 		this._experience = observableConfigValue<string>(ChatConfiguration.OnboardingExperience, ChatOnboardingExperience.None, configurationService);
 
-		const getOpenMenu = (picker: AgentHostChatInputPicker) => picker.isOpen ? contextViewService.getContextViewElement() : undefined;
-		const whenMenuClosed = () => this._whenMenuClosed();
+		const actions: IChatInputTourPickerActions = {
+			getOpenMenu: picker => picker.isOpen ? contextViewService.getContextViewElement() : undefined,
+			open: (picker, section) => this._openSection(picker, section),
+		};
 		for (const targetId of Object.values(ChatInputTourTarget)) {
-			this._register(registerOnboardingTargetProvider(targetId, scope => scope === undefined && this._targetWidget ? resolveChatInputTourTarget(this._targetWidget, targetId, getOpenMenu, whenMenuClosed) : undefined));
+			this._register(registerOnboardingTargetProvider(targetId, scope => scope === undefined && this._targetWidget ? resolveChatInputTourTarget(this._targetWidget, targetId, actions) : undefined));
 		}
 
 		this._register(chatService.onDidAcceptRequest(() => {
@@ -215,9 +226,25 @@ export class ChatInputTourTrigger extends Disposable {
 	}
 
 	/**
+	 * Shows `section` of the picker's menu. When the menu is still open on the other
+	 * section, as it is after Next or Back, collapses that section first and expands
+	 * `section` once the collapse has been visible, so the step change reads as one
+	 * menu moving between sections. Otherwise opens the menu on `section`.
+	 */
+	private async _openSection(picker: AgentHostChatInputPicker, section: AgentHostPickerSection): Promise<void> {
+		if (picker.setSectionExpanded(section === 'mode' ? 'permissions' : 'mode', false)) {
+			await timeout(ChatInputTourTrigger.SECTION_SWITCH_DELAY_MS);
+			if (picker.setSectionExpanded(section, true)) {
+				return;
+			}
+		}
+		await this._whenMenuClosed();
+		picker.open(section === 'permissions');
+	}
+
+	/**
 	 * Closes any open menu and waits for it to finish animating closed, since a picker
-	 * cannot open while another menu is still shown. Moving between steps closes the
-	 * previous step's menu as focus leaves it.
+	 * cannot open while another menu is still shown.
 	 */
 	private async _whenMenuClosed(): Promise<void> {
 		this.actionWidgetService.hide();

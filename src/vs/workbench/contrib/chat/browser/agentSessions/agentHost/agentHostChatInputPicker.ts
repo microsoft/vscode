@@ -64,7 +64,7 @@ import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filter
 import { retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
-import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, MODE_SECTION_ID, PERMISSIONS_SECTION_ID, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
@@ -401,6 +401,9 @@ export function resolveConfigChipValue(isUntitled: boolean, serverValue: unknown
  * (`SessionConfigKey.Mode`, `.AutoApprove`) and for generic per-property chips
  * advertised by an agent's config schema but not known to VS Code.
  */
+/** A section of the combined mode and permissions picker's menu. */
+export type AgentHostPickerSection = 'mode' | 'permissions';
+
 export class AgentHostChatInputPicker extends Disposable {
 
 	private _container: HTMLElement | undefined;
@@ -521,6 +524,23 @@ export class AgentHostChatInputPicker extends Disposable {
 	/** Whether this picker's menu is currently shown. */
 	get isOpen(): boolean {
 		return this._pickerVisible;
+	}
+
+	/**
+	 * Collapses or expands a section of this picker's open menu, as toggling its header would.
+	 * Returns `false` when the menu is not open or does not combine mode and permissions.
+	 */
+	setSectionExpanded(section: AgentHostPickerSection, expanded: boolean): boolean {
+		if (!this._pickerVisible || !this._getModePickerPermissions()) {
+			return false;
+		}
+		this._actionWidgetService.focusItemById(section === 'mode' ? MODE_SECTION_ID : PERMISSIONS_SECTION_ID);
+		if (expanded) {
+			this._actionWidgetService.expandSection();
+		} else {
+			this._actionWidgetService.collapseSection();
+		}
+		return true;
 	}
 
 	/** Whether this mode picker also offers the permission levels, in a separate section. */

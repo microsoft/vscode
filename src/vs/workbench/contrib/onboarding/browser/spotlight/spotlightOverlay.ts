@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -59,6 +59,7 @@ export interface ISpotlightShowOptions {
 	/**
 	 * Returns an element the target opened, such as its menu. The hole grows to include it and the
 	 * overlay stays above it, so the popup shows through the hole while the callout remains usable.
+	 * Clicking the callout keeps focus in the popup, so the popup stays open across steps.
 	 */
 	readonly popup?: () => HTMLElement | undefined;
 	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
@@ -229,6 +230,15 @@ export class SpotlightOverlay extends Disposable {
 			this._scheduledLayout?.dispose();
 			this._scheduledLayout = undefined;
 		}));
+
+		const popup = options.popup;
+		if (popup) {
+			this._stepListeners.add(addDisposableGenericMouseDownListener(this._callout, event => {
+				if (popup()) {
+					event.preventDefault();
+				}
+			}));
+		}
 
 		const advanceOnTargetClick = !!options.advanceOnTargetClick;
 		const advanceOnly = options.advanceOnTargetClick === 'advanceOnly';
