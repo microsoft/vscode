@@ -5,11 +5,14 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { coalesce, distinct } from '../../../../base/common/arrays.js';
+import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -102,7 +105,7 @@ function createCachedHover<T extends IGitHubPullRequestRef | IGitHubIssueRef>(ca
 }
 
 interface IRecordedReferenceActions {
-	remove(id: string, label: string): Promise<void>;
+	remove(ids: readonly string[], label: string): Promise<void>;
 }
 
 /** Builds Agents Window pull request pill entries, enriching them when live details are available. */
@@ -160,7 +163,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				id: `sessionChatPills.removePullRequest.${recordedReferenceId}`,
 				label: localize('sessionChatPills.removePullRequest', "Remove Pull Request Artifact from Session"),
 				class: ThemeIcon.asClassName(Codicon.close),
-				run: () => referenceActions.remove(recordedReferenceId, resourceLabel),
+				run: () => referenceActions.remove([recordedReferenceId], resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
 			toolbarActions: [withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.copyPullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
@@ -193,17 +196,22 @@ interface IResolvedSessionIssue {
 	readonly issue: IGitHubIssue | undefined;
 }
 
-/** Builds Agents Window issue pill entries, enriching them when live details are available. */
+/** Builds one pill entry per issue, grouping comment links and enriching entries with live details. */
 export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, referenceActions?: IRecordedReferenceActions, dropdownHoverCache?: WeakMap<IGitHubIssueRef, ICachedHover>): readonly IChatPillSection[] {
-	const entries = issues.map(({ ref, issue }) => {
+	const groups = groupBy(issues, ({ ref }) => `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`);
+	const entries = coalesce(Object.values(groups)).map(group => {
+		const { ref } = group[0];
+		const issue = group.find(candidate => candidate.issue)?.issue;
+		const uri = ref.uri.with({ scheme: Schemas.https, authority: 'github.com', path: `/${ref.owner}/${ref.repo}/issues/${ref.number}`, query: '', fragment: '' });
 		const title = issue?.title ?? ref.title;
-		const recordedReferenceId = ref.recordedReferenceId;
+		const recordedReferenceIds = distinct(group.flatMap(({ ref }) => ref.recordedReferenceId ? [ref.recordedReferenceId] : []));
+		const recordedReferenceId = recordedReferenceIds[0];
 		let hoverTabbableElements: readonly HTMLElement[] = [];
 		const createHover = issue ? (density: 'default' | 'compact') => createIssueHover({
 			owner: ref.owner,
 			repo: ref.repo,
 			number: ref.number,
-			...getGitHubHoverLinkData(ref.owner, ref.repo, ref.uri, openerService),
+			...getGitHubHoverLinkData(ref.owner, ref.repo, uri, openerService),
 			issue,
 			density,
 		}) : undefined;
@@ -217,7 +225,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			: localize('sessionChatPills.issue', "Issue #{0}", ref.number);
 		const label = title ?? resourceLabel;
 		return {
-			id: recordedReferenceId ?? ref.uri.toString(),
+			id: recordedReferenceId ?? uri.toString(),
 			label,
 			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
 			pillLabel: `#${ref.number}`,
@@ -226,19 +234,19 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 				id: `sessionChatPills.removeIssue.${recordedReferenceId}`,
 				label: localize('sessionChatPills.removeIssue', "Remove Issue Artifact from Session"),
 				class: ThemeIcon.asClassName(Codicon.close),
-				run: () => referenceActions.remove(recordedReferenceId, resourceLabel),
+				run: () => referenceActions.remove(recordedReferenceIds, resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
 			toolbarActions: [withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.copyIssue.${ref.owner}.${ref.repo}.${ref.number}`,
 				label: localize('sessionChatPills.copyIssue', "Copy issue URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
-				run: () => clipboardService.writeText(ref.uri.toString(true)),
+				run: () => clipboardService.writeText(uri.toString(true)),
 			}), chatPillCopyUrlHoverLabel)],
-			...getChatPillResourceLocation(ref.uri, resourceLabel),
+			...getChatPillResourceLocation(uri, resourceLabel),
 			ariaDescription: issue
-				? localize('sessionChatPills.issueDescription', "{0}. {1}", getIssueStatus(issue).label, ref.uri.toString(true))
-				: ref.uri.toString(true),
-			...(!issue && ref.title ? { tooltip: `${resourceLabel}\n${ref.uri.toString(true)}` } : {}),
+				? localize('sessionChatPills.issueDescription', "{0}. {1}", getIssueStatus(issue).label, uri.toString(true))
+				: uri.toString(true),
+			...(!issue && ref.title ? { tooltip: `${resourceLabel}\n${uri.toString(true)}` } : {}),
 			...(createDropdownHover && createHover ? {
 				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
 				pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },
@@ -247,7 +255,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 				if (session) {
 					sessionsService.setActive(session);
 				}
-				void commandService.executeCommand(OPEN_ISSUE_ACTION_ID, { issue: ref });
+				void commandService.executeCommand(OPEN_ISSUE_ACTION_ID, { issue: { ...ref, uri } });
 			},
 		} satisfies IChatPillEntry;
 	});
@@ -382,9 +390,11 @@ export class SessionChatInputToolbar extends Disposable {
 		});
 		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, agentMergeConfiguration, gitHubService));
 		const referenceActions = (session: IActiveSession, reader: IReader): IRecordedReferenceActions | undefined => session.capabilities.read(reader).supportsRemoveArtifacts ? {
-			remove: async (id, label) => {
+			remove: async (ids, label) => {
 				try {
-					await sessionsManagementService.removeSessionArtifact(session, id);
+					for (const id of ids) {
+						await sessionsManagementService.removeSessionArtifact(session, id);
+					}
 					status(localize('sessionChatPills.referenceRemoved', "{0} removed from session.", label));
 				} catch (error) {
 					notificationService.error(localize('sessionChatPills.removeReferenceFailed', "Could not remove {0} from this session: {1}", label, toErrorMessage(error)));
