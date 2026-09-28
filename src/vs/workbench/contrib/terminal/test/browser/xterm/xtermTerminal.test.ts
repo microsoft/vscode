@@ -6,22 +6,30 @@
 import type { Terminal } from '@xterm/xterm';
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { Color, RGBA } from '../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../../common/theme.js';
 import { IViewDescriptor, IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { XtermTerminal } from '../../../browser/xterm/xtermTerminal.js';
 import { ITerminalConfiguration, TERMINAL_VIEW_ID } from '../../../common/terminal.js';
 import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from '../../../common/terminalColorRegistry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
 import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
+import { stub } from 'sinon';
 
 registerColors();
 
@@ -46,7 +54,9 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 }
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
+	enableImages: false,
 	fontFamily: 'monospace',
+	fontRendering: 'inherit',
 	fontWeight: 'normal',
 	fontWeightBold: 'normal',
 	gpuAcceleration: 'off',
@@ -56,6 +66,10 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	unicodeVersion: '6'
 };
 
+function listenerCount<T>(emitter: Emitter<T>): number {
+	return (emitter as unknown as { _size: number })._size ?? 0;
+}
+
 suite('XtermTerminal', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -64,6 +78,8 @@ suite('XtermTerminal', () => {
 	let themeService: TestThemeService;
 	let xterm: XtermTerminal;
 	let XTermBaseCtor: typeof Terminal;
+	let onWillShutdown: Emitter<unknown>;
+	let lifecycleListenerCountBeforeXterm: number;
 
 	function write(data: string): Promise<void> {
 		return new Promise<void>((resolve) => {
@@ -87,6 +103,9 @@ suite('XtermTerminal', () => {
 			configurationService: () => configurationService
 		}, store);
 		themeService = instantiationService.get(IThemeService) as TestThemeService;
+		const lifecycleService = instantiationService.get(ILifecycleService) as TestLifecycleService;
+		onWillShutdown = (lifecycleService as unknown as { _onWillShutdown: Emitter<unknown> })._onWillShutdown;
+		lifecycleListenerCountBeforeXterm = listenerCount(onWillShutdown);
 
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
@@ -102,11 +121,248 @@ suite('XtermTerminal', () => {
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
+		TestWebglAddon.customGlyphOptions.length = 0;
 	});
 
 	test('should use fallback dimensions of 80x30', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);
+	});
+
+	suite('fontRendering', () => {
+		async function setTerminalConfiguration(configuration: Partial<ITerminalConfiguration>): Promise<void> {
+			await configurationService.setUserConfiguration('terminal.integrated', {
+				...defaultTerminalConfig,
+				...configuration
+			});
+			configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section.startsWith('terminal.integrated');
+				}
+			});
+		}
+
+		function setFontRendering(fontRendering: ITerminalConfiguration['fontRendering']): Promise<void> {
+			return setTerminalConfiguration({ fontRendering });
+		}
+
+		function attach(terminal: XtermTerminal = xterm): HTMLElement {
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			terminal.attachToElement(container, { enableGpu: false });
+			return container;
+		}
+
+		test('inherits the workbench font policy by default', () => {
+			attach();
+			deepStrictEqual({
+				grayscaleClass: xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
+				allowTransparency: xterm.raw.options.allowTransparency
+			}, {
+				grayscaleClass: false,
+				allowTransparency: false
+			});
+		});
+
+		test('applies the configured policy when the terminal is opened', async () => {
+			await setFontRendering('grayscale');
+			attach();
+			deepStrictEqual({
+				grayscaleClass: xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
+				allowTransparency: xterm.raw.options.allowTransparency
+			}, {
+				grayscaleClass: isMacintosh,
+				allowTransparency: false
+			});
+		});
+
+		test('restores the inherited policy when the optional setting is unset', async () => {
+			await setFontRendering('grayscale');
+			attach();
+			const initiallyGrayscale = xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale');
+			await setFontRendering(undefined);
+			deepStrictEqual({
+				initiallyGrayscale,
+				grayscaleClass: xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
+				allowTransparency: xterm.raw.options.allowTransparency
+			}, {
+				initiallyGrayscale: isMacintosh,
+				grayscaleClass: false,
+				allowTransparency: false
+			});
+		});
+
+		test('updates the CSS class and clears glyph bitmaps without changing font options', async () => {
+			attach();
+			const initialOptions = {
+				fontFamily: xterm.raw.options.fontFamily,
+				fontSize: xterm.raw.options.fontSize,
+				fontWeight: xterm.raw.options.fontWeight,
+				theme: xterm.raw.options.theme
+			};
+			const statesAtRedraw: boolean[] = [];
+			const listener = stub(xterm.raw, 'clearTextureAtlas').callsFake(() => {
+				statesAtRedraw.push(xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale'));
+			});
+			store.add(toDisposable(() => listener.restore()));
+			await setFontRendering('grayscale');
+			await setFontRendering('grayscale');
+			await setFontRendering('inherit');
+			deepStrictEqual({
+				statesAtRedraw,
+				allowTransparency: xterm.raw.options.allowTransparency,
+				fontFamily: xterm.raw.options.fontFamily,
+				fontSize: xterm.raw.options.fontSize,
+				fontWeight: xterm.raw.options.fontWeight,
+				theme: xterm.raw.options.theme
+			}, {
+				statesAtRedraw: isMacintosh ? [true, false] : [],
+				allowTransparency: false,
+				...initialOptions
+			});
+		});
+
+		test('keeps transparency controlled by images rather than font rendering', async () => {
+			const transparencyStates: (boolean | undefined)[] = [];
+			for (const enableImages of [false, true]) {
+				for (const fontRendering of ['grayscale', 'inherit'] as const) {
+					await setTerminalConfiguration({ enableImages, fontRendering });
+					transparencyStates.push(xterm.raw.options.allowTransparency);
+				}
+			}
+			deepStrictEqual(transparencyStates, [false, false, true, true]);
+		});
+
+		test('applies configuration changes when a detached terminal is updated', async () => {
+			const terminal = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities: store.add(new TerminalCapabilityStore()),
+				disableShellIntegrationReporting: true,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+				detached: true
+			}, undefined));
+			attach(terminal);
+			await setFontRendering('grayscale');
+			terminal.updateConfig();
+			deepStrictEqual({
+				grayscaleClass: terminal.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
+				allowTransparency: terminal.raw.options.allowTransparency
+			}, {
+				grayscaleClass: isMacintosh,
+				allowTransparency: false
+			});
+			await setFontRendering('inherit');
+			terminal.updateConfig();
+			deepStrictEqual({
+				grayscaleClass: terminal.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
+				allowTransparency: terminal.raw.options.allowTransparency
+			}, {
+				grayscaleClass: false,
+				allowTransparency: false
+			});
+		});
+	});
+
+	test('detached terminals do not register decoration shutdown listeners', () => {
+		const listenerCountAfterRegularXterm = listenerCount(onWillShutdown);
+		for (let index = 0; index < 50; index++) {
+			const capabilityStore = store.add(new TerminalCapabilityStore());
+			store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities: capabilityStore,
+				disableShellIntegrationReporting: true,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+				detached: true,
+			}, undefined));
+		}
+
+		deepStrictEqual({
+			regularXtermListeners: listenerCountAfterRegularXterm - lifecycleListenerCountBeforeXterm,
+			detachedXtermListeners: listenerCount(onWillShutdown) - listenerCountAfterRegularXterm,
+		}, {
+			regularXtermListeners: 1,
+			detachedXtermListeners: 0,
+		});
+	});
+
+	test('keeps custom glyphs enabled when moved out of an auxiliary window', async () => {
+		await configurationService.setUserConfiguration('terminal.integrated', {
+			...defaultTerminalConfig,
+			gpuAcceleration: 'on',
+			customGlyphs: true,
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section.startsWith('terminal.integrated');
+			}
+		});
+
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		store.add(toDisposable(() => iframe.remove()));
+		const auxiliaryDocument = iframe.contentDocument!;
+		const auxiliaryContainer = document.createElement('div');
+		auxiliaryDocument.body.appendChild(auxiliaryContainer);
+		const createElement = auxiliaryDocument.createElement;
+		auxiliaryDocument.createElement = () => {
+			throw new Error('Not allowed to create elements in child window JavaScript context.');
+		};
+		store.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
+
+		xterm.attachToElement(auxiliaryContainer);
+		await timeout(0);
+
+		const mainContainer = document.createElement('div');
+		document.body.appendChild(mainContainer);
+		store.add(toDisposable(() => mainContainer.remove()));
+		mainContainer.appendChild(xterm.raw.element!);
+		xterm.raw.open(xterm.raw.element!);
+		xterm.refresh();
+		await timeout(0);
+
+		deepStrictEqual(TestWebglAddon.customGlyphOptions, [true]);
+	});
+
+	test('keeps custom glyphs enabled when moved during addon import', async () => {
+		await configurationService.setUserConfiguration('terminal.integrated', {
+			...defaultTerminalConfig,
+			gpuAcceleration: 'on',
+			customGlyphs: true,
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section.startsWith('terminal.integrated');
+			}
+		});
+
+		const mainContainer = document.createElement('div');
+		document.body.appendChild(mainContainer);
+		store.add(toDisposable(() => mainContainer.remove()));
+		xterm.attachToElement(mainContainer);
+
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		store.add(toDisposable(() => iframe.remove()));
+		const auxiliaryDocument = iframe.contentDocument!;
+		const auxiliaryContainer = document.createElement('div');
+		auxiliaryDocument.body.appendChild(auxiliaryContainer);
+		const createElement = auxiliaryDocument.createElement;
+		auxiliaryDocument.createElement = () => {
+			throw new Error('Not allowed to create elements in child window JavaScript context.');
+		};
+		store.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
+
+		auxiliaryContainer.appendChild(xterm.raw.element!);
+		xterm.raw.open(xterm.raw.element!);
+		xterm.refresh();
+		await timeout(0);
+
+		deepStrictEqual(TestWebglAddon.customGlyphOptions, [true]);
 	});
 
 	suite('getContentsAsText', () => {

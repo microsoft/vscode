@@ -16,8 +16,9 @@ import { IVSCodeExtensionContext } from '../../extContext/common/extensionContex
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { FetcherService } from '../../networking/vscode-node/fetcherServiceImpl';
-import { ITelemetryService } from '../common/telemetry';
-import { BaseExperimentationService, UserInfoStore } from '../node/baseExperimentationService';
+import { IExperimentationTelemetry, ITelemetryService } from '../common/telemetry';
+import { BaseExperimentationService, RevocationGate, UserInfoStore } from '../node/baseExperimentationService';
+import { createTasFetch } from './tasFetch';
 
 function getTargetPopulation(isPreRelease: boolean): TargetPopulation {
 	if (isPreRelease) {
@@ -33,7 +34,7 @@ function trimVersionSuffix(version: string): string {
 
 /**
  * Formats an ISO date into the `yyyymmddHH` form the experimentation backend expects
- * (10 digits, fits within int32). Returns an empty string when unavailable.
+ * (10 digits: yyyymmddHH). Returns an empty string when unavailable.
  */
 function formatReleaseDate(iso: string): string {
 	if (!iso) {
@@ -223,12 +224,10 @@ class WindowKindFilterProvider implements IExperimentationFilterProvider {
 }
 
 /**
- * Emits the Copilot-side filters for the new TAS assignments API (POST /api/v1/assignments)
- * using the new userParam key names. Reads the Copilot token fresh on each call so refreshed
- * assignments pick up account changes. The generic `vscode_core_*` app/build/extension/target
- * filters are added automatically by `vscode-tas-client`.
+ * Emits Copilot account, Chat extension version, and environment userParams for the new TAS assignments API.
+ * Reads the token fresh on each call; generic app/build/extension-identity/target filters come from `vscode-tas-client`.
  */
-class CopilotAssignmentsFilterProvider implements IExperimentationFilterProvider {
+export class CopilotAssignmentsFilterProvider implements IExperimentationFilterProvider {
 	private readonly _releaseDate: string | undefined;
 
 	constructor(
@@ -256,6 +255,11 @@ class CopilotAssignmentsFilterProvider implements IExperimentationFilterProvider
 		filters.set('github_core_businessid', token?.enterpriseList.join(','));
 		filters.set('github_core_isghormsftstaff', internalOrg ? '1' : '0');
 		filters.set('github_core_ghmsftorexternal', internalOrg === 'github' ? 'github' : (internalOrg === 'microsoft' || internalOrg === 'vscode') ? 'microsoft' : 'external');
+		filters.set('github_core_userkind', token?.userKind || undefined);
+		filters.set('github_core_copilotsku', token?.sku);
+		filters.set('github_core_issn', token?.isSn() ? '1' : '0');
+		filters.set('github_core_isfcv1', token?.isFcv1() ? '1' : '0');
+		filters.set('vscode_core_copilotchatextensionversion', trimVersionSuffix(packageJson.version));
 
 		this._logService.trace(`[CopilotAssignmentsFilterProvider]::getFilters Filters: ${JSON.stringify(Array.from(filters.entries()))}`);
 		return filters;
@@ -277,24 +281,20 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		const version = context.extension.packageJSON['version'];
 		const targetPopulation = getTargetPopulation(envService.isPreRelease());
 		let self: MicrosoftExperimentationService | undefined = undefined;
-		const delegateFn = (globalState: vscode.Memento, userInfoStore: UserInfoStore) => {
-			const wrappedMemento = new ExpMementoWrapper(globalState, envService);
+		const delegateFn = (memento: vscode.Memento, userInfoStore: UserInfoStore, gate: RevocationGate) => {
+			const wrappedMemento = new ExpMementoWrapper(memento, envService);
 			const exp = copilotTokenStore.copilotToken?.endpoints?.exp;
 			const assignmentsEndpoint = exp ? `${exp.replace(/\/+$/, '')}/api/v1/assignments` : undefined;
-			// Route the assignments request through the extension's fetcher service so it gets
-			// proxy handling, retries/fallback, and the standard user-agent for free.
-			const assignmentsFetch = (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string }) =>
-				fetcherService.fetch(url, {
-					method: init.method,
-					headers: init.headers,
-					body: init.body,
-					callSite: 'exp.assignments',
-				});
+			// Route both the legacy (GET) and assignments (POST) requests through the extension's
+			// fetcher service so they get proxy handling, retries/fallback, and the standard user-agent.
+			const tasFetch = createTasFetch(fetcherService);
 			return getExperimentationServiceFromConfig({
 				extensionName: id,
 				extensionVersion: version,
 				targetPopulation,
-				telemetry: telemetryService,
+				// Wrapped per generation so a superseded delegate's in-flight fetch cannot write
+				// telemetry (e.g. overwrite `abexp.assignmentcontext`) after being replaced.
+				telemetry: new RevocableExpTelemetry(telemetryService, gate),
 				memento: wrappedMemento,
 				filterProviders: [
 					new GithubAccountFilterProvider(userInfoStore, logService),
@@ -306,9 +306,9 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 					new PlatformAndReleaseDateFilterProvider(logService),
 					new WindowKindFilterProvider(logService),
 				],
+				fetch: tasFetch,
 				assignmentsEndpoint,
 				assignmentsFilterProviders: assignmentsEndpoint ? [new CopilotAssignmentsFilterProvider(copilotTokenStore, logService)] : undefined,
-				assignmentsFetch: assignmentsEndpoint ? assignmentsFetch : undefined,
 			});
 		};
 
@@ -331,6 +331,32 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		if (fetcherService instanceof FetcherService) {
 			fetcherService.setExperimentationService(this);
 		}
+	}
+}
+
+/**
+ * Wraps the telemetry service so a superseded delegate's writes are dropped once its generation
+ * gate is revoked, preventing a stale in-flight fetch from overwriting shared telemetry
+ * properties (notably `abexp.assignmentcontext`) after a newer delegate has replaced it.
+ */
+class RevocableExpTelemetry implements IExperimentationTelemetry {
+	constructor(
+		private readonly _actual: IExperimentationTelemetry,
+		private readonly _gate: RevocationGate,
+	) { }
+
+	setSharedProperty(name: string, value: string): void {
+		if (this._gate.isRevoked) {
+			return;
+		}
+		this._actual.setSharedProperty(name, value);
+	}
+
+	postEvent(eventName: string, props: Map<string, string>): void {
+		if (this._gate.isRevoked) {
+			return;
+		}
+		this._actual.postEvent(eventName, props);
 	}
 }
 

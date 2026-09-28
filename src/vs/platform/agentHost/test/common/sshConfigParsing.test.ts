@@ -167,6 +167,31 @@ suite('SSH Config Parsing', () => {
 			assert.strictEqual(parseSSHGOutput(output).identityAgent, '//./pipe/pageant.user.1234');
 		});
 
+		test('parses HostKeyAlias', () => {
+			assert.strictEqual(parseSSHGOutput('hostkeyalias trusted.example').hostKeyAlias, 'trusted.example');
+		});
+
+		test('preserves ProxyCommand tokens and quoted executables', () => {
+			assert.deepStrictEqual([
+				parseSSHGOutput('proxycommand "/opt/docker tools/sbx" ssh proxy %n').proxyCommand,
+				parseSSHGOutput('proxycommand none').proxyCommand,
+				parseSSHGOutput('proxycommand NONE').proxyCommand,
+				parseSSHGOutput('').proxyCommand,
+			], ['"/opt/docker tools/sbx" ssh proxy %n', undefined, undefined, undefined]);
+		});
+
+		test('does not guess boundaries of unquoted known-hosts paths containing spaces', () => {
+			assert.deepStrictEqual(parseSSHGOutput([
+				'userknownhostsfile /Users/test/Library/Application Support/Docker/known_hosts /Users/test/.ssh/known_hosts',
+				'globalknownhostsfile C:\\Users\\Test User\\known_hosts C:\\ProgramData\\ssh\\known_hosts',
+			].join('\n')), {
+				hostname: '', user: undefined, port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false,
+				userKnownHostsFiles: ['/Users/test/Library/Application', 'Support/Docker/known_hosts', '/Users/test/.ssh/known_hosts'],
+				globalKnownHostsFiles: ['C:\\Users\\Test', 'User\\known_hosts', 'C:\\ProgramData\\ssh\\known_hosts'],
+				strictHostKeyChecking: undefined,
+			});
+		});
+
 		test('parses non-standard port', () => {
 			const output = [
 				'hostname example.com',
@@ -259,28 +284,45 @@ suite('SSH Config Parsing', () => {
 				['/home/my user/.ssh/known_hosts', '/home/u/other']);
 		});
 
-		test('parses recognized StrictHostKeyChecking values and ignores others', () => {
+		test('preserves relative known-hosts paths following absolute paths', () => {
+			assert.deepStrictEqual(parseSSHGOutput('userknownhostsfile /var/keys/known_hosts relative_known_hosts relative/path').userKnownHostsFiles,
+				['/var/keys/known_hosts', 'relative_known_hosts', 'relative/path']);
+		});
+
+		test('normalizes effective StrictHostKeyChecking values and ignores others', () => {
 			const parse = (value: string) => parseSSHGOutput(`stricthostkeychecking ${value}`).strictHostKeyChecking;
 			assert.deepStrictEqual(
 				{
-					ask: parse('ask'),
-					acceptNew: parse('accept-new'),
-					yes: parse('yes'),
-					no: parse('no'),
-					off: parse('off'),
-					uppercase: parse('ASK'),
+					effective: {
+						ask: parse('ask'),
+						acceptNew: parse('accept-new'),
+						yes: parse('true'),
+						noOrOff: parse('false'),
+					},
+					acceptedAliases: {
+						yes: parse('yes'),
+						no: parse('no'),
+						off: parse('off'),
+						uppercase: parse('TRUE'),
+					},
 					// An unrecognized value must not be passed through as if it
 					// were a policy we understand.
 					bogus: parse('maybe'),
 					absent: parseSSHGOutput('').strictHostKeyChecking,
 				},
 				{
-					ask: 'ask',
-					acceptNew: 'accept-new',
-					yes: 'yes',
-					no: 'no',
-					off: 'off',
-					uppercase: 'ask',
+					effective: {
+						ask: 'ask',
+						acceptNew: 'accept-new',
+						yes: 'yes',
+						noOrOff: 'no',
+					},
+					acceptedAliases: {
+						yes: 'yes',
+						no: 'no',
+						off: 'off',
+						uppercase: 'yes',
+					},
 					bogus: undefined,
 					absent: undefined,
 				});

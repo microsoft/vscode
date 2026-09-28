@@ -11,14 +11,16 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
-import { AuxiliaryBarVisibleContext, MainEditorAreaVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { PanelVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../browser/menus.js';
-import { HasDockedDetailsContext } from '../../common/contextkeys.js';
 
 // Import layout actions to trigger menu registration
 import '../../browser/layoutActions.js';
+
+const TOGGLE_PANEL_ACTION_ID = 'workbench.action.togglePanel';
 
 suite('Sessions - Layout Actions', () => {
 
@@ -27,7 +29,10 @@ suite('Sessions - Layout Actions', () => {
 	// Dynamic import in `suiteSetup` (not a static top-level import, which layering
 	// rules disallow here) so its permanent registrations predate any per-test leak tracking.
 	suiteSetup(async () => {
-		await import('../../contrib/editor/browser/editor.contribution.js');
+		await Promise.all([
+			import('../../contrib/editor/browser/editor.contribution.js'),
+			import('../../contrib/terminal/browser/sessionsTerminalContribution.js')
+		]);
 	});
 
 	test('always-on-top toggle action is contributed to TitleBarRight', () => {
@@ -38,6 +43,61 @@ suite('Sessions - Layout Actions', () => {
 
 		assert.ok(toggleAlwaysOnTop, 'toggleWindowAlwaysOnTop should be contributed to TitleBarRight');
 		assert.strictEqual(toggleAlwaysOnTop.group, 'navigation');
+	});
+
+	test('screen reader optimized action uses a title bar toolbar menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.TitleBarAccessibility)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'editor.action.toggleScreenReaderAccessibilityMode');
+
+		assert.deepStrictEqual({
+			title: item?.command.title,
+			tooltip: item?.command.tooltip,
+			when: item?.when?.serialize(),
+		}, {
+			title: 'Screen Reader Optimized',
+			tooltip: 'Disable Screen Reader Optimized Mode',
+			when: `${CONTEXT_ACCESSIBILITY_MODE_ENABLED.key} && !sessionsIsPhoneLayout`,
+		});
+	});
+
+	test('bottom panel layout action replaces the terminal action in the session title bar', () => {
+		const items = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu).filter(isIMenuItem);
+		const panelActions = items
+			.filter(item => item.command.id === TOGGLE_PANEL_ACTION_ID)
+			.map(item => ({
+				group: item.group,
+				order: item.order,
+				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
+				hasToggledState: Boolean(item.command.toggled),
+				when: item.when?.serialize(),
+			}))
+			.sort((a, b) => (a.icon ?? '').localeCompare(b.icon ?? ''));
+
+		assert.deepStrictEqual({
+			commandRegistered: Boolean(CommandsRegistry.getCommand(TOGGLE_PANEL_ACTION_ID)),
+			panelActions,
+			terminalActionPresent: items.some(item => item.command.id === 'agentSession.openInTerminal'),
+		}, {
+			commandRegistered: true,
+			panelActions: [
+				{
+					group: 'navigation',
+					order: 10,
+					icon: Codicon.layoutPanel.id,
+					hasToggledState: false,
+					when: `${PanelVisibleContext.key} && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible`,
+				},
+				{
+					group: 'navigation',
+					order: 10,
+					icon: Codicon.layoutPanelOff.id,
+					hasToggledState: false,
+					when: `!isAuxiliaryWindow && !${PanelVisibleContext.key} && !sessionsIsPhoneLayout && !sessionsWelcomeVisible`,
+				},
+			],
+			terminalActionPresent: false,
+		});
 	});
 
 	test('original-layout auxiliary bar toggle reuses the core command with state-dependent icons on the editor title layout menu', () => {
@@ -82,49 +142,37 @@ suite('Sessions - Layout Actions', () => {
 		assert.strictEqual(toggled.condition.serialize(), SecondarySideBarVisibleContext.key);
 	});
 
-	test('single-pane Hide/Show Editor render in the editor-title layout cluster after Maximize/Restore', () => {
+	test('single-pane Hide/Show Editor remain registered but are always hidden', () => {
 		const layoutItems = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
-			.filter(isIMenuItem)
-			.filter(item => (item.when?.serialize() ?? '').includes(MainEditorAreaVisibleContext.key));
-		const groupOrder = (id: string) => layoutItems
+			.filter(isIMenuItem);
+		const actionState = (id: string) => layoutItems
 			.filter(item => item.command.id === id)
 			.map(item => ({
 				group: item.group,
 				order: item.order,
-				precondition: item.command.precondition?.serialize(),
 				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
+				when: item.when?.serialize(),
 			}));
 
 		assert.deepStrictEqual({
-			maximize: groupOrder('workbench.action.agentSessions.maximizeMainEditorPart'),
-			restore: groupOrder('workbench.action.agentSessions.restoreMainEditorPart'),
-			hide: groupOrder('workbench.action.agentSessions.hideMainEditorPart'),
-			show: groupOrder('workbench.action.agentSessions.showMainEditorPart'),
+			hideCommandRegistered: Boolean(CommandsRegistry.getCommand('workbench.action.agentSessions.hideMainEditorPart')),
+			showCommandRegistered: Boolean(CommandsRegistry.getCommand('workbench.action.agentSessions.showMainEditorPart')),
+			hide: actionState('workbench.action.agentSessions.hideMainEditorPart'),
+			show: actionState('workbench.action.agentSessions.showMainEditorPart'),
 		}, {
-			maximize: [{ group: 'navigation', order: 10, precondition: undefined, icon: Codicon.screenFull.id }],
-			restore: [{ group: 'navigation', order: 10, precondition: undefined, icon: Codicon.screenNormal.id }],
-			hide: [{ group: 'navigation', order: 20, precondition: undefined, icon: Codicon.rightPanelHide.id }],
-			show: [{ group: 'navigation', order: 20, precondition: undefined, icon: Codicon.rightPanelShow.id }],
+			hideCommandRegistered: true,
+			showCommandRegistered: true,
+			hide: [{ group: 'navigation', order: 20, icon: Codicon.rightPanelHide.id, when: 'false' }],
+			show: [{ group: 'navigation', order: 20, icon: Codicon.rightPanelShow.id, when: 'false' }],
 		});
 
-		const hideWhen = layoutItems.find(item => item.command.id === 'workbench.action.agentSessions.hideMainEditorPart')?.when?.serialize() ?? '';
-		assert.ok(!hideWhen.includes(HasDockedDetailsContext.key), 'Hide Editor should always show, regardless of whether the active tab has a docked detail');
-		assert.ok(!hideWhen.includes(AuxiliaryBarVisibleContext.key));
-		assert.ok(hideWhen.includes(MainEditorAreaVisibleContext.key));
-		assert.ok(!hideWhen.includes(`!${MainEditorAreaVisibleContext.key}`));
-
-		const showWhen = layoutItems.find(item => item.command.id === 'workbench.action.agentSessions.showMainEditorPart')?.when?.serialize() ?? '';
-		assert.ok(!showWhen.includes(HasDockedDetailsContext.key), 'Show Editor should always show, regardless of whether the active tab has a docked detail');
-		assert.ok(showWhen.includes(`!${MainEditorAreaVisibleContext.key}`));
-
-		// Hide/Show no longer render in the trailing editor-header layout group; Toggle Details stays there alone.
 		const headerIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout).filter(isIMenuItem).map(item => item.command.id);
 		assert.ok(!headerIds.includes('workbench.action.agentSessions.hideMainEditorPart'));
 		assert.ok(!headerIds.includes('workbench.action.agentSessions.showMainEditorPart'));
 
-		// Add File as Context stays a right-header action, not a layout action.
-		const headerSecondaryIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary).filter(isIMenuItem).map(item => item.command.id);
-		assert.ok(headerSecondaryIds.includes('workbench.action.agentSessions.addFileAsContext'));
+		// Add File as Context stays an editor action, not a group-header layout action.
+		const editorTitleIds = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(isIMenuItem).map(item => item.command.id);
+		assert.ok(editorTitleIds.includes('workbench.action.agentSessions.addFileAsContext'));
 		assert.ok(!layoutItems.some(item => item.command.id === 'workbench.action.agentSessions.addFileAsContext'));
 	});
 
@@ -140,7 +188,7 @@ suite('Sessions - Layout Actions', () => {
 
 		await command.handler(accessor);
 
-		// SinglePaneDetailPanelStrategy, not this action, decides what the panel shows.
+		// The New/Existing Session strategy's detail-panel mapping, not this action, decides what the panel shows.
 		assert.deepStrictEqual(calls, [
 			{ hidden: false, part: Parts.AUXILIARYBAR_PART },
 			{ hidden: true, part: Parts.EDITOR_PART },

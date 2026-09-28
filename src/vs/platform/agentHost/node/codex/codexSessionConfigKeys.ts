@@ -13,7 +13,7 @@ import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, narrowCodexPer
 
 // Re-export the shared, protocol-free config-key surface so node callers can
 // keep importing everything from this module.
-export { CodexSessionConfigKey, resolveCodexPermissionsPreset, presetForResolvedPermissions, narrowCodexPermissionsPreset, CODEX_PERMISSIONS_PRESETS, CODEX_DEFAULT_PERMISSIONS_PRESET } from '../../common/codexSessionConfigKeys.js';
+export { CodexSessionConfigKey, resolveCodexPermissionsPreset, presetForResolvedPermissions, narrowCodexPermissionsPreset, getCodexAutonomousSessionConfig, CODEX_PERMISSIONS_PRESETS, CODEX_DEFAULT_PERMISSIONS_PRESET } from '../../common/codexSessionConfigKeys.js';
 export type { CodexApprovalPolicy, CodexPermissionsPreset, CodexSandboxMode, CodexApprovalsReviewer, ICodexResolvedPermissions } from '../../common/codexSessionConfigKeys.js';
 
 export function narrowApprovalPolicy(value: unknown): CodexApprovalPolicy | undefined {
@@ -157,6 +157,8 @@ export function narrowReasoningEffort(value: unknown): ReasoningEffort | undefin
 		case 'medium':
 		case 'high':
 		case 'xhigh':
+		case 'max':
+		case 'ultra':
 			return value;
 		default:
 			return undefined;

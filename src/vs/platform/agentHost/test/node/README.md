@@ -8,4 +8,6 @@ Choose the lowest test type that exercises the behavior:
 - `providerIntegration/`: a real provider process backed by the local mock LLM. Use when provider lifecycle matters but realistic model behavior does not.
 - Other `*.integrationTest.ts` files at this level: focused component integrations that do not exercise AHP end to end, such as direct SDK or Git-service coverage.
 
+Tests that launch a real provider process isolate its home, configuration, logs, and session state in a temporary directory.
+
 The protocol and E2E folders contain their own running and authoring instructions.

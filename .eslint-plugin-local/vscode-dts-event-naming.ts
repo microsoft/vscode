@@ -70,7 +70,7 @@ export default new class ApiEventNaming implements eslint.Rule.RuleModule {
 				// check that a subject (if present) has occurred
 				if (match[3]) {
 					const regex = new RegExp(match[3], 'ig');
-					const parts = context.getSourceCode().getText().split(regex);
+					const parts = context.sourceCode.getText().split(regex);
 					if (parts.length < 3) {
 						context.report({
 							node: ident,

@@ -79,7 +79,8 @@ export class LayoutController extends BaseLayoutController {
 
 		const activeSessionHasWorkspaceObs = derived<boolean>(reader => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
-			return activeSession?.workspace.read(reader)?.folders?.[0]?.root !== undefined;
+			const activeChat = activeSession?.activeChat.read(reader);
+			return activeChat?.workspace.read(reader)?.folders?.[0]?.root !== undefined;
 		});
 
 		const editorMaximizedObs = observableFromEvent(this,
@@ -274,6 +275,9 @@ export class LayoutController extends BaseLayoutController {
 
 	/** [D10] Hide the aux-bar part when it has no active view containers; never reveals it. */
 	private _syncAuxiliaryBarPartVisibility(): void {
+		if (this._layoutService.isSinglePaneLayoutEnabled) {
+			return;
+		}
 		if (this._hasActiveAuxViewContainers()) {
 			return;
 		}

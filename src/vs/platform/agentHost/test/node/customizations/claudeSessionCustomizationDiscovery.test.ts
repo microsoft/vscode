@@ -64,6 +64,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 
 			assert.deepStrictEqual(
 				(result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
+					.filter(directory => (directory.children?.length ?? 0) > 0)
 					.map(directory => ({ uri: directory.uri, children: directory.children?.map(child => child.name) })),
 				[
 					{ uri: URI.joinPath(workspace, '.claude', 'agents').toString(), children: ['root'] },
@@ -81,6 +82,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 
 			assert.deepStrictEqual(
 				(result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
+					.filter(directory => (directory.children?.length ?? 0) > 0)
 					.map(directory => ({ uri: directory.uri, children: directory.children?.map(child => child.name) })),
 				[
 					{ uri: URI.joinPath(userHome, '.claude', 'skills').toString(), children: ['user-skill'] },
@@ -97,6 +99,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 
 			assert.deepStrictEqual(
 				(result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
+					.filter(directory => (directory.children?.length ?? 0) > 0)
 					.map(directory => ({ uri: directory.uri, children: directory.children?.map(child => child.name) })),
 				[
 					{ uri: URI.joinPath(broadRoot, '.claude', 'skills').toString(), children: ['user-skill'] },
@@ -113,7 +116,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 				toParsedSkill({ uri: wsSkillUri, name: 'ws', description: 'WS' }),
 				toParsedAgent({ uri: userAgentUri, name: 'ua', description: 'UA' }),
 			];
-			const mcp: McpServerCustomization[] = [{ type: CustomizationType.McpServer, id: 'mcp-id', uri: 'inmemory:/x', name: 'srv', enabled: true, state: { kind: McpServerStatus.Starting } }];
+			const mcp: McpServerCustomization[] = [{ type: CustomizationType.McpServer, id: 'mcp-id', uri: 'inmemory:/x', name: 'srv', state: { kind: McpServerStatus.Starting } }];
 
 			const result = mapDiscoveredCustomizations(discovered, mcp, [], [], workspace, userHome);
 
@@ -121,7 +124,9 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			// Workspace containers first (agents, skills), then user — each rooted at
 			// the real `<scope>/.claude/<sub>` dir so the workbench can label scope.
 			assert.deepStrictEqual(
-				dirs.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => ({ name: c.name, uri: c.uri })) })),
+				dirs
+					.filter(directory => (directory.children?.length ?? 0) > 0)
+					.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => ({ name: c.name, uri: c.uri })) })),
 				[
 					{ uri: URI.joinPath(workspace, '.claude', 'agents').toString(), contents: CustomizationType.Agent, children: [{ name: 'wa', uri: wsAgentUri.toString() }] },
 					{ uri: URI.joinPath(workspace, '.claude', 'skills').toString(), contents: CustomizationType.Skill, children: [{ name: 'ws', uri: wsSkillUri.toString() }] },
@@ -147,7 +152,9 @@ suite('claudeSessionCustomizationDiscovery', () => {
 
 			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
 			assert.deepStrictEqual(
-				dirs.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => ({ name: c.name, uri: c.uri })) })),
+				dirs
+					.filter(directory => (directory.children?.length ?? 0) > 0)
+					.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => ({ name: c.name, uri: c.uri })) })),
 				[
 					{ uri: URI.joinPath(workspace, '.claude', 'rules').toString(), contents: CustomizationType.Rule, children: [{ name: 'CLAUDE.md', uri: wsRuleUri.toString() }] },
 					{ uri: URI.joinPath(userHome, '.claude', 'rules').toString(), contents: CustomizationType.Rule, children: [{ name: 'g', uri: userRuleUri.toString() }] },
@@ -164,10 +171,29 @@ suite('claudeSessionCustomizationDiscovery', () => {
 
 			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
 			assert.deepStrictEqual(
-				dirs.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => ({ name: c.name, uri: c.uri })) })),
+				dirs
+					.filter(directory => (directory.children?.length ?? 0) > 0)
+					.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => ({ name: c.name, uri: c.uri })) })),
 				[
 					{ uri: URI.joinPath(workspace, '.claude', 'hooks').toString(), contents: CustomizationType.Hook, children: [{ name: 'settings.json', uri: wsHookUri.toString() }] },
 					{ uri: URI.joinPath(userHome, '.claude', 'hooks').toString(), contents: CustomizationType.Hook, children: [{ name: 'settings.json', uri: userHookUri.toString() }] },
+				],
+			);
+		});
+
+		test('publishes empty workspace and user migration target directories', () => {
+			const result = mapDiscoveredCustomizations([], [], [], [], workspace, userHome);
+
+			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
+			assert.deepStrictEqual(
+				dirs.map(d => ({ uri: d.uri, contents: d.contents, writable: d.writable, children: d.children })),
+				[
+					{ uri: URI.joinPath(workspace, '.claude', 'agents').toString(), contents: CustomizationType.Agent, writable: true, children: [] },
+					{ uri: URI.joinPath(workspace, '.claude', 'skills').toString(), contents: CustomizationType.Skill, writable: true, children: [] },
+					{ uri: URI.joinPath(workspace, '.claude', 'rules').toString(), contents: CustomizationType.Rule, writable: true, children: [] },
+					{ uri: URI.joinPath(userHome, '.claude', 'agents').toString(), contents: CustomizationType.Agent, writable: true, children: [] },
+					{ uri: URI.joinPath(userHome, '.claude', 'skills').toString(), contents: CustomizationType.Skill, writable: true, children: [] },
+					{ uri: URI.joinPath(userHome, '.claude', 'rules').toString(), contents: CustomizationType.Rule, writable: true, children: [] },
 				],
 			);
 		});
@@ -195,7 +221,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 				toParsedAgent({ uri: hiddenAgent, name: 'hidden' }),
 				toParsedSkill({ uri: diskSkill, name: 'kskill' }),
 			];
-			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'diskmcp', enabled: true, state: { kind: McpServerStatus.Starting } };
+			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'diskmcp', state: { kind: McpServerStatus.Starting } };
 			const sdk: ISdkResolvedCustomizations = {
 				agents: [{ name: 'known', description: 'K' }, { name: 'sdkonly', description: 'S' }, { name: 'general-purpose', description: 'default' }],
 				commands: [{ name: 'kskill', description: '', argumentHint: '' }, { name: 'sdkcmd', description: 'C', argumentHint: '' }],
@@ -261,7 +287,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 		});
 
 		test('SDK-reported in-process host bridges are not surfaced as SDK-only entries', () => {
-			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'real', enabled: true, state: { kind: McpServerStatus.Starting } };
+			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'real', state: { kind: McpServerStatus.Starting } };
 			const sdk: ISdkResolvedCustomizations = {
 				agents: [],
 				commands: [],
@@ -279,7 +305,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 		});
 
 		test('a disk-defined MCP server is kept even when its name collides with a host bridge', () => {
-			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'host', enabled: true, state: { kind: McpServerStatus.Starting } };
+			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'host', state: { kind: McpServerStatus.Starting } };
 			const sdk: ISdkResolvedCustomizations = {
 				agents: [],
 				commands: [],

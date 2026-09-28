@@ -6,7 +6,7 @@
 				"git": {
 					"name": "PowerShell/EditorSyntax",
 					"repositoryUrl": "https://github.com/PowerShell/EditorSyntax",
-					"commitHash": "742f0b5d4b60f5930c0b47fcc1f646860521296e"
+					"commitHash": "23eed76d483c887a1608609e9dd57e09666411cc"
 				}
 			},
 			"license": "MIT",

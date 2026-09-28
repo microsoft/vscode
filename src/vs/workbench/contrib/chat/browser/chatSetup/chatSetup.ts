@@ -5,7 +5,9 @@
 
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import product from '../../../../../platform/product/common/product.js';
@@ -18,6 +20,8 @@ const defaultChat = {
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 	providerExtensionId: product.defaultChatAgent?.providerExtensionId ?? '',
 };
+
+export const ChatSetupDialogVisibleContext = new RawContextKey<boolean>('chatSetupDialogVisible', false);
 
 export type InstallChatClassification = {
 	owner: 'bpasero';
@@ -52,7 +56,8 @@ export enum ChatSetupStrategy {
 	SetupWithoutEnterpriseProvider = 2,
 	SetupWithEnterpriseProvider = 3,
 	SetupWithGoogleProvider = 4,
-	SetupWithAppleProvider = 5
+	SetupWithAppleProvider = 5,
+	SetupWithMicrosoftProvider = 6
 }
 
 export type ChatSetupResultValue = boolean /* success */ | undefined /* canceled */;
@@ -74,9 +79,30 @@ export class ChatSetupError extends Error {
 	}
 }
 
+export enum ChatSetupSource {
+	Unknown = 'unknown',
+	Command = 'command',
+	AnonymousCommand = 'anonymousCommand',
+	ForcedSignInCommand = 'forcedSignInCommand',
+	Accounts = 'accounts',
+	TitleBar = 'titleBar',
+	Url = 'url',
+	Chat = 'chat',
+	InlineRename = 'inlineRename',
+	SessionsSetup = 'sessionsSetup',
+	AgentHost = 'agentHost',
+	Scm = 'scm',
+	CodeReview = 'codeReview',
+}
+
 export interface IChatSetupRunOptions {
+	/** Categorical setup entry point, used only for dialog impression telemetry. */
+	readonly telemetrySource?: ChatSetupSource;
 	readonly disableChatViewReveal?: boolean;
 	readonly forceSignInDialog?: boolean;
+	/** Continue setup with the default account if sign-in completes while the dialog is open. */
+	readonly autoDismissOnSignIn?: boolean;
+	readonly cancellationToken?: CancellationToken;
 	readonly additionalScopes?: readonly string[];
 	readonly forceAnonymous?: ChatSetupAnonymous;
 	readonly dialogIcon?: ThemeIcon;
@@ -84,7 +110,9 @@ export interface IChatSetupRunOptions {
 	readonly setupStrategy?: ChatSetupStrategy;
 	readonly disableCloseButton?: boolean;
 	readonly dialogExtraClasses?: readonly string[];
+	readonly allowContinueWithoutSignIn?: boolean;
 	readonly renderDialogFooter?: (container: HTMLElement) => IDisposable | undefined;
+	readonly onDidDismissDialog?: () => void;
 	readonly onSignInStarted?: (cancel: () => void) => void;
 }
 

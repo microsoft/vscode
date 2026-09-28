@@ -51,6 +51,11 @@ export const CODEX_PERMISSIONS_PRESETS: readonly CodexPermissionsPreset[] = ['de
 /** Default preset applied to new Codex sessions. */
 export const CODEX_DEFAULT_PERMISSIONS_PRESET: CodexPermissionsPreset = 'default';
 
+/** Returns Codex's provider-native configuration for unattended Agent Merge turns. */
+export function getCodexAutonomousSessionConfig(policyRestricted: boolean): Record<string, unknown> | undefined {
+	return policyRestricted ? undefined : { [CodexSessionConfigKey.PermissionsPreset]: 'auto-review' satisfies CodexPermissionsPreset };
+}
+
 /**
  * Single source of truth for narrowing an arbitrary runtime value to the
  * closed {@link CodexPermissionsPreset} union. Returns `undefined` for

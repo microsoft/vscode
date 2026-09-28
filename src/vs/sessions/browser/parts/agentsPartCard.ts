@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
-import { agentsPanelBackground, agentsPanelBorder, agentsPanelForeground } from '../../common/theme.js';
+import { agentsCardBorder, agentsPanelBackground, agentsPanelForeground } from '../../common/theme.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 
 /**
@@ -18,22 +18,25 @@ export const AGENTS_PART_CARD_CLASS = 'agents-part-card';
 export const AgentsPartCard = {
 	MARGIN_TOP: 0,
 	MARGIN_LEFT: 0,
+	MARGIN_LEFT_NO_SIDEBAR: AGENTS_FLOATING_PANEL_GAP,
 	MARGIN_RIGHT: AGENTS_FLOATING_PANEL_GAP,
 	MARGIN_RIGHT_NO_EDITOR_PANE: 0,
 	MARGIN_BOTTOM: 0,
 	BORDER_WIDTH: 1,
 } as const;
 
-/**
- * Content box of a card part, i.e. its grid-allocated size minus the card's
- * visual margins and border.
- */
-export function getAgentsPartCardContentSize(width: number, height: number, editorPaneVisible: boolean): { readonly width: number; readonly height: number } {
+/** Content box of a card part, excluding desktop margins and borders or filling the grid on phone. */
+export function getAgentsPartCardContentSize(width: number, height: number, editorPaneVisible: boolean, sidebarVisible: boolean, phoneLayout: boolean): { readonly width: number; readonly height: number } {
+	if (phoneLayout) {
+		return { width, height };
+	}
+
 	const borderTotal = AgentsPartCard.BORDER_WIDTH * 2;
+	const marginLeft = sidebarVisible ? AgentsPartCard.MARGIN_LEFT : AgentsPartCard.MARGIN_LEFT_NO_SIDEBAR;
 	const marginRight = editorPaneVisible ? AgentsPartCard.MARGIN_RIGHT : AgentsPartCard.MARGIN_RIGHT_NO_EDITOR_PANE;
 
 	return {
-		width: width - AgentsPartCard.MARGIN_LEFT - marginRight - borderTotal,
+		width: width - marginLeft - marginRight - borderTotal,
 		height: height - AgentsPartCard.MARGIN_TOP - AgentsPartCard.MARGIN_BOTTOM - borderTotal
 	};
 }
@@ -41,7 +44,7 @@ export function getAgentsPartCardContentSize(width: number, height: number, edit
 /** Publishes the themed card colors that `media/workbench.css` draws the card from. */
 export function applyAgentsPartCardStyles(container: HTMLElement, theme: IColorTheme): void {
 	container.style.setProperty('--part-background', theme.getColor(agentsPanelBackground)?.toString() ?? '');
-	container.style.setProperty('--part-border-color', theme.getColor(agentsPanelBorder)?.toString() ?? 'transparent');
+	container.style.setProperty('--part-border-color', theme.getColor(agentsCardBorder)?.toString() ?? 'transparent');
 	container.style.setProperty('--part-foreground', theme.getColor(agentsPanelForeground)?.toString() ?? '');
 	container.style.backgroundColor = theme.getColor(agentsPanelBackground)?.toString() ?? '';
 }

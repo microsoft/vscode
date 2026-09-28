@@ -371,6 +371,7 @@ export async function showToolsPicker(
 					ordinal: BucketOrdinal.Mcp,
 					id: key,
 					label: source.serverLabel || source.label,
+					description: source.serverLabel && source.serverLabel !== source.label ? source.label : undefined,
 					checked: undefined,
 					collapsed,
 					children,

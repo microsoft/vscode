@@ -12,11 +12,11 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { McpServerStatus } from '../../../../common/state/protocol/state.js';
+import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { ActionType, type ChatToolCallCompleteAction } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, customizationId, CustomizationType, ResponsePartKind, ROOT_STATE_URI, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { createRealSession, driveTurnToCompletion, driveTurnWithAnswersToCompletion, driveTurnWithCancelledInputToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const nodeRequire = createRequire(import.meta.url);
@@ -34,6 +34,8 @@ interface IPluginSessionOptions {
 	readonly hookExitCode?: number;
 	readonly hookStdout?: string;
 	readonly pluginName?: string;
+	readonly publisher?: TestProtocolClient;
+	readonly clientId?: string;
 }
 
 export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
@@ -172,17 +174,22 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			},
 		}));
 		const pluginUri = URI.file(plugin).toString();
-		const clientId = `mcp-plugin-${prefix}-${config.provider}`;
-		const sessionUri = await createRealSession(context.client, config, clientId, createdSessions, URI.file(workspace));
+		const clientId = options.clientId ?? `mcp-plugin-${prefix}-${config.provider}`;
+		const sessionCreatorClientId = options.publisher ? `mcp-plugin-observer-${prefix}-${config.provider}` : clientId;
+		const sessionUri = await createRealSession(context.client, config, sessionCreatorClientId, createdSessions, URI.file(workspace));
+		const publisher = options.publisher ?? context.client;
+		if (publisher !== context.client) {
+			await publisher.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		}
 		const customization: ClientPluginCustomization = {
 			type: CustomizationType.Plugin,
 			id: customizationId(pluginUri),
 			uri: pluginUri,
 			name: pluginName,
 			nonce: '1',
-			enabled: true,
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
 		};
-		context.client.dispatch({
+		publisher.dispatch({
 			channel: sessionUri,
 			clientSeq: 1,
 			action: {
@@ -234,6 +241,10 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			if (!content.includes(`${hookType}:`)) {
 				throw new Error(`${hookType} hook has not recorded input`);
 			}
+			const invocationCount = content.split('\n').filter(line => line.startsWith(`${hookType}:`)).length;
+			if (invocationCount !== 1) {
+				throw new Error(`${hookType} hook ran ${invocationCount} times`);
+			}
 			return content;
 		}, 100, 100);
 	}
@@ -270,26 +281,26 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 		context.client.dispatch({
 			channel: sessionUri,
 			clientSeq: 10,
-			action: { type: ActionType.SessionCustomizationToggled, id: plugin.id, enabled: false },
+			action: { type: ActionType.SessionCustomizationToggled, id: plugin.id, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
 		});
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'session/customizationToggled')
 			&& getActionEnvelope(n).channel === sessionUri,
 			30_000,
 		);
-		assert.strictEqual((await pluginState(sessionUri, pluginUri)).enabled, false);
+		assert.deepStrictEqual((await pluginState(sessionUri, pluginUri)).enablement, [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
 
 		context.client.dispatch({
 			channel: sessionUri,
 			clientSeq: 11,
-			action: { type: ActionType.SessionCustomizationToggled, id: plugin.id, enabled: true },
+			action: { type: ActionType.SessionCustomizationToggled, id: plugin.id, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
 		});
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'session/customizationToggled')
 			&& getActionEnvelope(n).channel === sessionUri,
 			30_000,
 		);
-		assert.strictEqual((await pluginState(sessionUri, pluginUri)).enabled, true);
+		assert.deepStrictEqual((await pluginState(sessionUri, pluginUri)).enablement, [{ kind: CustomizationEnablementKind.Global, enabled: true }]);
 	});
 
 	providerHostOnlyTest(context, 'removing the active client removes its plugin customization', async function () {
@@ -314,10 +325,51 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 				throw new Error('Plugin customization has not been removed');
 			}
 		}, 100, 100);
-	}, config.provider !== 'codex');
+	});
+
+	providerHostOnlyTest(context, 'unsubscribing an active client removes its provider customization', async function () {
+		const clientId = `mcp-plugin-unsubscribe-${config.provider}`;
+		const publisher = await context.connectClient();
+		try {
+			await publisher.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId,
+			});
+			const { sessionUri, pluginUri } = await createPluginSession('unsubscribe', { publisher, clientId });
+			const plugin = await pluginState(sessionUri, pluginUri);
+			context.client.clearReceived();
+
+			publisher.notify('unsubscribe', { channel: sessionUri });
+			await publisher.call('ping', { channel: ROOT_STATE_URI });
+			await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.SessionActiveClientRemoved)) {
+					return false;
+				}
+				const envelope = getActionEnvelope(n);
+				return envelope.channel === sessionUri
+					&& (envelope.action as { readonly clientId: string }).clientId === clientId;
+			}, 30_000);
+			await retry(async () => {
+				const result = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+				const state = result.snapshot!.state as SessionState;
+				if (state.activeClients.some(client => client.clientId === clientId)) {
+					throw new Error('Active client has not been removed');
+				}
+				if (state.customizations?.some(customization => customization.id === plugin.id)) {
+					throw new Error('Plugin customization has not been removed');
+				}
+			}, 100, 100);
+		} finally {
+			publisher.close();
+		}
+	});
 
 	const modelBackedEnabled = config.provider === 'copilotcli';
 	if (modelBackedEnabled) {
+		// The SDK-owned runtime does not invoke hook callbacks on Windows.
+		const pluginHookTest = context.isWindows ? test.skip : test;
+
 		// The skill executes when named explicitly, but the completions command currently returns no item for it.
 		(context.runKnownIssueTests ? test : test.skip)('plugin skill is included in leading slash completions', async function () {
 			this.timeout(180_000);
@@ -393,7 +445,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			assert.deepStrictEqual(restoredToolNames, beforeToolNames);
 		});
 
-		test('plugin SessionStart hook runs when the provider materializes', async function () {
+		pluginHookTest('plugin SessionStart hook runs when the provider materializes', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-session-start', { hookType: 'SessionStart' });
 			await pluginState(sessionUri, pluginUri);
@@ -402,7 +454,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			await waitForHook(hookLog, 'SessionStart');
 		});
 
-		test('plugin UserPromptSubmit hook receives the submitted prompt', async function () {
+		pluginHookTest('plugin UserPromptSubmit hook receives the submitted prompt', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-user-prompt', { hookType: 'UserPromptSubmit' });
 			await pluginState(sessionUri, pluginUri);
@@ -412,7 +464,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			assert.ok(hookContent.includes('HOOK_PROMPT_READY'));
 		});
 
-		test('plugin PreToolUse hook runs before an MCP tool', async function () {
+		pluginHookTest('plugin PreToolUse hook runs before an MCP tool', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-pre-tool', { hookType: 'PreToolUse' });
 			await pluginState(sessionUri, pluginUri);
@@ -422,7 +474,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			assert.ok(hookContent.includes('customization_probe'));
 		});
 
-		test('plugin PostToolUse hook runs after an MCP tool result', async function () {
+		pluginHookTest('plugin PostToolUse hook runs after an MCP tool result', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-post-tool', { hookType: 'PostToolUse' });
 			await pluginState(sessionUri, pluginUri);
@@ -432,7 +484,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			assert.ok(hookContent.includes('MCP_PLUGIN_RESULT'));
 		});
 
-		test('plugin SessionEnd hook runs when the session is disposed', async function () {
+		pluginHookTest('plugin SessionEnd hook runs when the session is disposed', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-session-end', { hookType: 'SessionEnd' });
 			await pluginState(sessionUri, pluginUri);
@@ -443,7 +495,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			await waitForHook(hookLog, 'SessionEnd');
 		});
 
-		test('failing plugin hook is non-fatal to the provider turn', async function () {
+		pluginHookTest('failing plugin hook is non-fatal to the provider turn', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-failure', { hookType: 'UserPromptSubmit', hookExitCode: 7 });
 			await pluginState(sessionUri, pluginUri);
@@ -453,7 +505,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			assert.strictEqual(result.responseText.trim(), 'HOOK_FAILURE_SURVIVED');
 		});
 
-		test('non-JSON plugin hook output is ignored without failing the provider turn', async function () {
+		pluginHookTest('non-JSON plugin hook output is ignored without failing the provider turn', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-non-json', { hookType: 'PostToolUse', hookStdout: 'not-json' });
 			await pluginState(sessionUri, pluginUri);

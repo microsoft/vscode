@@ -40,6 +40,12 @@ export interface ISelectBoxOptions {
 	ariaDescription?: string;
 	minBottomMargin?: number;
 	optionsAsChildren?: boolean;
+	/** Context views with higher layers are rendered higher in z-index order. */
+	contextViewLayer?: number;
+	/** Hide disabled options from the custom-drawn dropdown. */
+	hideDisabledOptions?: boolean;
+	/** Show option descriptions in right-side hovers instead of the details pane. */
+	showOptionDescriptionHovers?: boolean;
 }
 
 // Utilize optionItem interface to capture all option parameters

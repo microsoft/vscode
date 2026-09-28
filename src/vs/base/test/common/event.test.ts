@@ -112,6 +112,14 @@ suite('Event utils dispose', function () {
 
 		assertDisposablesCount([leaked]); // leaked is still there
 	});
+
+	test('debounce-util can be disposed without listeners', function () {
+		const store = new DisposableStore();
+		const emitter = ds.add(new Emitter<number>());
+		Event.debounce(emitter.event, l => 0, undefined, undefined, undefined, undefined, store);
+
+		store.dispose();
+	});
 });
 
 suite('Event', function () {

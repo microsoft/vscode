@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/customViewGridPart.css';
-import { $, isAncestorOfActiveElement } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType, getWindow, isAncestorOfActiveElement, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun } from '../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
@@ -16,7 +16,7 @@ import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { activeSessionViewBackground, activeSessionViewForeground } from '../../common/theme.js';
 import { AbstractCustomView, ICustomViewDescriptor } from '../../services/customView/browser/customView.js';
-import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewItem.js';
+import { ChatPillActionViewItem } from '../../../workbench/browser/chatPills.js';
 
 /**
  * A leaf of the custom view grid. Owns the shared chrome — a header with the
@@ -81,7 +81,7 @@ export class CustomViewNode extends Disposable {
 				toolbarOptions: { primaryGroup: () => true },
 				actionViewItemProvider: buttonBar
 					? (action, options) => action instanceof MenuItemAction
-						? instantiationService.createInstance(SessionHeaderMetaActionViewItem, undefined, action, options)
+						? instantiationService.createInstance(ChatPillActionViewItem, undefined, action, options)
 						: undefined
 					: undefined,
 			}));
@@ -97,6 +97,15 @@ export class CustomViewNode extends Disposable {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
 			useShadows: false,
+		}));
+		this._register(addDisposableListener(scrollContent, EventType.SCROLL, () => {
+			this._scrollable.setScrollPosition({ scrollTop: scrollContent.scrollTop });
+		}));
+		const focusScrollSync = this._register(new MutableDisposable());
+		this._register(addDisposableListener(scrollContent, EventType.FOCUS_IN, () => {
+			focusScrollSync.value = scheduleAtNextAnimationFrame(getWindow(scrollContent), () => {
+				this._scrollable.setScrollPosition({ scrollTop: scrollContent.scrollTop });
+			});
 		}));
 		this._scrollable.getDomNode().classList.add('custom-view-body');
 		this.element.appendChild(this._scrollable.getDomNode());

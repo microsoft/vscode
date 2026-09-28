@@ -10,7 +10,7 @@ import { EventType, Gesture } from '../../touch.js';
 import { Delayer } from '../../../common/async.js';
 import { memoize } from '../../../common/decorators.js';
 import { Emitter, Event } from '../../../common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { isMacintosh } from '../../../common/platform.js';
 import './sash.css';
 
@@ -258,6 +258,7 @@ export class Sash extends Disposable {
 	private hoverDelayer = this._register(new Delayer(this.hoverDelay));
 
 	private _state: SashState = SashState.Enabled;
+	private readonly classNameLeases = new Map<string, { count: number; removeOnRelease: boolean }>();
 	private readonly onDidEnablementChange = this._register(new Emitter<SashState>());
 	private readonly _onDidStart = this._register(new Emitter<ISashEvent>());
 	private readonly _onDidChange = this._register(new Emitter<ISashEvent>());
@@ -308,6 +309,29 @@ export class Sash extends Disposable {
 	 * An event which fires whenever the user double clicks this sash.
 	 */
 	get onDidReset() { return this._onDidReset.event; }
+
+	/** Adds a CSS class for the lifetime of the returned disposable. */
+	addClass(className: string): IDisposable {
+		const existingLease = this.classNameLeases.get(className);
+		if (existingLease) {
+			existingLease.count++;
+		} else {
+			this.classNameLeases.set(className, { count: 1, removeOnRelease: !this.el.classList.contains(className) });
+			this.el.classList.add(className);
+		}
+
+		return toDisposable(() => {
+			const lease = this.classNameLeases.get(className);
+			if (lease?.count === 1) {
+				this.classNameLeases.delete(className);
+				if (lease.removeOnRelease) {
+					this.el.classList.remove(className);
+				}
+			} else if (lease) {
+				lease.count--;
+			}
+		});
+	}
 
 	/**
 	 * An event which fires whenever the user stops dragging this sash.

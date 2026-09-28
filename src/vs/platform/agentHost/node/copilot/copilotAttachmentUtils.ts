@@ -9,10 +9,14 @@ const attachmentDisplayKindParameter = 'x-vscode-display-kind=';
 const simpleAttachmentMimeType = 'text/x-vscode-simple-attachment';
 
 export function addSimpleAttachmentDisplayKindToMimeType(attachment: SimpleMessageAttachment): string {
-	if (attachment.displayKind === undefined) {
+	return addAttachmentDisplayKindToMimeType(attachment.displayKind);
+}
+
+export function addAttachmentDisplayKindToMimeType(displayKind: string | undefined): string {
+	if (displayKind === undefined) {
 		return 'text/plain';
 	}
-	return `${simpleAttachmentMimeType}; ${attachmentDisplayKindParameter}${encodeURIComponent(attachment.displayKind)}`;
+	return `${simpleAttachmentMimeType}; ${attachmentDisplayKindParameter}${encodeURIComponent(displayKind)}`;
 }
 
 export function readSimpleAttachmentDisplayKindFromMimeType(mimeType: string): string | undefined {

@@ -28,7 +28,13 @@ export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
  * pick the same base branch.
  */
 export function resolveDiffBaseBranchName(persistedBaseBranch: string | undefined, sessionGitStateBaseBranch: string | undefined): string | undefined {
-	return persistedBaseBranch ?? sessionGitStateBaseBranch;
+	const branchName = persistedBaseBranch ?? sessionGitStateBaseBranch;
+	if (!branchName) {
+		return undefined;
+	}
+	return branchName
+		.replace(/^refs\/remotes\/origin\//, '')
+		.replace(/^origin\//, '');
 }
 
 /**
@@ -92,6 +98,14 @@ export interface IPullOptions {
 }
 
 export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agentHostGitService');
+
+/** Error thrown when checkout would overwrite local working-tree changes. */
+export class CheckoutBlockedByLocalChangesError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = 'CheckoutBlockedByLocalChangesError';
+	}
+}
 
 /**
  * Resolves linked checkouts to their primary worktree and caches successful mappings for every worktree reported by Git.
@@ -197,10 +211,19 @@ export interface IWorktreeFileProgress {
 	readonly filesTotal: number;
 }
 
+export interface IAddWorktreeOptions {
+	readonly path: URI;
+	readonly commitish: string;
+	readonly newBranchName?: string;
+	readonly track: boolean;
+	readonly onProgress?: (progress: IWorktreeFileProgress) => void;
+}
+
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
-	getCurrentBranchName?(workingDirectory: URI): Promise<string | undefined>;
+	/** With `throwOnError`, only a successful detached-HEAD lookup returns `undefined`. */
+	getCurrentBranchName?(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
@@ -209,27 +232,37 @@ export interface IAgentHostGitService {
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	/**
-	 * Creates a worktree for a new branch. `onProgress` receives every checkout
+	 * Creates a worktree, optionally on a new branch. `onProgress` receives every checkout
 	 * sample git reports, which can be several per second, so consumers are
 	 * expected to round and rate limit for their own presentation. It may also
 	 * never be called (fast checkouts and git versions that stay silent), so it
 	 * MUST be treated as best-effort.
 	 */
-	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track: boolean, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
+	addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void>;
 	/**
-	 * Copies the git-ignored files matching `globs` into the worktree.
-	 * `onProgress` counts the individual files covered, but only fires as whole
-	 * entries finish — a wholly-ignored directory such as `node_modules` is
-	 * copied as one recursive unit, so its files all land in a single step.
+	 * Copies the git-ignored files matching `patterns` into the worktree.
+	 * `patterns` use `.gitignore` syntax, relative to `repositoryRoot`, and are
+	 * matched by git itself. `sessionId` scopes the temporary files used while
+	 * matching. `onProgress` counts the individual files covered, but only
+	 * fires as whole entries finish — a wholly-ignored directory such as
+	 * `node_modules` is copied as one recursive unit, so its files all land in
+	 * a single step.
 	 */
-	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[], onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
+	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void, excludedFolders?: readonly string[]): Promise<void>;
+	/**
+	 * Symlinks git-ignored folders matching `patterns` from `repositoryRoot`
+	 * into the worktree. `patterns` use `.gitignore` syntax and are matched by
+	 * git itself. `sessionId` scopes the temporary files used while matching.
+	 */
+	symlinkWorktreeFolders(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string): Promise<readonly string[]>;
 	/**
 	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
 	 * a worktree whose branch was preserved (e.g. unarchiving a session
 	 * whose worktree was previously cleaned up on archive).
 	 */
 	addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void>;
-	removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void>;
+	/** Removes a worktree, preserving Git's dirty-worktree protection unless `force` is explicitly requested. */
+	removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void>;
 	/**
 	 * Returns true when the named branch exists in the repository
 	 * (`refs/heads/<branchName>` resolves). Used by archive cleanup to
@@ -238,6 +271,10 @@ export interface IAgentHostGitService {
 	 * recreating the worktree.
 	 */
 	branchExists(repositoryRoot: URI, branchName: string): Promise<boolean>;
+	/** Creates a new branch and optionally checks it out while preserving the working tree. */
+	createBranch(workingDirectory: URI, branchName: string, options?: { readonly checkout?: boolean }): Promise<void>;
+	/** Checks out an existing local branch, throwing {@link CheckoutBlockedByLocalChangesError} when local changes would be overwritten. */
+	checkout(workingDirectory: URI, treeish: string): Promise<void>;
 	/**
 	 * Returns true when the working tree has any tracked, staged, or
 	 * untracked changes. Used by archive cleanup to skip removing a
@@ -245,12 +282,19 @@ export interface IAgentHostGitService {
 	 */
 	hasUncommittedChanges(workingDirectory: URI): Promise<boolean>;
 
+	createStash(workingDirectory: URI, options?: { readonly message?: string; readonly includeUntracked?: boolean; readonly staged?: boolean }): Promise<void>;
+
 	/**
 	 * Stages and commits all tracked, staged, and untracked changes in the
 	 * working tree. Mirrors the Copilot CLI session PR path, which commits
 	 * uncommitted work before creating a pull request.
 	 */
 	commitAll(workingDirectory: URI, message: string): Promise<void>;
+
+	/**
+	 * Merges `branchName` into the currently checked-out branch. A failed merge is aborted before the error is rethrown.
+	 */
+	mergeBranch(workingDirectory: URI, branchName: string): Promise<string>;
 
 	/**
 	 * Restores files in the working tree via `git restore`. When
@@ -267,6 +311,9 @@ export interface IAgentHostGitService {
 	 * to decide whether `--set-upstream` is needed.
 	 */
 	hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean>;
+
+	/** Fetches the selected remote branch into its remote-tracking ref without changing the working tree. */
+	fetch(workingDirectory: URI, branch: IRemoteBranch): Promise<void>;
 
 	/**
 	 * Fetches the latest changes from the remote (`origin` unless
@@ -292,7 +339,7 @@ export interface IAgentHostGitService {
 	 * git work tree. Called on session open and after each turn completes
 	 * so the UI always reflects current branch/remote/change state.
 	 */
-	getSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined>;
+	getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined>;
 	/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
 	getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined>;
 	/** Returns repo-relative untracked file paths. */
@@ -429,12 +476,22 @@ function getBranchPriority(branch: string, currentBranch: string | undefined, de
 	return 2;
 }
 
-export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string; readonly query?: string; readonly limit?: number }): string[] {
-	const normalizedQuery = options?.query?.toLowerCase();
-	const filtered = normalizedQuery
-		? branches.filter(branch => branch.toLowerCase().includes(normalizedQuery))
-		: [...branches];
+/**
+ * Splits an upstream tracking branch (e.g. `origin/feature`) into its remote
+ * and remote-side branch name. Returns `undefined` when the branch has no
+ * upstream or the value is not of the `<remote>/<branch>` shape.
+ */
+export function parseUpstreamBranchName(upstreamBranchName: string | undefined): { remote: string; branch: string } | undefined {
+	const separatorIndex = upstreamBranchName?.indexOf('/') ?? -1;
+	if (!upstreamBranchName || separatorIndex <= 0 || separatorIndex === upstreamBranchName.length - 1) {
+		return undefined;
+	}
+	return {
+		remote: upstreamBranchName.substring(0, separatorIndex),
+		branch: upstreamBranchName.substring(separatorIndex + 1),
+	};
+}
 
-	filtered.sort((a, b) => getBranchPriority(a, options?.currentBranch, options?.defaultBranch) - getBranchPriority(b, options?.currentBranch, options?.defaultBranch));
-	return options?.limit ? filtered.slice(0, options.limit) : filtered;
+export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string }): string[] {
+	return [...branches].sort((a, b) => getBranchPriority(a, options?.currentBranch, options?.defaultBranch) - getBranchPriority(b, options?.currentBranch, options?.defaultBranch));
 }

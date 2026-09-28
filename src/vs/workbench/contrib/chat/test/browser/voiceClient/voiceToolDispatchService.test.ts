@@ -8,7 +8,7 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IVoiceModelSelectionResult, IVoiceToolDispatchDelegate, resolveVoiceModel, VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -18,9 +18,6 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { AskQuestionsToolId } from '../../../common/tools/builtinTools/askQuestionsTool.js';
 import { derivePendingId, IVoiceToolCall } from '../../../common/voiceClient/voiceClientService.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 
 suite('VoiceToolDispatchService - model selection', () => {
@@ -64,9 +61,6 @@ suite('VoiceToolDispatchService - session actions', () => {
 		readonly targetResource?: URI;
 		readonly agentSessionResources?: readonly URI[];
 		readonly chatModels?: readonly IChatModel[];
-		readonly activeEditorResource?: URI;
-		readonly workspaceFolders?: readonly URI[];
-		readonly existingResources?: ReadonlySet<string>;
 		readonly selectModelResult?: IVoiceModelSelectionResult;
 		readonly switchSucceeds?: boolean;
 	}
@@ -76,44 +70,26 @@ suite('VoiceToolDispatchService - session actions', () => {
 			switchedTo: [] as URI[],
 			targeted: [] as URI[],
 			selectedModels: [] as string[],
-			attachedResources: [] as Array<readonly URI[]>,
 		};
 		let currentResource = options.currentResource;
 		let targetResource = options.targetResource;
 		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
 			override get model(): IAgentSessionsModel {
 				return {
-					sessions: (options.agentSessionResources ?? []).map(resource => ({ isArchived: () => false, resource })),
+					sessions: (options.agentSessionResources ?? []).map(resource => ({ isArchived: () => false, resource, status: AgentSessionStatus.InProgress, timing: {} })),
 				} as IAgentSessionsModel;
 			}
 		};
 		const chatService = new class extends mock<IChatService>() {
 			override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', options.chatModels ?? []);
-		};
-		const editorService = new class extends mock<IEditorService>() {
-			override get activeEditor(): IEditorService['activeEditor'] {
-				return options.activeEditorResource ? { resource: options.activeEditorResource } as IEditorService['activeEditor'] : undefined;
-			}
-		};
-		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
-			override getWorkspace(): ReturnType<IWorkspaceContextService['getWorkspace']> {
-				return {
-					folders: (options.workspaceFolders ?? []).map((uri, index) => ({ uri, index, name: `folder-${index}` })),
-				} as ReturnType<IWorkspaceContextService['getWorkspace']>;
-			}
-		};
-		const fileService = new class extends mock<IFileService>() {
-			override async exists(resource: URI): Promise<boolean> {
-				return options.existingResources?.has(resource.toString()) ?? false;
+			override getSession(resource: URI): IChatModel | undefined {
+				return options.chatModels?.find(model => model.sessionResource.toString() === resource.toString());
 			}
 		};
 		const service = new VoiceToolDispatchService(
 			agentSessionsService,
 			chatService,
 			new class extends mock<ILanguageModelToolsService>() { },
-			editorService,
-			workspaceContextService,
-			fileService,
 		);
 		service.setDelegate(new class extends mock<IVoiceToolDispatchDelegate>() {
 			override async getCurrentSessionResource(): Promise<URI | undefined> { return currentResource; }
@@ -137,10 +113,6 @@ suite('VoiceToolDispatchService - session actions', () => {
 					selected_model: { identifier: requestedModel, name: requestedModel, vendor: 'test' },
 				};
 			}
-			override async attachFiles(resources: readonly URI[]) {
-				calls.attachedResources.push(resources);
-				return { ok: true, attached: resources.map(resource => resource.toString()) };
-			}
 		}());
 		return { service, calls };
 	}
@@ -158,6 +130,40 @@ suite('VoiceToolDispatchService - session actions', () => {
 		assert.deepStrictEqual(result, { ok: true, session_id: resource.toString() });
 		assert.strictEqual(calls.switchedTo[0]?.toString(), resource.toString());
 		assert.strictEqual(calls.targeted[0]?.toString(), resource.toString());
+	});
+
+	test('focuses a session by its human-readable label', async () => {
+		const resource = URI.parse('agent-session://test/alpha');
+		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
+			override get model(): IAgentSessionsModel {
+				return {
+					sessions: [{ isArchived: () => false, label: 'Alpha', resource, timing: {} }],
+				} as IAgentSessionsModel;
+			}
+		};
+		const chatService = new class extends mock<IChatService>() {
+			override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+		};
+		const service = new VoiceToolDispatchService(
+			agentSessionsService,
+			chatService,
+			new class extends mock<ILanguageModelToolsService>() { },
+		);
+		const calls: URI[] = [];
+		service.setDelegate(new class extends mock<IVoiceToolDispatchDelegate>() {
+			override async switchToSession(target: URI): Promise<boolean> {
+				calls.push(target);
+				return true;
+			}
+			override setTargetSession(_resource: URI): void { }
+			override async getCurrentSessionResource(): Promise<URI | undefined> { return undefined; }
+		}());
+
+		assert.deepStrictEqual(
+			await dispatch(service, 'focus_session', { coding_session_id: 'alpha' }),
+			{ ok: true, session_id: resource.toString() },
+		);
+		assert.deepStrictEqual(calls, [resource]);
 	});
 
 	test('sets a model on the current session without changing the voice target', async () => {
@@ -213,69 +219,6 @@ suite('VoiceToolDispatchService - session actions', () => {
 		assert.deepStrictEqual(unavailable.calls.targeted, []);
 	});
 
-	test('attaches the active editor when no file argument is supplied', async () => {
-		const currentResource = URI.parse('vscode-chat://test/current');
-		const activeEditorResource = URI.file('/workspace/active.ts');
-		const { service, calls } = createActionHarness({ currentResource, activeEditorResource });
-
-		const result = await dispatch(service, 'attach_file');
-
-		assert.deepStrictEqual(result, { ok: true, attached: [activeEditorResource.toString()] });
-		assert.strictEqual(calls.attachedResources[0]?.[0]?.toString(), activeEditorResource.toString());
-	});
-
-	test('reports no file when an argument and active editor are both absent', async () => {
-		const currentResource = URI.parse('vscode-chat://test/current');
-		const { service, calls } = createActionHarness({ currentResource });
-
-		const result = await dispatch(service, 'attach_file');
-
-		assert.deepStrictEqual(result, { ok: false, reason: 'no_file' });
-		assert.deepStrictEqual(calls.attachedResources, []);
-	});
-
-	test('reports a workspace-relative attachment that does not exist', async () => {
-		const currentResource = URI.parse('vscode-chat://test/current');
-		const { service } = createActionHarness({ currentResource, workspaceFolders: [URI.file('/workspace')] });
-
-		const result = await dispatch(service, 'attach_file', { path: 'src/missing.ts' });
-
-		assert.deepStrictEqual(result, { ok: false, reason: 'file_not_found', candidates: ['src/missing.ts'] });
-	});
-
-	test('reports all matching workspace roots for an ambiguous attachment', async () => {
-		const currentResource = URI.parse('vscode-chat://test/current');
-		const workspaceFolders = [URI.file('/workspace/one'), URI.file('/workspace/two')];
-		const matches = workspaceFolders.map(folder => URI.joinPath(folder, 'src/shared.ts'));
-		const { service } = createActionHarness({
-			currentResource,
-			workspaceFolders,
-			existingResources: new Set(matches.map(resource => resource.toString())),
-		});
-
-		const result = await dispatch(service, 'attach_file', { path: 'src/shared.ts' });
-
-		assert.deepStrictEqual(result, {
-			ok: false,
-			reason: 'ambiguous_file',
-			candidates: matches.map(resource => resource.toString()),
-		});
-	});
-
-	test('treats an absolute Windows path as a file instead of a URI scheme', async () => {
-		const currentResource = URI.parse('vscode-chat://test/current');
-		const file = URI.file('C:/repo/file.ts');
-		const { service, calls } = createActionHarness({
-			currentResource,
-			existingResources: new Set([file.toString()]),
-		});
-
-		const result = await dispatch(service, 'attach_file', { path: 'C:\\repo\\file.ts' });
-
-		assert.strictEqual(result.ok, true);
-		assert.strictEqual(calls.attachedResources[0]?.[0]?.toString(), file.toString());
-	});
-
 	test('includes an active regular chat before its first request', async () => {
 		const resource = URI.parse('vscode-chat://test/empty-active');
 		const model = {
@@ -299,6 +242,25 @@ suite('VoiceToolDispatchService - session actions', () => {
 			insertions: 0,
 			deletions: 0,
 		});
+	});
+
+	test('reports the loaded model state instead of a stale session status', async () => {
+		const resource = URI.parse('agent-session://test/completed');
+		const model = {
+			sessionResource: resource,
+			requestNeedsInput: observableValue('requestNeedsInput', undefined),
+			hasActiveRequest: observableValue('hasActiveRequest', false),
+			getRequests: () => [],
+		} as unknown as IChatModel;
+		const { service } = createActionHarness({
+			agentSessionResources: [resource],
+			chatModels: [model],
+		});
+
+		const result = await dispatch(service, 'get_session_info');
+
+		assert.deepStrictEqual(result.counts, { working: 0, waiting_for_input: 0, idle: 1 });
+		assert.strictEqual(result.sessions[0].state, 'idle');
 	});
 });
 
@@ -330,9 +292,6 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 			agentSessionsService,
 			chatService,
 			new class extends mock<ILanguageModelToolsService>() { },
-			new class extends mock<IEditorService>() { },
-			new class extends mock<IWorkspaceContextService>() { },
-			new class extends mock<IFileService>() { },
 		);
 	}
 

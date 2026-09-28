@@ -471,7 +471,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		]);
 
 		// pre-fill the variables we already resolved to avoid extra prompting
-		const expr = ConfigurationResolverExpression.parse(withRemoteFilled);
+		const expr = ConfigurationResolverExpression.parse(McpServerLaunch.toSerialized(withRemoteFilled));
 		for (const replacement of expr.unresolved()) {
 			if (previouslyStored.hasOwnProperty(replacement.id)) {
 				expr.resolve(replacement, previouslyStored[replacement.id]);
@@ -491,7 +491,8 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		await this._updateStorageWithExpressionInputs(inputStorage, expr);
 
 		// resolve other non-interactive variables, returning the final object
-		return await this._configurationResolverService.resolveAsync(folder, expr);
+		const resolved = await this._configurationResolverService.resolveAsync(folder, expr);
+		return McpServerLaunch.fromSerialized(resolved);
 	}
 
 	private isCollectionAllowed(collection: McpCollectionDefinition, strictPluginOnly: StrictPluginOnlyCustomization): boolean {
@@ -515,7 +516,8 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 		const definition = collection?.serverDefinitions.get().find(s => s.id === definitionRef.id);
 		if (!collection || !definition) {
-			throw new Error(`Collection or definition not found for ${collectionRef.id} and ${definitionRef.id}`);
+			logger.debug(`Skipping MCP server ${definitionRef.id}: collection ${collectionRef.id} or server definition is no longer registered.`);
+			return undefined;
 		}
 
 		const delegate = this._delegates.get().find(d => d.canStart(collection, definition));

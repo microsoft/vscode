@@ -11,13 +11,13 @@ Split-view management pane for AI customization items across workspace, user, ex
 
 ## Spec
 
-**`src/vs/sessions/AI_CUSTOMIZATIONS.md`** — always read before making changes, always update after.
+**`src/vs/sessions/AI_CUSTOMIZATIONS.md`** — read for ownership and interface contracts. Update it only when those contracts change; behavior and regressions belong in focused tests.
 
 ## Key Folders
 
 | Folder | What |
 |--------|------|
-| `src/vs/workbench/contrib/chat/common/` | `ICustomizationHarnessService`, `ISectionOverride`, `IStorageSourceFilter` — shared interfaces and filter helpers |
+| `src/vs/workbench/contrib/chat/common/` | `ICustomizationHarnessService`, `ISectionOverride`, `ICustomizationItemProvider` — shared interfaces |
 | `src/vs/workbench/contrib/chat/browser/aiCustomization/` | Management editor, list widgets (prompts, MCP, plugins), harness service registration |
 | `src/vs/sessions/contrib/chat/browser/` | Sessions-window overrides (harness service, workspace service) |
 | `src/vs/sessions/contrib/sessions/browser/` | Sessions tree view counts and toolbar |
@@ -26,16 +26,15 @@ When changing harness descriptor interfaces or factory functions, verify both co
 
 ## Key Interfaces
 
-- **`IHarnessDescriptor`** — drives all UI behavior declaratively (hidden sections, button overrides, file filters, agent gating). See spec for full field reference.
+- **`IHarnessDescriptor`** — drives harness behavior declaratively (hidden sections, button overrides, item providers, agent gating). See spec for the stable ownership contract.
 - **`ISectionOverride`** — per-section button customization (command invocation, root file creation, type labels, file extensions).
-- **`IStorageSourceFilter`** — controls which storage sources and user roots are visible per harness/type.
-- **`IExternalCustomizationItemProvider`** / **`IExternalCustomizationItem`** — internal interfaces (in `customizationHarnessService.ts`) for extension-contributed providers that supply items directly. These mirror the proposed extension API types.
+- **`ICustomizationItemProvider`** / **`ICustomizationItem`** — internal interfaces (in `customizationHarnessService.ts`) for extension-contributed providers that supply items directly. These mirror the proposed extension API types.
 
 Principle: the UI widgets read everything from the descriptor — no harness-specific conditionals in widget code.
 
 ## Extension API (`chatSessionCustomizationProvider`)
 
-The proposed API in `src/vscode-dts/vscode.proposed.chatSessionCustomizationProvider.d.ts` lets extensions register customization providers. Changes to `IExternalCustomizationItem` or `IExternalCustomizationItemProvider` must be kept in sync across the full chain:
+The proposed API in `src/vscode-dts/vscode.proposed.chatSessionCustomizationProvider.d.ts` lets extensions register customization providers. Changes to `ICustomizationItem` or `ICustomizationItemProvider` must be kept in sync across the full chain:
 
 | Layer | File | Type |
 |-------|------|------|
@@ -43,9 +42,9 @@ The proposed API in `src/vscode-dts/vscode.proposed.chatSessionCustomizationProv
 | IPC DTO | `extHost.protocol.ts` | `IChatSessionCustomizationItemDto` |
 | ExtHost mapping | `extHostChatAgents2.ts` | `$provideChatSessionCustomizations()` |
 | MainThread mapping | `mainThreadChatAgents2.ts` | `provideChatSessionCustomizations` callback |
-| Internal interface | `customizationHarnessService.ts` | `IExternalCustomizationItem` |
+| Internal interface | `customizationHarnessService.ts` | `ICustomizationItem` |
 
-When adding fields to `IExternalCustomizationItem`, update all five layers. The proposed API `.d.ts` is additive-only (new optional fields are backward-compatible and do not require a version bump).
+When adding fields to `ICustomizationItem`, update all five layers. The proposed API `.d.ts` is additive-only (new optional fields are backward-compatible and do not require a version bump).
 
 ## Testing
 

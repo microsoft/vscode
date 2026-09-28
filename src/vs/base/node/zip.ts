@@ -199,6 +199,53 @@ export interface IFile {
 	 * still produces a valid entry.
 	 */
 	localPathSize?: number;
+	/**
+	 * Skip the entry when its local source cannot be opened or inspected.
+	 */
+	skipSourceErrors?: boolean;
+}
+
+export interface IZipValidationOptions {
+	readonly maxEntries: number;
+	readonly maxUncompressedSize?: number;
+}
+
+export async function validateZip(zipPath: string, options: IZipValidationOptions): Promise<void> {
+	const zipfile = await openZip(zipPath, true);
+	return new Promise<void>((resolve, reject) => {
+		let entries = 0;
+		let uncompressedSize = 0;
+		let settled = false;
+		const fail = (error: Error) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			zipfile.close();
+			reject(error);
+		};
+		zipfile.once('error', error => fail(toExtractError(error)));
+		zipfile.once('end', () => {
+			if (!settled) {
+				settled = true;
+				resolve();
+			}
+		});
+		zipfile.on('entry', (entry: Entry) => {
+			entries++;
+			uncompressedSize += entry.uncompressedSize;
+			if (entries > options.maxEntries) {
+				fail(new Error(`ZIP contains too many entries (${entries}; limit ${options.maxEntries})`));
+				return;
+			}
+			if (options.maxUncompressedSize !== undefined && uncompressedSize > options.maxUncompressedSize) {
+				fail(new Error(`ZIP expands beyond the allowed size (${uncompressedSize} bytes; limit ${options.maxUncompressedSize} bytes)`));
+				return;
+			}
+			zipfile.readEntry();
+		});
+		zipfile.readEntry();
+	});
 }
 
 export async function zip(zipPath: string, files: IFile[]): Promise<string> {
@@ -220,7 +267,7 @@ export async function zip(zipPath: string, files: IFile[]): Promise<string> {
 		if (f.contents !== undefined) {
 			zip.addBuffer(typeof f.contents === 'string' ? Buffer.from(f.contents, 'utf8') : f.contents, f.path);
 		} else if (f.localPath) {
-			if (f.localPathSize === undefined) {
+			if (f.localPathSize === undefined && !f.skipSourceErrors) {
 				zip.addFile(f.localPath, f.path);
 			} else {
 				// yazl aborts the archive unless the streamed byte count matches the
@@ -231,14 +278,23 @@ export async function zip(zipPath: string, files: IFile[]): Promise<string> {
 				try {
 					handle = await promises.open(f.localPath, 'r');
 				} catch (error) {
-					if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+					if (f.skipSourceErrors) {
 						continue;
 					}
 					throw error;
 				}
 				let streamOwnsHandle = false;
 				try {
-					const size = Math.min(f.localPathSize, (await handle.stat()).size);
+					let size: number;
+					try {
+						const currentSize = (await handle.stat()).size;
+						size = f.localPathSize === undefined ? currentSize : Math.min(f.localPathSize, currentSize);
+					} catch (error) {
+						if (f.skipSourceErrors) {
+							continue;
+						}
+						throw error;
+					}
 					if (size === 0) {
 						zip.addBuffer(Buffer.alloc(0), f.path);
 					} else {
@@ -260,7 +316,6 @@ export async function zip(zipPath: string, files: IFile[]): Promise<string> {
 
 	return result;
 }
-
 export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, token: CancellationToken): Promise<void> {
 	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
 

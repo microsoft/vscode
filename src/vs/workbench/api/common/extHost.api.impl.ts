@@ -343,8 +343,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
-				if (options?.authorizationServer) {
+				if (options?.authorizationServer || options?.clientId !== undefined || options?.resource !== undefined) {
 					checkProposedApiEnabled(extension, 'authIssuers');
+				}
+				if (options?.audience !== undefined) {
+					checkProposedApiEnabled(extension, 'authSessionAudience');
 				}
 				// eslint-disable-next-line local/code-no-any-casts
 				return extHostAuthentication.getSession(extension, providerId, scopesOrChallenge, options as any);
@@ -1066,6 +1069,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createSourceControlDiffInformation(uri: vscode.Uri): vscode.SourceControlDiffInformationProvider {
 				checkProposedApiEnabled(extension, 'textEditorDiffInformation');
 				return extHostQuickDiff.createSourceControlDiffInformation(uri);
+			},
+			get linkPresentationRules(): readonly vscode.LinkPresentationRule[] {
+				checkProposedApiEnabled(extension, 'linkPresentation');
+				return extHostDataChannels.linkPresentationRules;
+			},
+			get onDidChangeLinkPresentationRules(): vscode.Event<void> {
+				checkProposedApiEnabled(extension, 'linkPresentation');
+				return extHostDataChannels.onDidChangeLinkPresentationRules;
+			},
+			createLinkPresentationWatcher(id: string, resource: vscode.Uri): vscode.LinkPresentationWatcher {
+				checkProposedApiEnabled(extension, 'linkPresentation');
+				return extHostDataChannels.createLinkPresentationWatcher(extension, id, resource);
+			},
+			registerLinkPresentationProvider(id: string, provider: vscode.LinkPresentationProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'linkPresentation');
+				return extHostDataChannels.registerLinkPresentationProvider(extension, id, provider);
 			},
 			createAgentEditorComments(uri: vscode.Uri): vscode.AgentEditorCommentsProvider {
 				checkProposedApiEnabled(extension, 'agentEditorComments');

@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { readFileSync } from 'fs';
-import { join } from '../../../../base/common/path.js';
-import { vObj, vOptionalProp, vString, type ValidatorType } from '../../../../base/common/validation.js';
+import type { AccountInfo } from '@anthropic-ai/claude-agent-sdk';
 
 /**
  * Resolved Claude host transport. `proxy` routes Anthropic traffic through the
@@ -22,7 +20,7 @@ export interface IClaudeTransportModeInputs {
 	readonly allowSignedOutWhenUsable: boolean;
 	/** Whether a GitHub Copilot token has been captured (i.e. signed in). */
 	readonly hasGitHubToken: boolean;
-	/** Whether an existing local Claude setup was detected (see {@link detectExistingClaudeSetup}). */
+	/** Whether the SDK reported a Claude setup usable on the user's own credentials (see {@link isClaudeAccountSetUp}). */
 	readonly hasExistingSetup: boolean;
 }
 
@@ -44,14 +42,14 @@ export interface IClaudeTransportModeInputs {
  * forced to sign in.
  *
  * The result is **not** an input to the Agents window's sign-in gate, and
- * resolving to `proxy` does not by itself make the session type "require
- * GitHub". Claude advertises the Copilot protected resource as `required: false`
- * unconditionally, so `resolveAgentAuthRequirement` separates "usable" from
- * "unusable" on the *model count* instead: in case 4 neither half of the merged
- * catalog can be enumerated, the published catalog is empty, and the type
- * resolves to `Unusable` — surfacing as "no models". The proxy fallback only
- * bites at use time, when a model-less/bare session actually materializes with no
- * proxy handle and `_ensureAuthenticated` raises `AHP_AUTH_REQUIRED`.
+ * resolving to `proxy` does not by itself make the session type "require GitHub".
+ * `getProtectedResources()` marks the Copilot resource `required: false`
+ * unconditionally, so nothing decided here can raise a sign-in wall. What
+ * separates `None` from `Unusable` downstream is the *model count*, published
+ * from the same `accountInfo()` answer that feeds `hasExistingSetup` here — so
+ * the two cannot disagree about one user. The proxy fallback of case 4 only
+ * bites at use time, when a model-less session materializes with no proxy handle
+ * and `_ensureAuthenticated` raises `AHP_AUTH_REQUIRED`.
  *
  * There is deliberately no host-global setting to *prefer* a transport. Since
  * the picker offers both providers' models side by side, transport is downstream
@@ -76,76 +74,30 @@ export function resolveClaudeTransportMode(inputs: IClaudeTransportModeInputs): 
 }
 
 /**
- * Validator for the slice of `~/.claude/settings.json` we care about: an
- * optional `env` block that may carry either recognized Anthropic credential.
- * Reuses the shared combinators in `base/common/validation.ts` so parsing the
- * untrusted file is type-safe without hand-rolled shape checks. This validator
- * is the single source of truth for the credential-key set — {@link
- * ClaudeCredentialEnv} is derived from it rather than hand-authored.
- */
-const claudeSettingsValidator = vObj({
-	env: vOptionalProp(vObj({
-		ANTHROPIC_API_KEY: vOptionalProp(vString()),
-		CLAUDE_CODE_OAUTH_TOKEN: vOptionalProp(vString()),
-	})),
-});
-
-/**
- * The `env` block shape both `process.env` and `~/.claude/settings.json` are
- * probed for, derived from {@link claudeSettingsValidator} so the two never
- * drift. A non-empty value under either key is a usable native credential.
- */
-type ClaudeCredentialEnv = NonNullable<ValidatorType<typeof claudeSettingsValidator>['env']>;
-
-/**
- * Detects whether a local Claude configuration exists that lets Claude run
- * natively (without GitHub). Returns `true` when either:
+ * Whether the SDK's own account report describes a Claude setup that can serve
+ * requests on the user's own credentials — the single rule behind both the
+ * advertised requirement and the native model catalog. Only the SDK can answer
+ * honestly: a `claude login` credential lives in the macOS keychain, invisible
+ * to `process.env` and `~/.claude/settings.json` alike.
  *
- *  - an `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` is set in the
- *    environment, or
- *  - either of those keys appears in the `env` block of
- *    `<homeDir>/.claude/settings.json`.
+ * The two branches must NOT be collapsed. `apiProvider` reports `'firstParty'`
+ * even for an empty home directory, so it is a presence signal for nobody — it
+ * is consulted only to spot a *third-party* backend (Bedrock, Vertex, a
+ * gateway), whose credential fields the SDK documents as absent because auth is
+ * external. Requiring a credential field there would lock every one of them out.
  *
- * These are the same credential sources the SDK subprocess env is built from
- * (see `buildSubprocessEnv`), so detecting them here means "asking for what we
- * actually need": when a native credential is present the provider never
- * advertises the GitHub Copilot resource, so the server never asks the client
- * for a GitHub token and no sign-in is triggered.
- *
- * Detection is deliberately conservative — an empty-string value does not count
- * — so it neither misses a real login nor misfires on a leftover blank entry.
- *
- * `env` and the settings-file path are the only external inputs, so both are
- * injectable: `env` defaults to `process.env` and the file is located under
- * `homeDir`, letting tests exercise real detection without stubbing globals.
+ * Says *configured*, not *working*: verifying would cost a billable request per
+ * check, and the failure being fixed here is genuinely set-up users locked out.
  */
-export function detectExistingClaudeSetup(homeDir: string, env: NodeJS.ProcessEnv = process.env): boolean {
-	return hasClaudeCredential(env)
-		|| hasClaudeCredential(readClaudeSettingsEnv(join(homeDir, '.claude', 'settings.json')));
-}
-
-/** True when either recognized Anthropic credential is present and non-empty. */
-function hasClaudeCredential(env: ClaudeCredentialEnv | undefined): boolean {
-	return !!(env?.ANTHROPIC_API_KEY || env?.CLAUDE_CODE_OAUTH_TOKEN);
-}
-
-/**
- * Reads and validates the `env` block of `~/.claude/settings.json`. Returns
- * `undefined` when the file is missing, unreadable, not valid JSON, or does not
- * match the expected shape.
- */
-function readClaudeSettingsEnv(path: string): ClaudeCredentialEnv | undefined {
-	let text: string;
-	try {
-		text = readFileSync(path, 'utf8');
-	} catch {
-		return undefined;
+export function isClaudeAccountSetUp(account: AccountInfo | undefined): boolean {
+	if (!account) {
+		return false;
 	}
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(text);
-	} catch {
-		return undefined;
+	if (account.apiProvider !== undefined && account.apiProvider !== 'firstParty') {
+		return true;
 	}
-	return claudeSettingsValidator.validate(parsed).content?.env;
+	// `tokenSource` spells "no credential" as `'none'` rather than absence;
+	// `apiKeySource` has only ever been observed absent in that case.
+	return (account.tokenSource !== undefined && account.tokenSource !== 'none')
+		|| account.apiKeySource !== undefined;
 }

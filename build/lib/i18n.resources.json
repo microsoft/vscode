@@ -111,6 +111,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/github",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/html",
 			"project": "vscode-workbench"
 		},
@@ -235,7 +239,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/styleOverrides",
+			"name": "vs/workbench/contrib/modernUI",
 			"project": "vscode-workbench"
 		},
 		{
@@ -403,6 +407,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/dataChannel",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/dialogs",
 			"project": "vscode-workbench"
 		},
@@ -424,6 +432,10 @@
 		},
 		{
 			"name": "vs/workbench/services/filesConfiguration",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/github",
 			"project": "vscode-workbench"
 		},
 		{
@@ -452,6 +464,10 @@
 		},
 		{
 			"name": "vs/workbench/services/language",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/mcp",
 			"project": "vscode-workbench"
 		},
 		{
@@ -657,6 +673,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/openAgentsWindow",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/accountMenu",
 			"project": "vscode-sessions"
 		},
@@ -745,6 +765,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/remoteSessions",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/sessions",
 			"project": "vscode-sessions"
 		},
@@ -774,6 +798,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/editor",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/extensions",
 			"project": "vscode-sessions"
 		},
 		{

@@ -11,7 +11,7 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -362,9 +362,6 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		// re-discovered the bundled copy by scanning disk).
 		const deduped = items.filter(item => !builtinUris.has(item.uri));
 
-		const uiIntegrations = this.workspaceService.getSkillUIIntegrations();
-		const uiIntegrationBadge = localize('uiIntegrationBadge', "UI Integration");
-
 		// Collect names of user/workspace skills so we can hide the built-in
 		// copy once the user has added an override at either level.
 		const overriddenNames = new Set<string>();
@@ -389,8 +386,6 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 			if (overriddenNames.has(name)) {
 				continue;
 			}
-			const folderName = basename(dirname(p.uri));
-			const uiTooltip = uiIntegrations.get(folderName);
 			const builtinItem: ICustomizationItem = {
 				uri: p.uri,
 				type: PromptsType.skill,
@@ -399,8 +394,6 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 				source: AICustomizationSources.builtin,
 				groupKey: BUILTIN_STORAGE,
 				enabled: !disabledPromptFiles.has(p.uri),
-				badge: uiTooltip ? uiIntegrationBadge : undefined,
-				badgeTooltip: uiTooltip,
 				extensionId: undefined,
 				pluginUri: undefined,
 				userInvocable: true,

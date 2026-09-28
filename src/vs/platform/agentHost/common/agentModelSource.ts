@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgentModelInfo } from './agentService.js';
+import type { IAgentModelInfo } from './agent.js';
 import type { SessionModelInfo } from './state/protocol/state.js';
 
 /** Well-known source id for models provided by a user's ChatGPT subscription. */

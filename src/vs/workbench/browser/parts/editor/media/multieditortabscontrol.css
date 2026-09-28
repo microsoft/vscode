@@ -123,6 +123,14 @@
 	outline-offset: -2px;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-connected-edge {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge {
+	display: none;
+}
+
 /* Tab Background Color in/active group/tab */
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
 	background-color: var(--vscode-tab-unfocusedInactiveBackground);
@@ -270,7 +278,7 @@
 	display: none;
 }
 
-/* Intentionally low specificity so the Modern UI style override, which renders this as a pill background, wins without !important. */
+/* Intentionally low specificity so the Modern UI treatment, which renders this as a pill background, wins without !important. */
 .tabs-container > .tab > .tab-fill {
 	display: none;
 }

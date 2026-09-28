@@ -314,7 +314,7 @@ async function replaceDirectory(staged: string, target: string, backup: string):
 	}
 
 	if (movedExisting) {
-		await fs.rm(backup, { recursive: true, force: true });
+		await fs.rm(backup, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 	}
 }
 

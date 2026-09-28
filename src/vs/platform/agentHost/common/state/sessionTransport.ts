@@ -15,11 +15,32 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import type { AgentHostClientConnectionKind, AgentHostTransportKind } from '../agentHostTelemetry.js';
 import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcResponse, JsonRpcRequest } from './sessionProtocol.js';
 
+/** Machine-readable reasons a transport cannot be reconnected. */
+export const enum AgentHostTransportFailureReason {
+	Unknown = 'unknown',
+	HostNotRunning = 'hostNotRunning',
+}
+
+/** Signals that reconnecting the transport cannot recover the connection. */
+export class NonReconnectableTransportError extends Error {
+	constructor(message: string, readonly reason: AgentHostTransportFailureReason = AgentHostTransportFailureReason.Unknown) {
+		super(message);
+	}
+}
+
+export interface ITransportCloseDetails {
+	readonly code?: number;
+	readonly reason?: string;
+	readonly wasClean?: boolean;
+}
+
 /**
  * A bidirectional transport for protocol messages. Implementations handle
  * serialization, framing, and connection management.
  */
 export interface IProtocolTransport extends IDisposable {
+	/** Diagnostic metadata can arrive after onClose has already reported a transport failure. */
+	readonly onDidCloseDetails?: Event<ITransportCloseDetails>;
 	/** Physical transport accepted by the agent host. */
 	readonly transportKind?: AgentHostTransportKind;
 

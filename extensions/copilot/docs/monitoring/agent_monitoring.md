@@ -1,8 +1,35 @@
 # Monitoring Agent Usage with OpenTelemetry
 
-Copilot Chat can export **traces**, **metrics**, and **events** via [OpenTelemetry](https://opentelemetry.io/) (OTel) — giving you real-time visibility into agent interactions, LLM calls, tool executions, and token usage.
+Local Copilot Chat can export **traces**, **metrics**, and **events** via [OpenTelemetry](https://opentelemetry.io/) (OTel) — giving you real-time visibility into extension-host agent interactions, LLM calls, tool executions, and token usage.
 
-All signal names and attributes follow the [OTel GenAI Semantic Conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/), so the data works with any OTel-compatible backend: Jaeger, Grafana, Azure Monitor, Datadog, Honeycomb, and more.
+This document covers only the local Copilot Chat pipeline configured by `github.copilot.chat.otel.*`. Agent Host sessions for Copilot, Claude, and Codex run in a separate process, use `chat.agentHost.otel.*`, and are documented in [`src/vs/platform/agentHost/OTEL.md`](../../../../src/vs/platform/agentHost/OTEL.md).
+
+Standard `gen_ai.*` signals follow the [OTel GenAI Semantic Conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/). Extension-specific signals use the `github.copilot.*` and legacy `copilot_chat.*` namespaces. All signals can be exported to OTel-compatible backends such as Jaeger, Grafana, Azure Monitor, Datadog, Honeycomb, and more.
+
+## User-perceived first progress
+
+The shared VS Code UI timer also emits the content-free metadata span
+`vscode.chat.user_perceived_time_to_first_progress` through this extension's
+OTel pipeline. Its `vscode.chat.user_interaction.timeToFirstProgress` attribute
+is UI submission to meaningful visible text, reasoning, or tool progress plus
+two animation frames, in milliseconds. This is a rendering approximation,
+not model TTFT or exact screen paint. Read the attribute, not the export span's
+duration.
+
+OTel must be enabled, but content capture and VS Code product telemetry need not
+be enabled. The internal `github.copilot.chat.otel.recordUserInteraction` command
+validates and allowlists the shared renderer record. Normal OTel processors
+export it to the configured destination and SQLite store. The command waits for
+OTel initialization and exporter flush before acknowledging, so the shared
+`_chat.flushUserInteractionTelemetry` command also drains local timing exports.
+The UI never activates the extension solely to export a timing.
+
+Unsuccessful observations retain their outcome and time to termination, without
+inventing first-progress latency. Renderer identity and submission ordinal
+distinguish first submissions from followups without relying on export order.
+See the [shared wire contract](../../../../src/vs/platform/agentHost/OTEL.md#user-perceived-first-progress)
+for fields, visibility semantics, and export-readiness behavior. Agent Host uses
+its own exporter rather than this command.
 
 ## Quick Start
 
@@ -36,7 +63,7 @@ Open **Settings** (`Ctrl+,`) and add:
 }
 ```
 
-> **Note:** You can also use environment variables instead of VS Code settings (see [Configuration](#configuration)). Precedence is **enterprise policy > environment variables > settings**.
+> **Note:** You can also use environment variables instead of VS Code settings (see [Configuration](#configuration)). Environment variables can still override some legacy policy-backed settings; identity capture and managed resource attributes enforce policy precedence. See [governed identity capture](#governed-identity-capture) and the [activation limitations](#activation).
 
 ### 3. Generate Telemetry
 
@@ -70,6 +97,7 @@ Open **Settings** (`Ctrl+,`) and search for `copilot otel`:
 | `github.copilot.chat.otel.exporterType` | string | `"otlp-http"` | `otlp-http`, `otlp-grpc`, `console`, or `file` |
 | `github.copilot.chat.otel.otlpEndpoint` | string | `"http://localhost:4318"` | OTLP collector endpoint |
 | `github.copilot.chat.otel.captureContent` | boolean | `false` | Capture full prompt/response content |
+| `github.copilot.chat.otel.captureIdentity` | boolean or null | `null` (off) | Capture authenticated account, OS username, and hostname independently of content. Environment overrides personal preferences; explicit managed policy always wins. |
 | `github.copilot.chat.otel.protocol` | string | `""` | OTLP wire protocol: `http/json` (default), `http/protobuf`, or `grpc` |
 | `github.copilot.chat.otel.serviceName` | string | `""` | Override the `service.name` resource attribute |
 | `github.copilot.chat.otel.resourceAttributes` | object | `{}` | Extra resource attributes (`{ "key": "value" }`) |
@@ -80,29 +108,130 @@ Open **Settings** (`Ctrl+,`) and search for `copilot otel`:
 
 ### Environment Variables
 
-Environment variables take precedence over VS Code settings, and **enterprise managed settings (policy) take precedence over both** — admins can centrally mandate any `github.copilot.chat.otel.*` value.
+Except for governed identity and managed resource attributes, environment variables retain
+their existing precedence. When enterprise OTel configuration is
+recognized through the application-scoped policy defaults, the entire Copilot OTel settings
+block comes from those policy values and schema defaults. Personal `settings.json` values are
+not used to fill omitted fields: headers and resource attributes default to empty maps, not
+the user's maps. Other VS Code settings are unaffected.
+
+An identity-only managed block (including `telemetry.capture.identity: false`) is
+recognizable enterprise OTel configuration. It therefore also replaces personally
+enabled export, endpoints, headers, and DB export with policy/schema defaults.
+To keep export enabled under that block, administrators should configure `enabled`
+and the intended exporter destination as well. Identity omission remains distinct
+from denial; it does not by itself prevent personal/environment identity opt-in.
 
 | Variable | Default | Description |
 |---|---|---|
 | `COPILOT_OTEL_ENABLED` | `false` | Enable OTel. Also enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. |
 | `COPILOT_OTEL_ENDPOINT` | — | OTLP endpoint URL (takes precedence over `OTEL_EXPORTER_OTLP_ENDPOINT`) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | — | Standard OTel OTLP endpoint URL |
-| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | OTLP protocol. Only `grpc` changes behavior; all other values use HTTP. |
-| `COPILOT_OTEL_PROTOCOL` | — | Override OTLP protocol (`grpc` or `http`). Falls back to `OTEL_EXPORTER_OTLP_PROTOCOL`. |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/json` | OTLP wire protocol. `grpc` selects gRPC, `http/protobuf` selects HTTP protobuf, and other values use HTTP JSON. |
+| `COPILOT_OTEL_PROTOCOL` | — | Fallback protocol when `OTEL_EXPORTER_OTLP_PROTOCOL` is unset (`grpc`, `http/protobuf`, or HTTP JSON otherwise). |
 | `OTEL_SERVICE_NAME` | `copilot-chat` | Service name in resource attributes |
 | `OTEL_RESOURCE_ATTRIBUTES` | — | Extra resource attributes (`key1=val1,key2=val2`) |
 | `COPILOT_OTEL_CAPTURE_CONTENT` | `false` | Capture full prompt/response content |
+| `COPILOT_OTEL_CAPTURE_IDENTITY` | `false` | Opt into identity capture unless explicitly denied by managed policy. |
 | `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` | `0` | Override the max character size for OTel content attributes. `0` (default) disables truncation; set to a positive value when your backend has a per-attribute limit. Takes precedence over the `maxAttributeSizeChars` setting. |
 | `COPILOT_OTEL_LOG_LEVEL` | `info` | Min log level: `trace`, `debug`, `info`, `warn`, `error` |
 | `COPILOT_OTEL_FILE_EXPORTER_PATH` | — | Write all signals to this file (JSON-lines) |
 | `COPILOT_OTEL_HTTP_INSTRUMENTATION` | `false` | Enable HTTP-level OTel instrumentation |
 | `OTEL_EXPORTER_OTLP_HEADERS` | — | Auth headers (e.g., `Authorization=Bearer token`) |
 
+### Governed identity capture
+
+Managed `telemetry.capture.identity` is independent of `captureContent` and
+`lockCaptureContent`: neither content control enables or denies identity. An explicit
+managed `false` overrides personal settings and environment opt-in. Omission is not
+a denial and leaves the identity preference available, including when other managed
+OTel settings replace the personal configuration block.
+
+Across managed sources, the highest-priority telemetry block wins as a whole:
+native MDM, then server-delivered settings, then the managed-settings file.
+Omitted identity, resource attributes, and other telemetry leaves are not filled
+from weaker managed sources. For server and file object sources, an empty block,
+or one containing only unsupported fields, still replaces the weaker block.
+Native MDM exposes declared flat keys, not a telemetry object: only an observed
+declared telemetry key establishes its block. Empty or unknown-only native blocks
+cannot be observed. Removing all observable telemetry keys (or the server/file
+block entirely) allows the next managed source to apply. This does not change
+precedence for unrelated managed settings or the native runtime's own transport.
+Native delivery also observes the other recognized `telemetry.capture.*` controls
+for block selection only; this does not implement those content-capture classes
+in Local or expose additional Local settings.
+
+When enabled, `user.name` is the current authenticated provider account name on
+top-level, subagent, and inline `invoke_agent` spans. Each invocation reads the
+authentication service's current session rather than caching an account name in
+the telemetry service. Account changes and sign-out take effect once the
+authentication service has refreshed its session.
+No anonymous identity is invented, and `enduser.pseudo.id` is unchanged.
+`process.user.name` and `host.name` are resource attributes. Explicit
+`OTEL_RESOURCE_ATTRIBUTES` overrides detected OS/host values; managed
+`resourceAttributes` overrides environment attributes. Identity attributes are
+removed when capture is off, even if explicitly supplied as resource attributes.
+If the OS username cannot be detected (for example, a container user has no passwd
+entry), a warning is logged and telemetry continues without a detected
+`process.user.name`. Hostname capture and explicitly configured resource values
+remain available.
+
+> **Compatibility note:** Explicit `host.name`, `process.user.name`, and `user.name`
+> resource attributes from environment variables, personal settings, or managed
+> `resourceAttributes` do not bypass the identity gate. They are removed by default
+> and under an explicit managed denial, not just omitted from automatic detection.
+> Other custom resource attributes are unaffected.
+
+Enabling capture still requires the normal reload/recovery flow. Disabling is
+checked before subsequent exports and local completion events, including queued
+spans, logs, metrics, and SQLite export. These checks read cached state refreshed
+on OTel configuration changes, without resolving settings per span. A denial is
+latched when the configuration change is observed, even between exports, and stays in effect
+for that service instance, even if policy later allows capture or is withdrawn;
+re-enabling capture requires a reload. Already exported or persisted data cannot
+be recalled, and an export already handed to its transport cannot be cancelled.
+The nullable default preserves omission versus explicit managed `false` through
+the editor's configuration API; it does not enable capture.
+
+This applies to the legacy Local extension-host harness. The native Copilot runtime
+owns its own managed identity enforcement. The message-content environment bridge
+does not enable identity or forward account/OS/host values.
+
 ### Activation
+
+When late enterprise OTel settings turn on external export after Copilot's telemetry service
+started without it, Copilot can restart the extension hosts for that window to recover. It shows
+a progress notification before requesting the restart; that notice clears automatically when
+the host restarts or the attempt ends. Successful recovery is logged without another toast.
+Restarting also interrupts other extensions in the window. If the restart is unavailable,
+vetoed, or fails to apply the settings,
+a warning offers **Reload Window** instead. User changes and policy withdrawal remain
+opt-in reloads, except that identity denial is enforced before subsequent exports.
+Existing exporter selection and legacy environment-variable precedence are unchanged.
+It uses changes to the application-scoped, policy-backed configuration defaults as a recovery
+signal, without a new API. Normal personal settings changes do not change those defaults.
+If a recognizable enterprise OTel block was already present at initialization, later changes
+only offer a reload, including enabling a previously disabled managed configuration.
+Automatic recovery additionally requires policy-enabled OTLP export targeting the collector in
+those defaults. Disabled and DB-only pipelines, unrelated partial policies, and configurations
+still redirected by environment variables to a different collector or file do not qualify.
+Policy edits indistinguishable from schema defaults cannot be identified as new policy and retain
+the opt-in reload behavior. Conflicting environment variables can still prevent recovery, and this
+does not enforce precedence over environment variables or guarantee telemetry produced before
+the restart. The default-value signal cannot distinguish a policy consisting entirely of
+schema-default values from no policy.
+
+There is no periodic polling or restart loop. A startup check and configuration events trigger
+checks, coalesced by a 500 ms debounce. At most one automatic off-to-on recovery is attempted per
+workspace and editor session, identified by `vscode.env.sessionId`. The attempt remains recorded
+even after success or failure. Later policy updates only offer a reload, deduplicated while stale.
+If policy first arrives after a later sign-in, that single recovery can happen then rather than
+immediately at launch. A one-off 15-second grace period allows a requested restart to finish
+before a still-running host shows the reload fallback.
 
 OTel is **off by default** with zero overhead. It activates when:
 
-- enterprise policy enables it (managed `telemetry.enabled` or a managed endpoint), or
+- an applied enterprise policy makes `github.copilot.chat.otel.enabled` true, or
 - `COPILOT_OTEL_ENABLED=true`, or
 - `OTEL_EXPORTER_OTLP_ENDPOINT` is set, or
 - `github.copilot.chat.otel.enabled` is `true`, or
@@ -168,9 +297,9 @@ Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as t
 | `copilot_chat.repo.head_commit_hash` | **Legacy** — prefer `github.copilot.git.commit_sha` | `deadbeef...` |
 | `copilot_chat.turn_count` | Always | `4` |
 | `error.type` | On error | `Error` |
-| `gen_ai.input.messages` | Opt-in (captureContent) | `[{"role":"user",...}]` |
-| `gen_ai.output.messages` | Opt-in (captureContent) | `[{"role":"assistant",...}]` |
-| `gen_ai.tool.definitions` | Opt-in (captureContent) | `[{"type":"function",...}]` |
+| `gen_ai.input.messages` | Export opt-in (captureContent); retained locally for foreground debugging | `[{"role":"user",...}]` |
+| `gen_ai.output.messages` | Export opt-in (captureContent); retained locally for foreground debugging | `[{"role":"assistant",...}]` |
+| `gen_ai.tool.definitions` | Export opt-in (captureContent); retained locally for foreground debugging | `[{"type":"function",...}]` |
 
 **`chat`** — one span per LLM API call (span kind: `CLIENT`).
 
@@ -224,8 +353,23 @@ Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as t
 | `github.copilot.tool.parameters.file_path` | File tools, opt-in (captureContent) | `/src/app.ts` |
 | `github.copilot.tool.parameters.mcp_server_name` | MCP tools, opt-in (captureContent) | `github` |
 | `error.type` | On error | `FileNotFoundError` |
-| `gen_ai.tool.call.arguments` | Opt-in (captureContent) | `{"filePath":"/src/index.ts"}` |
-| `gen_ai.tool.call.result` | Opt-in (captureContent) | `(file contents or summary)` |
+| `gen_ai.tool.call.arguments` | Export opt-in (captureContent); retained locally (bounded) | `{"filePath":"/src/index.ts"}` |
+| `gen_ai.tool.call.result` | Export opt-in (captureContent); retained locally (bounded) | `(file contents or summary)` |
+
+**`execute_hook`** — one span per local hook command (span kind: `INTERNAL`). Hook input and successful output are retained for the Agent Debug Log regardless of `captureContent`, but require `captureContent` for primary span export; `maxAttributeSizeChars` still applies.
+
+| Attribute | Requirement | Example |
+|---|---|---|
+| `gen_ai.operation.name` | Required | `execute_hook` |
+| `gen_ai.conversation.id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.hook_type` | Required | `PreToolUse` |
+| `copilot_chat.hook_command` | Always | `./scripts/check.sh` |
+| `copilot_chat.hook_input` | Export opt-in (captureContent); retained locally (bounded) | `{"tool_name":"run_in_terminal",...}` |
+| `copilot_chat.hook_output` | Export opt-in (captureContent); retained locally on success (bounded) | `ok` |
+| `copilot_chat.hook_result_kind` | On completion | `success` \| `error` \| `non_blocking_error` |
+| `github.copilot.hook.tool_names` | When available | `["run_in_terminal"]` |
+| `github.copilot.hook.duration` | On completion (seconds) | `0.25` |
+| `github.copilot.hook.decision` | On completion | `pass` \| `block` \| `non_blocking_error` |
 
 ### Metrics
 
@@ -295,7 +439,7 @@ Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as t
 
 #### Agent Activity & Outcome Metrics
 
-These metrics track the activity and outcomes of agentic code changes across all surfaces (agent mode, inline chat, background CLI, cloud sessions).
+These metrics track activity and outcomes reported through the Copilot Chat extension's OTel service.
 
 | Metric | Type | Unit | Description |
 |---|---|---|---|
@@ -310,10 +454,9 @@ These metrics track the activity and outcomes of agentic code changes across all
 | `copilot_chat.agent.summarization.count` | Counter | events | Context summarization outcomes (applied/failed) |
 | `copilot_chat.pull_request.count` | Counter | PRs | Pull requests created via CLI agent |
 | `copilot_chat.cloud.session.count` | Counter | sessions | Cloud/remote agent sessions by partner |
-| `copilot_chat.cloud.pr_ready.count` | Counter | events | Remote agent job PR ready notifications (v1/Jobs API only) |
-| `copilot_chat.cloud.operation.count` | Counter | operations | Cloud backend operation outcomes (create, fetch, follow-up, PR) by backend version |
-| `copilot_chat.cloud.operation.duration` | Histogram | ms | Cloud backend operation latency by backend version |
-| `copilot_chat.cloud.error.count` | Counter | errors | Cloud backend operation failures by backend version and error type |
+| `copilot_chat.cloud.operation.count` | Counter | operations | Cloud task operation outcomes (create, fetch, follow-up, PR) |
+| `copilot_chat.cloud.operation.duration` | Histogram | ms | Cloud task operation latency |
+| `copilot_chat.cloud.error.count` | Counter | errors | Cloud task operation failures by operation and error type |
 
 **`copilot_chat.edit.acceptance.count` attributes:** `copilot_chat.edit.source` (`inline_chat`/`chat_editing`/`chat_editing_hunk`/`apply_patch`/`replace_string`/`code_mapper`), `copilot_chat.edit.outcome` (`accepted`/`rejected`), `copilot_chat.language_id` (optional)
 
@@ -333,15 +476,13 @@ These metrics track the activity and outcomes of agentic code changes across all
 
 **`copilot_chat.agent.summarization.count` attributes:** `outcome` (`applied`/`failed`)
 
-**`copilot_chat.cloud.session.count` attributes:** `partner_agent` (`copilot`/`claude`/`codex`), `github.copilot.cloud.backend_version` (`v1`/`v2`, optional)
+**`copilot_chat.cloud.session.count` attributes:** `partner_agent` (`copilot`/`claude`/`codex`)
 
-**`copilot_chat.cloud.pr_ready.count` attributes:** `github.copilot.cloud.backend_version` (`v1`, optional)
+**`copilot_chat.cloud.operation.count` attributes:** `operation` (`createSession`/`fetchSessionList`/`fetchContent`/`fetchEvents`/`pollUpdate`/`followUp`/`createPullRequest`/`sessionActivated`), `success`
 
-**`copilot_chat.cloud.operation.count` attributes:** `operation` (`createSession`/`fetchSessionList`/`fetchContent`/`fetchEvents`/`pollUpdate`/`followUp`/`findTaskForPullRequest`/`createPullRequest`/`sessionActivated`), `github.copilot.cloud.backend_version` (`v1`/`v2`), `success`
+**`copilot_chat.cloud.operation.duration` attributes:** `operation`
 
-**`copilot_chat.cloud.operation.duration` attributes:** `operation`, `github.copilot.cloud.backend_version` (`v1`/`v2`)
-
-**`copilot_chat.cloud.error.count` attributes:** `operation`, `github.copilot.cloud.backend_version` (`v1`/`v2`), `error.type` (low-cardinality classifier, e.g. `http_500`)
+**`copilot_chat.cloud.error.count` attributes:** `operation`, `error.type` (low-cardinality classifier, e.g. `http_500`)
 
 ### Events
 
@@ -497,15 +638,21 @@ These custom attributes are included in all traces, metrics, and events, allowin
 - Create team-specific dashboards and alerts
 - Track usage across organizational boundaries
 
-> **Note:** `OTEL_RESOURCE_ATTRIBUTES` uses comma-separated `key=value` pairs. Values cannot contain spaces, commas, or semicolons. Use percent-encoding for special characters (e.g., `org.name=John%27s%20Org`).
+> **Note:** `OTEL_RESOURCE_ATTRIBUTES` uses comma-separated `key=value` pairs. The extension splits on commas, trims surrounding whitespace, and does not percent-decode values. Use the `github.copilot.chat.otel.resourceAttributes` object setting when a value needs to contain a comma.
+
+The governed identity keys (`user.name`, `process.user.name`, `host.name`) are
+excluded even when explicitly configured unless identity capture is allowed.
+See [Governed identity capture](#governed-identity-capture).
 
 ---
 
 ## Content Capture
 
-By default, **no prompt content, responses, or tool arguments are captured** — only metadata like model names, token counts, and durations.
+The `captureContent` setting controls content on individual LLM `chat` spans and inference events. It also gates known content attributes on spans and span events sent through the Local harness's primary exporters: OTLP, file, and console. When off, the export boundary removes input/output messages, system instructions, tool definitions, tool arguments/results, user requests, reasoning, prompt context/instructions, markdown content, hook input/output, and generic `content`/`toolDefinitions` attributes. Span events can remain without their content attributes.
 
-To capture full content, add to your VS Code settings:
+Foreground `invoke_agent`, `execute_tool`, and `execute_hook` spans still retain content needed by the Agent Debug Log and the separate local SQLite exporter, regardless of this setting. Primary file export is not the SQLite debug exporter. Identity filtering applies to both paths independently.
+
+To include these content attributes in primary exports and capture full LLM request and response content, add to your VS Code settings:
 
 ```json
 {
@@ -513,20 +660,18 @@ To capture full content, add to your VS Code settings:
 }
 ```
 
-This populates these span attributes:
+This additionally populates content attributes on `chat` spans and inference events, including:
 
 | Attribute | Content |
 |---|---|
-| `gen_ai.input.messages` | Full prompt messages (JSON) |
-| `gen_ai.output.messages` | Full response messages (JSON) |
+| `gen_ai.input.messages` | Full LLM input messages (JSON) |
+| `gen_ai.output.messages` | Full LLM response messages (JSON) |
 | `gen_ai.system_instructions` | System prompt |
 | `gen_ai.tool.definitions` | Tool schemas |
-| `gen_ai.tool.call.arguments` | Tool input arguments |
-| `gen_ai.tool.call.result` | Tool output |
 
-Content is captured in full with no truncation.
+Content attributes are not truncated by default. Set `github.copilot.chat.otel.maxAttributeSizeChars` to a positive value when the backend imposes a per-attribute limit.
 
-> **Warning:** Content capture may include sensitive information such as code, file contents, and user prompts. Only enable in trusted environments.
+> **Warning:** This is filtering of known content attributes, not universal payload sanitization. Other metadata, span names, status messages, or unrecognized attributes may still contain sensitive information. Local debug content retention is separate. Enabling `captureContent` includes prompt, response, and tool content in primary exports. Configure export only for trusted environments.
 
 ---
 
@@ -563,6 +708,10 @@ Content is captured in full with no truncation.
 }
 ```
 
+The file contains newline-delimited JSON records for spans, logs, and metrics; it is not an OTLP JSON payload. Span records contain public span data, including trace and span IDs, parent context, attributes, events, links, resource attributes, instrumentation scope, status, and dropped-data counts. Trace state is serialized as a string. Span `startTime`, `endTime`, and `duration` use `[seconds, nanoseconds]` pairs, preserving nanosecond precision.
+
+The exporter preserves attributes already captured by instrumentation; see [Content Capture](#content-capture) for what those attributes can contain. Logs and metrics retain their existing SDK JSON representation. Serialization failures are reported as failed exports rather than written as `{}` placeholders, and a batch that cannot be serialized is not partially written.
+
 **Console output (quick debugging):**
 
 ```json
@@ -595,144 +744,9 @@ This propagation works across async boundaries — the parent's trace context is
 
 ---
 
-## Background Agents (Copilot CLI)
-
-When OTel is enabled, **all agent types** are automatically instrumented — no additional configuration needed. The same settings that enable foreground agent traces also enable Copilot CLI traces.
-
-### Copilot CLI (Background Agent)
-
-The Copilot CLI SDK runs in the same VS Code process and produces a rich trace hierarchy including subagents, permissions, hooks, and tool calls:
-
-```
-copilot-chat invoke_agent copilotcli           [~45s]  ← extension wrapper
-  └── github-copilot invoke_agent              [~42s]  ← SDK native spans
-      ├── chat claude-sonnet-4.6               [~16s]
-      │   ├── hook postToolUse                          ← hook execution
-      │   └── hook postToolUse
-      ├── execute_tool task                    [~18s]
-      │   └── invoke_agent task                         ← subagent
-      │       ├── chat claude-sonnet-4.6
-      │       ├── execute_tool bash
-      │       │   └── permission
-      │       └── execute_tool report_intent
-      ├── chat claude-sonnet-4.6               [~4s]
-      └── hook sessionEnd                               ← session lifecycle hook
-```
-
-The extension wrapper span (`invoke_agent copilotcli`, service `copilot-chat`) parents the SDK's native spans (service `github-copilot`). Both appear in the same trace in your collector.
-
-**Agent Debug Log panel**: CLI sessions show the full SDK hierarchy in the Tree View — identical to what appears in Grafana/Jaeger. This works even when OTel export is disabled, because the SDK's internal tracing is always active for the debug panel.
-
-> **Content in the debug panel**: When OTel export is disabled (the default), the debug panel automatically captures full prompt/response content. When OTel export is enabled, content capture is controlled by the `captureContent` setting — the same flag applies to both the debug panel and OTLP export. To see content in the debug panel while OTel is enabled, set `github.copilot.chat.otel.captureContent` to `true`.
-
-### Copilot CLI (Terminal Session)
-
-Terminal CLI sessions ("New Copilot CLI Session") run as a separate process. When OTel is enabled, the extension forwards `COPILOT_OTEL_ENABLED` and `OTEL_EXPORTER_OTLP_ENDPOINT` to the terminal process. Terminal traces appear as **independent root traces** (service `github-copilot`) — they are not linked to extension traces.
-
-> **Note:** The CLI runtime only supports `otlp-http`. When `otlp-grpc` is configured, the terminal CLI still uses HTTP. Backends that serve both protocols on the same port (e.g., Aspire Dashboard) work transparently.
-
-### Filtering by Agent Type
-
-In your trace viewer, filter by `service.name` to see traces from specific agents:
-
-| `service.name` | Source |
-|---|---|
-| `copilot-chat` | Foreground agent, CLI wrapper, and Claude agent spans (extension-emitted) |
-| `github-copilot` | CLI SDK native spans + CLI terminal |
-| `claude-code` | Claude Code subprocess SDK telemetry (when `CLAUDE_CODE_ENABLE_TELEMETRY` is forwarded) |
-
-Within the `copilot-chat` service, distinguish agent types by `gen_ai.agent.name`:
-
-| `gen_ai.agent.name` | Agent Type |
-|---|---|
-| `GitHub Copilot Chat` | Foreground agent (agent mode) |
-| `copilotcli` | CLI wrapper span |
-| `claude` | Claude agent |
-
----
-
-## Claude Agent
-
-When OTel is enabled, Claude agent sessions produce extension-level spans (service `copilot-chat`) following GenAI semantic conventions.
-
-The extension creates spans by intercepting Claude SDK messages and proxying LLM calls through a local HTTP server to CAPI:
-
-```
-copilot-chat invoke_agent claude               [~33s]
-  ├── chat claude-haiku-4.5                    [~5s]   (LLM call via CAPI proxy)
-  ├── execute_tool Agent                       [~11s]  (subagent invocation)
-  │   ├── chat claude-haiku-4.5                [~4s]   (subagent LLM call)
-  │   ├── execute_tool Grep                    [~20ms] (subagent tool)
-  │   └── chat claude-haiku-4.5                [~7s]   (subagent LLM call)
-  ├── chat claude-haiku-4.5                    [~3s]
-  ├── execute_tool Write                       [~40ms]
-  ├── chat claude-haiku-4.5                    [~3s]
-  └── execute_hook Stop                        [~10ms] (hook execution)
-```
-
-**`invoke_agent claude`** — root span per user request.
-
-| Attribute | Example |
-|---|---|
-| `gen_ai.operation.name` | `invoke_agent` |
-| `gen_ai.agent.name` | `claude` |
-| `gen_ai.provider.name` | `github` |
-| `gen_ai.request.model` | `claude-haiku-4.5` |
-| `gen_ai.response.model` | `claude-haiku-4.5` |
-| `gen_ai.usage.input_tokens` | `103739` (parent-only, excludes subagent tokens) |
-| `gen_ai.usage.output_tokens` | `1100` |
-| `gen_ai.usage.cache_read.input_tokens` | `64062` |
-| `gen_ai.usage.cache_creation.input_tokens` | `39629` |
-| `github.copilot.agent.type` | `builtin` |
-| `github.copilot.git.repository` | `https://github.com/microsoft/vscode.git` |
-| `github.copilot.git.branch` | `main` |
-| `github.copilot.git.commit_sha` | `deadbeef...` |
-| `github.copilot.github.org` | `microsoft` |
-| `copilot_chat.turn_count` | `8` |
-| `copilot_chat.total_cost_usd` | `0.067` (session-wide, includes subagents) |
-| `copilot_chat.chat_session_id` | VS Code session ID |
-
-**`chat`** — one span per LLM API call, created by `chatMLFetcher` via the Claude language model proxy server. Same attributes as foreground agent `chat` spans (token usage, TTFT, response model, cache breakdown).
-
-**`execute_tool`** — one span per tool invocation. When the tool is `Agent` (subagent), child `chat` and `execute_tool` spans are nested underneath, giving full subagent visibility.
-
-| Attribute | Requirement | Example |
-|---|---|---|
-| `gen_ai.operation.name` | Required | `execute_tool` |
-| `gen_ai.tool.name` | Required | `Edit` |
-| `gen_ai.conversation.id` | Session correlation | `a1b2c3d4-...` |
-| `copilot_chat.session_id` | Session correlation | `a1b2c3d4-...` |
-| `copilot_chat.chat_session_id` | Session correlation | VS Code chat session ID |
-| `github.copilot.tool.parameters.edit_type` | Edit tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`) | `create` \| `str_replace` \| `update` |
-| `github.copilot.tool.parameters.mcp_server_name_hash` | MCP tools | SHA-256 hex of server name |
-| `github.copilot.tool.parameters.mcp_tool_name` | MCP tools | `search_issues` |
-| `github.copilot.tool.parameters.command` | Shell tools (`Bash`), opt-in (captureContent) | `npm test` (truncated to 256 chars) |
-| `github.copilot.tool.parameters.file_path` | File tools (`Read`, `Edit`, `MultiEdit`, `Write`, `NotebookEdit`), opt-in (captureContent) | `/src/app.ts` |
-| `github.copilot.tool.parameters.mcp_server_name` | MCP tools, opt-in (captureContent) | `github` |
-| `gen_ai.tool.call.arguments` | Opt-in (captureContent) | `{"file_path":"/src/app.ts",...}` |
-
-**`execute_hook`** — one span per Claude hook execution (e.g., `Stop` hooks).
-
-| Attribute | Requirement | Example |
-|---|---|---|
-| `gen_ai.operation.name` | Required | `execute_hook` |
-| `gen_ai.conversation.id` | Session correlation | `a1b2c3d4-...` |
-| `copilot_chat.session_id` | Session correlation | `a1b2c3d4-...` |
-| `copilot_chat.chat_session_id` | Session correlation | VS Code chat session ID |
-| `copilot_chat.hook_type` | Required | `PreToolUse` |
-| `copilot_chat.hook_result_kind` | Always | `success` \| `error` \| `non_blocking_error` |
-| `github.copilot.hook.decision` | Always | `pass` \| `block` \| `non_blocking_error` |
-| `github.copilot.hook.duration` | Always | `0.142` (seconds) |
-| `github.copilot.hook.tool_names` | When tool-scoped | `["bash"]` (JSON array) |
-| `copilot_chat.hook_input` | Always | hook input payload (truncated) |
-| `copilot_chat.hook_output` | On success | hook stdout (truncated) |
-| `error.type` | On error | `Error` |
-
----
-
 ## Interpreting the Data
 
-**Traces** — Visualize the full agent execution in Jaeger or Grafana Tempo. Each `invoke_agent` span contains child `chat` and `execute_tool` spans, making it easy to identify bottlenecks and debug failures. Subagent invocations appear as nested `invoke_agent` spans under `execute_tool runSubagent` (foreground agent) or under `execute_tool Agent` (Claude agent).
+**Traces** — Visualize the full agent execution in Jaeger or Grafana Tempo. Each `invoke_agent` span contains child `chat` and `execute_tool` spans, making it easy to identify bottlenecks and debug failures. Foreground subagent invocations appear as nested `invoke_agent` spans under `execute_tool runSubagent`.
 
 **Metrics** — Track token usage trends by model and provider, monitor tool success rates via `copilot_chat.tool.call.count`, and watch perceived latency with `copilot_chat.time_to_first_token`. Agent activity metrics (`copilot_chat.edit.acceptance.count`, `copilot_chat.edit.survival.four_gram`, `copilot_chat.lines_of_code.count`) power accept rate and edit survival dashboards. All metrics carry the same resource attributes (`service.name`, `service.version`, `session.id`) for consistent filtering.
 
@@ -896,10 +910,14 @@ docker run -d --name jaeger -p 16686:16686 -p 4318:4318 jaegertracing/jaeger:lat
 }
 ```
 
-Then set the auth header via environment variable (required — no VS Code setting for headers):
+Set the auth header with the `github.copilot.chat.otel.headers` setting or the `OTEL_EXPORTER_OTLP_HEADERS` environment variable. For example:
 
-```bash
-export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic $(echo -n '<public-key>:<secret-key>' | base64)"
+```json
+{
+  "github.copilot.chat.otel.headers": {
+    "Authorization": "Basic <base64-public-key-and-secret-key>"
+  }
+}
 ```
 
 Replace `<public-key>` and `<secret-key>` with your Langfuse API keys from **Settings → API Keys**.
@@ -921,8 +939,8 @@ Refer to each backend's documentation for OTLP ingestion setup.
 
 ## Security & Privacy
 
-- **Off by default.** No OTel data is emitted unless explicitly enabled. When disabled, the OTel SDK is not loaded at all — zero runtime overhead.
-- **No content by default.** Prompts, responses, and tool arguments require opt-in via `captureContent`.
-- **No PII in default attributes.** Session IDs, model names, and token counts are not personally identifiable.
+- **Export is off by default.** No OTel data is sent to an external exporter unless explicitly enabled. When disabled, the OTel SDK is not loaded; a lightweight in-memory service still records data needed by the Agent Debug Log.
+- **Content export and local debug retention are separate.** Known span and span-event content attributes require `captureContent` in primary OTLP, file, and console exports. Foreground agent, tool, and hook spans retain content for local debugging even when that setting is off. This is not universal sanitization; review [Content Capture](#content-capture) before enabling export.
+- **Treat exported content as sensitive.** User messages, file contents, commands, tool payloads, and hook data can contain personal or confidential information.
 - **User-configured endpoints.** Data goes only where you point it — no phone-home behavior.
 - **Dynamic imports only.** OTel SDK packages are loaded on-demand, ensuring zero bundle impact when disabled.

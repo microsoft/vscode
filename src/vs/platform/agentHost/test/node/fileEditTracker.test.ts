@@ -17,9 +17,9 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
-import { createFileEditContentDigest, getFileEditAttributionMarker, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
+import { createFileEditContentDigest, getFileEditAttributionMarker, IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { parseSessionDbUri } from '../../common/sessionDbUri.js';
-import { ToolResultContentType } from '../../common/state/sessionState.js';
+import { buildChatUri, ToolResultContentType } from '../../common/state/sessionState.js';
 import { TestDiffComputeService } from '../common/sessionTestHelpers.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
@@ -118,19 +118,23 @@ suite('FileEditTracker', () => {
 	test('attaches Agent attribution marker to the file edit result', async () => {
 		const services = new ServiceCollection();
 		let arcReportCount = 0;
+		let recordedEdit: IAgentEditAttribution | undefined;
 		services.set(ILogService, new NullLogService());
 		services.set(IFileService, fileService);
 		services.set(IDiffComputeService, new TestDiffComputeService());
 		services.set(IAgentEditAttributionService, {
 			_serviceBrand: undefined,
 			setEnabled: () => { },
-			recordEdit: async edit => ({
-				version: 1,
-				editId: 'edit-1',
-				sequence: 1,
-				beforeDigest: createFileEditContentDigest(edit.beforeText),
-				afterDigest: createFileEditContentDigest(edit.afterText),
-			}),
+			recordEdit: async edit => {
+				recordedEdit = edit;
+				return {
+					version: 1,
+					editId: 'edit-1',
+					sequence: 1,
+					beforeDigest: createFileEditContentDigest(edit.beforeText),
+					afterDigest: createFileEditContentDigest(edit.afterText),
+				};
+			},
 			flushSession: async () => { },
 			prepareFlush: async () => undefined,
 			commitFlush: async () => ({ outcome: 'missing', agentModifiedCount: 0 }),
@@ -148,16 +152,26 @@ suite('FileEditTracker', () => {
 		await localTracker.trackEditStart('/workspace/marker.txt');
 		await fileService.writeFile(URI.file('/workspace/marker.txt'), VSBuffer.fromString('after'));
 		await localTracker.completeEdit('/workspace/marker.txt');
-		const result = await localTracker.takeCompletedEdit('turn-1', 'tc-marker', '/workspace/marker.txt', 'edit', undefined, 'model');
+		const chatUri = buildChatUri('copilot:/test-session', 'side');
+		const result = await localTracker.takeCompletedEdit('turn-1', 'tc-marker', '/workspace/marker.txt', 'edit', undefined, 'model', undefined, chatUri);
 
-		assert.deepStrictEqual(result && getFileEditAttributionMarker(result), {
-			version: 1,
-			editId: 'edit-1',
-			sequence: 1,
-			beforeDigest: createFileEditContentDigest('before'),
-			afterDigest: createFileEditContentDigest('after'),
+		assert.deepStrictEqual({
+			marker: result && getFileEditAttributionMarker(result),
+			arcReportCount,
+			sessionUri: recordedEdit?.sessionUri,
+			chatUri: recordedEdit?.chatUri,
+		}, {
+			marker: {
+				version: 1,
+				editId: 'edit-1',
+				sequence: 1,
+				beforeDigest: createFileEditContentDigest('before'),
+				afterDigest: createFileEditContentDigest('after'),
+			},
+			arcReportCount: 1,
+			sessionUri: 'copilot:/test-session',
+			chatUri,
 		});
-		assert.strictEqual(arcReportCount, 1);
 	});
 
 	test('returns the file edit result when attribution fails', async () => {
@@ -217,7 +231,7 @@ suite('FileEditTracker', () => {
 		const localTracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
 		await fileService.writeFile(URI.file('/workspace/non-blocking.txt'), VSBuffer.fromString('before'));
 
-		await localTracker.trackEditStart('/workspace/non-blocking.txt');
+		await localTracker.trackEditStart('/workspace/non-blocking.txt', 'plan');
 		await fileService.writeFile(URI.file('/workspace/non-blocking.txt'), VSBuffer.fromString('after'));
 		await localTracker.completeEdit('/workspace/non-blocking.txt');
 		const resultPromise = localTracker.takeCompletedEdit('turn-1', 'tc-non-blocking', '/workspace/non-blocking.txt', 'apply_patch', undefined, 'model');
@@ -241,6 +255,7 @@ suite('FileEditTracker', () => {
 			diffCallCount: localDiffComputeService.callCount,
 			detailedDiffCallCount: localDiffComputeService.detailedCallCount,
 			initialEdit: report.initialEdit,
+			mode: report.mode,
 		}, {
 			completion: 'complete',
 			resultType: ToolResultContentType.FileEdit,
@@ -249,6 +264,7 @@ suite('FileEditTracker', () => {
 			initialEdit: {
 				replacements: [{ start: 0, endExclusive: 6, text: 'after' }]
 			},
+			mode: 'plan',
 		});
 	});
 

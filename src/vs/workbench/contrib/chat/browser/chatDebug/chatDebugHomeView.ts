@@ -112,7 +112,7 @@ export class ChatDebugHomeView extends Disposable {
 	}
 
 	private _getFilteredSessionResources(resources: readonly URI[]): URI[] {
-		const cliSessionTypes = new Set(['copilotcli', 'claude-code']);
+		const cliSessionTypes = new Set(['copilotcli']);
 		return [...resources]
 			.filter(r => !cliSessionTypes.has(getChatSessionType(r)) || !isUntitledChatSession(r));
 	}
@@ -190,10 +190,6 @@ export class ChatDebugHomeView extends Disposable {
 					const pathId = sessionResource.path.replace(/^\//, '').split('-')[0];
 					const shortId = pathId || sessionResource.authority || sessionResource.toString();
 					sessionTitle = localize('chatDebug.copilotCliSessionWithId', "Copilot CLI: {0}", shortId);
-				} else if (getChatSessionType(sessionResource) === 'claude-code') {
-					const pathId = sessionResource.path.replace(/^\//, '').split('-')[0];
-					const shortId = pathId || sessionResource.authority || sessionResource.toString();
-					sessionTitle = localize('chatDebug.claudeCodeSessionWithId', "Claude Code: {0}", shortId);
 				} else {
 					sessionTitle = localize('chatDebug.newSession', "New Chat");
 				}

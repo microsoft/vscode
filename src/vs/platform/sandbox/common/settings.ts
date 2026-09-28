@@ -3,6 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { OperatingSystem } from '../../../base/common/platform.js';
+
+export interface IAgentSandboxFileSystemSetting {
+	allowRead?: string[];
+	allowWrite?: string[];
+	denyRead?: string[];
+	denyWrite?: string[];
+}
+
+/** Converts path separators for the sandbox's execution OS without resolving paths or patterns. */
+export function normalizeSandboxFileSystemPath(path: string, os: OperatingSystem): string {
+	return os === OperatingSystem.Windows ? path.replace(/\//g, '\\') : path;
+}
+
 /**
  * Setting IDs for agent sandboxing.
  */
@@ -23,7 +37,6 @@ export const enum AgentSandboxSettingId {
 export const enum AgentSandboxEnabledValue {
 	Off = 'off',
 	On = 'on',
-	AllowNetwork = 'allowNetwork',
 }
 
 export type AgentSandboxEnabledSettingValue = AgentSandboxEnabledValue | boolean;

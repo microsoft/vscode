@@ -11,6 +11,7 @@ import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -35,7 +36,9 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../chat/common/constants.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { IChatViewTitleActionContext } from '../../chat/common/actions/chatActions.js';
 import { ChatWidget } from '../../chat/browser/widget/chatWidget.js';
+import { ACTION_ID_NEW_CHAT } from '../../chat/browser/actions/chatActions.js';
 import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../../chat/browser/agentSessions/agentSessions.js';
 import { IAgentSession } from '../../chat/browser/agentSessions/agentSessionsModel.js';
@@ -60,7 +63,7 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { canShowAgentsBanner, createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
+import { createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
@@ -563,6 +566,11 @@ export class AgentSessionsWelcomePage extends EditorPane {
 				limitResults: () => MAX_SESSIONS,
 				overrideExclude: (session) => session.isArchived() ? true : undefined,
 			})),
+			createNewChat: () => this.commandService.executeCommand(ACTION_ID_NEW_CHAT, this.chatWidget?.viewModel ? {
+				$mid: MarshalledId.ChatViewContext,
+				sessionResource: this.chatWidget.viewModel.sessionResource,
+				inputUri: this.chatWidget.inputPart.inputUri,
+			} satisfies IChatViewTitleActionContext : undefined),
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
 			source: 'welcomeView',
@@ -598,20 +606,20 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		}));
 
 		// "Try out the new Agents app" banner
-		if (canShowAgentsBanner(this.chatEntitlementService)) {
-			const agentsBanner = createAgentsBanner(
-				{
-					cssClass: 'agentSessionsWelcome-agentsBanner',
-					source: 'agentSessionsWelcome',
-					label: localize('viewAllSessions', "View All Sessions"),
-					onButtonClick: () => { this._closedBy = 'viewAllSessions'; },
-				},
-				this.commandService,
-				this.telemetryService,
-			);
-			this.sessionsControlDisposables.add(agentsBanner.disposables);
-			append(container, agentsBanner.element);
-		}
+		const agentsBanner = createAgentsBanner(
+			{
+				cssClass: 'agentSessionsWelcome-agentsBanner',
+				source: 'agentSessionsWelcome',
+				label: localize('viewAllSessions', "View All Sessions"),
+				onButtonClick: () => { this._closedBy = 'viewAllSessions'; },
+			},
+			this.commandService,
+			this.telemetryService,
+			this.configurationService,
+			this.chatEntitlementService,
+		);
+		this.sessionsControlDisposables.add(agentsBanner.disposables);
+		append(container, agentsBanner.element);
 	}
 
 	private buildWalkthroughs(container: HTMLElement): void {

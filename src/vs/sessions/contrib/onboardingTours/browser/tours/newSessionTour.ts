@@ -10,6 +10,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { localize } from '../../../../../nls.js';
+import { NewSessionOnboardingHandoffContext } from '../../../../common/contextkeys.js';
 
 /**
  * Spotlight steps shown after the user presses the pulsing "New Session"
@@ -80,7 +81,7 @@ export function createNewSessionTour(signal: IObservable<boolean>): IOnboardingS
 	return {
 		id: NEW_SESSION_TOUR_ID,
 		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorPartModalContext.toNegated()),
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorPartModalContext.toNegated(), NewSessionOnboardingHandoffContext.toNegated()),
 		trigger: { kind: 'observable', signal },
 		priority: 100,
 		experiment: NEW_SESSION_EXPERIMENT,

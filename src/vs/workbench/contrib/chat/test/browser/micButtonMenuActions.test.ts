@@ -25,6 +25,7 @@ suite('Mic button menu actions', () => {
 		assert.deepStrictEqual(actions.map(action => action.label), [
 			'Configure Keybinding',
 			'Voice Mode Button',
+			'Show Transcript',
 			'Disable',
 			'',
 			'Open Settings',
@@ -32,6 +33,20 @@ suite('Mic button menu actions', () => {
 			'Show Introduction',
 			'Select Microphone',
 		]);
+	});
+
+	test('Voice Mode "Show Transcript" toggle reflects and flips the transcript setting', async () => {
+		const updated: [string, unknown][] = [];
+		const configurationService = upcastPartial<IConfigurationService>({
+			getValue: () => false,
+			updateValue: async (key: string, value: unknown) => { updated.push([key, value]); },
+		});
+		const actions = getVoiceModeContextMenuActions(commandService, configurationService, keybindingService, 'voice.start');
+		const toggle = actions.find(action => action.label === 'Show Transcript')!;
+
+		assert.deepStrictEqual({ checked: toggle.checked, updatedBeforeRun: updated }, { checked: false, updatedBeforeRun: [] });
+		await toggle.run();
+		assert.deepStrictEqual(updated, [['agents.voice.showTranscript', true]]);
 	});
 
 	test('Voice Mode button toggle reflects and flips the visibility setting', async () => {

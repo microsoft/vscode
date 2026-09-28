@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import type { JsonPrimitive } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * How often an automation runs. `hourly` fires every hour from creation/update;
@@ -14,7 +15,7 @@ export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekly';
 /**
  * Describes the cadence at which an automation should fire.
  *
- * Times are stored in local-time wall-clock values. The scheduler converts
+ * Times are stored in local-time wall-clock values. The Agent Host converts
  * them to UTC when computing concrete run instants so DST transitions are
  * handled correctly.
  */
@@ -52,11 +53,45 @@ export type AutomationTarget =
 		readonly sessionTypeId: string;
 	};
 
+/** Provider-owned values used to create each Automation run session. */
+export interface IAutomationSessionTemplate {
+	/** Optional language model identifier. */
+	readonly modelId?: string;
+	/** Model-specific preferences, independent of provider session configuration. */
+	readonly modelConfiguration?: Readonly<Record<string, JsonPrimitive>>;
+	/** Optional custom agent selection. */
+	readonly agent?: { readonly uri: string };
+	/** Provider-owned session configuration values. */
+	readonly config?: Readonly<Record<string, unknown>>;
+}
+
+export function isAutomationModelConfiguration(value: unknown): value is NonNullable<IAutomationSessionTemplate['modelConfiguration']> {
+	return !!value && typeof value === 'object' && !Array.isArray(value)
+		&& (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+		&& Object.values(value).every(entry => entry === null
+			|| typeof entry === 'string'
+			|| typeof entry === 'boolean'
+			|| (typeof entry === 'number' && Number.isFinite(entry)));
+}
+
+export function assertAutomationSessionTemplate(template: IAutomationSessionTemplate | undefined): void {
+	if (template?.modelConfiguration === undefined) {
+		return;
+	}
+	if (typeof template.modelId !== 'string' || !template.modelId.trim()) {
+		throw new Error('Automation model configuration requires a model identifier.');
+	}
+	if (!isAutomationModelConfiguration(template.modelConfiguration)) {
+		throw new Error('Automation model configuration must contain only JSON primitive values.');
+	}
+}
+
 /**
  * A single scheduled automation. Identity is the immutable `id`; everything
  * else may be edited by the user.
  */
-export interface IAutomation {
+export interface IAutomationDescriptor {
+	/** Opaque identifier, unique across concrete providers as well as within one host. */
 	readonly id: string;
 	readonly name: string;
 	readonly prompt: string;
@@ -65,13 +100,16 @@ export interface IAutomation {
 	/** Explicit workspace-backed or workspace-less execution target. */
 	readonly target: AutomationTarget;
 
-	/** Optional language model identifier to seed the new session with. */
+	/** Complete provider-owned session template. */
+	readonly sessionTemplate?: IAutomationSessionTemplate;
+
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly modelId?: string;
 
-	/** Optional chat mode (`agent`/`ask`/`edit`). Defaults to provider's default; custom modes unsupported. */
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly mode?: string;
 
-	/** Optional permission level (`default`/`autoApprove`/`autopilot`). Overrides only for scheduled runs; defaults to provider's default. */
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 
 	readonly enabled: boolean;
@@ -87,30 +125,28 @@ export interface IAutomation {
 
 /**
  * Lifecycle of an automation run. A run stays `running` while its agent session
- * is active or needs input, and becomes terminal when that session completes or
- * fails, or when tracking is cancelled or times out while the session may remain active.
+ * is active or needs input, and becomes terminal when the owning Agent Host
+ * reports completion, failure, cancellation, or timeout.
  */
 export type AutomationRunStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 /**
- * What kicked off a run. `catch_up` fires once at startup for a due-time that
- * passed while VS Code was closed.
+ * What kicked off a run. `catch_up` reflects the host's misfire policy for a
+ * due-time that passed while the host was not running.
  */
 export type AutomationRunTrigger = 'schedule' | 'catch_up' | 'manual';
 
 export interface IAutomationRun {
+	/** Opaque identifier, unique across concrete providers and historical archives. */
 	readonly id: string;
 	readonly automationId: string;
 	readonly status: AutomationRunStatus;
 	readonly trigger: AutomationRunTrigger;
 
-	/** Session resource URI (stringified), recorded as soon as the committed session is available. */
-	readonly sessionResource?: string;
+	/** Session resource URI, recorded as soon as the committed session is available. */
+	readonly sessionResource?: URI;
 
 	readonly startedAt: string;
 	readonly completedAt?: string;
 	readonly errorMessage?: string;
-
-	/** Window that claimed this run; the leader-election guard uses it to avoid duplicate execution across windows. */
-	readonly leaderWindowId: number;
 }

@@ -7,6 +7,69 @@ import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.
 import type { IAgentHostNativeOTelConfig } from '../../common/otel/agentHostOTelService.js';
 import type { ThreadResumeParams } from './protocol/generated/v2/ThreadResumeParams.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
+import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
+
+const CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE = 'vscode-workspace';
+const CODEX_VSCODE_RUNTIME_PERMISSION_PROFILE = 'vscode-runtime';
+const CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE = 'vscode-workspace-network';
+const CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE = 'vscode-workspace-read-only';
+
+type CodexFileSystemPermissions = Record<string, string | Record<string, string>>;
+
+/**
+ * Custom POSIX profiles start with Codex's empty restricted policy. Inheriting
+ * `:workspace` grants root reads, but explicitly denying them keeps even approved
+ * `require_escalated` commands sandboxed. Grant only the intended baseline access.
+ */
+function codexWorkspaceFileSystemPermissions(platform: NodeJS.Platform, binaryPath?: string): CodexFileSystemPermissions {
+	return platform === 'win32' ? {} : {
+		':minimal': 'read',
+		':workspace_roots': { '.': 'write', '.git': 'read', '.agents': 'read', '.codex': 'read' },
+		':tmpdir': 'write',
+		...(platform === 'linux' ? { ':slash_tmp': 'read' } : {}),
+		...(platform === 'linux' && binaryPath ? { [binaryPath]: 'read' } : {}),
+	};
+}
+
+function serializeFileSystemPermissions(permissions: CodexFileSystemPermissions): string {
+	return `{ ${Object.entries(permissions).map(([path, access]) => `${JSON.stringify(path)} = ${typeof access === 'string' ? JSON.stringify(access) : serializeFileSystemPermissions(access)}`).join(', ')} }`;
+}
+
+export function codexPermissionProfileOverrides(binaryPath: string, platform: NodeJS.Platform = process.platform): string[] {
+	const baseProfile = platform === 'linux' ? CODEX_VSCODE_RUNTIME_PERMISSION_PROFILE : CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE;
+	const baseProfilePermissions = platform === 'win32'
+		? 'extends = ":workspace"'
+		: `filesystem = ${serializeFileSystemPermissions(codexWorkspaceFileSystemPermissions(platform, binaryPath))}`;
+	const readOnlyProfile = platform === 'win32'
+		? `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = ":read-only" }`
+		: `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", filesystem = { ":workspace_roots" = { "." = "read" } } }`;
+	return [
+		`default_permissions="${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}"`,
+		`permissions.${baseProfile}={ ${baseProfilePermissions}, network = { enabled = false } }`,
+		...(platform === 'linux' ? [`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}={ extends = "${baseProfile}" }`] : []),
+		`permissions.${CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", network = { enabled = true } }`,
+		readOnlyProfile,
+	];
+}
+
+export function codexPermissionProfile(mode: SandboxMode, networkAccess: boolean): string {
+	if (mode === 'danger-full-access') {
+		return ':danger-full-access';
+	}
+	if (mode === 'read-only') {
+		return CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE;
+	}
+	return networkAccess ? CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE : CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE;
+}
+
+export function codexPermissionProfileReadRoots(readRoots: readonly string[], platform: NodeJS.Platform = process.platform): Record<string, JsonValue> {
+	return {
+		[`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}.filesystem`]: {
+			...codexWorkspaceFileSystemPermissions(platform),
+			...Object.fromEntries(readRoots.map(root => [root, 'read'])),
+		},
+	};
+}
 
 export interface ICodexLaunchProxy {
 	readonly baseUrl: string;
@@ -18,31 +81,40 @@ export interface ICodexLaunchConfig {
 	readonly args: readonly string[];
 }
 
+export const CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY = 'features.default_mode_request_user_input';
+
 export function buildCodexResumeParams(
-	modelProvider: string,
+	model: { readonly modelProvider: string; readonly modelId: string },
 	threadId: string,
 	mcpServers: Readonly<Record<string, unknown>>,
 	workingDirectories?: readonly string[],
 	configOverrides: Readonly<Record<string, JsonValue>> = {},
 	developerInstructions?: string,
+	imageGenerationEnabled = false,
+	permissionOverrides: Pick<ThreadResumeParams, 'approvalPolicy' | 'approvalsReviewer' | 'permissions'> = {},
 ): ThreadResumeParams {
 	const config = {
 		...configOverrides,
+		[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
+		'features.image_generation': imageGenerationEnabled,
 		...(Object.keys(mcpServers).length > 0 ? { mcp_servers: mcpServers as JsonValue } : {}),
 	};
 	return {
 		threadId,
-		modelProvider,
+		model: model.modelId,
+		modelProvider: model.modelProvider,
 		...(workingDirectories?.length ? {
 			cwd: workingDirectories[0],
 			runtimeWorkspaceRoots: [...workingDirectories],
 		} : {}),
+		...permissionOverrides,
 		...(Object.keys(config).length > 0 ? { config } : {}),
 		...(developerInstructions ? { developerInstructions } : {}),
 	};
 }
 
 export function buildCodexLaunchConfig(
+	binaryPath: string,
 	inheritedEnv: NodeJS.ProcessEnv,
 	proxy: ICodexLaunchProxy,
 	extraArgs: readonly string[],
@@ -66,24 +138,33 @@ export function buildCodexLaunchConfig(
 		// would otherwise drop it.
 		`shell_environment_policy.set.${AiAgentEnvVar}="${AiAgentEnvValue}"`,
 		`features.tool_call_mcp_elicitation=false`,
+		// Keep image generation disabled for the Copilot/CAPI proxy by default.
+		// ChatGPT subscription threads opt in with a per-thread override.
 		`features.image_generation=false`,
-		...codexTelemetryOverrides(telemetry),
 	];
+	const permissionOverrides = codexPermissionProfileOverrides(binaryPath);
+	const telemetryOverrides = codexTelemetryOverrides(telemetry);
 	return {
 		env,
-		args: ['app-server', ...overrides.flatMap(value => ['-c', value]), ...extraArgs],
+		args: ['app-server', ...overrides.flatMap(value => ['-c', value]), ...extraArgs, ...permissionOverrides.flatMap(value => ['-c', value]), ...telemetryOverrides.flatMap(value => ['-c', value])],
 	};
 }
 
 export function codexTelemetryOverrides(config: IAgentHostNativeOTelConfig | undefined): string[] {
-	if (!config) {
-		return [];
-	}
 	return [
-		`otel.log_user_prompt=${config.captureContent}`,
-		config.traces ? `otel.trace_exporter=${codexExporter(config.traces)}` : 'otel.trace_exporter="none"',
-		config.external ? `otel.exporter=${codexExporter({ ...config.external, endpoint: resolveSignalEndpoint(config.external.endpoint, 'logs', config.external.protocol) })}` : 'otel.exporter="none"',
-		config.external ? `otel.metrics_exporter=${codexExporter({ ...config.external, endpoint: resolveSignalEndpoint(config.external.endpoint, 'metrics', config.external.protocol) })}` : 'otel.metrics_exporter="none"',
+		// Codex analytics are independent from its OTel exporters and post to an
+		// OpenAI-owned endpoint. Keep them disabled even when the user configures
+		// Agent Host OTel, whose destinations are supplied explicitly below. Codex
+		// currently uses this same flag to gate its metrics exporter, so preventing
+		// product analytics also suppresses its otherwise user-directed metrics.
+		'analytics.enabled=false',
+		// Agent Host does not expose Codex's feedback flow. Disable its Sentry
+		// upload path rather than leaving an unused outbound channel available.
+		'feedback.enabled=false',
+		`otel.log_user_prompt=${config?.captureContent ?? false}`,
+		config?.traces ? `otel.trace_exporter=${codexExporter(config.traces)}` : 'otel.trace_exporter="none"',
+		config?.external ? `otel.exporter=${codexExporter({ ...config.external, endpoint: resolveSignalEndpoint(config.external.endpoint, 'logs', config.external.protocol) })}` : 'otel.exporter="none"',
+		config?.external ? `otel.metrics_exporter=${codexExporter({ ...config.external, endpoint: resolveSignalEndpoint(config.external.endpoint, 'metrics', config.external.protocol) })}` : 'otel.metrics_exporter="none"',
 	];
 }
 

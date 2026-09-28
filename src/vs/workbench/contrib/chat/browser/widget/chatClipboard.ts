@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../../../../base/browser/dom.js';
 import { appendEscapedMarkdownInlineCode, isPortableLinkTarget, isPortableMarkdownTarget } from '../../../../../base/common/htmlContent.js';
 import * as marked from '../../../../../base/common/marked/marked.js';
 import { IMarkdownEdit, markdownTokensToPlainText, rewriteMarkdownLinks } from '../../../../../base/common/markdownLinks.js';
@@ -11,7 +12,7 @@ import { IMarkdownEdit, markdownTokensToPlainText, rewriteMarkdownLinks } from '
  * Reads the target a rendered chat anchor points at. Clicks route through `data-href`, so that
  * attribute carries the semantic target while `href` may be empty or a copy-safe duplicate.
  */
-function getLinkTarget(element: Element): string {
+export function getLinkTarget(element: Element): string {
 	return (element.getAttribute('data-href') || element.getAttribute('href') || '').trim();
 }
 
@@ -22,7 +23,7 @@ function replaceWithLabel(element: Element, label: string): void {
 		return;
 	}
 
-	const code = element.ownerDocument.createElement('code');
+	const code = $('code');
 	code.textContent = label;
 	element.replaceWith(code);
 }

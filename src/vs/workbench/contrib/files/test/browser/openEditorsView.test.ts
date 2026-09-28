@@ -9,10 +9,17 @@ import { List } from '../../../../../base/browser/ui/list/listWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { OpenEditor } from '../../common/files.js';
+import { findFirstDirtyEditor } from '../../browser/views/openEditorsView.js';
 import { TestEditorGroupView, TestEditorInput } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('Files - OpenEditorsView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class TestDirtyEditorInput extends TestEditorInput {
+		override isDirty(): boolean {
+			return true;
+		}
+	}
 
 	const delegate: IListVirtualDelegate<OpenEditor> = {
 		getHeight: () => 20,
@@ -69,5 +76,29 @@ suite('Files - OpenEditorsView', () => {
 		list.splice(0, list.length, [new OpenEditor(thirdEditor, group), new OpenEditor(firstEditor, group), new OpenEditor(secondEditor, group)]);
 
 		assert.deepStrictEqual(list.getSelection(), [1, 2]);
+	});
+
+	test('finds the first unsaved editor in index order', () => {
+		const firstGroup = new TestEditorGroupView(1);
+		const secondGroup = new TestEditorGroupView(2);
+		const savedEditor = store.add(new TestEditorInput(URI.parse('test:/saved'), 'testEditor'));
+		const firstDirtyEditor = store.add(new TestDirtyEditorInput(URI.parse('test:/firstDirty'), 'testEditor'));
+		const secondDirtyEditor = store.add(new TestDirtyEditorInput(URI.parse('test:/secondDirty'), 'testEditor'));
+
+		firstGroup.editors = [savedEditor];
+		secondGroup.editors = [savedEditor, firstDirtyEditor, secondDirtyEditor];
+
+		const firstDirty = findFirstDirtyEditor([firstGroup, secondGroup]);
+
+		assert.deepStrictEqual({ editor: firstDirty?.editor, group: firstDirty?.group }, { editor: firstDirtyEditor, group: secondGroup });
+	});
+
+	test('finds no unsaved editor when all editors are saved', () => {
+		const group = new TestEditorGroupView(1);
+		const savedEditor = store.add(new TestEditorInput(URI.parse('test:/saved'), 'testEditor'));
+
+		group.editors = [savedEditor];
+
+		assert.strictEqual(findFirstDirtyEditor([group]), undefined);
 	});
 });

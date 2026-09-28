@@ -377,6 +377,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 			if (!this.optionsDisposable.value) {
 				this.optionsDisposable.value = this.enforcePartOptions({
 					showTabs: 'none',
+					showBreadcrumbs: false,
 					closeEmptyGroups: true
 				});
 			}

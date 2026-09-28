@@ -70,7 +70,7 @@ export interface ISessionEventMessage {
 		messageId?: string;
 		interactionId?: string;
 		content?: string;
-		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom'; mcpServerName?: string; mcpToolName?: string; toolDescription?: unknown }[];
+		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom'; mcpServerName?: string; mcpToolName?: string; toolTitle?: string; toolDescription?: unknown }[];
 		reasoningOpaque?: string;
 		reasoningText?: string;
 		encryptedContent?: string;
@@ -130,6 +130,15 @@ export interface ISessionEventSystemNotification {
 	data: SessionEventPayload<'system.notification'>['data'];
 }
 
+export interface ISessionEventError {
+	type: 'session.error';
+	id?: string;
+	agentId?: string;
+	/** ISO 8601 envelope timestamp; the mapper uses it to restore turn timing. */
+	timestamp?: string;
+	data: SessionEventPayload<'session.error'>['data'];
+}
+
 /** Minimal event shape for session history mapping. */
 export type ISessionEvent =
 	| ISessionEventToolStart
@@ -140,7 +149,8 @@ export type ISessionEvent =
 	| ISessionEventAbort
 	| ISessionEventAssistantTurn
 	| ISessionEventSystemNotification
-	| { type: string; timestamp?: string; data?: unknown };
+	| ISessionEventError
+	| { type: string; agentId?: string; timestamp?: string; data?: unknown };
 
 /**
  * Widens ergonomic {@link ISessionEvent} test fixtures to the real SDK
