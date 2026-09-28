@@ -230,7 +230,8 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 								if (regionResult !== undefined && adjustedRange !== undefined && documentSnapshot.version === documentSnapshot.document.version) {
 									const pathInfo = regionResult?.paths;
 									// For telemetry purpose send the adjusted region information
-									this.sendAdjustedRegionTelemetry(options, startLine, endLine, adjustedRange.start, adjustedRange.end, pathInfo, documentSnapshot);
+									const continuousLines = continuousReadStartLine !== undefined ? startLine - continuousReadStartLine : 0;
+									this.sendAdjustedRegionTelemetry(options, startLine, endLine, adjustedRange.start, adjustedRange.end, pathInfo, continuousLines, documentSnapshot);
 									if (adjustedRange.end >= startLine && adjustedRange.end < endLine) {
 										adjustedEndLine = adjustedRange.end;
 									}
@@ -561,7 +562,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		}
 	}
 
-	private async sendAdjustedRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, originalStart: number, originalEnd: number, adjustedStart: number, adjustedEnd: number, pathInfo: PathInfo, documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
+	private async sendAdjustedRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, originalStart: number, originalEnd: number, adjustedStart: number, adjustedEnd: number, pathInfo: PathInfo, continuousLines: number, documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
 		const languageId = documentSnapshot.languageId;
 		const smallestPath: string = JSON.stringify(pathInfo.smallest);
 		const largestPath: string | undefined = pathInfo?.largest ? JSON.stringify(pathInfo.largest) : undefined;
@@ -577,7 +578,8 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				"deltaEnd": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The difference between the original end line and the adjusted end line", "isMeasurement": true },
 				"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The language ID of the document snapshot" },
 				"smallestPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The smallest path in the region context" },
-				"largestPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The largest path in the region context" }
+				"largestPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The largest path in the region context" },
+				"continuousLines": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The number of continuous lines from the last adjusted read operation included in this read", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('readFileRegionAdjusted',
@@ -585,13 +587,14 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				requestId: options.chatRequestId,
 				languageId,
 				smallestPath,
-				largestPath,
+				largestPath
 			},
 			{
 				originalLines: originalEnd - originalStart + 1,
 				adjustedLines: adjustedEnd - adjustedStart + 1,
 				deltaStart: adjustedStart - originalStart,
 				deltaEnd: originalEnd - adjustedEnd,
+				continuousLines,
 			}
 		);
 	}
