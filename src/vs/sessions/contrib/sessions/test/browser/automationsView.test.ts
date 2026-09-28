@@ -1392,7 +1392,7 @@ suite('AutomationsCardsWidget', () => {
 			templatesDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
 		}, {
 			loadingMessage: 'Loading additional automations...',
-			unavailableMessage: 'Automations are unavailable on these providers: Remote build host.',
+			unavailableMessage: 'Automations are unavailable on Remote build host.',
 			errorMessage: 'Some automations could not be loaded.',
 			savedCards: 1,
 			appearsAfterCards: true,
@@ -1425,12 +1425,15 @@ suite('AutomationsCardsWidget', () => {
 			const selector = hasSavedAutomations ? '.automations-cards-partial-state-message' : '.automations-cards-unavailable .automations-cards-state-description';
 			const description = widget.element.querySelector<HTMLElement>(selector)!;
 			const reasons = [
-				'The Agent Host is disconnected on these providers: Host 1, Host 3.',
-				'These providers do not support automations: Host 2.',
+				'The agent host is disconnected on Host 1, Host 3.',
+				'Automations are not supported on Host 2.',
 			];
 			const readMessage = () => ({
 				hasSummary: !!description.querySelector(':scope > div'),
-				reasons: [...description.querySelectorAll('ul > li')].map(item => item.textContent),
+				hasList: !!description.querySelector('ul'),
+				reasons: description.querySelector('ul')
+					? [...description.querySelectorAll('ul > li')].map(item => item.textContent)
+					: [description.textContent],
 			});
 			const initial = {
 				message: readMessage(),
@@ -1440,14 +1443,17 @@ suite('AutomationsCardsWidget', () => {
 			};
 			automationService.setUnavailableProviders(providers.map(provider => ({ ...provider, unavailableReasonCode: 'disabled' })));
 			const updated = readMessage();
+			automationService.setUnavailableProviders([providers[0]]);
+			const singleProvider = readMessage();
 			automationService.setUnavailableProviders(providers.map(provider => ({ id: provider.id, label: provider.label })));
 			const withoutReasons = readMessage();
 			automationService.setUnavailableProviders([]);
 
-			assert.deepStrictEqual({ initial, updated, withoutReasons, hasEmptyList: !!description.querySelector('ul') }, {
-				initial: { message: { hasSummary: false, reasons }, whiteSpace: 'pre-line', textAlign: 'left', accessible: true },
-				updated: { hasSummary: false, reasons: ['Automations are disabled on these providers: Host 1, Host 2, Host 3.'] },
-				withoutReasons: { hasSummary: false, reasons: ['Automations are unavailable on these providers: Host 1, Host 2, Host 3.'] },
+			assert.deepStrictEqual({ initial, updated, singleProvider, withoutReasons, hasEmptyList: !!description.querySelector('ul') }, {
+				initial: { message: { hasSummary: false, hasList: true, reasons }, whiteSpace: 'pre-line', textAlign: 'left', accessible: true },
+				updated: { hasSummary: false, hasList: false, reasons: ['Automations are disabled on Host 1, Host 2, Host 3.'] },
+				singleProvider: { hasSummary: false, hasList: false, reasons: ['The agent host is disconnected on Host 1.'] },
+				withoutReasons: { hasSummary: false, hasList: false, reasons: ['Automations are unavailable on Host 1, Host 2, Host 3.'] },
 				hasEmptyList: false,
 			});
 		});
@@ -2906,7 +2912,7 @@ suite('AutomationsCardsWidget', () => {
 			error: buildAutomationsAccessibleContent([], [], 'error').split('\n').slice(0, 2),
 		}, {
 			loading: ['Automations', 'Loading automations.'],
-			unavailable: ['Automations', '- Automations are unavailable on these providers: Remote build host.'],
+			unavailable: ['Automations', 'Automations are unavailable on Remote build host.'],
 			error: ['Automations', 'Unable to load automations.'],
 		});
 	});
@@ -2916,7 +2922,7 @@ suite('AutomationsCardsWidget', () => {
 		const providers = [{ id: 'remote', label: 'Remote host', unavailableReason: reason }];
 		const content = buildAutomationsAccessibleContent([], [], 'unavailable', [], providers);
 		assert.deepStrictEqual(content.split('\n').slice(0, 2), [
-			'Automations', `- ${reason} Providers: Remote host.`,
+			'Automations', `Automations are unavailable on Remote host. ${reason}`,
 		]);
 	});
 
@@ -2946,8 +2952,8 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			loadingIncluded: loadingContent.includes('Additional automations are loading.'),
 			loadingAfterAutomation: loadingContent.indexOf('Daily review, enabled') < loadingContent.indexOf('Additional automations are loading.'),
-			unavailableIncluded: content.includes('- Automations are unavailable on these providers: Remote build host.'),
-			unavailableAfterAutomation: content.indexOf('Daily review, enabled') < content.indexOf('- Automations are unavailable on these providers: Remote build host.'),
+			unavailableIncluded: content.includes('Automations are unavailable on Remote build host.'),
+			unavailableAfterAutomation: content.indexOf('Daily review, enabled') < content.indexOf('Automations are unavailable on Remote build host.'),
 			errorIncluded: errorContent.includes('Some automations could not be loaded.'),
 			errorAfterAutomation: errorContent.indexOf('Daily review, enabled') < errorContent.indexOf('Some automations could not be loaded.'),
 		}, {

@@ -368,7 +368,6 @@
 .automations-cards-unavailable .automations-cards-state-description,
 .automations-cards-partial-state-message {
 	white-space: pre-line;
-	text-align: center;
 }
 
 .automations-unavailable-reasons {

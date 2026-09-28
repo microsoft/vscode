@@ -19,11 +19,11 @@ suite('Automation catalogue presentation', () => {
 			{ id: 'host5', label: 'Host 5', unavailableReasonCode: 'incompatible' },
 			{ id: 'host6', label: 'Host 6', unavailableReasonCode: 'initializing' },
 		]), [
-			'- The Agent Host is disconnected on these providers: Host 1, Host 4.',
-			'- Automations are disabled on these providers: Host 2.',
-			'- These providers do not support automations: Host 3.',
-			'- These providers require an Agent Host update to use automations: Host 5.',
-			'- The Agent Host is still connecting on these providers: Host 6.',
+			'- The agent host is disconnected on Host 1, Host 4.',
+			'- Automations are disabled on Host 2.',
+			'- Automations are not supported on Host 3.',
+			'- The agent host needs to be updated to use automations on Host 5.',
+			'- The agent host is still connecting on Host 6.',
 		].join('\n'));
 	});
 
@@ -35,10 +35,10 @@ suite('Automation catalogue presentation', () => {
 			{ id: 'host4', label: 'Host 4', unavailableReason: 'disconnected' },
 			{ id: 'host5', label: 'Host 5' },
 		]), [
-			'- Custom failure. Providers: Host 1, Host 3.',
-			'- The Agent Host is disconnected on these providers: Host 2.',
-			'- disconnected Providers: Host 4.',
-			'- Automations are unavailable on these providers: Host 5.',
+			'- Automations are unavailable on Host 1, Host 3. Custom failure.',
+			'- The agent host is disconnected on Host 2.',
+			'- Automations are unavailable on Host 4. disconnected',
+			'- Automations are unavailable on Host 5.',
 		].join('\n'));
 	});
 
@@ -50,9 +50,16 @@ suite('Automation catalogue presentation', () => {
 			formatUnavailableAutomationsMessage([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]),
 		], [
 			'Some automations are unavailable.',
-			'- Automations are unavailable on these providers: Host 1.',
-			'- Automations are unavailable on these providers: Host 1, Host 2.',
-			'- The Agent Host is disconnected on these providers: Host 1.',
+			'Automations are unavailable on Host 1.',
+			'Automations are unavailable on Host 1, Host 2.',
+			'The agent host is disconnected on Host 1.',
 		]);
+	});
+
+	test('omits the bullet for multiple providers sharing one reason', () => {
+		assert.strictEqual(formatUnavailableAutomationsMessage([
+			{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' },
+			{ id: 'host2', label: 'Host 2', unavailableReasonCode: 'disconnected' },
+		]), 'The agent host is disconnected on Host 1, Host 2.');
 	});
 });

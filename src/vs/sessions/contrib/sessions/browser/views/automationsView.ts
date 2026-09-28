@@ -948,7 +948,9 @@ class AutomationCardsSection extends Disposable {
 
 	private renderUnavailableMessage(container: HTMLElement, unavailableProviders: readonly IAutomationProviderDescriptor[]): void {
 		const reasons = getUnavailableAutomationsReasons(unavailableProviders);
-		if (reasons.length > 0) {
+		if (reasons.length === 1) {
+			container.textContent = reasons[0];
+		} else if (reasons.length > 1) {
 			DOM.reset(container, $('ul.automations-unavailable-reasons', undefined, ...reasons.map(reason => $('li', undefined, reason))));
 		} else {
 			container.textContent = localize('automationsPartialUnavailable', "Some automations are unavailable.");

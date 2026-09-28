@@ -19,24 +19,24 @@ export function getUnavailableAutomationsReasons(unavailableProviders: readonly 
 		const labels = providers.map(provider => provider.label).join(', ');
 		switch (providers[0].unavailableReasonCode) {
 			case 'disconnected':
-				reasons.push(localize('automationsProvidersDisconnected', "The Agent Host is disconnected on these providers: {0}.", labels));
+				reasons.push(localize('automationsProvidersDisconnected', "The agent host is disconnected on {0}.", labels));
 				break;
 			case 'initializing':
-				reasons.push(localize('automationsProvidersInitializing', "The Agent Host is still connecting on these providers: {0}.", labels));
+				reasons.push(localize('automationsProvidersInitializing', "The agent host is still connecting on {0}.", labels));
 				break;
 			case 'disabled':
-				reasons.push(localize('automationsProvidersDisabled', "Automations are disabled on these providers: {0}.", labels));
+				reasons.push(localize('automationsProvidersDisabled', "Automations are disabled on {0}.", labels));
 				break;
 			case 'unsupported':
-				reasons.push(localize('automationsProvidersUnsupported', "These providers do not support automations: {0}.", labels));
+				reasons.push(localize('automationsProvidersUnsupported', "Automations are not supported on {0}.", labels));
 				break;
 			case 'incompatible':
-				reasons.push(localize('automationsProvidersIncompatible', "These providers require an Agent Host update to use automations: {0}.", labels));
+				reasons.push(localize('automationsProvidersIncompatible', "The agent host needs to be updated to use automations on {0}.", labels));
 				break;
 			default:
 				reasons.push(providers[0].unavailableReason !== undefined
-					? localize('automationsProvidersCustomReason', "{0} Providers: {1}.", providers[0].unavailableReason, labels)
-					: localize('automationsProvidersUnavailable', "Automations are unavailable on these providers: {0}.", labels));
+					? localize('automationsProvidersCustomReason', "Automations are unavailable on {0}. {1}", labels, providers[0].unavailableReason)
+					: localize('automationsProvidersUnavailable', "Automations are unavailable on {0}.", labels));
 				break;
 		}
 	}
@@ -45,6 +45,9 @@ export function getUnavailableAutomationsReasons(unavailableProviders: readonly 
 
 export function formatUnavailableAutomationsMessage(unavailableProviders: readonly IAutomationProviderDescriptor[]): string {
 	const reasons = getUnavailableAutomationsReasons(unavailableProviders);
+	if (reasons.length === 1) {
+		return reasons[0];
+	}
 	return reasons.length > 0
 		? reasons.map(reason => `- ${reason}`).join('\n')
 		: localize('automationsPartialUnavailable', "Some automations are unavailable.");
