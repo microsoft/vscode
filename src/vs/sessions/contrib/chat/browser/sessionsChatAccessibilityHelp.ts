@@ -26,7 +26,7 @@ import { SESSION_ARCHIVE_NUDGE_SETTING } from './sessionArchiveNudge.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
 
@@ -47,6 +47,10 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		const content: string[] = [];
 		content.push(localize('sessionsChat.overview', "You are in the Agents window. The Agents window is a dedicated workspace for working with AI agents. It provides a chat interface, a changes view for reviewing agent-generated changes, a file explorer, and customization options."));
 		content.push(localize('sessionsChat.input', "You are in the chat input. Type a message and press Enter to send it."));
+		content.push(localize('sessionsChat.harnessSwitchFeedbackSurvey', "After you switch from Copilot to Local, a two-step feedback survey may appear above the chat input. Use Shift+Tab to reach it. In the first step, use Up and Down Arrow to choose why you switched, then press Enter or Space. In the second step, enter any optional feedback and use Tab to reach Submit. Dismiss Survey or Escape closes the survey. After submission, the questions are replaced above the input by a message that your feedback was recorded. Use Dismiss Feedback Acknowledgement or Escape to close it."));
+		if (configurationService.getValue<boolean>(NEW_SESSION_WELCOME_PHRASES_SETTING)) {
+			content.push(localize('sessionsChat.welcomeName', "In a new session, the welcome heading is announced when shown. To disable this announcement, set accessibility.verbosity.newSessionWelcome to false. Press Tab to reach Set Welcome Name beside the welcome heading, or open its context menu{0}. Enter a custom name, or clear it to use your GitHub first name when available.", '<keybinding:editor.action.showContextMenu>'));
+		}
 		content.push(localize('sessionsChat.preparation', "While a new session is being prepared, the transcript shows your submitted prompt and attachments followed by startup progress. Use Tab to reach Show Log beside the progress message and press Enter to open the Dev Container output channel. The chat input and attachment controls are disabled until preparation finishes. Use the input's Stop action or Cancel Chat command{0} to cancel preparation. If preparation fails or is canceled, your original prompt and attachments remain in the new-session composer.", '<keybinding:workbench.action.chat.cancel>'));
 		content.push(localize('sessionsChat.connectionLog', "While connecting to a Dev Container for an existing session, use Tab to reach Show Log and press Enter to open the Dev Container output channel."));
 		if (configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING)) {
@@ -141,6 +145,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			? localize('sessionsChat.showDoneChats', "Open a session's context menu and toggle Show Done Chats to control whether its Done chats are shown. This action is always available, and a check mark means those chats are shown.")
 			: localize('sessionsChat.showArchivedChats', "Open a session's context menu and toggle Show Archived Chats to control whether its archived chats are shown. This action is always available, and a check mark means those chats are shown."));
 		content.push(localize('sessionsChat.sessionsListChatContextMenu', "Open a nested chat's context menu to rename it, open it to the side, or, when supported, permanently delete it. Agent Host chats also offer Copy Link."));
+		content.push(localize('sessionsChat.mainChatToSide', "To open the main chat beside a peer chat, choose Open to the Side from the session row's context menu. You can also Alt-click (Option-click on macOS) the row or drag it to a chat pane's edge."));
 		content.push(localize('sessionsChat.forkToSide', "Alt-click, or Option-click on macOS, the Fork Conversation button at a checkpoint to open the fork beside its source. Ordinary activation keeps its existing behavior. With the keyboard, activate Fork Conversation, reopen the source from the Sessions list, then choose Open to the Side from the fork's context menu."));
 		content.push(localize('sessionsChat.copySessionLink', "To copy a browser link that opens an Agent Host session in the Agents window, open the session's context menu and choose Copy Link."));
 		content.push(localize('sessionsChat.subagentPills', "Activate a subagent pill in the chat transcript to open the subagent beside the current chat. With the keyboard, focus a pill and press Enter or Space; Alt+Enter also opens it to the side. You can also drag a pill to a chat group's edge to choose where it opens."));

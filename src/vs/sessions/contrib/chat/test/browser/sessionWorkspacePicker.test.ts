@@ -6,10 +6,11 @@
 import assert from 'assert';
 import { SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { errorHandler } from '../../../../../base/common/errors.js';
+import { CancellationError, errorHandler } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -863,6 +864,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		await picker.selectSubmenu('agent-host/project', 'Use Local');
 
 		assert.deepStrictEqual({
+			stableItemIds: [initialFolderItem?.item?.id, devContainerFolderItem?.item?.id],
 			initialSubmenu: initialSubmenu instanceof SubmenuAction ? initialSubmenu.actions.map(action => ({
 				label: action.label,
 				tooltip: action.tooltip,
@@ -879,6 +881,10 @@ suite('WorkspacePicker - Connection Status', () => {
 			triggerLabel: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
 			triggerAriaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
 		}, {
+			stableItemIds: [
+				'workspacePicker.workspace.file:///agent-host/project',
+				'workspacePicker.workspace.file:///agent-host/project',
+			],
 			initialSubmenu: [
 				{ label: 'Use Local', tooltip: '', checked: true },
 				{ label: 'Use Dev Container', tooltip: '', checked: false },
@@ -1262,6 +1268,102 @@ suite('WorkspacePicker - Connection Status', () => {
 			origin: WorkspaceSelectionOrigin.WindowOpen,
 			history: 'loaded',
 		});
+	});
+
+	for (const hasRecentWorkspace of [false, true]) {
+		test(`waits for workspace history before allowing a Chat fallback (has workspace: ${hasRecentWorkspace})`, async () => {
+			providersService.setProviders([createMockProvider('local-1')]);
+			const folderUri = URI.file('/local/from-history');
+			const recentlyOpened = new DeferredPromise<Awaited<ReturnType<IWorkspacesService['getRecentlyOpened']>>>();
+			const workspacesService = upcastPartial<IWorkspacesService>({
+				getRecentlyOpened: () => recentlyOpened.p,
+				onDidChangeRecentlyOpened: Event.None,
+			});
+			const picker = createTestPicker(disposables, providersService, undefined, undefined, undefined, undefined, workspacesService);
+			let settled = false;
+			const restoring = picker.whenWorkspaceRestored(CancellationToken.None).then(success => {
+				settled = true;
+				return success;
+			});
+			await timeout(0);
+			const beforeHistory = settled;
+
+			await recentlyOpened.complete({ workspaces: hasRecentWorkspace ? [{ folderUri }] : [], files: [] });
+			const restoredSuccessfully = await restoring;
+
+			assert.deepStrictEqual({
+				beforeHistory,
+				settled,
+				restoredSuccessfully,
+				selected: picker.selectedFolderUri?.toString(),
+			}, {
+				beforeHistory: false,
+				settled: true,
+				restoredSuccessfully: true,
+				selected: hasRecentWorkspace ? folderUri.toString() : undefined,
+			});
+		});
+	}
+
+	test('waits for a replacement session-workspace lookup before allowing a Chat fallback', async () => {
+		const sessionsChanged = disposables.add(new Emitter<ISessionChangeEvent>());
+		let sessions: ISession[] = [];
+		const provider = createMockProvider('local-1', {
+			getSessions: () => sessions,
+			onDidChangeSessions: sessionsChanged.event,
+		});
+		const folderUri = URI.file('/local/from-session');
+		sessions = [createMockSession(provider, folderUri, 1)];
+		providersService.setProviders([provider]);
+		const storage = disposables.add(new TestStorageService());
+		const workspacesService = upcastPartial<IWorkspacesService>({
+			getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
+			onDidChangeRecentlyOpened: Event.None,
+		});
+		const recents = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
+		const firstLookup = new DeferredPromise<boolean>();
+		const latestLookup = new DeferredPromise<boolean>();
+		let lookups = 0;
+		const fileService = upcastPartial<IFileService>({
+			hasProvider: () => true,
+			exists: () => lookups++ === 0 ? firstLookup.p : latestLookup.p,
+		});
+		const picker = createTestPicker(disposables, providersService, storage, undefined, undefined, undefined, workspacesService, recents, undefined, fileService);
+		let settled = false;
+		const restoring = picker.whenWorkspaceRestored(CancellationToken.None).then(success => {
+			settled = true;
+			return success;
+		});
+		await timeout(0);
+
+		sessionsChanged.fire({ added: [], removed: [], changed: sessions });
+		await timeout(0);
+		const afterReplacement = settled;
+		await latestLookup.complete(true);
+		const restoredSuccessfully = await restoring;
+		await firstLookup.complete(false);
+
+		assert.deepStrictEqual({ afterReplacement, settled, restoredSuccessfully, selected: picker.selectedFolderUri?.toString() }, {
+			afterReplacement: false,
+			settled: true,
+			restoredSuccessfully: true,
+			selected: folderUri.toString(),
+		});
+	});
+
+	test('cancels waiting for workspace history', async () => {
+		const recentlyOpened = new DeferredPromise<Awaited<ReturnType<IWorkspacesService['getRecentlyOpened']>>>();
+		const workspacesService = upcastPartial<IWorkspacesService>({
+			getRecentlyOpened: () => recentlyOpened.p,
+			onDidChangeRecentlyOpened: Event.None,
+		});
+		const picker = createTestPicker(disposables, providersService, undefined, undefined, undefined, undefined, workspacesService);
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const restoring = picker.whenWorkspaceRestored(cancellation.token);
+		cancellation.cancel();
+
+		await assert.rejects(restoring, CancellationError);
+		await recentlyOpened.complete({ workspaces: [], files: [] });
 	});
 
 	test('restore chooses the most frequent workspace among the 15 most recent sessions', async () => {
@@ -2204,15 +2306,17 @@ suite('WorkspacePicker - Selection diagnostics', () => {
 				onDidChangeRecentlyOpened: Event.None,
 			});
 			const picker = createTestPicker(disposables, providersService, undefined, undefined, undefined, undefined, workspacesService);
-			await timeout(0);
+			const restoredSuccessfully = await picker.whenWorkspaceRestored(CancellationToken.None);
 
 			assert.deepStrictEqual({
 				history: picker.selectionSnapshot.historyState,
 				state: picker.selectionSnapshot.state,
+				restoredSuccessfully,
 				errors,
 			}, {
 				history: 'error',
 				state: 'none',
+				restoredSuccessfully: false,
 				errors: [expectedError],
 			});
 		} finally {
@@ -2235,17 +2339,19 @@ suite('WorkspacePicker - Selection diagnostics', () => {
 		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
 		try {
 			const picker = createTestPicker(disposables, providersService, storage, undefined, undefined, undefined, workspacesService, recents);
-			await timeout(0);
+			const restoredSuccessfully = await picker.whenWorkspaceRestored(CancellationToken.None);
 
 			assert.deepStrictEqual({
 				history: picker.selectionSnapshot.historyState,
 				fallback: picker.selectionSnapshot.sessionFallbackState,
 				state: picker.selectionSnapshot.state,
+				restoredSuccessfully,
 				errors,
 			}, {
 				history: 'loaded',
 				fallback: 'error',
 				state: 'none',
+				restoredSuccessfully: false,
 				errors: [expectedError],
 			});
 		} finally {

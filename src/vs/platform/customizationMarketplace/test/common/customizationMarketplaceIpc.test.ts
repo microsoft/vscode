@@ -96,6 +96,35 @@ suite('CustomizationMarketplaceIpc', () => {
 		assert.strictEqual(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, 'customizationMarketplace');
 	});
 
+	test('the native public-feed client never forwards authenticated connector source IDs', async () => {
+		const requests: ICustomizationMarketplaceRequest[] = [];
+		const server = new CustomizationMarketplaceChannel(() => ({
+			async query(options) {
+				requests.push(options);
+				return { items: [] };
+			},
+		}));
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+		});
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		const client = new CustomizationMarketplaceChannelClient({
+			call: (command, options, token) => server.call('test', command, options, token),
+			listen: () => Event.None,
+		}, configuration);
+		await assert.rejects(client.query({}, CancellationToken.None), isCancellationError);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		await client.query({}, CancellationToken.None);
+		assert.deepStrictEqual({
+			sources: client.sources,
+			requests,
+		}, {
+			sources: [CustomizationMarketplaceSources.AgentFinderPublicFeed],
+			requests: [{ sourceIds: ['agentFinder'] }],
+		});
+	});
+
 	test('forwards only the selected enabled source', async () => {
 		const secondSetting = 'test.marketplace.second.enabled';
 		const calls: ICustomizationMarketplaceRequest[] = [];
@@ -310,6 +339,7 @@ suite('CustomizationMarketplaceIpc', () => {
 		const installations: CustomizationMarketplaceInstallation[] = [
 			{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'release/next', path: 'skills/a11y-debugging' },
 			{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'v1.2.3', path: '' },
+			{ kind: 'configuredPlugin' },
 			{ kind: 'mcp', name: 'ai.bittlebits/bittlebits', version: '1.0.0' },
 		];
 		const page: ICustomizationMarketplacePage = {

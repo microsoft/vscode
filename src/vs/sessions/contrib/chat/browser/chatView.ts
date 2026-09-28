@@ -43,7 +43,7 @@ import { ISendRequestOptions } from '../../../services/sessions/common/sessionsP
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
 import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
@@ -156,9 +156,9 @@ export class NewChatView extends AbstractChatView {
 		return this._widget instanceof NewChatWidget ? this._widget.applyDraft(draft, folderUri, options, token) : Promise.resolve('notReady');
 	}
 
-	override selectNoWorkspace(): void {
+	override selectNoWorkspace(options?: ISelectNoWorkspaceOptions): void {
 		if (this._widget instanceof NewChatWidget) {
-			this._widget.selectNoWorkspace();
+			this._widget.selectNoWorkspace(undefined, options);
 		}
 	}
 
@@ -232,6 +232,7 @@ export class ChatView extends AbstractChatView {
 	private readonly _currentSessionObs = observableValue<ISession | undefined>(this, undefined);
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
 	override readonly isLoadingTranscript = observableValue(this, false);
+	override readonly isInputBlocked: IObservable<boolean>;
 	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
@@ -336,6 +337,10 @@ export class ChatView extends AbstractChatView {
 			}
 		}));
 		const chatModel = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.model);
+		this.isInputBlocked = derived(this, reader => {
+			const model = chatModel.read(reader);
+			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader)) && (model?.isInputBlocked.read(reader) ?? false);
+		});
 		this._setupTranscriptPreparationProgress(chatModel);
 		this._setupInitialTranscriptContext(chatModel);
 
@@ -532,7 +537,7 @@ export class ChatView extends AbstractChatView {
 		// non-Full interactivity is treated as read-only here (hidden chats are
 		// filtered out of the visible model before they reach a ChatView).
 		this._interactiveDisposable.value = autorun(reader => {
-			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full);
+			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full, this.isInputBlocked.read(reader));
 		});
 
 		// Skip loading if we're already showing this chat

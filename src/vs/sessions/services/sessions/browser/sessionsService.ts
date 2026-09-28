@@ -274,9 +274,9 @@ export interface ISessionsService {
 	 * Open a new **quick chat**: create a concrete workspace-less draft session
 	 * (via {@link ISessionsManagementService.createQuickChat}) and show it as the
 	 * active session. Returns the activated session, or `undefined` when no
-	 * provider supports quick chats.
+	 * provider supports quick chats. Automatic fallbacks preserve pending navigation.
 	 */
-	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined;
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined;
 
 	/**
 	 * Switch to the new-chat-in-session view.
@@ -1007,6 +1007,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 			options = { ...options, chatResource: resolved.chatUri };
 		}
 		const visible = this.visibleSessions.get();
+		if (options?.forceMainChat && !options.chatResource && visible.some(candidate => candidate?.sessionId === session.sessionId)) {
+			await this.openChatToSide(session, session.mainChat.get().resource, { preserveFocus: options.preserveFocus });
+			return;
+		}
 		const reference = visible.find(candidate => candidate?.sessionId === options?.referenceSessionId) ?? visible[visible.length - 1];
 		if (reference && reference.sessionId !== session.sessionId) {
 			this.insertAt(session, reference.sessionId, 'right');
@@ -1201,8 +1205,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._activate(session);
 	}
 
-	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined {
-		return this._openQuickChat(options, 'explicit');
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false): IActiveSession | undefined {
+		return this._openQuickChat(options, preserveNavigation ? 'automatic' : 'explicit');
 	}
 
 	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent): IActiveSession | undefined {

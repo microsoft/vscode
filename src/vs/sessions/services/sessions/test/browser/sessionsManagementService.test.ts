@@ -1105,6 +1105,32 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	for (const preserveNavigation of [false, true]) {
+		test(`openQuickChat preserves pending navigation only for an automatic fallback (${preserveNavigation})`, () => {
+			const quickChat = stubSession({
+				sessionId: 'quick-chat',
+				providerId: 'test',
+				isQuickChat: constObservable(true),
+			});
+			const provider = new class extends TestSessionsProvider {
+				override readonly supportsQuickChats = true;
+				override createQuickChat(): ISession { return quickChat; }
+			}(quickChat);
+			const { view } = createSessionsManagementService(quickChat, disposables, provider);
+			const navigation = view.navigationRequest.get();
+
+			view.openQuickChat(undefined, preserveNavigation);
+
+			assert.deepStrictEqual({
+				activeSession: view.activeSession.get()?.sessionId,
+				preservedNavigation: view.navigationRequest.get() === navigation,
+			}, {
+				activeSession: 'quick-chat',
+				preservedNavigation: preserveNavigation,
+			});
+		});
+	}
+
 	test('openNewSession without toSide still replaces the active session', async () => {
 		const session = stubSession({ sessionId: 'active', providerId: 'test' });
 		const { view } = createSessionsManagementService(session, disposables);
@@ -2170,6 +2196,35 @@ suite('SessionsManagementService', () => {
 			active: 'target',
 			activeChat: targetMain.resource.toString(),
 			preparations: [{ sessionId: 'target', reason: 'open' }],
+		});
+	});
+
+	test('opening the main chat to the side of its already visible session keeps the peer active until the split opens', async () => {
+		const main = { ...stubChat, resource: URI.parse('test:///session/main') };
+		const peer = { ...stubChat, resource: URI.parse('test:///session/peer') };
+		const session = stubSession({
+			sessionId: 'session',
+			providerId: 'test',
+			chats: constObservable([main, peer]),
+			mainChat: constObservable(main),
+		});
+		const { view, sessionsPartService } = createSessionsManagementService(session, disposables);
+		await view.openChat(session, peer.resource);
+		const openedToSide: string[] = [];
+		sessionsPartService.sessionViews.set(session.sessionId, upcastPartial<SessionView>({
+			openChatToSide: async resource => { openedToSide.push(resource.toString()); },
+		}));
+
+		await view.openSessionToSide(session, { forceMainChat: true });
+
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().map(candidate => candidate?.sessionId),
+			activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+			openedToSide,
+		}, {
+			visible: [session.sessionId],
+			activeChat: peer.resource.toString(),
+			openedToSide: [main.resource.toString()],
 		});
 	});
 

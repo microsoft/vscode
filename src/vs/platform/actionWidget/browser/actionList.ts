@@ -106,6 +106,8 @@ export interface IActionListItemHover {
 export interface IActionListUpdateOptions {
 	/** Retain the open hover or submenu when its replacement item has the same id. */
 	readonly preserveHover?: boolean;
+	/** Keep the current viewport when items are refreshed in place. */
+	readonly preserveScrollPosition?: boolean;
 	/** Animate a visible focused item's move. The caller must respect reduced motion. */
 	readonly animateItemMove?: boolean;
 }
@@ -684,6 +686,9 @@ export interface IActionListOptions {
 	/** Reveals a filter when printable text is typed in a list without a filter input. */
 	readonly onType?: (text: string) => void;
 
+	/** Called when the user changes the filter text, but not when it is cleared programmatically. */
+	readonly onDidChangeFilter?: (text: string) => void;
+
 	/**
 	 * Optional actions shown in the filter row, to the right of the input.
 	 */
@@ -1233,6 +1238,7 @@ export class ActionListWidget<T> extends Disposable {
 					}
 					this._filterText = value;
 					this._applyOrUpdateFilter();
+					this._options?.onDidChangeFilter?.(value);
 				};
 
 				this._register(dom.addDisposableListener(this._filterInput, 'compositionstart', () => {
@@ -1369,6 +1375,7 @@ export class ActionListWidget<T> extends Disposable {
 						this._filterInput.value = e.key;
 						this._filterText = e.key;
 						this._applyOrUpdateFilter();
+						this._options?.onDidChangeFilter?.(e.key);
 					} else {
 						this._options?.onType?.(e.key);
 					}
@@ -1595,31 +1602,39 @@ export class ActionListWidget<T> extends Disposable {
 			this._onDidRequestLayout.fire();
 		}
 
+		const restoreItemFocus = (): boolean => {
+			const itemId = focusItemId ?? (focusedItem?.item as { id?: string } | undefined)?.id;
+			if (!itemId) {
+				return false;
+			}
+			for (let i = 0; i < this._list.length; i++) {
+				const element = this._list.element(i);
+				if ((element.item as { id?: string } | undefined)?.id === itemId) {
+					this._list.setFocus([i]);
+					this._list.reveal(i);
+					return true;
+				}
+			}
+			return false;
+		};
+
 		// Restore focus after splice destroyed DOM elements,
 		// otherwise the blur handler in ActionWidgetService closes the widget.
 		// Keep focus on the filter input if the user is typing a filter.
 		if (filterInputHasFocus) {
 			this._filterInput?.focus();
 			// Keep a highlighted item in the list so Enter works without pressing DownArrow first
-			this._focusCheckedOrFirst();
+			if (!restoreItemFocus()) {
+				this._focusCheckedOrFirst();
+			}
 		} else if (this._hasLaidOut) {
 			// Restore focus to the previously focused item
 			if (focusedItem || focusItemId) {
-				const focusedItemId = focusItemId ?? (focusedItem?.item as { id?: string })?.id;
-				if (focusedItemId) {
-					for (let i = 0; i < this._list.length; i++) {
-						const el = this._list.element(i);
-						if ((el.item as { id?: string })?.id === focusedItemId) {
-							this._list.setFocus([i]);
-							this._list.reveal(i);
-							break;
-						}
-					}
-					if (listHasFocus) {
-						// The focused row or its toolbar may have been removed by the update.
-						this._focusCheckedOrFirst();
-						this._list.domFocus();
-					}
+				restoreItemFocus();
+				if (listHasFocus) {
+					// The focused row or its toolbar may have been removed by the update.
+					this._focusCheckedOrFirst();
+					this._list.domFocus();
 				}
 			}
 		}
@@ -1742,6 +1757,7 @@ export class ActionListWidget<T> extends Disposable {
 	 * the number of visible rows changed.
 	 */
 	updateItems(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void {
+		const scrollTop = options?.preserveScrollPosition ? this._list.scrollTop : undefined;
 		const expandedItemId = (this._currentSubmenuElement?.item as { id?: string } | undefined)?.id;
 		const preservedItem = options?.preserveHover && expandedItemId
 			? items.find(item => (item.item as { id?: string } | undefined)?.id === (focusItemId ?? expandedItemId))
@@ -1795,6 +1811,9 @@ export class ActionListWidget<T> extends Disposable {
 			}
 		} else if (focusItemId !== undefined) {
 			this.focusItemById(focusItemId);
+		}
+		if (scrollTop !== undefined) {
+			this._list.scrollTop = scrollTop;
 		}
 	}
 

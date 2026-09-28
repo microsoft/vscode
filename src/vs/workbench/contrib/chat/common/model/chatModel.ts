@@ -182,9 +182,15 @@ export interface IChatTextEditGroupState {
 	applied: number;
 }
 
+export interface IChatEditMetadata {
+	readonly autoTier?: IChatTextEdit['autoTier'];
+}
+
 export interface IChatTextEditGroup {
 	uri: URI;
 	edits: TextEdit[][];
+	/** Attribution snapshots aligned with the edit batches. */
+	editMetadata?: IChatEditMetadata[];
 	state?: IChatTextEditGroupState;
 	kind: 'textEditGroup';
 	done: boolean | undefined;
@@ -208,6 +214,7 @@ export interface ICellTextEditOperation {
 export interface IChatNotebookEditGroup {
 	uri: URI;
 	edits: (ICellTextEditOperation[] | ICellEditOperation[])[];
+	editMetadata?: IChatEditMetadata[];
 	state?: IChatTextEditGroupState;
 	kind: 'notebookEditGroup';
 	done: boolean | undefined;
@@ -1054,17 +1061,18 @@ export class Response extends AbstractResponse implements IDisposable {
 			const notebookUri = CellUri.parse(progress.uri)?.notebook;
 			const uri = notebookUri ?? progress.uri;
 			const isExternalEdit = progress.isExternalEdit;
+			const editMetadata = progress.autoTier !== undefined ? { autoTier: progress.autoTier } : undefined;
 
 			if (progress.kind === 'textEdit' && !notebookUri) {
 				// Text edits to a regular (non-notebook) file
-				this._mergeOrPushTextEditGroup(uri, progress.edits, progress.done, isExternalEdit);
+				this._mergeOrPushTextEditGroup(uri, progress.edits, progress.done, isExternalEdit, editMetadata);
 			} else if (progress.kind === 'textEdit') {
 				// Text edits to a notebook cell - convert to ICellTextEditOperation
 				const cellEdits = progress.edits.map(edit => ({ uri: progress.uri, edit }));
-				this._mergeOrPushNotebookEditGroup(uri, cellEdits, progress.done, isExternalEdit);
+				this._mergeOrPushNotebookEditGroup(uri, cellEdits, progress.done, isExternalEdit, editMetadata);
 			} else {
 				// Notebook cell edits (ICellEditOperation)
-				this._mergeOrPushNotebookEditGroup(uri, progress.edits, progress.done, isExternalEdit);
+				this._mergeOrPushNotebookEditGroup(uri, progress.edits, progress.done, isExternalEdit, editMetadata);
 			}
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'progressTask') {
@@ -1176,26 +1184,34 @@ export class Response extends AbstractResponse implements IDisposable {
 		return false;
 	}
 
-	private _mergeOrPushTextEditGroup(uri: URI, edits: TextEdit[], done: boolean | undefined, isExternalEdit: boolean | undefined): void {
+	private _mergeOrPushTextEditGroup(uri: URI, edits: TextEdit[], done: boolean | undefined, isExternalEdit: boolean | undefined, editMetadata: IChatEditMetadata | undefined): void {
 		for (const candidate of this._responseParts) {
 			if (candidate.kind === 'textEditGroup' && !candidate.done && isEqual(candidate.uri, uri)) {
+				if (editMetadata) {
+					candidate.editMetadata ??= candidate.edits.map(() => ({}));
+				}
+				candidate.editMetadata?.push(editMetadata ?? {});
 				candidate.edits.push(edits);
 				candidate.done = done;
 				return;
 			}
 		}
-		this._responseParts.push({ kind: 'textEditGroup', uri, edits: [edits], done, isExternalEdit });
+		this._responseParts.push({ kind: 'textEditGroup', uri, edits: [edits], done, isExternalEdit, ...(editMetadata ? { editMetadata: [editMetadata] } : {}) });
 	}
 
-	private _mergeOrPushNotebookEditGroup(uri: URI, edits: ICellTextEditOperation[] | ICellEditOperation[], done: boolean | undefined, isExternalEdit: boolean | undefined): void {
+	private _mergeOrPushNotebookEditGroup(uri: URI, edits: ICellTextEditOperation[] | ICellEditOperation[], done: boolean | undefined, isExternalEdit: boolean | undefined, editMetadata: IChatEditMetadata | undefined): void {
 		for (const candidate of this._responseParts) {
 			if (candidate.kind === 'notebookEditGroup' && !candidate.done && isEqual(candidate.uri, uri)) {
+				if (editMetadata) {
+					candidate.editMetadata ??= candidate.edits.map(() => ({}));
+				}
+				candidate.editMetadata?.push(editMetadata ?? {});
 				candidate.edits.push(edits);
 				candidate.done = done;
 				return;
 			}
 		}
-		this._responseParts.push({ kind: 'notebookEditGroup', uri, edits: [edits], done, isExternalEdit });
+		this._responseParts.push({ kind: 'notebookEditGroup', uri, edits: [edits], done, isExternalEdit, ...(editMetadata ? { editMetadata: [editMetadata] } : {}) });
 	}
 
 	private _handleExternalToolInvocationUpdate(progress: IChatExternalToolInvocationUpdate): void {
@@ -1966,6 +1982,7 @@ export interface IChatModel extends IDisposable {
 	/** Provides session information when a request needs user interaction to continue */
 	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
 	readonly isReadOnly: IObservable<boolean>;
+	readonly isInputBlocked: IObservable<boolean>;
 	readonly inputPlaceholder?: string;
 	readonly editingSession?: IChatEditingSession | undefined;
 	readonly checkpoint: IChatRequestModel | undefined;
@@ -2815,6 +2832,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly hasActiveRequest: IObservable<boolean>;
 	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
 	readonly isReadOnly: IObservable<boolean>;
+	readonly isInputBlocked: IObservable<boolean>;
 
 	/** Input model for managing input state */
 	readonly inputModel: InputModel;
@@ -2930,7 +2948,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		dataRef: ISerializedChatDataReference | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionReason?: SessionTypeSelectionReason; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean> },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionReason?: SessionTypeSelectionReason; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean>; isInputBlocked?: IObservable<boolean> },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -2990,6 +3008,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		this._canUseTools = initialModelProps.canUseTools;
 		this.isReadOnly = initialModelProps.isReadOnly ?? constObservable(false);
+		this.isInputBlocked = initialModelProps.isInputBlocked ?? constObservable(false);
 
 		this.lastRequestObs = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1));
 

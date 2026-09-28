@@ -345,6 +345,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 		const expectedCustomizations = [
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
+			{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(workspaceDir, '.claude', 'rules')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.github', 'agents')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [] },
@@ -461,6 +462,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.copilot', 'skills')).toString(), children: [URI.file(userCopilotSkillFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(workspaceDir, '.agents', 'skills')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
+			{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(workspaceDir, '.claude', 'rules')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(workspaceDir, '.claude', 'skills')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.github', 'agents')).toString(), children: [URI.file(join(agentsDir, 'hello.agent.md')).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Hook, uri: URI.file(join(workspaceDir, '.github', 'hooks')).toString(), children: [URI.file(join(hooksDir, 'pre-tool.json')).toString()] },
@@ -552,6 +554,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 		const expectedCustomizations = [
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
+			{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(workspaceDir, '.claude', 'rules')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.github', 'agents')).toString(), children: [URI.file(workspaceAgentFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [] },
@@ -651,6 +654,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 		const expectedCustomizations = [
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
+			{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(workspaceDir, '.claude', 'rules')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.github', 'agents')).toString(), children: [URI.file(workspaceAgentFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [] },
@@ -692,13 +696,12 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	 *    these to the SDK; the runtime loads them itself, and the host only learns
 	 *    of them afterwards, from discovery results tagged `source: 'plugin'`.
 	 *
-	 * This test covers (2), which is the path #335500 is about. Production never
-	 * sets `baseDirectory`/`COPILOT_HOME` on its client, so the runtime resolves
-	 * the user's real home; here `startRealServer({ homeDir })` points that same
-	 * resolution at a throwaway home, and the installer client writes into it
-	 * exactly as the CLI would. Installing through `plugins.install` (rather than
-	 * copying files into place) is required: the runtime is registry-driven, so
-	 * files alone are invisible to it.
+	 * This test covers (2), which is the path #335500 is about. Production
+	 * explicitly passes its resolved `COPILOT_HOME` to the client so the runtime
+	 * and VS Code use the same home. Here both the installer client and
+	 * `startRealServer({ homeDir })` use the same throwaway home. Installing
+	 * through `plugins.install` (rather than copying files into place) is
+	 * required: the runtime is registry-driven, so files alone are invisible.
 	 *
 	 * The home is isolated from `userHomeDir` so the installed plugin cannot leak
 	 * into the other tests' expected customization sets.
@@ -740,10 +743,9 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				gitHubToken: COPILOT_CONFIG.githubToken,
 				useLoggedInUser: false,
 				logLevel: 'error',
-				// No `baseDirectory`: production doesn't set one either, so the runtime
-				// resolves its home from HOME/COPILOT_HOME. Isolating on the same
-				// `pluginHomeDir` the server below is started with is what makes the
-				// installed plugin visible to it — a mismatch fails the test loudly.
+				// No `baseDirectory`: production also relies on COPILOT_HOME. Using the
+				// same `pluginHomeDir` for this client and the server below makes the
+				// installed plugin visible to both — a mismatch fails the test loudly.
 				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(pluginHomeDir)),
 			});
 			let sdkClientStarted = false;
@@ -852,6 +854,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 		const expectedCustomizations = [
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
+			{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(workspaceDir, '.claude', 'rules')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.github', 'agents')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [] },
@@ -951,6 +954,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 			const expectedCustomizations = [
 				{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
+				{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(workspaceDir, '.claude', 'rules')).toString(), children: [] },
 				{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.github', 'agents')).toString(), children: [] },
 				{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [] },
 				{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [] },
@@ -1048,6 +1052,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 			const expectedCustomizations: Array<{ type: CustomizationType; contents: CustomizationType; uri: string; children: string[] }> = [
 				{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
+				{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(workspaceDir, '.claude', 'rules')).toString(), children: [] },
 				{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.github', 'agents')).toString(), children: [] },
 				{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [] },
 				{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [] },
@@ -1173,6 +1178,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 			const expectedCustomizations = [
 				{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
+				{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(workspaceDir, '.claude', 'rules')).toString(), children: [] },
 				{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.github', 'agents')).toString(), children: [] },
 				{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [] },
 				{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [] },
@@ -1271,6 +1277,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 			const expectedCustomizations = [
 				{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
+				{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(workspaceDir, '.claude', 'rules')).toString(), children: [] },
 				{
 					type: CustomizationType.Directory,
 					contents: CustomizationType.Agent,

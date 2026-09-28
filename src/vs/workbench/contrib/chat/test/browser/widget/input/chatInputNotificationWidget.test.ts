@@ -624,6 +624,75 @@ suite('ChatInputNotificationWidget', () => {
 		assert.ok(widget.domNode.querySelector('.chat-input-notification-dismiss'));
 	});
 
+	test('uses explicit accessible labels for icon-only actions', () => {
+		const { notificationService, widget } = createWidget();
+		showNotification(notificationService, {
+			id: 'feedback',
+			message: 'Copilot preview',
+			actions: [{
+				kind: ChatInputNotificationActionKind.Command,
+				label: '$(thumbsup)',
+				ariaLabel: 'Helpful',
+				iconOnly: true,
+				tooltip: 'Helpful',
+				commandId: 'test.helpful',
+			}],
+		});
+		const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-action-button');
+		assert.deepStrictEqual({
+			icon: !!button?.querySelector('.codicon-thumbsup'),
+			iconOnly: button?.classList.contains('icon-only'),
+			compactActions: widget.domNode.querySelector('.chat-input-notification-actions')?.classList.contains('compact'),
+			ariaLabel: button?.getAttribute('aria-label'),
+			description: button?.getAttribute('aria-description'),
+		}, {
+			icon: true,
+			iconOnly: true,
+			compactActions: true,
+			ariaLabel: 'Copilot preview Helpful',
+			description: null,
+		});
+	});
+
+	test('splits a leading outlined action from trailing feedback actions', () => {
+		const { notificationService, widget } = createWidget();
+		showNotification(notificationService, {
+			id: 'feedback',
+			message: 'Copilot preview',
+			actions: [{
+				kind: ChatInputNotificationActionKind.Command,
+				label: 'Learn More',
+				commandId: 'test.learnMore',
+				primary: false,
+				leading: true,
+				outlined: true,
+			}, {
+				kind: ChatInputNotificationActionKind.Command,
+				label: '$(thumbsup) Got it!',
+				commandId: 'test.gotIt',
+				primary: true,
+			}],
+		});
+		const actions = widget.domNode.querySelector('.chat-input-notification-actions');
+		const buttons = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')];
+
+		assert.deepStrictEqual({
+			split: actions?.classList.contains('split'),
+			buttons: buttons.map(button => ({
+				label: button.textContent,
+				leading: button.classList.contains('leading'),
+				outlined: button.classList.contains('outlined'),
+				secondary: button.classList.contains('secondary'),
+			})),
+		}, {
+			split: true,
+			buttons: [
+				{ label: 'Learn More', leading: true, outlined: true, secondary: true },
+				{ label: 'Got it!', leading: false, outlined: false, secondary: false },
+			],
+		});
+	});
+
 	test('actions without explicit commandArgs are executed with empty args', async () => {
 		const commandService = new TestCommandService();
 		const { notificationService, widget } = createWidget({ commandService });

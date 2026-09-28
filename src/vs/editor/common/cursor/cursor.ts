@@ -90,14 +90,18 @@ export class CursorsController extends Disposable {
 	private _validateAutoClosedActions(): void {
 		if (this._autoClosedActions.length > 0) {
 			const selections: Range[] = this._cursors.getSelections();
-			for (let i = 0; i < this._autoClosedActions.length; i++) {
-				const autoClosedAction = this._autoClosedActions[i];
-				if (!autoClosedAction.isValid(selections)) {
-					autoClosedAction.dispose();
-					this._autoClosedActions.splice(i, 1);
-					i--;
+			const validActions: AutoClosedAction[] = [];
+			const invalidActions: AutoClosedAction[] = [];
+			for (const autoClosedAction of this._autoClosedActions) {
+				if (autoClosedAction.isValid(selections)) {
+					validActions.push(autoClosedAction);
+				} else {
+					invalidActions.push(autoClosedAction);
 				}
 			}
+			// Disposal fires decoration events whose listeners may re-enter the cursor.
+			this._autoClosedActions = validActions;
+			dispose(invalidActions);
 		}
 	}
 
@@ -693,8 +697,10 @@ class AutoClosedAction {
 	}
 
 	public dispose(): void {
-		this._autoClosedCharactersDecorations = this._model.deltaDecorations(this._autoClosedCharactersDecorations, []);
-		this._autoClosedEnclosingDecorations = this._model.deltaDecorations(this._autoClosedEnclosingDecorations, []);
+		this._model.changeDecorations(accessor => {
+			this._autoClosedCharactersDecorations = accessor.deltaDecorations(this._autoClosedCharactersDecorations, []);
+			this._autoClosedEnclosingDecorations = accessor.deltaDecorations(this._autoClosedEnclosingDecorations, []);
+		});
 	}
 
 	public getAutoClosedCharactersRanges(): Range[] {
