@@ -44,7 +44,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
-import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderDescriptor, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
@@ -237,6 +238,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 			mode: patch.mode === undefined ? current.mode : patch.mode ?? undefined,
 			permissionLevel: patch.permissionLevel === undefined ? current.permissionLevel : patch.permissionLevel ?? undefined,
 			enabled: patch.enabled ?? current.enabled,
+			disableConditions: patch.disableConditions ?? current.disableConditions,
 			updatedAt: new Date().toISOString(),
 		};
 		this.setAutomations(this.automationValue.get().map(item => item.id === id ? updated : item));
@@ -638,6 +640,7 @@ suite('AutomationsCardsWidget', () => {
 		}
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IKeybindingService, keybindingService);
 		instantiationService.stub(IHoverService, hoverService);
@@ -2027,6 +2030,7 @@ suite('AutomationsCardsWidget', () => {
 		).flatMap(([, actions]) => actions);
 		assert.deepStrictEqual(menuActions.map(action => ({ id: action.id, enabled: action.enabled })), [
 			{ id: 'sessions.automations.enable', enabled: true },
+			{ id: 'sessions.automations.removeLimits', enabled: true },
 			{ id: 'sessions.automations.duplicate', enabled: true },
 			{ id: 'sessions.automations.export', enabled: true },
 			{ id: 'sessions.automations.delete', enabled: true },
@@ -2247,12 +2251,96 @@ suite('AutomationsCardsWidget', () => {
 			updates: automationService.guardedUpdateCalls,
 		}, {
 			message: 'The final date for this automation has passed.',
-			detail: 'The host will disable scheduling immediately. Ask in chat to change or remove the final date before re-enabling scheduled runs.',
+			detail: 'The host will disable scheduling immediately. Use Remove limits in the More menu, or ask in chat to change the final date before re-enabling scheduled runs.',
 			updates: [],
 		});
 		dialogService.confirmResult = { confirmed: true };
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
 		assert.deepStrictEqual(automationService.guardedUpdateCalls, [{ id: source.id, patch: { enabled: true }, expected: source }]);
+	});
+
+	test('Remove Limits visibility follows saved conditions, feature enablement and update capability', () => {
+		const { automationService, contextKeyService, contextMenuService, instantiationService, widget } = setup();
+		const cap = { kind: AutomationDisableConditionKind.AfterRuns as const, max: 1 };
+		const date = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2000-01-01T00:00:00Z' };
+		const states = [
+			{ conditions: undefined, enabled: true, canUpdate: true, aiEnabled: true },
+			{ conditions: [], enabled: true, canUpdate: true, aiEnabled: true },
+			{ conditions: [cap], enabled: true, canUpdate: true, aiEnabled: true },
+			{ conditions: [date], enabled: false, canUpdate: true, aiEnabled: true },
+			{ conditions: [cap, date], enabled: false, canUpdate: false, aiEnabled: true },
+			{ conditions: [cap], enabled: true, canUpdate: true, aiEnabled: false },
+		];
+		const actions = states.map(state => {
+			automationService.canUpdate = state.canUpdate;
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(state.aiEnabled);
+			automationService.setAutomations([automation({ enabled: state.enabled, disableConditions: state.conditions })]);
+			const delegate = openAutomationCardMenu(widget, contextMenuService);
+			const action = instantiationService.get(IMenuService).getMenuActions(
+				Menus.AutomationCardContext, delegate.contextKeyService ?? contextKeyService, delegate.menuActionOptions,
+			).flatMap(([, items]) => items).find(item => item.id === 'sessions.automations.removeLimits');
+			delegate.onHide?.(false);
+			return action ? { enabled: action.enabled } : undefined;
+		});
+		assert.deepStrictEqual(actions, [undefined, undefined, { enabled: true }, { enabled: true }, { enabled: false }, undefined]);
+	});
+
+	for (const enabled of [true, false]) {
+		test(`Remove Limits clears both conditions without changing enabled=${enabled} or other fields`, async () => {
+			const { automationService, instantiationService, widget, contextMenuService, contextKeyService } = setup();
+			const source = automation({
+				enabled,
+				modelId: 'test-model',
+				mode: 'agent',
+				permissionLevel: 'default',
+				disableConditions: [
+					{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 },
+					{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' },
+				],
+			});
+			automationService.setAutomations([source]);
+			const delegate = openAutomationCardMenu(widget, contextMenuService);
+			const action = instantiationService.get(IMenuService).getMenuActions(
+				Menus.AutomationCardContext, delegate.contextKeyService ?? contextKeyService, delegate.menuActionOptions,
+			).flatMap(([, items]) => items).find(item => item.id === 'sessions.automations.removeLimits')!;
+			assert.ok(action.enabled);
+			const command = CommandsRegistry.getCommand(action.id)!;
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, delegate.menuActionOptions?.arg));
+			const updated = automationService.getAutomation(source.id)!;
+			assert.deepStrictEqual({
+				mutations: automationService.guardedUpdateCalls,
+				definition: { ...updated, updatedAt: source.updatedAt },
+				limitVisible: widget.element.querySelector<HTMLElement>('.automations-card-limit')?.style.display !== 'none',
+			}, {
+				mutations: [{ id: source.id, patch: { disableConditions: [] }, expected: source }],
+				definition: { ...source, disableConditions: [] },
+				limitVisible: false,
+			});
+		});
+	}
+
+	test('Remove Limits reports stale state and unavailable features without clearing conditions', async () => {
+		const { automationService, configurationService, instantiationService, dialogService, logService } = setup();
+		const source = automation({ disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 2 }] });
+		automationService.setAutomations([source]);
+		const command = CommandsRegistry.getCommand('sessions.automations.removeLimits')!;
+		automationService.updateResult = { kind: 'conflict', current: source };
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		const mutationsAfterConflict = automationService.guardedUpdateCalls.length;
+		automationService.canUpdate = false;
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		automationService.canUpdate = true;
+		await configurationService.setUserConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING, false);
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		assert.deepStrictEqual({
+			mutationsAfterConflict, finalMutations: automationService.guardedUpdateCalls.length,
+			errorCount: dialogService.errors.length, loggedCount: logService.errors.length,
+			conditions: automationService.getAutomation(source.id)?.disableConditions,
+			featureWarnings: dialogService.infos.length,
+		}, {
+			mutationsAfterConflict: 1, finalMutations: 1, errorCount: 1, loggedCount: 1,
+			conditions: source.disableConditions, featureWarnings: 1,
+		});
 	});
 
 	test('Enable and Disable are unavailable when updates are unsupported', async () => {

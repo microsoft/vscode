@@ -26,6 +26,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { type AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
@@ -73,6 +74,7 @@ export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automation
 const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
 const AutomationCardCanUpdateContext = new RawContextKey<boolean>('sessionsAutomationCardCanUpdate', false);
 const AutomationCardEnabledContext = new RawContextKey<boolean>('sessionsAutomationCardEnabled', false);
+const AutomationCardHasLimitsContext = new RawContextKey<boolean>('sessionsAutomationCardHasLimits', false);
 
 function areAutomationTemplatesEqual(first: readonly IAutomationTemplate[], second: readonly IAutomationTemplate[]): boolean {
 	return first.length === second.length && first.every((template, index) => {
@@ -106,6 +108,7 @@ interface IAutomationCardEntry {
 	readonly canDeleteContext: IContextKey<boolean>;
 	readonly canUpdateContext: IContextKey<boolean>;
 	readonly enabledContext: IContextKey<boolean>;
+	readonly hasLimitsContext: IContextKey<boolean>;
 	readonly nameText: HTMLElement;
 	readonly scheduleEl: HTMLElement;
 	readonly folderEl: HTMLElement;
@@ -550,6 +553,7 @@ class AutomationCardsSection extends Disposable {
 		const canDeleteContext = AutomationCardCanDeleteContext.bindTo(cardContextKeyService);
 		const canUpdateContext = AutomationCardCanUpdateContext.bindTo(cardContextKeyService);
 		const enabledContext = AutomationCardEnabledContext.bindTo(cardContextKeyService);
+		const hasLimitsContext = AutomationCardHasLimitsContext.bindTo(cardContextKeyService);
 		disposables.add(Gesture.addTarget(card));
 
 		const main = DOM.append(card, $<HTMLButtonElement>('button.automations-card-main', {
@@ -643,6 +647,7 @@ class AutomationCardsSection extends Disposable {
 			canDeleteContext,
 			canUpdateContext,
 			enabledContext,
+			hasLimitsContext,
 			nameText: nameTextEl,
 			scheduleEl,
 			folderEl,
@@ -664,6 +669,7 @@ class AutomationCardsSection extends Disposable {
 		card.canDeleteContext.set(this.automationService.canDeleteAutomation(automation.id));
 		card.canUpdateContext.set(this.automationService.canUpdateAutomation(automation.id));
 		card.enabledContext.set(automation.enabled);
+		card.hasLimitsContext.set(!!automation.disableConditions?.length);
 		const schedule = formatSchedule(automation.schedule);
 		const scheduleChanged = !previous || formatSchedule(previous.schedule) !== schedule;
 		const nameChanged = !previous || previous.name !== automation.name;
@@ -2302,6 +2308,51 @@ registerAction2(class DisableAutomationAction extends Action2 {
 	}
 });
 
+registerAction2(class RemoveAutomationLimitsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.automations.removeLimits',
+			title: localize2('removeAutomationLimits', "Remove limits"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationCardCanUpdateContext, AutomationCardHasLimitsContext),
+			menu: [{
+				id: Menus.AutomationCardContext, group: 'navigation', order: 1.5,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationCardHasLimitsContext),
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
+		const automationService = accessor.get(IAutomationService);
+		if (!automation.disableConditions?.length || !automationService.canUpdateAutomation(automation.id)) {
+			return;
+		}
+		const configurationService = accessor.get(IConfigurationService);
+		const dialogService = accessor.get(IDialogService);
+		const logService = accessor.get(ILogService);
+		const automationsEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+		if (!automationsEnabled()) {
+			await showAutomationsDisabled(dialogService);
+			return;
+		}
+		try {
+			const result = await automationService.updateAutomationIfUnchanged(automation.id, { disableConditions: [] }, automation, () => {
+				if (!automationsEnabled()) {
+					throw new Error(localize('automationsDisabledBeforeRemoveLimits', "Automations were disabled before the limits could be removed."));
+				}
+			});
+			if (result.kind === 'conflict') {
+				throw new Error(result.current
+					? localize('automationChangedBeforeRemoveLimits', "This automation changed before its limits could be removed. Try again.")
+					: localize('automationDeletedBeforeRemoveLimits', "This automation was deleted before its limits could be removed."));
+			}
+			status(localize('automationLimitsRemoved', "Removed limits from automation {0}", automation.name));
+		} catch (error) {
+			logService.error('[Automations] Failed to remove automation limits', error);
+			await dialogService.error(localize('automationRemoveLimitsFailed', "Failed to remove automation limits."), getErrorMessage(error));
+		}
+	}
+});
+
 registerAction2(class EnableAutomationAction extends Action2 {
 	constructor() {
 		super({
@@ -2335,7 +2386,7 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 			const confirmation = await dialogService.confirm({
 				type: 'warning',
 				message: localize('automationExpiredFinalDate', "The final date for this automation has passed."),
-				detail: localize('automationExpiredFinalDateDetail', "The host will disable scheduling immediately. Ask in chat to change or remove the final date before re-enabling scheduled runs."),
+				detail: localize('automationExpiredFinalDateDetail', "The host will disable scheduling immediately. Use Remove limits in the More menu, or ask in chat to change the final date before re-enabling scheduled runs."),
 				primaryButton: localize('automationEnableAnyway', "Enable Anyway"),
 			});
 			if (!confirmation.confirmed) {

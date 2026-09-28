@@ -1516,7 +1516,7 @@ export function renderForm(
 		const expired = state.enabled && isAutomationAfterDateExpired(initialDisableConditions);
 		DOM.setVisibility(expired, conditionsWarning);
 		const message = expired
-			? localize('automation.form.expiredConditions', "The final date has passed. Scheduling will stop immediately. Use chat to change or remove the final date.")
+			? localize('automation.form.expiredConditions', "The final date has passed. Scheduling will stop immediately. Use Remove limits in the card's More menu, or ask in chat to change the final date.")
 			: '';
 		if (conditionsWarning.textContent !== message) {
 			conditionsWarning.textContent = message;

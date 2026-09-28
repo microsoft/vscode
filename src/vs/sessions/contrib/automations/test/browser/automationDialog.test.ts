@@ -1763,7 +1763,7 @@ suite('Automation dialog run once', () => {
 			disabledMessage, enabledMessage, describedBy, retainedAnnouncement, cleared: warning.textContent, live: warning.getAttribute('aria-live'),
 		}, {
 			disabledMessage: '',
-			enabledMessage: 'The final date has passed. Scheduling will stop immediately. Use chat to change or remove the final date.',
+			enabledMessage: 'The final date has passed. Scheduling will stop immediately. Use Remove limits in the card\'s More menu, or ask in chat to change the final date.',
 			describedBy: warning.id, retainedAnnouncement: true, cleared: '', live: 'polite',
 		});
 	});
