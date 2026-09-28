@@ -735,9 +735,10 @@ CommandsRegistry.registerCommand({
 		const editorService = accessor.get(IEditorService);
 		const dialogService = accessor.get(IFileDialogService);
 		const fileService = accessor.get(IFileService);
+		const notificationService = accessor.get(INotificationService);
 
 		const createFileLocalized = nls.localize('newFileCommand.saveLabel', "Create File");
-		const defaultFileUri = joinPath(await dialogService.defaultFilePath(), args?.fileName ?? 'Untitled.txt');
+		const defaultFileUri = joinPath(await dialogService.defaultFilePath(), args?.fileName?.trim() || 'Untitled.txt');
 
 		const saveUri = await dialogService.showSaveDialog({ saveLabel: createFileLocalized, title: createFileLocalized, defaultUri: defaultFileUri });
 
@@ -745,7 +746,12 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
-		await fileService.createFile(saveUri, undefined, { overwrite: true });
+		try {
+			await fileService.createFile(saveUri, undefined, { overwrite: true });
+		} catch (error) {
+			notificationService.error(nls.localize({ key: 'newFileCommand.createError', comment: ['{0} is the name of the file that failed to be created and {1} the error message'] }, "Failed to create '{0}': {1}", basename(saveUri), toErrorMessage(error, false)));
+			return;
+		}
 
 		await editorService.openEditor({
 			resource: saveUri,
