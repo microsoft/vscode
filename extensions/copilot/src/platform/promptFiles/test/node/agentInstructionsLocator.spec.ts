@@ -146,7 +146,7 @@ suite('AgentInstructionsLocator', () => {
 
 	test('should collect parent instructions from a git worktree', async () => {
 		await mockFiles(fileSystem, [
-			{ path: `${parentFolder}/.git`, contents: ['gitdir: /main/.git/worktrees/feature'] },
+			{ path: `${parentFolder}/.git`, contents: ['gitdir: ../main/.git/worktrees/feature'] },
 			{ path: '/main/.git/worktrees/feature/commondir', contents: ['../..'] },
 			{ path: `${parentFolder}/AGENTS.md`, contents: ['Parent agent guidelines'] },
 			{ path: `${parentFolder}/.github/copilot-instructions.md`, contents: ['Parent copilot instructions'] },
