@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -16,7 +17,7 @@ import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListSer
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatAgentLocation } from '../../../../contrib/chat/common/constants.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
-import { ChatInputNotificationSeverity, IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { ChatInputFixtureOptions, renderChatInput } from './renderChatInput.js';
 
@@ -92,6 +93,30 @@ const sampleNotification: IChatInputNotification = {
 	autoDismissOnMessage: false,
 };
 
+const copilotIntroductionNotification: IChatInputNotification = {
+	id: 'chat.agentsParallelWork',
+	severity: ChatInputNotificationSeverity.Info,
+	message: 'You\'re using a new Copilot experience',
+	description: new MarkdownString('This agent harness opens up new ways to work across windows and apps. Continue as usual, and [let us know](https://github.com/microsoft/vscode/issues) how it goes.'),
+	actions: [{
+		kind: ChatInputNotificationActionKind.Command,
+		label: 'Learn More',
+		commandId: 'workbench.action.chat.agentsParallelWork.learnMore',
+		primary: false,
+		filled: true,
+		keepOpen: true,
+	}, {
+		kind: ChatInputNotificationActionKind.Command,
+		label: '$(thumbsup) Got it!',
+		ariaLabel: 'Got it!',
+		commandId: 'workbench.action.chat.agentsParallelWork.feedback',
+		primary: true,
+		keepOpen: true,
+	}],
+	dismissible: true,
+	autoDismissOnMessage: false,
+};
+
 const copilotHarnessSessionConfig: ResolveSessionConfigResult = {
 	schema: {
 		type: 'object',
@@ -118,10 +143,18 @@ const copilotHarnessSessionConfig: ResolveSessionConfigResult = {
 	},
 };
 
+const copilotHarnessModels = sampleModels.map(model => ({ ...model, metadata: { ...model.metadata, targetChatSessionType: SessionType.AgentHostCopilot } }));
+
 const combinedPickerOptions: ChatInputFixtureOptions = {
 	agentHostSessionConfig: { ...copilotHarnessSessionConfig, values: { mode: 'autopilot', autoApprove: 'autoApprove' } },
 	combinedModePermissionsPicker: true,
-	models: sampleModels.map(model => ({ ...model, metadata: { ...model.metadata, targetChatSessionType: SessionType.AgentHostCopilot } })),
+	models: copilotHarnessModels,
+};
+
+const copilotIntroductionOptions: ChatInputFixtureOptions = {
+	agentHostSessionConfig: copilotHarnessSessionConfig,
+	models: copilotHarnessModels,
+	notification: copilotIntroductionNotification,
 };
 
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
@@ -155,6 +188,14 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	// notification service so the squared corner comes from the stack.
 	WithNotification: defineComponentFixture({
 		render: context => renderChatInput(context, { notification: sampleNotification })
+	}),
+	WithCopilotIntroduction: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, copilotIntroductionOptions)
+	}),
+	NarrowWithCopilotIntroduction: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { ...copilotIntroductionOptions, width: 320 })
 	}),
 	// A run of three: notice, todo list, then the input. Covers a notice docking
 	// to a widget rather than straight to the input.

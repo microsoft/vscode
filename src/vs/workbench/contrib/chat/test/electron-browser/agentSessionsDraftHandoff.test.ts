@@ -798,7 +798,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			introduction: {
 				count: 1,
 				title: 'You\'re using a new Copilot experience',
-				actions: ['Learn More', '$(thumbsup) Got it!', '$(thumbsdown)'],
+				actions: ['Learn More', '$(thumbsup) Got it!'],
 			},
 			parallel: {
 				count: 1,
@@ -829,7 +829,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				ariaLabel: action.ariaLabel,
 				iconOnly: action.iconOnly,
 				leading: action.leading,
-				outlined: action.outlined,
+				filled: action.filled,
 				tooltip: action.tooltip,
 				primary: action.primary,
 				keepOpen: action.keepOpen,
@@ -841,16 +841,15 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			telemetryId: 'copilotHarnessIntroduction.newSession',
 			title: 'You\'re using a new Copilot experience',
 			description: {
-				value: 'This new implementation unlocks exciting new capabilities, while previous agent harnesses remain available. If anything seems off, [let us know](https://github.com/microsoft/vscode/issues).',
+				value: 'This agent harness opens up new ways to work across windows and apps. Continue as usual, and [let us know](https://github.com/microsoft/vscode/issues) how it goes.',
 				isTrusted: false,
 			},
-			dismissible: false,
-			hasOnDismiss: false,
+			dismissible: true,
+			hasOnDismiss: true,
 			autoDismissOnMessage: false,
 			actions: [
-				{ label: 'Learn More', ariaLabel: undefined, iconOnly: undefined, leading: true, outlined: true, tooltip: undefined, primary: false, keepOpen: true, actionId: 'docsLink' },
-				{ label: '$(thumbsup) Got it!', ariaLabel: 'Got it!', iconOnly: undefined, leading: undefined, outlined: undefined, tooltip: undefined, primary: true, keepOpen: true, actionId: 'thumbsUp' },
-				{ label: '$(thumbsdown)', ariaLabel: 'Not Helpful', iconOnly: true, leading: undefined, outlined: undefined, tooltip: 'Not Helpful', primary: false, keepOpen: true, actionId: 'thumbsDown' },
+				{ label: 'Learn More', ariaLabel: undefined, iconOnly: undefined, leading: undefined, filled: true, tooltip: undefined, primary: false, keepOpen: true, actionId: 'docsLink' },
+				{ label: '$(thumbsup) Got it!', ariaLabel: 'Got it!', iconOnly: undefined, leading: undefined, filled: undefined, tooltip: undefined, primary: true, keepOpen: true, actionId: 'thumbsUp' },
 			],
 			posts: 1,
 		});
@@ -933,12 +932,12 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
-	test('Thumbs Down suppresses future education without disabling parallel work', async () => {
+	test('X suppresses future education without disabling parallel work', () => {
 		const h = createHarness({ introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
 		const contribution = h.showBanner();
 		const educationTitle = h.notification?.message;
-		await h.click(2);
-		const afterFeedback = h.notification;
+		h.dismiss();
+		const afterDismissal = h.notification;
 		contribution.dispose();
 		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
 		h.showBanner();
@@ -948,7 +947,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 
 		assert.deepStrictEqual({
 			educationTitle,
-			afterFeedback,
+			afterDismissal,
 			nextEducation,
 			enabled: h.configuration.getValue(ChatConfiguration.AgentsParallelWorkBannerEnabled),
 			updates: h.configuration.updates,
@@ -956,7 +955,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			parallelAction: h.notification?.actions[0]?.label,
 		}, {
 			educationTitle: 'You\'re using a new Copilot experience',
-			afterFeedback: undefined,
+			afterDismissal: undefined,
 			nextEducation: undefined,
 			enabled: true,
 			updates: [],
@@ -968,7 +967,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 	test('developer reset restores an opted-out introduction without changing experiment settings', async () => {
 		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
 		h.showBanner();
-		await h.click(2);
+		h.dismiss();
 		const afterOptOut = h.notification;
 		await h.instantiation.invokeFunction(accessor => new ResetCopilotHarnessIntroductionAction().run(accessor));
 		await timeout(0);

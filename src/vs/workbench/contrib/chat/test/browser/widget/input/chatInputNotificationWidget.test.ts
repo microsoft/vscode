@@ -19,6 +19,7 @@ import { ServiceCollection } from '../../../../../../../platform/instantiation/c
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, matchesModelIdentifier } from '../../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
@@ -615,11 +616,12 @@ suite('ChatInputNotificationWidget', () => {
 		assert.deepStrictEqual(buttons.map(button => ({
 			label: button.textContent,
 			secondary: button.classList.contains('secondary'),
+			background: button.style.backgroundColor,
 			tabIndex: button.tabIndex,
 			description: button.getAttribute('aria-description'),
 		})), [
-			{ label: 'Open Agents Window', secondary: false, tabIndex: 0, description: null },
-			{ label: 'Ignore', secondary: true, tabIndex: 0, description: 'Don\'t Show Again' },
+			{ label: 'Open Agents Window', secondary: false, background: defaultButtonStyles.buttonBackground, tabIndex: 0, description: null },
+			{ label: 'Ignore', secondary: true, background: '', tabIndex: 0, description: 'Don\'t Show Again' },
 		]);
 		assert.ok(widget.domNode.querySelector('.chat-input-notification-dismiss'));
 	});
@@ -654,44 +656,59 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
-	test('splits a leading outlined action from trailing feedback actions', () => {
-		const { notificationService, widget } = createWidget();
-		showNotification(notificationService, {
-			id: 'feedback',
-			message: 'Copilot preview',
-			actions: [{
-				kind: ChatInputNotificationActionKind.Command,
-				label: 'Learn More',
-				commandId: 'test.learnMore',
-				primary: false,
-				leading: true,
-				outlined: true,
-			}, {
-				kind: ChatInputNotificationActionKind.Command,
-				label: '$(thumbsup) Got it!',
-				commandId: 'test.gotIt',
-				primary: true,
-			}],
-		});
-		const actions = widget.domNode.querySelector('.chat-input-notification-actions');
-		const buttons = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')];
+	for (const leading of [false, true]) {
+		test(`renders ${leading ? 'split' : 'grouped'} filled actions with a header dismiss button`, () => {
+			const { notificationService, widget } = createWidget();
+			showNotification(notificationService, {
+				id: 'feedback',
+				message: 'Copilot preview',
+				actions: [{
+					kind: ChatInputNotificationActionKind.Command,
+					label: 'Learn More',
+					commandId: 'test.learnMore',
+					primary: false,
+					leading,
+					filled: true,
+				}, {
+					kind: ChatInputNotificationActionKind.Command,
+					label: '$(thumbsup) Got it!',
+					ariaLabel: 'Got it!',
+					commandId: 'test.gotIt',
+					primary: true,
+				}],
+			});
+			const actions = widget.domNode.querySelector('.chat-input-notification-actions');
+			const buttons = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')];
+			const dismiss = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-header .chat-input-notification-dismiss');
+			buttons[0].dispatchEvent(new MouseEvent('mouseover'));
+			const hoverBackground = buttons[0].style.backgroundColor;
+			buttons[0].dispatchEvent(new MouseEvent('mouseout'));
 
-		assert.deepStrictEqual({
-			split: actions?.classList.contains('split'),
-			buttons: buttons.map(button => ({
-				label: button.textContent,
-				leading: button.classList.contains('leading'),
-				outlined: button.classList.contains('outlined'),
-				secondary: button.classList.contains('secondary'),
-			})),
-		}, {
-			split: true,
-			buttons: [
-				{ label: 'Learn More', leading: true, outlined: true, secondary: true },
-				{ label: 'Got it!', leading: false, outlined: false, secondary: false },
-			],
+			assert.deepStrictEqual({
+				split: actions?.classList.contains('split'),
+				buttons: buttons.map(button => ({
+					label: button.textContent,
+					leading: button.classList.contains('leading'),
+					filled: button.classList.contains('filled'),
+					secondary: button.classList.contains('secondary'),
+					background: button.style.backgroundColor,
+					foreground: button.style.color,
+					ariaLabel: button.ariaLabel,
+					tabIndex: button.tabIndex,
+				})),
+				hoverBackground,
+				dismiss: { ariaLabel: dismiss?.ariaLabel, tabIndex: dismiss?.tabIndex },
+			}, {
+				split: leading,
+				buttons: [
+					{ label: 'Learn More', leading, filled: true, secondary: true, background: defaultButtonStyles.buttonSecondaryBackground, foreground: defaultButtonStyles.buttonSecondaryForeground, ariaLabel: 'Copilot preview Learn More', tabIndex: 0 },
+					{ label: 'Got it!', leading: false, filled: false, secondary: false, background: defaultButtonStyles.buttonBackground, foreground: defaultButtonStyles.buttonForeground, ariaLabel: 'Copilot preview Got it!', tabIndex: 0 },
+				],
+				hoverBackground: defaultButtonStyles.buttonSecondaryHoverBackground,
+				dismiss: { ariaLabel: 'Dismiss notification', tabIndex: 0 },
+			});
 		});
-	});
+	}
 
 	test('actions without explicit commandArgs are executed with empty args', async () => {
 		const commandService = new TestCommandService();

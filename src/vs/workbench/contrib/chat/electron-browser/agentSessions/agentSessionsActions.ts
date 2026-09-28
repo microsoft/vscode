@@ -1178,7 +1178,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			: this._titleTreatment ?? localize('chat.agentsParallelWorkBanner.defaultTitle', "Run agents side by side");
 		const introductionMode = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction ? getCopilotHarnessIntroductionMode(this._configurationService) : undefined;
 		const description = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
-			? localize('chat.agentsParallelWorkBanner.copilotHarnessDescription', "This new implementation unlocks exciting new capabilities, while previous agent harnesses remain available. If anything seems off, [let us know]({0}).", AgentsParallelWorkContribution.COPILOT_HARNESS_FEEDBACK_URL)
+			? localize('chat.agentsParallelWorkBanner.copilotHarnessDescription', "This agent harness opens up new ways to work across windows and apps. Continue as usual, and [let us know]({0}) how it goes.", AgentsParallelWorkContribution.COPILOT_HARNESS_FEEDBACK_URL)
 			: this._descriptionTreatment ?? localize('chat.agentsParallelWorkBanner.defaultDescription', "Run multiple tasks in the Agents Window, in one workspace or across projects.");
 		if (this._posted?.widget === widget && isEqual(this._posted.inputUri, inputUri) && isEqual(this._posted.resource, resource) && this._posted.kind === kind && this._posted.introductionMode === introductionMode && this._posted.title === title && this._posted.description === description) {
 			return;
@@ -1197,8 +1197,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			commandId: AgentsParallelWorkContribution.LEARN_MORE_COMMAND_ID,
 			commandArgs: [posted.inputUri, resource],
 			primary: false,
-			leading: true,
-			outlined: true,
+			filled: true,
 			keepOpen: true,
 		}, {
 			kind: ChatInputNotificationActionKind.Command,
@@ -1208,17 +1207,6 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			commandId: AgentsParallelWorkContribution.FEEDBACK_COMMAND_ID,
 			commandArgs: [posted.inputUri, resource, true],
 			primary: true,
-			keepOpen: true,
-		}, {
-			kind: ChatInputNotificationActionKind.Command,
-			label: `$(${Codicon.thumbsdown.id})`,
-			ariaLabel: localize('agentsParallelWork.unhelpful', "Not Helpful"),
-			iconOnly: true,
-			tooltip: localize('agentsParallelWork.unhelpfulTooltip', "Not Helpful"),
-			telemetryActionId: 'thumbsDown',
-			commandId: AgentsParallelWorkContribution.FEEDBACK_COMMAND_ID,
-			commandArgs: [posted.inputUri, resource, false],
-			primary: false,
 			keepOpen: true,
 		}] : [{
 			kind: ChatInputNotificationActionKind.Command,
@@ -1256,10 +1244,10 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 				&& (kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
 					? introductionMode === CopilotHarnessIntroductionMode.NewSession || context.sessionStarted
 					: !context.sessionStarted),
-			dismissible: kind !== AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction,
-			onDismiss: kind === AgentsParallelWorkNotificationKind.ParallelWork
-				? () => this._dismissChat(resource)
-				: undefined,
+			dismissible: true,
+			onDismiss: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
+				? () => this._ignoreCopilotHarnessIntroduction()
+				: () => this._dismissChat(resource),
 			onDidShow: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction && introductionMode
 				? () => this._logIntroductionLifecycle('shown', widget, resource, introductionMode)
 				: undefined,
