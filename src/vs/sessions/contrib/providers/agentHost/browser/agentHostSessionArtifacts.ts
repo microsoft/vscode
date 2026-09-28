@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { readSessionArtifacts, SessionArtifactType, type ISessionArtifact as IProtocolSessionArtifact } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { SessionMeta } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { SessionArtifactKind, type ISessionArtifact } from '../../../../services/sessions/common/session.js';
-import { parseGitHubPullRequestUrl } from '../../../github/common/utils.js';
+import { parseGitHubArtifactLink } from '../../../github/common/sessionGitHubReferences.js';
 
 const kindByType: ReadonlyMap<SessionArtifactType, SessionArtifactKind> = new Map([
 	[SessionArtifactType.PullRequest, SessionArtifactKind.PullRequest],
@@ -89,24 +88,6 @@ interface ISessionArtifactEntry {
 	readonly artifact: ISessionArtifact;
 }
 
-/**
- * The GitHub link an entry stands for, when the pull request and issue pills
- * could actually render it. Anything else (an enterprise host, a malformed
- * link) has no link identity and simply stays in its pill.
- */
-function gitHubLink(artifact: IProtocolSessionArtifact): string | undefined {
-	if (artifact.isGitHub !== true || !artifact.link) {
-		return undefined;
-	}
-	if (artifact.type === SessionArtifactType.PullRequest) {
-		return parseGitHubPullRequestUrl(artifact.link) ? artifact.link : undefined;
-	}
-	if (artifact.type === SessionArtifactType.Issue) {
-		return parseGitHubIssueUrl(artifact.link) ? artifact.link : undefined;
-	}
-	return undefined;
-}
-
 export function partitionSessionArtifacts(meta: SessionMeta | undefined, mapFileUri: (uri: URI) => URI = uri => uri): ISessionArtifactPartition {
 	const entries: ISessionArtifactEntry[] = [];
 	const pullRequests: IRecordedGitHubReference[] = [];
@@ -118,8 +99,8 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined, mapFile
 			continue;
 		}
 		entries.push({ artifact: mapped });
-		const link = gitHubLink(artifact);
-		if (!link) {
+		const link = artifact.link;
+		if (!link || !parseGitHubArtifactLink(mapped)) {
 			continue;
 		}
 

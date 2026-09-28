@@ -39,6 +39,11 @@ export const agentsPanelBackground = registerColor(
 	localize('agentsPanel.background', 'Background color of the card panels (chat, files, terminal) in the agent sessions window.')
 );
 
+export const agentsDetailBackground = registerColor(
+	'agentsDetail.background', editorBackground,
+	localize('agentsDetail.background', 'Background color of the docked details pane in the agent sessions window.')
+);
+
 export const agentsPanelForeground = registerColor(
 	'agentsPanel.foreground', SIDE_BAR_FOREGROUND,
 	localize('agentsPanel.foreground', 'Foreground color of the card panels (chat, files, terminal) in the agent sessions window.')

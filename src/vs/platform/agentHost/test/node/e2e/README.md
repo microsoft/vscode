@@ -107,6 +107,10 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `suites/` | Scenario modules, each of which may contribute to either tier. Add new scenarios to the closest existing suite; add a suite module when a new behavior area emerges. |
 | `suites/clientFilesystemSuite.ts` | Client-to-host `resource*` operations and resource-watch behavior. |
 | `suites/clientHostedFilesystemSuite.ts` | Host-to-client `resource*` operations against client-hosted files. |
+| `suites/workingDirectoriesSuite.ts` | Multi-root peer scoping, delegated folders, additional worktree ownership, and workspace persistence. |
+| `suites/mcpSideChannelSuite.ts` | Real MCP application requests tunneled over AHP, including resources, tool results, concurrent callers, and lifecycle recovery. |
+| `suites/providerCheckpointSuite.ts` | Provider-executed edits and historical Git checkpoint comparisons, including index preservation and restart. |
+| `suites/providerErrorSuite.ts` | Endpoint-scoped model API failures, provider error classification, retries, and subsequent-turn recovery. |
 | `harness/` | Record/replay, AHP snapshots, shared turn drivers, and server lifecycle. |
 | `harness/agentHostTarget.ts` | The portability seam: the only code that knows how to launch a concrete AHP implementation. |
 | `captures/*.yaml` | Committed model fixtures, plus one shared strict empty fixture for tests that declare no model traffic. |
@@ -121,6 +125,20 @@ Use these deterministic E2E tests when the value comes from running the bundled 
 The Codex-specific entry point also checks that invalid workspace skills remain visible with their source paths and grouped validation diagnostics. The worktree scenario checks that existing subscribers receive the resolved directory before the first turn completes, and that the session announcement, subscription, and catalog agree on the materialized workspace.
 
 Native Copilot shell coverage verifies that lossy output compaction preserves a complete original readable through AHP, using output below the generic spill threshold. Codex persistence coverage restores image attachments after a host restart and reads their original bytes through AHP.
+
+Workspace lifecycle tests enable each provider's multi-root capability only for their scenario and restore the previous root configuration afterward. They distinguish the session's aggregate folders, a peer's selected subset, and the actual directory used by its tools. Delegation tests verify that the invoking provider finishes its response, the child finishes its local command, and session disposal removes owned additional worktrees.
+
+Automation lifecycle coverage uses manual-only definitions: provider-unavailable cancellation and failed model selection stay on the conformance side of the model boundary, while completed runs and definition changes use recorded provider turns. Input draft coverage checks clearing a synchronized draft, replacing it at submission, the answer returned to the provider, and continued usability after cancellation. Reproductions for unsupported persistence and answer-forwarding behavior remain explicitly gated in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
+
+The MCP side-channel scenarios use the `channel` advertised by a real ready server, never a synthesized implementation URI. Copilot and Codex support this surface; Claude does not. Codex additionally exposes resource and template inventories, while Copilot supports stop/start. A recorded no-tool turn materializes the provider; side-channel calls then exercise the actual MCP process without model requests.
+
+Historical checkpoint comparisons use completed provider turns rather than bang commands. Per-turn subscriptions currently select the file-edit tracker, which cannot see shell edits; compare-turn subscriptions use Git checkpoints. Checkpoint capture is asynchronous after turn completion, so these historical scenarios finish a subsequent no-tool turn before comparing earlier turns. Seed staged user changes before the baseline turn, and use an ignored execution witness when an edit-and-restore scenario intentionally has no final diff.
+
+Detached-worktree include-file tests cover wholly ignored and partially selected directories, overlapping globs, binary contents, and collisions with files or directories tracked on another branch. They use unstarted sessions and explicitly delete their handles, avoiding the background Git work associated with model-backed worktree disposal.
+
+Fault-injection tests scope the injected response to the provider's model endpoint so asynchronous utility requests cannot consume it. The expected retry and error classification differs by provider; strict replay still verifies the recorded failure, every retry, and the recovery request.
+
+Subagent reopen coverage runs on Windows as well as macOS and Linux for providers that support subagents. It verifies that the parent was reconstructed rather than served from live state, the child transcript contains its sentinel, and the parent transcript does not contain that sentinel.
 
 Entries under `KNOWN_ISSUES.md`'s suspected-product-bug section must be understandable without reading the test or knowing Agent Host implementation terminology. Begin with complete sentences that explain the user workflow, the failure, and its likely user impact. Put test titles, protocol actions, provider-specific names, gates, and reproduction commands after that explanation.
 
@@ -224,7 +242,7 @@ Provider availability:
 
 Each test needs an agent host server (a forked subprocess) fronted by a `CapiReplayProxy`. `AgentHostE2EServerLease` (in `harness/agentHostE2ETestHarness.ts`) owns that lifecycle and picks one of two strategies:
 
-The lease also owns a fresh suite data directory. Every server it starts uses that directory as its home and VS Code user-data directory and prevents provider-specific config overrides from escaping it, so both shared and provider-specific scenarios are isolated from developer-machine configuration.
+The lease also owns isolated data directories. Servers normally share one directory as their home and VS Code user-data directory, with provider-specific config overrides prevented from escaping it, so both shared and provider-specific scenarios are isolated from developer-machine configuration.
 
 On Windows, test-server cleanup records descendants before requesting graceful shutdown and terminates any survivors after the server exits, before temporary directories are removed. Recording descendants and waiting for graceful exit share the existing shutdown deadline.
 
@@ -239,6 +257,16 @@ The swap is what makes sharing cheap: the proxy is an `http.Server` running **in
 **The one invariant: a shared-server test must not leave a turn in flight.** Because one server serves multiple tests, each test's request/response traffic must land inside its own fixture window. If a test returns mid-turn, the SDK's continuation HTTP call fires *after* the fixture is swapped for the next test, landing in that test's window as an unrecorded call. In replay, failure to drain to `turnComplete` is fatal. Direct live recording may use an explicitly bounded best-effort drain because provider latency is not deterministic.
 
 Teardown resolves the default chat's active turn and dispatches the client-supported `chat/turnCancelled` action before disposing the session. Any cancellation, disposal, replay-verification, or server-shutdown failure fails teardown and forces a fresh shared server; cleanup is never silently treated as success.
+
+Windows descendant cleanup checks process creation times at every parent-child edge: an older process with a stale parent PID is not a descendant of the younger process that reused that PID. Process identity checks also include creation time, so PID reuse with the same executable and command line cannot authorize a kill. Graceful and forceful cleanup terminate only the server PID and verified descendants, without `taskkill /T` traversing stale ancestry. Creation times come from Windows CIM because the native process-tree module does not expose them. Descendant capture always starts a fresh query; only concurrent identity checks share an in-flight query.
+
+Before querying CIM for an identity check, a non-terminating PID probe skips processes that are already gone (`ESRCH`). Live PIDs and access-denied probes still require CIM identity verification. This avoids PowerShell launches for naturally exited descendants and, normally, for post-kill polling without caching stale process identities.
+
+Timestamped `[agent-host-cleanup ...]` diagnostics identify the runner/server PIDs, captured descendants, rejected ancestry links, termination attempts, and verified exits. They omit command lines. Diagnostics are written to stdout and `.build/logs/integration-tests/agent-host-cleanup-<runner-pid>.log`, which is retained in the CI logs artifact even when Windows Electron does not forward renderer stdout. Use these to correlate a disappearing CI service with cleanup's exact targets rather than inferring ownership from a later network failure.
+
+Failed kills are rechecked only after all concurrent kills finish, while the process list catches up. All descendant identity checks, terminations, and exit polling share a five-second deadline, and each new CIM query is limited to the remaining budget. Failed kills have at most five rechecks. A failure remains an error when the same process is still present.
+
+A failed test, a failed teardown, routine recycling, or a test that restarted its host makes the next test use fresh home, user-data, and Codex directories. Restarting only the process would retain provider-native conversations discovered during earlier restarts and could contaminate later session-list assertions or protocol snapshots. Retired directories remain available for diagnostics until suite teardown removes all of them. Intentional within-test `restart()` / `crashAndRestart()` calls preserve persistent state for the remainder of that test.
 
 Remove test workspaces only after disposing the shared server lease in suite teardown. A provider can retain directory watchers after an individual session is released, preventing workspace deletion on Windows while its process is still alive.
 
@@ -443,25 +471,25 @@ Getting the host into that configuration needs a feature that genuinely reaches 
 | `shellToolReplayUnstableOnLinux` | Skips shell-dependent replay tests on **Linux** for that provider. Recording and other platforms remain enabled. |
 | `fileDeleteReplayUnstableOnWindows` | Skips the file-deletion replay test on **Windows** for that provider. Recording and other platforms remain enabled. |
 | `fileCreateReplayUnstableOnWindows` | Skips the file-creation replay test on **Windows** for that provider. Recording and other platforms remain enabled. |
-| `subagentReplayUnstableOnWindows` | Skips the subagent-reopen ("replay path") test on **Windows** for that provider (e.g. Claude rebuilds the transcript from the SDK's on-disk `subagents/*.jsonl`, not reliably visible there right after the turn). |
 | `RECORD` (env) | Set by `AGENT_HOST_REPLAY_RECORD=1` and internally during the first `AGENT_HOST_UPDATE_SNAPSHOTS=1` pass. The `can abort a running turn` test runs only for direct record mode, not bulk snapshot updates. |
 | `isWindows` | The worktree test is skipped on Windows (POSIX-shaped `.worktrees` paths + host-terminal `pwd`). |
 
-File-operation capability and coverage are separate concerns. A provider with no native file tools can still run the behavior scenarios through `fileOperationStrategy: 'shell'`; those prompts pin portable `node -e` commands and retain direct filesystem assertions. Native-tool-only behavior, such as streaming file-creation argument deltas, remains gated by the corresponding tool-name field. A shell strategy also respects `shellToolReplayUnstableOnLinux`, so enabling Codex file coverage on macOS and Windows does not overstate its packaged-Linux replay support.
+File-operation capability and coverage are separate concerns. A provider with no native file tools can still run the behavior scenarios through `fileOperationStrategy: 'shell'`; those prompts pin portable `node -e` commands and retain direct filesystem assertions. Native-tool-only behavior, such as streaming file-creation argument deltas, remains gated by the corresponding tool-name field. Codex shell-backed file and peer-chat scenarios also run on Linux; the independent shell-result-text and Windows file-creation limitations remain tracked in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
 
 ### Interpreting Codex pending tests
 
-On platforms where Codex unified-shell replay is stable, the baseline suite has 12 intentionally pending registrations:
+The Codex suite intentionally skips scenarios for unsupported capabilities and known limitations:
 
 - freeform and multi-select questions, because `request_user_input` requires non-empty, mutually exclusive options;
 - native streaming file creation and the two subagent scenarios, because Codex advertises neither capability;
 - client-plugin discovery, because plugin synchronization can race the first turn and leave it incomplete;
 - the three live workspace-agent watcher scenarios, because Codex discovers workspace customizations initially but does not watch them;
 - mid-turn abort, which is record-only for every provider;
-- worktree include-file coverage, which remains behind its documented known-issue gate; and
-- the negative multiple-chat scenario, which runs only for a provider that does not advertise multiple chats.
+- worktree include-file coverage, which remains behind its documented known-issue gate;
+- the negative multiple-chat scenario, which runs only for a provider that does not advertise multiple chats; and
+- scenarios requiring reliable successful shell completion text, plus file creation on Windows, under their separate documented gates.
 
-Codex multiple chats, provider-backed forks, side chats, Plan-mode input, input cancellation, workspaceless sessions, runtime slash commands, cross-session server tools, host restart, and workspace customization discovery all run in strict replay. Linux can show additional pending shell-backed scenarios under `shellToolReplayUnstableOnLinux`; those are tracked separately in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
+Codex multiple chats, provider-backed forks, side chats, Plan-mode input, input cancellation, workspaceless sessions, runtime slash commands, cross-session server tools, host restart, and workspace customization discovery all run in strict replay.
 
 **Rule of thumb:** if a test relies on real-time behavior, concurrency, or POSIX-specific local execution, gate it rather than fighting the fixture. Prefer a *targeted* gate (per-provider flag or `!isWindows`) so you don't disable coverage where it works.
 
@@ -510,11 +538,15 @@ The fixture was never recorded (or the test title changed and orphaned it). Reco
 
 Usually the *local execution* diverges by platform (the model replay is byte-identical everywhere). Windows shells, `pwd`, `git worktree` paths, and some SDK tool calls behave differently. Gate the test off that platform (`!isWindows` or a per-provider flag) — don't bump timeouts to mask it.
 
-Codex fixtures use its unified `exec_command` tool, so Codex record/replay servers explicitly enable `features.unified_exec` rather than inheriting an app-server configuration that advertises the incompatible legacy `shell_command` tool. Packaged Linux still completes those recorded turns without command-execution notifications, so the shell-dependent Codex replay tests are gated there.
+Codex fixtures use its unified `exec_command` tool, so Codex record/replay servers explicitly enable `features.unified_exec` rather than inheriting an app-server configuration that advertises the incompatible legacy `shell_command` tool.
+
+Codex also refuses to create helper aliases when `CODEX_HOME` is inside its effective temporary directory. With older bubblewrap versions lacking `--argv0` (including Ubuntu 22.04's 0.6.1), this makes sandbox re-entry fail before the command executes: `bwrap: execvp codex-linux-sandbox`. The private per-runtime `TMPDIR`/`TMP`/`TEMP` introduced in [#334945](https://github.com/microsoft/vscode/pull/334945) separates that directory from the isolated Codex home and fixes this replay failure without disabling sandboxing. Keep those directories separate and assert actual tool output or filesystem effects: replayed assistant success text alone does not prove execution.
 
 ### A replayed MCP call reports that its tool does not exist
 
 A recorded response can name an MCP tool before the real server finishes starting and enters the turn's tool inventory. For Copilot tests of an initialized server, create an empty chat with `createChat` and wait for its server's `session/customizationUpdated` notification to report `McpServerStatus.Ready` before dispatching the recorded turn. This separates MCP startup from model replay without sleeps or an extra recorded warm-up turn.
+
+If the test must use the default chat, `createChat` on its URI is a no-op. Instead, record a no-tool warm-up turn on that chat, wait for its MCP server to be ready, and re-record the test's fixture. A ready server on a peer chat does not establish readiness for the default chat. The runtime MCP suite shares this setup so its tool, subagent, stop/start, and cold-resume assertions cannot race startup.
 
 Keep asserting the real tool result: the replayed assistant text can report the recorded success even when the actual tool call failed.
 
@@ -530,7 +562,7 @@ The Responses (`/responses`) regenerator announces each output item before strea
 
 ### A test passes on macOS/Linux but fails on Windows
 
-Same as above — it's platform-specific real execution, not the proxy. See the worktree and subagent gates for established patterns.
+Same as above — it's platform-specific real execution, not the proxy. See the worktree and provider-specific file-operation gates for established patterns.
 
 ### Fixture leaks a username / absolute path / token
 

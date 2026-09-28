@@ -230,11 +230,12 @@ suite('ActionListWidget', () => {
 		});
 	});
 
-	test('includes badges in accessible labels and clears them when rows are reused', () => {
+	test('includes primary and additional badges in accessible labels and clears them on reuse', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{
 				...action('Assisted permissions'),
 				badge: 'Experimental',
+				additionalBadges: [{ label: 'Org default', className: 'organization-default', tooltip: 'Default for new chats.' }],
 				detail: 'Evaluates risk before running tools',
 			}],
 			listOptions: { showFilter: false },
@@ -248,6 +249,9 @@ suite('ActionListWidget', () => {
 				badgeHidden: badge.ariaHidden,
 				badgeVisible: badge.style.display !== 'none',
 				afterTitle: badge.previousElementSibling?.classList.contains('title'),
+				additionalBadges: Array.from(row.querySelectorAll('.action-item-additional-badges .action-item-badge'), element => ({
+					text: element.textContent, className: element.className,
+				})),
 			};
 		};
 		const initial = readRow();
@@ -255,11 +259,12 @@ suite('ActionListWidget', () => {
 
 		assert.deepStrictEqual({ initial, updated: readRow() }, {
 			initial: {
-				label: 'Assisted permissions, Experimental, Evaluates risk before running tools',
+				label: 'Assisted permissions, Experimental, Org default, Evaluates risk before running tools',
 				badge: 'Experimental',
 				badgeHidden: 'true',
 				badgeVisible: true,
 				afterTitle: true,
+				additionalBadges: [{ text: 'Org default', className: 'action-item-badge organization-default' }],
 			},
 			updated: {
 				label: 'Manual permissions',
@@ -267,8 +272,56 @@ suite('ActionListWidget', () => {
 				badgeHidden: 'true',
 				badgeVisible: false,
 				afterTitle: true,
+				additionalBadges: [],
 			},
 		});
+	});
+
+	test('toolbar labels remain actionable and revert to icons when a row is reused', () => {
+		const selected: string[] = [];
+		let configured = 0;
+		const configure = toAction({ id: 'configure', label: 'Medium', tooltip: 'Configure Model, Medium', class: 'codicon-settings-gear', run: () => { configured++; } });
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('Model'), toolbarLabels: true, toolbarActions: [configure] }],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false, stopToolbarPointerPropagation: true },
+		});
+		const read = () => {
+			const button = widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+			return { label: button.textContent, ariaLabel: button.getAttribute('aria-label'), icon: button.classList.contains('codicon') };
+		};
+		const initial = read();
+		widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!.click();
+		widget.updateItems([{ ...action('Model'), toolbarActions: [configure] }]);
+		assert.deepStrictEqual({ initial, updated: read(), configured, selected }, {
+			initial: { label: 'Medium', ariaLabel: 'Configure Model, Medium', icon: false },
+			updated: { label: '', ariaLabel: 'Configure Model, Medium', icon: true },
+			configured: 1,
+			selected: [],
+		});
+	});
+
+	test('visible toolbar labels are searchable without searching icon-only action labels', () => {
+		const readout = toAction({ id: 'configure', label: 'Medium · 264K', run: () => { } });
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('Model with readout'), toolbarLabels: true, toolbarActions: [readout] },
+				{ ...action('Model with icon'), toolbarActions: [readout] },
+			],
+		});
+		typeFilter(widget, '264k');
+		assert.deepStrictEqual(getVisibleRowText(widget), ['Model with readoutMedium · 264K']);
+	});
+
+	test('section badges are rendered and cleared on reuse', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...separator('Optimize for'), additionalBadges: [{ label: 'Org default', tooltip: 'Default for new chats.' }] }, action('Balance')],
+			listOptions: { showFilter: false },
+		});
+		const read = () => Array.from(widget.domNode.querySelectorAll('.separator .action-item-badge'), badge => badge.textContent);
+		const initial = read();
+		widget.updateItems([separator('Models'), action('A model')]);
+		assert.deepStrictEqual({ initial, updated: read() }, { initial: ['Org default'], updated: [] });
 	});
 
 	test('recycled action icons do not retain a previous fallback or theme color', () => {
@@ -3073,6 +3126,109 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('hover actions use the standard hover footer', () => {
+		const content = document.createElement('div');
+		content.textContent = 'Rich reference metadata';
+		const runs: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('active'),
+				hover: {
+					content,
+					expandable: true,
+					showIndicator: false,
+					tabThroughPanel: true,
+					actions: [
+						{ commandId: 'copy', label: 'Copy URL', run: () => runs.push('copy') },
+						{ commandId: 'remove', label: 'Remove', run: () => runs.push('remove') },
+					],
+				},
+			}],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+		const footer = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .hover-row.status-bar')!;
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const footerActions = footer.querySelector<HTMLElement>('.actions')!;
+		const actions = [...footer.querySelectorAll<HTMLElement>('.action-container')];
+		actions[1].click();
+		const panelRect = panel.getBoundingClientRect();
+		const footerRect = footerActions.getBoundingClientRect();
+		const panelStyle = mainWindow.getComputedStyle(panel);
+		const panelInnerEdges = {
+			left: panelRect.left + parseFloat(panelStyle.borderLeftWidth),
+			right: panelRect.right - parseFloat(panelStyle.borderRightWidth),
+			bottom: panelRect.bottom - parseFloat(panelStyle.borderBottomWidth),
+		};
+
+		assert.deepStrictEqual({
+			footerClassName: footer.className,
+			actions: actions.map(action => action.textContent),
+			panelPadding: panelStyle.padding,
+			panelOverflow: panelStyle.overflow,
+			footerFlush: {
+				left: Math.abs(footerRect.left - panelInnerEdges.left) < 1,
+				right: Math.abs(footerRect.right - panelInnerEdges.right) < 1,
+				bottom: Math.abs(footerRect.bottom - panelInnerEdges.bottom) < 1,
+			},
+			runs,
+		}, {
+			footerClassName: 'hover-row status-bar',
+			actions: ['Copy URL', 'Remove'],
+			panelPadding: '4px',
+			panelOverflow: 'hidden',
+			footerFlush: {
+				left: true,
+				right: true,
+				bottom: true,
+			},
+			runs: ['remove'],
+		});
+	});
+
+	test('the initially focused row opens its interactive hover and tabs to the footer action', () => {
+		const content = document.createElement('div');
+		const runs: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('image'),
+				hover: {
+					content,
+					expandable: true,
+					showIndicator: false,
+					tabThroughPanel: true,
+					actions: [{ commandId: 'copyRelativePath', label: 'Copy relative path', run: () => runs.push('copy') }],
+				},
+			}],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const footerAction = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel .action-container')!;
+		const arrowRightFocused = document.activeElement === footerAction;
+		footerAction.click();
+		footerAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+		const reopenedFooterAction = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel .action-container')!;
+		const tabFocused = document.activeElement === reopenedFooterAction;
+		reopenedFooterAction.click();
+
+		assert.deepStrictEqual({
+			panelVisible: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display !== 'none',
+			arrowRightFocused,
+			tabFocused,
+			runs,
+		}, {
+			panelVisible: true,
+			arrowRightFocused: true,
+			tabFocused: true,
+			runs: ['copy', 'copy'],
+		});
+	});
+
 	test('refresh does not reopen a dismissed tab-through hover', () => {
 		const content = document.createElement('div');
 		const control = document.createElement('button');
@@ -3096,6 +3252,75 @@ suite('ActionListWidget', () => {
 		}, {
 			focused: 'active',
 			panelVisible: false,
+		});
+	});
+
+	test('refresh disposes a rejected hover preservation candidate', () => {
+		const currentContent = document.createElement('div');
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('active'), hover: { content: currentContent, expandable: true } }],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		let disposeCount = 0;
+		let descriptorDisposeCount = 0;
+		const replacementContent = document.createElement('div');
+
+		widget.updateItems([{
+			...action('active'),
+			hover: {
+				content: () => replacementContent,
+				disposeContent: content => {
+					assert.strictEqual(content, replacementContent);
+					disposeCount++;
+				},
+				disposable: { dispose: () => descriptorDisposeCount++ },
+				expandable: true,
+			},
+		}], undefined, { preserveHover: true });
+
+		assert.deepStrictEqual({
+			disposeCount,
+			descriptorDisposeCount,
+			replacementConnected: replacementContent.isConnected,
+		}, {
+			disposeCount: 1,
+			descriptorDisposeCount: 0,
+			replacementConnected: false,
+		});
+	});
+
+	test('refresh disposes a rejected hover candidate while preserving a submenu', () => {
+		const currentContent = document.createElement('div');
+		const submenuAction = toAction({ id: 'child', label: 'Child', run: () => { } });
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('active'), hover: { content: currentContent }, submenuActions: [submenuAction] }],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		let disposeCount = 0;
+		const replacementContent = document.createElement('div');
+
+		widget.updateItems([{
+			...action('active'),
+			hover: {
+				content: () => replacementContent,
+				disposeContent: content => {
+					assert.strictEqual(content, replacementContent);
+					disposeCount++;
+				},
+			},
+			submenuActions: [submenuAction],
+		}], undefined, { preserveHover: true });
+
+		assert.deepStrictEqual({
+			disposeCount,
+			submenuVisible: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display !== 'none',
+		}, {
+			disposeCount: 1,
+			submenuVisible: true,
 		});
 	});
 

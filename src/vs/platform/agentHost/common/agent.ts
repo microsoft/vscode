@@ -9,16 +9,22 @@ import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js'
 import { IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
-import type { IObservable } from '../../../base/common/observable.js';
+import type { IObservable, IReader } from '../../../base/common/observable.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
-import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { IAgentHostClientTelemetryContext, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
-import { ProtectedResourceMetadata, type Changeset, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
-import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ProtectedResourceMetadata, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
+import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
+import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+
+/** User-selected permission action and its originating client. */
+export interface IAgentPermissionResponseContext {
+	readonly selectedOptionId?: string;
+	readonly origin?: ActionOrigin;
+}
 
 /** Error returned when the Agent Host process cannot be started. */
 export class AgentHostStartError extends Error {
@@ -132,12 +138,10 @@ export interface IAgentChatMetadata {
 	 */
 	readonly changes?: ChangesSummary;
 	/**
-	 * Catalogue of changesets the agent can produce for this session — the
-	 * {@link Changeset | catalogue} that travels on
-	 * `SessionSummary.changesets`. Lightweight summary entries (id / label /
-	 * URI template / aggregate counts) without per-file detail; clients
-	 * subscribe to a specific expanded changeset URI when they need the full
-	 * file list.
+	 * Catalogue of changesets the agent can produce for this chat or session. These are
+	 * lightweight summary entries without per-file detail; clients subscribe
+	 * to a specific expanded changeset URI for the full file list. Chat metadata
+	 * carries chat-owned entries while session metadata carries session-wide entries.
 	 */
 	readonly changesets?: readonly Changeset[];
 	/**
@@ -165,11 +169,28 @@ export interface IAgentDiscoveredChat extends IAgentChatMetadata {
 	readonly external: boolean;
 }
 
+/** A fresh provider transcript for a chat being observed without running a host turn. */
+export interface IAgentChatHistoryChange {
+	readonly chat: URI;
+	readonly turns: readonly Turn[];
+}
+
 /** Returns the candidate session URI keys already present in the host registry. */
 export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<ReadonlySet<string>>;
 
+/** Lightweight ordered chat metadata for session-list presentation. */
+export interface IAgentSessionChatMetadata {
+	readonly chat: URI;
+	readonly summary?: string;
+	readonly kind: 'default' | 'peer';
+	readonly origin?: ChatOrigin;
+	readonly interactivity?: ChatInteractivity;
+	readonly archived?: boolean;
+}
+
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
 	readonly session: URI;
+	readonly chats?: readonly IAgentSessionChatMetadata[];
 }
 
 export interface IAgentSessionProjectInfo {
@@ -461,6 +482,8 @@ export interface IAgentChatContext {
 	readonly resource: URI;
 	readonly configurationResource: URI;
 	readonly clientTelemetryContext?: IAgentHostClientTelemetryContext;
+	/** The owning turn's immutable admission snapshot, supplied only for its send. */
+	readonly turnTelemetryContext?: IAgentProviderTurnTelemetryContext;
 	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:
@@ -758,6 +781,11 @@ export namespace SubagentChatSignal {
 
 // ---- Chat surface --------------------------------------------------
 
+/** A provider's preparation can block input without adding a conversation turn. */
+export interface IAgentPrepareChatResult {
+	readonly error?: ErrorInfo;
+}
+
 /**
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
@@ -768,6 +796,9 @@ export namespace SubagentChatSignal {
  * the provider needs the owning session or storage scope.
  */
 export interface IAgentChats {
+	/** Prepare an existing chat for input without sending a turn. May acquire its native writer lock. */
+	prepareChat?(chat: URI, context: AgentChatOperationContext): Promise<IAgentPrepareChatResult>;
+
 	/**
 	 * Create a fresh additional chat within an already-provisioned `session`,
 	 * using the complete working directory and config supplied in
@@ -937,6 +968,8 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly kind: 'pending_confirmation';
 	/** Target chat channel URI containing the tool call. */
 	readonly chat: URI;
+	/** Whether this request supports a runtime-authorized session sandbox opt-out. */
+	readonly canAllowSessionSandboxBypass?: boolean;
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
@@ -1177,6 +1210,11 @@ export interface IAgentPendingMessageSender {
 	readonly clientContext: IAgentHostClientTelemetryContext;
 }
 
+/** Account-scoped telemetry metadata; captured contexts become empty when their credentials are superseded. */
+export interface IAgentTelemetryContext {
+	readonly copilotSku: string | undefined;
+}
+
 /**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
@@ -1199,6 +1237,12 @@ export interface IAgent {
 
 	/** Optional refresh for providers whose model catalog can change at runtime. */
 	refreshModels?(): Promise<void>;
+
+	/** Refresh live sessions after account-backed Connector membership changes. */
+	refreshConnectorSessions?(): Promise<void>;
+
+	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
+	getTelemetryContext?(): IAgentTelemetryContext;
 
 	// ---- Chat lifecycle and progress ----------------------------------------
 
@@ -1237,6 +1281,9 @@ export interface IAgent {
 	/** Return bounded diagnostics for an in-flight turn when supported. */
 	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;
 
+	/** Capture bounded provider context from cached state without I/O. */
+	captureTurnTelemetryContext?(): IAgentProviderTurnTelemetryContext;
+
 	/** Read observed usage at terminal dispatch for this exact owning turn, excluding descendants and later delivery. */
 	getTurnTokenUsage?(chat: URI, turnId: string, parentToolCallId?: string): IAgentTurnTokenUsage | undefined;
 
@@ -1255,7 +1302,7 @@ export interface IAgent {
 	onClientToolCallComplete(chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void;
 
 	/** Respond to a pending permission request from the SDK. */
-	respondToPermissionRequest(requestId: string, approved: boolean): void;
+	respondToPermissionRequest(requestId: string, approved: boolean, context?: IAgentPermissionResponseContext): void;
 
 	/** Respond to a pending user input request from the SDK's ask_user tool. */
 	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void;
@@ -1301,8 +1348,12 @@ export interface IAgent {
 
 	/** Provides chats that are ready to be registered as Agent Host sessions. */
 	readonly onDidDiscoverChats: Event<readonly IAgentDiscoveredChat[]>;
+	/** Passive transcript changes from another client; these must not start host-side turn execution. */
+	readonly onDidChangeChatHistory?: Event<IAgentChatHistoryChange>;
+	/** Observe another client's persisted transcript while a host client subscribes to this chat. */
+	watchChatHistory?(chat: URI): IDisposable;
 
-	/** Starts the provider's memoized native chat discovery pass. */
+	/** Starts provider-owned native chat discovery; repeated calls are idempotent. */
 	startChatDiscovery?(): Promise<void>;
 
 	/** Lets discovery drop registered candidates before per-session I/O. */
@@ -1325,14 +1376,10 @@ export interface IAgent {
 	// ---- Metadata -----------------------------------------------------------
 
 	/**
-	 * Warms a short-lived, in-memory cache of per-session metadata from a single
-	 * bulk provider call, so a subsequent burst of {@link getChatMetadata} calls
-	 * (e.g. a `listSessions` pass over a large catalogue) can be served without
-	 * one provider round-trip per session. Returns a disposable that clears the
-	 * cache; callers dispose it once the burst is complete. Optional: providers
-	 * without a cheap bulk read simply omit it and pay per session.
+	 * Optionally warms metadata for a burst of {@link getChatMetadata} calls; the expected count lets providers avoid bulk reads for small bursts.
+	 * Callers release the returned lease after the burst; providers may retain a bounded cache across bursts.
 	 */
-	prewarmSessionMetadata?(): Promise<IDisposable>;
+	prewarmSessionMetadata?(expectedSessionCount: number): Promise<IDisposable>;
 
 	/** Retrieve metadata for an exact registered chat. Ambient catalogue reads never set {@link IAgentChatMetadataOptions.activation}. */
 	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined>;
@@ -1349,6 +1396,9 @@ export interface IAgent {
 
 	/** Optional current authentication requirement for providers that can require re-authentication after startup. */
 	readonly authenticationRequired?: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined>;
+
+	/** Whether model-dependent prerequisites for unattended execution are ready; absent means no additional readiness gate. */
+	isReadyForAutomation?(model: ModelSelection | undefined, reader?: IReader): boolean;
 
 	/** Optional endpoint list when the provider owns probeable network traffic. */
 	getNetworkDiagnosticsEndpoints?(): Promise<readonly IAgentHostNetworkEndpoint[]>;
@@ -1370,11 +1420,14 @@ export interface IAgent {
 	/** Optional host wiring for providers that advertise Agent Host server tools. */
 	setServerToolHost?(host: IAgentServerToolHost): void;
 
-	/** Optional lifecycle operation for providers exposing controllable MCP servers. */
-	startMcpServer?(session: URI, id: string): Promise<void>;
+	/** Starts a controllable MCP server; providers may cooperatively honor cancellation, but in-flight SDK operations may not be cancellable. */
+	startMcpServer?(session: URI, id: string, token: CancellationToken): Promise<void>;
 
 	/** Optional lifecycle operation paired with {@link startMcpServer}. */
 	stopMcpServer?(session: URI, id: string): Promise<void>;
+
+	/** Releases turns waiting for MCP startup while the provider continues connecting servers. */
+	backgroundMcpServerStartup?(session: URI, id: string): Promise<void>;
 
 	/** Optional `mcp://` router for providers that advertise chat-scoped MCP side-channel resources. */
 	handleMcpRequest?(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;

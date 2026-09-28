@@ -75,6 +75,19 @@ export interface IAgentHostClientTelemetryContext {
 	readonly devDeviceId?: string;
 }
 
+/** Bounded account context at Codex turn admission, independent of the turn's model provider. */
+export interface ICodexAccountTelemetryContext {
+	readonly chatgptAccountState: 'signedIn' | 'signedOut' | 'unknown';
+	readonly chatgptPlanTier?: 'free' | 'go' | 'plus' | 'pro' | 'business' | 'enterprise' | 'edu' | 'unknown';
+	readonly chatgptWeeklyQuotaState: 'available' | 'unavailable' | 'missing' | 'nonWeekly' | 'stale' | 'expired' | 'invalid';
+	readonly chatgptWeeklyUsedPercentBucket?: number;
+}
+
+/** Provider-owned, immutable context captured without I/O when a turn starts. */
+export interface IAgentProviderTurnTelemetryContext {
+	readonly codex?: ICodexAccountTelemetryContext;
+}
+
 export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHostClientType): IAgentHostClientTelemetryContext {
 	return {
 		clientType,

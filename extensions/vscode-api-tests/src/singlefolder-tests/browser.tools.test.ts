@@ -187,7 +187,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			await browserConfig.update('dataStorage', 'agent', vscode.ConfigurationTarget.Global);
 			const agentSetTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${port}/set-agent`);
 
-			await waitForCondition(() => agentSetTab.title.startsWith('agent-cookie-set'));
+			await waitForCondition(() => agentSetTab.title.startsWith('agent-cookie-set'), 600);
 			assert.ok(agentSetTab.title.startsWith('agent-cookie-set'), `Expected Agent page to load, got title "${agentSetTab.title}"`);
 
 			const output = await invokeTool('open_browser_page', {

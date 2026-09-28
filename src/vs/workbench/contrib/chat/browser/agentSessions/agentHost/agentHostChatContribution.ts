@@ -36,6 +36,7 @@ import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostMcpServerSupport.js';
 import { createCustomizationMcpServerCompatibilityScope } from './agentHostMcpServerSupportScope.js';
+import { AgentHostMcpServerMigrationProvider } from './agentHostMcpServerMigrationProvider.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
 import { authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
@@ -347,6 +348,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 					roots => this._activeClientService.acquireMcpServerSupportScope(sessionType, roots),
 				),
 			} : undefined,
+			mcpServerMigrationProvider: agent.provider === 'copilotcli'
+				? store.add(this._instantiationService.createInstance(AgentHostMcpServerMigrationProvider))
+				: undefined,
 		}));
 
 		// Session handler

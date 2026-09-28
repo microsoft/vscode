@@ -33,6 +33,7 @@ import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -77,6 +78,8 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	 * of the active session in the grid instead of replacing it in place.
 	 */
 	readonly toSide?: boolean;
+	/** Require the created draft to start in a Dev Container rather than falling back to host execution. */
+	readonly requireDevContainer?: boolean;
 }
 
 /**
@@ -271,9 +274,9 @@ export interface ISessionsService {
 	 * Open a new **quick chat**: create a concrete workspace-less draft session
 	 * (via {@link ISessionsManagementService.createQuickChat}) and show it as the
 	 * active session. Returns the activated session, or `undefined` when no
-	 * provider supports quick chats.
+	 * provider supports quick chats. Automatic fallbacks preserve pending navigation.
 	 */
-	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined;
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined;
 
 	/**
 	 * Switch to the new-chat-in-session view.
@@ -1004,6 +1007,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 			options = { ...options, chatResource: resolved.chatUri };
 		}
 		const visible = this.visibleSessions.get();
+		if (options?.forceMainChat && !options.chatResource && visible.some(candidate => candidate?.sessionId === session.sessionId)) {
+			await this.openChatToSide(session, session.mainChat.get().resource, { preserveFocus: options.preserveFocus });
+			return;
+		}
 		const reference = visible.find(candidate => candidate?.sessionId === options?.referenceSessionId) ?? visible[visible.length - 1];
 		if (reference && reference.sessionId !== session.sessionId) {
 			this.insertAt(session, reference.sessionId, 'right');
@@ -1133,6 +1140,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._startOpenSession();
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
+				if (options?.requireDevContainer) {
+					const provider = this.sessionsProvidersService.getProvider(session.providerId);
+					if (!provider || !isAgentHostProvider(provider) || !provider.preferDevContainer) {
+						this.sessionsManagementService.discardNewSession(session);
+						throw new Error(`Session provider '${session.providerId}' does not support Dev Container drafts.`);
+					}
+					try {
+						provider.preferDevContainer(session.sessionId, { required: true });
+					} catch (error) {
+						this.sessionsManagementService.discardNewSession(session);
+						throw error;
+					}
+				}
 				this._activateOrInsert(session, options?.toSide);
 				return { session, trustDeclined: false };
 			} catch (e) {
@@ -1185,8 +1205,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._activate(session);
 	}
 
-	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined {
-		return this._openQuickChat(options, 'explicit');
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false): IActiveSession | undefined {
+		return this._openQuickChat(options, preserveNavigation ? 'automatic' : 'explicit');
 	}
 
 	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent): IActiveSession | undefined {
@@ -1309,7 +1329,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _restoreInitialChat(session: ISession): IChat {
 		const chats = session.chats.get();
-		let initialChat = chats[0];
+		let initialChat = chats[0] ?? session.mainChat.get();
 		const sessionState = this._sessionStates.get(session.resource);
 		if (sessionState?.activeChatResource) {
 			try {
