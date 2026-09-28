@@ -52,6 +52,16 @@
 	width: auto;
 }
 
+.customization-discovery-title-row > .monaco-button,
+.customization-discovery-source > .monaco-button {
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.customization-discovery-title-row > .monaco-button .codicon:last-child,
+.customization-discovery-source > .monaco-button .codicon:last-child {
+	margin-right: 0;
+}
+
 .customization-discovery-description {
 	margin: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size120);
 	color: var(--vscode-descriptionForeground);

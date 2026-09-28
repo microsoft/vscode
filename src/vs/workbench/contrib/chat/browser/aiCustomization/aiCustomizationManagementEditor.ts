@@ -4366,8 +4366,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return;
 			}
 			this.currentModelRef = ref;
+			if (promptType === PromptsType.skill) {
+				this.embeddedEditor?.setModel(ref.object.textEditorModel);
+				this.embeddedEditor?.updateOptions({ readOnly: isReadOnly });
+				this._editorContentChanged = !isReadOnly && this.workingCopyService.isDirty(uri);
+			}
 			this.renderCurrentEditorPreview();
-			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => this.scheduleCurrentEditorPreviewRender()));
+			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => {
+				this.scheduleCurrentEditorPreviewRender();
+				if (promptType === PromptsType.skill && !isReadOnly) {
+					this._editorContentChanged = true;
+					this.resetEditorSaveIndicator();
+				}
+			}));
+			if (promptType === PromptsType.skill && !isReadOnly) {
+				this.registerWorkingCopySaveListener(uri);
+			}
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}
@@ -4445,16 +4459,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.scheduleCurrentEditorPreviewRender();
 				this.resetEditorSaveIndicator();
 			}));
-			this.editorModelChangeDisposables.add(this.workingCopyService.onDidSave(e => {
-				if (isEqual(e.workingCopy.resource, uri)) {
-					this._editorContentChanged = this.workingCopyService.isDirty(uri);
-					this.editorSaveIndicator.className = 'editor-save-indicator visible saved';
-					this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
-					this.editorSaveIndicator.title = localize('saved', "Saved");
-					this.editorSaveIndicator.setAttribute('aria-label', localize('saved', "Saved"));
-					status(localize('saved', "Saved"));
-				}
-			}));
+			this.registerWorkingCopySaveListener(uri);
 		} catch (error) {
 			console.error('Failed to load model for embedded editor:', error);
 			if (isEqual(this.currentEditingUri, uri)) {
@@ -4479,6 +4484,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentCustomizationDetail = customizationDetail;
 		this.viewMode = 'editor';
 		this.editorContentContainer?.classList.toggle('customization-detail-mode', customizationDetail);
+		this.editorContentContainer?.classList.toggle('customization-skill-detail', customizationDetail && promptType === PromptsType.skill);
 
 		this.editorItemNameElement.textContent = displayName;
 		this.editorItemDescriptionElement.textContent = '';
@@ -4536,6 +4542,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentEditingReadOnly = false;
 		this.currentCustomizationDetail = false;
 		this.editorContentContainer?.classList.remove('customization-detail-mode');
+		this.editorContentContainer?.classList.remove('customization-skill-detail');
 		this.editorDisplayMode = 'preview';
 		this._editorContentChanged = false;
 		this.editorModelChangeDisposables.clear();
@@ -4878,14 +4885,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		if (this.currentEditingSource === AICustomizationSources.builtin) {
-			return this.builtinEditingSessions.get(this.currentEditingUri.toString())?.model;
+			return this.builtinEditingSessions.get(this.currentEditingUri.toString())?.model ?? this.currentModelRef?.object.textEditorModel;
 		}
 
 		return this.currentModelRef?.object.textEditorModel;
 	}
 
 	private toggleEditorDisplayMode(): void {
-		if (!this.isStructuredPreviewSupported(this.currentEditingPromptType)) {
+		if (!this.canToggleEditorDisplayMode()) {
 			return;
 		}
 
@@ -4909,12 +4916,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private updateEditorDisplayMode(): void {
 		const supportsStructuredPreview = this.isStructuredPreviewSupported(this.currentEditingPromptType);
+		const skillDetail = this.currentCustomizationDetail && this.currentEditingPromptType === PromptsType.skill;
 		const showPreview = this.currentCustomizationDetail
-			? this.isCustomizationDetailPreviewSupported(this.currentEditingPromptType)
+			? !skillDetail || this.editorDisplayMode === 'preview'
 			: supportsStructuredPreview && this.editorDisplayMode === 'preview';
 
 		if (this.editorModeButton) {
-			this.editorModeButton.style.display = supportsStructuredPreview && !this.currentCustomizationDetail ? '' : 'none';
+			this.editorModeButton.style.display = this.canToggleEditorDisplayMode() ? '' : 'none';
 			this.editorModeButton.textContent = this.getEditorModeButtonLabel();
 			this.editorModeButton.setAttribute('aria-label', this.getEditorModeButtonTooltip());
 			this.editorModeButton.setAttribute('aria-pressed', String(this.editorDisplayMode === 'raw'));
@@ -4926,7 +4934,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		if (this.embeddedEditorContainer) {
-			this.embeddedEditorContainer.style.display = this.currentCustomizationDetail || showPreview ? 'none' : '';
+			this.embeddedEditorContainer.style.display = showPreview || (this.currentCustomizationDetail && !skillDetail) ? 'none' : '';
 		}
 	}
 
@@ -4935,7 +4943,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private getEditorModeButtonLabel(): string {
-		if (!this.isStructuredPreviewSupported(this.currentEditingPromptType)) {
+		if (!this.canToggleEditorDisplayMode()) {
 			return '';
 		}
 
@@ -4951,7 +4959,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private getEditorModeButtonTooltip(): string {
-		if (!this.isStructuredPreviewSupported(this.currentEditingPromptType)) {
+		if (!this.canToggleEditorDisplayMode()) {
 			return '';
 		}
 
@@ -4972,8 +4980,26 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return false;
 		}
 
-		return (this.currentEditingSource === AICustomizationSources.builtin && (promptType === PromptsType.prompt || promptType === PromptsType.skill))
+		return (!this.currentCustomizationDetail && this.currentEditingSource === AICustomizationSources.builtin && (promptType === PromptsType.prompt || promptType === PromptsType.skill))
 			|| !this.currentEditingReadOnly;
+	}
+
+	private canToggleEditorDisplayMode(): boolean {
+		return (this.currentCustomizationDetail && this.currentEditingPromptType === PromptsType.skill)
+			|| this.isStructuredPreviewSupported(this.currentEditingPromptType);
+	}
+
+	private registerWorkingCopySaveListener(uri: URI): void {
+		this.editorModelChangeDisposables.add(this.workingCopyService.onDidSave(e => {
+			if (isEqual(e.workingCopy.resource, uri)) {
+				this._editorContentChanged = this.workingCopyService.isDirty(uri);
+				this.editorSaveIndicator.className = 'editor-save-indicator visible saved';
+				this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
+				this.editorSaveIndicator.title = localize('saved', "Saved");
+				this.editorSaveIndicator.setAttribute('aria-label', localize('saved', "Saved"));
+				status(localize('saved', "Saved"));
+			}
+		}));
 	}
 
 	private scheduleCurrentEditorPreviewRender(): void {

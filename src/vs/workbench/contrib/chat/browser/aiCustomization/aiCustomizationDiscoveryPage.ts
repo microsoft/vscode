@@ -59,12 +59,39 @@ import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './em
 const $ = DOM.$;
 const searchDelay = 300;
 const catalogPageSize = 24;
+const browseCatalogPageSize = 100;
 const maxFilteredCatalogPagesPerLoad = 8;
 const leadingBrowseItemCount = 4;
 const resultRowHeight = 56;
 const searchInputHeight = 20;
+const firstPartyPublishers = new Set(['azure', 'azure-samples', 'github', 'microsoft', 'microsoftdocs']);
+const firstPartyMcpNamespaces = new Set(['azure', 'azure-ai-foundry', 'com.microsoft', 'io.github.azure', 'io.github.azure-samples', 'io.github.github', 'io.github.microsoft', 'io.github.microsoftdocs']);
 
 type DiscoveryItemType = 'agent' | 'skill' | 'instructions' | 'prompt' | 'hook' | 'mcp' | 'plugin';
+
+function isFirstPartyBrowseItem(resource: ICustomizationMarketplaceResource): boolean {
+	if (resource.publisher && firstPartyPublishers.has(resource.publisher.toLowerCase())) {
+		return true;
+	}
+	if (resource.installation?.kind !== 'mcp') {
+		return false;
+	}
+	const separator = resource.installation.name.indexOf('/');
+	const namespace = (separator === -1 ? resource.installation.name : resource.installation.name.slice(0, separator)).toLowerCase();
+	return firstPartyMcpNamespaces.has(namespace);
+}
+
+function getLeadingBrowseItems(resources: readonly ICustomizationMarketplaceResource[]): readonly ICustomizationMarketplaceResource[] {
+	const firstParty = resources.filter(isFirstPartyBrowseItem).slice(0, leadingBrowseItemCount);
+	if (firstParty.length === leadingBrowseItemCount) {
+		return firstParty;
+	}
+	const firstPartyKeys = new Set(firstParty.map(getCustomizationMarketplaceResourceKey));
+	return [
+		...firstParty,
+		...resources.filter(resource => !firstPartyKeys.has(getCustomizationMarketplaceResourceKey(resource))),
+	].slice(0, leadingBrowseItemCount);
+}
 
 interface IInstalledDiscoveryItem {
 	readonly kind: 'installed';
@@ -1204,7 +1231,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					query: this.query.text || undefined,
 					mediaType: getCatalogMediaType(this.query.types),
 					sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
-					pageSize: catalogPageSize,
+					pageSize: this.query.isEmpty() ? browseCatalogPageSize : catalogPageSize,
 					cursor: append ? this.catalogPage?.nextCursor : undefined,
 				}, request.token);
 				if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
@@ -1407,7 +1434,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return;
 		}
 		this.browseStatus.textContent = '';
-		const leading = this.catalogItems.slice(0, leadingBrowseItemCount);
+		const leading = getLeadingBrowseItems(this.catalogItems);
 		const leadingIds = new Set(leading.map(getCustomizationMarketplaceResourceKey));
 		if (leading.length) {
 			this.renderBrowseSection(

@@ -288,6 +288,30 @@ suite('AICustomizationDiscoveryPage', () => {
 		]);
 	});
 
+	test('browse features first-party resources ahead of the source order', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('third-party-one'),
+				resource('azure-mcp', { installation: { kind: 'mcp', name: 'com.microsoft/azure', version: '1.0.0' } }),
+				resource('third-party-two'),
+				resource('github-plugin', { publisher: 'GitHub', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }),
+				resource('microsoft-skill', { publisher: 'Microsoft', mediaType: CustomizationMarketplaceMediaType.Skill }),
+				resource('fabric-mcp', { installation: { kind: 'mcp', name: 'com.microsoft/microsoft-fabric', version: '1.0.0' } }),
+			],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			pageSize: fixture.requests[0].options.pageSize,
+			featured: Array.from(fixture.container.querySelectorAll('.customization-discovery-section.featured .customization-discovery-card-name')).map(element => element.textContent),
+		}, {
+			pageSize: 100,
+			featured: ['azure-mcp', 'github-plugin', 'microsoft-skill', 'fabric-mcp'],
+		});
+	});
+
 	async function setEnabled(configuration: TestConfigurationService, setting: string, enabled: boolean): Promise<void> {
 		await configuration.setUserConfiguration(setting, enabled);
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
@@ -1088,7 +1112,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				installedVisible: fixture.page.getAccessibilityContent().includes('Local mail skill'),
 				searchVisible: fixture.container.querySelector('.customization-discovery-search') !== null,
 			}, {
-				catalogRequests: [{ query: undefined, mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined }],
+				catalogRequests: [{ query: undefined, mediaType: undefined, sourceIds: undefined, pageSize: 100, cursor: undefined }],
 				installedVisible: true,
 				searchVisible: true,
 			});

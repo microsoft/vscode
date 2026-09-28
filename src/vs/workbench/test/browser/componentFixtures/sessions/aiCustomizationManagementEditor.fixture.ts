@@ -78,7 +78,7 @@ import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostM
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
-import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
+import { IMarketplaceReference, MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
@@ -196,8 +196,11 @@ function createMockAgentPluginRepositoryService(): IAgentPluginRepositoryService
 	const pluginHome = URI.file('/home/dev/.vscode/agent-plugins');
 	return new class extends mock<IAgentPluginRepositoryService>() {
 		override readonly agentPluginsHome = pluginHome;
+		override getRepositoryUri(marketplace: IMarketplaceReference) { return URI.file(`/home/dev/.vscode/agent-plugins/${marketplace.cacheSegments.join('/')}`); }
+		override getPluginInstallUri(plugin: IMarketplacePlugin) { return URI.file(`/home/dev/.vscode/agent-plugins/${plugin.source}`); }
+		override async ensureRepository(marketplace: IMarketplaceReference) { return this.getRepositoryUri(marketplace); }
 		override getPluginSourceInstallUri() { return pluginHome; }
-		override async ensurePluginSource() { return pluginHome; }
+		override async ensurePluginSource(plugin: IMarketplacePlugin) { return this.getPluginInstallUri(plugin); }
 	}();
 }
 
@@ -2521,6 +2524,12 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 			}());
 			reg.defineInstance(IAgentPluginRepositoryService, createMockAgentPluginRepositoryService());
+			reg.defineInstance(IPathService, new class extends mock<IPathService>() {
+				override readonly defaultUriScheme = 'file';
+				override userHome(): URI;
+				override userHome(): Promise<URI>;
+				override userHome(): URI | Promise<URI> { return URI.file('/user'); }
+			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable(item?.kind === AgentPluginItemKind.Installed ? [item.plugin] : []);
 				override readonly enablementModel = undefined!;
@@ -3308,6 +3317,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['A plugin marketplace item backed by a real plugin marketplace model reuses the embedded plugin detail presentation with its Install action and marketplace provenance.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'figma',
 			selectDiscoveryResult: true,
 		}),
