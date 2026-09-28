@@ -14,19 +14,28 @@ import { LanguageService } from '../../../common/services/languageService.js';
 import { createModelServices } from '../testTextModel.js';
 
 class TestLanguageService extends LanguageService {
-	get listenerCount(): number {
-		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
-		return this._onDidChange['_size'];
-	}
-
 	setLanguages(languages: ILanguageExtensionPoint[]): void {
 		this._registry.setDynamicLanguages(languages);
 	}
 }
 
+function getListenerCount(languageService: LanguageService): number {
+	// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+	return languageService['_onDidChange']['_size'];
+}
+
 suite('LanguageService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	let languageServiceInstanceCount: number;
+
+	setup(() => {
+		languageServiceInstanceCount = LanguageService.instanceCount;
+	});
+
+	teardown(() => {
+		assert.strictEqual(LanguageService.instanceCount, languageServiceInstanceCount);
+	});
 
 	test('LanguageSelection does not leak a disposable', () => {
 		const languageService = new LanguageService();
@@ -40,11 +49,12 @@ suite('LanguageService', () => {
 	});
 
 	test('live text models share a registry listener and release it when disposed', () => {
-		const languageService = disposables.add(new TestLanguageService());
 		const modelDisposables = disposables.add(new DisposableStore());
-		const services = createModelServices(modelDisposables, [[ILanguageService, languageService]]);
+		const services = createModelServices(modelDisposables);
+		const languageService = services.get(ILanguageService);
+		assert.ok(languageService instanceof LanguageService);
 		const modelService = services.get(IModelService);
-		const counts: number[] = [languageService.listenerCount];
+		const counts: number[] = [getListenerCount(languageService)];
 
 		for (let cycle = 0; cycle < 2; cycle++) {
 			const models = Array.from({ length: 60 }, (_, index) => {
@@ -54,15 +64,15 @@ suite('LanguageService', () => {
 						: languageService.createByFilepathOrFirstLine(resource);
 				return modelDisposables.add(modelService.createModel('text', selection, resource));
 			});
-			counts.push(languageService.listenerCount);
+			counts.push(getListenerCount(languageService));
 			for (const model of models.slice(0, 30)) {
 				model.dispose();
 			}
-			counts.push(languageService.listenerCount);
+			counts.push(getListenerCount(languageService));
 			for (const model of models.slice(30)) {
 				model.dispose();
 			}
-			counts.push(languageService.listenerCount);
+			counts.push(getListenerCount(languageService));
 		}
 
 		assert.deepStrictEqual({ counts, remainingModels: modelService.getModels().length }, {
@@ -89,11 +99,11 @@ suite('LanguageService', () => {
 			const selection = create(languageService);
 			const subscribe = selection.onDidChange;
 			const initial = selection.languageId;
-			const counts = [languageService.listenerCount];
+			const counts = [getListenerCount(languageService)];
 			const events: string[] = [];
 			const listener = disposables.add(new MutableDisposable());
 			listener.value = subscribe(value => events.push(value));
-			counts.push(languageService.listenerCount);
+			counts.push(getListenerCount(languageService));
 
 			languageService.setLanguages([language]);
 			languageService.setLanguages([language, { id: 'unrelatedLanguageSelection' }]);
@@ -101,13 +111,13 @@ suite('LanguageService', () => {
 			listener.clear();
 			languageService.setLanguages([]);
 			const unobserved = selection.languageId;
-			counts.push(languageService.listenerCount);
+			counts.push(getListenerCount(languageService));
 
 			listener.value = subscribe(value => events.push(value));
 			languageService.setLanguages([language]);
 			languageService.setLanguages([]);
 			listener.clear();
-			counts.push(languageService.listenerCount);
+			counts.push(getListenerCount(languageService));
 
 			assert.deepStrictEqual({ initial, registered, unobserved, events, counts }, {
 				initial: PLAINTEXT_LANGUAGE_ID,
@@ -137,7 +147,7 @@ suite('LanguageService', () => {
 		languageService.setLanguages([]);
 		listener.clear();
 
-		assert.deepStrictEqual({ events, listeners: languageService.listenerCount }, {
+		assert.deepStrictEqual({ events, listeners: getListenerCount(languageService) }, {
 			events: [`first:${language.id}`, `second:${PLAINTEXT_LANGUAGE_ID}`],
 			listeners: 0
 		});
