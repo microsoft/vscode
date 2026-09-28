@@ -10,7 +10,10 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ISocket, PersistentProtocol, SocketCloseEvent, SocketDiagnosticsEventType } from '../../../../base/parts/ipc/common/ipc.net.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { WebSocketRemoteConnection } from '../../common/remoteAuthorityResolver.js';
 import { ConnectionType, IConnectionOptions, PersistentConnection, PersistentConnectionEventType } from '../../common/remoteAgentConnection.js';
+import { RemoteSocketFactoryService } from '../../common/remoteSocketFactoryService.js';
+import { IMessage, ISignService } from '../../../sign/common/sign.js';
 
 class TestSocket implements ISocket {
 	private readonly _onData = new Emitter<VSBuffer>();
@@ -41,10 +44,26 @@ class TestPersistentConnection extends PersistentConnection {
 
 	protected async _reconnect(): Promise<void> {
 		this.reconnectAttempts++;
-		const err = new Error('connection refused');
-		(<any>err).code = 'ECONNREFUSED';
-		(<any>err).syscall = 'connect';
-		throw err;
+		throw Object.assign(new Error('connection refused'), {
+			code: 'ECONNREFUSED',
+			syscall: 'connect'
+		});
+	}
+}
+
+class TestSignService implements ISignService {
+	declare readonly _serviceBrand: undefined;
+
+	createNewMessage(value: string): Promise<IMessage> {
+		return Promise.resolve({ id: '', data: value });
+	}
+
+	validate(): Promise<boolean> {
+		return Promise.resolve(true);
+	}
+
+	sign(value: string): Promise<string> {
+		return Promise.resolve(value);
 	}
 }
 
@@ -65,9 +84,9 @@ suite('RemoteAgentConnection', () => {
 			const options: IConnectionOptions = {
 				commit: undefined,
 				quality: undefined,
-				addressProvider: { getAddress: async () => ({ connectTo: <any>{}, connectionToken: undefined }) },
-				remoteSocketFactoryService: <any>{},
-				signService: <any>{},
+				addressProvider: { getAddress: async () => ({ connectTo: new WebSocketRemoteConnection('localhost', 0), connectionToken: undefined }) },
+				remoteSocketFactoryService: new RemoteSocketFactoryService(),
+				signService: new TestSignService(),
 				logService: new NullLogService(),
 				ipcLogger: null
 			};
