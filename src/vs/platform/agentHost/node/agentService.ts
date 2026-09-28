@@ -75,7 +75,7 @@ import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChat
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
-import { parseSessionArtifacts, readSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
+import { parseSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
@@ -1543,11 +1543,15 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		await this.restoreSession(session);
-		const artifact = readSessionArtifacts(this._stateManager.getSessionState(session.toString())?._meta).find(entry => entry.id === artifactId);
-		await new SessionArtifacts(this._stateManager, session.toString(), this._createArtifactServerToolAccessor().persist).remove(artifactId);
-		if (artifact?.link) {
-			await this._gitStateService.removePendingRecordedPullRequest?.(session.toString(), artifact.link);
-		}
+		await new SessionArtifacts(this._stateManager, session.toString(), this._createArtifactServerToolAccessor().persist).remove(artifactId, async artifact => {
+			if (artifact.type === SessionArtifactType.PullRequest && artifact.link) {
+				try {
+					await this._gitStateService.removePendingRecordedPullRequest?.(session.toString(), artifact.link);
+				} catch (error) {
+					this._logService.warn('[AgentService] Failed to remove pending pull request association', error);
+				}
+			}
+		});
 	}
 
 	async importSession(session: URI): Promise<void> {
