@@ -626,6 +626,48 @@ async function getPipelineTimeline(): Promise<Timeline> {
 	return await requestAZDOAPI<Timeline>('timeline');
 }
 
+/**
+ * Artifacts that can only be published once a job succeeded, by job name. The
+ * Windows x64 test job runs in parallel with the sign job that produces these
+ * artifacts (see win32/product-build-win32.yml).
+ */
+const artifactsByGatingJob: Readonly<Record<string, readonly string[]>> = {
+	'Windows_x64_Test': [
+		'vscode_client_win32_x64_setup',
+		'vscode_client_win32_x64_user-setup',
+		'vscode_client_win32_x64_archive',
+		'vscode_server_win32_x64_archive',
+		'vscode_web_win32_x64_archive',
+		'vscode_cli_win32_x64_cli',
+	],
+};
+
+interface IGatingJob {
+	readonly name: string;
+	/** `missing` when the job is not part of the pipeline run, e.g. when tests are skipped. */
+	readonly state: 'succeeded' | 'pending' | 'failed' | 'missing';
+}
+
+/** Returns the job that gates the publishing of the artifact, if any, see `artifactsByGatingJob`. */
+function getGatingJob(timeline: Timeline, artifactName: string): IGatingJob | undefined {
+	const name = Object.keys(artifactsByGatingJob).find(job => artifactsByGatingJob[job].includes(artifactName));
+
+	if (!name) {
+		return undefined;
+	}
+
+	// Job identifiers have the form `<stage>.<job>.__default`, and a retried job has a record for each attempt
+	const attempts = timeline.records.filter(r => r.type === 'Job' && (r.name === name || r.identifier?.split('.').includes(name)));
+
+	if (attempts.length === 0) {
+		return { name, state: 'missing' };
+	} else if (attempts.some(r => r.state === 'completed' && (r.result === 'succeeded' || r.result === 'succeededWithIssues'))) {
+		return { name, state: 'succeeded' };
+	} else {
+		return { name, state: attempts.some(r => r.state !== 'completed') ? 'pending' : 'failed' };
+	}
+}
+
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
 	const abortController = new AbortController();
 	const timeout = setTimeout(() => abortController.abort(), 4 * 60 * 1000);
@@ -958,6 +1000,9 @@ async function main() {
 
 	let timeline: Timeline;
 	let artifacts: Artifact[];
+	let gatingJobs = new Map<string, IGatingJob | undefined>();
+	let artifactsBlocked: string[] = [];
+	const gateMessages = new Map<string, string>();
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
 
@@ -966,8 +1011,12 @@ async function main() {
 		const stagesCompleted = new Set<string>([...stages].filter(stage => timeline.records.some(r => isStage(r, stage) && r.state === 'completed')));
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
+		gatingJobs = new Map(artifacts
+			.filter(a => !done.has(a.name) && !processing.has(a.name))
+			.map(a => [a.name, getGatingJob(timeline, a.name)]));
+		artifactsBlocked = [...gatingJobs].filter(([, job]) => job?.state === 'failed').map(([name]) => name);
 
-		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size) {
+		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size + artifactsBlocked.length) {
 			break;
 		} else if (stagesInProgress.length > 0) {
 			console.log('Stages in progress:', stagesInProgress.join(', '));
@@ -978,11 +1027,26 @@ async function main() {
 		}
 
 		for (const artifact of artifacts) {
-			if (done.has(artifact.name) || processing.has(artifact.name)) {
+			if (!gatingJobs.has(artifact.name)) {
+				continue;
+			}
+
+			const gatingJob = gatingJobs.get(artifact.name);
+
+			if (gatingJob?.state === 'pending' || gatingJob?.state === 'failed') {
+				const message = gatingJob.state === 'pending' ? `Waiting for job ${gatingJob.name} to succeed` : `Not published, since job ${gatingJob.name} did not succeed`;
+				if (gateMessages.get(artifact.name) !== message) {
+					console.log(`[${artifact.name}] ${message}`);
+					gateMessages.set(artifact.name, message);
+				}
 				continue;
 			}
 
 			console.log(`[${artifact.name}] Found new artifact`);
+
+			if (gatingJob) {
+				console.log(`[${artifact.name}] ${gatingJob.state === 'succeeded' ? `Job ${gatingJob.name} succeeded` : `Job ${gatingJob.name} is not part of this run`}`);
+			}
 
 			const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
 
@@ -1025,7 +1089,7 @@ async function main() {
 		await new Promise(c => setTimeout(c, 10_000));
 	}
 
-	console.log(`Found all ${done.size + processing.size} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
+	console.log(`Found all ${done.size + processing.size + artifactsBlocked.length} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
 
 	const artifactsInProgress = operations.filter(o => processing.has(o.name));
 
@@ -1048,8 +1112,14 @@ async function main() {
 		throw new Error('Some artifacts failed to publish');
 	}
 
-	// Also fail the job if any of the stages did not succeed
+	// Also fail the job if any of the stages did not succeed, or if any of the
+	// artifacts was not published because its gating job did not succeed
 	let shouldFail = false;
+
+	for (const name of artifactsBlocked) {
+		shouldFail = true;
+		console.error(`[${name}] Not published, since job ${gatingJobs.get(name)!.name} did not succeed`);
+	}
 
 	for (const stage of stages) {
 		const record = timeline.records.find(r => isStage(r, stage))!;
@@ -1061,7 +1131,7 @@ async function main() {
 	}
 
 	if (shouldFail) {
-		throw new Error('Some stages did not succeed');
+		throw new Error(artifactsBlocked.length > 0 ? 'Some artifacts were not published because their gating job did not succeed' : 'Some stages did not succeed');
 	}
 
 	console.log(`All ${done.size} artifacts published!`);

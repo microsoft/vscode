@@ -28,6 +28,9 @@ parameters:
 # The test job depends on the compile job. The sign job also depends on the
 # CLI job (see product-build-win32-cli.yml), which builds the unsigned CLI in
 # parallel with the compile job, so the CLI job must be part of the same stage.
+# The sign and test jobs run in parallel, but the Publish stage only publishes
+# the x64 product artifacts once the test job has succeeded (see
+# artifactsByGatingJob in ../common/publish.ts).
 jobs:
   - job: Windows_${{ parameters.VSCODE_ARCH }}_Compile
     displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }}) - Compile
