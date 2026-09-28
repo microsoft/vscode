@@ -14,6 +14,7 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMul
 import { ISessionChangeset, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ISessionChangesService } from './sessionChangesService.js';
+import { getChangesEditorFileResource } from './changesEditorLabels.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 /**
@@ -36,10 +37,6 @@ function compareChanges(a: ISessionFileChange, b: ISessionFileChange): number {
 	const aPath = isIChatSessionFileChange2(a) ? a.uri.fsPath : a.modifiedUri.fsPath;
 	const bPath = isIChatSessionFileChange2(b) ? b.uri.fsPath : b.modifiedUri.fsPath;
 	return comparePaths(aPath, bPath);
-}
-
-function getChangeResource(change: ISessionFileChange): URI {
-	return isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
 }
 
 function changesetsEqual(a: ISessionChangeset | undefined, b: ISessionChangeset | undefined): boolean {
@@ -104,7 +101,7 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 		}, reader => {
 			const changes = changesStateObs.read(reader).changes;
 			return [...changes].sort(compareChanges).map(change => {
-				const resource = getChangeResource(change);
+				const resource = getChangesEditorFileResource(change);
 				return new MultiDiffEditorItem(change.originalUri, change.modifiedUri, resource, undefined, {
 					[SessionChangesFileResourceContext.key]: resource.toString(),
 				});

@@ -55,7 +55,7 @@ import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin, WorkspaceSession
 import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
@@ -76,7 +76,7 @@ const TABBED_PICKER_WIDTH = 360;
  * selection than leave the user staring at an unreachable workspace.
  */
 const RESTORE_CONNECT_GRACE_MS = 5000;
-const MAX_UNIFIED_RECENT_WORKSPACES = 10;
+const MAX_NEW_PICKER_RECENT_WORKSPACES = 10;
 /**
  * A touch tap fires a Gesture Tap and, shortly after, a browser "ghost" click. Both would toggle
  * the picker, opening then immediately closing it. A click within this window of a tap on the same
@@ -286,7 +286,7 @@ export class WorkspacePicker extends Disposable {
 		} else if (this._tabbedWidget.isVisible) {
 			this._tabbedWidget.refreshActiveList();
 		} else {
-			this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
+			this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
 		}
 	}, 50));
 	private _attachedContext: readonly IChatRequestVariableEntry[] = [];
@@ -517,7 +517,7 @@ export class WorkspacePicker extends Disposable {
 				} else if (this._tabbedWidget.isVisible) {
 					this._tabbedWidget.refreshActiveList();
 				} else {
-					this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
+					this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
 				}
 			}
 		}));
@@ -1103,7 +1103,7 @@ export class WorkspacePicker extends Disposable {
 					} else if (this._tabbedWidget.isVisible) {
 						this._tabbedWidget.refreshActiveList();
 					} else {
-						this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
+						this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
 					}
 				}
 			}));
@@ -1544,6 +1544,8 @@ export class WorkspacePicker extends Disposable {
 			? (w: IResolvedFolderWorkspace) => this._isGroupInActiveTab(w.workspace.group)
 			: undefined;
 		const useRemoteSubmenu = this._useConsolidatedRemoteWorkspaces() && this._directPickerGroup === undefined;
+		const limitRecentWorkspaces = this._useConsolidatedRemoteWorkspaces()
+			|| this.configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
 		const remotePickerItem: { id: string; run?: () => void } = { id: 'workspacePicker.remote' };
 		const remoteSubmenuActions: IAction[] = [];
 		const remoteFilterItems: IActionListItem<IWorkspacePickerItem>[] = [];
@@ -1610,12 +1612,11 @@ export class WorkspacePicker extends Disposable {
 				...entries.filter(({ workspace }) => ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
 			]
 			: entries;
-		const recentEntries = orderByWorkspaceKind(recentWorkspaceEntries.filter(entry => !entry.isSessionWorkspace))
-			.slice(0, useRemoteSubmenu ? MAX_UNIFIED_RECENT_WORKSPACES : undefined);
+		const recentEntries = orderByWorkspaceKind(recentWorkspaceEntries.filter(entry => !entry.isSessionWorkspace));
 		const orderedRecentWorkspaceEntries = [
 			...recentEntries,
 			...orderByWorkspaceKind(recentWorkspaceEntries.filter(entry => entry.isSessionWorkspace)),
-		];
+		].slice(0, limitRecentWorkspaces ? MAX_NEW_PICKER_RECENT_WORKSPACES : undefined);
 
 		let previousRecentWorkspaceIsRepository: boolean | undefined;
 		for (const { workspace, providerId, repositoryId, isSessionWorkspace } of orderedRecentWorkspaceEntries) {
@@ -1628,7 +1629,12 @@ export class WorkspacePicker extends Disposable {
 				|| (repositoryId !== undefined && repositoryId === this._getCurrentRepositoryId());
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
 				|| (repositoryId !== undefined && this._additionalRepositorySelections.has(repositoryId));
-			const item: IWorkspacePickerItem = { folderUri, providerId, checked: selected || attached || undefined };
+			const item: IWorkspacePickerItem = {
+				id: `workspacePicker.workspace.${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`,
+				folderUri,
+				providerId,
+				checked: selected || attached || undefined,
+			};
 			const modeActions = createWorkspaceModeActions(workspace, folderUri, providerId, item);
 			const recentWorkspaceIsRepository = ThemeIcon.isEqual(icon, Codicon.repo);
 			if (previousRecentWorkspaceIsRepository !== undefined && previousRecentWorkspaceIsRepository !== recentWorkspaceIsRepository) {

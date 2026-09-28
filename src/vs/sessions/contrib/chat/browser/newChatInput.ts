@@ -475,6 +475,55 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._secondaryPickerResponsiveLayout?.layout();
 	}
 
+	private _navigateRepositionedRepositoryControls(event: KeyboardEvent): void {
+		const repositoryControls = this._repositoryControlsContainer;
+		const repositoryControlsHome = this._repositoryControlsHome;
+		if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey || !repositoryControls || !repositoryControlsHome || repositoryControls.parentElement === repositoryControlsHome) {
+			return;
+		}
+
+		const currentSlot = dom.isHTMLElement(event.target) ? dom.findParentWithClass(event.target, 'sessions-chat-picker-slot') : undefined;
+		const slots: HTMLElement[] = [];
+		const collectSlots = (element: HTMLElement): void => {
+			if (element.classList.contains('sessions-chat-picker-slot')) {
+				slots.push(element);
+				return;
+			}
+			for (const child of element.children) {
+				if (dom.isHTMLElement(child)) {
+					collectSlots(child);
+				}
+			}
+		};
+		collectSlots(repositoryControls);
+		const findControl = (element: HTMLElement): HTMLElement | undefined => {
+			if (element.hasAttribute('tabindex')) {
+				return element;
+			}
+			for (const child of element.children) {
+				if (dom.isHTMLElement(child)) {
+					const control = findControl(child);
+					if (control) {
+						return control;
+					}
+				}
+			}
+			return undefined;
+		};
+		const controls = slots.flatMap(slot => {
+			const control = findControl(slot);
+			return control && control.getAttribute('aria-disabled') !== 'true' ? [{ slot, control }] : [];
+		});
+		const currentIndex = controls.findIndex(entry => entry.slot === currentSlot);
+		const nextIndex = currentIndex + (event.shiftKey ? -1 : 1);
+		if (currentIndex < 0 || nextIndex < 0 || nextIndex >= controls.length) {
+			return;
+		}
+
+		dom.EventHelper.stop(event, true);
+		controls[nextIndex].control.focus();
+	}
+
 	get onDidChangeWorkspaceSelection(): Event<void> {
 		return this.options.onDidChangeWorkspaceSelection ?? Event.None;
 	}
@@ -858,6 +907,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const secondaryControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-secondary-controls-container'));
 		this._repositoryControlsHome = secondaryControlsContainer;
 		const repoConfigContainer = this._repositoryControlsContainer = dom.append(secondaryControlsContainer, dom.$('.new-chat-repo-config-container'));
+		this._register(dom.addDisposableListener(repoConfigContainer, dom.EventType.KEY_DOWN, event => this._navigateRepositionedRepositoryControls(event)));
 		let repoConfigToolbar: MenuWorkbenchToolBar | undefined;
 		if (this.options.renderRepositoryControls !== false) {
 			const session = this.options.session;
