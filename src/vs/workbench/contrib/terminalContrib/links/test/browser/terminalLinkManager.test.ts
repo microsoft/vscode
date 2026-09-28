@@ -20,7 +20,7 @@ import { IDetectedLinks, TerminalLinkManager } from '../../browser/terminalLinkM
 import { ITerminalCapabilityImplMap, ITerminalCapabilityStore, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalConfiguration, ITerminalProcessManager } from '../../../../terminal/common/terminal.js';
 import { TestViewDescriptorService } from '../../../../terminal/test/browser/xterm/xtermTerminal.test.js';
-import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestProductService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import type { ILink, Terminal } from '@xterm/xterm';
 import { IXtermCore } from '../../../../terminal/browser/xterm-private.js';
 import { TerminalLinkResolver } from '../../browser/terminalLinkResolver.js';
@@ -36,6 +36,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { ILinkHoverTargetOptions } from '../../../../terminal/browser/widgets/terminalHoverWidget.js';
 import { TerminalWidgetManager } from '../../../../terminal/browser/widgets/widgetManager.js';
 import { TerminalLink } from '../../browser/terminalLink.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -63,6 +64,9 @@ class TestLinkManager extends TerminalLinkManager {
 	}
 	setLinks(links: IDetectedLinks): void {
 		this._links = links;
+	}
+	getDetectedLinks(y: number, type: 'word' | 'url' | 'localFile'): Promise<ILink[] | undefined> {
+		return super._getLinksForType(y, type);
 	}
 }
 
@@ -96,6 +100,7 @@ suite('TerminalLinkManager', () => {
 		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
+		instantiationService.stub(IProductService, TestProductService);
 
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30, logger: TestXtermLogger }));
@@ -339,6 +344,18 @@ suite('TerminalLinkManager', () => {
 			linkManager.setLinks({ fileLinks: [link2] });
 			const fileLink = await linkManager.openRecentLink('localFile');
 			strictEqual(fileLink, link2);
+		});
+	});
+
+	suite('link activation', () => {
+		test('should only prevent default for the primary button so middle click paste works', async () => {
+			await new Promise<void>(r => xterm.write('foo', r));
+			const [link] = (await linkManager.getDetectedLinks(1, 'word'))!;
+			const events = [0, 1, 2].map(button => new MouseEvent('mouseup', { button, cancelable: true }));
+			for (const e of events) {
+				link.activate(e, link.text);
+			}
+			deepStrictEqual(events.map(e => e.defaultPrevented), [true, false, false]);
 		});
 	});
 });
