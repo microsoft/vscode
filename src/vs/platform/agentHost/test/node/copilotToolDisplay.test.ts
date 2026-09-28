@@ -11,6 +11,7 @@ import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMe
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
+type CopilotWorkflowPermissionRequest = Extract<PermissionRequest, { kind: 'workflow' }>;
 
 function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: boolean): CopilotShellPermissionRequest {
 	return {
@@ -279,6 +280,25 @@ suite('getPermissionDisplay — MCP tool confirmation', () => {
 			fallback: 'GitHub: issue_read',
 			toolName: 'issue_read',
 		});
+	});
+});
+
+suite('getPermissionDisplay — workflow confirmation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves the workflow permission kind for auto-approval routing', () => {
+		const request: CopilotWorkflowPermissionRequest = {
+			approvalKey: 'review-changes',
+			canPersistApproval: true,
+			description: 'Review the current changes',
+			kind: 'workflow',
+			name: 'review-changes',
+			operation: 'run',
+			phases: [{ title: 'Review' }],
+		};
+
+		assert.strictEqual(getPermissionDisplay(request).permissionKind, 'workflow');
 	});
 });
 
