@@ -22,13 +22,17 @@ on:
       smoke_tests:
         type: boolean
         default: true
+      test_quality:
+        description: Value of product.quality in the Electron and node.js unit tests (VSCODE_TEST_QUALITY). Official builds run unit tests with the distro product.json, which sets it.
+        type: string
+        default: insider
 
 jobs:
   linux-test:
     name: ${{ inputs.job_name }}
     runs-on: ubuntu-24.04
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.test_quality != 'insider' && format('-{0}', inputs.test_quality) || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -300,11 +304,14 @@ jobs:
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
+          VSCODE_TEST_QUALITY: ${{ inputs.test_quality }}
 
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
         timeout-minutes: 15
         run: npm run test-node
+        env:
+          VSCODE_TEST_QUALITY: ${{ inputs.test_quality }}
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
