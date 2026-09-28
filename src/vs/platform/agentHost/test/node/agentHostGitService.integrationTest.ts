@@ -1304,6 +1304,92 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('symlinkWorktreeFolders symlinks only matching wholly-ignored folders', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+
+		await fs.writeFile(join(dir, '.gitignore'), 'node_modules/\ncache/\n.cache/\nshared/\ntracked-cache/\npartial-cache/*\n!partial-cache/keep/\n!partial-cache/keep/data\n');
+		await fs.mkdir(join(dir, 'node_modules', 'a'), { recursive: true });
+		await fs.writeFile(join(dir, 'node_modules', 'a', 'index.js'), 'module');
+		await fs.mkdir(join(dir, 'packages', 'a', 'cache'), { recursive: true });
+		await fs.writeFile(join(dir, 'packages', 'a', 'cache', 'data'), 'cache');
+		await fs.mkdir(join(dir, 'generated'), { recursive: true });
+		await fs.writeFile(join(dir, 'generated', 'data'), 'generated');
+		await fs.mkdir(join(dir, 'shared'), { recursive: true });
+		await fs.writeFile(join(dir, 'shared', 'data'), 'shared');
+		await fs.mkdir(join(dir, '.cache', 'deps'), { recursive: true });
+		await fs.writeFile(join(dir, '.cache', 'deps', 'package'), 'dependency');
+		await fs.writeFile(join(dir, '.cache', 'config.json'), 'config');
+		await fs.mkdir(join(dir, 'tracked-cache'), { recursive: true });
+		await fs.writeFile(join(dir, 'tracked-cache', 'tracked'), 'tracked');
+		await fs.writeFile(join(dir, 'tracked-cache', 'ignored'), 'ignored');
+		await fs.mkdir(join(dir, 'partial-cache', 'drop'), { recursive: true });
+		await fs.writeFile(join(dir, 'partial-cache', 'drop', 'data'), 'drop');
+		await fs.mkdir(join(dir, 'partial-cache', 'keep'), { recursive: true });
+		await fs.writeFile(join(dir, 'partial-cache', 'keep', 'data'), 'keep');
+		cp.execFileSync('git', ['add', '.gitignore'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['add', '-f', 'tracked-cache/tracked'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add ignore rules'], { cwd: dir, env, stdio: 'pipe' });
+
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/symlink-folders',
+				track: false,
+			});
+			const symlinkedFolders = await svc!.symlinkWorktreeFolders(URI.file(dir), URI.file(wtPath), [
+				'node_modules/**',
+				'packages/**',
+				'.cache/deps/**',
+				'generated/**',
+				'shared/**',
+				'tracked-cache/**',
+				'partial-cache/**',
+			], 'symlink-folders-session');
+			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), ['shared/**', '.cache/**'], 'symlink-folders-include-session', undefined, symlinkedFolders);
+
+			const nodeModules = join(wtPath, 'node_modules');
+			const packageCache = join(wtPath, 'packages', 'a', 'cache');
+			const shared = join(wtPath, 'shared');
+			const nestedCache = join(wtPath, '.cache', 'deps');
+			assert.deepStrictEqual({
+				nodeModulesIsSymlink: (await fs.lstat(nodeModules)).isSymbolicLink(),
+				nodeModulesTarget: await fs.realpath(nodeModules),
+				packageCacheIsSymlink: (await fs.lstat(packageCache)).isSymbolicLink(),
+				packageCacheTarget: await fs.realpath(packageCache),
+				nestedCacheIsSymlink: (await fs.lstat(nestedCache)).isSymbolicLink(),
+				nestedCacheTarget: await fs.realpath(nestedCache),
+				cacheConfig: await fs.readFile(join(wtPath, '.cache', 'config.json'), 'utf8'),
+				sharedIsSymlinkAfterIncludeCopy: (await fs.lstat(shared)).isSymbolicLink(),
+				generatedExists: existsSync(join(wtPath, 'generated')),
+				trackedCacheIsSymlink: (await fs.lstat(join(wtPath, 'tracked-cache'))).isSymbolicLink(),
+				partialCacheIsSymlink: (await fs.lstat(join(wtPath, 'partial-cache'))).isSymbolicLink(),
+				partialCacheDropIsSymlink: (await fs.lstat(join(wtPath, 'partial-cache', 'drop'))).isSymbolicLink(),
+				partialCacheKeepExists: existsSync(join(wtPath, 'partial-cache', 'keep')),
+			}, {
+				nodeModulesIsSymlink: true,
+				nodeModulesTarget: await fs.realpath(join(dir, 'node_modules')),
+				packageCacheIsSymlink: true,
+				packageCacheTarget: await fs.realpath(join(dir, 'packages', 'a', 'cache')),
+				nestedCacheIsSymlink: true,
+				nestedCacheTarget: await fs.realpath(join(dir, '.cache', 'deps')),
+				cacheConfig: 'config',
+				sharedIsSymlinkAfterIncludeCopy: true,
+				generatedExists: false,
+				trackedCacheIsSymlink: false,
+				partialCacheIsSymlink: false,
+				partialCacheDropIsSymlink: true,
+				partialCacheKeepExists: false,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/symlink-folders'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
 	(hasGit ? test : test.skip)('copyWorktreeIncludeFiles matches patterns with .gitignore semantics', async () => {
 		const dir = initRepo();
 		const logService = new TestLogService();

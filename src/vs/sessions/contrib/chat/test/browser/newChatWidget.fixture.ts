@@ -98,7 +98,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly withConfiguredModel?: boolean;
 	readonly primaryToolbarWidth?: number;
 	readonly phoneLayout?: boolean;
-	readonly withChatBackground?: boolean;
+	readonly chatBackground?: 'codicons' | 'loud';
 	readonly migrationCount?: number;
 	readonly experimentalComposerLayout?: boolean;
 }
@@ -136,6 +136,14 @@ class AutoModelFixtureMenuService extends FixtureMenuService {
 		});
 	}
 }
+
+const loudChatBackground: ISessionsChatBackground = {
+	kind: 'image',
+	backgroundImage: 'repeating-linear-gradient(135deg, #ff00a8 0 16px, #00e5ff 16px 32px, #ffe600 32px 48px, #4b00ff 48px 64px)',
+	backgroundRepeat: 'repeat',
+	backgroundSize: 'auto',
+	backgroundPosition: 'left top',
+};
 
 /** Wraps the composer in the Agents Window host and paints its resolved background. */
 function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore, background: ISessionsChatBackground | undefined): HTMLElement {
@@ -182,10 +190,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		withConfiguredModel = false,
 		primaryToolbarWidth,
 		phoneLayout = false,
-		withChatBackground = false,
+		chatBackground,
 		migrationCount = 0,
 		experimentalComposerLayout = false,
 	} = options;
+	const hasChatBackground = chatBackground !== undefined;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
 		id: `feedback-${index}`,
 		text: `Comment ${index + 1}`,
@@ -208,7 +217,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const configurationService = new TestConfigurationService({
 		[NEW_SESSION_WELCOME_NAME_SETTING]: '',
 		[NEW_SESSION_WELCOME_PHRASES_SETTING]: false,
-		...(withChatBackground ? {
+		...(chatBackground === 'codicons' ? {
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
 			[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
 		} : {}),
@@ -413,8 +422,13 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.classList.toggle('phone-layout', phoneLayout);
 
-	const sessionView = dom.append(withChatBackground ? createChatBackgroundPart(container, disposableStore, instantiationService.get(ISessionsChatBackgroundService).getBackground()) : container, dom.$('.session-view.is-active'));
-	if (withChatBackground && isHighContrast(context.theme.type)) {
+	const background = isHighContrast(context.theme.type)
+		? undefined
+		: chatBackground === 'loud'
+			? loudChatBackground
+			: instantiationService.get(ISessionsChatBackgroundService).getBackground();
+	const sessionView = dom.append(hasChatBackground ? createChatBackgroundPart(container, disposableStore, background) : container, dom.$('.session-view.is-active'));
+	if (hasChatBackground && isHighContrast(context.theme.type)) {
 		assert(!container.querySelector('.has-chat-background')
 			&& container.querySelectorAll('.sessions-chat-codicon-background .codicon').length === 0
 			&& container.querySelector<HTMLElement>('.sessions-chat-codicon-hit-target')?.hidden === true,
@@ -422,7 +436,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	sessionView.style.width = '100%';
 	sessionView.style.height = '100%';
-	if (!withChatBackground) {
+	if (!hasChatBackground) {
 		sessionView.style.backgroundColor = asCssVariable(activeSessionViewBackground);
 	}
 	sessionView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
@@ -504,8 +518,18 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				&& sessionControlsRect.top >= inputRect.bottom
 				&& repositoryConfigContainer?.closest('.new-session-workspace-picker-container') === workspaceControls
 				&& [...repositoryActions].map(action => action.textContent).join(',') === 'New Worktree,Branch');
+			if (hasChatBackground) {
+				const primaryControlStyles = [...view.element.querySelectorAll<HTMLElement>('.new-session-workspace-picker-container .sessions-workspace-category-picker > .sessions-chat-picker-slot.sessions-workspace-category-picker-slot > .action-label')]
+					.map(control => targetWindow.getComputedStyle(control));
+				assert(primaryControlStyles.length === 2
+					&& primaryControlStyles.every(style => style.backgroundColor !== 'rgba(0, 0, 0, 0)')
+					&& primaryControlStyles.every(style => style.borderTopStyle === 'solid')
+					&& repositoryActionBarStyle?.backgroundColor !== 'rgba(0, 0, 0, 0)'
+					&& repositoryActionBarStyle?.borderTopStyle === 'solid',
+					'Background composer controls must render on opaque bordered surfaces.');
+			}
 		}
-	} else if (withChatBackground) {
+	} else if (hasChatBackground) {
 		assert(!!repositoryConfigContainer
 			&& repositoryConfigContainer.classList.contains('has-no-actions')
 			&& targetWindow.getComputedStyle(repositoryConfigContainer).display === 'none');
@@ -586,15 +610,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		expectedVisualDescriptions: ['The experimental new-session composer places workspace, worktree, branch, and harness controls in one row above the chat input. The model remains inside the input, while mode and permissions remain below it.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true }),
 	}),
+	NewSessionExperimentalComposerBackground: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer renders the workspace, worktree and branch group, and harness controls on opaque bordered surfaces above the chat input. None of the stripes show through the controls.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, chatBackground: 'loud', experimentalComposerLayout: true }),
+	}),
 	NewSessionChatBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['In regular themes, the new-session composer sits on a static layered Codicon constellation with compact, softer distant icons, brighter base-size near icons, and a quieter center. There is no card behind the composer; its controls have opaque surfaces and thin borders. High-contrast themes omit the wallpaper and Celebrate button, preserving opaque surfaces and visible control borders.'],
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, withChatBackground: true }),
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, chatBackground: 'codicons' }),
 	}),
 	NewSessionBackgroundControls: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withChatBackground: true, withControlPickers: true }),
+		render: context => renderNewChatWidget(context, { withWorkspace: true, chatBackground: 'codicons', withControlPickers: true }),
 	}),
 	NewSessionAutoModel: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

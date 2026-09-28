@@ -11,6 +11,7 @@
 # Multi-Chat Architecture
 
 > Node runtime service construction is documented separately in [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md).
+> Host startup timings, process-lifetime correlation, and session workload counts are documented in [`PERFORMANCE.md`](PERFORMANCE.md).
 
 > **Status: COMPLETE** (2026-07-01) All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and Copilot all use the unified orchestrator path.
 >
@@ -604,15 +605,50 @@ and forks do not copy it. Codex retains its native sandbox/permission preset;
 Claude does not advertise this unsupported control.
 
 Both the Copilot SDK sandbox and custom terminal sandbox read the same effective
-session configuration. The launcher subscribes to `onEvent` before create/resume
+session configuration. `SandboxSettingsResolutionHelper` resolves the user-editable
+enablement, bypass, and outbound-network toggles against the runtime-resolved floor.
+Managed enablement forces on; managed bypass and outbound denial force off, while
+managed permission never widens a local restriction. Filesystem settings remain
+local inputs and are not intersected or unioned by this helper.
+The SDK configuration builder forwards enablement, configured
+bypass/network choices, filesystem rules, and required host-generated read paths.
+It leaves optional working-directory grants, developer-tool access, credential
+injection, local-network access, and filesystem cleanup behavior to the runtime
+rather than hardcoding those capabilities.
+The launcher subscribes to `onEvent` before create/resume
 to capture the runtime's authoritative managed-settings snapshot. Missing
 snapshots log an error and continue with the available session selection, root
-settings, and any known managed policy. Failed SDK sandbox updates fail closed. Runtime-owned sandbox floors
-are transient, cannot be set through client config, and permanently replace
-disallowed `off` selections with `default`; policy removal cannot revive them.
-Managed asks remain one-time-only. An ordinary sandbox escape's “Allow in this
-Session” changes the owner's sandbox selection, not global settings or tool
-allow lists.
+settings, and any known managed policy. Failed SDK sandbox updates fail closed.
+Runtime-owned sandbox floors are transient and cannot be set through client config.
+Explicit managed enablement replaces disallowed `off` selections with `default`;
+policy removal cannot revive them. Fail-closed-only restrictions keep the toggle
+editable, while the SDK remains responsible for accepting or rejecting an attempt.
+Managed asks remain one-time-only. Direct disabling is locked even when managed
+`allowBypass` is true. A supported SDK sandbox escape's “Allow in this Session”
+calls `sandbox.disableForSession` with the real pending SDK permission request ID.
+Only a successful opt-out changes the owner's sandbox selection; global settings
+and tool allow lists are untouched. The callback returns `no-result` because that
+RPC also completes the permission request. Host-generated terminal prompts cannot
+offer this SDK action. After an approved opt-out, the user may re-enable sandboxing;
+successful re-enablement locks direct disabling again.
+
+The host publishes the resolved floor in the optional `vscode.sandboxPolicy`
+session `_meta` slot through the server-only `SessionMetaChanged` action, including
+the optional outbound-network restriction.
+Session snapshots include it for reconnecting clients; subsequent resolutions
+replace it, including an explicit disabled floor when the requirement disappears.
+Clients validate this metadata and use it only for that session's sandbox controls,
+not to modify global settings. Missing metadata from older or other hosts is not
+evidence of an enforced floor. Enforcement remains runtime-owned.
+Local desktop pickers use renderer-managed policy until session policy is published;
+this fallback never applies to remote hosts or overrides a host-published policy.
+
+The optional `vscode.sandboxState` session metadata records enablement after a
+successful SDK update. Pickers update optimistically; a failed client change restores
+the last successful value unless a newer sandbox request superseded it. The host
+publishes the failure before the rollback, with the originating client ID and sequence number, so only
+that window logs and displays a standard error notification, once per request.
+Retry is manual through the relevant control; no retry action or toggle-local error UI is added.
 
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed and registered by `createAgentServiceComposition`. Consumers resolve their service identifiers through constructor injection; `AgentService` neither owns nor exposes them.
 
