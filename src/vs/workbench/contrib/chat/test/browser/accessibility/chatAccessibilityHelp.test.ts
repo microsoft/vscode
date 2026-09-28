@@ -32,7 +32,7 @@ suite('Chat Accessibility Help', () => {
 				introductionPersists: help.includes('sending messages does not dismiss it'),
 				introductionActions: help.includes('let us know, Learn More, Got it!, or Not Helpful'),
 				learnMorePersists: help.includes('Learn More opens documentation without hiding the introduction'),
-				introductionDismissal: help.includes('Not Helpful turns off future introductions'),
+				introductionDismissal: help.includes('Got it! and Not Helpful turn off future introductions'),
 				switchSurvey: help.includes('a two-step feedback survey may appear above the chat input'),
 				switchSurveyKeyboard: help.includes('use Up and Down Arrow to choose why you switched'),
 				switchSurveyAcknowledgement: help.includes('the questions are replaced above the input by a message that your feedback was recorded'),

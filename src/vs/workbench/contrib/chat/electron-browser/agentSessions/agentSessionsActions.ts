@@ -935,11 +935,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			if (typeof helpful !== 'boolean' || !this._getPostedWidget(inputUri, resource, AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction)) {
 				return;
 			}
-			if (helpful) {
-				this._dismissChat(resource);
-			} else {
-				this._ignoreCopilotHarnessIntroduction();
-			}
+			this._ignoreCopilotHarnessIntroduction();
 		}));
 		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.IGNORE_COMMAND_ID, () => {
 			const posted = this._posted;
