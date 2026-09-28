@@ -5512,14 +5512,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	async getSessionWorktreeDiskUsage(sessionId: string): Promise<number | undefined> {
 		const rawId = this._rawIdFromChatId(sessionId);
 		const session = rawId ? this._sessionCache.get(rawId) : undefined;
-		const worktree = session?.workspace.get()?.folders
-			.map(folder => folder.gitRepository?.workTreeUri)
-			.find(uri => uri !== undefined);
 		const connection = this.connection;
-		if (!worktree || !connection) {
+		if (!session || !connection) {
 			return undefined;
 		}
-		return getWorktreeDiskUsage(connection, worktree);
+		const worktrees = new Map<string, URI>();
+		for (const folder of session.workspace.get()?.folders ?? []) {
+			const worktreeUri = folder.gitRepository?.workTreeUri;
+			if (worktreeUri) {
+				worktrees.set(worktreeUri.toString(), worktreeUri);
+			}
+		}
+		if (worktrees.size === 0) {
+			return undefined;
+		}
+		const sizes = await Promise.all([...worktrees.values()].map(worktreeUri => getWorktreeDiskUsage(connection, worktreeUri)));
+		if (sizes.every(size => size === undefined)) {
+			return undefined;
+		}
+		return sizes.reduce<number>((total, size) => total + (size ?? 0), 0);
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {

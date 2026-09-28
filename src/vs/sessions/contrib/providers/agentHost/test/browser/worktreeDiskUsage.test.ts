@@ -7,6 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ResourceType } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { AhpErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
+import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { getWorktreeDiskUsage } from '../../browser/worktreeDiskUsage.js';
 
 suite('WorktreeDiskUsage', () => {
@@ -46,9 +48,16 @@ suite('WorktreeDiskUsage', () => {
 	test('returns undefined when the worktree no longer exists', async () => {
 		const result = await getWorktreeDiskUsage({
 			resourceList: async () => ({ entries: [] }),
-			resourceResolve: async () => { throw new Error('not found'); },
+			resourceResolve: async () => { throw new ProtocolError(AhpErrorCodes.NotFound, 'not found'); },
 		}, URI.file('/missing'));
 
 		assert.strictEqual(result, undefined);
+	});
+
+	test('rethrows failures that are not the worktree missing', async () => {
+		await assert.rejects(() => getWorktreeDiskUsage({
+			resourceList: async () => ({ entries: [] }),
+			resourceResolve: async () => { throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'denied'); },
+		}, URI.file('/protected')), /denied/);
 	});
 });

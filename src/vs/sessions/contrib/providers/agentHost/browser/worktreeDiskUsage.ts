@@ -6,14 +6,26 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { ResourceType } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { AhpErrorCodes } from '../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { ROOT_STATE_URI } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
 const MAX_CONCURRENT_REQUESTS = 8;
 
 type WorktreeFileConnection = Pick<IAgentConnection, 'resourceList' | 'resourceResolve'>;
 
+/** The worktree no longer exists on disk, so it holds no storage. Other failures must surface. */
+function isWorktreeMissing(error: unknown): boolean {
+	return error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound;
+}
+
 export async function getWorktreeDiskUsage(connection: WorktreeFileConnection, root: URI): Promise<number | undefined> {
-	const rootStat = await connection.resourceResolve({ channel: ROOT_STATE_URI, uri: root.toString(), followSymlinks: false }).catch(() => undefined);
+	const rootStat = await connection.resourceResolve({ channel: ROOT_STATE_URI, uri: root.toString(), followSymlinks: false }).catch(error => {
+		if (isWorktreeMissing(error)) {
+			return undefined;
+		}
+		throw error;
+	});
 	if (!rootStat || rootStat.type !== ResourceType.Directory) {
 		return undefined;
 	}

@@ -13,6 +13,7 @@
 	max-width: 960px;
 	margin: 0 auto;
 	padding: var(--vscode-spacing-size240);
+	container-type: inline-size;
 }
 
 .session-worktree-cleanup-content h1 {
@@ -81,12 +82,34 @@
 
 .session-worktree-cleanup-row {
 	display: grid;
-	grid-template-columns: 28px minmax(180px, 1fr) 120px 100px 100px;
+	grid-template-columns: 28px minmax(0, 1fr) 120px 100px 100px;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 	min-height: 36px;
 	padding: 0 var(--vscode-spacing-size120);
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+/*
+ * The editor hides horizontal scrolling, so the fixed table columns cannot fit in a narrow
+ * Agents window. Below the full table width, keep the checkbox in its own column and stack the
+ * remaining cells so Storage and Open Session stay reachable instead of being clipped.
+ */
+@container (max-width: 600px) {
+	.session-worktree-cleanup-row {
+		grid-template-columns: 28px minmax(0, 1fr);
+		row-gap: var(--vscode-spacing-size40);
+		padding-top: var(--vscode-spacing-size80);
+		padding-bottom: var(--vscode-spacing-size80);
+	}
+
+	.session-worktree-cleanup-row > *:not(:first-child) {
+		grid-column: 2;
+	}
+
+	.session-worktree-cleanup-row.header {
+		display: none;
+	}
 }
 
 .session-worktree-cleanup-row.header {

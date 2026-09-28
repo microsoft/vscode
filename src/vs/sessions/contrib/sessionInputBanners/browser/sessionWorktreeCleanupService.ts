@@ -33,6 +33,7 @@ export const MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID = 'sessions.chat.manageAg
 export interface ISessionWorktreeCleanupCandidate {
 	readonly session: ISession;
 	readonly sizeBytes: number;
+	readonly worktreeCount: number;
 }
 
 export interface ISessionWorktreeCleanupSuggestion {
@@ -47,6 +48,7 @@ export type SessionWorktreeCleanupState = 'eligible' | 'active' | 'running' | 'n
 export interface ISessionWorktree {
 	readonly session: ISession;
 	readonly sizeBytes: number | undefined;
+	readonly worktreeCount: number;
 	readonly cleanupState: SessionWorktreeCleanupState;
 }
 
@@ -154,16 +156,17 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 
 		const candidates = this._getCleanupCandidates(worktrees);
 		const totalBytes = candidates.reduce((total, candidate) => total + candidate.sizeBytes, 0);
-		const thresholdReached = candidates.length >= CLEANUP_THRESHOLD_WORKTREES || totalBytes >= CLEANUP_THRESHOLD_BYTES;
+		const totalWorktrees = candidates.reduce((total, candidate) => total + candidate.worktreeCount, 0);
+		const thresholdReached = totalWorktrees >= CLEANUP_THRESHOLD_WORKTREES || totalBytes >= CLEANUP_THRESHOLD_BYTES;
 		if (thresholdReached && !this._dismissed) {
-			this._suggestion.set(this._createSuggestion(candidates.length, totalBytes), undefined);
+			this._suggestion.set(this._createSuggestion(totalWorktrees, totalBytes), undefined);
 		} else {
 			this._suggestion.set(undefined, undefined);
 		}
 	}
 
 	private async _measureWorktrees(minimumAgeDays: number): Promise<readonly ISessionWorktree[]> {
-		const activeSession = this.sessionsService.activeSession.get();
+		const activeSessionId = this.sessionsService.activeSession.get()?.sessionId;
 		const cutoff = Date.now() - minimumAgeDays * DAY_MS;
 		const worktreeSessions = this.sessionsManagementService.getSessions().filter(session =>
 			session.workspace.get()?.folders.some(folder => folder.gitRepository?.workTreeUri) === true
@@ -174,7 +177,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			return [];
 		}
 		if (!getDiskUsage) {
-			return worktreeSessions.map(session => ({ session, sizeBytes: undefined, cleanupState: 'unavailable' }));
+			return worktreeSessions.map(session => ({ session, sizeBytes: undefined, worktreeCount: this._countWorktrees(session), cleanupState: 'unavailable' }));
 		}
 
 		const limiter = new Limiter<ISessionWorktree>(2);
@@ -188,19 +191,32 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			return {
 				session,
 				sizeBytes,
-				cleanupState: this._getCleanupState(session, sizeBytes, activeSession, cutoff),
+				worktreeCount: this._countWorktrees(session),
+				cleanupState: this._getCleanupState(session, sizeBytes, activeSessionId, cutoff),
 			};
 		})));
+	}
+
+	/** Counts the distinct worktree checkouts a session owns so the threshold measures worktrees, not sessions. */
+	private _countWorktrees(session: ISession): number {
+		const worktreeUris = new Set<string>();
+		for (const folder of session.workspace.get()?.folders ?? []) {
+			const worktreeUri = folder.gitRepository?.workTreeUri;
+			if (worktreeUri) {
+				worktreeUris.add(worktreeUri.toString());
+			}
+		}
+		return worktreeUris.size;
 	}
 
 	private async _getMeasuredWorktrees(minimumAgeDays: number): Promise<readonly ISessionWorktree[]> {
 		const measuredSessionSignature = this._getWorktreeSessionSignature();
 		if (this._lastMeasuredWorktrees && this._lastMeasuredSessionSignature === measuredSessionSignature && Date.now() - this._lastMeasurementAt < SCAN_CACHE_DURATION_MS) {
-			const activeSession = this.sessionsService.activeSession.get();
+			const activeSessionId = this.sessionsService.activeSession.get()?.sessionId;
 			const cutoff = Date.now() - minimumAgeDays * DAY_MS;
 			return this._lastMeasuredWorktrees.map(worktree => ({
 				...worktree,
-				cleanupState: this._getCleanupState(worktree.session, worktree.sizeBytes, activeSession, cutoff),
+				cleanupState: this._getCleanupState(worktree.session, worktree.sizeBytes, activeSessionId, cutoff),
 			}));
 		}
 
@@ -221,14 +237,14 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			.join('\n');
 	}
 
-	private _getCleanupState(session: ISession, sizeBytes: number | undefined, activeSession: ISession | undefined, cutoff: number): SessionWorktreeCleanupState {
+	private _getCleanupState(session: ISession, sizeBytes: number | undefined, activeSessionId: string | undefined, cutoff: number): SessionWorktreeCleanupState {
 		if (sizeBytes === undefined) {
 			return 'unavailable';
 		}
 		if (session.isArchived.get()) {
 			return 'archived';
 		}
-		if (session === activeSession) {
+		if (session.sessionId === activeSessionId) {
 			return 'active';
 		}
 		if (session.status.get() === SessionStatus.InProgress) {
@@ -255,14 +271,14 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	private _getCleanupCandidates(worktrees: readonly ISessionWorktree[]): readonly ISessionWorktreeCleanupCandidate[] {
 		return worktrees
 			.filter((worktree): worktree is ISessionWorktree & { readonly sizeBytes: number } => worktree.cleanupState === 'eligible' && worktree.sizeBytes !== undefined)
-			.map(worktree => ({ session: worktree.session, sizeBytes: worktree.sizeBytes }))
+			.map(worktree => ({ session: worktree.session, sizeBytes: worktree.sizeBytes, worktreeCount: worktree.worktreeCount }))
 			.sort((a, b) => a.session.updatedAt.get().getTime() - b.session.updatedAt.get().getTime());
 	}
 
-	private _createSuggestion(candidateCount: number, reclaimableBytes: number): ISessionWorktreeCleanupSuggestion {
-		const description = candidateCount === 1
+	private _createSuggestion(worktreeCount: number, reclaimableBytes: number): ISessionWorktreeCleanupSuggestion {
+		const description = worktreeCount === 1
 			? localize('worktreeCleanup.nudge.descriptionOne', "1 agent session worktree has been inactive for at least 15 days and can be cleaned up, reclaiming about {0}.", ByteSize.formatSize(reclaimableBytes))
-			: localize('worktreeCleanup.nudge.descriptionMany', "{0} agent session worktrees have been inactive for at least 15 days and can be cleaned up, reclaiming about {1}.", candidateCount, ByteSize.formatSize(reclaimableBytes));
+			: localize('worktreeCleanup.nudge.descriptionMany', "{0} agent session worktrees have been inactive for at least 15 days and can be cleaned up, reclaiming about {1}.", worktreeCount, ByteSize.formatSize(reclaimableBytes));
 		return {
 			description,
 			manage: async () => {

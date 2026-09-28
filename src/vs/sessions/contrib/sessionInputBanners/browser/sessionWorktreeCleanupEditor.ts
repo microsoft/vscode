@@ -12,10 +12,11 @@ import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -28,6 +29,7 @@ import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPan
 import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { SessionWorktreeCleanupEditorFocusedContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, CLEANUP_THRESHOLD_BYTES, CLEANUP_THRESHOLD_WORKTREES, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupService } from './sessionWorktreeCleanupService.js';
 import { SessionWorktreeCleanupEditorInput } from './sessionWorktreeCleanupEditorInput.js';
@@ -62,6 +64,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super(SessionWorktreeCleanupEditor.ID, group, telemetryService, themeService, storageService);
@@ -69,6 +72,11 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	protected override createEditor(parent: HTMLElement): void {
 		this.container = dom.$('.session-worktree-cleanup-editor');
+		const focusedContext = SessionWorktreeCleanupEditorFocusedContext.bindTo(this.contextKeyService);
+		const focusTracker = this.editorDisposables.add(dom.trackFocus(this.container));
+		this.editorDisposables.add(focusTracker.onDidFocus(() => focusedContext.set(true)));
+		this.editorDisposables.add(focusTracker.onDidBlur(() => focusedContext.set(false)));
+		this.editorDisposables.add(toDisposable(() => focusedContext.reset()));
 		this.scrollableElement = this._register(new DomScrollableElement(this.container, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
@@ -173,7 +181,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const eligible = this.worktrees.filter(worktree => worktree.cleanupState === 'eligible');
 		const tooRecent = this.worktrees.filter(worktree => worktree.cleanupState === 'recent').length;
 		const reclaimableBytes = eligible.reduce((total, worktree) => total + (worktree.sizeBytes ?? 0), 0);
-		const summary = localize('sessionWorktreeCleanup.worktreeSummary', "{0} of {1} worktrees inactive for at least {2} days can be cleaned up, reclaiming about {3}.", eligible.length, this.worktrees.length, this.minimumAgeDays, ByteSize.formatSize(reclaimableBytes));
+		const eligibleWorktrees = eligible.reduce((total, worktree) => total + worktree.worktreeCount, 0);
+		const totalWorktrees = this.worktrees.reduce((total, worktree) => total + worktree.worktreeCount, 0);
+		const summary = localize('sessionWorktreeCleanup.worktreeSummary', "{0} of {1} worktrees inactive for at least {2} days can be cleaned up, reclaiming about {3}.", eligibleWorktrees, totalWorktrees, this.minimumAgeDays, ByteSize.formatSize(reclaimableBytes));
 		const recentNote = tooRecent === 0
 			? undefined
 			: tooRecent === 1
@@ -258,12 +268,16 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private getSelected(): ISessionWorktreeCleanupCandidate[] {
 		return this.worktrees
 			.filter((worktree): worktree is ISessionWorktree & { readonly sizeBytes: number } => worktree.cleanupState === 'eligible' && worktree.sizeBytes !== undefined && this.selectedSessionIds.has(worktree.session.sessionId))
-			.map(worktree => ({ session: worktree.session, sizeBytes: worktree.sizeBytes }));
+			.map(worktree => ({ session: worktree.session, sizeBytes: worktree.sizeBytes, worktreeCount: worktree.worktreeCount }));
 	}
 
 	private async cleanupSelected(): Promise<void> {
-		if (await this.cleanupService.cleanupWorktrees(this.getSelected())) {
-			await this.load();
+		try {
+			if (await this.cleanupService.cleanupWorktrees(this.getSelected())) {
+				await this.load();
+			}
+		} catch (error) {
+			this.notificationService.error(error);
 		}
 	}
 

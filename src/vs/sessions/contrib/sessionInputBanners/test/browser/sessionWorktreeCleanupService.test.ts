@@ -51,6 +51,18 @@ suite('SessionWorktreeCleanupService', () => {
 		assert.strictEqual(service.suggestion.get()?.description, '20 agent session worktrees have been inactive for at least 15 days and can be cleaned up, reclaiming about 20B.');
 	});
 
+	test('counts every worktree a session owns toward the worktree threshold', async () => {
+		const service = disposables.add(createService(
+			[createSession('multi', oldDate(), SessionStatus.Completed, false, true, 20)],
+			true,
+			() => 1,
+		));
+
+		await service.activate();
+
+		assert.strictEqual(service.suggestion.get()?.description, '20 agent session worktrees have been inactive for at least 15 days and can be cleaned up, reclaiming about 1B.');
+	});
+
 	test('does not count ineligible worktrees toward the worktree threshold', async () => {
 		const sessions = [
 			createSession('eligible', oldDate()),
@@ -269,7 +281,7 @@ suite('SessionWorktreeCleanupService', () => {
 		const running = createSession('running', old, SessionStatus.InProgress);
 		const recent = createSession('recent', new Date());
 		const service = disposables.add(createService(
-			[eligible, active, pinned, running, recent],
+			[eligible, activeSession, pinned, running, recent],
 			true,
 			session => session === eligible ? 6 * ByteSize.GB : ByteSize.GB,
 			undefined,
@@ -366,12 +378,24 @@ function oldDate(): Date {
 	return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 }
 
-function createSession(id: string, updatedAt: Date, status = SessionStatus.Completed, archived = false, hasWorktree = true): ISession {
+function createSession(id: string, updatedAt: Date, status = SessionStatus.Completed, archived = false, hasWorktree = true, worktreeCount = 1): ISession {
 	const resource = URI.parse(`test:/${id}`);
 	const chat = upcastPartial<IChat>({
 		resource,
 		capabilities: constObservable(DEFAULT_CHAT_CAPABILITIES),
 	});
+	const folders = Array.from({ length: hasWorktree ? worktreeCount : 1 }, (_, index) => ({
+		root: URI.file(`/repo/${id}`),
+		workingDirectory: URI.file(`/repo.worktrees/${id}-${index}`),
+		name: id,
+		description: undefined,
+		gitRepository: {
+			uri: URI.file(`/repo/${id}`),
+			workTreeUri: hasWorktree ? URI.file(`/repo.worktrees/${id}-${index}`) : undefined,
+			baseBranchName: 'main',
+			gitHubInfo: constObservable(undefined),
+		},
+	}));
 	return upcastPartial<ISession>({
 		sessionId: id,
 		resource,
@@ -387,18 +411,7 @@ function createSession(id: string, updatedAt: Date, status = SessionStatus.Compl
 			uri: URI.file(`/repo/${id}`),
 			label: id,
 			icon: Codicon.folder,
-			folders: [{
-				root: URI.file(`/repo/${id}`),
-				workingDirectory: URI.file(`/repo.worktrees/${id}`),
-				name: id,
-				description: undefined,
-				gitRepository: {
-					uri: URI.file(`/repo/${id}`),
-					workTreeUri: hasWorktree ? URI.file(`/repo.worktrees/${id}`) : undefined,
-					baseBranchName: 'main',
-					gitHubInfo: constObservable(undefined),
-				},
-			}],
+			folders,
 			isVirtualWorkspace: false,
 			requiresWorkspaceTrust: false,
 		}),
