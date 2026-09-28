@@ -605,15 +605,22 @@ export async function resolveByokSessionConfig(
 	return { providers, models };
 }
 
-/** Applies sandbox configuration to a new or running SDK session. */
-export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService): Promise<void> {
+/** Applies sandbox configuration, returning false when the runtime retains its policy after a managed conflict. */
+export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService): Promise<boolean> {
 	try {
 		const result = await session.rpc.options.update({ sandboxConfig });
 		if (!result.success) {
 			throw new Error('Copilot SDK rejected sandbox config update');
 		}
 		logService.info(`[Copilot:${sessionId}] Applied SDK sandboxConfig via session.options.update`);
+		return true;
 	} catch (err) {
+		const data = isObject(err) ? err.data : undefined;
+		if ((isObject(data) && data.code === 'managed_sandbox_policy_conflict')
+			|| (err instanceof Error && err.message.includes('Sandbox configuration update violates managed policy. Contact your administrator for more information.'))) {
+			logService.warn(`[Copilot:${sessionId}] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime's existing sandbox configuration`, err);
+			return false;
+		}
 		logService.warn(`[Copilot:${sessionId}] Failed to apply SDK sandboxConfig`, err);
 		throw err;
 	}
@@ -653,8 +660,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			}
 			const owner = runtime.configurationResource.toString();
 			const config = this._computeSandboxConfig(owner);
-			await applySandboxConfig(session, config, plan.sessionId, this._logService);
-			this._configurationService.setSessionSandboxEnabled(owner, config.enabled);
+			if (await applySandboxConfig(session, config, plan.sessionId, this._logService)) {
+				this._configurationService.setSessionSandboxEnabled(owner, config.enabled);
+			}
 		};
 		if (plan.kind === 'create') {
 			return this._createSession(plan, config, sandboxConfig);

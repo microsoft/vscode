@@ -122,6 +122,7 @@ class MockCopilotSession {
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionMode[] = [];
 	permissionModeSetSuccess = true;
+	permissionModeSetError: Error | undefined;
 	readonly gitHubCredentialUpdates: Array<{ credentials?: { type: 'token'; host: string; token: string } }> = [];
 	gitHubCredentialUpdateResult = { success: true, copilotUserResolved: true };
 	gitHubCredentialUpdateError: Error | undefined;
@@ -139,6 +140,7 @@ class MockCopilotSession {
 	readonly experimentalModeUpdates: boolean[] = [];
 	experimentalModeUpdateSuccess = true;
 	sandboxConfigUpdateSuccess = true;
+	sandboxConfigUpdateError: Error | undefined;
 	shellInitScriptUpdateSuccess = true;
 	abortCalls = 0;
 	abortGate: Promise<void> | undefined;
@@ -406,6 +408,9 @@ class MockCopilotSession {
 				const mode = params.mode ?? 'manual';
 				this.operationLog.push('permissions.setMode');
 				this.permissionModeSetCalls.push(mode);
+				if (this.permissionModeSetError) {
+					throw this.permissionModeSetError;
+				}
 				return { success: this.permissionModeSetSuccess, enabled: mode === 'allow-all', mode };
 			},
 		},
@@ -590,6 +595,9 @@ class MockCopilotSession {
 					this.sandboxConfigUpdates.push(params.sandboxConfig);
 					if (this.sandboxConfigUpdateGate) {
 						await this.sandboxConfigUpdateGate;
+					}
+					if (this.sandboxConfigUpdateError) {
+						throw this.sandboxConfigUpdateError;
 					}
 				}
 				if (params.isExperimentalMode !== undefined) {
@@ -8051,6 +8059,63 @@ suite('CopilotAgentSession', () => {
 			}, {
 				beforePrompt: [expectedSessionSandboxConfig('linux', sandbox), { enabled: false }, { enabled: false }],
 				afterPrompt: [expectedSessionSandboxConfig('linux', sandbox), { enabled: false }, { enabled: false }, { enabled: false }],
+			});
+		});
+
+		for (const activeTurn of [false, true]) {
+			test(`logs sandbox conflicts without aborting or publishing rejected state with active turn ${activeTurn}`, async () => {
+				const logService = new CapturingLogService();
+				const { session, mockSession, setConfigValue, fireSessionConfigChange, sandboxResults } = await createAgentSession(disposables, { logService });
+				setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
+				fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'on' });
+				await timeout(0);
+				if (activeTurn) {
+					session.resetTurnState('active-turn');
+				}
+				const hadActiveTurn = session.hasActiveTurn;
+				const error = Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } });
+				mockSession.sandboxConfigUpdateError = error;
+				setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
+				fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'off' });
+				await timeout(0);
+				await session.send('continue', undefined, 'conflict-turn');
+
+				assert.deepStrictEqual({
+					hadActiveTurn,
+					sandboxResults,
+					abortCalls: mockSession.abortCalls,
+					sendCount: mockSession.sendRequests.length,
+					rejectedUpdates: mockSession.sandboxConfigUpdates.slice(1),
+					warnings: logService.warnings.filter(entry => entry.args.includes(error)),
+					errors: logService.errors,
+				}, {
+					hadActiveTurn: activeTurn,
+					sandboxResults: [true],
+					abortCalls: 0,
+					sendCount: 1,
+					rejectedUpdates: [{ enabled: false }, { enabled: false }],
+					warnings: Array.from({ length: 2 }, () => ({
+						message: '[Copilot:test-session-1] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime\'s existing sandbox configuration',
+						args: [error],
+					})),
+					errors: [],
+				});
+
+				mockSession.sandboxConfigUpdateError = undefined;
+				await session.send('retry', undefined, 'retry-turn');
+				assert.deepStrictEqual(sandboxResults, [true, false]);
+			});
+		}
+
+		test('does not suppress a managed sandbox conflict from a different SDK operation', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			const error = Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } });
+			mockSession.permissionModeSetError = error;
+
+			await assert.rejects(() => session.send('hello', undefined, 'failed-turn'), error);
+
+			assert.deepStrictEqual({ sends: mockSession.sendRequests, sandboxUpdates: mockSession.sandboxConfigUpdates }, {
+				sends: [], sandboxUpdates: [],
 			});
 		});
 

@@ -81,6 +81,7 @@ class CapturingLogService extends NullLogService {
 	readonly traces: string[] = [];
 	readonly errors: string[] = [];
 	readonly infos: string[] = [];
+	readonly warnings: Array<{ message: string; args: unknown[] }> = [];
 
 	override getLevel(): LogLevel {
 		return LogLevel.Trace;
@@ -96,6 +97,10 @@ class CapturingLogService extends NullLogService {
 
 	override info(message: string): void {
 		this.infos.push(message);
+	}
+
+	override warn(message: string, ...args: unknown[]): void {
+		this.warnings.push({ message, args });
 	}
 }
 
@@ -142,7 +147,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean) {
+	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error) {
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));
 		const owner = 'copilot:/sess-1';
@@ -159,6 +164,9 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			rpc: {
 				options: {
 					update: async (options: { sandboxConfig?: SandboxConfig }) => {
+						if (options.sandboxConfig && sandboxUpdateError) {
+							throw sandboxUpdateError;
+						}
 						if (allowOutbound === false && options.sandboxConfig?.userPolicy?.network?.allowOutbound === true) {
 							throw new Error('Sandbox configuration update violates managed policy');
 						}
@@ -197,6 +205,45 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
+		for (const [format, error] of [
+			['structured', Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } })],
+			['message', new Error('Sandbox configuration update violates managed policy. Contact your administrator for more information.')],
+			['wrapped message', new Error('Request session.options.update failed with message: Sandbox configuration update violates managed policy. Contact your administrator for more information.')],
+		] as const) {
+			test(`${kind} logs a ${format} sandbox conflict without disconnecting or publishing the rejected state`, async () => {
+				const fixture = setup(kind, true, false, false, undefined, error);
+				fixture.configuration.setSessionSandboxEnabled(fixture.owner, true);
+
+				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+
+				assert.deepStrictEqual({
+					disconnected: fixture.disconnected,
+					published: fixture.sandboxState,
+					applied: fixture.updates.filter(update => update.sandboxConfig),
+					warnings: fixture.logService.warnings,
+					loggedSuccess: fixture.logService.infos.some(message => message.includes('Applied SDK sandboxConfig')),
+				}, {
+					disconnected: false,
+					published: { enabled: true },
+					applied: [],
+					warnings: [{
+						message: '[Copilot:sess-1] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime\'s existing sandbox configuration',
+						args: [error],
+					}],
+					loggedSuccess: false,
+				});
+			});
+		}
+
+		test(`${kind} still rejects unrelated sandbox update errors`, async () => {
+			const error = Object.assign(new Error('Sandbox update transport failed'), { data: { code: 'connection_closed' } });
+			const fixture = setup(kind, true, false, false, undefined, error);
+			await assert.rejects(() => fixture.launcher.launch(fixture.plan, testRuntime), error);
+			assert.deepStrictEqual({ disconnected: fixture.disconnected, published: fixture.sandboxState }, {
+				disconnected: true, published: undefined,
+			});
+		});
+
 		test(`${kind} sends resolved outbound denial and preserves local bypass restrictions`, async () => {
 			const fixture = setup(kind, true, true, true, false);
 			fixture.configuration.updateRootConfig({ sandbox: { enabled: 'off', 'enabled.windows': 'off', allowNetwork: true, allowUnsandboxedCommands: false } });

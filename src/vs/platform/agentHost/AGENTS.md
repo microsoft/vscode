@@ -618,7 +618,10 @@ rather than hardcoding those capabilities.
 The launcher subscribes to `onEvent` before create/resume
 to capture the runtime's authoritative managed-settings snapshot. Missing
 snapshots log an error and continue with the available session selection, root
-settings, and any known managed policy. Failed SDK sandbox updates fail closed.
+settings, and any known managed policy. Managed-policy conflicts from SDK sandbox
+updates are logged and leave the runtime's existing configuration and the last
+confirmed sandbox state unchanged without interrupting the session. Other SDK
+sandbox update failures still propagate.
 Runtime-owned sandbox floors are transient and cannot be set through client config.
 Explicit managed enablement replaces disallowed `off` selections with `default`;
 policy removal cannot revive them. Fail-closed-only restrictions keep the toggle
