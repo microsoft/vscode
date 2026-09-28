@@ -176,11 +176,11 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		// Modal changes must not start a reconcile that suppresses revealing a file opened in the main part.
 		const mainEditorsChanged = Event.filter(this._editorService.onDidEditorsChange, e => !!this._editorGroupsService.mainPart.getGroup(e.groupId));
 		const editorsChangedSignal = observableSignalFromEvent(this, mainEditorsChanged);
-		const activeMainEditor = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorGroupsService.mainPart.activeGroup.activeEditor);
+		const activeMainGroup = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorGroupsService.mainPart.activeGroup);
 		this._register(autorun(reader => {
 			partVisibilityChangedSignal.read(reader);
 			editorsChangedSignal.read(reader);
-			activeMainEditor.read(reader);
+			activeMainGroup.read(reader);
 			this.queueReconcile(this._readTarget(undefined), {});
 		}));
 
