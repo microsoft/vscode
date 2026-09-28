@@ -76,7 +76,7 @@ suite('ChatTurnPills', () => {
 		const items: readonly [string, IActionViewItem][] = [
 			['icon+label', disposables.add(new ChatPillActionViewItem(undefined, action, {}))],
 			['changes', disposables.add(new ChatChangesPillActionViewItem(action, {}, constObservable(EMPTY_CHAT_CHANGES_STATS), instantiationService))],
-			['resource', disposables.add(new ChatResourcePillActionViewItem(action, {}, constObservable(entry), resourceLabels))],
+			['resource', disposables.add(instantiationService.createInstance(ChatResourcePillActionViewItem, action, {}, constObservable(entry), resourceLabels))],
 			['dropdown', disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable<readonly IChatPillSection[]>([{ title: 'Files', entries: [entry] }]), chatArtifactPillOptions))],
 		];
 
@@ -98,6 +98,25 @@ suite('ChatTurnPills', () => {
 		]);
 	});
 
+	test('renders changes pill stats with inline markup and an accessible label', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const action = disposables.add(new Action('test.changesPill', 'Changes'));
+		const item = disposables.add(new ChatChangesPillActionViewItem(action, {}, constObservable({ files: 2, insertions: 5, deletions: 1 }), instantiationService));
+		const container = document.createElement('div');
+		item.render(container);
+		const button = container.querySelector<HTMLElement>('.monaco-button');
+
+		assert.deepStrictEqual({
+			text: button?.textContent,
+			ariaLabel: button?.getAttribute('aria-label'),
+			statsTags: [...button?.querySelectorAll('.changes-stats-files, .monaco-animated-counter') ?? []].map(element => element.tagName),
+		}, {
+			text: '2 Files+5-1',
+			ariaLabel: 'Changes: 2 Files, +5, -1',
+			statsTags: ['SPAN', 'SPAN', 'SPAN'],
+		});
+	});
+
 	test('keeps an actionable accessible name when a single entry has a location tooltip', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const action = disposables.add(new Action('test.pill', 'Artifact'));
@@ -112,7 +131,7 @@ suite('ChatTurnPills', () => {
 			open: () => { },
 		};
 		const items: readonly IActionViewItem[] = [
-			disposables.add(new ChatResourcePillActionViewItem(action, {}, constObservable(entry), resourceLabels)),
+			disposables.add(instantiationService.createInstance(ChatResourcePillActionViewItem, action, {}, constObservable(entry), resourceLabels)),
 			disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable<readonly IChatPillSection[]>([{ title: 'Files', entries: [entry] }]), chatArtifactPillOptions)),
 		];
 

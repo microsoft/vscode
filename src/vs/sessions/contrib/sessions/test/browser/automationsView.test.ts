@@ -466,8 +466,6 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		isRead: this.isRead,
 		capabilities: this.capabilities,
 		status: this.sessionStatus,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
@@ -475,7 +473,10 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
-		mainChat: constObservable(new class extends mock<IChat>() { }),
+		mainChat: constObservable(upcastPartial<IChat>({
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		})),
 	});
 	readonly secondSession = upcastPartial<ISession>({
 		resource: SECOND_SESSION_RESOURCE,
@@ -498,8 +499,6 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		isRead: this.secondIsRead,
 		capabilities: this.capabilities,
 		status: this.sessionStatus,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
@@ -507,7 +506,10 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
-		mainChat: constObservable(new class extends mock<IChat>() { }),
+		mainChat: constObservable(upcastPartial<IChat>({
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		})),
 	});
 	markAllReadCalls = 0;
 	markAllReadSessionCount = 0;
@@ -3209,6 +3211,17 @@ suite('AutomationsCardsWidget', () => {
 			emptyCatalogueHelp: [true, true, true, true],
 			populatedCatalogueHelp: true,
 		});
+	});
+
+	test('accessibility help explains prompt-only automation creation', () => {
+		const { instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
+		assert.ok(help);
+		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
+		assert.ok(provider);
+		disposables.add(provider);
+		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
 	});
 
 	test('accessible view distinguishes loading, unavailable, and error from confirmed empty', () => {

@@ -75,8 +75,12 @@ export interface IChangesetOperationHandler {
  * changeset state, or the working directory URI.
  */
 export interface IChangesetOperationContext {
-	/** String form of the session URI that owns the changeset. */
+	/** String form of the containing session URI. */
 	readonly sessionKey: string;
+	/** Resource that owns the changeset. */
+	readonly ownerKey?: string;
+	/** Session or chat whose workspace and Git state back the changeset. */
+	readonly sourceKey?: string;
 	/** Expanded changeset URI whose operations are being computed. */
 	readonly changesetUri: URI;
 	/** Well-known changeset kind for {@link changesetUri}. */

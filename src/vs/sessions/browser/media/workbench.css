@@ -127,6 +127,10 @@
 	border-bottom-right-radius: 8px;
 }
 
+.agent-sessions-workbench.nosidebar.nosessionspart:not(.phone-layout) .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	margin-left: var(--vscode-agents-layout-floatingPanelGap);
+}
+
 /* Floating content card. Shared by every full-surface content part (the
 	sessions grid and the custom view grid) so they are visually identical. */
 .agent-sessions-workbench .agents-part-card {
@@ -135,6 +139,10 @@
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: var(--vscode-cornerRadius-large);
 	box-sizing: border-box;
+}
+
+.agent-sessions-workbench.nosidebar:not(.phone-layout) .agents-part-card {
+	margin-left: var(--vscode-agents-layout-floatingPanelGap);
 }
 
 .agent-sessions-workbench.noeditorpane .agents-part-card {
@@ -268,12 +276,29 @@
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar {
-	--part-background: var(--vscode-editor-background);
-	--vscode-sideBar-background: var(--vscode-editor-background);
-	background: var(--vscode-editor-background);
+	--part-background: var(--vscode-agentsDetail-background);
+	--vscode-sideBar-background: var(--vscode-agentsDetail-background);
+	background: var(--vscode-agentsDetail-background);
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	box-sizing: border-box;
 	z-index: 2;
+}
+
+/* Only the card next to a native window corner follows the frame's inset curve. */
+.monaco-workbench.agent-sessions-workbench.mac:not(.web):not(.fullscreen):not(.phone-layout) {
+	--agents-window-corner-radius: max(0px, calc(var(--window-corner-radius) - var(--vscode-agents-layout-floatingPanelGap)));
+
+	&.nopanel.nosidebar .agents-part-card {
+		border-bottom-left-radius: var(--agents-window-corner-radius);
+	}
+
+	&.nopanel.noeditorpane .agents-part-card,
+	&.nopanel.noauxiliarybar .monaco-grid-view .part.editor:not(.modal-editor-part),
+	&.nopanel.dock-detail-panel .monaco-grid-view .part.editor:not(.modal-editor-part),
+	&.nopanel:not(.dock-detail-panel) .part.auxiliarybar,
+	&:not(.nopanel) .part.panel {
+		border-bottom-right-radius: var(--agents-window-corner-radius);
+	}
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar::before {
@@ -305,7 +330,7 @@
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar > .content .pane-body,
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar .monaco-list,
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar .monaco-list-rows {
-	background-color: var(--vscode-editor-background);
+	background-color: var(--vscode-agentsDetail-background);
 }
 
 .agent-sessions-workbench .explorer-folders-view .monaco-list-row,

@@ -25,6 +25,7 @@ export class CreatePullRequestContextView extends Disposable {
 	private readonly formContextView: ContextViewHandler;
 	private readonly preferences: CreatePullRequestPreferences;
 	private readonly savedContent = new WeakMap<ISessionPullRequestCreation, {
+		readonly chat: string | undefined;
 		readonly branchName: string | undefined;
 		readonly baseBranchName: string | undefined;
 		readonly content: ICreatePullRequestFormContent;
@@ -46,10 +47,11 @@ export class CreatePullRequestContextView extends Disposable {
 		this.preferences = new CreatePullRequestPreferences(storageService, logService);
 	}
 
-	show(anchor: HTMLElement, creation: ISessionPullRequestCreation, options?: Pick<ICreatePullRequestWidgetOptions, 'branchName' | 'baseBranchName' | 'initialDraft' | 'sendToChat'> & { readonly onHide?: () => void; readonly onRestoreFocus?: () => void }, onCreated?: (options: ISessionPullRequestOptions) => void): void {
+	show(anchor: HTMLElement, creation: ISessionPullRequestCreation, options?: Pick<ICreatePullRequestWidgetOptions, 'chat' | 'branchName' | 'baseBranchName' | 'initialDraft' | 'sendToChat'> & { readonly onHide?: () => void; readonly onRestoreFocus?: () => void }, onCreated?: (options: ISessionPullRequestOptions) => void): void {
 		this.close();
 		const saved = this.savedContent.get(creation);
-		const initialContent = saved?.branchName === options?.branchName && saved?.baseBranchName === options?.baseBranchName ? saved?.content : undefined;
+		// Content generated from one chat's conversation is not restored for another chat.
+		const initialContent = saved?.chat === options?.chat?.toString() && saved?.branchName === options?.branchName && saved?.baseBranchName === options?.baseBranchName ? saved?.content : undefined;
 		this.savedContent.delete(creation);
 		const previouslyFocused = dom.getActiveElement();
 		let widget: CreatePullRequestWidget;
@@ -78,6 +80,7 @@ export class CreatePullRequestContextView extends Disposable {
 					onWillCreate: () => {
 						submittedContent = widget.getFormContent();
 						this.savedContent.set(creation, {
+							chat: options?.chat?.toString(),
 							branchName: options?.branchName,
 							baseBranchName: options?.baseBranchName,
 							content: submittedContent,
@@ -129,6 +132,7 @@ export class CreatePullRequestContextView extends Disposable {
 				active = false;
 				if (preserveContent && !widget.isSubmitting) {
 					this.savedContent.set(creation, {
+						chat: options?.chat?.toString(),
 						branchName: options?.branchName,
 						baseBranchName: options?.baseBranchName,
 						content: widget.getFormContent(),

@@ -25,6 +25,7 @@ import { derived, derivedOpts, IObservable } from '../../../../base/common/obser
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
 
 /**
  * Shared trace prefix for the pull-request polling/fetching pipeline that feeds
@@ -71,6 +72,7 @@ export interface IGitHubService {
 	 * Get a reference to a reactive model for a GitHub issue.
 	 */
 	createIssueModelReference(owner: string, repo: string, issueNumber: number): IReference<GitHubIssueModel>;
+	getCommit(owner: string, repo: string, sha: string, token: CancellationToken): Promise<GitHubCommit>;
 
 	/**
 	 * List files changed between two refs using the GitHub compare API.
@@ -256,6 +258,29 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	createIssueModelReference(owner: string, repo: string, issueNumber: number): IReference<GitHubIssueModel> {
 		return this._issueReferences.acquire(`${owner}/${repo}/issues/${issueNumber}`, owner, repo, issueNumber);
+	}
+
+	async getCommit(owner: string, repo: string, sha: string, token: CancellationToken): Promise<GitHubCommit> {
+		const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(sha)}`;
+		const response = await this._apiClient.request<{
+			readonly sha: string;
+			readonly html_url: string;
+			readonly author?: { readonly login?: string };
+			readonly commit: {
+				readonly message: string;
+				readonly author: { readonly name: string; readonly date: string };
+			};
+		}>('GET', path, 'GitHubService.getCommit', { token, createAuthenticationSession: false });
+		if (!response.data) {
+			throw new Error(`GitHub commit ${owner}/${repo}@${sha} returned no data`);
+		}
+		return {
+			sha: response.data.sha,
+			message: response.data.commit.message,
+			url: response.data.html_url,
+			author: { login: response.data.author?.login ?? response.data.commit.author.name },
+			committedAt: response.data.commit.author.date,
+		};
 	}
 
 	getRecentAssignedIssues(owner: string, repo: string, token: CancellationToken): Promise<readonly IGitHubRecentIssue[]> {

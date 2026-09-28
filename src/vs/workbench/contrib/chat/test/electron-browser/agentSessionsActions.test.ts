@@ -105,6 +105,7 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 		test(`explicit Open in Agents prefers the active root with a first-root fallback (${activeFile ?? 'no editor'})`, async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
 			const folders = ['/first', '/second'].map((path, index) => new WorkspaceFolder({ uri: URI.file(path), name: path, index }));
 			const calls: IOpenAgentsWindowOptions[] = [];
 			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
@@ -128,6 +129,7 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
 		let workspaceFolderUri = URI.file('/workspace');
 		const calls: IOpenAgentsWindowOptions[] = [];
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
@@ -184,6 +186,7 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 		test(`infers ${scenario.name} without turning it into an explicit selection`, async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
 			const folders = scenario.folders.map((path, index) => new WorkspaceFolder({ uri: URI.file(path), name: path, index }));
 			const calls: IOpenAgentsWindowOptions[] = [];
 			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({

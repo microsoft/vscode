@@ -62,10 +62,9 @@ suite('CodexLaunchConfig', () => {
 	test('adds client skill read access without overriding the profiles existing restrictions', () => {
 		assert.deepStrictEqual(codexPermissionProfileReadRoots(['/plugins/cache'], 'darwin'), {
 			'permissions.vscode-workspace.filesystem': {
-				':root': 'deny',
 				':minimal': 'read',
+				':workspace_roots': { '.': 'write', '.git': 'read', '.agents': 'read', '.codex': 'read' },
 				':tmpdir': 'write',
-				':slash_tmp': 'deny',
 				'/plugins/cache': 'read',
 			},
 		});
@@ -107,27 +106,27 @@ suite('CodexLaunchConfig', () => {
 			skillOverrides: codexPermissionProfileReadRoots(['/plugins/cache'], 'linux'),
 			mac: macProfile,
 			windows: windowsProfiles,
-			temp: [linuxProfile, macProfile, windowsProfile].map(profile => [profile.includes('":tmpdir" = "write"'), profile.includes('":slash_tmp" = "deny"')]),
+			temp: [linuxProfile, macProfile, windowsProfile].map(profile => [profile.includes('":tmpdir" = "write"'), profile.includes('":slash_tmp" = "read"')]),
 		}, {
-			linux: 'permissions.vscode-runtime={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "read", "/sdk/codex" = "read" }, network = { enabled = false } }',
+			linux: 'permissions.vscode-runtime={ filesystem = { ":minimal" = "read", ":workspace_roots" = { "." = "write", ".git" = "read", ".agents" = "read", ".codex" = "read" }, ":tmpdir" = "write", ":slash_tmp" = "read", "/sdk/codex" = "read" }, network = { enabled = false } }',
 			linuxWorkspace: 'permissions.vscode-workspace={ extends = "vscode-runtime" }',
 			skillOverrides: {
 				'permissions.vscode-workspace.filesystem': {
-					':root': 'deny',
 					':minimal': 'read',
+					':workspace_roots': { '.': 'write', '.git': 'read', '.agents': 'read', '.codex': 'read' },
 					':tmpdir': 'write',
 					':slash_tmp': 'read',
 					'/plugins/cache': 'read',
 				},
 			},
-			mac: 'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "deny" }, network = { enabled = false } }',
+			mac: 'permissions.vscode-workspace={ filesystem = { ":minimal" = "read", ":workspace_roots" = { "." = "write", ".git" = "read", ".agents" = "read", ".codex" = "read" }, ":tmpdir" = "write" }, network = { enabled = false } }',
 			windows: [
 				'default_permissions="vscode-workspace"',
 				'permissions.vscode-workspace={ extends = ":workspace", network = { enabled = false } }',
 				'permissions.vscode-workspace-network={ extends = "vscode-workspace", network = { enabled = true } }',
 				'permissions.vscode-workspace-read-only={ extends = ":read-only" }',
 			],
-			temp: [[true, false], [true, true], [false, false]],
+			temp: [[true, true], [true, false], [false, false]],
 		});
 	});
 

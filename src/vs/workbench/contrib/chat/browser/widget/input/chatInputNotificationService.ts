@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -31,6 +32,14 @@ export const enum ChatInputNotificationActionKind {
 
 interface IChatInputNotificationActionBase {
 	readonly label: string;
+	/** Accessible label for actions whose visual label is an icon. */
+	readonly ariaLabel?: string;
+	/** Whether the visible label contains only an icon. */
+	readonly iconOnly?: boolean;
+	/** Whether the action anchors to the leading edge of a split action row. */
+	readonly leading?: boolean;
+	/** Whether a secondary action keeps a theme-aware border. */
+	readonly outlined?: boolean;
 	readonly tooltip?: string;
 	readonly primary?: boolean;
 	readonly keepOpen?: boolean;
@@ -99,11 +108,15 @@ export interface IChatInputNotification {
 	readonly inputUri?: URI;
 	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
+	/** Optional header icon. Defaults to the severity icon. */
+	readonly icon?: ThemeIcon;
 	readonly message: string | IMarkdownString;
 	readonly description: string | IMarkdownString | undefined;
 	readonly actions: readonly IChatInputNotificationAction[];
 	/** Controls whether this notification applies to an input. */
 	readonly when?: (context: IChatInputNotificationContext) => boolean;
+	/** Called when the notification first becomes visible in each input. Must be idempotent. */
+	readonly onDidShow?: () => void;
 	/** Resolves the description and actions for an input. */
 	readonly resolveBody?: (context: IChatInputNotificationContext) => IChatInputNotificationBody;
 	readonly dismissible: boolean;

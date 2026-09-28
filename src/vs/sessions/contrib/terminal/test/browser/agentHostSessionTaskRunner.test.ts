@@ -55,8 +55,6 @@ function makeSession(opts: { providerId: string; cwd?: URI; remoteConnectionStat
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', SessionStatus.Untitled),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
 		loading: observableValue('loading', false),
@@ -79,6 +77,7 @@ suite('AgentHostSessionTaskRunner', () => {
 	let sentText: { text: string; shouldExecute: boolean }[];
 	let disposedTerminals: ITerminalInstance[];
 	let allTasks: ISessionTaskWithTarget[];
+	let allTasksOwner: ISession | IChat | undefined;
 	let resolverCalls: string[];
 	const fakeInstance = {
 		sendText: async (text: string, shouldExecute: boolean) => { sentText.push({ text, shouldExecute }); },
@@ -90,6 +89,7 @@ suite('AgentHostSessionTaskRunner', () => {
 		sentText = [];
 		disposedTerminals = [];
 		allTasks = [];
+		allTasksOwner = undefined;
 		resolverCalls = [];
 
 		const instantiationService = store.add(new TestInstantiationService());
@@ -102,7 +102,8 @@ suite('AgentHostSessionTaskRunner', () => {
 		});
 
 		instantiationService.stub(ISessionsTasksService, new class extends mock<ISessionsTasksService>() {
-			override async getAllTasks() {
+			override async getAllTasks(owner: ISession | IChat) {
+				allTasksOwner = owner;
 				return allTasks;
 			}
 		});
@@ -288,6 +289,47 @@ suite('AgentHostSessionTaskRunner', () => {
 			shouldExecute: true,
 		}]);
 		assert.deepStrictEqual(resolverCalls, ['./scripts/code.sh', '--user-data-dir=${workspaceFolder}/.profile-oss']);
+	});
+
+	test('runs tasks and dependent tasks from the active chat working directory', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.file('/session-a') });
+		const chatCwd = URI.file('/session-b');
+		const chat = {
+			...session.mainChat.get(),
+			resource: URI.parse('file:///session/chat-b'),
+			workspace: constObservable({
+				...session.workspace.get()!,
+				uri: chatCwd,
+				folders: [{
+					...session.workspace.get()!.folders[0],
+					root: chatCwd,
+					workingDirectory: chatCwd,
+				}],
+			}),
+		};
+		const dependency: ITaskEntry = {
+			label: 'Prepare',
+			type: 'shell',
+			command: 'echo ${workspaceFolder}',
+		};
+		const task: ITaskEntry = {
+			label: 'Run',
+			type: 'shell',
+			dependsOn: 'Prepare',
+		};
+		allTasks = [{ task: dependency, target: 'workspace' }];
+
+		(await runner.runTask(task, session, chat))?.dispose();
+
+		assert.deepStrictEqual({
+			allTasksOwner: allTasksOwner === chat,
+			cwd: createdTerminals[0].options?.cwd?.toString(),
+			sentText,
+		}, {
+			allTasksOwner: true,
+			cwd: chatCwd.toString(),
+			sentText: [{ text: `echo ${chatCwd.path}`, shouldExecute: true }],
+		});
 	});
 
 	test('remote agent-host sessions expand ${workspaceFolder} from the POSIX host path without the renderer resolver', async () => {

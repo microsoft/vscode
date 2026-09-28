@@ -34,6 +34,7 @@ A session appears in exactly one primary section. Higher-precedence states win:
 Archived
     > Pinned
     > Custom group
+    > External (when dedicated sectioning is enabled)
     > Quick chat
     > Workspace or date group
 ```
@@ -41,6 +42,7 @@ Archived
 - Archived sessions appear only in the final archived section.
 - Pinned sessions appear in the pinned section.
 - A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat.
+- When dedicated external sectioning is enabled, remaining external sessions appear together before the archived section. Pinning and custom-group membership retain their precedence; disabling sectioning returns external sessions to the ordinary grouping rules without changing that presentation state.
 - Remaining unpinned quick chats appear in the dedicated chats section.
 - Remaining sessions follow the selected workspace or date grouping.
 - A regular session created by another regular session is initially placed
@@ -51,7 +53,7 @@ Archived
 
 The active session remains visible even when a filter would otherwise exclude it.
 
-A caller can acquire a disposable reveal of a session's archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and keeps its action visible without hover or focus. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
+A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and exposes the requested spotlight target. An archive-action reveal also keeps the action visible without hover or focus. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 
 ## Grouping
 

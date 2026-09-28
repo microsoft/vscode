@@ -5,11 +5,12 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { isAgentHostProvider, IAgentHostGroup, IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -68,6 +69,8 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	readonly onDidChangeDiscovering: Event<void> = this._onDidChangeDiscovering.event;
 
 	private _selectedHostId: string | undefined;
+	/** Last explicit choice, retained while its host has not been discovered yet. */
+	private _preferredHostId: string | undefined;
 	/**
 	 * `true` while {@link _selectedHostId} comes from the fallback rather than
 	 * from the user. An automatic choice is provisional and can be replaced.
@@ -105,13 +108,21 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
-		this._selectedHostId = this._storageService.get(STORAGE_KEY, StorageScope.PROFILE, undefined);
+		this._preferredHostId = this._storageService.get(STORAGE_KEY, StorageScope.PROFILE, undefined);
+		this._selectedHostId = this._preferredHostId;
 
 		this._rewatchProviders();
 		this._register(this._sessionsProvidersService.onDidChangeProviders(() => this._rewatchProviders()));
+		this._register(this._remoteAgentHostService.onDidChangeConfiguredEntries(() => this._rewatchProviders()));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+				this._rewatchProviders();
+			}
+		}));
 	}
 
 	get selectedHostId(): string | undefined {
@@ -175,6 +186,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		// user's choice, so run through even when the id is unchanged.
 		const changed = hostId !== this._selectedHostId;
 		this._selectedHostId = hostId;
+		this._preferredHostId = hostId;
 		this._selectionIsAutomatic = false;
 		this._persist(hostId);
 		if (changed) {
@@ -220,6 +232,10 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	 * up; an explicit user choice is always kept.
 	 */
 	private _validate(hostId: string | undefined): { readonly id: string | undefined; readonly automatic: boolean } {
+		const preferred = this._hosts.find(h => h.id === this._preferredHostId);
+		if (preferred) {
+			return { id: preferred.id, automatic: false };
+		}
 		if (this._hosts.length === 0) {
 			return { id: undefined, automatic: false };
 		}
@@ -242,8 +258,10 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		this._providerWatchers.clear();
 
 		const providers = this._sessionsProvidersService.getProviders().filter(isRemoteAgentHostProvider);
+		const providerLabelsChanged = observableSignalFromEvent(this, Event.any(...providers.map(provider => provider.onDidChangeSessionTypes ?? Event.None)));
 
 		this._providerWatchers.add(autorun(reader => {
+			providerLabelsChanged.read(reader);
 			interface IMutableEntry {
 				id: string;
 				providerIds: string[];
@@ -309,6 +327,21 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 				const entry = groupEntry(group);
 				entry.providerIds.push(provider.id);
 				entry.status = rollupStatus([entry.status, status]);
+			}
+
+			const selectedHost = this.selectedHost;
+			if (isWeb && selectedHost?.address
+				&& this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+				&& selectedHost.id === this._preferredHostId
+				&& !entries.some(entry => entry.id === selectedHost.id)
+				&& this._remoteAgentHostService.configuredEntries.some(entry => getEntryAddress(entry) === selectedHost.address)) {
+				// A missing provider does not mean that its configured host was removed.
+				entries.push({
+					...selectedHost,
+					providerIds: [...selectedHost.providerIds],
+					status: AgentHostFilterConnectionStatus.Disconnected,
+					order: 0,
+				});
 			}
 
 			entries.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));

@@ -778,6 +778,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		getVisibleResolvedFeedbackIds: () => new Set(),
 		hasLoadedFeedback: () => true,
 		getSessionForFile: () => undefined,
+		getChatChanges: () => [],
 		getFeedbackSessionResource: () => undefined,
 		registerFeedbackResourceScope: () => toDisposable(() => { }),
 		getMostRecentSessionForResource: () => undefined,
@@ -968,7 +969,7 @@ export function createTextModel(
 
 export interface ThemedFixtureGroupLabels {
 	readonly kind?: 'screenshot' | 'animated';
-	readonly blocksCi?: true;
+	readonly blocksCi?: boolean;
 	readonly flaky?: true;
 }
 
@@ -1057,14 +1058,7 @@ if (logOutsideTime) {
 let fixtureRenderCounter = 0;
 let sourceMapsInitialized = false;
 
-/**
- * Creates selected color-theme variants (Dark and Light by default), with optional additional theme variants.
- * The render function receives a context with container and disposableStore.
- *
- * Note: If render returns a Promise, the async work will run in background.
- * Component-explorer waits 2 animation frames after sync render returns,
- * which should be sufficient for most async setup, but timing is not guaranteed.
- */
+/** Creates themed fixtures, awaiting the render promise and virtual-time layout before reporting readiness. */
 export function defineComponentFixture(options: ComponentFixtureOptions): ThemedFixtures {
 	const createFixture = (themeVariant: ComponentFixtureThemeVariant) => defineFixture({
 		isolation: 'none',

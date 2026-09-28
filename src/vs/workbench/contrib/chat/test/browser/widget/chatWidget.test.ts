@@ -7,9 +7,9 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -21,6 +21,7 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -30,24 +31,26 @@ import { TestEditorService } from '../../../../../test/browser/workbenchTestServ
 import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
 import { IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitRequestHandlerService.js';
 import { IChatTipService } from '../../../browser/chatTipService.js';
+import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../../browser/chatUserInteractionTelemetry.js';
 import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
-import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
-import { IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { ChatResponseModelChangeReason, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
-import { ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
 import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
 
 suite('ChatWidget', () => {
 
@@ -69,18 +72,22 @@ suite('ChatWidget', () => {
 		const widgetStore = store.add(new DisposableStore());
 		const contextKeyService = store.add(new MockContextKeyService());
 		const inputEnablement: boolean[] = [];
+		const transcriptProgressAction = observableValue<{ readonly label: string; readonly run: () => void } | undefined>('progressAction', undefined);
 		const widget = Object.assign(Object.create(ChatWidget.prototype), {
 			_store: widgetStore,
 			container,
 			listContainer: dom.append(container, dom.$('.interactive-list')),
 			transcriptProgressPart: store.add(new MutableDisposable<DisposableStore>()),
+			transcriptProgressAction,
 			instantiationService,
 			contextKeyService,
 			transcriptProgressActiveContext: ChatContextKeys.transcriptProgressActive.bindTo(contextKeyService),
+			_readOnly: false,
+			_readOnlyContextKey: ChatContextKeys.readOnly.bindTo(contextKeyService),
 			inputPartDisposable: { value: { setInputEnabled: (enabled: boolean) => inputEnablement.push(enabled) } },
 			updateChatViewVisibility: () => { },
 		}) as ChatWidget;
-		return { widget, container, contextKeyService, inputEnablement };
+		return { widget, container, contextKeyService, inputEnablement, transcriptProgressAction };
 	}
 
 	test('only preparation disables input and completion or cancellation re-enables it', () => {
@@ -221,6 +228,33 @@ suite('ChatWidget', () => {
 			hiddenWithoutAction: true,
 			calls: ['new'],
 		});
+	});
+
+	test('progress rendered by the transcript supplies an inline action without a duplicate overlay', () => {
+		const { widget, container, contextKeyService, transcriptProgressAction } = createTranscriptProgressWidget();
+		const calls: string[] = [];
+		widget.setTranscriptProgress('Preparing', undefined, { inTranscript: true, onCancel: () => { } });
+		const progress = container.querySelector<HTMLElement>('.chat-transcript-progress')!;
+		const hiddenWithoutLog = progress.hidden;
+		widget.setTranscriptProgress('Starting', undefined, { inTranscript: true, detail: { label: 'Show Log', run: () => calls.push('old') }, onCancel: () => { } });
+		widget.setTranscriptProgress('Initializing', undefined, { inTranscript: true, detail: { label: 'Show Log', run: () => calls.push('new') }, onCancel: () => calls.push('cancel') });
+		transcriptProgressAction.get()?.run();
+		widget.cancelTranscriptProgress();
+		assert.deepStrictEqual({
+			hiddenWithoutLog,
+			hiddenWithLog: progress.hidden,
+			actionLabel: transcriptProgressAction.get()?.label,
+			readOnly: contextKeyService.getContextKeyValue(ChatContextKeys.readOnly.key),
+			calls,
+		}, {
+			hiddenWithoutLog: true,
+			hiddenWithLog: true,
+			actionLabel: 'Show Log',
+			readOnly: true,
+			calls: ['new', 'cancel'],
+		});
+		widget.setTranscriptProgress(undefined);
+		assert.deepStrictEqual({ hidden: progress.hidden, action: transcriptProgressAction.get() }, { hidden: true, action: undefined });
 	});
 
 	test('transcript preparation blocks submissions without a model or touching the draft', async () => {
@@ -408,6 +442,37 @@ suite('ChatWidget', () => {
 		}]);
 	});
 
+	function createStartEditingWidget(input: object, request: IChatRequestViewModel, configurationService: TestConfigurationService) {
+		let editing: IChatRequestViewModel | undefined;
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			_store: { value: store },
+			_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
+			_editingDisposables: { value: store.add(new MutableDisposable()) },
+			configurationService: { value: configurationService },
+			telemetryService: { value: NullTelemetryService },
+			viewModel: {
+				value: {
+					model: { getRequests: () => [], setCheckpoint: () => { } },
+					sessionResource: URI.parse('agent-host-copilot:/session'),
+					get editing() { return editing; },
+					setEditing: (request: IChatRequestViewModel | undefined) => { editing = request; },
+				},
+			},
+			input: { value: input },
+			inputPart: { value: input },
+			contribs: { value: [] },
+			onDidChangeItems: { value: () => { } },
+			listWidget: {
+				value: {
+					getTemplateDataForRequestId: () => ({ currentElement: request }),
+					acquireAutoScrollHold: () => Disposable.None,
+				},
+			},
+		});
+		return widget;
+	}
+
 	test('editing a steering request passes its model and configuration to the input', async () => {
 		const modelId = 'agent-host-copilot:claude-opus-4.8';
 		const modelConfiguration = { reasoningEffort: 'xhigh' };
@@ -432,36 +497,151 @@ suite('ChatWidget', () => {
 			modelConfiguration,
 			pendingKind: ChatRequestQueueKind.Steering,
 		});
-		let editing: IChatRequestViewModel | undefined;
-		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
-		Object.defineProperties(widget, {
-			_store: { value: store },
-			_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
-			configurationService: { value: configurationService },
-			telemetryService: { value: NullTelemetryService },
-			viewModel: {
-				value: {
-					model: { getRequests: () => [], setCheckpoint: () => { } },
-					sessionResource: URI.parse('agent-host-copilot:/session'),
-					get editing() { return editing; },
-					setEditing: (request: IChatRequestViewModel) => { editing = request; },
-				},
-			},
-			input: { value: input },
-			inputPart: { value: input },
-			contribs: { value: [] },
-			onDidChangeItems: { value: () => { } },
-			listWidget: {
-				value: {
-					getTemplateDataForRequestId: () => ({ currentElement: request }),
-					acquireAutoScrollHold: () => Disposable.None,
-				},
-			},
-		});
+		const widget = createStartEditingWidget(input, request, configurationService);
 
 		widget.startEditing(request.id);
 
 		assert.deepStrictEqual(input.requestModelByIdentifier.firstCall.args, [modelId, modelConfiguration]);
+	});
+
+	function createFakeInputPart(name: string) {
+		const onDidFocus = store.add(new Emitter<void>());
+		const entriesMap = observableValue(`${name}.entriesMap`, ToolAndToolSetEnablementMap.fromMap(new Map()));
+		const counts = { updateContext: 0, dispose: 0 };
+		const part = upcastPartial<ChatInputPart>({
+			element: mainWindow.document.createElement('div'),
+			inputUri: URI.parse(`chat-input:/${name}`),
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
+				getValue: () => 'original request', getModel: () => null, focus: () => { },
+				onDidChangeModelContent: Event.None, onDidChangeCursorSelection: Event.None,
+			}),
+			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({
+				attachments: [], getAttachmentIDs: () => new Set(), addContext: () => { },
+				updateContext: () => { counts.updateContext++; },
+			}),
+			selectedToolsModel: upcastPartial<ChatInputPart['selectedToolsModel']>({ entriesMap }),
+			selectedLanguageModel: observableValue(`${name}.model`, undefined),
+			height: observableValue(`${name}.height`, 0),
+			currentModeObs: observableValue(`${name}.mode`, upcastPartial<ReturnType<ChatInputPart['currentModeObs']['get']>>({ id: 'agent' })),
+			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({}),
+			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
+			onDidLoadInputState: Event.None,
+			onDidFocus: onDidFocus.event,
+			onDidAcceptFollowup: Event.None,
+			onDidChangeCurrentChatMode: Event.None,
+			onDidClickOverlay: Event.None,
+			render: () => { },
+			layout: () => { },
+			setChatMode: () => { },
+			setPermissionLevel: () => { },
+			setEditing: () => { },
+			toggleChatInputOverlay: () => { },
+			renderAttachedContext: () => { },
+			setValue: () => { },
+			focus: () => { },
+			dispose: () => { counts.dispose++; },
+		});
+		return { part, onDidFocus, entriesMap, counts };
+	}
+
+	test('releases the inline request edit input and its subscriptions when editing finishes', async () => {
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('chat.editRequests', 'inline');
+		const main = createFakeInputPart('main');
+		const inline = createFakeInputPart('inline');
+		const onDidChangeAgents = store.add(new Emitter<void>());
+		const onDidChangeContext = store.add(new Emitter<void>());
+		let scopedServiceDisposed = false;
+		let disposedTipPresenters = 0;
+		const instantiationService = {
+			createChild: () => ({ createInstance: () => inline.part, dispose: () => { scopedServiceDisposed = true; } }),
+			createInstance: (ctor: unknown) => ctor === ChatInputPart ? main.part : { dispose: () => { disposedTipPresenters++; } },
+		};
+		const inlineInputHolder = store.add(new MutableDisposable<ChatInputPart>());
+		const request = upcastPartial<IChatRequestViewModel>({
+			id: 'request',
+			message: { text: 'original request', parts: [] },
+			messageText: 'original request',
+			variables: [],
+		});
+		const rowContainer = mainWindow.document.createElement('div');
+		const requestTimestampContainer = dom.append(rowContainer, dom.$('div'));
+		let editing: IChatRequestViewModel | undefined;
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			_store: { value: store.add(new DisposableStore()) },
+			_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
+			_editingDisposables: { value: store.add(new MutableDisposable()) },
+			inputPartDisposable: { value: store.add(new MutableDisposable()) },
+			inlineInputPartDisposable: { value: inlineInputHolder },
+			mainPasteTargetRegistration: { value: store.add(new MutableDisposable()) },
+			inlinePasteTargetRegistration: { value: store.add(new MutableDisposable()) },
+			_gettingStartedTip: { value: store.add(new MutableDisposable()) },
+			customizationMigrationNotice: { value: store.add(new MutableDisposable()) },
+			_onDidChangeActiveInputEditor: { value: { fire: () => { } } },
+			_onDidChangeContentHeight: { value: { fire: () => { } } },
+			inputContainer: { value: undefined, writable: true },
+			location: { value: ChatAgentLocation.Chat },
+			viewContext: { value: {} },
+			viewOptions: { value: {} },
+			instantiationService: { value: instantiationService },
+			chatPasteTargetService: { value: { registerTarget: () => Disposable.None } },
+			chatAgentService: { value: { onDidChangeAgents: onDidChangeAgents.event } },
+			contextKeyService: { value: { onDidChangeContext: onDidChangeContext.event } },
+			configurationService: { value: configurationService },
+			telemetryService: { value: NullTelemetryService },
+			logService: { value: new NullLogService() },
+			viewModel: {
+				value: {
+					model: { getRequests: () => [], setCheckpoint: () => { } },
+					sessionResource: URI.parse('chat-session:/session'),
+					get editing() { return editing; },
+					setEditing: (request: IChatRequestViewModel | undefined) => { editing = request; },
+				},
+			},
+			contribs: { value: [] },
+			refreshParsedInput: { value: () => { } },
+			onDidChangeItems: { value: () => { } },
+			listWidget: {
+				value: {
+					getTemplateDataForRequestId: () => ({ currentElement: request, rowContainer, requestTimestampContainer }),
+					acquireAutoScrollHold: () => Disposable.None,
+				},
+			},
+		});
+		const createInput = (ChatWidget.prototype as unknown as { createInput(container: HTMLElement): void }).createInput;
+		createInput.call(widget, mainWindow.document.createElement('div'));
+
+		widget.startEditing(request.id);
+		const whileEditing = { input: widget.input === inline.part, focusListener: inline.onDidFocus.hasListeners() };
+		main.entriesMap.set(ToolAndToolSetEnablementMap.fromMap(new Map()), undefined);
+		widget.finishedEditing();
+		const updatesAfterEdit = main.counts.updateContext + inline.counts.updateContext;
+		inline.entriesMap.set(ToolAndToolSetEnablementMap.fromMap(new Map()), undefined);
+
+		assert.deepStrictEqual({
+			whileEditing,
+			input: widget.input === main.part,
+			inlineDisposed: inline.counts.dispose > 0,
+			inlineInputHeld: inlineInputHolder.value !== undefined,
+			disposedTipPresenters,
+			scopedServiceDisposed,
+			inlineFocusListener: inline.onDidFocus.hasListeners(),
+			mainFocusListener: main.onDidFocus.hasListeners(),
+			toolUpdatesFromInlineInput: main.counts.updateContext + inline.counts.updateContext - updatesAfterEdit,
+			rowChildren: rowContainer.childElementCount,
+		}, {
+			whileEditing: { input: true, focusListener: true },
+			input: true,
+			inlineDisposed: true,
+			inlineInputHeld: false,
+			disposedTipPresenters: 0,
+			scopedServiceDisposed: true,
+			inlineFocusListener: false,
+			mainFocusListener: true,
+			toolUpdatesFromInlineInput: 0,
+			rowChildren: 1,
+		});
 	});
 
 	test('confirms before cancelling changed request edits', async () => {
@@ -772,8 +952,37 @@ suite('ChatWidget', () => {
 		]);
 	});
 
+	test('host can lift the default chat width cap', () => {
+		const inputWidths: number[] = [];
+		const layoutWidths: number[] = [];
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			maximumWidth: 950,
+			viewOptions: {},
+			_location: { location: ChatAgentLocation.Chat },
+			chatSuggestNextWidget: { height: 0 },
+			inputPartDisposable: {
+				value: {
+					setMaxHeight: () => { },
+					layout: (width: number) => inputWidths.push(width),
+				}
+			},
+			_layoutListForInputHeight: () => { },
+			_onDidLayout: { fire: ({ width }: { width: number }) => layoutWidths.push(width) },
+		});
+
+		widget.layout(600, 1400);
+		widget.setMaximumWidth(Number.POSITIVE_INFINITY);
+		widget.layout(600, 1400);
+
+		assert.deepStrictEqual({ inputWidths, layoutWidths }, {
+			inputWidths: [950, 1400],
+			layoutWidths: [950, 1400],
+		});
+	});
+
 	test('passes read-only transitions to the renderer independently of request editing', () => {
 		const rendererOptions: IChatListItemRendererOptions[] = [];
+		const inputVisibility: boolean[] = [];
 		let rerenders = 0;
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false,
@@ -781,7 +990,7 @@ suite('ChatWidget', () => {
 			_readOnlyContextKey: { set: () => { } },
 			chatSuggestNextWidget: { hide: () => { } },
 			hasInputFocus: () => false,
-			setInputVisible: () => { },
+			setInputVisible: (visible: boolean) => inputVisibility.push(visible),
 			renderChatSuggestNextWidget: () => { },
 			listWidget: {
 				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
@@ -790,11 +999,13 @@ suite('ChatWidget', () => {
 		});
 
 		widget.setReadOnly(true);
+		widget.setReadOnly(true, true);
 		widget.setReadOnly(false);
 
-		assert.deepStrictEqual({ rendererOptions, rerenders }, {
-			rendererOptions: [{ editable: false, readOnly: true }, { editable: true, readOnly: false }],
-			rerenders: 2,
+		assert.deepStrictEqual({ rendererOptions, rerenders, inputVisibility }, {
+			rendererOptions: [{ editable: false, readOnly: true }, { editable: false, readOnly: true }, { editable: true, readOnly: false }],
+			rerenders: 3,
+			inputVisibility: [false, true, true],
 		});
 	});
 
@@ -866,7 +1077,7 @@ suite('ChatWidget', () => {
 	});
 });
 
-suite('ChatWidget - guarded acceptInput', () => {
+suite('ChatWidget - acceptInput submission', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -874,35 +1085,29 @@ suite('ChatWidget - guarded acceptInput', () => {
 		const hasActiveRequest = observableValue('hasActiveRequest', false);
 		const requestInProgress = observableValue('requestInProgress', false);
 		const requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
-		const isReadOnly = observableValue('isReadOnly', false);
-		const pendingRequests: IChatPendingRequest[] = [];
+		const isInputBlocked = observableValue('isInputBlocked', false);
 		const model = upcastPartial<IChatModel>({
 			sessionResource: resource,
+			onDidDispose: store.add(new Emitter<void>()).event,
 			hasActiveRequest,
 			requestInProgress,
 			requestNeedsInput,
-			isReadOnly,
+			isInputBlocked,
 			inputModel: upcastPartial<IChatModel['inputModel']>({}),
 			getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'existing-request' })],
-			getPendingRequests: () => pendingRequests,
+			getPendingRequests: () => [],
 		});
 		const viewModel = upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] });
 		store.add(toDisposable(() => clearChatMarks(resource)));
-		return { model, viewModel, hasActiveRequest, requestInProgress, isReadOnly, pendingRequests };
+		return { model, viewModel, isInputBlocked };
 	}
 
-	function createSubmissionWidget() {
+	function createSubmissionWidget(createInteraction?: (options: IChatUserInteractionOptions) => ChatUserInteraction) {
 		const original = createSession(URI.parse('agent-host-copilot:/existing-a'));
-		const other = createSession(URI.parse('agent-host-copilot:/existing-b'));
-		let viewModel: ChatViewModel | undefined = original.viewModel;
-		let readOnly = false;
-		let accepted = 0;
-		let otherModelMutations = 0;
 		const widgetStore = store.add(new DisposableStore());
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const attachments = new ChatRequestVariableSet();
-		const promptParts: ChatRequestSlashPromptPart[] = [];
-		const parsedInput: IParsedChatRequest = { text: 'Test and fix the app', parts: promptParts };
+		const parsedInput: IParsedChatRequest = { text: 'Test and fix the app', parts: [] };
 		const input = mockObject<ChatInputPart>()({
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({ getValue: () => parsedInput.text }),
 			currentModeKind: ChatModeKind.Ask,
@@ -916,19 +1121,16 @@ suite('ChatWidget - guarded acceptInput', () => {
 		});
 		input.getAttachedContext.returns(attachments);
 		input.getAttachedAndImplicitContext.returns(attachments);
-		const recordInputMutation = () => {
-			if (viewModel !== original.viewModel) {
-				otherModelMutations++;
-			}
-		};
-		input.acceptInput.callsFake(recordInputMutation);
-		input.validateAgentMode.callsFake(recordInputMutation);
-		input.setValue.callsFake(recordInputMutation);
-		input.setChatMode.callsFake(recordInputMutation);
 		const editorService = mockObject<IEditorService>()();
 		editorService.saveAll.resolves({ success: true, editors: [] });
 		const chatService = mockObject<IChatService>()();
-		const response = upcastPartial<IChatResponseModel>({});
+		const response = upcastPartial<IChatResponseModel>({
+			requestId: 'submitted-request',
+			session: original.model,
+			onDidChange: store.add(new Emitter<ChatResponseModelChangeReason>()).event,
+			response: upcastPartial<IChatResponseModel['response']>({ value: [] }),
+			isComplete: true,
+		});
 		const sent: ChatSendResultSent = {
 			kind: 'sent',
 			data: upcastPartial<IChatSendRequestData>({
@@ -937,34 +1139,33 @@ suite('ChatWidget - guarded acceptInput', () => {
 			}),
 		};
 		chatService.sendRequest.resolves(sent);
-		chatService.cancelCurrentRequestForSession.resolves();
 		const chatSubmitRequestHandlerService = mockObject<IChatSubmitRequestHandlerService>()();
 		chatSubmitRequestHandlerService.tryHandle.resolves(false);
 		const chatAttachmentResolveService = mockObject<IChatAttachmentResolveService>()();
 		chatAttachmentResolveService.resolveDirectoryImages.resolves([]);
-		const customizationHarnessService = mockObject<ICustomizationHarnessService>()();
-		const dialogService = mockObject<IDialogService>()();
 		const parser = upcastPartial<ChatRequestParser>({
 			parseChatRequest: () => parsedInput,
 			parseChatRequestWithReferences: () => parsedInput,
 		});
 		const instantiationService = mockObject<IInstantiationService>()();
-		instantiationService.createInstance.returns(parser);
+		instantiationService.createInstance.callsFake((ctor: typeof ChatUserInteraction | typeof ChatRequestParser, options?: IChatUserInteractionOptions) =>
+			ctor === ChatUserInteraction ? (createInteraction?.(options!) ?? new ChatUserInteraction(options!, NullTelemetryService, new NullLogService(), {
+				_serviceBrand: undefined,
+				begin: () => ({ rendererId: 'test', interactionOrdinal: 1 }),
+				report: () => { },
+				flush: async () => ({ schemaVersion: 1, started: 0, completed: 0, failed: 0 }),
+			})) : parser);
 		const viewOptions: IChatWidgetViewOptions = {};
-		const rebind = (newViewModel: ChatViewModel | undefined) => {
-			const previousSessionResource = viewModel?.sessionResource;
-			viewModel = newViewModel;
-			onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: viewModel?.sessionResource });
-		};
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
 		Object.defineProperties(widget, {
 			_store: { value: widgetStore },
-			_viewModel: { get: () => viewModel },
-			_readOnly: { get: () => readOnly },
+			_viewModel: { value: original.viewModel },
 			_location: { value: { location: ChatAgentLocation.Chat } },
 			_onDidAcceptInput: { value: store.add(new Emitter<void>()) },
 			_onDidSubmitAgent: { value: store.add(new Emitter<void>()) },
 			onDidChangeViewModel: { value: onDidChangeViewModel.event },
+			onDidHide: { value: Event.None },
+			visible: { value: true },
 			input: { value: input },
 			inputPartDisposable: { value: store.add(new MutableDisposable<ChatInputPart>()) },
 			contribs: { value: [] },
@@ -975,237 +1176,194 @@ suite('ChatWidget - guarded acceptInput', () => {
 			chatService: { value: chatService },
 			chatSubmitRequestHandlerService: { value: chatSubmitRequestHandlerService },
 			chatAttachmentResolveService: { value: chatAttachmentResolveService },
-			customizationHarnessService: { value: customizationHarnessService },
-			dialogService: { value: dialogService },
+			customizationHarnessService: { value: mockObject<ICustomizationHarnessService>()() },
+			dialogService: { value: mockObject<IDialogService>()() },
 			instantiationService: { value: instantiationService },
 			chatTipService: { value: mockObject<IChatTipService>()() },
 			chatPetService: { value: { unlockAchievement: () => { } } },
 			chatAccessibilityService: { value: { acceptRequest: () => { }, acceptResponse: () => { } } },
 			logService: { value: { debug: () => { } } },
 			telemetryService: { value: NullTelemetryService },
-			listWidget: { value: { setScrollLock: recordInputMutation } },
+			listWidget: { value: { setScrollLock: () => { } } },
 			updateChatViewVisibility: { value: () => { } },
-			setModel: { value: (model: IChatModel) => rebind(upcastPartial<ChatViewModel>({ model, sessionResource: model.sessionResource, getItems: () => [] })) },
 		});
-		const options: IChatAcceptInputOptions = {
-			expectedSessionResource: original.model.sessionResource,
-			preserveInput: true,
-			onRequestAccepted: () => accepted++,
-		};
-		return {
-			widget, options, original, other, rebind, input, attachments, promptParts, widgetStore, viewOptions,
-			editorService, chatService, chatSubmitRequestHandlerService, chatAttachmentResolveService, customizationHarnessService, dialogService, response, sent,
-			setReadOnly: () => { readOnly = true; },
-			outcome: () => ({
-				requests: chatService.sendRequest.callCount,
-				accepted,
-				inputAccepted: input.acceptInput.callCount,
-				pendingRemoved: chatService.removePendingRequest.callCount,
-				otherModelMutations,
-			}),
-		};
+		const options: IChatAcceptInputOptions = { preserveInput: true };
+		return { widget, options, original, input, editorService, chatService, response, sent };
 	}
 
-	function createBarrier() {
-		const entered = new DeferredPromise<void>();
-		const released = new DeferredPromise<void>();
+	test('blocks submission without accepting input and allows sending after the lock clears', async () => {
+		const fixture = createSubmissionWidget();
+		fixture.original.isInputBlocked.set(true, undefined);
+
+		const blocked = await fixture.widget.acceptInput('Test request', fixture.options);
+		assert.deepStrictEqual({
+			response: blocked,
+			saves: fixture.editorService.saveAll.callCount,
+			requests: fixture.chatService.sendRequest.callCount,
+			inputAccepted: fixture.input.acceptInput.callCount,
+		}, { response: undefined, saves: 0, requests: 0, inputAccepted: 0 });
+
+		fixture.original.isInputBlocked.set(false, undefined);
+		const response = await fixture.widget.acceptInput('Test request', fixture.options);
+		assert.deepStrictEqual({ response, requests: fixture.chatService.sendRequest.callCount }, { response: fixture.response, requests: 1 });
+	});
+
+	for (const explicit of [false, true]) {
+		test(`excludes ${explicit ? 'explicitly' : 'implicitly'} queued submissions without cancelling the request`, async () => {
+			const h = createChatUserInteractionTestHarness(store);
+			const fixture = createSubmissionWidget(options => h.createInteraction(options));
+			const queued = new DeferredPromise<ChatSendResult>();
+			const entered = new DeferredPromise<void>();
+			fixture.chatService.sendRequest.callsFake(async (_resource: URI, _message: string, options: IChatSendRequestOptions) => {
+				options.onDidCreateResponse?.(undefined, 'queued');
+				entered.complete();
+				return { kind: 'queued', deferred: queued.p };
+			});
+			const sending = fixture.widget.acceptInput('Test request', { ...fixture.options, queue: explicit ? ChatRequestQueueKind.Queued : undefined });
+			await entered.p;
+			h.assertFinished('queued');
+			assert.deepStrictEqual([queued.isSettled, h.events[0].data.timeToFirstProgress, h.events[0].data.firstProgressKind], [false, undefined, undefined]);
+			assert.deepStrictEqual(h.otelRoutes.map(route => route.resource), [fixture.original.model.sessionResource]);
+			await queued.complete(fixture.sent);
+			assert.strictEqual(await sending, fixture.response);
+			h.assertFinished('queued');
+		});
+	}
+});
+
+suite('ChatWidget - first visible progress lifecycle', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class CountingDisposableStore extends DisposableStore {
+		readonly entries = new Set<IDisposable>();
+
+		override add<T extends IDisposable>(item: T): T {
+			this.entries.add(item);
+			return super.add(item);
+		}
+
+		override delete<T extends IDisposable>(item: T): void {
+			this.entries.delete(item);
+			super.delete(item);
+		}
+
+		override clear(): void {
+			super.clear();
+			this.entries.clear();
+		}
+	}
+
+	function createWidget() {
+		const h = createChatUserInteractionTestHarness(disposables);
+		const widgetStore = disposables.add(new CountingDisposableStore());
+		const response = h.createResponse();
+		const view = h.createWidget(response.response);
+		let submit: () => Promise<IChatResponseModel | undefined> = async () => response.response;
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			...Object.getOwnPropertyDescriptors(view.widget),
+			_store: { value: widgetStore },
+			_location: { value: { location: ChatAgentLocation.Chat } },
+			container: { value: h.element },
+			input: { value: { currentModeInfo: { kind: ChatModeKind.Agent } } },
+			instantiationService: { value: h.instantiationService },
+			_acceptInput: { value: () => submit() },
+		});
+		disposables.add(toDisposable(() => clearChatMarks(response.response.session.sessionResource)));
 		return {
-			entered: entered.p,
-			release: () => released.complete(),
-			wait: async () => {
-				void entered.complete();
-				await released.p;
+			...h, ...view, widgetStore, response,
+			accept: () => widget.acceptInput('Test request', { preserveInput: true }),
+			submitWith: (callback: typeof submit) => { submit = callback; },
+			assertFinished: (...results: ChatUserInteractionTimingResult[]) => {
+				h.assertFinished(...results);
+				assert.strictEqual(widgetStore.entries.size, 0);
 			},
 		};
 	}
 
-	function assertNotAccepted(fixture: ReturnType<typeof createSubmissionWidget>): void {
-		assert.deepStrictEqual(fixture.outcome(), { requests: 0, accepted: 0, inputAccepted: 0, pendingRemoved: 0, otherModelMutations: 0 });
-	}
+	test('removes per-interaction stores and listeners after every completed turn', async () => {
+		const fixture = createWidget();
+		for (let i = 0; i < 10; i++) {
+			fixture.response.progress([]);
+			await fixture.accept();
+			fixture.response.progress();
+			fixture.frame(2);
+			fixture.assertFinished(...Array<ChatUserInteractionTimingResult>(i + 1).fill('success'));
+		}
+		assert.strictEqual(new Set(fixture.starts).size, 10);
+	});
 
-	for (const change of ['rebind', 'replace view model', 'clear model', 'dispose', 'widget read-only', 'model read-only'] as const) {
-		test(`rejects ${change} while saving before a guarded submission`, async () => {
-			const fixture = createSubmissionWidget();
-			const saving = createBarrier();
-			fixture.editorService.saveAll.callsFake(async () => {
-				await saving.wait();
-				return { success: true, editors: [] };
-			});
+	test('navigation cancels even after the first render callback has been scheduled', async () => {
+		const fixture = createWidget();
+		fixture.response.progress();
+		await fixture.accept();
+		fixture.bind(fixture.createResponse(URI.parse('agent-host-copilotcli:/other')).response);
+		fixture.frame(2);
+		fixture.assertFinished('navigated');
+	});
 
-			const pending = fixture.widget.acceptInput('Test and fix the app', fixture.options);
-			await saving.entered;
-			switch (change) {
-				case 'rebind': fixture.rebind(fixture.other.viewModel); break;
-				case 'replace view model': fixture.rebind(createSession(fixture.original.model.sessionResource).viewModel); break;
-				case 'clear model': fixture.rebind(undefined); break;
-				case 'dispose': fixture.widgetStore.dispose(); break;
-				case 'widget read-only': fixture.setReadOnly(); break;
-				case 'model read-only': fixture.original.isReadOnly.set(true, undefined); break;
+	for (const stage of ['initially hidden', 'preparation', 'before progress', 'during render', 'disposed'] as const) {
+		test(`${stage} ends measurement without stopping submission or installing late listeners`, async () => {
+			const fixture = createWidget();
+			const pending = new DeferredPromise<IChatResponseModel>();
+			fixture.submitWith(() => pending.p);
+			if (stage === 'initially hidden') {
+				fixture.hide();
 			}
-			await saving.release();
-
-			await assert.rejects(pending, {
-				name: 'CodeExpectedError',
-				message: change.endsWith('read-only') ? /chat session is read-only/ : /chat session changed or was closed/,
-			});
-			assertNotAccepted(fixture);
-		});
-	}
-
-	test('rejects an initially mismatched session before saving', async () => {
-		const fixture = createSubmissionWidget();
-		fixture.options.expectedSessionResource = fixture.other.model.sessionResource;
-
-		await assert.rejects(fixture.widget.acceptInput('Test and fix the app', fixture.options), ErrorNoTelemetry);
-
-		assert.deepStrictEqual({ saves: fixture.editorService.saveAll.callCount, ...fixture.outcome() }, {
-			saves: 0, requests: 0, accepted: 0, inputAccepted: 0, pendingRemoved: 0, otherModelMutations: 0,
-		});
-	});
-
-	test('does not submit while session preparation is active', async () => {
-		const fixture = createSubmissionWidget();
-		Object.defineProperty(fixture.widget, 'transcriptProgress', { value: { onCancel: () => { } } });
-
-		const result = await fixture.widget.acceptInput('Test and fix the app', fixture.options);
-
-		assert.deepStrictEqual({ result, saves: fixture.editorService.saveAll.callCount, ...fixture.outcome() }, {
-			result: undefined, saves: 0, requests: 0, accepted: 0, inputAccepted: 0, pendingRemoved: 0, otherModelMutations: 0,
-		});
-	});
-
-	test('captures the originating model before stopping dictation', async () => {
-		const fixture = createSubmissionWidget();
-		const pending = fixture.widget.acceptInput('Test and fix the app', { ...fixture.options, preserveInput: false });
-		fixture.rebind(fixture.other.viewModel);
-
-		await assert.rejects(pending, ErrorNoTelemetry);
-		assertNotAccepted(fixture);
-	});
-
-	test('revalidates the originating model after input generation', async () => {
-		const fixture = createSubmissionWidget();
-		const generating = new DeferredPromise<void>();
-		Object.defineProperty(fixture.input, 'generating', { value: generating.p });
-		const pending = fixture.widget.acceptInput(undefined, fixture.options);
-		fixture.rebind(fixture.other.viewModel);
-		await generating.complete();
-
-		await assert.rejects(pending, ErrorNoTelemetry);
-		assertNotAccepted(fixture);
-	});
-
-	for (const stage of ['submit handler', 'pre-submit handler', 'cancellation', 'pending confirmation', 'prompt resolution', 'directory attachments'] as const) {
-		test(`rejects rebinding during ${stage}`, async () => {
-			const fixture = createSubmissionWidget();
-			const preparation = createBarrier();
-			switch (stage) {
-				case 'submit handler':
-					fixture.viewOptions.submitHandler = async () => { await preparation.wait(); return false; };
-					break;
-				case 'pre-submit handler':
-					fixture.chatSubmitRequestHandlerService.tryHandle.callsFake(async () => { await preparation.wait(); return false; });
-					break;
-				case 'cancellation':
-					fixture.original.hasActiveRequest.set(true, undefined);
-					fixture.original.requestInProgress.set(true, undefined);
-					fixture.options.cancelCurrentRequest = true;
-					fixture.chatService.cancelCurrentRequestForSession.callsFake(() => preparation.wait());
-					break;
-				case 'pending confirmation':
-					fixture.original.pendingRequests.push({
-						request: upcastPartial<IChatRequestModel>({ id: 'pending-request' }),
-						kind: ChatRequestQueueKind.Queued,
-						sendOptions: {},
-					});
-					fixture.dialogService.prompt.callsFake(async () => { await preparation.wait(); return { result: 'remove' }; });
-					break;
-				case 'prompt resolution':
-					fixture.options.preserveInput = false;
-					fixture.promptParts.push(new ChatRequestSlashPromptPart(new OffsetRange(0, 5), new Range(1, 1, 1, 6), 'test'));
-					fixture.customizationHarnessService.resolvePromptSlashCommand.callsFake(async () => { await preparation.wait(); return undefined; });
-					break;
-				case 'directory attachments':
-					fixture.options.preserveInput = false;
-					fixture.attachments.add({ kind: 'directory', id: 'directory', name: 'folder', value: URI.file('/workspace/images') });
-					fixture.chatAttachmentResolveService.resolveDirectoryImages.callsFake(async () => { await preparation.wait(); return []; });
-					break;
+			const accepting = fixture.accept();
+			if (stage === 'preparation') {
+				fixture.hide();
 			}
-			const pending = fixture.widget.acceptInput(stage === 'pre-submit handler' ? undefined : 'Test and fix the app', fixture.options);
-			await preparation.entered;
-			fixture.rebind(fixture.other.viewModel);
-			await preparation.release();
-
-			await assert.rejects(pending, ErrorNoTelemetry);
-			assertNotAccepted(fixture);
+			if (stage === 'disposed') {
+				fixture.widgetStore.dispose();
+			}
+			await pending.complete(fixture.response.response);
+			assert.strictEqual(await accepting, fixture.response.response);
+			if (stage === 'before progress') {
+				fixture.hide();
+			}
+			fixture.response.progress();
+			if (stage === 'during render') {
+				fixture.frame();
+				fixture.hide();
+			}
+			fixture.show();
+			fixture.frame(2);
+			fixture.assertFinished(stage === 'disposed' ? 'disposed' : 'hidden');
 		});
 	}
 
-	test('sends and accepts once when the originating model stays bound during saving', async () => {
-		const fixture = createSubmissionWidget();
-		const saving = createBarrier();
-		fixture.options.expectedSessionResource = URI.parse(fixture.original.model.sessionResource.toString());
-		fixture.editorService.saveAll.callsFake(async () => {
-			await saving.wait();
-			return { success: true, editors: [] };
+	test('uses the committed response session for attribution after preparation', async () => {
+		const fixture = createWidget();
+		const committed = fixture.createResponse(URI.parse('agent-host-copilotcli:/committed'));
+		fixture.submitWith(async () => {
+			fixture.bind(committed.response);
+			return committed.response;
 		});
-		const pending = fixture.widget.acceptInput('Test and fix the app', fixture.options);
-		await saving.entered;
-		await saving.release();
-		const response = await pending;
-
-		assert.deepStrictEqual({
-			...fixture.outcome(),
-			target: fixture.chatService.sendRequest.firstCall.args[0],
-			input: fixture.chatService.sendRequest.firstCall.args[1],
-			response,
-		}, {
-			requests: 1, accepted: 1, inputAccepted: 1, pendingRemoved: 0, otherModelMutations: 0,
-			target: fixture.original.model.sessionResource,
-			input: 'Test and fix the app',
-			response: fixture.response,
-		});
+		await fixture.accept();
+		committed.complete();
+		assert.strictEqual(fixture.events[0].data.chatSessionId, 'agent-host-copilotcli:/committed');
+		assert.strictEqual(committed.hasListeners(), false);
+		fixture.assertFinished('completedWithoutProgress');
 	});
 
-	test('unguarded submissions still wait for a model and allow session graduation', async () => {
-		const fixture = createSubmissionWidget();
-		fixture.rebind(undefined);
-		fixture.options.expectedSessionResource = undefined;
-		fixture.chatService.sendRequest.resolves({ ...fixture.sent, newSessionResource: fixture.other.model.sessionResource });
-		fixture.chatService.getSession.returns(fixture.other.model);
-		const pending = fixture.widget.acceptInput('Test and fix the app', fixture.options);
-		fixture.rebind(fixture.original.viewModel);
-		const response = await pending;
-
-		assert.deepStrictEqual({
-			...fixture.outcome(),
-			target: fixture.chatService.sendRequest.firstCall.args[0],
-			model: fixture.widget.viewModel?.model,
-			response,
-		}, {
-			requests: 1, accepted: 1, inputAccepted: 1, pendingRemoved: 0, otherModelMutations: 0,
-			target: fixture.original.model.sessionResource,
-			model: fixture.other.model,
-			response: fixture.response,
+	for (const error of [undefined, new CancellationError(), new Error('Submission failed')]) {
+		test(`cleans up when submission ${error ? `throws ${error.name}` : 'is not dispatched'}`, async () => {
+			const fixture = createWidget();
+			fixture.submitWith(async () => {
+				if (error) {
+					throw error;
+				}
+				return undefined;
+			});
+			if (error) {
+				await assert.rejects(fixture.accept(), error);
+			} else {
+				await fixture.accept();
+			}
+			fixture.assertFinished(error instanceof CancellationError ? 'cancelled' : error ? 'error' : 'notDispatched');
 		});
-	});
-
-	test('unguarded user input still submits normally', async () => {
-		const fixture = createSubmissionWidget();
-		const response = await fixture.widget.acceptInput(undefined, { onRequestAccepted: fixture.options.onRequestAccepted });
-
-		assert.deepStrictEqual({
-			...fixture.outcome(),
-			target: fixture.chatService.sendRequest.firstCall.args[0],
-			inputAccepted: fixture.input.acceptInput.firstCall.args,
-			response,
-		}, {
-			requests: 1, accepted: 1, pendingRemoved: 0, otherModelMutations: 0,
-			target: fixture.original.model.sessionResource,
-			inputAccepted: [true, undefined, undefined],
-			response: fixture.response,
-		});
-	});
+	}
 });
 
 suite('ChatWidget - acceptAndAwaitSentRequest', () => {

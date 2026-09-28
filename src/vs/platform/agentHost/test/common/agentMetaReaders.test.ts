@@ -8,11 +8,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { type AgentFusionPhaseStatus, isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSystemNotificationKind, type AgentFusionProgressStatus, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
+import { readMcpServerSource, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
-import type { SessionModelInfo, SimpleMessageAttachment } from '../../common/state/protocol/state.js';
+import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -36,6 +38,52 @@ function attachment(meta: Record<string, unknown> | undefined): SimpleMessageAtt
 suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('chat input state', () => {
+		test('validates restrictions and optional error fields', () => {
+			const states = [undefined, null, [], {}, { kind: 'checking' }, { kind: 'blocked', error: { errorType: 'locked', message: 'In use' } },
+				{ kind: 'blocked', error: { errorType: 1, message: 'In use' } },
+				{ kind: 'blocked', error: { errorType: 'locked', message: 'In use', stack: 1 } },
+				{ kind: 'blocked', error: { errorType: 'locked', message: 'In use', _meta: [] } }];
+			assert.deepStrictEqual(states.map(state => readChatInputState({ _meta: { 'vscode.chatInputState': { chat: state } } }, 'chat')), [
+				undefined, undefined, undefined, undefined, { kind: 'checking' }, { kind: 'blocked', error: { errorType: 'locked', message: 'In use' } }, undefined, undefined, undefined,
+			]);
+		});
+
+		test('clearing one chat preserves its sibling and unrelated metadata', () => {
+			const first = withChatInputState({ _meta: { unrelated: true } }, 'first', { kind: 'checking' });
+			const second = withChatInputState({ _meta: first }, 'second', { kind: 'checking' });
+			assert.deepStrictEqual(withChatInputState({ _meta: second }, 'first', undefined), {
+				unrelated: true, 'vscode.chatInputState': { second: { kind: 'checking' } },
+			});
+		});
+	});
+
+	test('validates MCP configuration sources and merges them into open metadata', () => {
+		const read = (meta: Record<string, unknown> | undefined) => readMcpServerSource({
+			type: CustomizationType.McpServer,
+			id: 'server',
+			uri: 'mcp-top-level:server',
+			name: 'server',
+			state: { kind: McpServerStatus.Ready },
+			_meta: meta,
+		} satisfies McpServerCustomization);
+		const opaque = { 'test.opaque': 'kept' };
+
+		assert.deepStrictEqual({
+			sources: [
+				...(['user', 'workspace', 'plugin', 'builtin', 'managed'] as const).map(source => read(withMcpServerSourceMeta(undefined, source))),
+				...[undefined, 'unknown', 1, {}, ['user']].map(source => read({ 'agentHost.mcpServerSource': source })),
+				read(undefined),
+			],
+			replaced: withMcpServerSourceMeta(withMcpServerSourceMeta(opaque, 'user'), 'workspace'),
+			unchanged: withMcpServerSourceMeta(opaque, undefined) === opaque,
+		}, {
+			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', undefined, undefined, undefined, undefined, undefined, undefined],
+			replaced: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'workspace' },
+			unchanged: true,
+		});
+	});
 
 	suite('readToolCallMeta', () => {
 		test('returns empty when no _meta', () => {
@@ -132,6 +180,18 @@ suite('Agent host _meta readers', () => {
 			}, {
 				valid: statuses.map(fusionStatus => ({ ...empty, kind: AgentSystemNotificationKind.FusionProgress, fusionStatus })),
 				invalid: invalid.map(() => empty),
+			});
+		});
+
+		test('round trips the namespaced Fusion description and drops malformed values', () => {
+			assert.deepStrictEqual({
+				valid: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: 'Workflow description.' }) }).fusionDescription,
+				empty: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: '' }) }).fusionDescription,
+				invalid: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionDescription': 1 } }).fusionDescription,
+			}, {
+				valid: 'Workflow description.',
+				empty: '',
+				invalid: undefined,
 			});
 		});
 	});
@@ -240,6 +300,7 @@ suite('Agent host _meta readers', () => {
 					'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
 					'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
 					'- Focus on the user\'s selected range when one is provided.',
+					'- The <editor_inline_context> block is current, authoritative source. When it contains enough context for the requested edit, edit directly without reading or viewing the file first.',
 					'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
 					'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
 					'- Produce the edit directly rather than explaining it or writing a tutorial.',
@@ -252,6 +313,7 @@ suite('Agent host _meta readers', () => {
 					'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
 					'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
 					'- Focus on the user\'s selected range when one is provided.',
+					'- The <editor_inline_context> block is current, authoritative source. When it contains enough context for the requested edit, edit directly without reading or viewing the file first.',
 					'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
 					'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
 					'- Produce the edit directly rather than explaining it or writing a tutorial.',

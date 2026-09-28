@@ -786,6 +786,52 @@ suite('TerminalSandboxEngine', () => {
 		ok(!config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user'), 'User home should not be denied by default on Windows');
 	});
 
+	test('Windows sandbox config includes host read roots without granting write access', async () => {
+		enableWindowsSandbox();
+		const host = createWindowsHost({
+			getReadRoots: () => [URI.from({ scheme: 'file', path: '/c:/session-data/session-1/attachments' })],
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		await engine.wrapCommand('echo hello', false, 'pwsh');
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config: IWindowsMxcConfig = JSON.parse(createdFiles.get(configPath)!);
+		const attachmentPath = 'c:/session-data/session-1/attachments';
+
+		deepStrictEqual({
+			readonly: config.filesystem?.readonlyPaths?.some(path => normalizeWindowsPathForAssert(path) === attachmentPath),
+			readwrite: config.filesystem?.readwritePaths?.some(path => normalizeWindowsPathForAssert(path) === attachmentPath),
+			sessionStorage: config.filesystem?.readonlyPaths?.some(path => normalizeWindowsPathForAssert(path) === 'c:/session-data/session-1'),
+		}, {
+			readonly: true,
+			readwrite: false,
+			sessionStorage: false,
+		});
+	});
+
+	test('checkFileAccess includes host read roots on Windows', async () => {
+		enableWindowsSandbox();
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsFileSystem, {
+			denyRead: ['C:/session-data'],
+		});
+		const host = createWindowsHost({
+			getReadRoots: () => [URI.from({ scheme: 'file', path: '/c:/session-data/session-1/attachments' })],
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		deepStrictEqual({
+			read: await engine.checkFileAccess('read', [
+				'C:\\session-data\\session-1\\attachments\\image.png',
+				'C:\\session-data\\session-1\\private.json',
+			]),
+			write: await engine.checkFileAccess('write', ['C:\\session-data\\session-1\\attachments\\image.png']),
+		}, {
+			read: { allowed: false, denied: ['C:\\session-data\\session-1\\private.json'] },
+			write: { allowed: false, denied: ['C:\\session-data\\session-1\\attachments\\image.png'] },
+		});
+	});
+
 	test('deduplicates Windows filesystem paths regardless of case or separator', async () => {
 		enableWindowsSandbox();
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsFileSystem, {

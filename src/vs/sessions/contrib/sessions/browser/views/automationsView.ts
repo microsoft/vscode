@@ -1186,8 +1186,6 @@ class AutomationRunSession implements ISession {
 	get updatedAt() { return this.session.updatedAt; }
 	get completedStateIcon() { return this.session.completedStateIcon; }
 	get changesSummary() { return this.session.changesSummary; }
-	get changes() { return this.session.changes; }
-	get changesets() { return this.session.changesets; }
 	get artifacts() { return this.session.artifacts; }
 	get modelId() { return this.session.modelId; }
 	get mode() { return this.session.mode; }
@@ -1444,6 +1442,7 @@ class AutomationHistorySection extends Disposable {
 			alwaysConsumeMouseWheel: false,
 			useCompactQuickChatRows: false,
 			toolbarMenuId: Menus.AutomationsHistoryItem,
+			toolbarTelemetrySource: 'automationsView.historyRow',
 			contextMenuId: Menus.AutomationsHistoryItemContext,
 			markSessionReadOnOpen: false,
 			approvalModel: this.approvalModel,
@@ -2158,16 +2157,6 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 				),
 			),
 		})),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItem, {
-			command: {
-				id: ARCHIVE_SESSION_COMMAND_ID,
-				title: archivePresentation.archive.title,
-				icon: archivePresentation.archive.icon,
-			},
-			group: 'navigation',
-			order: 2,
-			when: ContextKeyExpr.and(AutomationRunHasExternalResourceContext.negate(), SessionIsArchivedContext.negate()),
-		}),
 		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
 			command: {
 				id: MARK_SESSION_READ_COMMAND_ID,
