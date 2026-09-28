@@ -8,7 +8,7 @@ import { ChildProcess, spawn } from 'child_process';
 import { once } from 'events';
 import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { DeferredPromise, Promises, raceTimeout, retry } from '../../../../base/common/async.js';
+import { DeferredPromise, Promises, raceTimeout, retry, timeout } from '../../../../base/common/async.js';
 import { getErrorCode } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
@@ -324,6 +324,53 @@ suite('Agent Host test server cleanup', () => {
 		});
 	});
 
+	for (const phase of ['before termination', 'after termination']) {
+		test(`bounds a stalled identity check ${phase} by the descendant cleanup deadline`, () => runWithFakedTimers({}, async () => {
+			const server = new TestServerProcess();
+			const descendant = { pid: server.pid + 1, name: 'node.exe', commandLine: 'node child.js', creationTime: '200' };
+			const identity = new DeferredPromise<boolean>();
+			const start = Date.now();
+			let checks = 0;
+			let kills = 0;
+			try {
+				await assert.rejects(stopServer({ process: server, port: 0 }, async () => [descendant], 0, {
+					killTree: async () => { server.exit(); },
+					killProcess: () => { kills++; },
+					isSameProcessRunning: async () => ++checks === 1 && phase === 'after termination' ? true : identity.p,
+				}), /Timed out cleaning up Agent Host test server descendant/);
+				assert.deepStrictEqual({ elapsedMs: Date.now() - start, checks, kills }, {
+					elapsedMs: 5_000,
+					checks: phase === 'before termination' ? 1 : 2,
+					kills: phase === 'before termination' ? 0 : 1,
+				});
+			} finally {
+				identity.complete(false);
+			}
+		}));
+	}
+
+	test('slow identity polling shares one deadline across checks and retries', () => runWithFakedTimers({}, async () => {
+		const server = new TestServerProcess();
+		const descendant = { pid: server.pid + 1, name: 'node.exe', commandLine: 'node child.js', creationTime: '200' };
+		const start = Date.now();
+		const budgets: number[] = [];
+		let kills = 0;
+		await assert.rejects(stopServer({ process: server, port: 0 }, async () => [descendant], 0, {
+			killTree: async () => { server.exit(); },
+			killProcess: () => { kills++; },
+			isSameProcessRunning: async (_descendant, timeoutMs) => {
+				budgets.push(timeoutMs);
+				await timeout(1_000);
+				return true;
+			},
+		}), /Timed out cleaning up Agent Host test server descendant/);
+		assert.deepStrictEqual({ elapsedMs: Date.now() - start, budgets, kills }, {
+			elapsedMs: 5_000,
+			budgets: [5_000, 4_000, 2_950, 1_900, 850],
+			kills: 1,
+		});
+	}));
+
 	test('ignores a failed descendant kill when the process identity is no longer present', async function () {
 		this.timeout(15_000);
 		const result = await runDescendantKillFailureTest([false]);
@@ -557,7 +604,11 @@ suite('Agent Host test server cleanup', () => {
 				await stopServer({ process: server, port: 0 });
 			}
 
-			assert.ok(server.exitCode !== null || server.signalCode !== null);
+			if (forceful) {
+				assert.ok(server.exitCode !== null || server.signalCode !== null);
+			} else {
+				assert.strictEqual(server.exitCode, 0);
+			}
 			assert.throws(() => process.kill(message, 0), { code: 'ESRCH' });
 			await rm(directory, { recursive: true, maxRetries: 10, retryDelay: 100 });
 		} finally {

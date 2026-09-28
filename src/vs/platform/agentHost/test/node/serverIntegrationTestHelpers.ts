@@ -5,7 +5,7 @@
 
 import { ChildProcess, execFile, fork } from 'child_process';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
-import { DeferredPromise, Promises, raceTimeout, retry } from '../../../../base/common/async.js';
+import { DeferredPromise, Promises, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { appendFileSync, mkdirSync } from 'fs';
@@ -663,6 +663,7 @@ export interface IServerHandle {
 
 const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
 const SERVER_EXIT_TIMEOUT_MS = 1_000;
+const SERVER_DESCENDANT_CLEANUP_TIMEOUT_MS = 5_000;
 
 interface IServerDescendant {
 	readonly pid: number;
@@ -732,12 +733,12 @@ export function collectServerDescendants(pid: number, processList: readonly IWin
 
 let pendingWindowsProcessList: Promise<IWindowsProcessInfo[]> | undefined;
 
-function getWindowsProcessList(): Promise<IWindowsProcessInfo[]> {
+function getWindowsProcessList(timeoutMs: number): Promise<IWindowsProcessInfo[]> {
 	// Share concurrent identity checks, but never retain a snapshot after its query completes.
-	return pendingWindowsProcessList ??= readWindowsProcessList().finally(() => { pendingWindowsProcessList = undefined; });
+	return pendingWindowsProcessList ??= readWindowsProcessList(timeoutMs).finally(() => { pendingWindowsProcessList = undefined; });
 }
 
-async function readWindowsProcessList(): Promise<IWindowsProcessInfo[]> {
+async function readWindowsProcessList(timeoutMs = SERVER_SHUTDOWN_TIMEOUT_MS): Promise<IWindowsProcessInfo[]> {
 	const { stdout } = await promisify(execFile)(
 		resolvePath(process.env['WINDIR'] || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
 		['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', `
@@ -754,7 +755,7 @@ async function readWindowsProcessList(): Promise<IWindowsProcessInfo[]> {
 			})
 			ConvertTo-Json -InputObject $processes -Compress
 		`],
-		{ windowsHide: true, timeout: SERVER_SHUTDOWN_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+		{ windowsHide: true, timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 },
 	);
 	return JSON.parse(stdout);
 }
@@ -763,7 +764,7 @@ async function getServerDescendants(pid: number): Promise<IServerDescendant[]> {
 	if (!isWindows) {
 		return [];
 	}
-	return collectServerDescendants(pid, await getWindowsProcessList());
+	return collectServerDescendants(pid, await readWindowsProcessList());
 }
 
 export function isSameServerProcess(descendant: IServerDescendant, processList: readonly IWindowsProcessInfo[]): boolean {
@@ -771,14 +772,14 @@ export function isSameServerProcess(descendant: IServerDescendant, processList: 
 	return process?.name === descendant.name && process.commandLine === descendant.commandLine && process.creationTime === descendant.creationTime;
 }
 
-async function isSameWindowsProcessRunning(descendant: IServerDescendant): Promise<boolean> {
-	return isSameServerProcess(descendant, await getWindowsProcessList());
+async function isSameWindowsProcessRunning(descendant: IServerDescendant, timeoutMs: number): Promise<boolean> {
+	return isSameServerProcess(descendant, await getWindowsProcessList(timeoutMs));
 }
 
 interface IServerProcessOperations {
 	killTree(pid: number, forceful: boolean): Promise<void>;
 	killProcess(pid: number): void;
-	isSameProcessRunning(descendant: IServerDescendant): Promise<boolean>;
+	isSameProcessRunning(descendant: IServerDescendant, timeoutMs: number): Promise<boolean>;
 }
 
 const defaultServerProcessOperations: IServerProcessOperations = {
@@ -860,8 +861,19 @@ async function shutdownServer(
 		throw snapshotError;
 	}
 
+	const descendantDeadline = Date.now() + SERVER_DESCENDANT_CLEANUP_TIMEOUT_MS;
+	const isSameProcessRunning = async (descendant: IServerDescendant): Promise<boolean> => {
+		const remainingMs = descendantDeadline - Date.now();
+		if (remainingMs > 0) {
+			const running = await raceTimeout(processOperations.isSameProcessRunning(descendant, remainingMs), remainingMs);
+			if (running !== undefined) {
+				return running;
+			}
+		}
+		throw new Error(`Timed out cleaning up Agent Host test server descendant ${descendant.pid}`);
+	};
 	const killResults = await Promises.settled(descendants.map(async descendant => {
-		if (!await processOperations.isSameProcessRunning(descendant)) {
+		if (!await isSameProcessRunning(descendant)) {
 			logServerCleanup(serverProcess.pid, `Skipping exited or replaced descendant: pid=${descendant.pid} name=${descendant.name} creationTime=${descendant.creationTime}`);
 			return undefined;
 		}
@@ -879,21 +891,14 @@ async function shutdownServer(
 		if (!result) {
 			return;
 		}
-		if (!result.succeeded) {
-			await retry(async () => {
-				if (await processOperations.isSameProcessRunning(result.descendant)) {
-					throw result.error;
-				}
-			}, 50, 5);
-			logServerCleanup(serverProcess.pid, `Descendant exited after failed termination: pid=${result.descendant.pid}`);
-			return;
-		}
-		await retry(async () => {
-			if (await processOperations.isSameProcessRunning(result.descendant)) {
-				throw new Error(`Agent Host test server descendant ${result.descendant.pid} did not exit after termination`);
+		let attempts = 0;
+		while (await isSameProcessRunning(result.descendant)) {
+			if (!result.succeeded && ++attempts === 5) {
+				throw result.error;
 			}
-		}, 50, 100);
-		logServerCleanup(serverProcess.pid, `Descendant exit verified: pid=${result.descendant.pid}`);
+			await timeout(Math.min(50, Math.max(0, descendantDeadline - Date.now())));
+		}
+		logServerCleanup(serverProcess.pid, `${result.succeeded ? 'Descendant exit verified' : 'Descendant exited after failed termination'}: pid=${result.descendant.pid}`);
 	}));
 	logServerCleanup(serverProcess.pid, 'Shutdown complete');
 }
