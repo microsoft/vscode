@@ -6,9 +6,9 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -82,7 +82,7 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackSt
 import { IAquariumService } from '../../../aquarium/browser/aquariumOverlay.js';
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../../github/common/types.js';
 import { NewChatView } from '../../browser/chatView.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { INewSessionComposerService, INewSessionPromptOption, NewSessionComposerService, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
@@ -113,7 +113,6 @@ interface INewChatWidgetFixtureOptions {
 	readonly withAttachedContext?: boolean;
 	readonly withControlPickers?: boolean;
 	readonly expandSessionOptions?: boolean;
-	readonly nonDefaultHarness?: boolean;
 	readonly withAutoModel?: boolean;
 	readonly withConfiguredModel?: boolean;
 	readonly primaryToolbarWidth?: number;
@@ -121,6 +120,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly chatBackground?: 'codicons' | 'loud';
 	readonly migrationCount?: number;
 	readonly experimentalComposerLayout?: boolean;
+	readonly collapsedSessionOptionsShowIcons?: boolean;
 }
 
 class FixturePickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
@@ -241,7 +241,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		withAttachedContext = false,
 		withControlPickers = false,
 		expandSessionOptions = true,
-		nonDefaultHarness = false,
 		withAutoModel = false,
 		withConfiguredModel = false,
 		primaryToolbarWidth,
@@ -249,6 +248,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		chatBackground,
 		migrationCount = 0,
 		experimentalComposerLayout = false,
+		collapsedSessionOptionsShowIcons = false,
 	} = options;
 	const hasChatBackground = chatBackground !== undefined;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
@@ -263,9 +263,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const workspace = createFixtureWorkspace(withRemoteWorkspace);
 	const sessionTypes = createFixtureSessionTypes();
 	const provider = createFixtureProvider(workspace, sessionTypes, withConfiguredModel ? [createFixtureConfiguredModel()] : withAutoModel ? [createFixtureAutoModel()] : [], disposableStore, withControlPickers);
-	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext
-		? createFixtureActiveSession(workspace, sessionTypes[nonDefaultHarness ? 1 : 0], migrationCount > 0, provider.id)
-		: undefined;
+	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext ? createFixtureActiveSession(workspace, sessionTypes[0], migrationCount > 0, provider.id) : undefined;
 	const activeSessionObservable = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
@@ -278,6 +276,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: withControlPickers,
 		[UNIFIED_WORKSPACE_PICKER_SETTING]: experimentalComposerLayout,
 		[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalComposerLayout,
+		[COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING]: collapsedSessionOptionsShowIcons,
 		...(chatBackground === 'codicons' ? {
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
 			[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
@@ -570,16 +569,25 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		? headingStyle.display !== 'none'
 		&& headingStyle.textAlign === 'center'
 		&& headingStyle.fontSize === headingStyle.getPropertyValue('--vscode-fontSize-heading1').trim()
+		&& headingStyle.fontWeight === headingStyle.getPropertyValue('--vscode-fontWeight-semiBold').trim()
 		: headingStyle.display === 'none',
-		'The welcome heading must be visible and styled only in the experimental composer.');
+		'The welcome heading must use the heading type role only in the experimental composer.');
 	const promptBox = view.element.querySelector<HTMLElement>('.new-chat-input-container');
 	assert(!!promptBox);
 	if (experimentalComposerLayout) {
 		const optionsToggle = view.element.querySelector<HTMLElement>('.new-chat-session-options-toggle');
 		const sessionOptions = view.element.querySelector<HTMLElement>('.new-chat-session-options-details');
 		const optionsTray = view.element.querySelector<HTMLElement>('.new-chat-session-options');
-		assert(!!optionsToggle && !!sessionOptions && !!optionsTray && sessionOptions.hidden && sessionOptions.inert
-			&& optionsToggle.getAttribute('aria-expanded') === 'false', 'Session options must be collapsed by default.');
+		assert(!!optionsToggle && !!sessionOptions && !!optionsTray && !sessionOptions.hidden && !sessionOptions.inert,
+			'Session options must be expanded by default.');
+		if (withControlPickers && width >= 800) {
+			assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => label.checkVisibility()),
+				'Wide composers must initially show every picker label.');
+		}
+		optionsToggle.click();
+		for (const animation of sessionOptions.getAnimations()) {
+			animation.finish();
+		}
 		await nextFrame();
 		const collapsedTrayBounds = optionsTray.getBoundingClientRect();
 		const promptBounds = promptBox.getBoundingClientRect();
@@ -590,12 +598,19 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				'The collapsed tray must join the top of the prompt.');
 		}
 		assert(collapsedTrayBounds.width < promptBounds.width, 'The collapsed tray must fit its controls, not the prompt width.');
+		if (collapsedSessionOptionsShowIcons) {
+			const detailLabels = [...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')];
+			const detailControls = [...sessionOptions.querySelectorAll<HTMLElement>('.action-label[role="button"]')].filter(control => control.checkVisibility());
+			assert(!sessionOptions.hidden && !sessionOptions.inert && sessionOptions.classList.contains('collapsed-icon-rail')
+				&& !optionsToggle.hidden && optionsToggle.getAttribute('aria-expanded') === 'false'
+				&& detailControls.length > 0 && detailLabels.every(label => !label.checkVisibility()),
+				'The collapsed icon rail keeps the pickers reachable as icons with the disclosure toggle available.');
+		}
 		if (expandSessionOptions) {
 			optionsToggle.click();
 			assert(!sessionOptions.hidden && !sessionOptions.inert && optionsToggle.getAttribute('aria-expanded') === 'true');
-			if (withControlPickers && width >= 800) {
-				assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => label.checkVisibility()),
-					'Wide composers must show every picker label when expanded.');
+			for (const animation of sessionOptions.getAnimations()) {
+				animation.finish();
 			}
 			await nextFrame();
 			assert(optionsTray.getBoundingClientRect().width > collapsedTrayBounds.width, 'The tray must grow with its revealed controls.');
@@ -613,16 +628,15 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		assert(parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0
 			&& trayStyle.borderBottomLeftRadius === '0px' && trayStyle.borderBottomRightRadius === '0px',
 			'The tray must round its outer top corners and keep its joined bottom edge square.');
-		assert(trayBounds.left > promptBounds.left && trayBounds.right < promptBounds.right,
-			'The tray must remain inset from the prompt.');
+		assert(trayBounds.left >= promptBounds.left - 1 && trayBounds.right <= promptBounds.right + 1,
+			'The tray must fit within the prompt width.');
 		if (phoneLayout) {
 			assert(Math.abs(trayBounds.left + trayBounds.width / 2 - promptBounds.left - promptBounds.width / 2) < 1,
 				'The phone workspace picker must retain its centered layout.');
 		} else {
-			const inset = parseFloat(trayStyle.getPropertyValue('--vscode-spacing-size160'));
-			assert(Math.abs(trayBounds.left - promptBounds.left - inset) < 1
+			assert(Math.abs(trayBounds.left - promptBounds.left) < 1
 				&& Math.abs(collapsedTrayBounds.left - trayBounds.left) < 1,
-				'The tray must remain left-aligned at the same token inset when expanded or collapsed.');
+				'The tray must stay left-aligned with the prompt when expanded or collapsed.');
 		}
 		const toggleStyle = targetWindow.getComputedStyle(optionsToggle);
 		assert(toggleStyle.display === 'flex' && toggleStyle.alignItems === 'center' && toggleStyle.justifyContent === 'center',
@@ -666,7 +680,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => !label.checkVisibility()),
 				'Narrow trays must show repository and harness icons without labels.');
 			const states: boolean[][] = [];
-			for (const resizedWidth of [800, 480, 440, 380, 440, 480, 800]) {
+			for (const resizedWidth of [800, 450, 410, 375, 410, 450, 800]) {
 				container.style.width = `${resizedWidth}px`;
 				view.layout(resizedWidth, height, 0, 0);
 				await nextFrame();
@@ -828,8 +842,19 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, expandSessionOptions: true, experimentalComposerLayout: true }),
 	}),
 	NewSessionOptionsCollapsed: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, expandSessionOptions: false, nonDefaultHarness: true, experimentalComposerLayout: true }),
+		virtualTime: { enabled: false },
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, expandSessionOptions: false, experimentalComposerLayout: true }),
+	}),
+	NewSessionOptionsIconRail: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, expandSessionOptions: false, collapsedSessionOptionsShowIcons: true, experimentalComposerLayout: true }),
+	}),
+	NewSessionOptionsAnimated: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => {
+			context.container.classList.remove('disable-animations');
+			return renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true });
+		},
 	}),
 	NewSessionOptionsExpandedNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },

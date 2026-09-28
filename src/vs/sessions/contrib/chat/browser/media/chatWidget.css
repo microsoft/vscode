@@ -66,7 +66,7 @@
 }
 
 .experimental-new-session-composer .new-session-workspace-picker-container {
-	padding: 0 var(--vscode-spacing-size160);
+	padding: 0;
 	margin-top: var(--vscode-spacing-size120);
 	margin-bottom: 0;
 }
@@ -121,6 +121,7 @@
 }
 
 .new-session-workspace-picker-container .sessions-workspace-category-picker.new-chat-session-options {
+	position: relative;
 	width: fit-content;
 	max-width: 100%;
 	margin: 0;
@@ -133,6 +134,48 @@
 	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 
+/* Shoulder: like the connected editor tabs, the tab base flares outward with a small concave
+	fillet where it meets the input surface, instead of a hard step. Only the right side needs it;
+	the left edge is flush with the input. The radius matches the tabs' shoulder
+	(cornerRadius-small + strokeThickness). */
+.new-session-workspace-picker-container .sessions-workspace-category-picker.new-chat-session-options::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	left: 100%;
+	width: calc(var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness));
+	height: calc(var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness));
+	box-sizing: border-box;
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-bottom-left-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness));
+	box-shadow: calc(-1 * (var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness)) / 2) calc((var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness)) / 2) 0 calc((var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness)) / 2) var(--vscode-editorWidget-background);
+	pointer-events: none;
+}
+
+/* Getting-started tip demoted below the input in the experimental composer, matching
+	the placement of the new-session migration notice. Hidden by the presenter until a
+	tip is showing, so it reserves no space otherwise. */
+.experimental-new-session-composer .new-session-getting-started-tip-below {
+	width: 100%;
+	max-width: 800px;
+	/* Extra top gap so the tip's hover actions, which float above its top edge, clear the input. */
+	margin: var(--vscode-spacing-size280) auto 0;
+}
+
+/* As a standalone card (not attached above the input) the tip takes a full border and
+	rounds every corner, unlike the input-attached notice that squares its joined bottom. */
+.new-session-getting-started-tip-below .chat-input-notice {
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/* The session options tray joins the input at its top-left corner, so square that corner
+	while the exposed top-right stays rounded. Quick chat has no tray above the input. */
+.experimental-new-session-composer:not(.quick-chat) .new-chat-input-area {
+	border-top-left-radius: 0;
+}
+
 .new-chat-session-options .new-chat-session-options-details {
 	display: flex;
 	flex: 0 0 auto;
@@ -142,7 +185,9 @@
 	min-width: 0;
 	width: max-content;
 	margin-left: var(--vscode-spacing-size80);
+	interpolate-size: allow-keywords;
 	overflow: clip;
+	transition: width 180ms ease-out, margin-left 180ms ease-out, opacity 180ms ease-out, display 180ms allow-discrete;
 }
 
 .new-chat-session-options-details.legacy-session-options-details {
@@ -151,6 +196,32 @@
 
 .new-chat-session-options .new-chat-session-options-details[hidden] {
 	display: none;
+	width: 0;
+	margin-left: 0;
+	opacity: 0;
+}
+
+@starting-style {
+	.new-chat-session-options .new-chat-session-options-details:not([hidden]) {
+		width: 0;
+		margin-left: 0;
+		opacity: 0;
+	}
+}
+
+.monaco-reduce-motion .new-chat-session-options .new-chat-session-options-details {
+	transition: none;
+}
+
+/* Intrinsic sizing must measure the final expanded width, not the reveal transition. */
+.chat-input-picker-measurement-host .new-chat-session-options .new-chat-session-options-details {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.new-chat-session-options .new-chat-session-options-details {
+		transition: none;
+	}
 }
 
 .new-chat-session-options .monaco-button.new-chat-session-options-toggle {
@@ -165,38 +236,7 @@
 	border: 0;
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
-	font-family: inherit;
 	font-size: var(--vscode-codiconFontSize-compact);
-}
-
-.new-chat-session-options .monaco-button.new-chat-session-options-toggle.has-summary {
-	width: auto;
-	gap: var(--vscode-spacing-size60);
-	padding: 0 var(--vscode-spacing-size60);
-}
-
-.new-chat-session-options-summary,
-.new-chat-session-options-summary-tokens {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	min-width: 0;
-}
-
-.new-chat-session-options-summary {
-	font-size: var(--vscode-fontSize-label1);
-	white-space: nowrap;
-}
-
-.new-chat-session-options-summary-token {
-	padding: 0 var(--vscode-spacing-size40);
-	overflow: hidden;
-	color: var(--vscode-foreground);
-	background-color: var(--vscode-toolbar-hoverBackground);
-	border-radius: var(--vscode-cornerRadius-circle);
-	font-size: var(--vscode-fontSize-label2);
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .new-chat-session-options .monaco-button.new-chat-session-options-toggle:hover {
@@ -252,6 +292,13 @@
 
 .new-chat-session-options .sessions-chat-dropdown-label {
 	margin-left: 0;
+}
+
+/* Collapsed icon rail: keep the repository and harness pickers as icons only, so they
+	stay reachable without their labels taking up space. The workspace picker keeps its
+	label as the composer's anchor. */
+.new-chat-session-options .new-chat-session-options-details.collapsed-icon-rail .sessions-chat-dropdown-label {
+	display: none;
 }
 
 .new-chat-session-options .new-chat-repo-config-container {

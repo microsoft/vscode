@@ -9,7 +9,7 @@ import { DeferredPromise, timeout } from '../../../../../../../base/common/async
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
@@ -50,7 +50,6 @@ import { ISessionsProvider } from '../../../../../../services/sessions/common/se
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
-import { INewSessionComposerService } from '../../../../../../contrib/chat/browser/newSessionComposerService.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
@@ -277,11 +276,6 @@ function setupServices(
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(INewSessionComposerService, new class extends mock<INewSessionComposerService>() {
-		override registerOptionSummaryProvider() {
-			return Disposable.None;
-		}
-	}());
 	const configurationService = new TestConfigurationService({
 		[DevContainerWorktreeEnabledSettingId]: false,
 	});
@@ -514,21 +508,14 @@ suite('Agent Host Session Config Picker', () => {
 		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable([services.activeSession]);
 		}());
-		const contribution = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
+		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
 
 		const entries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
 			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
-		const defaultSummaries = contribution.getNonDefaultOptions(services.activeSession);
-		services.provider.config = makeRepoConfig('main', 'folder');
-		const nonDefaultSummaries = contribution.getNonDefaultOptions(services.activeSession);
 
-		assert.deepStrictEqual({ entries, defaultSummaries, nonDefaultSummaries }, {
-			entries: ['Isolation', 'Base Branch'],
-			defaultSummaries: [],
-			nonDefaultSummaries: [{ id: 'isolation', label: 'Branch' }],
-		});
+		assert.deepStrictEqual(entries, ['Isolation', 'Base Branch']);
 	});
 
 	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
@@ -1727,12 +1714,14 @@ suite('Agent Host Session Config Picker', () => {
 			devContainerCheckbox: container.querySelector('.sessions-chat-dev-container-checkbox'),
 			worktreeDisabled: worktreeItem.disabled,
 			reason: worktreeItem.detail,
+			ariaLabel: services.actionWidget.accessibilityProvider?.getAriaLabel?.(worktreeItem),
 			branchEnabled: !services.actionWidget.items.find(item => item.item?.value === 'folder')?.disabled,
 			setSessionConfigValueCalls: services.provider.setSessionConfigValueCalls,
 		}, {
 			devContainerCheckbox: null,
 			worktreeDisabled: true,
 			reason: 'New Worktree cannot be combined with Dev Container execution.',
+			ariaLabel: 'New Worktree, New Worktree cannot be combined with Dev Container execution.',
 			branchEnabled: true,
 			setSessionConfigValueCalls: 0,
 		});

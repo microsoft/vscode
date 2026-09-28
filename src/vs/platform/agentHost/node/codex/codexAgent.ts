@@ -4150,7 +4150,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._connectionGeneration++;
 		this._modelCatalogGeneration++;
 		this._connection = { kind: 'idle' };
-		this._codexChatDiscovery.value?.invalidate();
+		this._codexChatDiscovery.value?.invalidateCatalog();
 		this._skillHookCustomizationRefresh.clear();
 		this._pendingMcpStartupStatuses.clear();
 		this._mcpInventory.clear();
@@ -7382,7 +7382,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				}
 				return this._emitCodexChats();
 			});
-			this._chatHistoryInvalidationListener.value = this._codexChatDiscovery.value.onDidInvalidate(() => {
+			this._chatHistoryInvalidationListener.value = this._codexChatDiscovery.value.onDidInvalidateHistory(() => {
 				for (const watch of this._chatHistoryWatches.values()) {
 					watch.invalidate();
 				}
@@ -7396,7 +7396,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (this._isShuttingDown || this._store.isDisposed) {
 			return;
 		}
-		this._codexChatDiscovery.value?.invalidate();
+		this._codexChatDiscovery.value?.invalidateCatalog();
 	}
 
 	private async _emitCodexChats(): Promise<boolean> {

@@ -15,7 +15,6 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { Delayer, SequencerByKey } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -47,7 +46,6 @@ import { DevContainerWorktreeEnabledSettingId } from '../../../../common/devCont
 import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
-import { INewSessionComposerService, INewSessionOptionSummary, INewSessionOptionSummaryProvider } from '../../../chat/browser/newSessionComposerService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -55,7 +53,6 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISession, type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { PermissionPicker } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../copilotChatSessions/browser/mobilePermissionPicker.js';
@@ -76,6 +73,7 @@ import { isAutoApproveValuePolicyRestricted } from '../../../../../workbench/con
 import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { filterBranchPickerItems } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
+import { type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
@@ -1613,14 +1611,12 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 	}
 }
 
-export class AgentHostSessionConfigPickerContribution extends Disposable implements IWorkbenchContribution, INewSessionOptionSummaryProvider {
+export class AgentHostSessionConfigPickerContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'sessions.contrib.agentHostSessionConfigPicker';
 
 	private readonly _repositoryMenuItems = this._register(new DisposableStore());
 	private readonly _repositoryPropertyRegistrations = this._register(new DisposableMap<string>());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
-	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -1628,10 +1624,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@INewSessionComposerService newSessionComposerService: INewSessionComposerService,
 	) {
 		super();
-		this._register(newSessionComposerService.registerOptionSummaryProvider(this));
 		// The mode-picker factories below pick the mobile subclass at
 		// view-item construction time when the viewport is phone, and
 		// the desktop class otherwise. The session-config picker
@@ -1731,31 +1725,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			if (!isAgentHostProvider(provider) || this._providerListeners.has(provider.id)) {
 				continue;
 			}
-			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(() => {
-				this._refreshRepositoryMenuItems(actionViewItemService);
-				this._onDidChange.fire();
-			}));
+			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(() => this._refreshRepositoryMenuItems(actionViewItemService)));
 		}
-	}
-
-	getNonDefaultOptions(session: ISession): readonly INewSessionOptionSummary[] {
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
-		if (!provider || !isAgentHostProvider(provider)) {
-			return [];
-		}
-		const config = provider.getSessionConfig(session.sessionId);
-		const schema = config?.schema.properties[SessionConfigKey.Isolation];
-		const value = config?.values[SessionConfigKey.Isolation] ?? schema?.default;
-		if (!schema?.enum?.includes('worktree') || !schema.enum.includes('folder') || value === schema.default) {
-			return [];
-		}
-		if (value === 'worktree') {
-			return [{ id: 'isolation', label: localize('agentHostSessionConfig.isolation.worktree', "New Worktree") }];
-		}
-		if (value === 'folder') {
-			return [{ id: 'isolation', label: localize('agentHostSessionConfig.isolation.branch', "Branch") }];
-		}
-		return [];
 	}
 
 	private _refreshRepositoryMenuItems(actionViewItemService: IActionViewItemService): void {

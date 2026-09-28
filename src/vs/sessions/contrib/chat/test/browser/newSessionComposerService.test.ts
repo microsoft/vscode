@@ -7,8 +7,8 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { INewSessionComposer, INewSessionOptionSummaryProvider, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { INewSessionComposer, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -35,36 +35,6 @@ suite('NewSessionComposerService', () => {
 		secondRegistration.dispose();
 
 		assert.deepStrictEqual({ newest, fallback: service.activeComposer.get() === first }, { newest: true, fallback: true });
-	});
-
-	test('aggregates non-default option summaries and releases disposed providers', () => {
-		const service = disposables.add(new NewSessionComposerService());
-		const firstChanged = disposables.add(new Emitter<void>());
-		const first: INewSessionOptionSummaryProvider = {
-			onDidChange: firstChanged.event,
-			getNonDefaultOptions: () => [{ id: 'harness', label: 'Cloud' }],
-		};
-		const second: INewSessionOptionSummaryProvider = {
-			onDidChange: Event.None,
-			getNonDefaultOptions: () => [{ id: 'isolation', label: 'Branch' }],
-		};
-		const changes: number[] = [];
-		disposables.add(service.onDidChangeOptionSummaries(() => changes.push(changes.length + 1)));
-		const firstRegistration = service.registerOptionSummaryProvider(first);
-		disposables.add(service.registerOptionSummaryProvider(second));
-
-		const session = {} as Parameters<typeof service.getNonDefaultOptions>[0];
-		const registered = service.getNonDefaultOptions(session);
-		firstChanged.fire();
-		firstRegistration.dispose();
-		firstChanged.fire();
-		const remaining = service.getNonDefaultOptions(session);
-
-		assert.deepStrictEqual({ registered, remaining, changeCount: changes.length }, {
-			registered: [{ id: 'harness', label: 'Cloud' }, { id: 'isolation', label: 'Branch' }],
-			remaining: [{ id: 'isolation', label: 'Branch' }],
-			changeCount: 4,
-		});
 	});
 
 	test('observes workspace changes and releases replaced composer listeners', () => {

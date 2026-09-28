@@ -1137,10 +1137,8 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
-	// Residual case of #329982: git can de-register a worktree (drop its
-	// `.git/worktrees/<id>` admin entry) while its directory still remains on
-	// disk. A later removal must still succeed because git no longer tracks the path.
-	(hasGit ? test : test.skip)('removeWorktree succeeds when git no longer tracks a still-present worktree directory', async () => {
+	// Residual case of #329982: git can de-register a worktree while leaving its directory behind.
+	(hasGit ? test : test.skip)('removeWorktree deletes a de-registered residual directory only when forced', async () => {
 		const dir = initRepo();
 		const suffix = `wt-orphan-${Date.now()}`;
 		const wtPath = join(dir, '..', suffix);
@@ -1166,8 +1164,24 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				stillRegistered: false,
 			});
 
-			// Removal must treat an already-de-registered worktree as success.
+			let unforcedRemovalFailed = false;
+			try {
+				await svc!.removeWorktree(URI.file(dir), URI.file(wtPath));
+			} catch {
+				unforcedRemovalFailed = true;
+			}
+			const existsAfterUnforcedRemoval = existsSync(wtPath);
 			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+
+			assert.deepStrictEqual({
+				unforcedRemovalFailed,
+				existsAfterUnforcedRemoval,
+				existsAfterForcedRemoval: existsSync(wtPath),
+			}, {
+				unforcedRemovalFailed: true,
+				existsAfterUnforcedRemoval: true,
+				existsAfterForcedRemoval: false,
+			});
 		} finally {
 			await rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/orphan-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }

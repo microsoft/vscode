@@ -7,6 +7,8 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { Event } from '../../../../../base/common/event.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -189,8 +191,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	});
 
-	test('describes the effective new-session control order', () => {
-		const getControlHelp = (unifiedPicker: boolean, experimentalLayout: boolean) => {
+	test('describes controls according to the effective new-session layout', () => {
+		const getLayoutHelp = (unifiedPicker: boolean, experimentalLayout: boolean, screenReader = false) => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService({
 				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
@@ -203,21 +205,53 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
-			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
-				.split('\n')
-				.find(line => line.startsWith('Inside the new-session prompt'));
+			instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => screenReader, onDidChangeScreenReaderOptimized: Event.None });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent().split('\n');
+			return {
+				controls: content.find(line => line.startsWith('Inside the new-session prompt')),
+				sync: content.find(line => line.startsWith('When available for a folder session with incoming or outgoing commits')),
+				hasSessionOptions: content.some(line => line.startsWith('Above the new-session input')),
+				sessionOptionsMentionsToggle: content.some(line => line.includes('Hide Session Options collapses these controls')),
+			};
 		};
 
 		assert.deepStrictEqual([
-			getControlHelp(false, false),
-			getControlHelp(true, false),
-			getControlHelp(false, true),
-			getControlHelp(true, true),
+			getLayoutHelp(false, false),
+			getLayoutHelp(true, false),
+			getLayoutHelp(false, true),
+			getLayoutHelp(true, true),
+			getLayoutHelp(true, true, true),
 		], [
-			'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
-			'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
-			'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
-			'Inside the new-session prompt, the controls appear in this order: Add Context, Agent, Mode and Permissions, and Model. Which controls are available depends on the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+			{
+				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
+				hasSessionOptions: false,
+				sessionOptionsMentionsToggle: false,
+			},
+			{
+				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
+				hasSessionOptions: false,
+				sessionOptionsMentionsToggle: false,
+			},
+			{
+				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
+				hasSessionOptions: false,
+				sessionOptionsMentionsToggle: false,
+			},
+			{
+				controls: 'Inside the new-session prompt, the controls appear in this order: Add Context, Agent, Mode and Permissions, and Model. Which controls are available depends on the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
+				hasSessionOptions: true,
+				sessionOptionsMentionsToggle: true,
+			},
+			{
+				controls: 'Inside the new-session prompt, the controls appear in this order: Add Context, Agent, Mode and Permissions, and Model. Which controls are available depends on the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
+				hasSessionOptions: true,
+				sessionOptionsMentionsToggle: false,
+			},
 		]);
 	});
 

@@ -13,7 +13,6 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
-import { ISession } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
 
 export const NEW_SESSION_PROMPT_TYPING_DURATION_MS = 2_500;
@@ -84,16 +83,6 @@ export interface INewSessionComposer {
 	refreshPromptOptions?(token?: CancellationToken): Promise<boolean>;
 }
 
-export interface INewSessionOptionSummary {
-	readonly id: string;
-	readonly label: string;
-}
-
-export interface INewSessionOptionSummaryProvider {
-	readonly onDidChange: Event<void>;
-	getNonDefaultOptions(session: ISession): readonly INewSessionOptionSummary[];
-}
-
 export const INewSessionComposerService = createDecorator<INewSessionComposerService>('newSessionComposerService');
 
 export interface INewSessionComposerService {
@@ -112,9 +101,6 @@ export interface INewSessionComposerService {
 	readonly onWillSendRequest: Event<{ readonly options: ISendRequestOptions; readonly selection: IWorkspaceSelectionSnapshot | undefined }>;
 	notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void;
 	registerComposer(composer: INewSessionComposer): IDisposable;
-	readonly onDidChangeOptionSummaries: Event<void>;
-	registerOptionSummaryProvider(provider: INewSessionOptionSummaryProvider): IDisposable;
-	getNonDefaultOptions(session: ISession): readonly INewSessionOptionSummary[];
 }
 
 export class NewSessionComposerService extends Disposable implements INewSessionComposerService {
@@ -138,9 +124,6 @@ export class NewSessionComposerService extends Disposable implements INewSession
 	});
 	private readonly _onWillSendRequest = this._register(new Emitter<{ readonly options: ISendRequestOptions; readonly selection: IWorkspaceSelectionSnapshot | undefined }>());
 	readonly onWillSendRequest = this._onWillSendRequest.event;
-	private readonly _onDidChangeOptionSummaries = this._register(new Emitter<void>());
-	readonly onDidChangeOptionSummaries = this._onDidChangeOptionSummaries.event;
-	private readonly _optionSummaryProviders = new Set<INewSessionOptionSummaryProvider>();
 
 	notifyUserWorkspaceSelection(): void {
 		this._userWorkspaceSelectionVersion.set(this._userWorkspaceSelectionVersion.get() + 1, undefined);
@@ -190,20 +173,6 @@ export class NewSessionComposerService extends Disposable implements INewSession
 				this._activeComposer.set(Array.from(this._composers).at(-1), undefined);
 			}
 		}));
-	}
-
-	registerOptionSummaryProvider(provider: INewSessionOptionSummaryProvider): IDisposable {
-		this._optionSummaryProviders.add(provider);
-		const listener = provider.onDidChange(() => this._onDidChangeOptionSummaries.fire());
-		this._onDidChangeOptionSummaries.fire();
-		return combinedDisposable(listener, toDisposable(() => {
-			this._optionSummaryProviders.delete(provider);
-			this._onDidChangeOptionSummaries.fire();
-		}));
-	}
-
-	getNonDefaultOptions(session: ISession): readonly INewSessionOptionSummary[] {
-		return [...this._optionSummaryProviders].flatMap(provider => provider.getNonDefaultOptions(session));
 	}
 }
 
