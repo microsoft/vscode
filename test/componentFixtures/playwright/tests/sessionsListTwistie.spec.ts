@@ -6,6 +6,18 @@
 import { expect, test } from '@playwright/test';
 import { openFixture } from './utils.js';
 
+test('renders empty-section placeholders at the compact row height', async ({ page }) => {
+	await openFixture(page, 'sessions/sessionsList/SessionsList_Groups_Empty/Dark', '.session-placeholder');
+
+	const placeholder = page.locator('.session-placeholder').filter({ hasText: 'No session' });
+	const dimensions = await placeholder.evaluate(element => ({
+		content: element.getBoundingClientRect().height,
+		row: element.closest('.monaco-list-row')?.getBoundingClientRect().height,
+	}));
+
+	expect(dimensions).toEqual({ content: 28, row: 28 });
+});
+
 test('reveals the nested chat twistie only while hovering the session row', async ({ page }) => {
 	await openFixture(page, 'sessions/sessionsList/SessionsList_NestedChatApprovals/Dark', '.session-item');
 

@@ -42,6 +42,7 @@ class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
 	override readonly isLoadingTranscript = observableValue(this, false);
+	override readonly isInputBlocked = observableValue(this, false);
 	layoutCount = 0;
 	primary = false;
 	split = false;
@@ -1459,6 +1460,22 @@ suite('Sessions - ChatGroupsView', () => {
 		view.setSession(new TestActiveSession([main, secondary]), options);
 
 		assert.strictEqual(view.element.querySelector<HTMLElement>('.session-chat-tabs-actions')?.classList.contains('hidden'), true);
+	});
+
+	test('uses the input restriction explanation without duplicating the generic read-only banner', () => {
+		const { chatViewFactory, view } = createHarness(disposables);
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		const session = new TestActiveSession([chat]);
+		view.setSession(session, options);
+		const current = chatViewFactory.views[chatViewFactory.views.length - 1];
+		const readOnly = readBanner(view).visible;
+		current.isInputBlocked.set(true, undefined);
+		const blocked = readBanner(view).visible;
+		session.isArchived.set(true, undefined);
+		assert.deepStrictEqual({ readOnly, blocked, archived: readBanner(view).message }, {
+			readOnly: true, blocked: false, archived: 'Archived sessions are read-only.',
+		});
 	});
 
 	test('hides the remote host banner when connected or when no remote host backs the session', () => {

@@ -315,11 +315,12 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			introduction: { enum: introduction.enum, tags: introduction.tags },
 			delay: { minimum: delay.minimum, tags: delay.tags },
 		}, {
-			keys: [ChatConfiguration.OpenInAgentsWindowTransferDraft, ChatConfiguration.AgentsParallelWorkBannerEnabled, ChatConfiguration.CopilotHarnessIntroductionMode, ChatConfiguration.AgentsHandoffTipDelaySeconds],
+			keys: [ChatConfiguration.OpenInAgentsWindowTransferDraft, ChatConfiguration.AgentsParallelWorkBannerEnabled, ChatConfiguration.CopilotHarnessIntroductionMode, ChatConfiguration.HarnessSwitchFeedbackSurveyEnabled, ChatConfiguration.AgentsHandoffTipDelaySeconds],
 			settings: [
 				{ type: 'boolean', default: product.quality === 'insider', experiment: { mode: 'auto' } },
 				{ type: 'boolean', default: product.quality === 'insider', experiment: { mode: 'auto' } },
 				{ type: 'string', default: product.quality === 'insider' ? CopilotHarnessIntroductionMode.NewSession : CopilotHarnessIntroductionMode.Off, experiment: { mode: 'auto' } },
+				{ type: 'boolean', default: false, experiment: { mode: 'auto' } },
 				{ type: 'number', default: 5, experiment: { mode: 'auto' } },
 			],
 			introduction: {
@@ -1573,10 +1574,12 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				source: call.source,
 				accepted: isAgentsWindowOpenSource(call.source),
 				sessionResource: URI.revive(call.sessionResource)?.toString(),
+				onboardingSessionResource: URI.revive(call.onboardingSessionResource)?.toString(),
 			})), [{
 				source,
 				accepted: true,
 				sessionResource: source === 'currentChatHandoff' ? h.resource.toString() : undefined,
+				onboardingSessionResource: source === 'parallelWorkEmptyChatHandoff' ? 'remote-test-copilotcli:/other-workspace' : undefined,
 			}]);
 		});
 	}
@@ -1602,6 +1605,25 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			retained: 'Written after the banner appeared',
 			notification: undefined,
 		});
+	});
+
+	test('banner hands off the click-time running session separately from the draft', async () => {
+		const h = createHarness();
+		h.showBanner();
+		h.runningProviderType = SessionType.AgentHostCodex;
+		await h.click(0);
+
+		assert.deepStrictEqual(h.calls.map(call => ({
+			onboardingSession: URI.revive(call.onboardingSessionResource)?.toString(),
+			openedSession: call.sessionResource,
+			draft: call.draft?.inputText,
+			folder: URI.revive(call.folderUri)?.path,
+		})), [{
+			onboardingSession: `${SessionType.AgentHostCodex}:/other-workspace`,
+			openedSession: undefined,
+			draft: h.input,
+			folder: '/source',
+		}]);
 	});
 
 	for (const change of ['source', 'hidden'] as const) {
