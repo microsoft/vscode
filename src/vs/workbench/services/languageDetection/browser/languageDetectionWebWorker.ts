@@ -284,6 +284,15 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		return modelResult;
 	}
 
+	/**
+	 * Reports a failure to the window log. Every failure in here is silent from the outside -- the
+	 * editor simply keeps its language -- so the log is the only place the reason can surface.
+	 */
+	private logFailure(level: 'warn' | 'error', what: string, error: unknown): void {
+		const detail = error instanceof Error ? error.stack ?? error.message : String(error);
+		this._host.$logMessage(level, `Language detection ${what}: ${detail}`);
+	}
+
 	private async * detectLanguagesImpl(content: string): AsyncGenerator<ModelResult, void, unknown> {
 		if (this._loadFailed) {
 			return;
@@ -293,8 +302,11 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		try {
 			modelOperations = await this.getModelOperations();
 		} catch (e) {
-			console.log(e);
+			// This latches for the rest of the session so that a failure is not re-attempted on every
+			// throttled keystroke, which makes it the one and only chance to say why detection has
+			// gone quiet. It used to latch silently.
 			this._loadFailed = true;
+			this.logFailure('error', 'failed to load the language detection model', e);
 			return;
 		}
 
@@ -303,7 +315,7 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		try {
 			modelResults = await modelOperations.runModel(content);
 		} catch (e) {
-			console.warn(e);
+			this.logFailure('error', 'the language detection model failed to run', e);
 		}
 
 		if (!modelResults
