@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileService } from '../../../files/common/fileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { META_GITHUB_STATE } from '../../common/agentHostGitStateService.js';
+import { META_GITHUB_STATE, META_PENDING_RECORDED_PULL_REQUESTS } from '../../common/agentHostGitStateService.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
 import { readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import type { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
@@ -98,6 +98,25 @@ suite('Session Artifact Removal', () => {
 			actions: [{ channel: session.toString(), action: { type: ActionType.SessionMetaChanged, _meta: expectedMeta } }],
 			modelCalls: [],
 			centralArtifacts: artifacts.slice(1),
+		});
+	});
+
+	test('removing a recorded PR cancels its pending folder association', async () => {
+		const database = store.add(await SessionDatabase.open(':memory:'));
+		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, JSON.stringify([{
+			chat: 'recording-chat', folderKey: 'file:///work', workingDirectory: 'file:///work',
+			url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
+		}]));
+		const { service, session } = await createFixture(database);
+
+		await service.removeSessionArtifact(session, 'pr');
+
+		assert.deepStrictEqual({
+			pending: await database.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS),
+			artifacts: readSessionArtifacts(getTestAgentStateManager(service).getSessionState(session.toString())?._meta).map(artifact => artifact.id),
+		}, {
+			pending: undefined,
+			artifacts: ['file', 'reference'],
 		});
 	});
 
