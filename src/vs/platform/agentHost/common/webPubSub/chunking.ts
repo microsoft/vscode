@@ -75,6 +75,13 @@ const textDecoder = new TextDecoder('utf-8', { fatal: true });
 /** Strict canonical base64 (RFC 4648 standard alphabet, with padding, no whitespace). */
 const CANONICAL_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
+/**
+ * UTF-8 bytes a `kind: "message"` envelope adds around the serialized payload:
+ * `JSON.stringify({ kind: 'message', data })` is the ASCII prefix
+ * `{"kind":"message","data":`, the serialized `data`, then `}`.
+ */
+const MESSAGE_ENVELOPE_OVERHEAD_BYTES = '{"kind":"message","data":}'.length;
+
 /** Encode a byte slice as a base64 string (RFC 4648 standard, with padding). */
 function bytesToBase64(bytes: Uint8Array): string {
 	return encodeBase64(VSBuffer.wrap(bytes), true /* padded */, false /* urlSafe */);
@@ -88,11 +95,13 @@ function base64ToBytes(b64: string): Uint8Array {
 /**
  * Split an application payload into one or more {@link ChunkEnvelope}s.
  *
- * If the serialised single-frame envelope fits inside the ceiling, returns a
- * one-element array containing the `kind: "message"` envelope. Otherwise mints
- * a `group_id` and returns `total = ceil(len(B) / R)` `kind: "chunk"`
- * envelopes. The raw-byte budget is derived from the actual group id and the
- * widest permitted sequence fields so every serialized envelope fits.
+ * The payload is serialized and UTF-8 encoded once, into `B`. If the
+ * single-frame envelope (`B` plus its fixed ASCII wrapper) fits inside the
+ * ceiling, returns a one-element array containing the `kind: "message"`
+ * envelope. Otherwise mints a `group_id` and returns `total = ceil(len(B) / R)`
+ * `kind: "chunk"` envelopes. The raw-byte budget is derived from the actual
+ * group id and the widest permitted sequence fields so every serialized
+ * envelope fits.
  */
 export function chunk(payload: unknown, options: ChunkOptions = {}): ChunkEnvelope[] {
 	const maxChunkBytes = options.maxChunkBytes ?? DEFAULT_MAX_CHUNK_BYTES;
@@ -116,8 +125,9 @@ export function chunk(payload: unknown, options: ChunkOptions = {}): ChunkEnvelo
 		);
 	}
 
-	const singleSerialised = JSON.stringify({ kind: 'message', data: payload });
-	if (textEncoder.encode(singleSerialised).byteLength <= maxChunkBytes) {
+	// The single-frame envelope embeds the serialized payload verbatim, so its size
+	// follows from `rawBytes` without serializing and encoding the payload again.
+	if (rawBytes.byteLength + MESSAGE_ENVELOPE_OVERHEAD_BYTES <= maxChunkBytes) {
 		return [{ kind: 'message', data: payload }];
 	}
 

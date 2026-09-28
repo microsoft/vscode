@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { VSBuffer, encodeBase64 } from '../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { type ChunkEnvelope, ChunkingError, Reassembler, chunk } from '../../../common/webPubSub/chunking.js';
+import { type ChunkEnvelope, ChunkingError, DEFAULT_MAX_REASSEMBLY_BYTES, Reassembler, chunk } from '../../../common/webPubSub/chunking.js';
 
 /** Standard base64 (padded) of an ASCII string — equivalent to `btoa(s)` for ASCII input. */
 function b64(s: string): string {
@@ -21,6 +21,26 @@ function reassembleAll(envelopes: ChunkEnvelope[], r = new Reassembler()): unkno
 	return result;
 }
 
+const encoder = new TextEncoder();
+
+/** UTF-8 bytes of `value` in its JSON wire form. */
+function wireBytes(value: unknown): number {
+	return encoder.encode(JSON.stringify(value)).byteLength;
+}
+
+/** Reassembles envelopes after carrying each one through its JSON wire form. */
+function reassembleFromWire(envelopes: ChunkEnvelope[]): unknown {
+	return reassembleAll(envelopes.map(envelope => JSON.parse(JSON.stringify(envelope))));
+}
+
+/** A string of repeated `unit`, padded with ASCII so its `kind: 'message'` envelope is exactly `envelopeBytes`. */
+function payloadWithEnvelopeBytes(unit: string, envelopeBytes: number): string {
+	const emptyEnvelopeBytes = wireBytes({ kind: 'message', data: '' });
+	const unitBytes = wireBytes(unit) - wireBytes('');
+	const count = Math.floor((envelopeBytes - emptyEnvelopeBytes) / unitBytes);
+	return unit.repeat(count) + 'x'.repeat(envelopeBytes - emptyEnvelopeBytes - count * unitBytes);
+}
+
 suite('WebPubSub - chunk', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,6 +48,35 @@ suite('WebPubSub - chunk', () => {
 	test('wraps a small payload in a single message envelope', () => {
 		const envelopes = chunk({ hello: 'world' });
 		assert.deepStrictEqual(envelopes, [{ kind: 'message', data: { hello: 'world' } }]);
+	});
+
+	test('decides single-frame fit from UTF-8 envelope bytes at the ceiling', () => {
+		const maxChunkBytes = 256;
+		// ASCII, 2/3/4-byte UTF-8 (a surrogate pair), JSON escapes, unescaped U+2028 and a lone surrogate.
+		const units = ['x', '\u00e9', '\u20ac', '\ud83d\ude00', '"', '\\', '\n', '\u0000', '\u2028', '\ud800'];
+		const actual = [];
+		const expected = [];
+		for (const unit of units) {
+			for (const delta of [-1, 0, 1]) {
+				const payload = payloadWithEnvelopeBytes(unit, maxChunkBytes + delta);
+				const envelopes = chunk(payload, { maxChunkBytes, newGroupId: () => 'g1' });
+				actual.push({
+					unit,
+					envelopeBytes: wireBytes({ kind: 'message', data: payload }),
+					kinds: envelopes.map(envelope => envelope.kind),
+					framesFit: envelopes.every(envelope => wireBytes(envelope) <= maxChunkBytes),
+					roundTrip: reassembleFromWire(envelopes),
+				});
+				expected.push({
+					unit,
+					envelopeBytes: maxChunkBytes + delta,
+					kinds: delta <= 0 ? ['message'] : ['chunk', 'chunk'],
+					framesFit: true,
+					roundTrip: payload,
+				});
+			}
+		}
+		assert.deepStrictEqual(actual, expected);
 	});
 
 	test('splits an oversized payload into multiple chunk envelopes', () => {
@@ -72,10 +121,41 @@ suite('WebPubSub - chunk', () => {
 		]);
 	});
 
+	test('matches a pinned Unicode and escape-heavy split vector', () => {
+		// 12 raw bytes per segment: seq 3 ends with the first UTF-8 byte of U+1F600 and seq 4 carries the rest.
+		const payload = { jsonrpc: '2.0', id: 7, result: { text: '\u00e9\u20ac\ud83d\ude00"\\\n\t\u0000\u2028\ud800 end' } };
+		const envelopes = chunk(payload, { maxChunkBytes: 83, newGroupId: () => 'g1' });
+		assert.deepStrictEqual({ envelopes, roundTrip: reassembleFromWire(envelopes) }, {
+			envelopes: [
+				{ kind: 'chunk', group_id: 'g1', seq: 0, total: 7, bytes: 'eyJqc29ucnBjIjoi' },
+				{ kind: 'chunk', group_id: 'g1', seq: 1, total: 7, bytes: 'Mi4wIiwiaWQiOjcs' },
+				{ kind: 'chunk', group_id: 'g1', seq: 2, total: 7, bytes: 'InJlc3VsdCI6eyJ0' },
+				{ kind: 'chunk', group_id: 'g1', seq: 3, total: 7, bytes: 'ZXh0Ijoiw6nigqzw' },
+				{ kind: 'chunk', group_id: 'g1', seq: 4, total: 7, bytes: 'n5iAXCJcXFxuXHRc' },
+				{ kind: 'chunk', group_id: 'g1', seq: 5, total: 7, bytes: 'dTAwMDDigKhcdWQ4' },
+				{ kind: 'chunk', group_id: 'g1', seq: 6, total: 7, bytes: 'MDAgZW5kIn19' },
+			],
+			roundTrip: payload,
+		});
+	});
+
 	test('round-trips a chunked payload through the reassembler', () => {
 		const original = { items: Array.from({ length: 200 }, (_, i) => ({ i, v: `value-${i}` })) };
 		const envelopes = chunk(original, { maxChunkBytes: 1024, newGroupId: () => 'g1' });
 		assert.deepStrictEqual(reassembleAll(envelopes), original);
+	});
+
+	test('serializes the payload once for single-frame and chunked output', () => {
+		const toJSONKeys: string[] = [];
+		const payload = (blob: string) => ({
+			toJSON: (key: string) => {
+				toJSONKeys.push(key);
+				return { blob };
+			},
+		});
+		chunk(payload('small'));
+		chunk(payload('x'.repeat(5000)), { maxChunkBytes: 1024, newGroupId: () => 'g1' });
+		assert.deepStrictEqual(toJSONKeys, ['', '']);
 	});
 
 	test('rejects a non-positive ceiling', () => {
@@ -84,6 +164,16 @@ suite('WebPubSub - chunk', () => {
 
 	test('rejects serialized logical payloads above 32 MiB before emitting chunks', () => {
 		assert.throws(() => chunk('x'.repeat(32 * 1024 * 1024 + 1), { newGroupId: () => 'g1' }), /exceeds 33554432-byte ceiling/);
+	});
+
+	test('accepts exactly 32 MiB of serialized UTF-8 and rejects one byte more', () => {
+		// Two-byte characters keep the code-unit count far below the byte ceiling. The frame ceiling
+		// keeps the maximal payload in one frame, so the test avoids base64-encoding 32 MiB.
+		const maxChunkBytes = 2 * DEFAULT_MAX_REASSEMBLY_BYTES;
+		const atCeiling = '\u00e9'.repeat(DEFAULT_MAX_REASSEMBLY_BYTES / 2 - 1);
+		const accepted = chunk(atCeiling, { maxChunkBytes });
+		assert.deepStrictEqual(accepted.map(envelope => envelope.kind === 'message' && envelope.data === atCeiling), [true]);
+		assert.throws(() => chunk(atCeiling + 'x', { maxChunkBytes }), /serialized payload is 33554433 bytes, exceeds 33554432-byte ceiling/);
 	});
 });
 
