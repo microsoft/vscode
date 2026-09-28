@@ -137,7 +137,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 			completionTriggerCharacters: result.completionTriggerCharacters,
 			terminalCommandPrefix: result.terminalCommandPrefix,
 		}, {
-			completionTriggerCharacters: ['@', '#', '/'],
+			completionTriggerCharacters: ['@', '#', '/', ' '],
 			terminalCommandPrefix: '!',
 		});
 	});

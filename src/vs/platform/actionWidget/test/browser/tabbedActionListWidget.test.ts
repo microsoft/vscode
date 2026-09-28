@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ContextView, ContextViewDOMPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { Radio } from '../../../../base/browser/ui/radio/radio.js';
@@ -21,7 +22,7 @@ import { MockKeybindingService } from '../../../keybinding/test/common/mockKeybi
 import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
-import { ActionListItemKind, IActionListItem } from '../../browser/actionList.js';
+import { ActionList, ActionListItemKind, IActionListItem } from '../../browser/actionList.js';
 import { TabbedActionListWidget } from '../../browser/tabbedActionListWidget.js';
 import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS } from '../../browser/actionWidgetMotion.js';
 import { IAccessibilityService } from '../../../accessibility/common/accessibility.js';
@@ -55,6 +56,10 @@ class FakeContextViewService implements Partial<IContextViewService> {
 
 	get isVisible(): boolean {
 		return !!this._activeDelegate;
+	}
+
+	get activeLayer(): number | undefined {
+		return this._activeDelegate?.layer;
 	}
 
 	showContextView(delegate: IContextViewDelegate): { close: () => void } {
@@ -607,6 +612,26 @@ suite('TabbedActionListWidget', () => {
 		widget.hide();
 	});
 
+	test('passes the requested context view layer to the popup', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			contextViewLayer: 1,
+			createActionList: () => ({ items: [action('a')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		assert.strictEqual(contextView.activeLayer, 1);
+		assert.strictEqual(contextView.activeLayer, 1);
+		widget.hide();
+	});
+
 	test('items receive pointer input immediately after opening', () => {
 		const { widget, contextView } = createWidget(disposables);
 		const anchor = document.createElement('button');
@@ -884,6 +909,32 @@ suite('TabbedActionListWidget', () => {
 			widget.hide();
 		});
 	}
+
+	test('refresh forwards scroll position preservation to the active list', () => {
+		const { widget } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({
+				items: [action('model')],
+			}),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const updateItems = sinon.spy(ActionList.prototype, 'updateItems');
+		try {
+			widget.refreshActiveList({ preserveScrollPosition: true });
+
+			assert.strictEqual(updateItems.lastCall.args[2]?.preserveScrollPosition, true);
+		} finally {
+			updateItems.restore();
+			widget.hide();
+		}
+	});
 
 	test('buildItems is called with the initial tab', () => {
 		const { widget } = createWidget(disposables);

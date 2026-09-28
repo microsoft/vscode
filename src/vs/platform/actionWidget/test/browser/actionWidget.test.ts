@@ -33,7 +33,7 @@ import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS, ACTI
 suite('ActionWidgetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function showWidget(filterAsCombobox?: boolean) {
+	function showWidget(filterAsCombobox?: boolean, contextViewLayer?: number) {
 		const descriptor = getSingletonServiceDescriptors().find(([id]) => id === IActionWidgetService)?.[1];
 		assert.ok(descriptor);
 		const container = document.createElement('div');
@@ -74,7 +74,7 @@ suite('ActionWidgetService', () => {
 			focusFilterOnOpen: true,
 			initialFilterValue: 'match',
 			filterAsCombobox,
-		});
+		}, contextViewLayer);
 		const input = instantiationService.get(IContextViewService).getContextViewElement().querySelector<HTMLInputElement>('input');
 		assert.ok(input);
 		return { service, input, selected, cancelled };
@@ -111,6 +111,13 @@ suite('ActionWidgetService', () => {
 			service.hide();
 		});
 	}
+
+	test('renders above a containing context view when requested', () => {
+		const { service, input } = showWidget(undefined, 1);
+
+		assert.strictEqual(input.closest<HTMLElement>('.context-view')?.style.zIndex, '2576');
+		service.hide();
+	});
 
 	test('search navigation keeps input focus and Enter accepts and closes the popup', () => {
 		const { service, input, selected } = showWidget(true);
@@ -198,6 +205,39 @@ suite('ActionWidgetService', () => {
 				finished: { hides: 1, hidden: true },
 			});
 		});
+	}
+
+	for (const preferredAnchorPosition of [AnchorPosition.ABOVE, AnchorPosition.BELOW]) {
+		for (const fallback of [false, true]) {
+			test(`resolves preferred side ${preferredAnchorPosition} before context view placement with fallback ${fallback}`, () => {
+				const { container, layout, service } = setup();
+				const viewportHeight = dom.getWindow(container).innerHeight;
+				const y = fallback
+					? preferredAnchorPosition === AnchorPosition.ABOVE ? 20 : viewportHeight - 44
+					: viewportHeight / 2;
+				const expectedAbove = fallback ? preferredAnchorPosition === AnchorPosition.BELOW : preferredAnchorPosition === AnchorPosition.ABOVE;
+				service.show('placement', false, ['first', 'second', 'third'].map(id => ({
+					kind: ActionListItemKind.Action, label: id, item: { id },
+				})), { onSelect: () => { }, onHide: () => { } }, { x: 200, y, width: 100, height: 24 }, undefined, [], undefined, {
+					preferredAnchorPosition, showFilter: true, focusFilterOnOpen: true,
+				});
+				const popup = container.querySelector<HTMLElement>('.action-widget')!;
+				const input = popup.querySelector<HTMLInputElement>('input')!;
+				const before = popup.getBoundingClientRect();
+				input.value = 'first';
+				input.dispatchEvent(new globalThis.Event('input'));
+				layout.fire({ container, dimension: { width: 900, height: viewportHeight } });
+				const after = popup.getBoundingClientRect();
+				assert.deepStrictEqual({
+					placedOnResolvedSide: expectedAbove ? before.bottom <= y + 1 : before.top >= y + 23,
+					retainsResolvedSide: expectedAbove ? after.bottom <= y + 1 : after.top >= y + 23,
+					shrank: after.height < before.height,
+					focusPreserved: document.activeElement === input,
+					visible: service.isVisible,
+				}, { placedOnResolvedSide: true, retainsResolvedSide: true, shrank: true, focusPreserved: true, visible: true });
+				service.hide();
+			});
+		}
 	}
 
 	test('closes an inline permission action once before focusing a warning dialog', () => {
