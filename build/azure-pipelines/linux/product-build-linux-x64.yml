@@ -130,7 +130,7 @@ jobs:
             VSCODE_COMPILE_TEST_SUITES: true
 
   - job: Linux_x64_PackageSign
-    displayName: Linux (X64) - Package & Sign
+    displayName: Linux (X64) - Sign
     dependsOn:
       - Linux_x64_Compile
       - LinuxCLI_x64
