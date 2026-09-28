@@ -96,6 +96,17 @@ Override the default Mocha timeout for long-running tests.
 ./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --timeout 10000
 ```
 
+### Product quality (`VSCODE_TEST_QUALITY`)
+
+The OSS `product.json` has no `quality`, but official builds and PR CI run unit tests with `product.quality` set to `insider` (PR CI also runs one Linux job with `stable`). When a change touches code gated on `product.quality`, such as a setting default of `product.quality === 'insider'`, run the affected tests with each quality:
+
+```bash
+VSCODE_TEST_QUALITY=insider ./scripts/test.sh --run src/vs/workbench/contrib/chat/test/browser/chatConfiguration.test.ts
+VSCODE_TEST_QUALITY=stable ./scripts/test.sh --run src/vs/workbench/contrib/chat/test/browser/chatConfiguration.test.ts
+```
+
+`npm run test-node` honors the same variable.
+
 ### Integration tests
 
 Integration tests (files ending in `.integrationTest.ts` or located in `extensions/`) are **not run** by `scripts/test.sh`. Use `scripts/test-integration.sh` (or `scripts/test-integration.bat`) instead. See the `integration-tests` skill for details.

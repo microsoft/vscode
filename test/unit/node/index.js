@@ -50,7 +50,10 @@ Options:
 --build          Run from out-build
 --run <file>     Run a single file
 --coverage       Generate a coverage report
---help           Show help`);
+--help           Show help
+
+Environment:
+VSCODE_TEST_QUALITY=<quality>  override product.quality (insider, stable, exploration)`);
 	process.exit(0);
 }
 
@@ -81,8 +84,18 @@ if (currentNodeVersion?.major < requiredNodeVersion?.major) {
 function main() {
 
 	// VSCODE_GLOBALS: package/product.json
+	// VSCODE_TEST_QUALITY overrides product.quality, see test/unit/README.md
 	const _require = module.createRequire(import.meta.url);
-	globalThis._VSCODE_PRODUCT_JSON = _require(`${REPO_ROOT}/product.json`);
+	const product = _require(`${REPO_ROOT}/product.json`);
+	const testQuality = process.env.VSCODE_TEST_QUALITY;
+	if (testQuality) {
+		if (!['insider', 'stable', 'exploration'].includes(testQuality)) {
+			console.error(`Invalid VSCODE_TEST_QUALITY '${testQuality}'. Expected one of: insider, stable, exploration.`);
+			process.exit(1);
+		}
+		console.log(`Running unit tests with product.quality '${testQuality}' (from VSCODE_TEST_QUALITY)`);
+	}
+	globalThis._VSCODE_PRODUCT_JSON = testQuality ? { ...product, quality: testQuality } : product;
 	globalThis._VSCODE_PACKAGE_JSON = _require(`${REPO_ROOT}/package.json`);
 
 	// VSCODE_GLOBALS: file root

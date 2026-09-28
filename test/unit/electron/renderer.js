@@ -74,7 +74,9 @@ if (util.inspect && util.inspect.defaultOptions) {
 }
 
 // VSCODE_GLOBALS: package/product.json
-globalThis._VSCODE_PRODUCT_JSON = require('../../../product.json');
+// VSCODE_TEST_QUALITY (validated in index.js) overrides product.quality, see test/unit/README.md
+const productJson = require('../../../product.json');
+globalThis._VSCODE_PRODUCT_JSON = process.env.VSCODE_TEST_QUALITY ? { ...productJson, quality: process.env.VSCODE_TEST_QUALITY } : productJson;
 globalThis._VSCODE_PACKAGE_JSON = require('../../../package.json');
 
 // Test file operations that are common across platforms. Used for test infra, namely snapshot tests
