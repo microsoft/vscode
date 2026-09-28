@@ -26,7 +26,17 @@ import * as resources from '../../../base/common/resources.js';
 import { homedir } from 'os';
 import { IExtHostVariableResolverProvider } from '../common/extHostVariableResolverService.js';
 
+/** The executeTask calls that wait for the main thread to run the same fetched task. */
+interface IExecutionAttempts {
+	/** The execution that the first of the calls registered. */
+	readonly registered: Promise<unknown>;
+	pending: number;
+	running: boolean;
+}
+
 export class ExtHostTask extends ExtHostTaskBase {
+	private readonly _executionAttempts = new Map<string, IExecutionAttempts>();
+
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
@@ -70,20 +80,22 @@ export class ExtHostTask extends ExtHostTaskBase {
 			if (executionDTO.task === undefined) {
 				throw new Error('Task from execution DTO is undefined');
 			}
-			const hadExecution = this._taskExecutionPromises.has(executionDTO.id);
-			const execution = await this.getTaskExecution(executionDTO, task);
+			const isNewExecution = !this._taskExecutionPromises.has(executionDTO.id);
+			// Registers the execution synchronously, before the attempt below is added for it
+			const executionPromise = this.getTaskExecution(executionDTO, task);
+			const attempts = this.addExecutionAttempt(executionDTO.id, isNewExecution);
 			try {
+				const execution = await executionPromise;
 				// The main thread looks the task up again by its id. If that fails, the task never
 				// starts or ends, so the execution must not be handed out.
 				await this._proxy.$executeTask(handleDto);
-			} catch (error) {
-				if (!hadExecution) {
-					this._taskExecutionPromises.delete(executionDTO.id);
-					this._taskExecutions.delete(executionDTO.id);
+				if (attempts) {
+					attempts.running = true;
 				}
-				throw error;
+				return execution;
+			} finally {
+				this.removeExecutionAttempt(executionDTO.id, attempts);
 			}
-			return execution;
 		} else {
 			const dto = TaskDTO.from(task, extension);
 			if (dto === undefined) {
@@ -100,6 +112,46 @@ export class ExtHostTask extends ExtHostTaskBase {
 			const execution = await this.getTaskExecution(await this._proxy.$getTaskExecution(dto), task);
 			this._proxy.$executeTask(dto).catch(() => { /* The error here isn't actionable. */ });
 			return execution;
+		}
+	}
+
+	public override $onDidStartTask(execution: tasks.ITaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.ITaskDefinitionDTO): Promise<void> {
+		const attempts = this._executionAttempts.get(execution.id);
+		if (attempts) {
+			// Started by other means, e.g. from the UI, while an attempt was waiting for the main thread
+			attempts.running = true;
+		}
+		return super.$onDidStartTask(execution, terminalId, resolvedDefinition);
+	}
+
+	/**
+	 * Counts an attempt to run the execution with the given id. Only attempts for an execution that
+	 * one of them registered are counted, as only then may the last of them remove it again.
+	 */
+	private addExecutionAttempt(id: string, isNewExecution: boolean): IExecutionAttempts | undefined {
+		const registered = this._taskExecutionPromises.get(id)!;
+		let attempts = this._executionAttempts.get(id);
+		if (isNewExecution) {
+			attempts = { registered, pending: 0, running: false };
+			this._executionAttempts.set(id, attempts);
+		} else if (!attempts || attempts.registered !== registered) {
+			return undefined;
+		}
+		attempts.pending++;
+		return attempts;
+	}
+
+	/** Removes the execution once the last attempt has finished, unless the task ran meanwhile. */
+	private removeExecutionAttempt(id: string, attempts: IExecutionAttempts | undefined): void {
+		if (!attempts || --attempts.pending > 0) {
+			return;
+		}
+		if (this._executionAttempts.get(id) === attempts) {
+			this._executionAttempts.delete(id);
+		}
+		if (!attempts.running && this._taskExecutionPromises.get(id) === attempts.registered) {
+			this._taskExecutionPromises.delete(id);
+			this._taskExecutions.delete(id);
 		}
 	}
 
