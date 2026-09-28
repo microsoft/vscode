@@ -2391,12 +2391,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const rootConfigValue = this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey);
 		const { enabled, trace } = resolveByokLmEnablement(rootConfigValue);
 		this._logService.trace(`[Copilot] BYOK model publication ${trace}`);
-		if (!enabled) {
-			this._byokModels = [];
-			this._publishModels();
-			return;
-		}
-		this._byokModels = this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => {
+		const byokModels = enabled ? this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => {
 			const byokMeta = createAgentModelByokMeta(m.modelIdentifier);
 			const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort, m.id);
 			return {
@@ -2410,7 +2405,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 				...(thinkingLevel ? { configSchema: { type: 'object', properties: { [ThinkingLevelConfigKey]: thinkingLevel } } satisfies ConfigSchema } : {}),
 				...(byokMeta && { _meta: byokMeta }),
 			};
-		});
+		}) : [];
+		if (!equals(this._byokModels, byokModels)) {
+			for (const session of new Set([...this._sessionsPendingRegistration.values(), ...this._allLiveSessions()])) {
+				session.markByokModelConfigurationChanged();
+			}
+		}
+		this._byokModels = byokModels;
 		this._logService.trace(`[Copilot] Found ${this._byokModels.length} BYOK models${this._byokModels.length ? ': ' + this._byokModels.map(m => m.name).join(', ') : ''}`);
 		this._publishModels();
 	}
@@ -3806,11 +3807,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const activeClient = this._activeClients.get(current.configurationResource);
 			const currentSnapshot = activeClient ? await raceCancellationError(activeClient.snapshot(current.chatKey), token) : undefined;
-			const refreshReason = entry.requiresRestartAfterWorkingDirectoryChange
-				? 'workingDirectoryChanged'
-				: activeClient && currentSnapshot
+			const refreshReason = (entry.requiresRestartAfterWorkingDirectoryChange ? 'workingDirectoryChanged' : undefined)
+				?? (entry.requiresByokModelConfigurationRefresh ? 'byokModelsChanged' : undefined)
+				?? (activeClient && currentSnapshot
 					? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, current.chatKey, currentSnapshot), token)
-					: undefined;
+					: undefined);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -4562,7 +4563,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		context: IResolvedCopilotChatContext,
 		entry: CopilotAgentSession,
 		workingDirectories: readonly URI[] | undefined,
-		options: { readonly operation: 'sendMessage' | 'startMcpServer'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string; readonly token?: CancellationToken },
+		options: { readonly operation: 'sendMessage' | 'startMcpServer' | 'changeModel'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string; readonly token?: CancellationToken },
 	): Promise<CopilotAgentSession> {
 		const activeClient = this._activeClients.get(context.configurationResource);
 		// MCP Stop still needs the queued sync to finish before it can resolve the server to stop.
@@ -4584,6 +4585,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? structuralRestartReason
 			?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
 			?? (entry.requiresMcpLaunchConfigurationRefresh ? 'mcpLaunchConfigurationRefresh' : undefined)
+			?? (entry.requiresByokModelConfigurationRefresh ? 'byokModelsChanged' : undefined)
 			?? (entry.requiresControlPlaneResync ? 'controlPlaneResync' : undefined);
 		if (!refreshReason) {
 			return entry;
@@ -5517,7 +5519,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (provisional) {
 				provisional.model = model;
 			} else {
-				const entry = current.target ?? await this._ensureResolvedChatSession(current);
+				let entry = current.target ?? await this._ensureResolvedChatSession(current);
+				if (entry) {
+					entry = await this._refreshSessionConfiguration(current, entry, undefined, { operation: 'changeModel', allowRestart: 'always' });
+				}
 				// Clear stale SDK preferences when a selection or an override is removed.
 				const autoTier = isAutoModel(model.id)
 					? resolveCopilotAutoTier(model, this._configurationService, this._logService, current.configurationId) ?? null

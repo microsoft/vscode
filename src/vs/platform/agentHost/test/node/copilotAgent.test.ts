@@ -15854,6 +15854,64 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('refreshes a session restored before BYOK models arrive before changing its model', async () => {
+			const byokBridgeRegistry = new ByokLmBridgeRegistry();
+			const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { byokBridgeRegistry, sessionDataService });
+			const sessionId = 'byok-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			let requiresByokModelConfigurationRefresh = false;
+			const previousSession = {
+				...refreshSessionStub([]),
+				sessionId,
+				get requiresByokModelConfigurationRefresh() { return requiresByokModelConfigurationRefresh; },
+				markByokModelConfigurationChanged() { requiresByokModelConfigurationRefresh = true; },
+				async setModel() { throw new Error('Provider model is not registered'); },
+			};
+			const resumedSession = {
+				...refreshSessionStub([]),
+				sessionId,
+				requiresByokModelConfigurationRefresh: false,
+				modelCalls: [] as string[],
+				async setModel(model: string) { this.modelCalls.push(model); },
+			};
+			const resumeCalls: string[] = [];
+			const internals = agent as unknown as {
+				_resumeSession: (id: string) => Promise<CopilotAgentSession>;
+			};
+			setDefaultSessionStub(agent, sessionId, previousSession);
+			internals._resumeSession = async id => {
+				resumeCalls.push(id);
+				setDefaultSessionStub(agent, sessionId, resumedSession);
+				return resumedSession as unknown as CopilotAgentSession;
+			};
+			disposables.add(byokBridgeRegistry.register('renderer', {
+				chat: async () => ({ output: [] }),
+				onDidChangeModels: modelSnapshots.event,
+			}));
+
+			try {
+				modelSnapshots.fire([{ vendor: 'customendpoint', id: 'model', modelIdentifier: 'customendpoint/Pool/model' }]);
+				await agent.chats.changeModel(chat, { id: 'customendpoint/Pool/model' }, exactChatContext(session, chat, session));
+
+				assert.deepStrictEqual({
+					requiresByokModelConfigurationRefresh,
+					previousDestroyCalls: previousSession.destroyCalls,
+					resumeCalls,
+					resumedModelCalls: resumedSession.modelCalls,
+				}, {
+					requiresByokModelConfigurationRefresh: true,
+					previousDestroyCalls: 1,
+					resumeCalls: [sessionId],
+					resumedModelCalls: ['customendpoint/Pool/model'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('coalesces root and structural divergence into one same-conversation resume before send', async () => {
 			const client = new TestCopilotClient([]);
 			const logService = new RefreshLogService();

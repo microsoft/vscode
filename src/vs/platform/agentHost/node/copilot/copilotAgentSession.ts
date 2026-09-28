@@ -860,6 +860,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _ownerSessionUri: URI;
 	private readonly _controlPlaneRpcTimeoutMs: number;
 	private _controlPlaneDesynchronized = false;
+	private _requiresByokModelConfigurationRefresh = false;
 	get ownerSessionUri(): URI { return this._ownerSessionUri; }
 	/** @deprecated Compatibility alias for SDK callbacks; this is the exact persistence resource. */
 	get sessionUri(): URI { return this.resourceUri; }
@@ -1035,6 +1036,10 @@ export class CopilotAgentSession extends Disposable {
 
 	markConnectorConfigurationChanged(): void {
 		this._requiresConnectorConfigurationRefresh = true;
+	}
+
+	markByokModelConfigurationChanged(): void {
+		this._requiresByokModelConfigurationRefresh = true;
 	}
 
 	/**
@@ -2326,6 +2331,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._markMcpLaunchConfigurationDirty();
 		return this._mcpLaunchConfigurationDirty;
+	}
+
+	get requiresByokModelConfigurationRefresh(): boolean {
+		return this._requiresByokModelConfigurationRefresh;
 	}
 
 	/**
