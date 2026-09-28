@@ -5643,12 +5643,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return spn || undefined;
 	}
 
+	/**
+	 * Read the agent host NoProxy config.
+	 * We always append 127.0.0.1 to the NO_PROXY list so that the agent host can reach the byokLmProxyService.
+	 */
 	private _readNoProxy(env: Record<string, string | undefined>): string | undefined {
 		const configuredNoProxy = (this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.NoProxy) ?? [])
 			.map(value => value.trim())
 			.filter(Boolean)
 			.join(',');
-		return configuredNoProxy || (env['no_proxy'] || env['NO_PROXY'] || '').trim() || undefined;
+		const resultantNoProxy = configuredNoProxy || (env['no_proxy'] || env['NO_PROXY'] || '').trim() || '';
+		if (resultantNoProxy.split(',').some(value => value.trim() === '127.0.0.1')) {
+			return resultantNoProxy;
+		} else {
+			return `${resultantNoProxy}${resultantNoProxy ? ',' : ''}127.0.0.1`;
+		}
 	}
 
 	private _readConfiguredProxy(): string | undefined {
