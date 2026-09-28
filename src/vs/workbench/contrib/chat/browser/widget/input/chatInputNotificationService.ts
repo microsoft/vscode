@@ -38,6 +38,8 @@ interface IChatInputNotificationActionBase {
 	readonly iconOnly?: boolean;
 	/** Whether the action anchors to the leading edge of a split action row. */
 	readonly leading?: boolean;
+	/** Whether a secondary action uses the standard filled button style instead of a ghost button. */
+	readonly filled?: boolean;
 	/** Whether a secondary action keeps a theme-aware border. */
 	readonly outlined?: boolean;
 	readonly tooltip?: string;
