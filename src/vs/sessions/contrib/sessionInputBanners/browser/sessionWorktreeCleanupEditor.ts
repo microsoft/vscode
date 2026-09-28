@@ -90,8 +90,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		dom.append(content, dom.$('h1', undefined, localize('sessionWorktreeCleanup.heading', "Clean Up Agent Worktrees")));
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
 			localize('sessionWorktreeCleanup.intro', "Inactive, unpinned sessions older than the selected period can be cleaned up to reclaim the disk space their worktrees use. Cleaning up a session marks it as done and deletes its worktree; you can restore the session later to recreate it. Active, running, needs-input, and pinned sessions are always protected.")));
-		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
-			localize('sessionWorktreeCleanup.reopen', "Return here any time from the Sessions More Actions (...) menu, a session's context menu, or by running Clean Up Agent Worktrees from the Command Palette.")));
 
 		this.renderAutomaticCleanup(content);
 
@@ -109,11 +107,11 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			void this.load();
 		}));
 
-		this.summary = dom.append(content, dom.$('.session-worktree-cleanup-summary'));
-
-		const footer = dom.append(content, dom.$('.session-worktree-cleanup-footer'));
-		this.cleanupButton = this.editorDisposables.add(new Button(footer, defaultButtonStyles));
+		const summaryRow = dom.append(content, dom.$('.session-worktree-cleanup-summary-row'));
+		this.summary = dom.append(summaryRow, dom.$('.session-worktree-cleanup-summary'));
+		this.cleanupButton = this.editorDisposables.add(new Button(summaryRow, defaultButtonStyles));
 		this.cleanupButton.label = localize('sessionWorktreeCleanup.cleanupButton', "Clean Up Worktrees");
+		this.cleanupButton.element.classList.add('session-worktree-cleanup-action');
 		this.cleanupButton.enabled = false;
 		this.editorDisposables.add(this.cleanupButton.onDidClick(() => void this.cleanupSelected()));
 

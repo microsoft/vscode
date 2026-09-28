@@ -208,11 +208,6 @@
 		min-width: 0;
 	}
 
-	.agent-sessions-storage-cleanup-notice-icon {
-		flex-shrink: 0;
-		color: var(--vscode-icon-foreground);
-	}
-
 	.agent-sessions-storage-cleanup-notice-description {
 		flex: 1;
 		min-width: 0;
@@ -249,7 +244,6 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--vscode-spacing-size40);
-		padding-left: var(--vscode-spacing-size240);
 	}
 
 	.agent-sessions-customizations-section {

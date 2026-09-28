@@ -51,11 +51,26 @@
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
 }
 
+.session-worktree-cleanup-summary-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size120);
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
 .session-worktree-cleanup-summary {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
-	margin-bottom: var(--vscode-spacing-size120);
+	flex: 1;
+	min-width: 0;
+}
+
+.session-worktree-cleanup-summary-row .session-worktree-cleanup-action {
+	flex-shrink: 0;
+	width: auto;
 }
 
 .session-worktree-cleanup-info {
@@ -142,12 +157,6 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-.session-worktree-cleanup-footer {
-	display: flex;
-	justify-content: flex-end;
-	margin-bottom: var(--vscode-spacing-size120);
 }
 
 .session-worktree-cleanup-automatic {

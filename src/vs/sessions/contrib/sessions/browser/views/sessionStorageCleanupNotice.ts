@@ -37,8 +37,6 @@ export class SessionStorageCleanupNotice extends Disposable {
 			'aria-label': localize('sessionStorageCleanupNotice.ariaLabel', "Session Storage Cleanup Suggestion"),
 		});
 		const content = DOM.append(this.domNode, DOM.$('.agent-sessions-storage-cleanup-notice-content'));
-		const icon = DOM.append(content, DOM.$('.agent-sessions-storage-cleanup-notice-icon', { 'aria-hidden': 'true' }));
-		icon.appendChild(renderIcon(Codicon.database));
 		const description = DOM.append(content, DOM.$('.agent-sessions-storage-cleanup-notice-description'));
 
 		const dismissButton = DOM.append(content, DOM.$('button.agent-sessions-storage-cleanup-notice-dismiss')) as HTMLButtonElement;
