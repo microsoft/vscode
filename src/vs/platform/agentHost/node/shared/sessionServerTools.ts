@@ -32,11 +32,11 @@ import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } f
 const maxSessionSpawnDepth = 3;
 
 /** Process-wide backstop against runaway spawning (breadth), independent of depth. */
-const maxCreatedSessions = 25;
-const maxCreatedChats = 25;
+const maxCreatedSessions = 50;
+const maxCreatedChats = 50;
 
 /** Process-wide backstop against runaway `send_message` fan-out. */
-const maxSentMessages = 50;
+const maxSentMessages = 100;
 
 const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession]);
 const createSessionRelationshipValues = ['currentSession', 'independent'] as const;
@@ -182,6 +182,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Each result includes `session` for identity and tool inputs and `openLink` for clickable Markdown links; do not use `session` as a link target. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
 		inputSchema: listSessionsInputSchema,
 		annotations: { readOnlyHint: true },
+		deferLoading: true,
 	},
 	{
 		name: SessionServerToolName.GetCurrentSession,
@@ -189,6 +190,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'Get metadata and the open link for the session this conversation is running in. Use this to reference the current session (for example before adding a chat to it).',
 		inputSchema: getCurrentSessionInputSchema,
 		annotations: { readOnlyHint: true },
+		deferLoading: true,
 	},
 	{
 		name: SessionServerToolName.SetWorkspace,
@@ -196,6 +198,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'Attach a real workspace only to modify its files or run commands requiring its project environment. Do not use for self-contained scratch work on attachments, pasted/generated content, or throwaway/exportable artifacts. The session, chat, and history are preserved. Immediately before every call, use the available user-input tool to ask one question confirming both workspace and isolation, even if already specified; tool approval is not confirmation. Set `isolation` to true for a managed Git worktree or false for the folder directly. After this turn, the host attaches the workspace and continues the original task. Make this the turn\'s final tool call.',
 		inputSchema: setWorkspaceInputSchema,
 		annotations: { readOnlyHint: false },
+		deferLoading: true,
 	},
 	{
 		name: SessionServerToolName.CreateSession,
@@ -203,6 +206,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'Create delegated work and start it with an initial prompt.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
+		deferLoading: true,
 	},
 	{
 		name: SessionServerToolName.RenameChat,
@@ -210,6 +214,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'Rename one specific chat so it is easy to find later. Renaming the default chat also names its owning session, while peer-chat titles remain independent. Use a short, human-friendly chat name in sentence case (1-4 words). Pass an `agent-host-session://` session or chat link to target another chat, or omit `chat` to rename the chat in which this tool is running. Name a fresh chat once its scope is clear. Call this tool again whenever the user explicitly asks to rename the chat; every invocation replaces the current title.',
 		inputSchema: renameChatInputSchema,
 		annotations: { readOnlyHint: false },
+		deferLoading: true,
 	},
 	{
 		name: SessionServerToolName.SendMessage,
@@ -217,6 +222,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. If the target chat is busy, the message is queued and starts after the active turn completes successfully. Delivery is asynchronous — this tool does not wait for or return the reply.',
 		inputSchema: sendMessageInputSchema,
 		annotations: { readOnlyHint: false },
+		deferLoading: true,
 	},
 	{
 		name: SessionServerToolName.GetSessionContext,
@@ -224,6 +230,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'Read the recent conversation of an existing session or chat: a compacted transcript of its turns (messages, replies, and tool calls). Use this to see what a session you created is doing, or to gather context before sending it a message. Returns a compacted summary by default (`detail: "summary"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.',
 		inputSchema: getSessionContextInputSchema,
 		annotations: { readOnlyHint: true },
+		deferLoading: true,
 	},
 	{
 		name: SessionServerToolName.DeleteSession,
@@ -231,6 +238,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'Permanently delete a session (identified by a session URI from `list_sessions`), including its stored data. This cannot be undone. Refuses to delete the current session.',
 		inputSchema: deleteSessionInputSchema,
 		annotations: { readOnlyHint: false, destructiveHint: true },
+		deferLoading: true,
 	},
 ];
 
@@ -279,6 +287,8 @@ export type IAddSessionWorkingDirectoryOptions = {
 export interface IPreparedChatWorkingDirectory {
 	/** The effective checkout to assign to the chat. */
 	readonly directory: URI;
+	/** Associates a newly created worktree with the chat before that chat is created. */
+	readonly associateWithChat?: (chat: URI) => Promise<void>;
 	/**
 	 * Undoes the preparation when the chat could not be created: removes a
 	 * folder this preparation added, and a worktree it created, unless a chat
@@ -289,7 +299,6 @@ export interface IPreparedChatWorkingDirectory {
 
 /** AgentService-owned operations used by the session server-tool group. */
 export interface IAgentServiceSessionServerToolAccessor {
-	readonly isActiveAgentTitleGenerationEnabled: () => boolean;
 	readonly getAutomaticTitleGenerationStrategy: (session?: ProtocolURI) => AutomaticTitleGenerationStrategy;
 	readonly canConvertWorkspace: (session: URI) => boolean;
 	/**
@@ -877,7 +886,7 @@ export interface ICreateSessionResult {
 /**
  * Creates work with the requested relationship and sends its initial prompt.
  */
-export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string): Promise<ICreateSessionResult> {
+export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string, enforceSpawnDepthLimit = true): Promise<ICreateSessionResult> {
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
 	const supportsChatWorkingDirectories = currentSession === undefined || accessor.supportsChatWorkingDirectories(currentSession);
 	const sessions = await getCreateSessionCatalog(accessor, rawArgs, supportsChatWorkingDirectories);
@@ -906,7 +915,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 				title: args.title,
 				model: args.model,
 				...(prepared !== undefined ? { workingDirectories: [prepared.directory] } : {}),
-			}, source, sourceTurnId);
+			}, source, sourceTurnId, prepared?.associateWithChat);
 		} catch (error) {
 			await prepared?.release();
 			throw error;
@@ -915,7 +924,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	}
 
 	const parentDepth = currentSession ? accessor.getSessionSpawnDepth(currentSession) : 0;
-	if (parentDepth >= maxSessionSpawnDepth) {
+	if (enforceSpawnDepthLimit && parentDepth >= maxSessionSpawnDepth) {
 		throw new Error(`Refusing to create a session: recursion limit reached (max spawn depth ${maxSessionSpawnDepth}). This session was itself created ${parentDepth} level(s) deep.`);
 	}
 	let workspace = args.workspace;
@@ -1055,13 +1064,14 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	return { session, prompt, ...(title !== undefined ? { title } : {}), ...(model !== undefined ? { model } : {}) };
 }
 
-async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedCreateChatArgs, source?: URI, sourceTurnId?: string): Promise<ICreateChatResult> {
+async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedCreateChatArgs, source?: URI, sourceTurnId?: string, onChatAllocated?: (chat: URI) => Promise<void>): Promise<ICreateChatResult> {
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
 	const targetProvider = AgentSession.provider(args.session);
 	const model = args.model !== undefined ? { id: args.model.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
 	const chatId = generateUuid();
 	const chat = URI.parse(buildChatUri(args.session.toString(), chatId));
+	await onChatAllocated?.(chat);
 	await accessor.createChat(args.session, chat, {
 		title: args.title,
 		model,
@@ -1612,7 +1622,7 @@ function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServe
 }
 
 /**
- * Creates the session server-tool group with process-local recursion protection.
+ * Creates the session server-tool group with configurable safety limits.
  *
  * The {@link accessor} is optional so the group can also back the pure display
  * path (`getServerToolDisplay`), which only needs {@link IServerToolGroup.definitions},
@@ -1620,7 +1630,7 @@ function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServe
  * and never invokes {@link IServerToolGroup.execute}. `execute` throws when no
  * accessor was provided.
  */
-export function createSessionServerToolGroup(accessor?: ISessionServerToolAccessor): IServerToolGroup {
+export function createSessionServerToolGroup(accessor?: ISessionServerToolAccessor, areAgentOrchestrationLimitsEnabled: () => boolean = () => true): IServerToolGroup {
 	let createdSessionCount = 0;
 	let createdChatCount = 0;
 	let sentMessageCount = 0;
@@ -1663,6 +1673,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				throw new Error(`Session server tool "${toolName}" cannot run: the group was built without a session accessor.`);
 			}
 			const currentChannel = context.chatUri;
+			const enforceAgentOrchestrationLimits = areAgentOrchestrationLimitsEnabled();
 			switch (toolName) {
 				case SessionServerToolName.ListSessions:
 					{
@@ -1679,13 +1690,13 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				}
 				case SessionServerToolName.CreateSession: {
 					const relationship = getCreateSessionRelationship(rawArgs, accessor.supportsChatWorkingDirectories(currentSessionUri(currentChannel)));
-					if (relationship === 'currentSession' && createdChatCount >= maxCreatedChats) {
+					if (enforceAgentOrchestrationLimits && relationship === 'currentSession' && createdChatCount >= maxCreatedChats) {
 						throw new Error(`Refusing to create more than ${maxCreatedChats} chats from server tools in this process.`);
 					}
-					if (relationship === 'independent' && createdSessionCount >= maxCreatedSessions) {
+					if (enforceAgentOrchestrationLimits && relationship === 'independent' && createdSessionCount >= maxCreatedSessions) {
 						throw new Error(`Refusing to create more than ${maxCreatedSessions} sessions from server tools in this process.`);
 					}
-					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
+					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId, enforceAgentOrchestrationLimits);
 					if (relationship === 'currentSession') {
 						createdChatCount++;
 					} else {
@@ -1694,7 +1705,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					return formatCreateSessionResult(result);
 				}
 				case SessionServerToolName.CreateChat: {
-					if (createdChatCount >= maxCreatedChats) {
+					if (enforceAgentOrchestrationLimits && createdChatCount >= maxCreatedChats) {
 						throw new Error(`Refusing to create more than ${maxCreatedChats} chats from server tools in this process.`);
 					}
 					const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
@@ -1704,7 +1715,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				case SessionServerToolName.RenameChat:
 					return applyRenameChatTool(accessor, rawArgs, currentChannel);
 				case SessionServerToolName.SendMessage: {
-					if (sentMessageCount >= maxSentMessages) {
+					if (enforceAgentOrchestrationLimits && sentMessageCount >= maxSentMessages) {
 						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in this process.`);
 					}
 					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);

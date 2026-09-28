@@ -1,0 +1,91 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use your request_user_input capability to ask me one question: "Which fruit?" with options Apple and Banana. After I answer, reply with only the option I chose. If the question is cancelled, reply exactly "cancelled" and do not ask again.'
+    response:
+      content:
+        - type: text
+          text: Got it — I’ll ask that single question now.
+        - type: tool_use
+          id: toolcall_0
+          name: request_user_input
+          input:
+            questions:
+              - header: Fruit
+                id: which_fruit
+                question: Which fruit?
+                options:
+                  - label: Apple (Recommended)
+                    description: Choose Apple.
+                  - label: Banana
+                    description: Choose Banana.
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use your request_user_input capability to ask me one question: "Which fruit?" with options Apple and Banana. After I answer, reply with only the option I chose. If the question is cancelled, reply exactly "cancelled" and do not ask again.'
+        - role: assistant
+          content: Got it — I’ll ask that single question now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: request_user_input
+              input:
+                questions:
+                  - header: Fruit
+                    id: which_fruit
+                    question: Which fruit?
+                    options:
+                      - label: Apple (Recommended)
+                        description: Choose Apple.
+                      - label: Banana
+                        description: Choose Banana.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"answers":{"which_fruit":{"answers":[]}}}'
+    response:
+      content: cancelled
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use your request_user_input capability to ask me one question: "Which fruit?" with options Apple and Banana. After I answer, reply with only the option I chose. If the question is cancelled, reply exactly "cancelled" and do not ask again.'
+        - role: assistant
+          content: Got it — I’ll ask that single question now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: request_user_input
+              input:
+                questions:
+                  - header: Fruit
+                    id: which_fruit
+                    question: Which fruit?
+                    options:
+                      - label: Apple (Recommended)
+                        description: Choose Apple.
+                      - label: Banana
+                        description: Choose Banana.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"answers":{"which_fruit":{"answers":[]}}}'
+        - role: assistant
+          content: cancelled
+        - role: user
+          content: Reply exactly "STILL_READY".
+    response:
+      content: STILL_READY
+      stopReason: end_turn

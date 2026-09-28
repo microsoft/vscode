@@ -72,6 +72,8 @@ import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/ag
 import { AgentHostTurnService, IAgentHostTurnService } from './agentHostTurnService.js';
 import { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 import { RemoteDevContainerAgentHostService } from './devContainerAgentHostService.js';
+import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AgentHostStartupMarks, AgentHostStartupPerformance, IAgentHostStartupPerformance } from './agentHostStartupPerformance.js';
 
 export interface IAgentHostCoreServiceInputs {
 	readonly storageResource: URI | undefined;
@@ -80,6 +82,8 @@ export interface IAgentHostCoreServiceInputs {
 	readonly fetchFn: typeof globalThis.fetch;
 	readonly gitHubServiceOptions: GitHubServiceOptions;
 	readonly copilotApiService?: ICopilotApiService;
+	readonly hostLaunchKind?: AgentHostLaunchKind;
+	readonly startupMarks?: AgentHostStartupMarks;
 }
 
 export function registerAgentHostCoreServices(services: ServiceCollection, inputs: IAgentHostCoreServiceInputs): void {
@@ -116,6 +120,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
 	services.set(IAgentHostTurnService, new SyncDescriptor(AgentHostTurnService));
 	services.set(IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));
+	services.set(IAgentHostStartupPerformance, new SyncDescriptor(AgentHostStartupPerformance, [inputs.hostLaunchKind ?? AgentHostLaunchKind.Unknown, inputs.startupMarks]));
 	services.set(IAgentHostTurnTracker, new SyncDescriptor(AgentHostTurnTracker));
 	services.set(IAgentHostToolCallTracker, new SyncDescriptor(AgentHostToolCallTracker));
 	services.set(IAgentHostProviderService, new SyncDescriptor(AgentHostProviderService));

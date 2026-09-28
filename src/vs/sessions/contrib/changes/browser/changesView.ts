@@ -85,7 +85,7 @@ import { ChecksViewModel } from './checksViewModel.js';
 import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
-import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -93,7 +93,7 @@ import { compareFileNames, comparePaths } from '../../../../base/common/comparer
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { ChangesViewSection, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewService } from '../common/changesViewService.js';
+import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewService } from '../common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { ChangesStatsWidget, IChangesStats } from '../../../../workbench/browser/changesStatsWidget.js';
 import { Menus } from '../../../browser/menus.js';
@@ -323,6 +323,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 	constructor(
 		container: HTMLElement,
+		excludedOperationIds: ReadonlySet<string>,
 		@IMenuService menuService: IMenuService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -425,7 +426,8 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			const operations = changesViewService.activeSessionChangesetOperationsObs.read(reader);
 			const changesetOperations = operations
 				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset))
-				.filter(op => !AGENT_HOST_AUTO_MERGE_OPERATION_IDS.has(op.id));
+				.filter(op => !AGENT_HOST_AUTO_MERGE_OPERATION_IDS.has(op.id))
+				.filter(op => !excludedOperationIds.has(op.id));
 
 			const toOperationAction = (op: ISessionChangesetOperation) => toAction({
 				id: op.id,
@@ -597,6 +599,12 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 }
 
 /**
+ * Changeset operations that the single-pane title bar never renders because
+ * they are contributed to the Changes editor header toolbar instead.
+ */
+const TITLE_BAR_EXCLUDED_OPERATION_IDS: ReadonlySet<string> = new Set([AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID]);
+
+/**
  * Renders the session changes action button-bar (e.g. "Create Pull Request") into
  * a container, choosing the agent-host or git variant based on the active session.
  * Used to host the actions in the single-pane Changes editor header.
@@ -604,6 +612,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 export class ChangesActionsBar extends Disposable {
 	constructor(
 		container: HTMLElement,
+		excludedOperationIds: ReadonlySet<string>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@ISessionsService sessionsService: ISessionsService,
@@ -637,7 +646,7 @@ export class ChangesActionsBar extends Disposable {
 			dom.clearNode(container);
 
 			const widget = isAgentHostSessionObs.read(reader)
-				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container)
+				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container, excludedOperationIds)
 				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs);
 			reader.store.add(widget);
 			currentWidget = widget;
@@ -670,17 +679,26 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this._register(this.instantiationService.createInstance(ChangesActionsBar, container));
+		this._register(this.instantiationService.createInstance(ChangesActionsBar, container, TITLE_BAR_EXCLUDED_OPERATION_IDS));
 	}
 }
 
-function createChangesPickerLabelObservable(owner: object, changesViewService: IChangesViewService): IObservable<string | undefined> {
-	return derivedObservableWithCache<string | undefined>(owner, (reader, lastValue) => {
+interface IChangesPickerLabel {
+	readonly label: string;
+	readonly isNonDefault: boolean;
+}
+
+function createChangesPickerLabelObservable(owner: object, changesViewService: IChangesViewService): IObservable<IChangesPickerLabel | undefined> {
+	return derivedObservableWithCache<IChangesPickerLabel | undefined>(owner, (reader, lastValue) => {
 		const changeset = changesViewService.activeSessionChangesetObs.read(reader);
 		if (!changeset && changesViewService.activeSessionChangesetsLoadingObs.read(reader)) {
 			return lastValue;
 		}
-		return changeset?.label;
+		if (!changeset) {
+			return undefined;
+		}
+		const defaultChangeset = findDefaultChangeset(changesViewService.activeSessionChangesetsObs.read(reader) ?? [], reader);
+		return { label: changeset.label, isNonDefault: changeset.id !== defaultChangeset?.id };
 	});
 }
 
@@ -1719,7 +1737,7 @@ export class ChangesViewPane extends ViewPane {
 			const isAgentHostSession = isAgentHostSessionObs.read(reader);
 
 			const widget = isAgentHostSession
-				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!)
+				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!, new Set<string>())
 				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.hasGitOperationInProgressObs);
 			reader.store.add(widget);
 		}));
@@ -2192,7 +2210,7 @@ export class ChangesPickerSummary extends Disposable {
 }
 
 export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
-	private readonly _labelObs: IObservable<string | undefined>;
+	private readonly _labelObs: IObservable<IChangesPickerLabel | undefined>;
 	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined> | undefined;
 	private readonly _pickerEnabledObs: IObservable<boolean>;
 	private readonly _summaryLease = this._register(new MutableDisposable());
@@ -2202,7 +2220,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	constructor(
 		action: MenuItemAction,
 		private readonly _summary: ChangesPickerSummary | undefined,
-		labelObs: IObservable<string | undefined> | undefined,
+		labelObs: IObservable<IChangesPickerLabel | undefined> | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -2314,12 +2332,14 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 	private updatePickerLabel(): void {
 		if (this._labelElement) {
-			this._labelElement.textContent = this._labelObs.get() ?? this.action.label;
+			const label = this._labelObs.get();
+			this._labelElement.textContent = label?.label ?? this.action.label;
+			this._labelElement.classList.toggle('non-default', label?.isNonDefault ?? false);
 		}
 	}
 
 	protected override getTooltip(): string {
-		const label = this._labelObs.get();
+		const label = this._labelObs.get()?.label;
 		const title = super.getTooltip() || this.action.label;
 		if (!label) {
 			return title;

@@ -137,6 +137,24 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 			: undefined;
 	}
 
+	/**
+	 * Whether restricted reconciliation would drop pull requests that automatic association keeps,
+	 * because they are neither artifacts nor explicitly associated.
+	 */
+	wouldRestrictPullRequests(meta: SessionSummaryMeta | undefined, gitHubState: ISessionGitHubState): boolean {
+		const { candidateKeys } = this._getRestrictedCandidates(meta, gitHubState);
+		return [...gitHubState.pullRequestUrls ?? [], ...gitHubState.initialPullRequestUrls ?? []].some(url => !candidateKeys.has(getSessionPullRequestUrlKey(url)));
+	}
+
+	/**
+	 * Whether the pull request of the checked-out branch is already resolved and explicitly
+	 * associated. Restricted reconciliation then keeps it without resolving it again, just as
+	 * automatic association stops looking once the branch has a pull request.
+	 */
+	hasExplicitCurrentPullRequest(meta: SessionSummaryMeta | undefined, gitHubState: ISessionGitHubState, branchName: string): boolean {
+		return this._getCurrentAssociation(this._getRestrictedCandidates(meta, gitHubState), branchName).explicitlyAssociated;
+	}
+
 	/** Reconciles branch-aware GitHub state against artifact and explicit-association candidates. */
 	async reconcileRestricted(context: IRestrictedPullRequestReconciliationContext): Promise<RestrictedPullRequestReconciliationResult> {
 		const { sessionKey, sessionState, gitHubState, gitState } = context;
