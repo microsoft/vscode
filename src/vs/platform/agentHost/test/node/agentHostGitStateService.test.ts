@@ -767,6 +767,7 @@ suite('AgentHostGitStateService', () => {
 		const wrongRepository = await h.service.associateRecordedPullRequest(peer, pullRequestUrl);
 		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
 		const associated = await h.service.associateRecordedPullRequest(peer, pullRequestUrl);
+		const alreadyAssociated = await h.service.associateRecordedPullRequest(peer, pullRequestUrl);
 		const persisted = JSON.parse(await h.db.getMetadata(META_GITHUB_DATA_STATE) ?? '{}');
 
 		assert.deepStrictEqual({
@@ -775,6 +776,7 @@ suite('AgentHostGitStateService', () => {
 			wrongBranch,
 			wrongRepository,
 			associated,
+			alreadyAssociated,
 			lookups: h.pullRequestCandidateCalls,
 			mainFolder: h.service.getGitHubState(SESSION),
 			peerFolder: h.service.getGitHubState(peer),
@@ -785,6 +787,7 @@ suite('AgentHostGitStateService', () => {
 			wrongBranch: false,
 			wrongRepository: false,
 			associated: true,
+			alreadyAssociated: true,
 			lookups: [['https://github.com/microsoft/vscode/pull/2'], [pullRequestUrl], [pullRequestUrl]],
 			mainFolder: { owner: 'contoso', repo: 'main' },
 			peerFolder: {

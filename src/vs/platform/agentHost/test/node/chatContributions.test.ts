@@ -1594,7 +1594,7 @@ suite('AgentHostChatContributions', () => {
 				{ sessionKey: session, workingDirectory: sessionFolder },
 				{ sessionKey: peerFolderChat, workingDirectory: peerFolder },
 			],
-			pending: [session, buildDefaultChatUri(session), sessionFolderChat, peerFolderChat],
+			pending: [],
 		});
 	});
 
