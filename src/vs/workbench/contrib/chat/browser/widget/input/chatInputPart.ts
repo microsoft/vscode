@@ -779,6 +779,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private attachContextActionViewItem: MenuEntryActionViewItem | undefined;
 	private permissionWidget: PermissionPickerActionItem | undefined;
 	private readonly permissionWidgetDisposeListener = this._register(new MutableDisposable<IDisposable>());
+	/** The Agent Host pickers in the input toolbar, by session configuration property. Owned by their action view items. */
+	private readonly agentHostPickers = new Map<string, AgentHostChatInputPicker>();
 	private readonly overflowPickerWidget = this._register(new MutableDisposable<IDisposable>());
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
 	private delegationWidget: DelegationSessionPickerActionItem | undefined;
@@ -1460,9 +1462,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.modelWidget?.show();
 	}
 
-	/** The rendered mode picker control, if the input toolbar currently shows one. */
-	public get modePickerElement(): HTMLElement | undefined {
-		return this.modeWidget?.element;
+	/** The Agent Host picker rendered for a session configuration property, such as the mode or permissions. */
+	public getAgentHostPicker(property: string): AgentHostChatInputPicker | undefined {
+		const picker = this.agentHostPickers.get(property);
+		return picker?.triggerElement?.isConnected ? picker : undefined;
 	}
 
 	/** The rendered model picker control, if the input toolbar currently shows one. */
@@ -4063,7 +4066,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.overflowPickerWidget.value = picker;
 							picker.show(anchor);
 						});
-						return new AgentHostChatInputPickerActionViewItem(action, createPicker());
+						const picker = createPicker();
+						this.agentHostPickers.set(agentHostPickerProperty, picker);
+						return new AgentHostChatInputPickerActionViewItem(action, picker);
 					} else if (action.id === OpenAgentHostFolderPickerAction.ID && action instanceof MenuItemAction) {
 						if (this.options.isSessionsWindow) {
 							return new HiddenActionViewItem(action);

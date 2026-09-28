@@ -454,6 +454,40 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
+	test('highlights an open popup together with its target and stays above it', async () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
+		const target = createTarget(container, 300, 300, 20, 20);
+		const popup: { element?: HTMLElement } = {};
+		overlay.show(target, content(), { placement: 'left', targetOverlayVisible: true, popup: () => popup.element });
+		const root = container.querySelector<HTMLElement>('.spotlight-overlay')!;
+		const hole = container.querySelector<HTMLElement>('.spotlight-hole')!;
+		const holeRect = () => [hole.style.left, hole.style.top, hole.style.width, hole.style.height];
+		const nextFrame = () => new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+		const closed = holeRect();
+
+		popup.element = createTarget(container, 150, 150, 170, 140);
+		await nextFrame();
+		const open = holeRect();
+		const blockers = Array.from(container.getElementsByClassName('spotlight-blocker')).map(blocker => (blocker as HTMLElement).style.display);
+		popup.element.remove();
+		await nextFrame();
+
+		assert.deepStrictEqual({
+			closed,
+			open,
+			reclosed: holeRect(),
+			blockers,
+			targetOverlayVisible: root.classList.contains('target-overlay-visible'),
+		}, {
+			closed: ['294px', '294px', '32px', '32px'],
+			open: ['144px', '144px', '182px', '182px'],
+			reclosed: ['294px', '294px', '32px', '32px'],
+			blockers: ['', '', '', ''],
+			targetOverlayVisible: false,
+		});
+	});
+
 	test('hideNext routes target keyboard events through the focus trap', () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));

@@ -210,6 +210,8 @@ this._register(registerOnboardingTargetProvider(MY_FEATURE_ONBOARDING_TARGET, sc
 }));
 ```
 
+A target that opens a menu or another popup can also return `popup`. While the popup is shown, the spotlight highlights it together with the target and keeps its callout above it, so the popup stays readable and interactive without covering the callout.
+
 The shared resolver validates the element's document and visibility. A registered provider is authoritative: returning `undefined` does not fall back to marked DOM elements. In particular, an unknown or expired scope must not fall back to the feature's active owner.
 
 Spotlight retries provider resolution according to the step's `missingTarget` policy, so controls may render after the run is prepared. Adapters do not need to poll or mark DOM nodes while waiting. Do not query another component's classes or DOM structure.

@@ -56,6 +56,11 @@ export interface ISpotlightShowOptions {
 	readonly padding?: number;
 	readonly hideNext?: boolean;
 	readonly targetOverlayVisible?: boolean;
+	/**
+	 * Returns an element the target opened, such as its menu. The hole grows to include it and the
+	 * overlay stays above it, so the popup shows through the hole while the callout remains usable.
+	 */
+	readonly popup?: () => HTMLElement | undefined;
 	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
 	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
 }
@@ -178,7 +183,7 @@ export class SpotlightOverlay extends Disposable {
 		this.setPrimaryActionEnabled(true);
 		this._renderContent(content);
 		const externalUiParticipates = !!options.targetOverlayVisible || !!options.allowTargetInteraction || !!options.advanceOnTargetClick || !!options.hideNext;
-		this._root.classList.toggle('target-overlay-visible', externalUiParticipates);
+		this._root.classList.toggle('target-overlay-visible', externalUiParticipates && !options.popup);
 		this._callout.setAttribute('aria-modal', externalUiParticipates ? 'false' : 'true');
 
 		this._root.style.display = '';
@@ -208,10 +213,10 @@ export class SpotlightOverlay extends Disposable {
 		}
 
 		// ResizeObserver does not report position-only shifts caused by surrounding content.
-		let previousRect = target.getBoundingClientRect();
+		let previousRect = this._getHighlightRect(target);
 		this._stepListeners.add(animate(targetWindow, () => {
-			const rect = target.getBoundingClientRect();
-			if (rect.x !== previousRect.x || rect.y !== previousRect.y || rect.width !== previousRect.width || rect.height !== previousRect.height) {
+			const rect = this._getHighlightRect(target);
+			if (rect.left !== previousRect.left || rect.top !== previousRect.top || rect.width !== previousRect.width || rect.height !== previousRect.height) {
 				previousRect = rect;
 				this.layout();
 			}
@@ -301,11 +306,12 @@ export class SpotlightOverlay extends Disposable {
 			this._onDidLoseTarget.fire();
 			return;
 		}
+		const highlight = this._getHighlightRect(target);
 		const padding = this._options.padding ?? DEFAULT_HOLE_PADDING;
-		const holeLeft = Math.max(0, rect.left - padding);
-		const holeTop = Math.max(0, rect.top - padding);
-		const holeWidth = Math.min(viewportWidth - holeLeft, rect.width + padding * 2);
-		const holeHeight = Math.min(viewportHeight - holeTop, rect.height + padding * 2);
+		const holeLeft = Math.max(0, highlight.left - padding);
+		const holeTop = Math.max(0, highlight.top - padding);
+		const holeWidth = Math.min(viewportWidth - holeLeft, highlight.width + padding * 2);
+		const holeHeight = Math.min(viewportHeight - holeTop, highlight.height + padding * 2);
 
 		this._hole.style.left = `${holeLeft}px`;
 		this._hole.style.top = `${holeTop}px`;
@@ -315,7 +321,7 @@ export class SpotlightOverlay extends Disposable {
 		// When the target is interactive (explicitly, or because the step advances
 		// on a target click), arrange the click blockers around the hole so events
 		// inside it reach the underlying element.
-		if (this._options.allowTargetInteraction || this._options.advanceOnTargetClick) {
+		if (this._options.allowTargetInteraction || this._options.advanceOnTargetClick || this._options.popup) {
 			const right = holeLeft + holeWidth;
 			const bottom = holeTop + holeHeight;
 			this._layoutBlocker(this._blockers[0], 0, 0, viewportWidth, holeTop);
@@ -330,6 +336,19 @@ export class SpotlightOverlay extends Disposable {
 		}
 
 		this._layoutCallout({ top: holeTop, left: holeLeft, width: holeWidth, height: holeHeight }, viewportWidth, viewportHeight);
+	}
+
+	/** The target's bounds, extended to include a visible popup the target opened. */
+	private _getHighlightRect(target: HTMLElement): IRect {
+		const rect = target.getBoundingClientRect();
+		const popup = this._options.popup?.();
+		const popupRect = popup?.isConnected ? popup.getBoundingClientRect() : undefined;
+		if (!popupRect || popupRect.width === 0 || popupRect.height === 0) {
+			return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+		}
+		const left = Math.min(rect.left, popupRect.left);
+		const top = Math.min(rect.top, popupRect.top);
+		return { left, top, width: Math.max(rect.right, popupRect.right) - left, height: Math.max(rect.bottom, popupRect.bottom) - top };
 	}
 
 	private _layoutBlocker(blocker: HTMLElement, left: number, top: number, width: number, height: number): void {

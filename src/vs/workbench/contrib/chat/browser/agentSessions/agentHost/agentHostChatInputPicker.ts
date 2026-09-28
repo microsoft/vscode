@@ -513,6 +513,33 @@ export class AgentHostChatInputPicker extends Disposable {
 		void this._showPicker(anchor).catch(onUnexpectedError);
 	}
 
+	/** The rendered control that opens this picker, if it is currently shown. */
+	get triggerElement(): HTMLElement | undefined {
+		return this._trigger;
+	}
+
+	/** Whether this picker's menu is currently shown. */
+	get isOpen(): boolean {
+		return this._pickerVisible;
+	}
+
+	/** Whether this mode picker also offers the permission levels, in a separate section. */
+	get combinesPermissions(): boolean {
+		return !!this._getModePickerPermissions();
+	}
+
+	/**
+	 * Opens this picker from its rendered trigger, as clicking it would. Does nothing while
+	 * another menu is shown. `openPermissions` expands the permissions section instead of the
+	 * mode section when {@link combinesPermissions} is true.
+	 */
+	open(openPermissions = false): void {
+		const trigger = this._trigger;
+		if (trigger) {
+			void this._showPicker(trigger, openPermissions).catch(onUnexpectedError);
+		}
+	}
+
 	private _reattach(): void {
 		this._hidePicker();
 		this._sessionGeneration++;
