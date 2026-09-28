@@ -2284,6 +2284,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					kind: 'working',
 					content: progressLabel,
 					isActive: true,
+					announce: activityLabel ? 'polite' : false,
 					progressStep: element.response.value.length,
 					showDelayedProgressMessage: !activityLabel,
 				};

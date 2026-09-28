@@ -1411,9 +1411,27 @@ suite('ChatListRenderer', () => {
 	});
 
 	for (const incremental of [false, true]) {
-		test(`persistent footer updates current and prior activity while the parent is idle (incremental=${incremental})`, async () => {
-			const { configurationService, model, viewModel, request, renderer, template } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+		test(`persistent footer updates and announces current and prior activity while the parent is idle (incremental=${incremental})`, async () => {
+			const { disposables, configurationService, model, viewModel, request, renderer, template } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+			const host = dom.$('div');
+			setARIAContainer(host);
+			disposables.add(toDisposable(() => host.remove()));
+			const announcements: string[] = [];
+			const observer = new MutationObserver(records => {
+				for (const record of records) {
+					if (dom.isHTMLElement(record.target) && record.target.classList.contains('monaco-status')) {
+						for (const node of record.addedNodes) {
+							if (node.textContent) {
+								announcements.push(node.textContent);
+							}
+						}
+					}
+				}
+			});
+			disposables.add(toDisposable(() => observer.disconnect()));
+			observer.observe(host, { childList: true, subtree: true });
 			const backgroundTerminal = new ChatToolInvocation(
 				{
 					invocationMessage: 'Regenerate policy data',
@@ -1467,12 +1485,20 @@ suite('ChatListRenderer', () => {
 			backgroundTerminal.notifyToolSpecificDataChanged();
 			await timeout(0);
 			const afterCompletion = label();
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+			configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', false);
+			currentAgentData.isActive = true;
+			currentAgent.notifyToolSpecificDataChanged();
+			await timeout(0);
 
-			assert.deepStrictEqual({ whileRunning, afterPreviousAgent, afterCurrentAgent, afterCompletion, sameFooter: template.value.querySelector('.chat-working-progress') === footer }, {
+			assert.deepStrictEqual({ whileRunning, afterPreviousAgent, afterCurrentAgent, afterCompletion, announcements, afterMutedUpdate: label(), sameFooter: template.value.querySelector('.chat-working-progress') === footer }, {
 				whileRunning: '2 subagents and 1 background command running',
 				afterPreviousAgent: '1 subagent and 1 background command running',
 				afterCurrentAgent: '1 background command running',
 				afterCompletion: 'Collecting policy information',
+				announcements: ['1 subagent and 1 background command running', '1 background command running'],
+				afterMutedUpdate: '1 subagent running',
 				sameFooter: true,
 			});
 			nextRequest.response?.complete();
@@ -2763,15 +2789,30 @@ suite('ChatListRenderer', () => {
 			};
 			unresponsive.fire(event);
 			const generic = part.workingLabel;
+			const nextEvent = { ...event, toolData: { ...event.toolData, id: 'read', displayName: 'Read' } };
+			unresponsive.fire(nextEvent);
+			const nextTool = part.workingLabel;
+			unresponsive.fire({ ...event, sessionResource: URI.parse('chat-session://other/session') });
+			const unrelatedSession = part.workingLabel;
 			part.updateWorkingContent(new MarkdownString('2 subagents running'));
 			unresponsive.fire(event);
 			const background = part.workingLabel;
 			part.updateWorkingContent(new MarkdownString('1 confirmation pending'));
 			unresponsive.fire(event);
-			assert.deepStrictEqual({ generic, background, confirmation: part.workingLabel }, {
+			const confirmation = part.workingLabel;
+			part.updateWorkingContent(undefined);
+			unresponsive.fire(nextEvent);
+			const resumed = part.workingLabel;
+			part.updateWorkingContent(new MarkdownString('Waiting for tool \'Read\' to respond...'));
+			unresponsive.fire(event);
+			assert.deepStrictEqual({ generic, nextTool, unrelatedSession, background, confirmation, resumed, explicitFallbackText: part.workingLabel }, {
 				generic: 'Waiting for tool \'Search\' to respond...',
+				nextTool: 'Waiting for tool \'Read\' to respond...',
+				unrelatedSession: 'Waiting for tool \'Read\' to respond...',
 				background: persistent ? '2 subagents running' : 'Waiting for tool \'Search\' to respond...',
 				confirmation: persistent ? '1 confirmation pending' : 'Waiting for tool \'Search\' to respond...',
+				resumed: 'Waiting for tool \'Read\' to respond...',
+				explicitFallbackText: persistent ? 'Waiting for tool \'Read\' to respond...' : 'Waiting for tool \'Search\' to respond...',
 			});
 		});
 	}
