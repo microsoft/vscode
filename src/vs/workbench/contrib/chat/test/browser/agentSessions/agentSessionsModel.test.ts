@@ -9,6 +9,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { URI } from '../../../../../../base/common/uri.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AgentSessionStatus, AgentSessionsCache } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
+import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 
 suite('AgentSessionsCache', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,6 +45,30 @@ suite('AgentSessionsCache', () => {
 
 		const serialized = JSON.parse(storageService.get(storageKey, StorageScope.WORKSPACE) ?? '[]');
 		assert.deepStrictEqual(serialized[0].changes, { files: 2, insertions: 8, deletions: 3 });
+	});
+
+	test('does not persist profile-owned local rows in the workspace cache', () => {
+		const { cache } = createCache();
+		const externalSession = createSession(undefined);
+		cache.saveCachedSessions([
+			{ ...externalSession, providerType: AgentSessionProviders.Local, resource: LocalChatSessionUri.forSession('local-session') },
+			externalSession,
+		]);
+
+		assert.deepStrictEqual(cache.loadCachedSessions().map(session => session.resource.toString()), [externalSession.resource.toString()]);
+	});
+
+	test('ignores local rows in an older workspace cache', () => {
+		const { cache, storageService } = createCache();
+		const externalSession = createSession(undefined);
+		cache.saveCachedSessions([externalSession]);
+		const [serializedExternal] = JSON.parse(storageService.get(storageKey, StorageScope.WORKSPACE)!);
+		storageService.store(storageKey, JSON.stringify([
+			{ ...serializedExternal, providerType: AgentSessionProviders.Local, resource: LocalChatSessionUri.forSession('previous-profile-session').toString() },
+			serializedExternal,
+		]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		assert.deepStrictEqual(cache.loadCachedSessions().map(session => session.resource.toString()), [externalSession.resource.toString()]);
 	});
 
 	test('round-trips summaries without URI revival', () => {
@@ -121,5 +147,161 @@ suite('AgentSessionsCache', () => {
 		cache.saveCachedSessions([loaded]);
 		const serialized = JSON.parse(storageService.get(storageKey, StorageScope.WORKSPACE) ?? '[]');
 		assert.deepStrictEqual(serialized[0].changes, { files: 1, insertions: 3, deletions: 1 });
+	});
+
+	test('merges state updates from different windows', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const firstCache = new AgentSessionsCache(storageService);
+		const secondCache = new AgentSessionsCache(storageService);
+		const firstStates = firstCache.loadSessionStates();
+		const secondStates = secondCache.loadSessionStates();
+		const firstResource = URI.parse('test:/first');
+		const secondResource = URI.parse('test:/second');
+
+		firstStates.set(firstResource, { pinned: true });
+		firstCache.saveSessionStates(firstStates);
+		secondStates.set(secondResource, { archived: true });
+		secondCache.saveSessionStates(secondStates);
+
+		const mergedStates = new AgentSessionsCache(storageService).loadSessionStates();
+		assert.deepStrictEqual({
+			first: mergedStates.get(firstResource),
+			second: mergedStates.get(secondResource),
+			aggregate: storageService.get('agentSessions.state.cache', StorageScope.PROFILE),
+		}, {
+			first: { pinned: true },
+			second: { archived: true },
+			aggregate: undefined,
+		});
+	});
+
+	test('merges different field updates to the same session from different windows', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const firstCache = new AgentSessionsCache(storageService);
+		const secondCache = new AgentSessionsCache(storageService);
+		const firstStates = firstCache.loadSessionStates();
+		const secondStates = secondCache.loadSessionStates();
+		const resource = URI.parse('test:/session');
+
+		firstStates.set(resource, { pinned: true });
+		firstCache.saveSessionStates(firstStates);
+		secondStates.set(resource, { archived: true });
+		secondCache.saveSessionStates(secondStates);
+
+		assert.deepStrictEqual(new AgentSessionsCache(storageService).loadSessionStates().get(resource), {
+			archived: true,
+			pinned: true,
+		});
+	});
+
+	test('merges external updates without discarding unsaved local fields', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const resource = URI.parse('test:/session');
+		const initialCache = new AgentSessionsCache(storageService);
+		const initialStates = initialCache.loadSessionStates();
+		initialStates.set(resource, { pinned: false, archived: false });
+		initialCache.saveSessionStates(initialStates);
+
+		const localCache = new AgentSessionsCache(storageService);
+		const externalCache = new AgentSessionsCache(storageService);
+		const localStates = localCache.loadSessionStates();
+		const externalStates = externalCache.loadSessionStates();
+		localStates.set(resource, { ...localStates.get(resource), pinned: true });
+		externalStates.set(resource, { ...externalStates.get(resource), archived: true });
+		externalCache.saveSessionStates(externalStates);
+
+		localCache.mergeSessionStates(localStates);
+		assert.deepStrictEqual(localStates.get(resource), { archived: true, pinned: true });
+		localCache.saveSessionStates(localStates);
+		assert.deepStrictEqual(new AgentSessionsCache(storageService).loadSessionStates().get(resource), { archived: true, pinned: true });
+	});
+
+	test('does not restore state deleted by another window', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const firstResource = URI.parse('test:/first');
+		const secondResource = URI.parse('test:/second');
+		const initialCache = new AgentSessionsCache(storageService);
+		const initialStates = initialCache.loadSessionStates();
+		initialStates.set(firstResource, { pinned: true });
+		initialStates.set(secondResource, { archived: true });
+		initialCache.saveSessionStates(initialStates);
+
+		const deletingCache = new AgentSessionsCache(storageService);
+		const staleCache = new AgentSessionsCache(storageService);
+		const deletingStates = deletingCache.loadSessionStates();
+		const staleStates = staleCache.loadSessionStates();
+		deletingStates.delete(firstResource);
+		deletingCache.saveSessionStates(deletingStates);
+		staleStates.set(secondResource, { archived: false });
+		staleCache.saveSessionStates(staleStates);
+
+		const reloaded = new AgentSessionsCache(storageService).loadSessionStates();
+		assert.strictEqual(reloaded.has(firstResource), false);
+		assert.deepStrictEqual(reloaded.get(secondResource), { archived: false });
+	});
+
+	test('migrates workspace state even when profile state already exists', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const workspaceResource = URI.parse('test:/workspace');
+		const profileResource = URI.parse('test:/profile');
+		storageService.store('agentSessions.state.cache', JSON.stringify([
+			{ resource: workspaceResource.toString(), pinned: true },
+		]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		storageService.store('agentSessions.state.cache', JSON.stringify([
+			{ resource: profileResource.toString(), archived: true },
+		]), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const cache = new AgentSessionsCache(storageService);
+		const states = cache.loadSessionStates();
+		cache.saveSessionStates(states);
+
+		const reloaded = new AgentSessionsCache(storageService).loadSessionStates();
+		assert.deepStrictEqual({
+			workspace: reloaded.get(workspaceResource),
+			profile: reloaded.get(profileResource),
+			workspaceLegacy: storageService.get('agentSessions.state.cache', StorageScope.WORKSPACE),
+			profileLegacy: storageService.get('agentSessions.state.cache', StorageScope.PROFILE),
+		}, {
+			workspace: { pinned: true },
+			profile: { archived: true },
+			workspaceLegacy: undefined,
+			profileLegacy: undefined,
+		});
+	});
+
+	test('merges fields from legacy sources for the same session', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const resource = URI.parse('test:/shared');
+		storageService.store('agentSessions.state.cache', JSON.stringify([
+			{ resource: resource.toString(), pinned: true },
+		]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		storageService.store('agentSessions.state.cache', JSON.stringify([
+			{ resource: resource.toString(), archived: true },
+		]), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		assert.deepStrictEqual(new AgentSessionsCache(storageService).loadSessionStates().get(resource), {
+			archived: true,
+			pinned: true,
+		});
+	});
+
+	test('does not overwrite a newer field while migrating legacy state', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const resource = URI.parse('test:/session');
+		storageService.store('agentSessions.state.cache', JSON.stringify([
+			{ resource: resource.toString(), pinned: false },
+		]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		storageService.store(
+			`agentSessions.state.cache.field.pinned.${encodeURIComponent(resource.toString())}`,
+			JSON.stringify(true),
+			StorageScope.PROFILE,
+			StorageTarget.MACHINE,
+		);
+
+		const cache = new AgentSessionsCache(storageService);
+		const states = cache.loadSessionStates();
+		cache.saveSessionStates(states);
+
+		assert.deepStrictEqual(new AgentSessionsCache(storageService).loadSessionStates().get(resource), { pinned: true });
 	});
 });

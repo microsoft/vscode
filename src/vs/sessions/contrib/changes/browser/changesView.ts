@@ -85,7 +85,7 @@ import { ChecksViewModel } from './checksViewModel.js';
 import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
-import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -323,7 +323,6 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 	constructor(
 		container: HTMLElement,
-		excludedOperationIds: ReadonlySet<string>,
 		@IMenuService menuService: IMenuService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -426,8 +425,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			const operations = changesViewService.activeSessionChangesetOperationsObs.read(reader);
 			const changesetOperations = operations
 				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset))
-				.filter(op => !AGENT_HOST_AUTO_MERGE_OPERATION_IDS.has(op.id))
-				.filter(op => !excludedOperationIds.has(op.id));
+				.filter(op => !AGENT_HOST_AUTO_MERGE_OPERATION_IDS.has(op.id));
 
 			const toOperationAction = (op: ISessionChangesetOperation) => toAction({
 				id: op.id,
@@ -599,12 +597,6 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 }
 
 /**
- * Changeset operations that the single-pane title bar never renders because
- * they are contributed to the Changes editor header toolbar instead.
- */
-const TITLE_BAR_EXCLUDED_OPERATION_IDS: ReadonlySet<string> = new Set([AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID]);
-
-/**
  * Renders the session changes action button-bar (e.g. "Create Pull Request") into
  * a container, choosing the agent-host or git variant based on the active session.
  * Used to host the actions in the single-pane Changes editor header.
@@ -612,7 +604,6 @@ const TITLE_BAR_EXCLUDED_OPERATION_IDS: ReadonlySet<string> = new Set([AGENT_HOS
 export class ChangesActionsBar extends Disposable {
 	constructor(
 		container: HTMLElement,
-		excludedOperationIds: ReadonlySet<string>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@ISessionsService sessionsService: ISessionsService,
@@ -646,7 +637,7 @@ export class ChangesActionsBar extends Disposable {
 			dom.clearNode(container);
 
 			const widget = isAgentHostSessionObs.read(reader)
-				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container, excludedOperationIds)
+				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container)
 				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs);
 			reader.store.add(widget);
 			currentWidget = widget;
@@ -679,7 +670,7 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this._register(this.instantiationService.createInstance(ChangesActionsBar, container, TITLE_BAR_EXCLUDED_OPERATION_IDS));
+		this._register(this.instantiationService.createInstance(ChangesActionsBar, container));
 	}
 }
 
@@ -1737,7 +1728,7 @@ export class ChangesViewPane extends ViewPane {
 			const isAgentHostSession = isAgentHostSessionObs.read(reader);
 
 			const widget = isAgentHostSession
-				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!, new Set<string>())
+				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!)
 				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.hasGitOperationInProgressObs);
 			reader.store.add(widget);
 		}));

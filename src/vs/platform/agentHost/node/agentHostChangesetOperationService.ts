@@ -157,16 +157,13 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		const sourceKey = context.sourceKey ?? resolveChangesetOwnerScope(this._stateManager, ownerKey).sourceUri;
 		const scopedOwner = isAhpChatChannel(ownerKey) || !!parseFolderChangesetOwnerUri(ownerKey);
 		const isBranchChangeset = context.changesetKind === ChangesetKind.Branch;
-		// Every folder scope's Branch and Uncommitted changesets offer pull request
-		// workflows resolved against that scope, so they stay available regardless
-		// of which changeset is selected; the direct merge stays with the default
-		// chat's Branch changeset.
-		const allowsPullRequestOperations = isBranchChangeset || context.changesetKind === ChangesetKind.Uncommitted;
+		// Every folder scope's Branch changeset offers pull request workflows
+		// resolved against that scope; the direct merge stays with the default chat.
 		const allowsMergeOperation = isBranchChangeset && isDefaultChatUri(sourceKey);
 		const scopedOperations = scopedOwner
 			? operations.filter(operation => operation.id === AGENT_HOST_MERGE_CHANGESET_OPERATION_ID
 				? allowsMergeOperation
-				: allowsPullRequestOperations || (operation.group !== 'pull-request' && !AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(operation.id)))
+				: isBranchChangeset || (operation.group !== 'pull-request' && !AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(operation.id)))
 			: operations;
 
 		// Operations are disabled while a turn is active so the working tree /

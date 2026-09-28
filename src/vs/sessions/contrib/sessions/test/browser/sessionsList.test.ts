@@ -45,7 +45,6 @@ import { TestExperimentTriggerTelemetryService } from '../../../../../platform/t
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
@@ -60,7 +59,7 @@ import type { ICustomViewDescriptor } from '../../../../services/customView/brow
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -2118,53 +2117,6 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	test('remote session hover shows the remote name after the session type', () => {
-		const localSession = createSession('Fix remote reconnection', { workspaceLabel: 'Workspace' });
-		const remoteSession: ISession = {
-			...localSession,
-			remoteConnectionStatus: constObservable({ kind: 'connected' }),
-		};
-		const provider = upcastPartial<ISessionsProvider>({
-			label: 'Remote Mac',
-			sessionTypes: [upcastPartial<ISessionType>({ id: 'test', label: 'Copilot CLI' })],
-		});
-		const createProvidersService = (provider: ISessionsProvider) => new class extends mock<ISessionsProvidersService>() {
-			override getProvider<T extends ISessionsProvider>(): T | undefined {
-				return provider as T;
-			}
-		};
-		const providersService = createProvidersService(provider);
-		const createHoverData = (session: ISession) => getSessionSummaryHoverData(
-			session,
-			providersService,
-			upcastPartial<IOpenerService>({}),
-			upcastPartial<ILabelService>({}),
-			upcastPartial<IPreferencesService>({}),
-		);
-		const remoteData = createHoverData(remoteSession);
-		const titleLine = new SessionSummaryHoverWidget(remoteData).domNode.querySelector('.session-summary-hover-title')?.textContent;
-		const disconnectedData = getSessionSummaryHoverData(
-			remoteSession,
-			createProvidersService({ ...provider, sessionTypes: [] }),
-			upcastPartial<IOpenerService>({}),
-			upcastPartial<ILabelService>({}),
-			upcastPartial<IPreferencesService>({}),
-		);
-		const disconnectedTitleLine = new SessionSummaryHoverWidget(disconnectedData).domNode.querySelector('.session-summary-hover-title')?.textContent;
-
-		assert.deepStrictEqual({
-			titleLine,
-			remoteName: remoteData.remoteName,
-			disconnectedTitleLine,
-			localRemoteName: createHoverData(localSession).remoteName,
-		}, {
-			titleLine: 'Fix remote reconnection · Copilot CLI · Remote Mac',
-			remoteName: 'Remote Mac',
-			disconnectedTitleLine: 'Fix remote reconnection · Remote Mac',
-			localRemoteName: undefined,
-		});
-	});
-
 	test('external session hover leads to the setting that governs external sessions', () => {
 		const queries: (string | undefined)[] = [];
 		const hoverFor = (isExternal: boolean) => getSessionSummaryHoverData(
@@ -3280,69 +3232,6 @@ suite('Sessions - SessionsList', () => {
 			}, { before: false, during: true, after: false, filterPreserved: true });
 		});
 
-		test('spotlights a filtered session row without revealing its archive action or retaining recycled targets', () => {
-			const session = createTestSession('Running session', { status: SessionStatus.InProgress }).session;
-			const replacement = createTestSession('Replacement').session;
-			const harness = createListHarness(disposables, [session, replacement]);
-			harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
-			const container = harness.createContainer();
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
-				onSessionOpen: () => assert.fail('Revealing onboarding must not open the session'),
-			}));
-			list.layout(300, 400);
-			list.setStatusExcluded(SessionStatus.InProgress, true);
-			list.collapseAllSections();
-			const before = list.reveal(session.resource);
-			const target = harness.store.add(list.revealSessionForOnboarding(session));
-			const row = findOnboardingTarget(mainWindow, target.targetId);
-			const during = {
-				visible: row?.checkVisibility(),
-				title: row?.querySelector('.session-title')?.textContent,
-				archiveActionForced: container.querySelectorAll('.archive-onboarding').length,
-			};
-			list.update();
-			const afterUpdate = !!findOnboardingTarget(mainWindow, target.targetId);
-			harness.managementService.sessions = [replacement];
-			list.refresh();
-			const afterRecycle = !!findOnboardingTarget(mainWindow, target.targetId);
-			harness.managementService.sessions = [session, replacement];
-			list.refresh();
-			target.dispose();
-			assert.deepStrictEqual({
-				before, during, afterUpdate, afterRecycle,
-				afterRelease: !!findOnboardingTarget(mainWindow, target.targetId),
-				filterPreserved: list.isStatusExcluded(SessionStatus.InProgress),
-			}, {
-				before: false,
-				during: { visible: true, title: 'Running session', archiveActionForced: 0 },
-				afterUpdate: true,
-				afterRecycle: false,
-				afterRelease: false,
-				filterPreserved: true,
-			});
-		});
-
-		test('releasing an older onboarding reveal does not clear its replacement', () => {
-			const sessions = [createTestSession('First').session, createTestSession('Second').session];
-			const harness = createListHarness(disposables, sessions);
-			harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
-				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
-				onSessionOpen: () => { },
-			}));
-			list.layout(300, 400);
-			const first = harness.store.add(list.revealSessionForOnboarding(sessions[0]));
-			const second = harness.store.add(list.revealSessionForOnboarding(sessions[1]));
-			first.dispose();
-			assert.deepStrictEqual({
-				first: !!findOnboardingTarget(mainWindow, first.targetId),
-				second: !!findOnboardingTarget(mainWindow, second.targetId),
-			}, { first: false, second: true });
-		});
-
 		for (const customGroup of [false, true]) {
 			test(`reveals only the onboarding target beyond the ${customGroup ? 'custom group' : 'workspace'} cap`, () => {
 				const sessions = Array.from({ length: 12 }, (_, index) => ({
@@ -3367,7 +3256,7 @@ suite('Sessions - SessionsList', () => {
 					showMore: [...container.querySelectorAll('.session-show-more-label')].map(label => label.textContent),
 				});
 				const before = snapshot();
-				const target = harness.store.add(list.revealSessionForOnboarding(sessions[9]));
+				const target = harness.store.add(list.revealArchiveAction(sessions[9]));
 				const during = snapshot();
 				target.dispose();
 

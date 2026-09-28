@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -22,9 +23,13 @@ import { TestChatWidgetService, TestLifecycleService, workbenchInstantiationServ
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { toUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
+import { UserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfileService.js';
 import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
 
 class StaticChatSessionItemController implements IChatSessionItemController {
@@ -66,6 +71,27 @@ suite('AgentSessions', () => {
 			disposables.add(mockChatSessionsService.registerChatSessionContribution({ type, name: type, displayName: type, description: type }));
 		}
 
+		function createSwitchingProfileService() {
+			const firstProfile = toUserDataProfile('first', 'First', URI.file('/profiles/first'), URI.file('/cache'));
+			const secondProfile = toUserDataProfile('second', 'Second', URI.file('/profiles/second'), URI.file('/cache'));
+			const profileService = disposables.add(new UserDataProfileService(firstProfile));
+			instantiationService.stub(IUserDataProfileService, profileService);
+			const storageService = instantiationService.get(IStorageService);
+			const profileStorage = new Map<string, Map<string, string>>();
+			disposables.add(profileService.onDidChangeCurrentProfile(event => {
+				const entries = new Map<string, string>();
+				for (const key of storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE)) {
+					entries.set(key, storageService.get(key, StorageScope.PROFILE)!);
+					storageService.remove(key, StorageScope.PROFILE);
+				}
+				profileStorage.set(event.previous.id, entries);
+				for (const [key, value] of profileStorage.get(event.profile.id) ?? []) {
+					storageService.store(key, value, StorageScope.PROFILE, StorageTarget.MACHINE);
+				}
+			}));
+			return { profileService, firstProfile, secondProfile };
+		}
+
 		setup(() => {
 			mockChatSessionsService = new MockChatSessionsService();
 			mockLifecycleService = disposables.add(new TestLifecycleService());
@@ -84,6 +110,107 @@ suite('AgentSessions', () => {
 			viewModel = createViewModel();
 
 			assert.strictEqual(viewModel.sessions.length, 0);
+		});
+
+		test('hydrates persisted pin state into the local session store', async () => {
+			const resource = LocalChatSessionUri.forSession('session-1');
+			const pinUpdates: boolean[] = [];
+			const controller: IChatSessionItemController = {
+				onDidChangeChatSessionItems: Event.None,
+				items: [makeSimpleSessionItem('session-1', { resource })],
+				refresh: async () => { },
+				setChatSessionItemPinned: (_resource, pinned) => pinUpdates.push(pinned),
+			};
+			mockChatSessionsService.registerChatSessionItemController(localChatSessionType, controller);
+			const storageService = instantiationService.get(IStorageService);
+			storageService.store(
+				`agentSessions.state.cache.field.pinned.${encodeURIComponent(resource.toString())}`,
+				JSON.stringify(true),
+				StorageScope.PROFILE,
+				StorageTarget.MACHINE,
+			);
+
+			viewModel = createViewModel();
+			await viewModel.resolve(undefined);
+
+			assert.deepStrictEqual(pinUpdates, [true]);
+		});
+
+		test('preserves unsaved session state in its profile across switches', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { profileService, firstProfile, secondProfile } = createSwitchingProfileService();
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setPinned(true);
+				viewModel.sessions[0].setArchived(true);
+
+				await profileService.updateCurrentProfile(secondProfile);
+				await viewModel.resolve(undefined);
+				assert.deepStrictEqual({ pinned: viewModel.sessions[0].isPinned(), archived: viewModel.sessions[0].isArchived() }, { pinned: false, archived: false });
+				viewModel.sessions[0].setRead(false);
+
+				await profileService.updateCurrentProfile(firstProfile);
+				await viewModel.resolve(undefined);
+				assert.deepStrictEqual({ pinned: viewModel.sessions[0].isPinned(), archived: viewModel.sessions[0].isArchived() }, { pinned: true, archived: true });
+
+				await profileService.updateCurrentProfile(secondProfile);
+				await viewModel.resolve(undefined);
+				assert.deepStrictEqual({ pinned: viewModel.sessions[0].isPinned(), archived: viewModel.sessions[0].isArchived(), read: viewModel.sessions[0].isRead() }, { pinned: false, archived: false, read: false });
+			});
+		});
+
+		test('keeps outgoing state and resumes resolving when a profile switch is aborted', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { profileService, firstProfile, secondProfile } = createSwitchingProfileService();
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setPinned(true);
+				disposables.add(profileService.onWillChangeCurrentProfile(event => event.join(Promise.reject(new Error('Save failed')))));
+
+				await assert.rejects(profileService.updateCurrentProfile(secondProfile), /Save failed/);
+				controller.setItems([makeSimpleSessionItem('session-1'), makeSimpleSessionItem('session-2')]);
+				await viewModel.resolve(undefined);
+				assert.deepStrictEqual({ profile: profileService.currentProfile.id, sessions: viewModel.sessions.map(session => ({ resource: session.resource.toString(), pinned: session.isPinned() })) }, {
+					profile: firstProfile.id,
+					sessions: [
+						{ resource: `${chatSessionTestType}://session-1`, pinned: true },
+						{ resource: `${chatSessionTestType}://session-2`, pinned: false },
+					],
+				});
+			});
+		});
+
+		test('removes outgoing local rows while the next profile storage is switching', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { profileService, secondProfile } = createSwitchingProfileService();
+				const firstResource = LocalChatSessionUri.forSession('first-session');
+				const secondResource = LocalChatSessionUri.forSession('second-session');
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('first-session', { resource: firstResource })]);
+				mockChatSessionsService.registerChatSessionItemController(localChatSessionType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+				const switchStarted = new DeferredPromise<void>();
+				const switchFinished = new DeferredPromise<void>();
+				disposables.add(profileService.onDidChangeCurrentProfile(event => {
+					event.join(switchFinished.p);
+					void switchStarted.complete();
+				}));
+
+				const update = profileService.updateCurrentProfile(secondProfile);
+				await switchStarted.p;
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions.length, 0);
+
+				controller.setItems([makeSimpleSessionItem('second-session', { resource: secondResource })]);
+				await switchFinished.complete();
+				await update;
+				await viewModel.resolve(undefined);
+				assert.deepStrictEqual(viewModel.sessions.map(session => session.resource.toString()), [secondResource.toString()]);
+			});
 		});
 
 		test('should resolve sessions from controllers', async () => {
@@ -870,6 +997,29 @@ suite('AgentSessions', () => {
 
 			assert.strictEqual(filter.exclude(archivedSession), false);
 			assert.strictEqual(filter.exclude(activeSession), false);
+		});
+
+		test('shows local sessions from the current workspace by default', () => {
+			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, {}));
+			let changeCount = 0;
+			disposables.add(filter.onDidChange(() => changeCount++));
+			const workspaceId = instantiationService.get(IWorkspaceContextService).getWorkspace().id;
+			const current = createSession({ providerType: localChatSessionType, metadata: { workspaceId } });
+			const other = createSession({ providerType: localChatSessionType, metadata: { workspaceId: 'other-workspace' } });
+
+			assert.deepStrictEqual({
+				current: filter.exclude(current),
+				other: filter.exclude(other),
+			}, { current: false, other: true });
+
+			filter.setOtherWorkspacesVisible(true);
+			assert.deepStrictEqual({
+				excluded: filter.exclude(other),
+				changeCount,
+			}, {
+				excluded: false,
+				changeCount: 1,
+			});
 		});
 
 		test('should filter out sessions from excluded provider', () => {

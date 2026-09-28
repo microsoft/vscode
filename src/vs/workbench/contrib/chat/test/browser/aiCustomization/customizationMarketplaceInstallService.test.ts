@@ -2193,10 +2193,9 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		test('records a connector that was already connected outside this workbench', async () => {
 			const fixture = await createFixture();
-			const recorded = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getRecordedResources().some(resource => resource.identifier === 'mail')));
 			fixture.connectedConnectors.add('mail');
 			fixture.connectorChanges.fire();
-			await recorded;
+			await timeout(0);
 
 			assert.deepStrictEqual({
 				recorded: fixture.service.getRecordedResources().map(resource => resource.identifier),

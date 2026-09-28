@@ -64,7 +64,6 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 			}),
 			worktreeBranchPrefixProperty: undefined,
 			worktreeIncludeFilesProperty: undefined,
-			worktreeSymlinkFoldersProperty: undefined,
 			worktreeBranchTrackProperty: undefined,
 			worktreeCreateNewBranchProperty: undefined,
 			isolationValue: 'worktree',

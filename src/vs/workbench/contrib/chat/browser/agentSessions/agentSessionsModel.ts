@@ -26,6 +26,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -251,6 +252,9 @@ interface IAgentSessionState {
 	readonly pinned?: boolean;
 	readonly read?: number /* last date turned read */;
 }
+
+const agentSessionStateFields = ['archived', 'pinned', 'read'] as const;
+type AgentSessionStateField = typeof agentSessionStateFields[number];
 
 export const enum AgentSessionSection {
 
@@ -535,6 +539,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	private readonly cache: AgentSessionsCache;
 	private readonly logger: AgentSessionsLogger;
+	private profileChanging = false;
+	private profileGeneration = 0;
 
 	constructor(
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
@@ -546,6 +552,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 
@@ -557,6 +564,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			this._sessions.set(session.resource, session);
 		}
 		this.sessionStates = this.cache.loadSessionStates();
+		for (const session of this._sessions.values()) {
+			this.hydratePinnedState(session);
+		}
 
 		this.logger = this._register(this.instantiationService.createInstance(
 			AgentSessionsLogger,
@@ -571,6 +581,42 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		this.loadMigratedReadResources();
 
 		this.registerListeners();
+		this._register(userDataProfileService.onWillChangeCurrentProfile(event => {
+			if (isEqual(event.previous.globalStorageHome, event.profile.globalStorageHome)) {
+				return;
+			}
+			this.cache.saveCachedSessions(Array.from(this._sessions.values()));
+			this.cache.saveSessionStates(this.sessionStates);
+			this.profileChanging = true;
+			this.resolvers.clearAndDisposeAll();
+		}));
+		this._register(userDataProfileService.onDidChangeCurrentProfile(() => {
+			if (!this.profileChanging) {
+				return;
+			}
+			this.profileGeneration++;
+			for (const session of this._sessions.values()) {
+				if (session.providerType === AgentSessionProviders.Local) {
+					this._sessions.delete(session.resource);
+				}
+			}
+			this.sessionStates.clear();
+			this.cache.resetSessionStateSnapshot();
+			this._onDidChangeSessions.fire();
+		}));
+		const finishProfileChange = () => {
+			if (!this.profileChanging) {
+				return;
+			}
+			this.profileChanging = false;
+			for (const session of this._sessions.values()) {
+				this._sessions.set(session.resource, this.toAgentSession(session));
+			}
+			this.replaceSessionStates();
+			this.resolve(undefined);
+		};
+		this._register(userDataProfileService.onDidUpdateCurrentProfile(finishProfileChange));
+		this._register(userDataProfileService.onDidFailCurrentProfileChange(finishProfileChange));
 	}
 
 	private registerListeners(): void {
@@ -598,9 +644,39 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 		// State
 		this._register(this.storageService.onWillSaveState(() => {
-			this.cache.saveCachedSessions(Array.from(this._sessions.values()));
-			this.cache.saveSessionStates(this.sessionStates);
+			if (!this.profileChanging) {
+				this.cache.saveCachedSessions(Array.from(this._sessions.values()));
+				this.cache.saveSessionStates(this.sessionStates);
+			}
 		}));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(event => {
+			if (this.profileChanging) {
+				return;
+			}
+			if (event.key === AgentSessionsCache.STATE_STORAGE_KEY || event.key.startsWith(AgentSessionsCache.STATE_ENTRY_STORAGE_KEY_PREFIX) || event.key.startsWith(AgentSessionsCache.STATE_FIELD_STORAGE_KEY_PREFIX)) {
+				this.mergeSessionStates();
+			}
+		}));
+	}
+
+	private replaceSessionStates(): void {
+		const profileSessionStates = this.cache.loadSessionStates();
+		this.sessionStates.clear();
+		for (const [resource, state] of profileSessionStates) {
+			this.sessionStates.set(resource, state);
+		}
+		for (const session of this._sessions.values()) {
+			this.hydratePinnedState(session);
+		}
+		this._onDidChangeSessions.fire();
+	}
+
+	private mergeSessionStates(): void {
+		this.cache.mergeSessionStates(this.sessionStates);
+		for (const session of this._sessions.values()) {
+			this.hydratePinnedState(session);
+		}
+		this._onDidChangeSessions.fire();
 	}
 
 	getSession(resource: URI): IAgentSession | undefined {
@@ -673,7 +749,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private resolveProvider(provider: string, options: { refreshProvider: boolean }): Promise<void> {
-		if (this.chatEntitlementService.sentiment.hidden) {
+		if (this.profileChanging || this.chatEntitlementService.sentiment.hidden) {
 			return Promise.resolve(); // don't resolve if AI features are disabled
 		}
 
@@ -700,6 +776,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private async doResolveProvider(provider: string, options: { refreshProvider: boolean }, token: CancellationToken): Promise<void> {
+		const profileGeneration = this.profileGeneration;
 		if (options.refreshProvider) {
 			await this.chatSessionsService.refreshChatSessionItems([provider], token);
 
@@ -795,8 +872,14 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					};
 				};
 
-				sessions.set(session.resource, this.toAgentSession(toInternalSession(session)));
+				const agentSession = this.toAgentSession(toInternalSession(session));
+				this.hydratePinnedState(agentSession);
+				sessions.set(session.resource, agentSession);
 			}
+		}
+
+		if (token.isCancellationRequested || this.profileChanging || this.profileGeneration !== profileGeneration) {
+			return;
 		}
 
 		// Phase 2: Atomically update sessions (sync - reads latest this._sessions
@@ -848,17 +931,37 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private toAgentSession(data: IInternalAgentSessionData): IInternalAgentSession {
+		const profileGeneration = this.profileGeneration;
 		return {
 			...data,
 			children: data.children?.map(child => this.toAgentSession(child)),
 			isArchived: () => this.isArchived(data),
-			setArchived: (archived: boolean) => this.setArchived(data, archived),
+			setArchived: (archived: boolean) => {
+				if (!this.profileChanging && this.profileGeneration === profileGeneration) {
+					this.setArchived(data, archived);
+				}
+			},
 			isPinned: () => this.isPinned(data),
-			setPinned: (pinned: boolean) => this.setPinned(data, pinned),
+			setPinned: (pinned: boolean) => {
+				if (!this.profileChanging && this.profileGeneration === profileGeneration) {
+					this.setPinned(data, pinned);
+				}
+			},
 			isRead: () => this.isRead(data),
 			isMarkedUnread: () => this.isMarkedUnread(data),
-			setRead: (read: boolean) => this.setRead(data, read),
+			setRead: (read: boolean) => {
+				if (!this.profileChanging && this.profileGeneration === profileGeneration) {
+					this.setRead(data, read);
+				}
+			},
 		};
+	}
+
+	private hydratePinnedState(session: IInternalAgentSessionData): void {
+		const state = this.resolveStateEntry(session);
+		if (state?.pinned !== undefined) {
+			this.chatSessionsService.setChatSessionItemPinned(session.resource, state.pinned);
+		}
 	}
 
 	//#region States
@@ -894,6 +997,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 		this.sessionStates.set(session.resource, { ...prev });
 		this.sessionStates.delete(legacy);
+		if (prev.pinned !== undefined) {
+			this.chatSessionsService.setChatSessionItemPinned(session.resource, prev.pinned);
+		}
 		return this.sessionStates.get(session.resource);
 	}
 
@@ -940,6 +1046,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 		const state = this.resolveStateEntry(session) ?? {};
 		this.sessionStates.set(session.resource, { ...state, pinned });
+		this.chatSessionsService.setChatSessionItemPinned(session.resource, pinned);
 
 		this._onDidChangeSessions.fire();
 	}
@@ -1184,7 +1291,13 @@ interface ISerializedAgentSessionState extends IAgentSessionState {
 export class AgentSessionsCache {
 
 	private static readonly SESSIONS_STORAGE_KEY = 'agentSessions.model.cache';
-	private static readonly STATE_STORAGE_KEY = 'agentSessions.state.cache';
+	static readonly STATE_STORAGE_KEY = 'agentSessions.state.cache';
+	/** Storage format used by the first profile-wide implementation. */
+	static readonly STATE_ENTRY_STORAGE_KEY_PREFIX = 'agentSessions.state.cache.entry.';
+	static readonly STATE_FIELD_STORAGE_KEY_PREFIX = 'agentSessions.state.cache.field.';
+	private readonly sessionStateSnapshot = new ResourceMap<IAgentSessionState>();
+	private needsStateMigration = false;
+	private readonly legacyStateEntryKeys = new Set<string>();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService
@@ -1217,7 +1330,8 @@ export class AgentSessionsCache {
 			legacyResource: session.legacyResource?.toString(),
 			children: session.children?.map(serialize),
 		});
-		const serialized = sessions.map(serialize);
+		// Local history is restored from the active profile, not the workspace cache.
+		const serialized = sessions.filter(session => session.providerType !== AgentSessionProviders.Local).map(serialize);
 
 		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, safeStringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
@@ -1265,7 +1379,7 @@ export class AgentSessionsCache {
 					})),
 				};
 			};
-			return cached.map(session => deserialize(session));
+			return cached.filter(session => session.providerType !== AgentSessionProviders.Local).map(session => deserialize(session));
 		} catch {
 			return []; // invalid data in storage, fallback to empty sessions list
 		}
@@ -1276,39 +1390,157 @@ export class AgentSessionsCache {
 	//#region States
 
 	saveSessionStates(states: ResourceMap<IAgentSessionState>): void {
-		const serialized: ISerializedAgentSessionState[] = Array.from(states.entries()).map(([resource, state]) => ({
-			resource: resource.toString(),
-			archived: state.archived,
-			pinned: state.pinned,
-			read: state.read
-		}));
-
-		this.storageService.store(AgentSessionsCache.STATE_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const entries: Parameters<IStorageService['storeAll']>[0] = [];
+		const resources = new ResourceSet();
+		for (const resource of states.keys()) {
+			resources.add(resource);
+		}
+		for (const resource of this.sessionStateSnapshot.keys()) {
+			resources.add(resource);
+		}
+		for (const resource of resources) {
+			const state = states.get(resource);
+			const previousState = this.sessionStateSnapshot.get(resource);
+			for (const field of agentSessionStateFields) {
+				const key = AgentSessionsCache.getStateFieldStorageKey(resource, field);
+				const changed = state?.[field] !== previousState?.[field];
+				if (!changed && (!this.needsStateMigration || this.storageService.get(key, StorageScope.PROFILE) !== undefined)) {
+					continue;
+				}
+				const value = state?.[field];
+				entries.push({
+					key,
+					value: value === undefined ? undefined : JSON.stringify(value),
+					scope: StorageScope.PROFILE,
+					target: StorageTarget.MACHINE,
+				});
+			}
+		}
+		for (const key of this.legacyStateEntryKeys) {
+			entries.push({ key, value: undefined, scope: StorageScope.PROFILE, target: StorageTarget.MACHINE });
+		}
+		this.storageService.storeAll(entries, false);
+		if (this.needsStateMigration) {
+			this.storageService.remove(AgentSessionsCache.STATE_STORAGE_KEY, StorageScope.PROFILE);
+			this.storageService.remove(AgentSessionsCache.STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+			this.needsStateMigration = false;
+			this.legacyStateEntryKeys.clear();
+		}
+		this.updateSessionStateSnapshot(states);
 	}
 
 	loadSessionStates(): ResourceMap<IAgentSessionState> {
-		const states = new ResourceMap<IAgentSessionState>();
+		const states = this.readSessionStates();
+		this.updateSessionStateSnapshot(states);
+		return states;
+	}
 
-		const statesCache = this.storageService.get(AgentSessionsCache.STATE_STORAGE_KEY, StorageScope.WORKSPACE);
-		if (!statesCache) {
-			return states;
+	resetSessionStateSnapshot(): void {
+		this.sessionStateSnapshot.clear();
+		this.needsStateMigration = false;
+		this.legacyStateEntryKeys.clear();
+	}
+
+	mergeSessionStates(states: ResourceMap<IAgentSessionState>): void {
+		const previousSnapshot = new ResourceMap<IAgentSessionState>();
+		for (const [resource, state] of this.sessionStateSnapshot) {
+			previousSnapshot.set(resource, { ...state });
 		}
-
-		try {
-			const cached = JSON.parse(statesCache) as ISerializedAgentSessionState[];
-
-			for (const entry of cached) {
-				states.set(typeof entry.resource === 'string' ? URI.parse(entry.resource) : URI.revive(entry.resource), {
-					archived: entry.archived,
-					pinned: entry.pinned,
-					read: entry.read
-				});
+		const storedStates = this.readSessionStates();
+		const resources = new ResourceSet([...states.keys(), ...previousSnapshot.keys(), ...storedStates.keys()]);
+		for (const resource of resources) {
+			const local = states.get(resource);
+			const previous = previousSnapshot.get(resource);
+			const stored = storedStates.get(resource);
+			const archived = local?.archived !== previous?.archived ? local?.archived : stored?.archived;
+			const pinned = local?.pinned !== previous?.pinned ? local?.pinned : stored?.pinned;
+			const read = local?.read !== previous?.read ? local?.read : stored?.read;
+			const merged: IAgentSessionState = {
+				...(archived !== undefined ? { archived } : undefined),
+				...(pinned !== undefined ? { pinned } : undefined),
+				...(read !== undefined ? { read } : undefined),
+			};
+			if (agentSessionStateFields.some(field => merged[field] !== undefined)) {
+				states.set(resource, merged);
+			} else {
+				states.delete(resource);
 			}
-		} catch {
-			// invalid data in storage, fallback to empty states
+		}
+		this.updateSessionStateSnapshot(storedStates);
+	}
+
+	private readSessionStates(): ResourceMap<IAgentSessionState> {
+		this.needsStateMigration = false;
+		this.legacyStateEntryKeys.clear();
+		const states = new ResourceMap<IAgentSessionState>();
+		const deserialize = (serialized: string): void => {
+			try {
+				const cached = JSON.parse(serialized) as ISerializedAgentSessionState | ISerializedAgentSessionState[];
+				for (const entry of Array.isArray(cached) ? cached : [cached]) {
+					const resource = typeof entry.resource === 'string' ? URI.parse(entry.resource) : URI.revive(entry.resource);
+					const existing = states.get(resource);
+					const archived = entry.archived ?? existing?.archived;
+					const pinned = entry.pinned ?? existing?.pinned;
+					const read = entry.read ?? existing?.read;
+					states.set(resource, {
+						...(archived !== undefined ? { archived } : undefined),
+						...(pinned !== undefined ? { pinned } : undefined),
+						...(read !== undefined ? { read } : undefined),
+					});
+				}
+			} catch {
+				// Invalid data in storage, skip this entry.
+			}
+		};
+
+		for (const scope of [StorageScope.WORKSPACE, StorageScope.PROFILE]) {
+			const legacyStates = this.storageService.get(AgentSessionsCache.STATE_STORAGE_KEY, scope);
+			if (legacyStates) {
+				deserialize(legacyStates);
+				this.needsStateMigration = true;
+			}
+		}
+		for (const key of this.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE)) {
+			if (key.startsWith(AgentSessionsCache.STATE_ENTRY_STORAGE_KEY_PREFIX)) {
+				const entry = this.storageService.get(key, StorageScope.PROFILE);
+				if (entry) {
+					deserialize(entry);
+					this.needsStateMigration = true;
+					this.legacyStateEntryKeys.add(key);
+				}
+			}
+		}
+		for (const field of agentSessionStateFields) {
+			const prefix = `${AgentSessionsCache.STATE_FIELD_STORAGE_KEY_PREFIX}${field}.`;
+			for (const key of this.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE)) {
+				if (!key.startsWith(prefix)) {
+					continue;
+				}
+				const value = this.storageService.get(key, StorageScope.PROFILE);
+				if (value === undefined) {
+					continue;
+				}
+				try {
+					const resource = URI.parse(decodeURIComponent(key.slice(prefix.length)));
+					states.set(resource, { ...states.get(resource), [field]: JSON.parse(value) });
+				} catch {
+					// Invalid data in storage, skip this field.
+				}
+			}
 		}
 
 		return states;
+	}
+
+	private static getStateFieldStorageKey(resource: URI, field: AgentSessionStateField): string {
+		return `${this.STATE_FIELD_STORAGE_KEY_PREFIX}${field}.${encodeURIComponent(resource.toString())}`;
+	}
+
+	private updateSessionStateSnapshot(states: ResourceMap<IAgentSessionState>): void {
+		this.sessionStateSnapshot.clear();
+		for (const [resource, state] of states) {
+			this.sessionStateSnapshot.set(resource, { ...state });
+		}
 	}
 
 	//#endregion

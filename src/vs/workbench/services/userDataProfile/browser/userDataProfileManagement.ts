@@ -176,6 +176,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 
 	private async changeCurrentProfile(profile: IUserDataProfile, reloadMessage?: string): Promise<void> {
 		const isRemoteWindow = !!this.environmentService.remoteAuthority;
+		const previousProfile = this.userDataProfileService.currentProfile;
 
 		const shouldRestartExtensionHosts = this.userDataProfileService.currentProfile.id !== profile.id || !equals(this.userDataProfileService.currentProfile.useDefaultFlags, profile.useDefaultFlags);
 
@@ -192,7 +193,30 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		}
 
 		// In a remote window update current profile before reloading so that data is preserved from current profile if asked to preserve
-		await this.userDataProfileService.updateCurrentProfile(profile);
+		try {
+			await this.userDataProfileService.updateCurrentProfile(profile);
+		} catch (error) {
+			// Preparation can fail before the profile changes, for example when
+			// saving outgoing data fails. Restore the previous window association
+			// and resume extension hosts that were stopped for the aborted switch.
+			if (this.userDataProfileService.currentProfile === previousProfile) {
+				try {
+					if (this.userDataProfilesService.profiles.some(candidate => candidate.id === previousProfile.id)) {
+						await this.userDataProfilesService.setProfileForWorkspace(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()), previousProfile);
+					}
+				} catch (recoveryError) {
+					this.logService.error('Could not restore the previous workspace profile.', recoveryError);
+				}
+				if (shouldRestartExtensionHosts && !isRemoteWindow) {
+					try {
+						await this.extensionService.startExtensionHosts();
+					} catch (recoveryError) {
+						this.logService.error('Could not restart extension hosts after an aborted profile switch.', recoveryError);
+					}
+				}
+			}
+			throw error;
+		}
 
 		if (shouldRestartExtensionHosts) {
 			if (isRemoteWindow) {

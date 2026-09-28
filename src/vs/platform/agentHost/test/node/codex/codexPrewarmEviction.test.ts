@@ -5,7 +5,6 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
-import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import { PassThrough } from 'stream';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -275,7 +274,6 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
-	instantiationService.stub(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 	instantiationService.stub(IAgentHostStateManager, stateManager);
 	instantiationService.stub(IAgentHostCustomizationEnablementService, options.customizationEnablementService ?? createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
@@ -535,7 +533,7 @@ suite('CodexAgent prewarm eviction', () => {
 			agent['_fileService'].createFile(vscodeGeneratedRollout, VSBuffer.fromString('{"type":"session_meta","payload":{}}\n')),
 		]);
 
-		const listing = agent['_listCodexChats']('discovery');
+		const listing = agent['_listCodexChats']();
 		const request = await readNextRequest(peer.outbound);
 		peer.push({
 			id: request.id,
@@ -587,7 +585,7 @@ suite('CodexAgent prewarm eviction', () => {
 			return null;
 		};
 
-		const listing = agent['_listCodexChats']('discovery');
+		const listing = agent['_listCodexChats']();
 		const request = await readNextRequest(peer.outbound);
 		peer.push({
 			id: request.id,

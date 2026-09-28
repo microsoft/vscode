@@ -248,13 +248,7 @@ export interface IAgentHostGitService {
 	 * `node_modules` is copied as one recursive unit, so its files all land in
 	 * a single step.
 	 */
-	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void, excludedFolders?: readonly string[]): Promise<void>;
-	/**
-	 * Symlinks git-ignored folders matching `patterns` from `repositoryRoot`
-	 * into the worktree. `patterns` use `.gitignore` syntax and are matched by
-	 * git itself. `sessionId` scopes the temporary files used while matching.
-	 */
-	symlinkWorktreeFolders(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string): Promise<readonly string[]>;
+	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
 	/**
 	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
 	 * a worktree whose branch was preserved (e.g. unarchiving a session

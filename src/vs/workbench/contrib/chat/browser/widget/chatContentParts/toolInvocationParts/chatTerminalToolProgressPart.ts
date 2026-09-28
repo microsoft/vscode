@@ -1431,7 +1431,6 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
@@ -1485,11 +1484,6 @@ export class ChatTerminalToolOutputSection extends Disposable {
 
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._handleResize()));
 		this._register(resizeObserver.observe(this.domNode));
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.TerminalOutputReflow)) {
-				void this._handleResize().catch(onUnexpectedError);
-			}
-		}));
 
 		const backgroundColor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService) ? editorBackground : PANEL_BACKGROUND;
 		this.domNode.style.backgroundColor = asCssVariable(backgroundColor);
@@ -1771,9 +1765,6 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			this._disposeLiveMirror();
 			return false;
 		}
-		if (this._mirror) {
-			return true;
-		}
 		const mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm, command));
 		this._mirror = mirror;
 		this._register(mirror.onDidChangeRowHeight(() => this._handleMirrorRowHeightChange()));
@@ -1951,7 +1942,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	/**
 	 * Resizes the mirror's column count to fill the currently available width. No-op while the
 	 * width is unmeasurable (e.g. collapsed); the mirror keeps its current cols until the next
-	 * layout opportunity. When reflow is disabled, the mirror uses its fixed cols instead.
+	 * layout opportunity.
 	 */
 	private async _layoutMirrorWidth(mirror: DetachedTerminalCommandMirror | DetachedTerminalSnapshotMirror | undefined = this._snapshotMirror ?? this._mirror): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined> {
 		if (!mirror) {
@@ -1961,7 +1952,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		if (width <= 0) {
 			return undefined;
 		}
-		return mirror.layout(width, this._configurationService.getValue<boolean>(ChatConfiguration.TerminalOutputReflow) !== false);
+		return mirror.layout(width);
 	}
 
 	private _layoutOutput(lineCount?: number): void {

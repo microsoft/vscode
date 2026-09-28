@@ -138,8 +138,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	test('client tool reaches ready after start and completes', async function () {
 		this.timeout(180_000);
 		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs, {
-			// Sandbox metadata can arrive on either side of tool registration.
-			ignoredActionTypes: [ActionType.ChatUsage, ActionType.SessionMetaChanged],
+			ignoredActionTypes: [ActionType.ChatUsage],
 		});
 
 		const start = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))

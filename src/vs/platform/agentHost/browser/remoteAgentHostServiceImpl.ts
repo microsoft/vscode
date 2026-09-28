@@ -18,7 +18,6 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILabelService } from '../../label/common/label.js';
 import { ILogService } from '../../log/common/log.js';
 import { observableConfigValue } from '../../observable/common/platformObservableUtils.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { hasKey } from '../../../base/common/types.js';
 
 import { AgentHostAhpJsonlLoggingSettingId, type IAgentConnection } from '../common/agentService.js';
@@ -53,8 +52,6 @@ import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
 import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, type ConnectionDiagnosticObserver, type IRemoteConnectionDiagnosticEvent } from '../common/connectionDiagnostics.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-
-const DISPLAY_NAME_STORAGE_PREFIX = 'remoteAgentHost.displayName.';
 
 /** Tracks a single remote connection through its lifecycle. */
 interface IConnectionEntry {
@@ -165,8 +162,6 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 	private readonly _onDidChangeConnections = this._register(new Emitter<void>());
 	readonly onDidChangeConnections = this._onDidChangeConnections.event;
-	private readonly _onDidChangeDisplayName = this._register(new Emitter<string>());
-	readonly onDidChangeDisplayName = this._onDidChangeDisplayName.event;
 	private readonly _onDidChangePendingConnections = this._register(new Emitter<void>());
 	readonly onDidChangePendingConnections = this._onDidChangePendingConnections.event;
 
@@ -226,24 +221,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
 		this._remoteAgentHostsEnabled = observableConfigValue(RemoteAgentHostsEnabledSettingId, true, this._configurationService);
 		this._remoteAgentHostsAutoConnect = observableConfigValue(RemoteAgentHostAutoConnectSettingId, true, this._configurationService);
-
-		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, this._store)(e => {
-			if (!e.key.startsWith(DISPLAY_NAME_STORAGE_PREFIX)) {
-				return;
-			}
-			const address = e.key.slice(DISPLAY_NAME_STORAGE_PREFIX.length);
-			const name = this._names.get(address);
-			if (name !== undefined) {
-				this._updateHostLabelFormatter(address, name);
-			}
-			this._onDidChangeDisplayName.fire(address);
-		}));
 
 		// The service creates these built-in factories, so it owns their
 		// lifetime too; `registerConnectionFactory` only manages registry
@@ -263,20 +245,6 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._reconcileConnections();
 		}));
 
-	}
-
-	getDisplayNameOverride(address: string): string | undefined {
-		return this._storageService.get(`${DISPLAY_NAME_STORAGE_PREFIX}${normalizeRemoteAgentHostAddress(address)}`, StorageScope.APPLICATION);
-	}
-
-	setDisplayName(address: string, name: string | undefined): void {
-		const key = `${DISPLAY_NAME_STORAGE_PREFIX}${normalizeRemoteAgentHostAddress(address)}`;
-		const displayName = name?.trim();
-		if (displayName) {
-			this._storageService.store(key, displayName, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		} else {
-			this._storageService.remove(key, StorageScope.APPLICATION);
-		}
 	}
 
 	private _entryAddress(entry: IRemoteAgentHostEntry): string {
@@ -300,7 +268,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		for (const [address, entry] of this._entries) {
 			result.push({
 				address,
-				name: this.getDisplayNameOverride(address) ?? this._names.get(address) ?? address,
+				name: this._names.get(address) ?? address,
 				clientId: entry.client?.clientId,
 				defaultDirectory: entry.client?.defaultDirectory,
 				status: entry.status,
@@ -1049,7 +1017,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			priority: true,
 			formatting: {
 				...AGENT_HOST_LABEL_FORMATTER.formatting,
-				workspaceSuffix: this.getDisplayNameOverride(address) ?? name,
+				workspaceSuffix: name,
 			},
 		});
 		this._labelFormatters.set(address, handle);
@@ -1110,8 +1078,7 @@ export class AgentsWindowRemoteAgentHostService extends RemoteAgentHostService {
 		@ILogService logService: ILogService,
 		@ILabelService labelService: ILabelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IStorageService storageService: IStorageService,
 	) {
-		super(configurationService, instantiationService, logService, labelService, environmentService, storageService);
+		super(configurationService, instantiationService, logService, labelService, environmentService);
 	}
 }

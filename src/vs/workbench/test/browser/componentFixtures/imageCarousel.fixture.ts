@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getWindow } from '../../../../base/browser/dom.js';
+import { Dimension } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -75,20 +75,6 @@ async function renderCarousel(context: ComponentFixtureContext, collection: IIma
 
 	const input = disposableStore.add(new ImageCarouselEditorInput(collection, startIndex));
 	await editor.setInput(input, undefined, {}, CancellationToken.None);
-
-	const expectedImageCount = 1 + collection.sections.reduce((count, section) => count + section.images.length, 0);
-	for (let frame = 0; frame < 120; frame++) {
-		if (container.querySelector('.thumbnail.broken')) {
-			throw new Error('The carousel fixture failed to load a thumbnail');
-		}
-		const images = [...container.querySelectorAll('img')];
-		if (images.length === expectedImageCount && images.every(image => image.hasAttribute('src'))) {
-			await Promise.all(images.map(image => image.decode()));
-			return;
-		}
-		await new Promise<void>(resolve => getWindow(container).requestAnimationFrame(() => resolve()));
-	}
-	throw new Error(`The carousel fixture did not load all ${expectedImageCount} images`);
 }
 
 function singleSectionCollection(): IImageCarouselCollection {
@@ -123,23 +109,15 @@ function singleImageCollection(): IImageCarouselCollection {
 
 export default defineThemedFixtureGroup({ path: 'imageCarousel/' }, {
 	SingleSection: defineComponentFixture({
-		deferPaint: true,
-		virtualTime: { enabled: false },
 		render: ctx => renderCarousel(ctx, singleSectionCollection()),
 	}),
 	SingleSectionMiddleImage: defineComponentFixture({
-		deferPaint: true,
-		virtualTime: { enabled: false },
 		render: ctx => renderCarousel(ctx, singleSectionCollection(), 2),
 	}),
 	MultipleSections: defineComponentFixture({
-		deferPaint: true,
-		virtualTime: { enabled: false },
 		render: ctx => renderCarousel(ctx, multiSectionCollection()),
 	}),
 	SingleImage: defineComponentFixture({
-		deferPaint: true,
-		virtualTime: { enabled: false },
 		render: ctx => renderCarousel(ctx, singleImageCollection()),
 	}),
 });

@@ -105,7 +105,6 @@ suite('Agents invitation widget ownership', () => {
 			model: upcastPartial<IAgentSessionsModel>({
 				onDidChangeSessions: Event.None,
 				sessions: Array.from({ length: 6 }, (_, index) => upcastPartial<IAgentSession>({
-					resource: URI.from({ scheme: SessionType.AgentHostCopilot, path: `/session-${index}` }),
 					providerType: SessionType.AgentHostCopilot,
 					status: index === 0 ? AgentSessionStatus.InProgress : AgentSessionStatus.Completed,
 					isArchived: () => false,

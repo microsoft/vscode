@@ -18,7 +18,6 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { IAgentSdkDownloader } from '../agentSdkDownloader.js';
@@ -631,7 +630,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@IProductService private readonly _productService: IProductService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
-		@IAgentHostStartupPerformance private readonly _startupPerformance: IAgentHostStartupPerformance,
 	) {
 		super();
 		this._metadataStore = _instantiationService.createInstance(ClaudeSessionMetadataStore);
@@ -2039,7 +2037,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return turns;
 	}
 
-	private async _listClaudeCodeChats(kind: 'migration' | 'discovery'): Promise<IAgentChatMetadata[] | undefined> {
+	private async _listClaudeCodeChats(): Promise<IAgentChatMetadata[] | undefined> {
 		// SDK is the source of truth; we deliberately do NOT filter entries
 		// that lack a per-session DB — external Claude Code CLI sessions have
 		// no DB and must still surface. The SDK entry supplies the
@@ -2052,12 +2050,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// *every* provider's legacy list disappears — the sibling Copilot
 		// provider gets nuked too. Catch and log instead.
 		let sdkEntries: readonly SDKSessionInfo[];
-		const timing = this._startupPerformance.start(kind === 'migration' ? 'sessionMigrationScan' : 'sessionDiscoveryScan', this.id);
 		try {
 			sdkEntries = await this._sdkService.listSessions();
-			timing?.complete('success', { scannedSessionCount: sdkEntries.length });
 		} catch (err) {
-			timing?.complete('error');
 			// SDK failed to load/enumerate — this is "can't enumerate yet",
 			// not an authoritative empty result, so callers must not treat it
 			// as "no external chats" and should retry later.
@@ -2075,23 +2070,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._startClaudeCodeChatDiscovery();
 	}
 
-	private async _canListChatsWithoutDownload(): Promise<boolean> {
-		let sdkAvailability: 'available' | 'unavailable' | 'unknown' = 'unknown';
-		try {
-			const available = await this._sdkService.canLoadWithoutDownload();
-			sdkAvailability = available ? 'available' : 'unavailable';
-			return available;
-		} finally {
-			this._startupPerformance.mark('providerContext', { provider: this.id, activationState: 'notRequired', sdkAvailability });
-		}
-	}
-
 	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
-		if (!(await this._canListChatsWithoutDownload())) {
+		if (!(await this._sdkService.canLoadWithoutDownload())) {
 			this._logService.info('[Claude] SDK not downloaded yet; deferring the migratable chat list');
 			return AgentChatMigrationDeferred;
 		}
-		const chats = await this._listClaudeCodeChats('migration');
+		const chats = await this._listClaudeCodeChats();
 		if (!chats) {
 			return undefined;
 		}
@@ -2108,7 +2092,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				// Waits for the SDK rather than pulling it down — see
 				// {@link listChatsToMigrate}. Returning leaves the retry loop happy,
 				// since no amount of retrying will make the user press Download.
-				if (!(await this._canListChatsWithoutDownload())) {
+				if (!(await this._sdkService.canLoadWithoutDownload())) {
 					this._logService.info('[Claude] SDK not downloaded yet; deferring chat discovery');
 					return;
 				}
@@ -2131,7 +2115,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private async _emitClaudeCodeChats(): Promise<boolean> {
 		try {
-			const chats = await this._listClaudeCodeChats('discovery');
+			const chats = await this._listClaudeCodeChats();
 			if (chats) {
 				const limiter = new Limiter<IAgentDiscoveredChat | undefined>(4);
 				const unknown = await Promise.all(chats.map(chat => limiter.queue(async () => {

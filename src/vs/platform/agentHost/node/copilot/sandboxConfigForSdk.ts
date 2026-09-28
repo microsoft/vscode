@@ -91,9 +91,9 @@ export interface SandboxSeatbeltPolicy {
  * opaque `sandboxConfig` shape the Copilot SDK forwards to the runtime
  * via `session.options.update`.
  *
- * Path and network setting mappings mirror `buildSandboxConfigForCLI` in
+ * Mirrors `buildSandboxConfigForCLI` in
  * `extensions/copilot/src/extension/chatSessions/copilotcli/node/copilotcliSessionService.ts`
- * while optional capabilities without a host setting are left to the runtime:
+ * so the two surfaces behave the same:
  *  - Path precedence: `denyRead` > `denyWrite` > `allowWrite` > `allowRead`.
  *    Each path appears in exactly one of `deniedPaths` / `readonlyPaths` /
  *    `readwritePaths`.
@@ -161,14 +161,22 @@ export function buildSandboxConfigForSdk(
 	const sandboxConfig: SandboxConfig = {
 		enabled: true,
 		allowBypass,
+		addCurrentWorkingDirectory: true,
+		allowDevToolAccess: true,
+		auth: {
+			git: true,
+			gh: true,
+		},
 		userPolicy: {
 			filesystem: {
 				...(denied.size ? { deniedPaths: [...denied] } : {}),
 				...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
 				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
+				clearPolicyOnExit: true,
 			},
 			network: {
 				allowOutbound: typeof allowNetwork === 'boolean' ? allowNetwork : false,
+				allowLocalNetwork: false,
 			},
 		},
 	};

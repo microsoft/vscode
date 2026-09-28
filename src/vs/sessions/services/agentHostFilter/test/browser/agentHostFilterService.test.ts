@@ -26,7 +26,7 @@ import { AgentHostFilterConnectionStatus } from '../../common/agentHostFilter.js
 
 class StubRemoteProvider {
 	readonly id: string;
-	label: string;
+	readonly label: string;
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	readonly hostGroup: IAgentHostGroup | undefined;
@@ -167,39 +167,6 @@ suite('AgentHostFilterService', () => {
 		hostA.setStatus(RemoteAgentHostConnectionStatus.disconnected);
 		assert.strictEqual(service.hosts[0].status, AgentHostFilterConnectionStatus.Disconnected);
 		assert.strictEqual(events, 1);
-	});
-
-	test('updates host labels and sort order without changing the selected host or reconnecting', () => {
-		const providers = new StubSessionsProvidersService();
-		const labelsChanged = store.add(new Emitter<void>());
-		const host = Object.assign(new StubRemoteProvider('tunnel:host-a', 'Host A'), {
-			onDidChangeSessionTypes: labelsChanged.event,
-		});
-		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(host)));
-		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(new StubRemoteProvider('tunnel:host-b', 'Host B'))));
-		const service = createService(providers);
-		if (isWeb) {
-			service.setSelectedHostId(host.id);
-		}
-		let events = 0;
-		store.add(service.onDidChange(() => events++));
-
-		host.label = 'Renamed Host';
-		labelsChanged.fire();
-
-		assert.deepStrictEqual({
-			hosts: service.hosts.map(entry => ({ id: entry.id, label: entry.label })),
-			selectedHost: { id: service.selectedHost?.id, label: service.selectedHost?.label },
-			connectCalls: host.connectCalls,
-			disconnectCalls: host.disconnectCalls,
-			events,
-		}, {
-			hosts: [{ id: pid('tunnel:host-b'), label: 'Host B' }, { id: host.id, label: 'Renamed Host' }],
-			selectedHost: { id: isWeb ? host.id : undefined, label: isWeb ? 'Renamed Host' : undefined },
-			connectCalls: 0,
-			disconnectCalls: 0,
-			events: 1,
-		});
 	});
 
 	test('maps reconnecting providers to connecting', () => {

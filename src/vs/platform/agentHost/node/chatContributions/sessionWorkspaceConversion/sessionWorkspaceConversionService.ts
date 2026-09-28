@@ -452,7 +452,6 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				...(isolationConfig.worktreeBranchTrackProperty ? { [SessionConfigKey.WorktreeBranchTrack]: isolationConfig.worktreeBranchTrackProperty.protocol } : {}),
 				...(isolationConfig.worktreeCreateNewBranchProperty ? { [SessionConfigKey.WorktreeCreateNewBranch]: isolationConfig.worktreeCreateNewBranchProperty.protocol } : {}),
 				...(isolationConfig.worktreeIncludeFilesProperty ? { [SessionConfigKey.WorktreeIncludeFiles]: isolationConfig.worktreeIncludeFilesProperty.protocol } : {}),
-				...(isolationConfig.worktreeSymlinkFoldersProperty ? { [SessionConfigKey.WorktreeSymlinkFolders]: isolationConfig.worktreeSymlinkFoldersProperty.protocol } : {}),
 			};
 			this._stateManager.setSessionConfig(session.toString(), {
 				schema: { type: 'object', properties },

@@ -5,7 +5,6 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
-import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -71,7 +70,6 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
-	instantiationService.stub(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
@@ -1444,7 +1442,7 @@ suite('CodexAgent model refresh', () => {
 		};
 		agent['_connection'] = staleConnection as never;
 
-		const listing = agent['_listCodexChats']('discovery');
+		const listing = agent['_listCodexChats']();
 		await listStarted.p;
 		agent['_connection'] = createChatGPTConnection() as never;
 		await releaseList.complete();

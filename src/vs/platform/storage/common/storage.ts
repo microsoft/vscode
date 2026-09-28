@@ -7,6 +7,7 @@ import { Promises, RunOnceScheduler, runWhenGlobalIdle } from '../../../base/com
 import { Emitter, Event, PauseableEmitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, dispose, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { mark } from '../../../base/common/performance.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { isUndefinedOrNull } from '../../../base/common/types.js';
 import { InMemoryStorageDatabase, IStorage, IStorageChangeEvent, Storage, StorageHint, StorageValue } from '../../../base/parts/storage/common/storage.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -686,15 +687,8 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	}
 
 	protected canSwitchProfile(from: IUserDataProfile, to: IUserDataProfile): boolean {
-		if (from.id === to.id) {
-			return false; // both profiles are same
-		}
-
-		if (isProfileUsingDefaultStorage(to) && isProfileUsingDefaultStorage(from)) {
-			return false; // both profiles are using default
-		}
-
-		return true;
+		// A profile can start or stop sharing default storage without changing its id.
+		return !isEqual(from.globalStorageHome, to.globalStorageHome);
 	}
 
 	protected switchData(oldStorage: Map<string, string>, newStorage: IStorage, scope: StorageScope): void {

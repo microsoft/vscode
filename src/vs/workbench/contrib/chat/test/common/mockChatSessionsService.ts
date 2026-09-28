@@ -164,6 +164,11 @@ export class MockChatSessionsService implements IChatSessionsService {
 		controller.setChatSessionItemRead(sessionResource, isRead);
 	}
 
+	setChatSessionItemPinned(sessionResource: URI, pinned: boolean): void {
+		const sessionType = getChatSessionType(sessionResource);
+		this.sessionItemControllers.get(sessionType)?.controller.setChatSessionItemPinned?.(sessionResource, pinned);
+	}
+
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable {
 		this.contentProviders.set(chatSessionType, provider);
 		this._onDidChangeContentProviderSchemes.fire({ added: [chatSessionType], removed: [] });

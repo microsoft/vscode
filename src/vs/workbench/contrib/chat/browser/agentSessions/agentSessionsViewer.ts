@@ -1165,6 +1165,7 @@ export interface IAgentSessionsFilterExcludes {
 
 	readonly archived: boolean;
 	readonly read: boolean;
+	readonly otherWorkspaces: boolean;
 	readonly repositoryGroupCapped: boolean;
 }
 
@@ -1546,6 +1547,11 @@ export function getRepositoryName(session: IAgentSession): string | undefined {
 			if (repoName) {
 				return repoName;
 			}
+		}
+
+		const workspaceLabel = metadata.workspaceLabel as string | undefined;
+		if (workspaceLabel) {
+			return workspaceLabel;
 		}
 	}
 

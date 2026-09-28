@@ -27,7 +27,6 @@ import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '
 import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
 import { INewSessionComposerPicker } from '../../browser/newSessionComposerService.js';
-import { constObservable } from '../../../../../base/common/observable.js';
 
 interface IInputModelReferenceHarness {
 	readonly _store: DisposableStore;
@@ -218,14 +217,13 @@ suite('NewChatInputWidget', () => {
 		});
 	});
 
-	for (const existing of ['empty', 'text', 'attachments', 'feedback', 'sending'] as const) {
+	for (const existing of ['empty', 'text', 'attachments', 'sending'] as const) {
 		test(`applies an incoming draft only to an empty idle input (${existing})`, () => {
 			let inputText = existing === 'text' ? 'Keep me' : '';
 			let attachments: readonly IChatRequestVariableEntry[] = existing === 'attachments' ? [toPasteVariableEntry('Context', 'Keep context', { id: 'existing' })] : [];
 			let saved: IChatDraft | undefined;
 			let focusCount = 0;
 			const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
-				options: { hasAdditionalSendContent: constObservable(existing === 'feedback') },
 				_editor: { getValue: () => inputText, getModel: () => ({}) },
 				_contextAttachments: {
 					get attachments() { return attachments; },

@@ -10,6 +10,7 @@ import { localize } from '../../../../../nls.js';
 import { registerAction2, Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
@@ -56,6 +57,7 @@ const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
 	states: [] as const,
 	archived: true as const /* archived are never excluded but toggle between expanded and collapsed */,
 	read: false as const,
+	otherWorkspaces: true as const,
 	repositoryGroupCapped: true as const /* when true, repo groups are capped at a limit with a "show more" item */,
 });
 
@@ -81,6 +83,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		private readonly options: IAgentSessionsFilterOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -102,7 +105,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			const excludedTypesRaw = this.storageService.get(this.STORAGE_KEY, StorageScope.PROFILE);
 			if (excludedTypesRaw) {
 				try {
-					this.excludes = JSON.parse(excludedTypesRaw) as IAgentSessionsFilterExcludes;
+					this.excludes = { ...DEFAULT_EXCLUDES, ...JSON.parse(excludedTypesRaw) as IAgentSessionsFilterExcludes };
 				} catch {
 					this.excludes = { ...DEFAULT_EXCLUDES };
 				}
@@ -166,6 +169,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this.registerStateActions(this.actionDisposables, menuId);
 		this.registerArchivedActions(this.actionDisposables, menuId);
 		this.registerReadActions(this.actionDisposables, menuId);
+		this.registerOtherWorkspacesAction(this.actionDisposables, menuId);
 		this.registerResetAction(this.actionDisposables, menuId);
 	}
 
@@ -343,6 +347,27 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}));
 	}
 
+	private registerOtherWorkspacesAction(disposables: DisposableStore, menuId: MenuId): void {
+		const that = this;
+		disposables.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `agentSessions.filter.toggleOtherWorkspaces.${menuId.id.toLowerCase()}`,
+					title: localize('agentSessions.filter.otherWorkspaces', 'Other Workspaces'),
+					menu: {
+						id: menuId,
+						group: '3_props',
+						order: 1,
+					},
+					toggled: that.excludes.otherWorkspaces ? ContextKeyExpr.false() : ContextKeyExpr.true(),
+				});
+			}
+			run(): void {
+				that.storeExcludes({ ...that.excludes, otherWorkspaces: !that.excludes.otherWorkspaces });
+			}
+		}));
+	}
+
 	/**
 	 * Programmatically toggle the repository group capping state.
 	 */
@@ -350,6 +375,17 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		if (this.excludes.repositoryGroupCapped !== capped) {
 			this.storeExcludes({ ...this.excludes, repositoryGroupCapped: capped });
 		}
+	}
+
+	isShowingOtherWorkspaces(): boolean {
+		return !this.excludes.otherWorkspaces;
+	}
+
+	setOtherWorkspacesVisible(visible: boolean): void {
+		if (visible === this.isShowingOtherWorkspaces()) {
+			return;
+		}
+		this.storeExcludes({ ...this.excludes, otherWorkspaces: !visible });
 	}
 
 	private registerResetAction(disposables: DisposableStore, menuId: MenuId): void {
@@ -392,6 +428,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}
 
 		if (this.excludes.read && session.isRead()) {
+			return true;
+		}
+
+		if (this.excludes.otherWorkspaces && providerFilter === AgentSessionProviders.Local && session.metadata?.workspaceId && session.metadata.workspaceId !== this.workspaceContextService.getWorkspace().id) {
 			return true;
 		}
 

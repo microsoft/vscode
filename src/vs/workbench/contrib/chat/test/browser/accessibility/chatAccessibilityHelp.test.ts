@@ -330,16 +330,6 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
-	test('documents default-on terminal output reflow and how to disable it', () => {
-		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
-		assert.deepStrictEqual({
-			defaultOn: help.includes('Terminal output reflows to fit the chat width by default'),
-			disable: help.includes('Set chat.tools.terminal.outputReflow to false'),
-			fixedWidth: help.includes('fixed-width previews with horizontal scrolling'),
-			previewOnly: help.includes('only changes the preview, not the terminal running the command'),
-		}, { defaultOn: true, disable: true, fixedWidth: true, previewOnly: true });
-	});
-
 	test('documents full terminal output in chat surfaces that render terminal tools', () => {
 		const keybindingService = new MockKeybindingService();
 		const expectedText = 'Open Full Output (Read-Only) action';

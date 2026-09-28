@@ -45,6 +45,21 @@ interface MockChatModel extends IChatModel {
 	removeRequests(): void;
 }
 
+class ProfileChatService extends MockChatService {
+	constructor(override readonly onDidChangeSessionHistory: Event<void>) {
+		super();
+	}
+
+	override getSession(sessionResource: URI): IChatModel | undefined {
+		return Array.from(this.chatModels.get()).find(model => model.sessionResource.toString() === sessionResource.toString());
+	}
+
+	override async getLiveSessionItem(sessionResource: URI): Promise<IChatDetail | undefined> {
+		const model = this.getSession(sessionResource);
+		return model?.hasRequests ? chatModelToChatDetail(model) : undefined;
+	}
+}
+
 function createMockChatModel(options: {
 	sessionResource: URI;
 	hasRequests?: boolean;
@@ -610,6 +625,39 @@ suite('LocalAgentsSessionsController', () => {
 	});
 
 	suite('Refresh races', () => {
+		test('discards a refresh from the previous profile when history changes', async () => {
+			const historyChanged = disposables.add(new Emitter<void>());
+			const service = new ProfileChatService(historyChanged.event);
+			instantiationService.stub(IChatService, service);
+			const controller = createController();
+			const oldHistory = new DeferredPromise<IChatDetail[]>();
+			const started = new DeferredPromise<void>();
+			const oldItem = createHistoryItem('old-profile');
+			const newItem = createHistoryItem('new-profile');
+			let reads = 0;
+			service.getHistorySessionItems = async () => {
+				if (++reads === 1) {
+					await started.complete();
+					return oldHistory.p;
+				}
+				return [newItem];
+			};
+			const published: string[] = [];
+			disposables.add(controller.onDidChangeChatSessionItems(delta => published.push(...delta.addedOrUpdated?.map(item => item.label) ?? [])));
+
+			const refresh = controller.refresh(CancellationToken.None);
+			await started.p;
+			historyChanged.fire();
+			const latestRefresh = controller.refresh(CancellationToken.None);
+			await oldHistory.complete([oldItem]);
+			await Promise.all([refresh, latestRefresh]);
+
+			assert.deepStrictEqual({ published, items: controller.items.map(item => item.label) }, {
+				published: ['new-profile'],
+				items: ['new-profile'],
+			});
+		});
+
 		test('serializes and coalesces overlapping refreshes', async () => {
 			const controller = createController();
 			await controller.refresh(CancellationToken.None);
@@ -995,6 +1043,32 @@ suite('LocalAgentsSessionsController', () => {
 			});
 		}
 
+		test('preserves workspace and legacy metadata during live updates', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+				const item = createHistoryItem('live-metadata-update');
+				const model = createMockChatModel({ sessionResource: item.sessionResource });
+				mockChatService.setLiveSessionItems([{
+					...item,
+					workspaceId: 'original-workspace',
+					legacySessionId: 'legacy-session',
+				}]);
+
+				mockChatService.addSession(model);
+				await timeout(0);
+				model.setCustomTitle('Updated title');
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					workspaceId: controller.items[0].metadata?.workspaceId,
+					legacyResource: controller.items[0].legacyResource?.toString(),
+				}, {
+					workspaceId: 'original-workspace',
+					legacyResource: LocalChatSessionUri.forSession('legacy-session').toString(),
+				});
+			});
+		});
+
 		test('does not attach model listeners when deletion happens during initial refresh', async () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = createController();
@@ -1026,6 +1100,51 @@ suite('LocalAgentsSessionsController', () => {
 	});
 
 	suite('Events', () => {
+		test('switches profile history without deletion and restores listeners when returning', async () => {
+			return runWithFakedTimers({}, async () => {
+				const historyChanged = disposables.add(new Emitter<void>());
+				const service = new ProfileChatService(historyChanged.event);
+				instantiationService.stub(IChatService, service);
+				const first = createMockChatModel({ sessionResource: LocalChatSessionUri.forSession('first-profile'), customTitle: 'First profile' });
+				const second = createMockChatModel({ sessionResource: LocalChatSessionUri.forSession('second-profile'), customTitle: 'Second profile' });
+				service.chatModels.set([first], undefined);
+				service.setLiveSessionItems([await chatModelToChatDetail(first)]);
+				const controller = createController();
+				const disposalEvents: URI[] = [];
+				disposables.add(service.onDidDisposeSession(event => disposalEvents.push(...event.sessionResources)));
+				await timeout(0);
+				const snapshots = [controller.items.map(item => item.label)];
+
+				service.chatModels.set([], undefined);
+				service.setLiveSessionItems([]);
+				historyChanged.fire();
+				await timeout(0);
+				snapshots.push(controller.items.map(item => item.label));
+
+				service.chatModels.set([second], undefined);
+				service.setLiveSessionItems([await chatModelToChatDetail(second)]);
+				historyChanged.fire();
+				await timeout(0);
+				first.setCustomTitle('Updated while inactive');
+				await timeout(0);
+				snapshots.push(controller.items.map(item => item.label));
+
+				// Returning uses the retained model, without another model-created event.
+				service.chatModels.set([first], undefined);
+				service.setLiveSessionItems([await chatModelToChatDetail(first)]);
+				historyChanged.fire();
+				await timeout(0);
+				first.setCustomTitle('Updated after returning');
+				await timeout(0);
+				snapshots.push(controller.items.map(item => item.label));
+
+				assert.deepStrictEqual({ snapshots, disposalEvents }, {
+					snapshots: [['First profile'], [], ['Second profile'], ['Updated after returning']],
+					disposalEvents: [],
+				});
+			});
+		});
+
 		test('should fire onDidChangeChatSessionItems when model progress changes', async () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = createController();

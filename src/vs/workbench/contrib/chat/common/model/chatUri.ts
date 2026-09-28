@@ -26,8 +26,7 @@ export namespace LocalChatSessionUri {
 	}
 
 	export function getNewSessionUri(): URI {
-		const handle = Math.floor(Math.random() * 1e9);
-		return forSession(`chat-${handle}`);
+		return forSession(`chat-${generateUuid()}`);
 	}
 
 	export function parseLocalSessionId(resource: URI): string | undefined {

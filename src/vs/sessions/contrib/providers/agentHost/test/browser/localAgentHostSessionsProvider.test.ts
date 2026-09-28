@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { spy } from 'sinon';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../../../base/common/async.js';
@@ -2362,34 +2361,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.strictEqual(session!.mode.get(), undefined);
 		assert.deepStrictEqual(agentHost.dispatchedActions, []);
-	});
-
-	test('sandbox policy is seeded from snapshots and updates without a config change', () => {
-		const provider = createProvider(disposables, agentHost);
-		fireSessionAdded(agentHost, 'policy', { title: 'Managed Session' });
-		fireSessionAdded(agentHost, 'other-policy', { title: 'Other Session' });
-		const session = provider.getSessions().find(s => s.title.get() === 'Managed Session')!;
-		const other = provider.getSessions().find(s => s.title.get() === 'Other Session')!;
-		const state: SessionState = {
-			provider: 'copilotcli', title: 'Managed Session', status: ProtocolSessionStatus.Idle,
-			lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
-			_meta: withSessionSandboxPolicy(undefined, { enabled: true }),
-		};
-		agentHost.setSessionState('policy', 'copilotcli', JSON.parse(JSON.stringify(state)));
-		const initial = provider.getSessionSandboxPolicy(session.sessionId);
-		const updates: ReturnType<typeof provider.getSessionSandboxPolicy>[] = [];
-		disposables.add(provider.onDidChangeSessionConfig(id => {
-			if (id === session.sessionId) {
-				updates.push(provider.getSessionSandboxPolicy(id));
-			}
-		}));
-		agentHost.setSessionState('policy', 'copilotcli', { ...state, _meta: withSessionSandboxPolicy(undefined, { enabled: true, allowBypass: true }) });
-		agentHost.setSessionState('policy', 'copilotcli', { ...state, _meta: undefined });
-		assert.deepStrictEqual({ initial, updates, unrelated: provider.getSessionSandboxPolicy(other.sessionId) }, {
-			initial: { enabled: true },
-			updates: [{ enabled: true, allowBypass: true }, undefined],
-			unrelated: undefined,
-		});
 	});
 
 	test('restores the selected agent from the default chat draft on resume', () => {
@@ -5553,10 +5524,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('createNewSession forwards Git worktree file settings as derived session config', () => {
+	test('createNewSession forwards git.worktreeIncludeFiles as derived session config', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json', '**/node_modules/**']);
-		configService.setUserConfiguration('git.worktreeSymlinkFolders', ['node_modules/**', '.cache/**']);
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 
@@ -5564,8 +5534,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
 			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
 		}, {
-			seededImmediately: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
-			forwardedToAgentHost: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
+			seededImmediately: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
+			forwardedToAgentHost: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
 		});
 	});
 
@@ -5573,7 +5543,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('git.branchPrefix', 'automation/');
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json']);
-		configService.setUserConfiguration('git.worktreeSymlinkFolders', ['node_modules/**']);
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
 		const session = provider.createNewSession(
 			URI.parse('file:///home/user/project'),
@@ -5597,14 +5566,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			seededImmediately: {
 				worktreeBranchPrefix: 'automation/',
 				worktreeIncludeFiles: ['product.overrides.json'],
-				worktreeSymlinkFolders: ['node_modules/**'],
 				mode: 'plan',
 				autoApprove: 'assisted',
 			},
 			forwardedToAgentHost: {
 				worktreeBranchPrefix: 'automation/',
 				worktreeIncludeFiles: ['product.overrides.json'],
-				worktreeSymlinkFolders: ['node_modules/**'],
 				mode: 'plan',
 				autoApprove: 'assisted',
 			},
@@ -5667,7 +5634,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
 				[SessionConfigKey.WorktreeBranchPrefix]: 'template-prefix/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['template.json'],
-				[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
 				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
 				[SessionConfigKey.AgentMerge]: true,
 			},
@@ -10267,46 +10233,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			properties: ['codex.sandboxMode'],
 			values: { 'codex.sandboxMode': 'read-only' },
-		});
-	}));
-
-	test('sandbox writes avoid schema round trips and stale resolution cannot undo host rollback', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		agentHost.addSession(createSession('sandbox-rollback', { summary: 'Sandbox Rollback' }));
-		const provider = createProvider(disposables, agentHost);
-		provider.getSessions();
-		await timeout(0);
-		const session = provider.getSessions().find(s => s.title.get() === 'Sandbox Rollback')!;
-		const config: SessionConfigState = {
-			schema: {
-				type: 'object',
-				properties: {
-					sandboxEnabled: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
-					mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan'], sessionMutable: true },
-				},
-			},
-			values: { sandboxEnabled: 'on', mode: 'interactive' },
-		};
-		agentHost.setSessionState('sandbox-rollback', 'copilotcli', {
-			provider: 'copilotcli', title: 'Sandbox Rollback', status: ProtocolSessionStatus.Idle,
-			lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [], config,
-		});
-		await waitForSessionConfig(provider, session.sessionId, value => value?.values.sandboxEnabled === 'on');
-		const initialRequests = agentHost.resolveSessionConfigRequests.length;
-		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, 'off');
-		const sandboxRequests = agentHost.resolveSessionConfigRequests.length - initialRequests;
-		const optimistic = provider.getSessionConfig(session.sessionId)?.values.sandboxEnabled;
-		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
-		agentHost.resolveSessionConfigResult = { ...config, values: { sandboxEnabled: 'off', mode: 'plan' } };
-		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, 'plan');
-		agentHost.fireAction({
-			channel: AgentSession.uri('copilotcli', 'sandbox-rollback').toString(),
-			serverSeq: 1, origin: undefined,
-			action: { type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'on' } },
-		});
-		await barrier.complete();
-		await timeout(0);
-		assert.deepStrictEqual({ sandboxRequests, optimistic, values: provider.getSessionConfig(session.sessionId)?.values }, {
-			sandboxRequests: 0, optimistic: 'off', values: { sandboxEnabled: 'on', mode: 'plan' },
 		});
 	}));
 

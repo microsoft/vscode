@@ -86,8 +86,6 @@ export interface ISessionSummaryHoverData {
 	 * title as "Fix the redirect loop · Claude".
 	 */
 	readonly providerLabel?: string;
-	/** The remote host serving the session, shown after {@link providerLabel} when present. */
-	readonly remoteName?: string;
 	/** Session that created this session, when available. */
 	readonly createdBy?: {
 		readonly title: string;
@@ -150,10 +148,6 @@ export class SessionSummaryHoverWidget {
 		if (data.providerLabel) {
 			appendSeparator(this._title);
 			dom.append(this._title, dom.$('span.session-summary-hover-provider', undefined, data.providerLabel));
-		}
-		if (data.remoteName) {
-			appendSeparator(this._title);
-			dom.append(this._title, dom.$('span.session-summary-hover-provider', undefined, data.remoteName));
 		}
 		if (data.updatedAt) {
 			appendSeparator(this._title);

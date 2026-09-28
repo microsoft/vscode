@@ -17,10 +17,9 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { convertLegacyChatSessionTiming, IChatDetail, IChatService, IChatSessionTiming } from '../../common/chatService/chatService.js';
-import { chatModelToChatDetail } from '../../common/chatService/chatServiceImpl.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionItemMetadata, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { getInProgressSessionDescription } from '../chatSessions/chatSessionDescription.js';
 import { chatResponseStateToSessionStatus, getSessionStatusForModel } from '../chatSessions/chatSessions.contribution.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -52,6 +51,10 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	private _items = new ResourceMap<LocalChatSessionItem>();
 	get items(): readonly IChatSessionItem[] {
 		return Array.from(this._items.values());
+	}
+
+	setChatSessionItemPinned(resource: URI, pinned: boolean): void {
+		this.chatService.setHistoryEntryPinned(resource, pinned).catch(onUnexpectedError);
 	}
 
 	/** Caller cancellation stops waiting without cancelling the shared refresh. */
@@ -131,6 +134,15 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 			addModelListeners(model).catch(onUnexpectedError);
 		}
 
+		this._register(this.chatService.onDidChangeSessionHistory(() => {
+			this._refreshCancellation.value?.cancel();
+			this._modelListeners.clearAndDisposeAll();
+			for (const model of this.chatService.chatModels.get()) {
+				addModelListeners(model).catch(onUnexpectedError);
+			}
+			this.refresh(CancellationToken.None).catch(onUnexpectedError);
+		}));
+
 		this._register(this.chatService.onDidDisposeSession(e => {
 			for (const sessionResource of e.sessionResources) {
 				this._modelListeners.deleteAndDispose(sessionResource);
@@ -154,7 +166,8 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	}
 
 	private async tryUpdateLiveSessionItem(model: IChatModel, modelListeners: DisposableStore): Promise<void> {
-		const updated = this.toChatSessionItem(await chatModelToChatDetail(model));
+		const chatDetail = await this.chatService.getLiveSessionItem(model.sessionResource);
+		const updated = chatDetail ? this.toChatSessionItem(chatDetail) : undefined;
 		if (modelListeners.isDisposed || this.chatService.getSession(model.sessionResource) !== model) {
 			return;
 		}
@@ -236,9 +249,11 @@ class LocalChatSessionItem implements IChatSessionItem {
 	readonly timing: IChatSessionTiming;
 	readonly changes: IChatSessionItem['changes'];
 	readonly metadata: IChatSessionItemMetadata | undefined;
+	readonly legacyResource: URI | undefined;
 
 	constructor(chatDetail: IChatDetail, model: IChatModel | undefined) {
 		this.resource = chatDetail.sessionResource;
+		this.legacyResource = chatDetail.legacySessionId ? LocalChatSessionUri.forSession(chatDetail.legacySessionId) : undefined;
 		this.label = chatDetail.title;
 		this.description = model ? getInProgressSessionDescription(model) : undefined;
 		this.status = (model && getSessionStatusForModel(model)) ?? chatResponseStateToSessionStatus(chatDetail.lastResponseState);
@@ -249,7 +264,11 @@ class LocalChatSessionItem implements IChatSessionItem {
 			files: chatDetail.stats.fileCount,
 		} : undefined;
 		const workingDirectoryPath = chatDetail.workingDirectory?.scheme === Schemas.file ? chatDetail.workingDirectory.fsPath : undefined;
-		this.metadata = workingDirectoryPath ? { workingDirectoryPath: workingDirectoryPath } : undefined;
+		this.metadata = workingDirectoryPath || chatDetail.workspaceId || chatDetail.workspaceLabel ? {
+			...(workingDirectoryPath ? { workingDirectoryPath } : undefined),
+			...(chatDetail.workspaceId ? { workspaceId: chatDetail.workspaceId } : undefined),
+			...(chatDetail.workspaceLabel ? { workspaceLabel: chatDetail.workspaceLabel } : undefined),
+		} : undefined;
 	}
 
 	isEqual(other: LocalChatSessionItem): boolean {

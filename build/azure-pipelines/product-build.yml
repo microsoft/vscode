@@ -561,35 +561,6 @@ extends:
                 VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
                 VSCODE_POOL_NAME: ${{ variables.VSCODE_WINDOWS_POOL }}
 
-      - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(variables['VSCODE_STEP_ON_IT'], false), parameters.VSCODE_RELEASE, eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
-        - stage: ApproveRelease
-          dependsOn: [] # run in parallel to compile stage
-          pool:
-            name: ${{ variables.VSCODE_UBUNTU_POOL }}
-            os: linux
-          jobs:
-            - job: ApproveRelease
-              displayName: "Approve Release"
-              variables:
-                - group: VSCodePeerApproval
-                - name: skipComponentGovernanceDetection
-                  value: true
-
-        - stage: Release
-          dependsOn:
-            - Publish
-            - ApproveRelease
-          pool:
-            name: ${{ variables.VSCODE_UBUNTU_POOL }}
-            os: linux
-          jobs:
-            - job: ReleaseBuild
-              displayName: Release Build
-              steps:
-                - template: build/azure-pipelines/product-release.yml@self
-                  parameters:
-                    VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
-
       - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false)) }}:
         - stage: SanityTests
           displayName: Sanity Tests
@@ -1083,6 +1054,35 @@ extends:
                     - vscode_cli_linux_armhf_cli
                     - vscode_client_linux_armhf_archive-unsigned
                     - vscode_client_linux_armhf_deb-package
+
+        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
+          - stage: ApproveRelease
+            dependsOn: [] # run in parallel to compile stage
+            pool:
+              name: ${{ variables.VSCODE_UBUNTU_POOL }}
+              os: linux
+            jobs:
+              - job: ApproveRelease
+                displayName: "Approve Release"
+                variables:
+                  - group: VSCodePeerApproval
+                  - name: skipComponentGovernanceDetection
+                    value: true
+
+          - stage: Release
+            dependsOn:
+              - Publish
+              - ApproveRelease
+            pool:
+              name: ${{ variables.VSCODE_UBUNTU_POOL }}
+              os: linux
+            jobs:
+              - job: ReleaseBuild
+                displayName: Release Build
+                steps:
+                  - template: build/azure-pipelines/product-release.yml@self
+                    parameters:
+                      VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
       - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
         - stage: node_modules

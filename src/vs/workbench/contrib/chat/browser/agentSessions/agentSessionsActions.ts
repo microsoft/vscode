@@ -40,6 +40,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
 
@@ -893,8 +894,12 @@ export class DeleteAllLocalSessionsAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const dialogService = accessor.get(IDialogService);
 		const agentSessionsService = accessor.get(IAgentSessionsService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
 
-		const localSessionsCount = agentSessionsService.model.sessions.filter(session => isLocalAgentSessionItem(session)).length;
+		const workspaceId = workspaceContextService.getWorkspace().id;
+		const localSessionsCount = agentSessionsService.model.sessions.filter(session =>
+			isLocalAgentSessionItem(session) && session.metadata?.workspaceId === workspaceId
+		).length;
 		if (localSessionsCount === 0) {
 			return;
 		}
@@ -911,8 +916,14 @@ export class DeleteAllLocalSessionsAction extends Action2 {
 			return;
 		}
 
-		// Clear all chat widgets
-		await Promise.all(widgetService.getAllWidgets().map(widget => widget.clear()));
+		const workspaceSessionResources = new Set(agentSessionsService.model.sessions
+			.filter(session => isLocalAgentSessionItem(session) && session.metadata?.workspaceId === workspaceId)
+			.map(session => session.resource.toString()));
+
+		// Clear widgets only for sessions that are being deleted.
+		await Promise.all(widgetService.getAllWidgets()
+			.filter(widget => widget.viewModel && workspaceSessionResources.has(widget.viewModel.model.sessionResource.toString()))
+			.map(widget => widget.clear()));
 
 		// Remove from storage
 		await chatService.clearAllHistoryEntries();

@@ -355,7 +355,7 @@ interface IProviderOwnerHarness {
 	_remoteAgentHostService: { readonly configuredEntries: readonly IRemoteAgentHostEntry[] };
 	_entryType: RemoteAgentHostEntryType;
 	_providerStores: Map<string, undefined> & { deleteAndDispose(address: string): void };
-	_providerInstances: Map<string, { readonly label: string; readonly defaultLabel: string }>;
+	_providerInstances: Map<string, { readonly label: string }>;
 	_createProvider(address: string): void;
 	_getProviderOptions(entry: IRemoteAgentHostEntry): object;
 	_reconcileProviders(): void;
@@ -375,19 +375,6 @@ interface IRemoteAgentRegistrationHarness {
 suite('Remote agent host provider ownership', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(prototype: object, entryType: RemoteAgentHostEntryType, entries: IRemoteAgentHostEntry[]): IProviderOwnerHarness {
-		const contribution = Object.create(prototype) as IProviderOwnerHarness;
-		contribution._configurationService = { getValue: () => true };
-		contribution._remoteAgentHostService = { configuredEntries: entries };
-		contribution._entryType = entryType;
-		const providerStores = new Map<string, undefined>();
-		contribution._providerStores = Object.assign(providerStores, {
-			deleteAndDispose: (address: string) => { providerStores.delete(address); },
-		});
-		contribution._providerInstances = new Map();
-		return contribution;
-	}
-
 	test('the Agents Window entry point loads the shared sandbox services', () => {
 		const services = new Map(getSingletonServiceDescriptors());
 		assert.deepStrictEqual([
@@ -405,13 +392,25 @@ suite('Remote agent host provider ownership', () => {
 			{ name: 'Socket', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host:8080' } },
 			{ name: 'Remote', connection: { type: RemoteAgentHostEntryType.SSH, address: 'localhost:4321', sshConfigHost: 'myserver', hostName: 'myserver' } },
 		];
+		const createHarness = (prototype: object, entryType: RemoteAgentHostEntryType): IProviderOwnerHarness => {
+			const contribution = Object.create(prototype) as IProviderOwnerHarness;
+			contribution._configurationService = { getValue: () => true };
+			contribution._remoteAgentHostService = { configuredEntries: entries };
+			contribution._entryType = entryType;
+			const providerStores = new Map<string, undefined>();
+			contribution._providerStores = Object.assign(providerStores, {
+				deleteAndDispose: (address: string) => { providerStores.delete(address); },
+			});
+			contribution._providerInstances = new Map();
+			return contribution;
+		};
 		const sshCreated: string[] = [];
-		const sshContribution = createHarness(SSHAgentHostContribution.prototype, RemoteAgentHostEntryType.SSH, entries);
+		const sshContribution = createHarness(SSHAgentHostContribution.prototype, RemoteAgentHostEntryType.SSH);
 		sshContribution._getProviderOptions = entry => { sshCreated.push(getEntryAddress(entry)); return {}; };
 		sshContribution._createProvider = () => { };
 		sshContribution._reconcileProviders();
 		const webSocketCreated: string[] = [];
-		const webSocketContribution = createHarness(WebSocketAgentHostContribution.prototype, RemoteAgentHostEntryType.WebSocket, entries);
+		const webSocketContribution = createHarness(WebSocketAgentHostContribution.prototype, RemoteAgentHostEntryType.WebSocket);
 		webSocketContribution._getProviderOptions = entry => { webSocketCreated.push(getEntryAddress(entry)); return {}; };
 		webSocketContribution._createProvider = () => { };
 		webSocketContribution._reconcileProviders();
@@ -426,45 +425,6 @@ suite('Remote agent host provider ownership', () => {
 			sshCreated: ['localhost:4321'],
 			webSocketCreated: ['ws://host:8080'],
 		});
-	});
-
-	test('keeps the provider when only its client-local name differs from the configured name', () => {
-		const address = 'host:8080';
-		const contribution = createHarness(WebSocketAgentHostContribution.prototype, RemoteAgentHostEntryType.WebSocket, [
-			{ name: 'Original Name', connection: { type: RemoteAgentHostEntryType.WebSocket, address } },
-		]);
-		const provider = { label: 'Local Name', defaultLabel: 'Original Name' };
-		contribution._providerStores.set(address, undefined);
-		contribution._providerInstances.set(address, provider);
-		let created = 0;
-		contribution._createProvider = () => { created++; };
-
-		contribution._reconcileProviders();
-
-		assert.deepStrictEqual({
-			label: provider.label,
-			sameProvider: contribution._providerInstances.get(address) === provider,
-			storeRetained: contribution._providerStores.has(address),
-			created,
-		}, { label: 'Local Name', sameProvider: true, storeRetained: true, created: 0 });
-	});
-
-	test('recreates the provider when the configured name changes, even if it matches the local override', () => {
-		const address = 'host:8080';
-		const contribution = createHarness(WebSocketAgentHostContribution.prototype, RemoteAgentHostEntryType.WebSocket, [
-			{ name: 'New Name', connection: { type: RemoteAgentHostEntryType.WebSocket, address } },
-		]);
-		contribution._providerStores.set(address, undefined);
-		contribution._providerInstances.set(address, { label: 'New Name', defaultLabel: 'Original Name' });
-		const created: string[] = [];
-		contribution._createProvider = address => { created.push(address); };
-
-		contribution._reconcileProviders();
-
-		assert.deepStrictEqual({
-			storeRetained: contribution._providerStores.has(address),
-			created,
-		}, { storeRetained: false, created: [address] });
 	});
 });
 

@@ -16,7 +16,7 @@ import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWor
 import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
 import { IAgentSession, isAgentHostAgentSessionItem, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { AgentSessionsSorter, groupAgentSessionsByDate, type IAgentSessionsFilter, sessionDateFromNow } from './agentSessionsViewer.js';
+import { AgentSessionsSorter, getRepositoryName, groupAgentSessionsByDate, type IAgentSessionsFilter, sessionDateFromNow } from './agentSessionsViewer.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
 import { AgentSessionsFilter } from './agentSessionsFilter.js';
 
@@ -53,10 +53,21 @@ export const deleteButton: IQuickInputButton = {
 	tooltip: localize('deleteSession', "Delete")
 };
 
+const allWorkspacesButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.globe),
+	tooltip: localize('showAllWorkspaceSessions', "Show Chats from All Workspaces")
+};
+
+const currentWorkspaceButton: IQuickInputButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.folder),
+	tooltip: localize('showCurrentWorkspaceSessions', "Show Chats from the Current Workspace")
+};
+
 export function getSessionDescription(session: IAgentSession): string {
 	const descriptionText = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
 	const timeAgo = sessionDateFromNow(session.timing.created);
-	const descriptionParts = [descriptionText, session.providerLabel, timeAgo].filter(part => !!part);
+	const workspaceLabel = session.metadata?.workspaceLabel as string | undefined;
+	const descriptionParts = [descriptionText, workspaceLabel ?? getRepositoryName(session), session.providerLabel, timeAgo].filter(part => !!part);
 
 	return descriptionParts.join(' • ');
 }
@@ -104,6 +115,7 @@ export class AgentSessionsPicker {
 
 		picker.anchor = this.anchor;
 		picker.items = this.createPickerItems(filter);
+		picker.buttons = [filter.isShowingOtherWorkspaces() ? currentWorkspaceButton : allWorkspacesButton];
 		picker.canAcceptInBackground = true;
 		picker.placeholder = localize('chatAgentPickerPlaceholder', "Search agent sessions by name");
 
@@ -151,6 +163,15 @@ export class AgentSessionsPicker {
 			} else {
 				picker.items = this.createPickerItems(filter);
 			}
+		}));
+
+		disposables.add(picker.onDidTriggerButton(button => {
+			if (button !== allWorkspacesButton && button !== currentWorkspaceButton) {
+				return;
+			}
+			filter.setOtherWorkspacesVisible(!filter.isShowingOtherWorkspaces());
+			picker.items = this.createPickerItems(filter);
+			picker.buttons = [filter.isShowingOtherWorkspaces() ? currentWorkspaceButton : allWorkspacesButton];
 		}));
 
 		disposables.add(picker.onDidHide(() => disposables.dispose()));

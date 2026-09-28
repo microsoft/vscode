@@ -39,11 +39,9 @@ import { IExtensionManifest } from '../../../../platform/extensions/common/exten
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IEditorProgressService, IProgressRunner } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -295,7 +293,6 @@ export class SettingsEditor2 extends EditorPane {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExperimentalSettingsService experimentalSettingsService: IExperimentalSettingsService,
-		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = this._register(new Delayer(200));
@@ -364,30 +361,6 @@ export class SettingsEditor2 extends EditorPane {
 				this.renderTree();
 			} else if (this.currentSettingsModel) {
 				this.updateElementsByKey(keys);
-			}
-		}));
-
-		let sandboxEnabled = managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY);
-		let sandboxAllowsBypass = managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ALLOW_BYPASS_KEY);
-		let sandboxAllowsOutbound = managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY);
-		this._register(managedSettingsService.onDidChangeManagedSettings(() => {
-			const enabled = managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY);
-			const allowsBypass = managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ALLOW_BYPASS_KEY);
-			const allowsOutbound = managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY);
-			if (enabled === sandboxEnabled && allowsBypass === sandboxAllowsBypass && allowsOutbound === sandboxAllowsOutbound) {
-				return;
-			}
-			sandboxEnabled = enabled;
-			sandboxAllowsBypass = allowsBypass;
-			sandboxAllowsOutbound = allowsOutbound;
-			if (this.currentSettingsModel) {
-				for (const key of [AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, AgentSandboxSettingId.AgentSandboxAllowNetwork]) {
-					this.settingsTreeModel.value?.updateElementsByName(key);
-					this.searchResultModel?.updateElementsByName(key);
-				}
-				this.searchResultModel?.updateChildren();
-				this.refreshTOCTree();
-				this.renderTree(undefined, true);
 			}
 		}));
 

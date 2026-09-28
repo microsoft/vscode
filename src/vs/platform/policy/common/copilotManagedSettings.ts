@@ -72,9 +72,6 @@ export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
 /** Managed-settings key that permits explicitly bypassing the sandbox. */
 export const COPILOT_SANDBOX_ALLOW_BYPASS_KEY = 'sandbox.allowBypass';
 
-/** Managed-settings key that restricts outbound sandbox network access. */
-export const COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY = 'sandbox.userPolicy.network.allowOutbound';
-
 /** Auto startup default, read as one atomic value across managed delivery channels. */
 export const COPILOT_AUTO_TIER_KEY = 'autoTier';
 
@@ -86,7 +83,6 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
-	[COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY]: { type: 'boolean' },
 	[COPILOT_AUTO_TIER_KEY]: { type: 'string' },
 	// Observe these only for whole-block source selection; Local does not implement their capture semantics.
 	'telemetry.capture.prompts': { type: 'boolean' },
@@ -442,8 +438,8 @@ export interface IManagedSettingsPick {
  * a lower channel. Telemetry instead selects the highest-priority block in its entirety, including
  * empty or unrecognized server/file object blocks; native delivery observes declared flat keys only.
  * Omitted leaves cannot inherit from a weaker managed source.
- * Sandbox enablement is force-on-wins; bypass and outbound access are deny-wins so UI consumers
- * cannot discard a sandbox restriction from another channel.
+ * The runtime-owned `sandbox.enabled` control is force-on-wins, so harness selection cannot
+ * discard a sandbox requirement from another channel.
  *
  * The parameter order matches the precedence so call sites read top-to-bottom. Centralizing the
  * resolution here (rather than inlining it at each call site) keeps policy evaluation
@@ -482,8 +478,7 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 			}
 			if (existing) {
 				existing.contributions.push({ channel, value });
-				if ((key === COPILOT_SANDBOX_ENABLED_KEY && value === true && existing.value !== true)
-					|| ((key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY || key === COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY) && value === false && existing.value !== false)) {
+				if (key === COPILOT_SANDBOX_ENABLED_KEY && value === true && existing.value !== true) {
 					existing.value = value;
 					existing.source = channel;
 				}

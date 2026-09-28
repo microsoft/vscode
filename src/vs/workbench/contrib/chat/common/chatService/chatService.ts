@@ -1850,6 +1850,12 @@ export interface IChatDetail {
 	 * Only populated in the sessions/agents window context.
 	 */
 	workingDirectory?: URI;
+	/** Workspace in which this session was created. */
+	workspaceId?: string;
+	/** Display name of the workspace in which this session was created. */
+	workspaceLabel?: string;
+	/** Previous local ID when migration had to resolve an ID collision. */
+	legacySessionId?: string;
 }
 
 export interface IChatProviderInfo {
@@ -2188,8 +2194,10 @@ export interface IChatService {
 	getLocalSessionHistory(): Promise<IChatDetail[]>;
 	clearAllHistoryEntries(): Promise<void>;
 	removeHistoryEntry(sessionResource: URI): Promise<void>;
+	setHistoryEntryPinned(sessionResource: URI, pinned: boolean): Promise<void>;
 	getChatStorageFolder(): URI;
 	logChatIndex(): void;
+	getLiveSessionItem(sessionResource: URI): Promise<IChatDetail | undefined>;
 	getLiveSessionItems(): Promise<IChatDetail[]>;
 	getHistorySessionItems(): Promise<IChatDetail[]>;
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined>;
@@ -2201,6 +2209,8 @@ export interface IChatService {
 	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: IChatQuestionAnswers | undefined): void;
 
 	/** Fires on model unload (`disposed`) or explicit session deletion (`cleared`). Unload does not delete persisted history. */
+	/** Fires when the active profile changes the available local chat history. */
+	readonly onDidChangeSessionHistory: Event<void>;
 	readonly onDidDisposeSession: Event<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>;
 
 	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;

@@ -85,8 +85,6 @@ export interface IOpenAgentsWindowOptions {
 	/** Use the invoking editor's folder only for a fresh composer, without replacing an existing session or user choice. */
 	readonly folderUriIsDefault?: boolean;
 	readonly sessionResource?: UriComponents;
-	/** Session to reveal in onboarding without replacing the new-session composer. */
-	readonly onboardingSessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
 	readonly draft?: IAgentsWindowDraft;
 }

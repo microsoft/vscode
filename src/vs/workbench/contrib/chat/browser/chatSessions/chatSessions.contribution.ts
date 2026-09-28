@@ -483,6 +483,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		controller.setChatSessionItemRead(sessionResource, isRead);
 	}
 
+	setChatSessionItemPinned(sessionResource: URI, pinned: boolean): void {
+		this._getChatSessionItemController(sessionResource)?.controller.setChatSessionItemPinned?.(sessionResource, pinned);
+	}
+
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
 		const controller = this._itemControllers.get(chatSessionType)?.controller;
 		if (!controller) {

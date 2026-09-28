@@ -13,7 +13,7 @@ import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from '../../../browser/agentSessions/agentSessionsFilter.js';
-import { shouldShowSessionInPicker } from '../../../browser/agentSessions/agentSessionsPicker.js';
+import { getSessionDescription, shouldShowSessionInPicker } from '../../../browser/agentSessions/agentSessionsPicker.js';
 import { themeColorFromId } from '../../../../../../base/common/themables.js';
 
 suite('sessionDateFromNow', () => {
@@ -175,7 +175,7 @@ suite('AgentSessionsDataSource', () => {
 			onDidChange: Event.None,
 			groupResults: () => options.groupBy,
 			exclude: options.exclude ?? (() => false),
-			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false, repositoryGroupCapped: options.repositoryGroupCapped ?? true }),
+			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false, otherWorkspaces: false, repositoryGroupCapped: options.repositoryGroupCapped ?? true }),
 			isDefault: () => true,
 			reset: () => { },
 		};
@@ -1430,6 +1430,7 @@ suite('AgentSessionsPicker', () => {
 		id: string;
 		status: ChatSessionStatus;
 		isArchived: boolean;
+		metadata: { [key: string]: unknown };
 	}>): IAgentSession {
 		return {
 			providerType: 'test',
@@ -1444,7 +1445,7 @@ suite('AgentSessionsPicker', () => {
 				lastRequestEnded: undefined,
 			},
 			changes: undefined,
-			metadata: undefined,
+			metadata: overrides.metadata,
 			isArchived: () => overrides.isArchived ?? false,
 			setArchived: () => { },
 			isPinned: () => false,
@@ -1458,7 +1459,7 @@ suite('AgentSessionsPicker', () => {
 	const filter: IAgentSessionsFilter = {
 		onDidChange: Event.None,
 		exclude: () => false,
-		getExcludes: () => ({ providers: [], states: [], archived: true, read: false, repositoryGroupCapped: true }),
+		getExcludes: () => ({ providers: [], states: [], archived: true, read: false, otherWorkspaces: false, repositoryGroupCapped: true }),
 		isDefault: () => true,
 		limitResults: () => undefined,
 		notifyResults: () => { },
@@ -1475,6 +1476,18 @@ suite('AgentSessionsPicker', () => {
 			[completed, inProgress, archived].filter(session => shouldShowSessionInPicker(session, filter)).map(session => session.label),
 			['Session completed', 'Session in-progress']
 		);
+	});
+
+	test('shows the repository in the session description', () => {
+		const session = createSession({ metadata: { workingDirectoryPath: '/Users/test/vscode' } });
+
+		assert.ok(getSessionDescription(session).includes('vscode'));
+	});
+
+	test('shows the originating workspace in the session description', () => {
+		const session = createSession({ metadata: { workspaceId: 'workspace-id', workspaceLabel: 'Project Alpha' } });
+
+		assert.ok(getSessionDescription(session).includes('Project Alpha'));
 	});
 });
 

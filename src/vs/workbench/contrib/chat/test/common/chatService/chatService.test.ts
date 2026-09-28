@@ -42,8 +42,10 @@ import { NullWorkbenchAssignmentService } from '../../../../../services/assignme
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
+import { UserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfileService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
+import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { InMemoryTestFileService, mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
@@ -160,6 +162,8 @@ suite('ChatService', () => {
 	let instantiationService: TestInstantiationService;
 	let testFileService: InMemoryTestFileService;
 	let editingSessionEntries: ISettableObservable<readonly IModifiedFileEntry[]>;
+	let onDidEnterWorkspace: Emitter<IDidEnterWorkspaceEvent>;
+	let profileService: UserDataProfileService;
 
 	let chatAgentService: IChatAgentService;
 	const testServices: ChatService[] = [];
@@ -199,7 +203,28 @@ suite('ChatService', () => {
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
+		const profile = toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache'));
+		instantiationService.stub(IUserDataProfilesService, { defaultProfile: profile });
+		profileService = testDisposables.add(new UserDataProfileService(profile));
+		instantiationService.stub(IUserDataProfileService, profileService);
+		const storedProfiles = new Map<string, { key: string; value: string; target: StorageTarget }[]>();
+		testDisposables.add(profileService.onDidChangeCurrentProfile(event => {
+			if (event.previous.globalStorageHome.toString() === event.profile.globalStorageHome.toString()) {
+				return;
+			}
+			event.join(Promise.resolve().then(() => {
+				const storage = instantiationService.get(IStorageService);
+				const entries = [StorageTarget.USER, StorageTarget.MACHINE].flatMap(target => storage.keys(StorageScope.PROFILE, target)
+					.map(key => ({ key, value: storage.get(key, StorageScope.PROFILE)!, target })));
+				storedProfiles.set(event.previous.globalStorageHome.toString(), entries);
+				for (const entry of entries) {
+					storage.remove(entry.key, StorageScope.PROFILE);
+				}
+				for (const entry of storedProfiles.get(event.profile.globalStorageHome.toString()) ?? []) {
+					storage.store(entry.key, entry.value, StorageScope.PROFILE, entry.target);
+				}
+			}));
+		}));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		const contextKeyService = testDisposables.add(new MockContextKeyService());
@@ -213,7 +238,8 @@ suite('ChatService', () => {
 		instantiationService.stub(ILanguageModelsService, new NullLanguageModelsService());
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
-		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
+		onDidEnterWorkspace = testDisposables.add(new Emitter<IDidEnterWorkspaceEvent>());
+		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: onDidEnterWorkspace.event });
 		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
@@ -2389,6 +2415,23 @@ suite('ChatService', () => {
 			assert.deepStrictEqual(service.getPendingRequestSessionTypes(), []);
 		});
 
+		test('aborts a profile switch if a provider does not finish materializing', async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const materialization = new DeferredPromise<IChatSessionItem>();
+				const realResource = URI.from({ scheme: remoteScheme, path: '/slow-materialization' });
+				const { service, untitledResource } = setupUntitledRemote({ createItem: () => materialization.p });
+				const model = testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!).object;
+				const originalProfile = profileService.currentProfile;
+				const send = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+				await assert.rejects(profileService.updateCurrentProfile(toUserDataProfile('next', 'Next', URI.file('/test/next'), URI.file('/test/cache'))), /chat request is still stopping/);
+				assert.deepStrictEqual({ profile: profileService.currentProfile.id, readOnly: model.isReadOnly.get() }, { profile: originalProfile.id, readOnly: false });
+				materialization.complete(realItem(realResource));
+				const sent = await send;
+				ChatSendResult.assertSent(sent);
+				await sent.data.responseCompletePromise;
+			});
+		});
+
 		test('materialization rejects a send when the real session is read-only', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-read-only' });
 			let invokeCount = 0;
@@ -2790,7 +2833,7 @@ suite('ChatService', () => {
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		instantiationService.stub(ICustomizationMigrationService, migrationService);
 		const testService = createChatService();
-		const model = startSessionModel(testService).object;
+		const model = testDisposables.add(startSessionModel(testService)).object as ChatModel;
 		const response = await testService.sendRequest(model.sessionResource, 'test');
 		ChatSendResult.assertSent(response);
 		await response.data.responseCompletePromise;
@@ -4305,6 +4348,213 @@ suite('ChatService', () => {
 		// Verify onDidDisposeSession was fired
 		// (model is still alive because ref holds it, but it's marked deleted)
 		assert.strictEqual((model as ChatModel).isDeleted, true);
+	});
+
+	test('live session items preserve their original workspace', async () => {
+		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
+		const testService = createChatService();
+		const model = startSessionModel(testService).object;
+		const response = await testService.sendRequest(model.sessionResource, `@${chatAgentWithMarkdownId} test request`);
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		const sessionId = LocalChatSessionUri.parseLocalSessionId(model.sessionResource)!;
+		const indexEntryKey = `chat.ChatSessionStore.index.entry.${encodeURIComponent(sessionId)}`;
+		const metadata = JSON.parse(storageService.get(indexEntryKey, StorageScope.PROFILE)!);
+		storageService.store(indexEntryKey, JSON.stringify({ ...metadata, workspaceId: 'original-workspace', legacySessionId: 'legacy-session' }), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const items = [
+			(await testService.getLiveSessionItems()).find(item => item.sessionResource.toString() === model.sessionResource.toString()),
+			await testService.getLiveSessionItem(model.sessionResource),
+		];
+		assert.deepStrictEqual(items.map(item => ({
+			workspaceId: item?.workspaceId,
+			legacySessionId: item?.legacySessionId,
+		})), [
+			{ workspaceId: 'original-workspace', legacySessionId: 'legacy-session' },
+			{ workspaceId: 'original-workspace', legacySessionId: 'legacy-session' },
+		]);
+	});
+
+	test('restores local sessions from another workspace as read-only', async () => {
+		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('chat.useLogSessionStorage', false);
+		const testService = createChatService();
+		const originalRef = startSessionModel(testService);
+		const sessionResource = originalRef.object.sessionResource;
+		const response = await testService.sendRequest(sessionResource, `@${chatAgentWithMarkdownId} test request`);
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		originalRef.dispose();
+		await testService.waitForModelDisposals();
+
+		const storageService = instantiationService.get(IStorageService);
+		const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource)!;
+		const indexEntryKey = `chat.ChatSessionStore.index.entry.${encodeURIComponent(sessionId)}`;
+		const metadata = JSON.parse(storageService.get(indexEntryKey, StorageScope.PROFILE)!);
+		storageService.store(indexEntryKey, JSON.stringify({ ...metadata, workspaceId: 'other-workspace', isEmptyWindow: true }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const otherStorageRoot = URI.joinPath(instantiationService.get(IUserDataProfilesService).defaultProfile.globalStorageHome, 'chatSessions', 'other-workspace');
+		const sessionWrites = testFileService.writeOperations.filter(operation => operation.resource.path.includes(sessionId));
+		assert.ok(sessionWrites.length > 0);
+		for (const { resource: source } of sessionWrites) {
+			const filename = source.path.slice(source.path.lastIndexOf('/') + 1);
+			const contents = (await testFileService.readFile(source)).value;
+			await testFileService.writeFile(URI.joinPath(otherStorageRoot, filename), contents);
+		}
+
+		const restoringService = createChatService();
+		const restoredRef = await restoringService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(restoredRef);
+		assert.strictEqual(restoredRef.object.isReadOnly.get(), true);
+		assert.deepStrictEqual(
+			await restoringService.sendRequest(sessionResource, `@${chatAgentWithMarkdownId} must not send`),
+			{ kind: 'rejected', reason: 'Session is read-only' },
+		);
+
+		onDidEnterWorkspace.fire({
+			oldWorkspace: { id: 'test-workspace' },
+			newWorkspace: { id: 'other-workspace' },
+			join: () => { },
+		});
+		assert.strictEqual(restoredRef.object.isReadOnly.get(), false);
+
+		onDidEnterWorkspace.fire({
+			oldWorkspace: { id: 'other-workspace' },
+			newWorkspace: { id: 'third-workspace' },
+			join: () => { },
+		});
+		assert.strictEqual(restoredRef.object.isReadOnly.get(), true);
+		restoredRef.dispose();
+		await restoringService.waitForModelDisposals();
+	});
+
+	test('saves outgoing chats and restores live models when returning to their profile', async () => {
+		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
+		const service = createChatService();
+		const originalProfile = profileService.currentProfile;
+		const model = startSessionModel(service).object as ChatModel;
+		const result = await service.sendRequest(model.sessionResource, `@${chatAgentWithMarkdownId} unsaved message`);
+		ChatSendResult.assertSent(result);
+		await result.data.responseCompletePromise;
+		const originalFolder = service.getChatStorageFolder();
+		const disposalEvents: URI[] = [];
+		testDisposables.add(service.onDidDisposeSession(event => disposalEvents.push(...event.sessionResources)));
+
+		await profileService.updateCurrentProfile(toUserDataProfile('next', 'Next', URI.file('/test/next'), URI.file('/test/cache')));
+		const whileAway = {
+			deleted: model.isDeleted,
+			readOnly: model.isReadOnly.get(),
+			liveHistory: await service.getLiveSessionItems(),
+			storedHistory: await service.getHistorySessionItems(),
+			disposals: disposalEvents,
+		};
+		const saved = await testFileService.readFile(URI.joinPath(originalFolder, `${model.sessionId}.jsonl`));
+		assert.ok(saved.value.toString().includes('unsaved message'));
+
+		await profileService.updateCurrentProfile(originalProfile);
+		const restored = testDisposables.add((await service.acquireOrLoadSession(model.sessionResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+		assert.deepStrictEqual({
+			whileAway,
+			sameModel: restored.object === model,
+			readOnlyAfterReturn: model.isReadOnly.get(),
+			liveHistoryAfterReturn: (await service.getLiveSessionItems()).map(item => item.sessionResource),
+		}, {
+			whileAway: { deleted: false, readOnly: true, liveHistory: [], storedHistory: [], disposals: [] },
+			sameModel: true,
+			readOnlyAfterReturn: false,
+			liveHistoryAfterReturn: [model.sessionResource],
+		});
+
+		const continued = await service.sendRequest(model.sessionResource, `@${chatAgentWithMarkdownId} after returning`);
+		ChatSendResult.assertSent(continued);
+		await continued.data.responseCompletePromise;
+		await profileService.updateCurrentProfile(toUserDataProfile('next', 'Next', URI.file('/test/next'), URI.file('/test/cache')));
+		const resaved = await testFileService.readFile(URI.joinPath(originalFolder, `${model.sessionId}.jsonl`));
+		assert.ok(resaved.value.toString().includes('after returning'));
+	});
+
+	test('keeps identical session IDs in different profiles separate', async () => {
+		const service = createChatService();
+		const originalProfile = profileService.currentProfile;
+		const original = startSessionModel(service).object;
+		await profileService.updateCurrentProfile(toUserDataProfile('next', 'Next', URI.file('/test/next'), URI.file('/test/cache')));
+		const other = testDisposables.add(service.loadSessionFromData({
+			...original.toExport(), sessionId: (original as ChatModel).sessionId,
+		} as ISerializableChatData)).object;
+		assert.notStrictEqual(other, original);
+		assert.strictEqual(service.getSession(original.sessionResource), other);
+		await profileService.updateCurrentProfile(originalProfile);
+		assert.strictEqual(service.getSession(original.sessionResource), original);
+	});
+
+	test('an aborted profile switch preserves live chats and does not dispose them', async () => {
+		const service = createChatService();
+		const originalProfile = profileService.currentProfile;
+		const model = startSessionModel(service).object as ChatModel;
+		const fail = testDisposables.add(profileService.onWillChangeCurrentProfile(event => event.join(Promise.reject(new Error('save failed')))));
+		await assert.rejects(profileService.updateCurrentProfile(toUserDataProfile('next', 'Next', URI.file('/test/next'), URI.file('/test/cache'))), /save failed/);
+		fail.dispose();
+		assert.deepStrictEqual({
+			profile: profileService.currentProfile.id,
+			deleted: model.isDeleted,
+			readOnly: model.isReadOnly.get(),
+			liveModel: service.getSession(model.sessionResource) === model,
+		}, { profile: originalProfile.id, deleted: false, readOnly: false, liveModel: true });
+	});
+
+	test('discards a provider load that completes in another profile', async () => {
+		const content = new DeferredPromise<IChatSession>();
+		const started = new DeferredPromise<void>();
+		const resource = URI.parse('profile-delayed:/session');
+		const sessions = new MockChatSessionsService();
+		testDisposables.add(sessions.registerChatSessionContentProvider(resource.scheme, {
+			provideChatSessionContent: () => {
+				started.complete();
+				return content.p;
+			},
+		}));
+		instantiationService.stub(IChatSessionsService, sessions);
+		const service = createChatService();
+		const loading = service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+		await started.p;
+		await profileService.updateCurrentProfile(toUserDataProfile('next', 'Next', URI.file('/test/next'), URI.file('/test/cache')));
+		content.complete({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { } });
+		const loaded = await loading;
+		if (loaded) {
+			testDisposables.add(loaded);
+		}
+		assert.deepStrictEqual({ loaded: loaded?.object, active: service.getSession(resource) }, { loaded: undefined, active: undefined });
+	});
+
+	test('closing an inactive profile model still reports actual disposal', async () => {
+		const service = createChatService();
+		const ref = startSessionModel(service);
+		const resource = ref.object.sessionResource;
+		const disposed: URI[] = [];
+		testDisposables.add(service.onDidDisposeSession(event => disposed.push(...event.sessionResources)));
+		await profileService.updateCurrentProfile(toUserDataProfile('next', 'Next', URI.file('/test/next'), URI.file('/test/cache')));
+		assert.deepStrictEqual(disposed, []);
+		ref.dispose();
+		await service.waitForModelDisposals();
+		assert.deepStrictEqual(disposed, [resource]);
+	});
+
+	test('reconciles deletions made while a profile is inactive', async () => {
+		const service = createChatService();
+		const originalProfile = profileService.currentProfile;
+		const model = startSessionModel(service).object as ChatModel;
+		await profileService.updateCurrentProfile(toUserDataProfile('next', 'Next', URI.file('/test/next'), URI.file('/test/cache')));
+		testDisposables.add(profileService.onDidChangeCurrentProfile(event => {
+			if (event.profile.id === originalProfile.id) {
+				event.join(Promise.resolve().then(() => {
+					instantiationService.get(IStorageService).store(`chat.ChatSessionStore.index.entry.${encodeURIComponent(model.sessionId)}`, '{"deleted":true}', StorageScope.PROFILE, StorageTarget.MACHINE);
+				}));
+			}
+		}));
+		await profileService.updateCurrentProfile(originalProfile);
+		assert.deepStrictEqual({ deleted: model.isDeleted, history: await service.getLiveSessionItems() }, { deleted: true, history: [] });
 	});
 
 	test('removeHistoryEntry prevents re-saving on model disposal', async () => {

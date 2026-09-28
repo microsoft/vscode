@@ -40,8 +40,14 @@ const ClaudeDisablePrecompactSkipEnvVar = 'CLAUDE_CODE_DISABLE_PRECOMPACT_SKIP';
 export const IClaudeAgentSdkService = createDecorator<IClaudeAgentSdkService>('claudeAgentSdkService');
 
 /**
- * Lazily loads `@anthropic-ai/claude-agent-sdk`, coalesces concurrent catalogue scans,
- * and detaches returned session metadata from transcript buffers.
+ * Pure per-method passthrough shim over `@anthropic-ai/claude-agent-sdk`.
+ *
+ * SDK operations correspond 1:1 to a single SDK export. The optional
+ * availability method is limited to scheduling the downloader for native-chat
+ * discovery without importing the SDK. The shim owns lazy module loading and
+ * the first-failure log-once convention; higher-level orchestration (e.g.
+ * building the in-process client-tool MCP server) lives in dedicated modules
+ * that depend on this interface for the raw bindings.
  */
 export interface IClaudeAgentSdkService {
 	readonly _serviceBrand: undefined;
@@ -141,7 +147,6 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	 * (e.g. user fixes a broken `node_modules`), the next call retries.
 	 */
 	private _sdkModule: IClaudeSdkBindings | undefined;
-	private _listSessionsPromise: Promise<readonly SDKSessionInfo[]> | undefined;
 
 	/**
 	 * Latched once we've logged a load failure, so a corrupt postinstall
@@ -162,19 +167,8 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	}
 
 	async listSessions(): Promise<readonly SDKSessionInfo[]> {
-		if (this._listSessionsPromise) {
-			return this._listSessionsPromise;
-		}
-		this._listSessionsPromise = (async () => {
-			const sdk = await this._getSdk();
-			// SDK metadata can contain sliced strings that keep entire transcript read buffers alive.
-			return structuredClone(await sdk.listSessions(undefined));
-		})();
-		try {
-			return await this._listSessionsPromise;
-		} finally {
-			this._listSessionsPromise = undefined;
-		}
+		const sdk = await this._getSdk();
+		return sdk.listSessions(undefined);
 	}
 
 	async canLoadWithoutDownload(): Promise<boolean> {
@@ -196,7 +190,7 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 
 	async getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined> {
 		const sdk = await this._getSdk();
-		return structuredClone(await sdk.getSessionInfo(sessionId));
+		return sdk.getSessionInfo(sessionId);
 	}
 
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {

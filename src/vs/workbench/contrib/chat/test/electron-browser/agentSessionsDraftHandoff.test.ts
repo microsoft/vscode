@@ -1573,12 +1573,10 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				source: call.source,
 				accepted: isAgentsWindowOpenSource(call.source),
 				sessionResource: URI.revive(call.sessionResource)?.toString(),
-				onboardingSessionResource: URI.revive(call.onboardingSessionResource)?.toString(),
 			})), [{
 				source,
 				accepted: true,
 				sessionResource: source === 'currentChatHandoff' ? h.resource.toString() : undefined,
-				onboardingSessionResource: source === 'parallelWorkEmptyChatHandoff' ? 'remote-test-copilotcli:/other-workspace' : undefined,
 			}]);
 		});
 	}
@@ -1604,25 +1602,6 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			retained: 'Written after the banner appeared',
 			notification: undefined,
 		});
-	});
-
-	test('banner hands off the click-time running session separately from the draft', async () => {
-		const h = createHarness();
-		h.showBanner();
-		h.runningProviderType = SessionType.AgentHostCodex;
-		await h.click(0);
-
-		assert.deepStrictEqual(h.calls.map(call => ({
-			onboardingSession: URI.revive(call.onboardingSessionResource)?.toString(),
-			openedSession: call.sessionResource,
-			draft: call.draft?.inputText,
-			folder: URI.revive(call.folderUri)?.path,
-		})), [{
-			onboardingSession: `${SessionType.AgentHostCodex}:/other-workspace`,
-			openedSession: undefined,
-			draft: h.input,
-			folder: '/source',
-		}]);
 	});
 
 	for (const change of ['source', 'hidden'] as const) {

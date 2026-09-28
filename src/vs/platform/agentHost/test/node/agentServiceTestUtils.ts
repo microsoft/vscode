@@ -192,7 +192,6 @@ export function createTestAgentService(
 		fetchFn,
 		gitHubServiceOptions: foundation.gitHubServiceOptions,
 		copilotApiService,
-		hostLaunchKind,
 	});
 	services.set(IAgentHostFileMonitorService, effectiveFileMonitorService);
 	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());

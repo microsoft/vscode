@@ -87,14 +87,22 @@ function expectedSandboxConfig(options?: {
 	return {
 		enabled: true,
 		allowBypass: options?.allowBypass ?? false,
+		addCurrentWorkingDirectory: true,
+		allowDevToolAccess: true,
+		auth: {
+			git: true,
+			gh: true,
+		},
 		userPolicy: {
 			filesystem: {
 				...(options?.deniedPaths?.length ? { deniedPaths: options.deniedPaths } : {}),
 				...(options?.readonlyPaths?.length ? { readonlyPaths: options.readonlyPaths } : {}),
 				...(options?.readwritePaths?.length ? { readwritePaths: options.readwritePaths } : {}),
+				clearPolicyOnExit: true,
 			},
 			network: {
 				allowOutbound: options?.allowOutbound === true,
+				allowLocalNetwork: false,
 			},
 		},
 	};
@@ -250,6 +258,7 @@ suite('buildSandboxConfigForSdk', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] }))?.userPolicy?.network, {
 					allowOutbound: false,
+					allowLocalNetwork: false,
 				}, platform);
 			}
 		});
@@ -258,6 +267,7 @@ suite('buildSandboxConfigForSdk', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] }, true))?.userPolicy?.network, {
 					allowOutbound: true,
+					allowLocalNetwork: false,
 				}, platform);
 			}
 		});
@@ -265,6 +275,7 @@ suite('buildSandboxConfigForSdk', () => {
 		test('ignores empty host lists', () => {
 			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { allowedHosts: [], blockedHosts: [] }))?.userPolicy?.network, {
 				allowOutbound: false,
+				allowLocalNetwork: false,
 			});
 		});
 	});
@@ -274,18 +285,21 @@ suite('buildSandboxConfigForSdk', () => {
 		test('grants read access to host-generated paths', () => {
 			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On), ['/data/shellInit/s1'])?.userPolicy?.filesystem, {
 				readonlyPaths: ['/data/shellInit/s1'],
+				clearPolicyOnExit: true,
 			});
 		});
 
 		test('keeps user denyRead winning over a host-generated path', () => {
 			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { denyRead: ['/data/shellInit/s1'] }), ['/data/shellInit/s1'])?.userPolicy?.filesystem, {
 				deniedPaths: ['/data/shellInit/s1'],
+				clearPolicyOnExit: true,
 			});
 		});
 
 		test('does not downgrade a path the user already made readwrite', () => {
 			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowWrite: ['/work'] }), ['/work'])?.userPolicy?.filesystem, {
 				readwritePaths: ['/work'],
+				clearPolicyOnExit: true,
 			});
 		});
 

@@ -1058,7 +1058,14 @@ if (logOutsideTime) {
 let fixtureRenderCounter = 0;
 let sourceMapsInitialized = false;
 
-/** Creates themed fixtures, awaiting the render promise and virtual-time layout before reporting readiness. */
+/**
+ * Creates selected color-theme variants (Dark and Light by default), with optional additional theme variants.
+ * The render function receives a context with container and disposableStore.
+ *
+ * Note: If render returns a Promise, the async work will run in background.
+ * Component-explorer waits 2 animation frames after sync render returns,
+ * which should be sufficient for most async setup, but timing is not guaranteed.
+ */
 export function defineComponentFixture(options: ComponentFixtureOptions): ThemedFixtures {
 	const createFixture = (themeVariant: ComponentFixtureThemeVariant) => defineFixture({
 		isolation: 'none',

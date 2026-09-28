@@ -276,6 +276,8 @@ export interface IChatSessionItemMetadata {
 	//#region Changes metadata (for sessions window)
 	readonly repositoryPath?: string;
 	readonly workingDirectoryPath?: string;
+	readonly workspaceId?: string;
+	readonly workspaceLabel?: string;
 	readonly firstCheckpointRef?: string;
 	readonly lastCheckpointRef?: string;
 	readonly worktreePath?: string;
@@ -722,6 +724,11 @@ export interface IChatSessionItemController {
 	 * controller reflects the new value back via {@link IChatSessionItem.isRead}.
 	 */
 	setChatSessionItemRead?(resource: URI, isRead: boolean): void;
+
+	/**
+	 * Persist whether this session is pinned so retention policies can preserve it.
+	 */
+	setChatSessionItemPinned?(resource: URI, pinned: boolean): void;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -887,6 +894,11 @@ export interface IChatSessionsService {
 	 * Sets read state by delegating to the registered item controller.
 	 */
 	setChatSessionItemRead(sessionResource: URI, isRead: boolean): void;
+
+	/**
+	 * Persists pinned state when the registered controller supports it.
+	 */
+	setChatSessionItemPinned(sessionResource: URI, pinned: boolean): void;
 
 	// #endregion
 

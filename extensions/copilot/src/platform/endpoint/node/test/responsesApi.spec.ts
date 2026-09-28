@@ -1323,7 +1323,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		]);
 	});
 
-	it('uses implicit prompt caching by default for endpoints that do not require opt-in', () => {
+	it('uses explicit prompt caching by default for endpoints that do not require opt-in', () => {
 		const messages: Raw.ChatMessage[] = [{
 			role: Raw.ChatRole.User,
 			content: [
@@ -1332,11 +1332,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 			],
 		}];
 
-		const body = buildBody(messages, cacheBreakpointEndpoint, 'unset');
-		expect({ options: body.prompt_cache_options, input: body.input }).toEqual({
-			options: { mode: 'implicit' },
-			input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hello' }] }],
-		});
+		expect(buildBody(messages, cacheBreakpointEndpoint, 'unset').prompt_cache_options).toEqual(expectedPromptCacheBreakpoint);
 	});
 });
 

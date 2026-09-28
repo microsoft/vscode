@@ -74,9 +74,9 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 		});
 	}
 
-	async function collectPopulatedDebugLogs(kind: 'archive' | 'directory', session?: string): Promise<DebugLogsArtifactResult> {
+	async function collectPopulatedDebugLogs(kind: 'archive' | 'directory'): Promise<DebugLogsArtifactResult> {
 		return retry(async () => {
-			const artifact = await collectDebugLogs(kind, session);
+			const artifact = await collectDebugLogs(kind);
 			assert.ok(artifact.entries.some(entry => isAgentHostProcessLog(entry.path)), 'the asynchronous process logger has not created its file yet');
 			return artifact;
 		}, 50, 100);
@@ -255,7 +255,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 
 	conformanceTest(context, 'host-wide debug collection without a live provider contains only host logs', async function () {
 		await initializeClient('debug-host-only');
-		const artifact = await collectPopulatedDebugLogs('archive');
+		const artifact = await collectDebugLogs('archive');
 
 		assert.deepStrictEqual({
 			providerLogsIncluded: artifact.providerLogsIncluded,
@@ -272,7 +272,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-debug-unmaterialized-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `debug-unmaterialized-${config.provider}`, createdSessions, URI.file(workspace));
-		const artifact = await collectPopulatedDebugLogs('directory', sessionUri);
+		const artifact = await collectDebugLogs('directory', sessionUri);
 
 		assert.deepStrictEqual({
 			providerLogsIncluded: artifact.providerLogsIncluded,

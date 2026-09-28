@@ -5,8 +5,10 @@
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { InMemoryStorageService, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../common/storage.js';
+import { IUserDataProfile, toUserDataProfile } from '../../../userDataProfile/common/userDataProfile.js';
 
 export function createSuite<T extends IStorageService>(params: { setup: () => Promise<T>; teardown: (service: T) => Promise<void> }): void {
 
@@ -298,4 +300,34 @@ suite('StorageService (in-memory)', function () {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+suite('StorageService - Profile changes', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const defaultProfile = { ...toUserDataProfile('default', 'Default', URI.file('/profiles/default'), URI.file('/cache')), isDefault: true };
+	const ownStorageProfile = toUserDataProfile('custom', 'Custom', URI.file('/profiles/custom'), URI.file('/cache'));
+	const sharedStorageProfile = toUserDataProfile('custom', 'Custom', URI.file('/profiles/custom'), URI.file('/cache'), { useDefaultFlags: { globalState: true } }, defaultProfile);
+
+	class TestProfileStorageService extends InMemoryStorageService {
+		public override canSwitchProfile(from: IUserDataProfile, to: IUserDataProfile): boolean {
+			return super.canSwitchProfile(from, to);
+		}
+	}
+
+	test('switches storage when the current profile starts or stops sharing global state', () => {
+		const service = disposables.add(new TestProfileStorageService());
+		deepStrictEqual([
+			service.canSwitchProfile(ownStorageProfile, sharedStorageProfile),
+			service.canSwitchProfile(sharedStorageProfile, ownStorageProfile),
+		], [true, true]);
+	});
+
+	test('preserves storage for renamed profiles and profiles sharing the default', () => {
+		const service = disposables.add(new TestProfileStorageService());
+		deepStrictEqual([
+			service.canSwitchProfile(ownStorageProfile, { ...ownStorageProfile, name: 'Renamed' }),
+			service.canSwitchProfile(defaultProfile, sharedStorageProfile),
+			service.canSwitchProfile(sharedStorageProfile, defaultProfile),
+		], [false, false, false]);
+	});
 });

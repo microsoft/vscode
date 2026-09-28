@@ -49,7 +49,6 @@ export function getSessionSummaryHoverData(
 	const mainWorkspace = mainChat?.workspace.get() ?? sessionWorkspace;
 	const topPullRequestRefs = getPullRequestRefs([isMultiFolder ? mainWorkspace : sessionWorkspace]);
 	return {
-		...getProviderDetails(session, sessionsProvidersService),
 		title: session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false),
 		...(includeUpdatedAt ? { updatedAt: session.updatedAt.get() } : {}),
 		location: getLocation(
@@ -61,6 +60,7 @@ export function getSessionSummaryHoverData(
 		pullRequests: toHoverPullRequests(topPullRequestRefs.values(), openerService),
 		createdBy,
 		externalSession: getExternalSession(session, preferencesService),
+		providerLabel: getProviderLabel(session, sessionsProvidersService),
 		...(sessionWorkspace && isMultiFolder ? {
 			sessionSummary: {
 				workspaces: getWorkspaceSummaries(sessionWorkspace, session.worktreePending?.get() ?? false, labelService),
@@ -87,7 +87,6 @@ export function getChatSummaryHoverData(
 	includeUpdatedAt = false,
 ): ISessionSummaryHoverData {
 	return {
-		...getProviderDetails(session, sessionsProvidersService),
 		title: chat.title.get().trim() || localize('untitledChat', "Untitled Chat"),
 		...(includeUpdatedAt ? { updatedAt: chat.updatedAt.get() } : {}),
 		location: getLocation(
@@ -99,6 +98,7 @@ export function getChatSummaryHoverData(
 		pullRequests: getPullRequests(chat.workspace.get(), openerService),
 		createdBy,
 		externalSession: getExternalSession(session, preferencesService),
+		providerLabel: getProviderLabel(session, sessionsProvidersService),
 	};
 }
 
@@ -253,17 +253,11 @@ function getExternalSession(session: ISession, preferencesService: IPreferencesS
 	};
 }
 
-function getProviderDetails(
-	session: ISession,
-	sessionsProvidersService: ISessionsProvidersService,
-): Pick<ISessionSummaryHoverData, 'providerLabel' | 'remoteName'> {
+/** The kind of agent serving the session, e.g. "Claude". */
+function getProviderLabel(session: ISession, sessionsProvidersService: ISessionsProvidersService): string | undefined {
 	const provider = sessionsProvidersService.getProvider(session.providerId);
 	if (!provider) {
-		return {};
+		return undefined;
 	}
-	const providerLabel = provider.sessionTypes.find(type => type.id === session.sessionType)?.label ?? provider.label;
-	return {
-		providerLabel,
-		...(session.remoteConnectionStatus && providerLabel !== provider.label ? { remoteName: provider.label } : {}),
-	};
+	return provider.sessionTypes.find(type => type.id === session.sessionType)?.label ?? provider.label;
 }

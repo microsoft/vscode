@@ -27,7 +27,16 @@ export const IUserDataProfileService = createDecorator<IUserDataProfileService>(
 export interface IUserDataProfileService {
 	readonly _serviceBrand: undefined;
 	readonly currentProfile: IUserDataProfile;
+	/**
+	 * Fires before the current profile and its storage change. Joined work must
+	 * finish successfully before the profile change can proceed.
+	 */
+	readonly onWillChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
+	/** Fires when preparation fails and the outgoing profile remains active. */
+	readonly onDidFailCurrentProfileChange: Event<void>;
 	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
+	/** Fires once all participants have finished switching to the new profile. */
+	readonly onDidUpdateCurrentProfile: Event<IUserDataProfile>;
 	updateCurrentProfile(currentProfile: IUserDataProfile): Promise<void>;
 }
 

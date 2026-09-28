@@ -73,7 +73,10 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 export class TestUserDataProfileService implements IUserDataProfileService {
 
 	readonly _serviceBrand: undefined;
+	readonly onWillChangeCurrentProfile = Event.None;
+	readonly onDidFailCurrentProfileChange = Event.None;
 	readonly onDidChangeCurrentProfile = Event.None;
+	readonly onDidUpdateCurrentProfile = Event.None;
 	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
 	async updateCurrentProfile(): Promise<void> { }
 }

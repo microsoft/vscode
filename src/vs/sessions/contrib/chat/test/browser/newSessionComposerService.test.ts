@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INewSessionComposer, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { URI } from '../../../../../base/common/uri.js';
 
@@ -82,44 +82,7 @@ suite('NewSessionComposerService', () => {
 		registration.dispose();
 		changed.fire();
 		assert.deepStrictEqual({ beforeReady, empty, occupied, disposed: service.hasDraftInput, version: service.inputVersion.get() }, {
-			beforeReady: undefined, empty: false, occupied: true, disposed: undefined, version: 3,
+			beforeReady: undefined, empty: false, occupied: true, disposed: undefined, version: 1,
 		});
-	});
-
-	test('scopes draft input to its session and observes composer retargeting', () => {
-		const service = disposables.add(new NewSessionComposerService());
-		const first = URI.parse('test:/first');
-		const second = URI.parse('test:/second');
-		const resource = observableValue('sessionResource', first);
-		const changed = disposables.add(new Emitter<void>());
-		let ready = false;
-		let input = '';
-		let attachments = 0;
-		const registration = disposables.add(service.registerComposer({
-			...composer(),
-			sessionResource: resource,
-			get isInputReady() { return ready; },
-			get hasInput() { return !!input || attachments > 0; },
-			onDidChangeInput: changed.event,
-		}));
-		const values: boolean[][] = [];
-		disposables.add(autorun(reader => {
-			service.inputVersion.read(reader);
-			values.push([service.hasDraftInputForSession(first), service.hasDraftInputForSession(second)]);
-		}));
-		ready = true;
-		changed.fire();
-		input = 'Unsent message';
-		changed.fire();
-		resource.set(second, undefined);
-		input = '';
-		attachments = 1;
-		changed.fire();
-		attachments = 0;
-		changed.fire();
-		registration.dispose();
-		assert.deepStrictEqual(values, [
-			[true, false], [false, false], [true, false], [false, true], [false, true], [false, false], [false, false],
-		]);
 	});
 });

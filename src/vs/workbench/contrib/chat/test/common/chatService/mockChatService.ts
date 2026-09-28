@@ -10,6 +10,7 @@ import { ISettableObservable, observableValue } from '../../../../../../base/com
 import { URI } from '../../../../../../base/common/uri.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatDetail, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatService, IChatSessionStartOptions, IChatUserActionEvent, IRemotePendingRequest } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { chatModelToChatDetail } from '../../../common/chatService/chatServiceImpl.js';
 import { IChatModel, IChatRequestModel, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import type { IChatModelReferenceDebugSnapshot } from '../../../common/model/chatModelStore.js';
 
@@ -23,6 +24,7 @@ export class MockChatService implements IChatService {
 	transferredSessionResource = undefined;
 	readonly onDidSubmitRequest = Event.None;
 	readonly onDidAcceptRequest = Event.None;
+	readonly onDidChangeSessionHistory = Event.None;
 
 	private readonly _onDidCreateModel = new Emitter<IChatModel>();
 	readonly onDidCreateModel = this._onDidCreateModel.event;
@@ -158,6 +160,7 @@ export class MockChatService implements IChatService {
 	}
 
 	async clearAllHistoryEntries(): Promise<void> { }
+	async setHistoryEntryPinned(): Promise<void> { }
 
 	async removeHistoryEntry(_resource: URI): Promise<void> { }
 
@@ -189,6 +192,20 @@ export class MockChatService implements IChatService {
 
 	async getLiveSessionItems(): Promise<IChatDetail[]> {
 		return this.liveSessionItems;
+	}
+
+	async getLiveSessionItem(sessionResource: URI): Promise<IChatDetail | undefined> {
+		const model = this.sessions.get(sessionResource);
+		if (!model?.hasRequests) {
+			return undefined;
+		}
+		const stored = this.liveSessionItems.find(item => item.sessionResource.toString() === sessionResource.toString());
+		return {
+			...await chatModelToChatDetail(model),
+			workspaceId: stored?.workspaceId,
+			workspaceLabel: stored?.workspaceLabel,
+			legacySessionId: stored?.legacySessionId,
+		};
 	}
 
 	async getHistorySessionItems(): Promise<IChatDetail[]> {

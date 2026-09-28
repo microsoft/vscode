@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -258,10 +258,8 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		this._providerWatchers.clear();
 
 		const providers = this._sessionsProvidersService.getProviders().filter(isRemoteAgentHostProvider);
-		const providerLabelsChanged = observableSignalFromEvent(this, Event.any(...providers.map(provider => provider.onDidChangeSessionTypes ?? Event.None)));
 
 		this._providerWatchers.add(autorun(reader => {
-			providerLabelsChanged.read(reader);
 			interface IMutableEntry {
 				id: string;
 				providerIds: string[];

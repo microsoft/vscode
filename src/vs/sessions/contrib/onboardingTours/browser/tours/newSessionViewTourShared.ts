@@ -9,7 +9,7 @@ import { EditorPartModalVisibleContext } from '../../../../../workbench/common/c
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISpotlightStep } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, NewSessionOnboardingHandoffContext, SessionHasWorkspaceContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
+import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, SessionHasWorkspaceContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
 
 export function createNewSessionViewRecentTourWhen(): ContextKeyExpression | undefined {
 	return ContextKeyExpr.and(
@@ -18,7 +18,6 @@ export function createNewSessionViewRecentTourWhen(): ContextKeyExpression | und
 		AgentHostSessionTypesAvailableContext,
 		ChatEntitlementContextKeys.Entitlement.signedOut.toNegated(),
 		EditorPartModalVisibleContext.toNegated(),
-		NewSessionOnboardingHandoffContext.toNegated(),
 	);
 }
 

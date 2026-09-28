@@ -663,9 +663,8 @@ suite('CodexAgent', () => {
 		const listChatsToMigrate = (CodexAgent.prototype as unknown as {
 			listChatsToMigrate(this: {
 				_activated: boolean;
-				_isCatalogSdkAvailable(): Promise<boolean>;
-				_markCatalogStartupContext(sdkAvailability: 'available' | 'unavailable' | 'unknown'): void;
-				_listCodexChats(kind: 'migration' | 'discovery'): Promise<typeof chats | undefined>;
+				_isSdkResolvableWithoutDownload(): Promise<boolean>;
+				_listCodexChats(): Promise<typeof chats | undefined>;
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
 				_logService: { info(message: string): void };
 			}): Promise<typeof chats | undefined | typeof AgentChatMigrationDeferred>;
@@ -676,8 +675,7 @@ suite('CodexAgent', () => {
 		const harness = {
 			_activated: true,
 			_logService: { info: () => { } },
-			_isCatalogSdkAvailable: async () => sdkIsLocal,
-			_markCatalogStartupContext: () => { },
+			_isSdkResolvableWithoutDownload: async () => sdkIsLocal,
 			_listCodexChats: async () => chats,
 			_isKnownCodexChat: async (chat: (typeof chats)[number]) => {
 				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));

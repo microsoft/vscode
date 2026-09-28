@@ -9,22 +9,20 @@ import { IActionListItemInlineToggle } from '../../actionWidget/browser/actionLi
 interface IAgentHostSandboxToggleState {
 	readonly provider: string | undefined;
 	readonly sessionEnabled: boolean | undefined;
-	readonly confirmedEnabled?: boolean;
 	readonly globalEnabled: boolean;
 	readonly managedEnabled: boolean;
 	readonly allowsBypass: boolean;
 }
 
-/** Managed enablement permits turning On after an authorized session opt-out, but never a direct Off. */
+/** Resolves the displayed sandbox state for the Copilot harness, with mandatory policy taking precedence over the session choice. */
 export function getAgentHostSandboxToggleState(state: IAgentHostSandboxToggleState): { checked: boolean; disabled: boolean } | undefined {
 	if (state.provider !== 'copilotcli') {
 		return undefined;
 	}
-	const authorizedDisable = state.allowsBypass && state.confirmedEnabled === false;
-	const checked = state.managedEnabled && !authorizedDisable ? true : (state.sessionEnabled ?? (state.managedEnabled || state.globalEnabled));
+	const disabled = state.managedEnabled && !state.allowsBypass;
 	return {
-		checked,
-		disabled: state.managedEnabled && checked,
+		checked: disabled || (state.sessionEnabled ?? (state.managedEnabled || state.globalEnabled)),
+		disabled,
 	};
 }
 
@@ -48,14 +46,13 @@ export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxT
 		title: state.managedEnabled
 			? disabled
 				? localize('agentHostSandboxToggle.requiredTitle', "Sandboxing is required by your organization")
-				: localize('agentHostSandboxToggle.reenableManagedTitle', "Sandboxing was disabled for this session through an approved bypass. You can enable it again.")
+				: localize('agentHostSandboxToggle.editableManagedTitle', "Sandboxing is enabled by your organization, but you may disable it")
 			: localize('agentHostSandboxToggle.title', "Run this session's terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only."),
 		get checked() { return displayedChecked; },
-		get disabled() { return disabled || (state.managedEnabled && displayedChecked); },
+		disabled,
 		onChange: enabled => {
-			const latest = readState();
-			const currentState = getAgentHostSandboxToggleState(latest);
-			if (currentState && !currentState.disabled && !(latest.managedEnabled && displayedChecked) && displayedChecked !== enabled) {
+			const currentState = getAgentHostSandboxToggleState(readState());
+			if (currentState && !currentState.disabled && displayedChecked !== enabled) {
 				displayedChecked = enabled;
 				onChange(enabled);
 			}
