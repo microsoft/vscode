@@ -9,7 +9,6 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isIOS } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { IEditorMouseEvent, MouseTargetType } from '../../../../editorBrowser.js';
 import { CodeEditorWidget } from '../../../codeEditor/codeEditorWidget.js';
 import { DiffEditorWidget } from '../../diffEditorWidget.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
@@ -23,6 +22,8 @@ import { RenderLinesResult } from './renderLines.js';
 
 export class InlineDiffDeletedCodeMargin extends Disposable {
 	private readonly _diffActions: HTMLElement;
+	private readonly _lineHeight: number;
+	private _currentLineNumberOffset = 0;
 
 	private _visibility: boolean = false;
 
@@ -38,7 +39,6 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 	}
 
 	constructor(
-		private readonly _getViewZoneId: () => string,
 		private readonly _marginDomNode: HTMLElement,
 		private readonly _deletedCodeDomNode: HTMLElement,
 		private readonly _modifiedEditor: CodeEditorWidget,
@@ -57,14 +57,12 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 		this._diffActions = document.createElement('div');
 		this._diffActions.className = ThemeIcon.asClassName(Codicon.lightBulb) + ' lightbulb-glyph';
 		this._diffActions.style.position = 'absolute';
-		const lineHeight = this._modifiedEditor.getOption(EditorOption.lineHeight);
+		const lineHeight = this._lineHeight = this._modifiedEditor.getOption(EditorOption.lineHeight);
 		this._diffActions.style.right = '0px';
 		this._diffActions.style.visibility = 'hidden';
 		this._diffActions.style.height = `${lineHeight}px`;
 		this._diffActions.style.lineHeight = `${lineHeight}px`;
 		this._marginDomNode.appendChild(this._diffActions);
-
-		let currentLineNumberOffset = 0;
 
 		const useShadowDOM = _modifiedEditor.getOption(EditorOption.useShadowDOM) && !isIOS; // Do not use shadow dom on IOS #122035
 		const showContextMenu = (anchor: { x: number; y: number }, baseActions?: Action[], onHide?: () => void) => {
@@ -99,13 +97,13 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 							'diff.clipboard.copyDeletedLineContent',
 							isDeletion
 								? localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line ({0})",
-									_diff.original.startLineNumber + currentLineNumberOffset)
+									_diff.original.startLineNumber + this._currentLineNumberOffset)
 								: localize('diff.clipboard.copyChangedLineContent.label', "Copy changed line ({0})",
-									_diff.original.startLineNumber + currentLineNumberOffset),
+									_diff.original.startLineNumber + this._currentLineNumberOffset),
 							undefined,
 							true,
 							async () => {
-								let lineContent = this._originalTextModel.getLineContent(_diff.original.startLineNumber + currentLineNumberOffset);
+								let lineContent = this._originalTextModel.getLineContent(_diff.original.startLineNumber + this._currentLineNumberOffset);
 								if (lineContent === '') {
 									// empty line -> new line
 									const eof = this._originalTextModel.getEndOfLineSequence();
@@ -142,15 +140,6 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 			showContextMenu({ x: e.posx, y: top + height + pad });
 		}));
 
-		this._register(_modifiedEditor.onMouseMove((e: IEditorMouseEvent) => {
-			if ((e.target.type === MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === MouseTargetType.GUTTER_VIEW_ZONE) && e.target.detail.viewZoneId === this._getViewZoneId()) {
-				currentLineNumberOffset = this._updateLightBulbPosition(this._marginDomNode, e.event.browserEvent.y, lineHeight);
-				this.visibility = true;
-			} else {
-				this.visibility = false;
-			}
-		}));
-
 		this._register(enableCopySelection({
 			domNode: this._deletedCodeDomNode,
 			diffEntry: _diff,
@@ -158,6 +147,11 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 			renderLinesResult: this._renderLinesResult,
 			clipboardService: _clipboardService,
 		}));
+	}
+
+	public onMouseMove(mouseY: number): void {
+		this._currentLineNumberOffset = this._updateLightBulbPosition(this._marginDomNode, mouseY, this._lineHeight);
+		this.visibility = true;
 	}
 
 	private _updateLightBulbPosition(marginDomNode: HTMLElement, y: number, lineHeight: number): number {
