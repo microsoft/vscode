@@ -230,7 +230,7 @@ suite('aiCustomizationManagementEditor', () => {
 		openCustomizationItem(item: IAICustomizationListItem): Promise<void>;
 		showEmbeddedPluginDetail(item: IAgentPluginItem): Promise<void>;
 		goBackToList(): void;
-		showWelcomePage(): void;
+		showWelcomePage(options?: { resetFilters?: boolean }): void;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
 		refreshCustomizationMigrationUi(): void;
@@ -601,6 +601,24 @@ suite('aiCustomizationManagementEditor', () => {
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 		assert.deepStrictEqual(queries, ['@type:plugin']);
+	});
+
+	test('showing Discover from its navigation button resets its filters', () => {
+		const { editor } = createContributedSectionEditor();
+		const calls: string[] = [];
+		Object.assign(editor, {
+			welcomePage: {
+				container: $('div'),
+				setVisible() { },
+				resetFilters() { calls.push('resetFilters'); },
+				reset() { },
+				focus() { },
+			},
+		});
+
+		editor.showWelcomePage({ resetFilters: true });
+
+		assert.deepStrictEqual(calls, ['resetFilters']);
 	});
 
 	test('a contributed section with no source settings remains hidden', () => {

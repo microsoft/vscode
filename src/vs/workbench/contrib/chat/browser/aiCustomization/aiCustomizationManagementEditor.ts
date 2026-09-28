@@ -1104,7 +1104,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		homeIcon.setAttribute('aria-hidden', 'true');
 		this.homeButtonLabel = DOM.append(homeButton, $('span.sidebar-home-label'));
 		this.editorDisposables.add(DOM.addDisposableListener(homeButton, 'click', () => {
-			this.showWelcomePage();
+			this.showWelcomePage({ resetFilters: true });
 		}));
 		this.updateHomeButtonHarnessPresentation();
 
@@ -3499,7 +3499,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	/**
 	 * Navigates to the welcome page (no section selected).
 	 */
-	public showWelcomePage(): void {
+	public showWelcomePage(options?: { resetFilters?: boolean }): void {
 		if (this.viewMode === 'marketplaceDetail') {
 			this.goBackFromMarketplaceDetail();
 		}
@@ -3529,6 +3529,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Clear persisted section so welcome shows next time
 		this.storageService.remove(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, StorageScope.PROFILE);
 
+		if (options?.resetFilters) {
+			this.welcomePage?.resetFilters();
+		}
 		this.welcomePage?.reset();
 		this.updateContentVisibility();
 		this.ensureSectionsListReflectsActiveSection(undefined);

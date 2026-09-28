@@ -69,6 +69,7 @@ import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill,
 import { IResolvedPromptSourceFolder } from '../../../../contrib/chat/common/promptSyntax/config/promptFileLocations.js';
 import { ParsedPromptFile, PromptFileParser } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
 import { PromptFileSource, PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { IAgentPluginRepositoryService } from '../../../../contrib/chat/common/plugins/agentPluginRepositoryService.js';
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -188,6 +189,15 @@ function createMockAICustomizationItemsModel(): IAICustomizationItemsModel {
 		override getCount(_section: ItemsModelSection): IObservable<number> { return constObservable(0); }
 		override getPluginCount(): IObservable<number> { return constObservable(0); }
 		override async whenSectionLoaded(_section: ItemsModelSection): Promise<void> { }
+	}();
+}
+
+function createMockAgentPluginRepositoryService(): IAgentPluginRepositoryService {
+	const pluginHome = URI.file('/home/dev/.vscode/agent-plugins');
+	return new class extends mock<IAgentPluginRepositoryService>() {
+		override readonly agentPluginsHome = pluginHome;
+		override getPluginSourceInstallUri() { return pluginHome; }
+		override async ensurePluginSource() { return pluginHome; }
 	}();
 }
 
@@ -1592,6 +1602,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly delegates = constObservable([]);
 				override readonly onDidChangeInputs = Event.None;
 			}());
+			reg.defineInstance(IAgentPluginRepositoryService, createMockAgentPluginRepositoryService());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable(installedPlugins);
 				override readonly enablementModel = undefined as never;
@@ -2214,6 +2225,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 				override readonly activeProjectRoot = constObservable(URI.file('/workspace'));
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 			}());
+			reg.defineInstance(IAgentPluginRepositoryService, createMockAgentPluginRepositoryService());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable(browseInstalledPlugins as readonly IAgentPlugin[]);
 				override readonly enablementModel = undefined!;
@@ -2508,6 +2520,7 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 				override readonly activeProjectRoot = constObservable(URI.file('/workspace'));
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 			}());
+			reg.defineInstance(IAgentPluginRepositoryService, createMockAgentPluginRepositoryService());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable(item?.kind === AgentPluginItemKind.Installed ? [item.plugin] : []);
 				override readonly enablementModel = undefined!;

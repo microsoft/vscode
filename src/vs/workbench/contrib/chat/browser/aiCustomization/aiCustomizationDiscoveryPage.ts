@@ -620,7 +620,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.updateSearchAriaLabel();
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateSearchAriaLabel()));
 		const sourceContainer = DOM.append(searchRow, $('.customization-discovery-source'));
-		this.sourceButton = this._register(new Button(sourceContainer, { ...defaultButtonStyles, secondary: true, small: true }));
+		this.sourceButton = this._register(new Button(sourceContainer, { ...defaultButtonStyles, secondary: true, small: true, supportIcons: true }));
+		this.sourceButton.element.setAttribute('aria-haspopup', 'menu');
 		this.updateSourceButton();
 		this._register(this.sourceButton.onDidClick(() => this.showSourceMenu()));
 		this.sourceWarnings = this._register(new CustomizationMarketplaceSourceWarnings(header, this.marketplaceService.allSources ?? this.marketplaceService.sources, () => {
@@ -753,7 +754,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private updateSourceButton(): void {
 		const selectedSource = this.marketplaceSources.find(source => source.id === this.selectedSourceId);
 		const label = selectedSource ? selectedSource.displayName ?? selectedSource.id : localize('customizationDiscovery.allSources', "All sources");
-		this.sourceButton.label = label;
+		this.sourceButton.label = `${label} $(chevron-down)`;
 		this.sourceButton.setAriaLabel(localize('customizationDiscovery.sourceButtonAriaLabel', "Customization source: {0}", label));
 		this.sourceButton.element.removeAttribute('title');
 		this.sourceHover.value = this.hoverService.setupDelayedHover(this.sourceButton.element, { content: label });
@@ -813,8 +814,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private createAddButton(parent: HTMLElement): void {
-		const addButton = this._register(new Button(parent, { ...defaultButtonStyles, secondary: true }));
-		addButton.label = localize('customizationDiscovery.import', "Import");
+		const addButton = this._register(new Button(parent, { ...defaultButtonStyles, secondary: true, small: true, supportIcons: true }));
+		addButton.element.setAttribute('aria-haspopup', 'menu');
+		addButton.label = `${localize('customizationDiscovery.import', "Import")} $(chevron-down)`;
 		addButton.setAriaLabel(localize('customizationDiscovery.importLabel', "Import a customization"));
 		this._register(addButton.onDidClick(() => {
 			const disposables = new DisposableStore();
@@ -1846,6 +1848,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	reset(): void {
 		this.focus();
+	}
+
+	resetFilters(): void {
+		if (this.query.isEmpty() && this.selectedSourceId === undefined) {
+			this.focus();
+			return;
+		}
+		this.selectedSourceId = undefined;
+		this.updateSourceButton();
+		this.setQuery(CustomizationDiscoveryQuery.parse(''));
 	}
 
 	setSearchQuery(value: string): void {

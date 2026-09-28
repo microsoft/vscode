@@ -272,6 +272,22 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	}
 
+	test('menu buttons use the shared small button style and show chevrons', () => {
+		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Agents]);
+		const importButton = fixture.container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
+		const sourceButton = fixture.container.querySelector<HTMLElement>('.customization-discovery-source .monaco-button');
+
+		assert.deepStrictEqual([importButton, sourceButton].map(button => ({
+			label: button?.textContent,
+			small: button?.classList.contains('small'),
+			hasChevron: button?.querySelector('.codicon-chevron-down') !== null,
+			hasPopup: button?.getAttribute('aria-haspopup'),
+		})), [
+			{ label: 'Import', small: true, hasChevron: true, hasPopup: 'menu' },
+			{ label: 'All sources', small: true, hasChevron: true, hasPopup: 'menu' },
+		]);
+	});
+
 	async function setEnabled(configuration: TestConfigurationService, setting: string, enabled: boolean): Promise<void> {
 		await configuration.setUserConfiguration(setting, enabled);
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
@@ -1134,6 +1150,29 @@ suite('AICustomizationDiscoveryPage', () => {
 			restored: ['connector-featured'],
 			all: ['all-featured'],
 			requests: [[undefined, undefined], [undefined, ['copilotConnectors']], ['mail', ['copilotConnectors']]],
+		});
+	});
+
+	test('resetting filters restores unfiltered browse results', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('all-featured')] });
+		await fixture.selectSource('copilotConnectors');
+		await fixture.requests[1].result.complete({ items: [resource('connector-featured', { sourceId: 'copilotConnectors' })] });
+		fixture.page.setSearchQuery('mail');
+		await timeout(0);
+		await fixture.requests[2].result.complete({ items: [resource('connector-search', { sourceId: 'copilotConnectors' })] });
+
+		fixture.page.resetFilters();
+
+		assert.deepStrictEqual({
+			browseMode: fixture.page.getAccessibilityContent().includes('Browse mode.'),
+			source: fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent,
+			content: fixture.page.getAccessibilityContent().match(/^(?:all|connector)-(?:featured|search)$/gm),
+		}, {
+			browseMode: true,
+			source: 'All sources',
+			content: ['all-featured'],
 		});
 	});
 
