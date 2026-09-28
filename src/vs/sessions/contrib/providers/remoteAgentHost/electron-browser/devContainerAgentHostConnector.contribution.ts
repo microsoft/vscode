@@ -35,7 +35,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../browser/devContainerSource.js';
@@ -217,6 +217,14 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 		}
 	}
 
+	async stopContainer(workspaceFolder: string): Promise<boolean> {
+		return (await this._resolveService(CancellationToken.None)).stopContainer(workspaceFolder);
+	}
+
+	async removeContainer(workspaceFolder: string): Promise<boolean> {
+		return (await this._resolveService(CancellationToken.None)).removeContainer(workspaceFolder);
+	}
+
 	override dispose(): void {
 		this._disposed = true;
 		for (const id of this._connections.keys()) {
@@ -318,7 +326,28 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		return this._outputService.showChannel(getDevContainerOutputChannel(workspaceUri), true);
 	}
 
-	async createConnection(workspaceUri: URI, address: string, token: CancellationToken): Promise<IDevContainerAgentHostConnection> {
+	async stopContainer(workspaceUri: URI): Promise<boolean> {
+		const service = await this._resolveWorkspaceService(workspaceUri, CancellationToken.None);
+		return service.stopContainer(devContainerSourcePath(workspaceUri));
+	}
+
+	async removeContainer(workspaceUri: URI): Promise<boolean> {
+		const service = await this._resolveWorkspaceService(workspaceUri, CancellationToken.None);
+		return service.removeContainer(devContainerSourcePath(workspaceUri));
+	}
+
+	private async _resolveWorkspaceService(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostMainService> {
+		if (workspaceUri.scheme === Schemas.file) {
+			return this._mainService;
+		}
+		const connection = await resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, token);
+		if (!supportsAgentHostDevContainers(connection.initializeResult.get()) || !connection.devContainerService) {
+			throw new NonReconnectableTransportError(localize('devContainerAgentHost.unsupportedHost', "This remote Agent Host does not support Dev Container sessions. Update VS Code on the remote machine."));
+		}
+		return connection.devContainerService;
+	}
+
+	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean }): Promise<IDevContainerAgentHostConnection> {
 		ensureDevContainerAgentHostsEnabled(this._configurationService);
 		const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
 		if (workspaceUri.scheme !== Schemas.file && !sourceEntry) {
@@ -327,13 +356,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const remoteService = sourceEntry ? new RemoteDevContainerService(async token => {
-			const connection = await resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, token);
-			if (!supportsAgentHostDevContainers(connection.initializeResult.get()) || !connection.devContainerService) {
-				throw new NonReconnectableTransportError(localize('devContainerAgentHost.unsupportedHost', "This remote Agent Host does not support Dev Container sessions. Update VS Code on the remote machine."));
-			}
-			return connection.devContainerService;
-		}, this._logService) : undefined;
+		const remoteService = sourceEntry ? new RemoteDevContainerService(token => this._resolveWorkspaceService(workspaceUri, token), this._logService) : undefined;
 		const mainService = remoteService ?? this._mainService;
 		const connectionId = generateUuid();
 		const workspaceFolder = devContainerSourcePath(workspaceUri);
@@ -349,6 +372,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				connectionId,
 				workspaceFolder,
 				name,
+				resume: options?.resume ?? true,
 			});
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -378,6 +402,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 						connectionId: reconnectConnectionId,
 						workspaceFolder,
 						name,
+						resume: false,
 					});
 					return {
 						connectionId: reconnectConnectionId,
@@ -493,6 +518,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			included: false,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
+		},
+		[DevContainerIdleTimeoutSettingId]: {
+			type: 'integer',
+			description: localize('chat.agentHost.devContainer.idleTimeout', "Number of seconds with no Agent Host sessions actively working, waiting for input, or holding unsent drafts before automatically stopping a Dev Container. Set to 0 to disable automatic shutdown. Archiving or deleting sessions can still remove the container."),
+			default: 300,
+			minimum: 0,
+			scope: ConfigurationScope.APPLICATION,
 		},
 	},
 });

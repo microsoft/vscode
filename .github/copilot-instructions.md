@@ -48,14 +48,6 @@ Each extension follows the standard VS Code extension structure with `package.js
 3. **Follow imports**: Check what files import the problematic module
 4. **Check test files**: Often reveal usage patterns and expected behavior
 
-## Change Scope and Code Review
-
-- Before implementing or reviewing a change, establish its intended scope from the request, PR description, linked issue, and maintainer comments.
-- Keep fixes tied to the underlying cause. Do not change unrelated behavior, state management, or architecture merely because doing so makes the reported symptom disappear.
-- During review, account for every changed file and subsystem. Each change should be necessary for the stated goal or be a directly related test, documentation update, generated artifact, or required refactor.
-- Flag changes whose connection to the stated goal is unclear, even when tests pass or the resulting behavior appears correct. Ask for the causal link to be explained; if none exists, request that the change be reverted or moved to a separate PR.
-- Treat prerequisite or tightly coupled changes as in scope only when their necessity is clear from the implementation or PR description. Do not mistake independent cleanup or speculative improvements for required work.
-
 ## Validating TypeScript changes
 
 Choose validation based on the scope and risk of the change. Large-scale builds and typechecking can be slow, and consume significant resources, so minimize their use. Prefer existing editor or watch-task diagnostics and the smallest targeted tests that cover the changed behavior. Do not start build or watch tasks, run broad type checks, or make type checking a prerequisite for targeted tests solely as a completion ritual.

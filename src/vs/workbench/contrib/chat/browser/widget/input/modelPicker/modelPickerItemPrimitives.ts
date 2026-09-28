@@ -109,10 +109,10 @@ export function createModelItem(
 	isUBB?: boolean,
 	ariaDescription?: string,
 	pinAction?: IAction,
-	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string) => void,
+	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string, fromKeyboard: boolean) => void,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	const hover = model && openerService
-		? getModelHoverContent(model, isUBB, onConfigure ? group => onConfigure(model, group) : undefined, openerService)
+		? getModelHoverContent(model, isUBB, onConfigure ? (group, fromKeyboard) => onConfigure(model, group, fromKeyboard) : undefined, openerService)
 		: undefined;
 	return {
 		item: action,

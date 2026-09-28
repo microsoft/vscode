@@ -239,6 +239,11 @@ export interface IChatSessionsExtensionPoint {
 export interface IChatSessionItem {
 	readonly resource: URI;
 	readonly label: string;
+	/**
+	 * Child chats to present under this session. The parent remains openable as
+	 * the session's routing or default chat.
+	 */
+	readonly children?: readonly IChatSessionItem[];
 	readonly iconPath?: ThemeIcon;
 	readonly badge?: string | IMarkdownString;
 	readonly description?: string | IMarkdownString;
@@ -444,6 +449,10 @@ export interface IChatSession extends IDisposable {
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
 	readonly isReadOnly?: IObservable<boolean>;
+	/** Temporarily prevents sending while keeping the draft visible and editable. */
+	readonly isInputBlocked?: IObservable<boolean>;
+	/** Recheck a temporary input restriction without sending a message. */
+	readonly retryInput?: () => Promise<void>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 	/** Claims this client's tools before an approved background request is queued directly on the host. */
 	prepareForClientTools?: (token: CancellationToken) => Promise<void>;

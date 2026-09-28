@@ -25,7 +25,7 @@ import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessi
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,6 +67,30 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 	}
 
+	test('describes welcome name editing only when welcome phrases are enabled', () => {
+		const snapshots = [false, true].map(enabled => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [NEW_SESSION_WELCOME_PHRASES_SETTING]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			return {
+				nameEditing: content.includes('Press Tab to reach Set Welcome Name'),
+				announcementSetting: content.includes('set accessibility.verbosity.newSessionWelcome to false'),
+			};
+		});
+
+		assert.deepStrictEqual(snapshots, [
+			{ nameEditing: false, announcementSetting: false },
+			{ nameEditing: true, announcementSetting: true },
+		]);
+	});
+
 	test('describes automatic external session adoption', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
@@ -83,6 +107,29 @@ suite('SessionsChatAccessibilityHelp', () => {
 			content.split('\n').find(line => line.startsWith('Once you send a message to an external session')),
 			'Once you send a message to an external session\'s agent, it becomes a regular session. Its banner and External hover label disappear, and it is no longer grouped or filtered as external.',
 		);
+	});
+
+	test('documents the Copilot to Local feedback survey', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			survey: content.includes('a two-step feedback survey may appear above the chat input'),
+			keyboard: content.includes('use Up and Down Arrow to choose why you switched'),
+			acknowledgement: content.includes('the questions are replaced above the input by a message that your feedback was recorded'),
+		}, {
+			survey: true,
+			keyboard: true,
+			acknowledgement: true,
+		});
 	});
 
 	test('describes External section keyboard actions only when the section is enabled', () => {

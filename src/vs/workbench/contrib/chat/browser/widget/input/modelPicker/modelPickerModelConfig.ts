@@ -28,13 +28,20 @@ export interface IModelConfigProperty {
 
 const configurationEdits = new WeakMap<IModelConfigurationAccess, SequencerByKey<string>>();
 
+/**
+ * Reports a configuration change once it is saved. `requestedAt` is when the
+ * change was requested, before it waited for earlier edits and the save.
+ */
+export type ModelConfigChangeListener = (group: string, key: string, fromValue: unknown, toValue: unknown, requestedAt: number) => void;
+
 /** Serializes effective-value reads, writes, and change reporting per model and configuration scope. */
 export function setModelConfigValues(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	configurationAccess: IModelConfigurationAccess,
 	values: IStringDictionary<unknown>,
-	onDidChange?: (group: string, key: string, fromValue: unknown, toValue: unknown) => void,
+	onDidChange?: ModelConfigChangeListener,
 ): Promise<void> {
+	const requestedAt = Date.now();
 	let edits = configurationEdits.get(configurationAccess);
 	if (!edits) {
 		configurationEdits.set(configurationAccess, edits = new SequencerByKey<string>());
@@ -48,9 +55,19 @@ export function setModelConfigValues(
 		});
 		await configurationAccess.setModelConfiguration(model.identifier, values);
 		for (const change of changes) {
-			onDidChange?.(change.group, change.key, change.fromValue, change.toValue);
+			onDidChange?.(change.group, change.key, change.fromValue, change.toValue, requestedAt);
 		}
 	});
+}
+
+/**
+ * Settles once the configuration edits queued for a scope finish and have reported
+ * their changes, or `undefined` when none are pending.
+ */
+export function whenModelConfigValuesSaved(configurationAccess: IModelConfigurationAccess): Promise<unknown> | undefined {
+	const edits = configurationEdits.get(configurationAccess);
+	const pending = edits ? [...edits.keys()].map(key => edits.peek(key)) : [];
+	return pending.length ? Promise.allSettled(pending) : undefined;
 }
 
 /** Choice metadata shared by the inline picker, Details, and legacy configuration menu. */

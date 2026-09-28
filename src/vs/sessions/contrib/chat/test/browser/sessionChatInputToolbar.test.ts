@@ -767,7 +767,7 @@ suite('SessionChatInputToolbar', () => {
 		visibility.toggle(SessionChatPillKind.Subagents);
 		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
 		const read = () => ({
-			pills: Array.from(toolbar.element.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
+			pills: Array.from(toolbar.element.querySelectorAll('.chat-pill-label, .changes-stats-files')).map(label => label.textContent),
 			visible: toolbar.visible,
 		});
 
@@ -840,7 +840,7 @@ suite('SessionChatInputToolbar', () => {
 				document.body.appendChild(toolbar.element);
 				store.add(toDisposable(() => toolbar.element.remove()));
 				toolbar.setSession(session, chat);
-				const labels = () => Array.from(toolbar.element.querySelectorAll('.chat-pill-label')).map(label => label.textContent);
+				const labels = () => Array.from(toolbar.element.querySelectorAll('.chat-pill-label, .changes-stats-files')).map(label => label.textContent);
 				const openMenu = (target: HTMLElement) => {
 					menuActions = [];
 					target.dispatchEvent(keyboard
@@ -979,7 +979,7 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
-	test('removes promoted issue and pull request references by stable id and keeps open and copy actions', async () => {
+	test('removes promoted issue and pull request artifacts by stable id and keeps open and copy actions', async () => {
 		const ref = (number: number, recordedReferenceId?: string): IGitHubPullRequestRef => ({
 			owner: 'microsoft', repo: 'vscode', number,
 			uri: URI.parse(`https://github.com/microsoft/vscode/pull/${number}`),
@@ -1007,10 +1007,10 @@ suite('SessionChatInputToolbar', () => {
 		const openerService = upcastPartial<IOpenerService>({});
 		const sessionsService = upcastPartial<ISessionsService>({});
 		const entries = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService, {
-			remove: async id => { removed.push(id); },
+			remove: async ids => { removed.push(...ids); },
 		})[0].entries;
 		const issueEntry = buildSessionIssueSections([{ ref: issueRef, issue: undefined }], undefined, commandService, clipboardService, openerService, sessionsService, {
-			remove: async id => { removed.push(id); },
+			remove: async ids => { removed.push(...ids); },
 		})[0].entries[0];
 		const unsupported = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService)[0].entries;
 		await entries[0].promotedAction?.run();
@@ -1022,11 +1022,18 @@ suite('SessionChatInputToolbar', () => {
 		assert.deepStrictEqual({
 			ids: entries.map(entry => entry.id),
 			removable: [...entries.map(entry => !!entry.promotedAction), !!issueEntry.promotedAction],
+			removeLabels: [...entries, issueEntry].map(entry => entry.promotedAction && [entry.promotedAction.label, entry.promotedAction.hoverLabel]),
 			unsupported: unsupported.map(entry => !!entry.promotedAction),
 			removed, copied, opened,
 		}, {
 			ids: ['reference-a', 'reference-b', refs[2].uri.toString()],
 			removable: [true, true, false, true],
+			removeLabels: [
+				['Remove Pull Request Artifact from Session', 'Remove Artifact'],
+				['Remove Pull Request Artifact from Session', 'Remove Artifact'],
+				undefined,
+				['Remove Issue Artifact from Session', 'Remove Artifact'],
+			],
 			unsupported: [false, false, false],
 			removed: ['reference-a', 'reference-b', 'issue-reference'],
 			copied: [refs[0].uri.toString(true)],
@@ -1034,9 +1041,178 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('groups issue URLs by repository and number and opens and copies the issue rather than its comments', async () => {
+		const uri = URI.parse('https://github.com/microsoft/vscode/issues/42');
+		const ref: IGitHubIssueRef = { owner: 'microsoft', repo: 'vscode', number: 42, uri: uri.with({ fragment: 'issuecomment-1' }), recordedReferenceId: 'comment-1' };
+		const issue = upcastPartial<IGitHubIssue>({ title: 'Live issue title', state: GitHubIssueState.Closed, stateReason: GitHubIssueStateReason.Completed });
+		const refs: IGitHubIssueRef[] = [
+			ref,
+			{ ...ref, owner: 'Microsoft', repo: 'VSCode', uri: URI.parse('http://www.github.com/Microsoft/VSCode/issues/42/?source=notification#issuecomment-2'), recordedReferenceId: 'comment-2' },
+			{ ...ref, uri, recordedReferenceId: 'issue' },
+			{ ...ref, uri, recordedReferenceId: undefined },
+			ref,
+			{ ...ref, number: 43, uri: URI.parse('https://github.com/microsoft/vscode/issues/43'), recordedReferenceId: undefined },
+			{ ...ref, repo: 'other', uri: URI.parse('https://github.com/microsoft/other/issues/42'), recordedReferenceId: undefined },
+			{ ...ref, owner: 'other', uri: URI.parse('https://github.com/other/vscode/issues/42'), recordedReferenceId: undefined },
+		];
+		const removed: string[][] = [];
+		const copied: string[] = [];
+		const opened: object[] = [];
+		const entries = buildSessionIssueSections(
+			refs.map((ref, index) => ({ ref, issue: index === 2 ? issue : undefined })),
+			undefined,
+			upcastPartial<ICommandService>({
+				executeCommand: async (_command, arg) => {
+					assert.ok(arg && typeof arg === 'object');
+					opened.push(arg);
+					return undefined;
+				},
+			}),
+			upcastPartial<IClipboardService>({ writeText: async value => { copied.push(value); } }),
+			upcastPartial<IOpenerService>({}),
+			upcastPartial<ISessionsService>({}),
+			{ remove: async ids => { removed.push([...ids]); } },
+		)[0].entries;
+		entries[0].open();
+		await entries[0].toolbarActions?.[0].run();
+		await entries[0].promotedAction?.run();
+
+		assert.deepStrictEqual({
+			entries: entries.map(entry => ({ id: entry.id, label: entry.label, description: entry.ariaDescription, removable: !!entry.promotedAction })),
+			removed, copied, opened,
+			originalUri: ref.uri.toString(true),
+		}, {
+			entries: [
+				{ id: 'comment-1', label: 'Live issue title', description: 'Closed. https://github.com/microsoft/vscode/issues/42', removable: true },
+				{ id: 'https://github.com/microsoft/vscode/issues/43', label: 'Issue #43', description: 'https://github.com/microsoft/vscode/issues/43', removable: false },
+				{ id: 'https://github.com/microsoft/other/issues/42', label: 'Issue #42', description: 'https://github.com/microsoft/other/issues/42', removable: false },
+				{ id: 'https://github.com/other/vscode/issues/42', label: 'Issue #42', description: 'https://github.com/other/vscode/issues/42', removable: false },
+			],
+			removed: [['comment-1', 'comment-2', 'issue']],
+			copied: [uri.toString(true)],
+			opened: [{ issue: { ...ref, uri } }],
+			originalUri: 'https://github.com/microsoft/vscode/issues/42#issuecomment-1',
+		});
+	});
+
+	test('aggregates issue icons from the same grouped identities as the dropdown', () => {
+		const { instantiationService } = createServices();
+		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [
+			{ id: 'comment', kind: SessionArtifactKind.Issue, label: 'Issue 42', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/Microsoft/VSCode/issues/42#issuecomment-1') },
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue 42', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/issues/42') },
+			{ id: 'other-issue', kind: SessionArtifactKind.Issue, label: 'Issue 43', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/issues/43') },
+		]);
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,
+			capabilities: constObservable({ supportsMultipleChats: false }),
+			chats: constObservable([chat]),
+			workspace: constObservable(undefined),
+		});
+		const closed = upcastPartial<IGitHubIssue>({ title: 'Closed issue', state: GitHubIssueState.Closed, stateReason: GitHubIssueStateReason.Completed });
+		const otherIssue = observableValue<IGitHubIssue | undefined>('otherIssue', closed);
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			createIssueModelReference: (owner, _repo, number) => new ImmortalReference(upcastPartial<GitHubIssueModel>({
+				issue: number === 43 ? otherIssue : constObservable(owner === 'microsoft' ? closed : undefined),
+				refresh: async () => { }, startPolling: () => toDisposable(() => { }),
+			})),
+		}));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		const presentation = () => {
+			const pill = toolbar.element.querySelector('.chat-dropdown-pill-button');
+			return {
+				label: pill?.getAttribute('aria-label'),
+				closed: !!pill?.querySelector(`.codicon-${Codicon.issueClosed.id}`),
+				open: !!pill?.querySelector(`.codicon-${Codicon.issueOpened.id}`),
+			};
+		};
+		const allClosed = presentation();
+		otherIssue.set(undefined, undefined);
+		const unresolvedDistinctIssue = presentation();
+		otherIssue.set({ ...closed, state: GitHubIssueState.Open }, undefined);
+		const openDistinctIssue = presentation();
+		otherIssue.set(closed, undefined);
+
+		assert.deepStrictEqual({ allClosed, unresolvedDistinctIssue, openDistinctIssue, resolvedAgain: presentation() }, {
+			allClosed: { label: 'Show 2 issues', closed: true, open: false },
+			unresolvedDistinctIssue: { label: 'Show 2 issues', closed: false, open: true },
+			openDistinctIssue: { label: 'Show 2 issues', closed: false, open: true },
+			resolvedAgain: { label: 'Show 2 issues', closed: true, open: false },
+		});
+	});
+
+	test('shows three recorded issue links as one pill and keeps failed removals available for retry', async () => {
+		const { instantiationService } = createServices();
+		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', ['', '#issuecomment-1', '#issuecomment-2'].map((fragment, index) => ({
+			id: `issue-${index}`, kind: SessionArtifactKind.Issue, label: 'Recorded title', isArtifact: true, isGitHub: true,
+			link: URI.parse(`https://github.com/microsoft/vscode/issues/42${fragment}`),
+		})));
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true }),
+			chats: constObservable([chat]),
+			workspace: constObservable(undefined),
+		});
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			createIssueModelReference: () => new ImmortalReference(upcastPartial<GitHubIssueModel>({
+				issue: constObservable(undefined), refresh: async () => { }, startPolling: () => toDisposable(() => { }),
+			})),
+		}));
+		const removed: { owningSession: boolean; id: string }[] = [];
+		let failRemoval = true;
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			removeSessionArtifact: async (target, id) => {
+				removed.push({ owningSession: target === session, id });
+				if (id === 'issue-1' && failRemoval) {
+					throw new Error('offline');
+				}
+				artifacts.set(artifacts.get().filter(artifact => artifact.id !== id), undefined);
+			},
+		}));
+		const errors: string[] = [];
+		instantiationService.stub(INotificationService, { error: error => { errors.push(String(error)); } });
+		let menu: readonly IAction[] = [];
+		instantiationService.stub(IContextMenuService, { showContextMenu: delegate => { menu = delegate.getActions!(); } });
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		const presentation = () => ({
+			labels: [...toolbar.element.querySelectorAll('.chat-dropdown-pill-button')].map(pill => pill.getAttribute('aria-label')),
+			genericPills: toolbar.element.querySelectorAll('.chat-resource-pill-button').length,
+		});
+		const remove = async () => {
+			const pill = toolbar.element.querySelector<HTMLElement>('.chat-dropdown-pill-button');
+			assert.ok(pill);
+			pill.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+			const action = menu.find(action => action.id.startsWith('sessionChatPills.removeIssue.'));
+			assert.ok(action);
+			await action.run();
+		};
+		const initial = presentation();
+		await remove();
+		const afterFailure = { ...presentation(), ids: artifacts.get().map(artifact => artifact.id) };
+		failRemoval = false;
+		await remove();
+
+		assert.deepStrictEqual({ initial, afterFailure, final: presentation(), remaining: artifacts.get(), removed, errors }, {
+			initial: { labels: ['Open Issue #42: Recorded title'], genericPills: 0 },
+			afterFailure: { labels: ['Open Issue #42: Recorded title'], genericPills: 0, ids: ['issue-1', 'issue-2'] },
+			final: { labels: [], genericPills: 0 },
+			remaining: [],
+			removed: [
+				{ owningSession: true, id: 'issue-0' },
+				{ owningSession: true, id: 'issue-1' },
+				{ owningSession: true, id: 'issue-1' },
+				{ owningSession: true, id: 'issue-2' },
+			],
+			errors: ['Could not remove Issue #42: Recorded title from this session: offline'],
+		});
+	});
+
 	for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue]) {
 		for (const isArtifact of [true, false]) {
-			test(`shows and removes a dedicated ${kind} pill for a workspace-less ${isArtifact ? 'artifact' : 'reference'}`, async () => {
+			test(`shows and removes a workspace-less ${kind} ${isArtifact ? 'artifact in its dedicated pill' : 'reference in the references pill'}`, async () => {
 				const { instantiationService } = createServices();
 				const isPullRequest = kind === SessionArtifactKind.PullRequest;
 				const link = URI.parse(`https://github.com/microsoft/vscode/${isPullRequest ? 'pull/42' : 'issues/337297'}`);
@@ -1097,23 +1273,36 @@ suite('SessionChatInputToolbar', () => {
 					label: pill.getAttribute('aria-label'),
 					genericPills: toolbar.element.querySelectorAll('.chat-resource-pill-button').length,
 				};
-				pill.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				if (isArtifact) {
+					pill.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				}
 				pill.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-				const remove = menu.find(action => action.id === `sessionChatPills.remove${isPullRequest ? 'PullRequest' : 'Issue'}.recorded`);
+				const remove = menu.find(action => action.id === (isArtifact ? `sessionChatPills.remove${isPullRequest ? 'PullRequest' : 'Issue'}.recorded` : 'sessions.artifacts.remove.recorded'));
 				assert.ok(remove);
+				const removeLabel = remove.label;
 				await remove.run();
 				const ref = {
 					owner: 'microsoft', repo: 'vscode', number: isPullRequest ? 42 : 337297, uri: link,
 					title: 'Recorded title', recordedReferenceId: 'recorded',
 				};
 				assert.deepStrictEqual({
-					initial, opened, removed, modelRequests: [...modelRequests], unrelatedArtifactModelRequests,
+					initial, opened, removeLabel, removed, modelRequests: [...modelRequests], unrelatedArtifactModelRequests,
 					remainingPills: toolbar.element.querySelectorAll('.chat-dropdown-pill-button, .chat-resource-pill-button').length,
-				}, {
+				}, isArtifact ? {
 					initial: { label: `Open ${isPullRequest ? 'Pull Request #42' : 'Issue #337297'}: Recorded title`, genericPills: 0 },
-					opened: [isPullRequest ? { pullRequest: { ...ref, createdByThisSession: isArtifact } } : { issue: ref }],
+					opened: [isPullRequest ? { pullRequest: { ...ref, createdByThisSession: true } } : { issue: ref }],
+					removeLabel: `Remove ${isPullRequest ? 'Pull Request' : 'Issue'} Artifact from Session`,
 					removed: [{ owningSession: true, id: 'recorded' }],
 					modelRequests: [`microsoft/vscode/${isPullRequest ? 'pull/42' : 'issues/337297'}`],
+					unrelatedArtifactModelRequests: 0,
+					remainingPills: 0,
+				} : {
+					// A reference never reaches the dedicated pill, so no live GitHub model is requested for it.
+					initial: { label: 'Show 1 reference', genericPills: 0 },
+					opened: [],
+					removeLabel: 'Remove Reference Recorded title from Session',
+					removed: [{ owningSession: true, id: 'recorded' }],
+					modelRequests: [],
 					unrelatedArtifactModelRequests: 0,
 					remainingPills: 0,
 				});
@@ -1121,11 +1310,11 @@ suite('SessionChatInputToolbar', () => {
 		}
 	}
 
-	test('reference removal reacts to capabilities, targets the owning session, and reports errors without hiding data', async () => {
+	test('pull request artifact removal reacts to capabilities, targets the owning session, and reports errors without hiding data', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const ref: IGitHubPullRequestRef = { owner: 'microsoft', repo: 'vscode', number: 1, uri: URI.parse('https://github.com/microsoft/vscode/pull/1'), recordedReferenceId: 'pr-reference' };
+		const ref: IGitHubPullRequestRef = { owner: 'microsoft', repo: 'vscode', number: 1, uri: URI.parse('https://github.com/microsoft/vscode/pull/1'), recordedReferenceId: 'pr-artifact' };
 		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [{
-			id: 'pr-reference', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: false, isGitHub: true, link: ref.uri,
+			id: 'pr-artifact', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: true, isGitHub: true, link: ref.uri,
 		}, {
 			id: 'durable-artifact', kind: SessionArtifactKind.File, label: 'Plan', isArtifact: true, uri: URI.file('/repo/plan.md'),
 		}]);
@@ -1200,9 +1389,9 @@ suite('SessionChatInputToolbar', () => {
 			},
 		}, {
 			unavailable: false,
-			afterFailure: { removable: true, artifacts: ['pr-reference', 'durable-artifact'] },
+			afterFailure: { removable: true, artifacts: ['pr-artifact', 'durable-artifact'] },
 			errors: ['Could not remove Pull Request #1: PR from this session: offline'],
-			calls: [{ owningSession: true, artifactId: 'pr-reference' }, { owningSession: true, artifactId: 'pr-reference' }],
+			calls: [{ owningSession: true, artifactId: 'pr-artifact' }, { owningSession: true, artifactId: 'pr-artifact' }],
 			afterSuccess: { removable: false, artifactRemovable: true, artifacts: ['durable-artifact'], label: undefined },
 		});
 	});
