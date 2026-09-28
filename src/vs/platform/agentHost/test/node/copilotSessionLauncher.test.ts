@@ -55,7 +55,6 @@ const testRuntime: ICopilotSessionRuntime = {
 	requestUnsandboxedCommandConfirmation: async () => false,
 	handlePreToolUse: async () => { },
 	handlePostToolUse: async () => { },
-	handlePostToolUseFailure: async () => { },
 	handleUserPromptSubmitted: () => undefined,
 	createClientSdkTools: () => [],
 	createServerSdkTools: () => [],

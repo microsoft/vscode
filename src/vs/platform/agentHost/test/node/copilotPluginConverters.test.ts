@@ -748,21 +748,6 @@ suite('copilotPluginConverters', () => {
 			}
 		});
 
-		test('onPreToolUse ignores progress messages before the final output', async () => {
-			const hook = hookScriptCmd([
-				`process.stdout.write(JSON.stringify({ type: 'progress', message: 'Checking policy' }) + '\\n');`,
-				`process.stdout.write(JSON.stringify({ permissionDecision: 'deny', permissionDecisionReason: 'policy denied' }));`,
-			].join('\n'));
-			try {
-				const hooks = toSdkHooks([makeHookGroup('PreToolUse', hook.command)]);
-				const result = await hooks.onPreToolUse!({ toolName: 'bash', toolArgs: {}, timestamp: new Date(0), workingDirectory: '/repo', sessionId: 'test' }, { sessionId: 'test' });
-
-				assert.deepStrictEqual(result, { permissionDecision: 'deny', permissionDecisionReason: 'policy denied' });
-			} finally {
-				hook.cleanup();
-			}
-		});
-
 		test('onPostToolUse runs commands after an empty object', async () => {
 			const first = echoJsonCmd({});
 			const second = echoJsonCmd({ additionalContext: 'context from hook2' });
@@ -849,10 +834,9 @@ suite('copilotPluginConverters', () => {
 			}
 		});
 
-		test('onPostToolUseFailure merges context and completes internal edit tracking', async () => {
+		test('onPostToolUseFailure merges context and applies matchers', async () => {
 			const first = echoJsonCmd({ additionalContext: 'first recovery' });
 			const second = echoJsonCmd({ additionalContext: 'second recovery' });
-			let trackingInput: object | undefined;
 			try {
 				const hooks = toSdkHooks([
 					makeHookGroup('PostToolUseFailure',
@@ -860,18 +844,11 @@ suite('copilotPluginConverters', () => {
 						{ command: second.command, matcher: 'bash' },
 						{ command: second.command, matcher: 'apply_patch' },
 					),
-				], {
-					onPreToolUse: async () => { },
-					onPostToolUse: async () => { },
-					onPostToolUseFailure: async input => { trackingInput = input; },
-				});
+				]);
 				const input = { toolName: 'bash', toolArgs: { command: 'false' }, error: 'exit 1', timestamp: new Date(0), workingDirectory: '/repo', sessionId: 'test' };
 				const result = await hooks.onPostToolUseFailure!(input, { sessionId: 'test' });
 
-				assert.deepStrictEqual({ result, trackingInput }, {
-					result: { additionalContext: 'first recovery\n\nsecond recovery' },
-					trackingInput: input,
-				});
+				assert.deepStrictEqual(result, { additionalContext: 'first recovery\n\nsecond recovery' });
 			} finally {
 				first.cleanup();
 				second.cleanup();

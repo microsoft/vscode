@@ -320,29 +320,17 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 			stdio: ['pipe', 'pipe', 'pipe'],
 		});
 
-		const stdoutChunks: Buffer[] = [];
-		const stderrChunks: Buffer[] = [];
-		let stdoutSize = 0;
-		let stderrSize = 0;
+		let stdout = '';
+		let stderr = '';
 		let timedOut = false;
 		let settled = false;
-		const append = (chunks: Buffer[], size: number, data: Buffer): number => {
-			const remaining = MAX_HOOK_OUTPUT_BYTES - size;
-			if (remaining > 0) {
-				const chunk = data.byteLength > remaining ? data.subarray(0, remaining) : data;
-				chunks.push(chunk);
-				return size + chunk.byteLength;
-			}
-			return size;
-		};
-		const read = (chunks: Buffer[], size: number) => Buffer.concat(chunks, size).toString();
 		const timer = setTimeout(() => {
 			timedOut = true;
 			child.kill();
 		}, timeout);
 
-		child.stdout.on('data', (data: Buffer) => { stdoutSize = append(stdoutChunks, stdoutSize, data); });
-		child.stderr.on('data', (data: Buffer) => { stderrSize = append(stderrChunks, stderrSize, data); });
+		child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
+		child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
 
 		if (stdin) {
 			child.stdin.write(stdin);
@@ -355,7 +343,7 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 			if (!settled) {
 				settled = true;
 				clearTimeout(timer);
-				reject(new HookCommandExecutionError('error', error.message, read(stdoutChunks, stdoutSize), read(stderrChunks, stderrSize)));
+				reject(new HookCommandExecutionError('error', error.message, stdout, stderr));
 			}
 		});
 		child.on('close', (code) => {
@@ -364,8 +352,6 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 			}
 			settled = true;
 			clearTimeout(timer);
-			const stdout = read(stdoutChunks, stdoutSize);
-			const stderr = read(stderrChunks, stderrSize);
 			if (timedOut) {
 				reject(new HookCommandExecutionError('timeout', `Hook command timed out after ${hook.timeout ?? 30} seconds: ${command.slice(0, 80)}`, stdout, stderr, code));
 				return;
@@ -379,11 +365,8 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 	});
 }
 
-const MAX_HOOK_OUTPUT_BYTES = 10 * 1024 * 1024;
-const MAX_POST_TOOL_CONTEXT_BYTES = 10 * 1024;
-
 /**
- * Describes a hook process failure while retaining its bounded output.
+ * Describes a hook process failure while retaining its output.
  */
 class HookCommandExecutionError extends Error {
 	constructor(
@@ -404,22 +387,7 @@ interface IPluginHookCommand {
 }
 
 function parseHookCommandOutput(stdout: string): object | undefined {
-	const output = stdout
-		.split(/\r?\n/)
-		.filter(line => {
-			const trimmed = line.trim();
-			if (!trimmed) {
-				return true;
-			}
-			try {
-				const value = JSON.parse(trimmed);
-				return !value || typeof value !== 'object' || (value as { type?: unknown }).type !== 'progress';
-			} catch {
-				return true;
-			}
-		})
-		.join('\n')
-		.trim();
+	const output = stdout.trim();
 	if (!output) {
 		return undefined;
 	}
@@ -576,7 +544,7 @@ function toHookCommandInput(hook: IPluginHookCommand, input: SupportedHookInput)
 
 /**
  * Runs a list of hook commands sequentially, passing `input` as JSON stdin.
- * Returns every valid JSON object so callers can combine all hook results.
+ * Returns every parseable object; event-specific reducers decide which fields are valid.
  * Command failures are swallowed — hooks are non-fatal.
  */
 async function runHookCommands(commands: readonly IPluginHookCommand[] | undefined, input: SupportedHookInput): Promise<object[]> {
@@ -618,7 +586,7 @@ async function runHookCommands(commands: readonly IPluginHookCommand[] | undefin
 	return results;
 }
 
-function mergeAdditionalContext(outputs: readonly object[], maxBytes: number): string | undefined {
+function mergeAdditionalContext(outputs: readonly object[]): string | undefined {
 	const contexts = outputs
 		.map(output => (output as { additionalContext?: unknown }).additionalContext)
 		.filter((context): context is string => typeof context === 'string');
@@ -627,17 +595,10 @@ function mergeAdditionalContext(outputs: readonly object[], maxBytes: number): s
 	}
 	const meaningful = contexts.filter(context => context.trim().length > 0);
 	const contributions = meaningful.length > 0 ? meaningful : [contexts.at(-1)!];
-	let merged = '';
-	for (const context of contributions) {
-		const candidate = merged ? `${merged}\n\n${context}` : context;
-		if (Buffer.byteLength(candidate) <= maxBytes) {
-			merged = candidate;
-		}
-	}
-	return merged;
+	return contributions.join('\n\n');
 }
 
-function mergeHookCommandOutputs(outputs: readonly object[], maxContextBytes = MAX_HOOK_OUTPUT_BYTES): Record<string, unknown> | undefined {
+function mergeHookCommandOutputs(outputs: readonly object[]): Record<string, unknown> | undefined {
 	if (outputs.length === 0) {
 		return undefined;
 	}
@@ -646,7 +607,7 @@ function mergeHookCommandOutputs(outputs: readonly object[], maxContextBytes = M
 	for (const output of outputs) {
 		Object.assign(merged, output);
 	}
-	const additionalContext = mergeAdditionalContext(outputs, maxContextBytes);
+	const additionalContext = mergeAdditionalContext(outputs);
 	if (additionalContext !== undefined) {
 		merged.additionalContext = additionalContext;
 	} else {
@@ -699,11 +660,11 @@ function mergePreToolUseHookOutputs(outputs: readonly object[]): Exclude<PreTool
 	return merged;
 }
 
-function mergeAdditionalContextOutput<T extends object>(outputs: readonly object[], maxBytes = MAX_HOOK_OUTPUT_BYTES): T | undefined {
+function mergeAdditionalContextOutput<T extends object>(outputs: readonly object[]): T | undefined {
 	if (outputs.length === 0) {
 		return undefined;
 	}
-	const additionalContext = mergeAdditionalContext(outputs, maxBytes);
+	const additionalContext = mergeAdditionalContext(outputs);
 	return (additionalContext !== undefined ? { additionalContext } : {}) as T;
 }
 
@@ -767,7 +728,6 @@ export function toSdkHooks(
 	editTrackingHooks?: {
 		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<PreToolUseHookOutput>;
 		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
-		readonly onPostToolUseFailure?: (input: PostToolUseFailureHookInput) => Promise<void>;
 		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
 ): SessionHooks {
@@ -800,14 +760,13 @@ export function toSdkHooks(
 	if (postToolCommands?.length || editTrackingHooks) {
 		hooks.onPostToolUse = async (input: PostToolUseHookInput) => {
 			await editTrackingHooks?.onPostToolUse(input);
-			return mergeHookCommandOutputs(await runHookCommands(postToolCommands, input), MAX_POST_TOOL_CONTEXT_BYTES) as PostToolUseHookOutput | undefined;
+			return mergeHookCommandOutputs(await runHookCommands(postToolCommands, input)) as PostToolUseHookOutput | undefined;
 		};
 	}
 
 	const postToolFailureCommands = commandsByKey.get('onPostToolUseFailure');
-	if (postToolFailureCommands?.length || editTrackingHooks?.onPostToolUseFailure) {
+	if (postToolFailureCommands?.length) {
 		hooks.onPostToolUseFailure = async (input: PostToolUseFailureHookInput) => {
-			await editTrackingHooks?.onPostToolUseFailure?.(input);
 			return mergeAdditionalContextOutput<PostToolUseFailureHookOutput>(await runHookCommands(postToolFailureCommands, input));
 		};
 	}

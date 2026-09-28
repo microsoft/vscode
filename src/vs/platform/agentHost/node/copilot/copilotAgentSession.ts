@@ -308,8 +308,7 @@ type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
-type PostToolUseFailureHookInput = Parameters<NonNullable<SessionHooks['onPostToolUseFailure']>>[0];
-type ToolUseHookInput = PreToolUseHookInput | PostToolUseHookInput | PostToolUseFailureHookInput;
+type ToolUseHookInput = PreToolUseHookInput | PostToolUseHookInput;
 
 function getToolCommand(input: ToolUseHookInput): string | undefined {
 	const command = isObject(input.toolArgs) ? Reflect.get(input.toolArgs, 'command') : undefined;
@@ -2710,7 +2709,6 @@ export class CopilotAgentSession extends Disposable {
 			createServerSdkTools: () => this._createServerSdkTools(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
-			handlePostToolUseFailure: input => this._handlePostToolUseFailure(input),
 			handleUserPromptSubmitted: () => this.handleUserPromptSubmitted(),
 		};
 	}
@@ -5413,18 +5411,6 @@ export class CopilotAgentSession extends Disposable {
 			}
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPostToolUse: tool=${input.toolName}`);
-			throw error;
-		}
-	}
-
-	private async _handlePostToolUseFailure(input: PostToolUseFailureHookInput): Promise<void> {
-		try {
-			if (isEditTool(input.toolName, getToolCommand(input))) {
-				const filePaths = this._getEditFilePaths(input.toolArgs);
-				await Promise.all(filePaths.map(p => this._editTracker.completeEdit(p)));
-			}
-		} catch (error) {
-			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPostToolUseFailure: tool=${input.toolName}`);
 			throw error;
 		}
 	}
