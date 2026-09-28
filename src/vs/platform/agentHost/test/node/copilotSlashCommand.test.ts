@@ -191,13 +191,50 @@ suite('Copilot slash command handlers', () => {
 			});
 		});
 
+		test('formats multiline failed-server stderr without merging subsequent servers', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command);
+			const output = await handler?.getOutput?.('show', {
+				kind: 'text',
+				text: [
+					'MCP Servers',
+					'',
+					'Per-server rows show standalone token counts.',
+					'',
+					'- component-explorer (failed): error: failed to initialize MCP client; server closed its input stream',
+					'Server stderr (last 3 lines):',
+					'npm warn Unknown project config "target".',
+					'npm warn [help](command:unsafe) <https://example.invalid>',
+					'[mcp] v0.3.0 (built 2026-09-08)',
+					'- github (connected, builtin)',
+				].join('\n'),
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: [
+					'# MCP servers',
+					'',
+					'Per-server rows show standalone token counts.',
+					'',
+					'- component-explorer \\(failed\\): error: failed to initialize MCP client; server closed its input stream  ',
+					'  Server stderr \\(last 3 lines\\):  ',
+					'  npm warn Unknown project config "target".  ',
+					'  npm warn \\[help\\]\\(command:unsafe\\) &lt;https://example.invalid&gt;  ',
+					'  \\[mcp\\] v0.3.0 \\(built 2026-09-08\\)',
+					'- github \\(connected, builtin\\)',
+				].join('\n'),
+				markdown: true,
+			});
+		});
+
 		test('defers to the runtime for mutating and changed responses', async () => {
 			const handler = getCopilotCustomizationCommandHandler(command);
 			assert.deepStrictEqual([
 				await handler?.getOutput?.('enable github', { kind: 'text', text: 'MCP server enabled.' }),
 				await handler?.getOutput?.('list', { kind: 'text', text: '# Already formatted', markdown: true }),
 				await handler?.getOutput?.('list', { kind: 'text', text: 'A newer runtime format' }),
-			], [undefined, undefined, undefined]);
+				await handler?.getOutput?.('show', { kind: 'text', text: 'MCP Servers\n\nSummary\n\n- github (connected)\nUnexpected footer' }),
+			], [undefined, undefined, undefined, undefined]);
 		});
 
 		test('formats missing server arguments as command guidance', async () => {

@@ -127,9 +127,17 @@ function formatCopilotMcpOutput(input: string, result: CopilotSlashCommandResult
 	if (lines.length < 5 || lines[0] !== 'MCP Servers' || lines[1] !== '' || lines[3] !== '') {
 		return undefined;
 	}
-	const servers = lines.slice(4);
-	if (servers.some(line => !line.startsWith('- ') || line.length === 2)) {
-		return undefined;
+	const servers: string[] = [];
+	let failedServer = false;
+	for (const line of lines.slice(4)) {
+		if (line.startsWith('- ') && line.length > 2) {
+			servers.push(`- ${escapeCustomizationMarkdownText(line.slice(2))}`);
+			failedServer = /\(failed[^)]*\): error:/.test(line);
+		} else if (failedServer && line && !line.startsWith('- ')) {
+			servers[servers.length - 1] += `  \n  ${escapeCustomizationMarkdownText(line)}`;
+		} else {
+			return undefined;
+		}
 	}
 
 	return {
@@ -139,7 +147,7 @@ function formatCopilotMcpOutput(input: string, result: CopilotSlashCommandResult
 			'',
 			escapeCustomizationMarkdownText(lines[2]),
 			'',
-			...servers.map(line => `- ${escapeCustomizationMarkdownText(line.slice(2))}`),
+			...servers,
 		].join('\n'),
 		markdown: true,
 	};
