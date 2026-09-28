@@ -139,7 +139,8 @@
 .experimental-new-session-composer .new-session-getting-started-tip-below {
 	width: 100%;
 	max-width: 800px;
-	margin: var(--vscode-spacing-size160) auto 0;
+	/* Extra top gap so the tip's hover actions, which float above its top edge, clear the input. */
+	margin: var(--vscode-spacing-size280) auto 0;
 }
 
 /* As a standalone card (not attached above the input) the tip takes a full border and

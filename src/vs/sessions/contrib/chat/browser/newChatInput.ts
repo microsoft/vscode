@@ -1381,7 +1381,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 		updateVoiceInputActionBorder();
 
-		this._primaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.primaryPicker', configContainer, {
+		// Measure against the whole toolbar: in the experimental layout this lane also manages the
+		// reparented Agent/Mode session controls, which live in a sibling container to the left of
+		// the config pickers. Using the config container alone would place those controls outside
+		// the measured lane and force everything to compact even when the row has room.
+		this._primaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.primaryPicker', toolbar, {
 			getItems: () => {
 				const items = this.options.useExperimentalLayout?.get()
 					? getLabeledPickerResponsiveItems(sessionControlsContainer)
