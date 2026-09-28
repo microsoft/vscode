@@ -27,6 +27,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CloseEditorTabAction } from '../../../../../workbench/browser/parts/editor/editorActions.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
@@ -41,10 +42,11 @@ import { Action } from '../../../../../base/common/actions.js';
 import { NewSessionActionViewItem, type NewSessionButtonStyle, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
-import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
+import { ArchiveSessionAction, SHOW_SESSION_ARCHIVED_CHATS_COMMAND_ID, ShowArchivedChatsAction } from '../../browser/views/sessionsViewActions.js';
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
-import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../browser/views/sessionsList.js';
+import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, SessionsList } from '../../browser/views/sessionsList.js';
+import { SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
@@ -265,6 +267,69 @@ suite('Sessions - Actions', () => {
 			{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: '1_edit', order: 1.5, when: 'sessionIsRead && !sessionIsArchived' },
 			{ id: 'sessionsViewPane.openToTheSide', group: '0_pin', order: 1, when: 'isSessionsWindow' },
 			{ id: 'sessionsViewPane.markAllRead', group: '0_read', order: 1, when: 'sessionsViewPane.grouping == \'date\'' },
+		]);
+	});
+
+	test('contributes per-session archived chat visibility actions', () => {
+		const actionRegistration = new DisposableStore();
+		actionRegistration.add(registerAction2(ShowArchivedChatsAction));
+		try {
+			const actions = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
+				.filter(isIMenuItem)
+				.filter(item => item.command.id === SHOW_SESSION_ARCHIVED_CHATS_COMMAND_ID)
+				.map(item => ({
+					id: item.command.id,
+					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+					group: item.group,
+					order: item.order,
+					when: item.when?.serialize(),
+					toggled: item.command.toggled
+						? isICommandActionToggleInfo(item.command.toggled)
+							? item.command.toggled.condition.serialize()
+							: item.command.toggled.serialize()
+						: undefined,
+				}));
+
+			assert.deepStrictEqual(actions, [
+				{
+					id: SHOW_SESSION_ARCHIVED_CHATS_COMMAND_ID,
+					title: 'Show Archived Chats',
+					group: '1_newChat',
+					order: 1,
+					when: undefined,
+					toggled: 'sessionItem.showsArchivedChats',
+				},
+			]);
+		} finally {
+			actionRegistration.dispose();
+		}
+	});
+
+	test('updates archived chat visibility through the Sessions list', () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const session = createTestSession('Session').session;
+		const calls: { readonly session: ISession; readonly visible: boolean }[] = [];
+		let visible = false;
+		const sessionsControl = upcastPartial<SessionsList>({
+			setSessionArchivedChatsVisible: (target, nextVisible) => {
+				visible = nextVisible;
+				calls.push({ session: target, visible: nextVisible });
+			},
+			isSessionArchivedChatsVisible: () => visible,
+		});
+		const view = upcastPartial<SessionsView>({ sessionsControl });
+		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+			override getViewWithId<T>(id: string): T | null {
+				return id === SessionsViewId ? view as T : null;
+			}
+		}());
+
+		instantiationService.invokeFunction(accessor => new ShowArchivedChatsAction().run(accessor, session));
+		instantiationService.invokeFunction(accessor => new ShowArchivedChatsAction().run(accessor, session));
+
+		assert.deepStrictEqual(calls, [
+			{ session, visible: true },
+			{ session, visible: false },
 		]);
 	});
 

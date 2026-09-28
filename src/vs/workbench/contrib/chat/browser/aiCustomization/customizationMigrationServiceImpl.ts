@@ -98,6 +98,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		return provider?.migrate(sessionResource, requestedCandidates) ?? {
 			migratedCount: 0,
 			failures: requestedCandidates.map(candidate => ({
+				storage: candidate.storage,
 				id: candidate.id,
 				name: candidate.name,
 				sourceUri: candidate.sourceUri,
@@ -125,8 +126,9 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			.flatMap(migration => migration.candidates);
 		const migratableMcpServerCount = mcpServerMigration.candidates.length;
 		const workspaceCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length
-			+ migratableMcpServerCount;
-		const userCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length;
+			+ mcpServerMigration.candidates.filter(candidate => candidate.storage === PromptsStorage.local).length;
+		const userCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length
+			+ mcpServerMigration.candidates.filter(candidate => candidate.storage === PromptsStorage.user).length;
 		return workspaceCount + userCount > 0 ? {
 			migrationFlowId: this.generateMigrationFlowId(),
 			message: this.getMigrationHintMessage(workspaceCount, userCount),

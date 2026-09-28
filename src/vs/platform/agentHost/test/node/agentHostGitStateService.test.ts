@@ -10,8 +10,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoAttachPullRequestsSettingId } from '../../common/agentService.js';
+import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
+import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
@@ -187,7 +192,7 @@ suite('AgentHostGitStateService', () => {
 		]);
 	});
 
-	function createHarness(options?: { octoKitService?: IAgentHostOctoKitService; authenticationService?: IAgentHostAuthenticationService; enterpriseUri?: string; autoAttachPullRequests?: boolean }) {
+	function createHarness(options?: { octoKitService?: IAgentHostOctoKitService; authenticationService?: IAgentHostAuthenticationService; enterpriseUri?: string; autoAttachPullRequests?: boolean; telemetryService?: ITelemetryService }) {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = new TestSessionDatabase();
 		const sessionDataService = createSessionDataService(db);
@@ -248,6 +253,7 @@ suite('AgentHostGitStateService', () => {
 			new NullLogService(),
 			sessionDataService,
 			configurationService,
+			options?.telemetryService ?? NullTelemetryService,
 		));
 
 		const runEvents: string[] = [];
@@ -488,12 +494,35 @@ suite('AgentHostGitStateService', () => {
 		}, {
 			before: undefined,
 			afterRefresh: chatGitState,
-			afterUnavailable: undefined,
+			afterUnavailable: chatGitState,
 			sessionGitState,
-			scopedState: undefined,
+			scopedState: chatGitState,
 			persistedAfterRefresh: { [scopeId]: chatGitState },
-			persistedAfterUnavailable: {},
+			persistedAfterUnavailable: { [scopeId]: chatGitState },
 			runEvents: [chat, chat],
+		});
+	}));
+
+	test('keeps default-chat Git state when the Git probe fails', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const defaultChat = buildDefaultChatUri(SESSION);
+		const previous: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: previous });
+		await h.db.setMetadata(META_GIT_STATE, JSON.stringify(previous));
+		h.setGitResult(undefined);
+
+		await h.service.refreshSessionGitState(defaultChat, undefined);
+
+		assert.deepStrictEqual({
+			chatGitState: h.service.getSessionGitState(defaultChat),
+			sessionGitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
+			persisted: JSON.parse((await h.db.getMetadata(META_GIT_STATE))!),
+			runEvents: h.runEvents,
+		}, {
+			chatGitState: previous,
+			sessionGitState: previous,
+			persisted: previous,
+			runEvents: [defaultChat],
 		});
 	}));
 
@@ -1020,6 +1049,142 @@ suite('AgentHostGitStateService', () => {
 					pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2'],
 					pullRequestBranchName: 'feature',
 				},
+			});
+		});
+	});
+
+	test('reports the automatic attachment experiment trigger where the modes diverge, in both modes', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const repository: ISessionGitHubState = { owner: 'microsoft', repo: 'vscode' };
+			const currentPullRequest = 'https://github.com/microsoft/vscode/pull/2';
+			const cases = {
+				'feature branch': { gitState: { branchName: 'feature', baseBranchName: 'main' }, gitHubState: repository },
+				'feature branch with an explicitly associated PR': { gitState: { branchName: 'feature', baseBranchName: 'main' }, gitHubState: { ...repository, pullRequestUrls: [currentPullRequest], associatedPullRequestUrls: [currentPullRequest], pullRequestBranchName: 'feature' } },
+				'feature branch with an automatically attached PR': { gitState: { branchName: 'feature', baseBranchName: 'main' }, gitHubState: { ...repository, pullRequestUrls: [currentPullRequest], pullRequestBranchName: 'feature' } },
+				'base branch with an automatically attached PR': { gitState: { branchName: 'main', baseBranchName: 'main' }, gitHubState: { ...repository, pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature' } },
+				'base branch': { gitState: { branchName: 'main', baseBranchName: 'main' }, gitHubState: repository },
+			} satisfies Record<string, { gitState: ISessionGitState; gitHubState: ISessionGitHubState }>;
+			const triggers: Record<string, readonly string[]> = {};
+			for (const autoAttachPullRequests of [true, false]) {
+				for (const [name, { gitState, gitHubState }] of Object.entries(cases)) {
+					const telemetryService = new TestExperimentTriggerTelemetryService();
+					const h = createHarness({ autoAttachPullRequests, telemetryService });
+					h.configurationService.publishRootTransientValues({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+					seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState, gitHubState });
+					h.setGitResult(gitState);
+
+					await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+					triggers[`${autoAttachPullRequests ? 'automatic' : 'restricted'} ${name}`] = telemetryService.triggers;
+				}
+			}
+
+			const trigger = [`config.${AgentHostAutoAttachPullRequestsSettingId}`];
+			// An explicitly associated PR of the current branch is kept, unresolved, in both modes.
+			assert.deepStrictEqual(triggers, {
+				'automatic feature branch': trigger,
+				'automatic feature branch with an explicitly associated PR': [],
+				'automatic feature branch with an automatically attached PR': trigger,
+				'automatic base branch with an automatically attached PR': trigger,
+				'automatic base branch': [],
+				'restricted feature branch': trigger,
+				'restricted feature branch with an explicitly associated PR': [],
+				'restricted feature branch with an automatically attached PR': trigger,
+				'restricted base branch with an automatically attached PR': trigger,
+				'restricted base branch': [],
+			});
+		});
+	});
+
+	test('holds the automatic attachment experiment trigger until the assignment context arrives', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };
+			const h = createHarness({ telemetryService });
+			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState, gitHubState: { owner: 'microsoft', repo: 'vscode' } });
+			h.setGitResult(gitState);
+
+			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+			const beforeContext = [...telemetryService.triggers];
+			h.configurationService.publishRootTransientValues({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+			await Promise.resolve();
+
+			assert.deepStrictEqual({ beforeContext, afterContext: telemetryService.triggers }, {
+				beforeContext: [],
+				afterContext: [`config.${AgentHostAutoAttachPullRequestsSettingId}`],
+			});
+		});
+	});
+
+	test('reports the automatic attachment experiment trigger for peer-folder lookups only while the branch has no PR', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const peerGitState: ISessionGitState = { branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' };
+			const triggers: Record<string, readonly string[]> = {};
+			for (const autoAttachPullRequests of [true, false]) {
+				for (const [name, peerGitHubState] of Object.entries({
+					'without a PR': { owner: 'microsoft', repo: 'vscode' },
+					'with its PR': { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2'], pullRequestBranchName: 'peer-feature' },
+				} satisfies Record<string, ISessionGitHubState>)) {
+					const telemetryService = new TestExperimentTriggerTelemetryService();
+					const h = createHarness({ autoAttachPullRequests, telemetryService });
+					h.configurationService.publishRootTransientValues({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+					const peer = buildChatUri(SESSION, 'peer');
+					const peerFolder = 'file:///peer';
+					seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main', baseBranchName: 'main' }, gitHubState: { owner: 'microsoft', repo: 'vscode' } });
+					h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerFolder] });
+					await h.service.setSessionGitHubState(peer, peerGitHubState);
+					h.setGitResult(peerGitState);
+
+					await h.service.attachSessionGitHubPullRequest(peer, URI.parse(peerFolder));
+					triggers[`${autoAttachPullRequests ? 'automatic' : 'restricted'} ${name}`] = telemetryService.triggers;
+				}
+			}
+
+			const trigger = [`config.${AgentHostAutoAttachPullRequestsSettingId}`];
+			assert.deepStrictEqual(triggers, {
+				'automatic without a PR': trigger,
+				'automatic with its PR': [],
+				'restricted without a PR': trigger,
+				'restricted with its PR': [],
+			});
+		});
+	});
+
+	test('a peer-folder lookup keeps the peer PR when automatic attachment is disabled', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const sessionGitState: ISessionGitState = { branchName: 'session-feature', baseBranchName: 'main' };
+			const peerGitState: ISessionGitState = { branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' };
+			const sessionGitHubState: ISessionGitHubState = { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'session-feature' };
+			const peerGitHubState: ISessionGitHubState = {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2'],
+				associatedPullRequestUrls: ['https://github.com/microsoft/vscode/pull/2'],
+				pullRequestBranchName: 'peer-feature',
+			};
+			const h = createHarness({ autoAttachPullRequests: false });
+			const peer = buildChatUri(SESSION, 'peer');
+			const peerFolder = 'file:///peer';
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY,
+				gitState: sessionGitState,
+				gitHubState: sessionGitHubState,
+				artifacts: [pullRequestArtifact(1), pullRequestArtifact(2)],
+			});
+			h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerFolder] });
+			await h.service.setSessionGitHubState(peer, peerGitHubState);
+			h.setGitResult(peerGitState);
+			h.setPullRequest('session-feature', { url: 'https://github.com/microsoft/vscode/pull/1', number: 1, state: 'closed' });
+
+			await h.service.attachSessionGitHubPullRequest(peer, URI.parse(peerFolder));
+
+			assert.deepStrictEqual({
+				pullRequestCalls: h.pullRequestCalls,
+				peer: h.service.getGitHubState(peer),
+				session: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
+			}, {
+				pullRequestCalls: [],
+				peer: peerGitHubState,
+				session: sessionGitHubState,
 			});
 		});
 	});

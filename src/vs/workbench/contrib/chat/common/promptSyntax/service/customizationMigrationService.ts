@@ -76,6 +76,7 @@ export interface IMcpServerCustomizationMigrationItem {
 
 export interface IMcpServerCustomizationMigrationCandidate {
 	readonly type: CustomizationMigrationType.McpServers;
+	readonly storage: PromptsStorage.local | PromptsStorage.user;
 	readonly id: string;
 	readonly name: string;
 	readonly sourceUri: URI;
@@ -133,11 +134,12 @@ export const enum McpServerCustomizationMigrationFailureReason {
 	WriteFailed = 'writeFailed',
 	/** Original file contents could not be safely restored; a newly created destination may be retained. */
 	RollbackFailed = 'rollbackFailed',
-	/** The source and destination are not a same-root .vscode/mcp.json to .mcp.json pair. */
+	/** The source and destination do not match a supported workspace or user migration. */
 	InconsistentTarget = 'inconsistentTarget',
 }
 
 export interface IMcpServerCustomizationMigrationFailure {
+	readonly storage: PromptsStorage.local | PromptsStorage.user;
 	readonly id: string;
 	readonly name: string;
 	readonly sourceUri: URI;

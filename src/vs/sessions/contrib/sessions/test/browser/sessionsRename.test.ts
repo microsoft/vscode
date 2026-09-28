@@ -161,7 +161,8 @@ suite('Sessions rename', () => {
 				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
-				override readonly capabilities = constObservable({ canRename: true, canDelete: true });
+				override readonly isArchived = constObservable(false);
+				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chatSession: ISession = {
 				...chatSessionBase,
@@ -338,7 +339,7 @@ suite('Sessions rename', () => {
 			});
 		});
 
-		test('preserves rename drafts across rerenders and clears removed targets', () => {
+		test('preserves rename drafts, focus, and selection across rerenders and clears removed targets', () => {
 			const sessionData = createTestSession('Session');
 			const sessionHarness = createListHarness(disposables, [sessionData.session]);
 			const sessionContainer = sessionHarness.createContainer();
@@ -352,10 +353,19 @@ suite('Sessions rename', () => {
 			const sessionInput = sessionContainer.querySelector<HTMLInputElement>('.session-title-input input');
 			assert.ok(sessionInput);
 			sessionInput.value = 'Session draft';
+			sessionInput.setSelectionRange(2, 7, 'forward');
 			sessionInput.dispatchEvent(new Event('input', { bubbles: true }));
 			sessionList.refresh();
 			sessionList.layout(300, 400);
 			const rerenderedSessionInput = sessionContainer.querySelector<HTMLInputElement>('.session-title-input input');
+			const sessionRerenderState = {
+				draft: rerenderedSessionInput?.value,
+				inputRecreated: rerenderedSessionInput !== sessionInput,
+				focused: mainWindow.document.activeElement === rerenderedSessionInput,
+				selectionStart: rerenderedSessionInput?.selectionStart,
+				selectionEnd: rerenderedSessionInput?.selectionEnd,
+				selectionDirection: rerenderedSessionInput?.selectionDirection,
+			};
 
 			sessionHarness.managementService.sessions = [];
 			sessionList.refresh();
@@ -371,7 +381,8 @@ suite('Sessions rename', () => {
 				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
-				override readonly capabilities = constObservable({ canRename: true, canDelete: true });
+				override readonly isArchived = constObservable(false);
+				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chats = observableValue<readonly IChat[]>('renameDraftChats', [mainChat, peerChat]);
 			const chatSession: ISession = { ...baseSession, chats, mainChat: constObservable(mainChat) };
@@ -390,10 +401,19 @@ suite('Sessions rename', () => {
 			const chatInput = chatContainer.querySelector<HTMLInputElement>('.session-chat-title-input input');
 			assert.ok(chatInput);
 			chatInput.value = 'Chat draft';
+			chatInput.setSelectionRange(1, 5, 'forward');
 			chatInput.dispatchEvent(new Event('input', { bubbles: true }));
 			chatList.refresh();
 			chatList.layout(300, 400);
 			const rerenderedChatInput = chatContainer.querySelector<HTMLInputElement>('.session-chat-title-input input');
+			const chatRerenderState = {
+				draft: rerenderedChatInput?.value,
+				inputRecreated: rerenderedChatInput !== chatInput,
+				focused: mainWindow.document.activeElement === rerenderedChatInput,
+				selectionStart: rerenderedChatInput?.selectionStart,
+				selectionEnd: rerenderedChatInput?.selectionEnd,
+				selectionDirection: rerenderedChatInput?.selectionDirection,
+			};
 
 			chats.set([mainChat], undefined);
 			chatList.refresh();
@@ -401,18 +421,28 @@ suite('Sessions rename', () => {
 			chatList.refresh();
 
 			assert.deepStrictEqual({
-				sessionDraft: rerenderedSessionInput?.value,
-				sessionInputRecreated: rerenderedSessionInput !== sessionInput,
+				sessionRerenderState,
 				sessionRenameClearedAfterRemoval: sessionContainer.querySelector('.session-title-input input') === null,
-				chatDraft: rerenderedChatInput?.value,
-				chatInputRecreated: rerenderedChatInput !== chatInput,
+				chatRerenderState,
 				chatRenameClearedAfterRemoval: chatContainer.querySelector('.session-chat-title-input input') === null,
 			}, {
-				sessionDraft: 'Session draft',
-				sessionInputRecreated: true,
+				sessionRerenderState: {
+					draft: 'Session draft',
+					inputRecreated: true,
+					focused: true,
+					selectionStart: 2,
+					selectionEnd: 7,
+					selectionDirection: 'forward',
+				},
 				sessionRenameClearedAfterRemoval: true,
-				chatDraft: 'Chat draft',
-				chatInputRecreated: true,
+				chatRerenderState: {
+					draft: 'Chat draft',
+					inputRecreated: true,
+					focused: true,
+					selectionStart: 1,
+					selectionEnd: 5,
+					selectionDirection: 'forward',
+				},
 				chatRenameClearedAfterRemoval: true,
 			});
 		});
@@ -427,7 +457,8 @@ suite('Sessions rename', () => {
 				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
-				override readonly capabilities = constObservable({ canRename: true, canDelete: true });
+				override readonly isArchived = constObservable(false);
+				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const session: ISession = {
 				...baseSession,
@@ -610,7 +641,8 @@ suite('Sessions rename', () => {
 				override readonly title = constObservable('Grill and Plan');
 				override readonly status = constObservable(options.status ?? SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
-				override readonly capabilities = constObservable({ canRename: options.canRename ?? true, canDelete: true });
+				override readonly isArchived = constObservable(false);
+				override readonly capabilities = constObservable({ canRename: options.canRename ?? true, canArchive: true, canDelete: true });
 			}();
 			const otherPeerChat = new class extends mock<IChat>() {
 				override readonly resource = URI.parse('test-chat:///other-peer');
@@ -618,7 +650,8 @@ suite('Sessions rename', () => {
 				override readonly title = constObservable('Other Peer');
 				override readonly status = constObservable(SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
-				override readonly capabilities = constObservable({ canRename: true, canDelete: true });
+				override readonly isArchived = constObservable(false);
+				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chats = observableValue<readonly IChat[]>('renameChats', [mainChat, peerChat, otherPeerChat]);
 			const session: ISession = {
@@ -880,6 +913,7 @@ suite('Sessions rename', () => {
 				hasHeaderRenameInstructions: content.includes('edits the header title inline when it is visible and opens a prompt otherwise'),
 				hasChatRenameKeybinding: content.includes(`<keybinding:${RENAME_CHAT_COMMAND_ID}>`),
 				hasArchiveKeybinding: content.includes(`<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`),
+				hasShowArchivedChats: content.includes('toggle Show Archived Chats') && content.includes('This action is always available') && content.includes('a check mark means those chats are shown'),
 				hasPermanentDelete: content.includes('open its context menu and choose Delete'),
 				hasDevContainerAvailability: content.includes('Docker is available on the host') && content.includes('a local, SSH, Tunnel, or WSL folder contains a Dev Container configuration'),
 				hasRemoteDevContainerPrerequisite: content.includes('first connect to a host that supports Dev Container sessions'),
@@ -903,6 +937,7 @@ suite('Sessions rename', () => {
 				hasHeaderRenameInstructions: true,
 				hasChatRenameKeybinding: true,
 				hasArchiveKeybinding: true,
+				hasShowArchivedChats: true,
 				hasPermanentDelete: true,
 				hasDevContainerAvailability: true,
 				hasRemoteDevContainerPrerequisite: true,

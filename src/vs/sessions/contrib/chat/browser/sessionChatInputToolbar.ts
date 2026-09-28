@@ -26,7 +26,7 @@ import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbe
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { SessionCustomizations } from './sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
-import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillResourceLocation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, getChatPillResourceLocation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
 import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
 import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -158,10 +158,10 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			pullRequestState: state,
 			promotedAction: recordedReferenceId && referenceActions ? withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.removePullRequest.${recordedReferenceId}`,
-				label: localize('sessionChatPills.removePullRequest', "Remove pull request reference from session"),
+				label: localize('sessionChatPills.removePullRequest', "Remove Pull Request Artifact from Session"),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => referenceActions.remove(recordedReferenceId, resourceLabel),
-			}), chatPillRemoveReferenceHoverLabel) : undefined,
+			}), chatPillRemoveArtifactHoverLabel) : undefined,
 			toolbarActions: [withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.copyPullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
 				label: localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
@@ -224,10 +224,10 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
 			promotedAction: recordedReferenceId && referenceActions ? withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.removeIssue.${recordedReferenceId}`,
-				label: localize('sessionChatPills.removeIssue', "Remove issue reference from session"),
+				label: localize('sessionChatPills.removeIssue', "Remove Issue Artifact from Session"),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => referenceActions.remove(recordedReferenceId, resourceLabel),
-			}), chatPillRemoveReferenceHoverLabel) : undefined,
+			}), chatPillRemoveArtifactHoverLabel) : undefined,
 			toolbarActions: [withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.copyIssue.${ref.owner}.${ref.repo}.${ref.number}`,
 				label: localize('sessionChatPills.copyIssue', "Copy issue URL"),

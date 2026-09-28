@@ -239,6 +239,11 @@ export interface IChatSessionsExtensionPoint {
 export interface IChatSessionItem {
 	readonly resource: URI;
 	readonly label: string;
+	/**
+	 * Child chats to present under this session. The parent remains openable as
+	 * the session's routing or default chat.
+	 */
+	readonly children?: readonly IChatSessionItem[];
 	readonly iconPath?: ThemeIcon;
 	readonly badge?: string | IMarkdownString;
 	readonly description?: string | IMarkdownString;

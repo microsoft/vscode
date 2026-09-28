@@ -7,8 +7,8 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
-import { isExperimentalSessionComposerLayoutEnabled } from '../../browser/newChatWidget.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { areNewSessionWelcomePhrasesEnabled, isExperimentalSessionComposerLayoutEnabled } from '../../browser/newChatWidget.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 
 suite('New session composer layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -29,6 +29,32 @@ suite('New session composer layout', () => {
 			assert.strictEqual(isExperimentalSessionComposerLayoutEnabled(configurationService), testCase.expected);
 		});
 	}
+
+	test('welcome phrases are independent from the experimental composer layout', () => {
+		const configurations = [
+			new TestConfigurationService({
+				[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
+				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
+				[NEW_SESSION_WELCOME_PHRASES_SETTING]: false,
+			}),
+			new TestConfigurationService({
+				[UNIFIED_WORKSPACE_PICKER_SETTING]: false,
+				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: false,
+				[NEW_SESSION_WELCOME_PHRASES_SETTING]: true,
+			}),
+		];
+		for (const configurationService of configurations) {
+			store.add(configurationService.onDidChangeConfigurationEmitter);
+		}
+
+		assert.deepStrictEqual(configurations.map(configurationService => ({
+			experimentalLayout: isExperimentalSessionComposerLayoutEnabled(configurationService),
+			welcomePhrases: areNewSessionWelcomePhrasesEnabled(configurationService),
+		})), [
+			{ experimentalLayout: true, welcomePhrases: false },
+			{ experimentalLayout: false, welcomePhrases: true },
+		]);
+	});
 
 	test('places repository controls in the workspace row and restores their home', () => {
 		const repositoryControlsHome = document.createElement('div');

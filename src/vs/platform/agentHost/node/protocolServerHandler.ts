@@ -1681,6 +1681,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						title: chat.summary ?? '',
 						origin: chat.origin,
 						...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+						...(chat.archived === true ? { archived: true } : {}),
 					})),
 					defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
 					// `_meta` carries durable host provenance, including session kind
@@ -1982,7 +1983,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (method === RemoveSessionArtifactExtensionMethod) {
 			return this._handleRemoveSessionArtifactRequest(params);
 		}
-
 		if (this._config.allowExtensionMethods === false) {
 			return undefined;
 		}

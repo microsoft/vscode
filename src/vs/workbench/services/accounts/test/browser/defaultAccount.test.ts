@@ -16,6 +16,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsData, NullFileManagedSettingsService, NullNativeManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -1623,10 +1624,10 @@ suite('DefaultAccountProvider sign in scopes', () => {
 		readonly options: Record<string, unknown>;
 	}
 
-	async function signIn(options?: Parameters<DefaultAccountProvider['signIn']>[0]): Promise<ICreateSessionCall[]> {
+	async function signIn(options?: Parameters<DefaultAccountProvider['signIn']>[0], configuration: Record<string, boolean | string> = {}): Promise<ICreateSessionCall[]> {
 		const calls: ICreateSessionCall[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService(configuration));
 		instantiationService.stub(IAuthenticationService, {
 			declaredProviders: [],
 			isAuthenticationProviderRegistered: () => true,
@@ -1685,6 +1686,35 @@ suite('DefaultAccountProvider sign in scopes', () => {
 			// The broad defaults plus the extra scopes, deduplicated.
 			additive: [{ scopes: ['read:user', 'user:email', 'repo', 'workflow'], options: { provider: 'google' } }],
 		});
+	});
+
+	test('connector experiments never change default sign-in scopes', async () => {
+		assert.deepStrictEqual({
+			unset: await signIn(),
+			disabled: await signIn(undefined, { [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: false }),
+			publicFeedOnly: await signIn(undefined, { [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true }),
+			enabled: await signIn(undefined, { [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true }),
+			enterprise: await signIn(undefined, {
+				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+				'github.copilot.advanced.authProvider': 'github-enterprise',
+			}),
+		}, {
+			unset: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			disabled: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			publicFeedOnly: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			enabled: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			enterprise: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+		});
+	});
+
+	test('preserves only explicitly requested additional scopes when connectors are enabled', async () => {
+		assert.deepStrictEqual(await signIn({
+			additionalScopes: ['workflow', 'workflow'],
+			provider: 'google',
+		}, { [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true }), [{
+			scopes: ['read:user', 'user:email', 'repo', 'workflow'],
+			options: { provider: 'google' },
+		}]);
 	});
 });
 

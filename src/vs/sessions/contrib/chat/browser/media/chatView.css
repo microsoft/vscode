@@ -5,35 +5,6 @@
 
 /* ---- Chat Layout ---- */
 
-.session-input-toolbar-row {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size80);
-	min-width: 0;
-}
-
-.session-input-toolbar-row > .session-chat-input-toolbar {
-	flex: 1;
-	min-width: 0;
-}
-
-.session-test-app {
-	margin-left: auto;
-	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size40);
-	pointer-events: auto;
-	flex-shrink: 0;
-}
-
-.session-test-app .monaco-button {
-	--vscode-icon-foreground: var(--vscode-button-foreground);
-	white-space: nowrap;
-}
-
-.session-test-app .codicon {
-	font-size: var(--vscode-codiconFontSize-compact);
-	line-height: inherit;
-}
-
 .chat-view-chat {
 	position: relative;
 	display: flex;
