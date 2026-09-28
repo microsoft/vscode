@@ -1,4 +1,8 @@
 parameters:
+  - name: NPM_ARCH
+    type: string
+  - name: VSCODE_ARCH
+    type: string
   - name: VSCODE_QUALITY
     type: string
   - name: VSCODE_BUILD_LINUX_SNAP
@@ -14,28 +18,25 @@ parameters:
     type: boolean
     default: false
 
-# The x64 product is built by three jobs in addition to the parallel CLI job:
-#   1. Compile builds the client, server and web server and publishes them as a
-#      non-production compilation artifact.
-#   2. Test tests the compilation artifact when tests are enabled.
-#   3. Package & Sign adds the CLI, packages the compilation artifact, signs
-#      the deb and rpm packages and publishes the product artifacts.
-# Test and Package & Sign run in parallel after Compile. Publish gates the x64
-# product artifacts on Test when that job is part of the run.
+# The product is built by Compile and Sign jobs in addition to the parallel CLI
+# job. An optional Test job runs in parallel with Sign after Compile.
 jobs:
-  - job: Linux_x64_Compile
-    displayName: Linux (X64) - Compile
+  - job: Linux_${{ parameters.VSCODE_ARCH }}_Compile
+    displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - Compile
     timeoutInMinutes: 90
     cancelTimeoutInMinutes: 10
     variables:
       DISPLAY: ":10"
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-      NPM_ARCH: x64
-      VSCODE_ARCH: x64
+      NPM_ARCH: ${{ parameters.NPM_ARCH }}
+      VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
     templateContext:
       sdl:
         binskim:
-          analyzeTargetGlob: '$(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web/**/*.node'
+          ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
+            analyzeTargetGlob: '$(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/**/*.node'
+          ${{ else }}:
+            analyzeTargetGlob: '$(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web/**/*.node'
           preReleaseVersion: '4.3.1'
       outputs:
         - output: pipelineArtifact
@@ -53,20 +54,29 @@ jobs:
     steps:
       - template: ./steps/product-build-linux-compile.yml@self
         parameters:
-          VSCODE_ARCH: x64
+          VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
           VSCODE_CIBUILD: false
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_BUILD_ONLY: true
 
-      - script: |
-          set -e
-          mkdir -p $(Build.ArtifactStagingDirectory)/compilation
-          tar -czf $(Build.ArtifactStagingDirectory)/compilation/builds.tar.gz \
-            -C $(Agent.BuildDirectory) \
-            VSCode-linux-$(VSCODE_ARCH) \
-            vscode-server-linux-$(VSCODE_ARCH) \
-            vscode-server-linux-$(VSCODE_ARCH)-web
-        displayName: Archive client, server and web server builds
+      - ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
+        - script: |
+            set -e
+            mkdir -p $(Build.ArtifactStagingDirectory)/compilation
+            tar -czf $(Build.ArtifactStagingDirectory)/compilation/builds.tar.gz \
+              -C $(Agent.BuildDirectory) \
+              VSCode-linux-$(VSCODE_ARCH)
+          displayName: Archive client build
+      - ${{ else }}:
+        - script: |
+            set -e
+            mkdir -p $(Build.ArtifactStagingDirectory)/compilation
+            tar -czf $(Build.ArtifactStagingDirectory)/compilation/builds.tar.gz \
+              -C $(Agent.BuildDirectory) \
+              VSCode-linux-$(VSCODE_ARCH) \
+              vscode-server-linux-$(VSCODE_ARCH) \
+              vscode-server-linux-$(VSCODE_ARCH)-web
+          displayName: Archive client, server and web server builds
 
       - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
         - script: |
@@ -77,16 +87,16 @@ jobs:
           displayName: Archive out-build
 
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
-    - job: Linux_x64_Test
-      displayName: Linux (X64) - Test
-      dependsOn: Linux_x64_Compile
+    - job: Linux_${{ parameters.VSCODE_ARCH }}_Test
+      displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - Test
+      dependsOn: Linux_${{ parameters.VSCODE_ARCH }}_Compile
       timeoutInMinutes: 90
       cancelTimeoutInMinutes: 10
       variables:
         DISPLAY: ":10"
         BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-        NPM_ARCH: x64
-        VSCODE_ARCH: x64
+        NPM_ARCH: ${{ parameters.NPM_ARCH }}
+        VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
       templateContext:
         outputs:
           - output: pipelineArtifact
@@ -129,18 +139,18 @@ jobs:
             VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
             VSCODE_COMPILE_TEST_SUITES: true
 
-  - job: Linux_x64_PackageSign
-    displayName: Linux (X64) - Sign
+  - job: Linux_${{ parameters.VSCODE_ARCH }}_Sign
+    displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
     dependsOn:
-      - Linux_x64_Compile
-      - LinuxCLI_x64
+      - Linux_${{ parameters.VSCODE_ARCH }}_Compile
+      - LinuxCLI_${{ parameters.VSCODE_ARCH }}
     timeoutInMinutes: 90
     cancelTimeoutInMinutes: 10
     variables:
       DISPLAY: ":10"
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-      NPM_ARCH: x64
-      VSCODE_ARCH: x64
+      NPM_ARCH: ${{ parameters.NPM_ARCH }}
+      VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
     templateContext:
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
@@ -151,20 +161,21 @@ jobs:
           sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) (unsigned)"
           sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz
-          artifactName: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
-          displayName: Publish server archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
-          sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
-          artifactName: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
-          displayName: Publish web server archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
-          sbomPackageVersion: $(Build.SourceVersion)
+        - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz
+            artifactName: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+            displayName: Publish server archive
+            sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
+            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
+            sbomPackageVersion: $(Build.SourceVersion)
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
+            artifactName: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+            displayName: Publish web server archive
+            sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
+            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
+            sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/deb/$(DEB_PACKAGE_NAME)
           artifactName: vscode_client_linux_$(VSCODE_ARCH)_deb-package
@@ -196,7 +207,7 @@ jobs:
 
       - template: ./steps/product-build-linux-package.yml@self
         parameters:
-          VSCODE_ARCH: x64
+          VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
 

@@ -628,8 +628,8 @@ async function getPipelineTimeline(): Promise<Timeline> {
 
 /**
  * Artifacts that can only be published once a job succeeded, by job name. The
- * The x64 test jobs run in parallel with the jobs that produce these artifacts
- * (see win32/product-build-win32.yml and linux/product-build-linux-x64.yml).
+ * x64 test jobs run in parallel with the jobs that produce these artifacts
+ * (see win32/product-build-win32.yml and linux/product-build-linux-jobs.yml).
  */
 const artifactsByGatingJob: Readonly<Record<string, readonly string[]>> = {
 	'Windows_x64_Test': [
@@ -1003,7 +1003,8 @@ async function main() {
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
 	if (e('VSCODE_BUILD_STAGE_WINDOWS_ARM64') === 'True') { stages.add('WindowsARM64'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX_X64') === 'True') { stages.add('LinuxX64'); }
-	if (e('VSCODE_BUILD_STAGE_LINUX_ARM') === 'True') { stages.add('Linux'); }
+	if (e('VSCODE_BUILD_STAGE_LINUX_ARM64') === 'True') { stages.add('LinuxARM64'); }
+	if (e('VSCODE_BUILD_STAGE_LINUX_ARMHF') === 'True') { stages.add('LinuxARMHF'); }
 	if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') { stages.add('Alpine'); }
 	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
