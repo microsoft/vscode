@@ -251,6 +251,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	_workspaceSessionOptionsHost: HTMLElement | undefined;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
 	readonly _useExperimentalComposerLayout: ReturnType<typeof observableValue<boolean>>;
+	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 }
 
 interface ISelectNoWorkspaceHarness {
@@ -408,6 +409,7 @@ suite('NewChatWidget', () => {
 			_workspaceSessionOptionsHost: undefined,
 			_sessionOptionsExpanded: observableValue('sessionOptionsExpanded', false),
 			_useExperimentalComposerLayout: observableValue('experimentalComposerLayout', false),
+			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
 		};
 
 		disposables.add(renderWorkspacePicker.call(harness, container));
@@ -493,6 +495,22 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual({ focused, exitsTray }, {
 			focused: ['Show Session Options', 'Worktree', 'Branch', 'Copilot', 'Hide Session Options', 'Hide Session Options', 'Copilot', 'Branch', 'Copilot'],
 			exitsTray: true,
+		});
+
+		// While a screen reader is active the options never collapse: the toggle is removed and the
+		// details stay in the accessibility tree even though the persisted preference is collapsed.
+		harness._sessionOptionsExpanded.set(false, undefined);
+		harness._screenReaderOptimized.set(true, undefined);
+		assert.deepStrictEqual({
+			toggleHidden: toggle.hidden,
+			hidden: details.hidden,
+			inert: details.inert,
+			storedPreference: harness._sessionOptionsExpanded.get(),
+		}, {
+			toggleHidden: true,
+			hidden: false,
+			inert: false,
+			storedPreference: false,
 		});
 	});
 

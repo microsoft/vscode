@@ -66,7 +66,7 @@
 }
 
 .experimental-new-session-composer .new-session-workspace-picker-container {
-	padding: 0 var(--vscode-spacing-size160);
+	padding: 0;
 	margin-top: var(--vscode-spacing-size120);
 	margin-bottom: 0;
 }
@@ -131,6 +131,15 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
 	border-bottom: 0;
 	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+}
+
+/* Getting-started tip demoted below the input in the experimental composer, matching
+	the placement of the new-session migration notice. Hidden by the presenter until a
+	tip is showing, so it reserves no space otherwise. */
+.experimental-new-session-composer .new-session-getting-started-tip-below {
+	width: 100%;
+	max-width: 800px;
+	margin: var(--vscode-spacing-size160) auto 0;
 }
 
 .new-chat-session-options .new-chat-session-options-details {

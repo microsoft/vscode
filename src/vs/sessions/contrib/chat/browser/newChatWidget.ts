@@ -133,6 +133,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
 	private readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
 	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
+	private readonly _screenReaderOptimized: IObservable<boolean>;
 	private readonly _showWelcomePhrases: IObservable<boolean>;
 
 	/** Draft comments shared by every uncreated new-session composer. */
@@ -215,6 +216,11 @@ export class NewChatWidget extends Disposable {
 				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
 				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)),
 			() => isExperimentalSessionComposerLayoutEnabled(this.configurationService),
+		);
+		this._screenReaderOptimized = observableFromEvent(
+			this,
+			this.accessibilityService.onDidChangeScreenReaderOptimized,
+			() => this.accessibilityService.isScreenReaderOptimized(),
 		);
 		this._showWelcomePhrases = observableFromEvent(
 			this,
@@ -628,10 +634,19 @@ export class NewChatWidget extends Disposable {
 		}));
 		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, chatWidgetContent, this._session, () => this.focusInput()));
 
-		// The tip lives in the input's notice slot, so the presenter is created
-		// after the input has rendered it.
-		const chatTipContainer = this._newChatInput.gettingStartedTipContainerElement;
-		this._chatTipPresenter.value = chatTipContainer && this.instantiationService.createInstance(
+		// In the experimental composer the getting-started tip is demoted to a standalone
+		// notice below the input (like the migration notice) so it never sits between the
+		// option pickers and the field. Otherwise it uses the input's canonical notice slot
+		// directly above the input. The tip container is reparented reactively so toggling the
+		// experimental layout (which requires the unified workspace picker) moves the tip without
+		// recreating the presenter.
+		const inputTipSlot = this._newChatInput.gettingStartedTipContainerElement;
+		const tipBelowHost = dom.append(chatWidgetContent, dom.$('.new-session-getting-started-tip-below'));
+		const chatTipContainer = dom.$('.new-session-getting-started-tip');
+		this._register(autorun(reader => {
+			(this._useExperimentalComposerLayout.read(reader) ? tipBelowHost : inputTipSlot)?.appendChild(chatTipContainer);
+		}));
+		this._chatTipPresenter.value = this.instantiationService.createInstance(
 			ChatInputTipPresenter,
 			{
 				container: chatTipContainer,
@@ -1283,11 +1298,15 @@ export class NewChatWidget extends Disposable {
 		}, true));
 		store.add(autorun(reader => {
 			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
+			const screenReaderOptimized = this._screenReaderOptimized.read(reader);
+			// Screen reader users should never have the options collapsed out of the accessibility
+			// tree: keep the tray expanded and drop the disclosure toggle entirely.
+			const disclosureAvailable = useExperimentalLayout && !screenReaderOptimized;
 			const expanded = this._sessionOptionsExpanded.read(reader);
-			const showDetails = !useExperimentalLayout || expanded;
+			const showDetails = !disclosureAvailable || expanded;
 			row.classList.toggle('new-chat-session-options', useExperimentalLayout);
 			sessionOptions.classList.toggle('legacy-session-options-details', !useExperimentalLayout);
-			toggle.element.hidden = !useExperimentalLayout;
+			toggle.element.hidden = !disclosureAvailable;
 			if (!showDetails && sessionOptions.contains(dom.getActiveElement())) {
 				toggle.focus();
 			}
