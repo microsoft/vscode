@@ -290,6 +290,55 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			]);
 		});
 
+		test('offers matching MCP server and skill names for customization commands', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [],
+				getSessionCustomizations: async () => [
+					{ type: CustomizationType.McpServer, id: 'mcp:top-level', uri: 'file:///mcp.json', name: 'top-level', state: { kind: McpServerStatus.Ready } },
+					{
+						type: CustomizationType.Plugin,
+						id: 'file:///plugin',
+						uri: 'file:///plugin',
+						name: 'plugin',
+						load: { kind: CustomizationLoadStatus.Loaded },
+						children: [
+							{ type: CustomizationType.McpServer, id: 'mcp:plugin-server', uri: 'file:///plugin/.mcp.json', name: 'plugin-server', state: { kind: McpServerStatus.Ready } },
+							{ type: CustomizationType.Skill, id: 'file:///plugin/skills/my-skill/SKILL.md', uri: 'file:///plugin/skills/my-skill/SKILL.md', name: 'my-skill', description: 'My skill' },
+						],
+					},
+				],
+			});
+
+			assert.deepStrictEqual(await Promise.all([
+				'/mcp disable ',
+				'/mcp enable p',
+				'/mcp info ',
+				'/skills info ',
+			].map(async text => (await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text, offset: text.length,
+			}, CancellationToken.None)).map(item => ({
+				insertText: item.insertText,
+				rangeStart: item.rangeStart,
+				rangeEnd: item.rangeEnd,
+				label: item.attachment.label,
+			})))), [
+				[
+					{ insertText: 'plugin-server', rangeStart: 13, rangeEnd: 13, label: 'plugin-server' },
+					{ insertText: 'top-level', rangeStart: 13, rangeEnd: 13, label: 'top-level' },
+				],
+				[
+					{ insertText: 'plugin-server', rangeStart: 12, rangeEnd: 13, label: 'plugin-server' },
+				],
+				[
+					{ insertText: 'plugin-server', rangeStart: 10, rangeEnd: 10, label: 'plugin-server' },
+					{ insertText: 'top-level', rangeStart: 10, rangeEnd: 10, label: 'top-level' },
+				],
+				[
+					{ insertText: 'my-skill', rangeStart: 13, rangeEnd: 13, label: 'my-skill' },
+				],
+			]);
+		});
+
 		test('returns all runtime items for lone "/" (config-action items filtered)', async () => {
 			const items = await run('/');
 			// `plan` collides with a config-action command and is dropped from the runtime set.

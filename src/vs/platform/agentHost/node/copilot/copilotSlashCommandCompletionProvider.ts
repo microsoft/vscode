@@ -70,6 +70,11 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		if (AgentSession.provider(params.channel) !== this.copilotcliId) {
 			return [];
 		}
+		const sessionId = AgentSession.id(params.channel);
+		const customizationCompletions = await this._getCustomizationCompletions(params.text, params.offset, sessionId);
+		if (customizationCompletions) {
+			return customizationCompletions;
+		}
 		const leadingTokenForSkills = extractWhitespaceDelimitedSlashToken(params.text, params.offset);
 		const leadingTokenForCommands = extractLeadingSlashToken(params.text, params.offset);
 		const leading = leadingTokenForCommands ?? leadingTokenForSkills;
@@ -79,10 +84,53 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		}
 
 		// Raw session id is the URI path without the leading slash.
-		const sessionId = AgentSession.id(params.channel);
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
 		return await this._getRuntimeSlashCommandCompletionInfo(sessionId, typed, leading, returnJustSkills);
+	}
+
+	private async _getCustomizationCompletions(text: string, offset: number, sessionId: string): Promise<CompletionItem[] | undefined> {
+		const range = getWordRangeAtOffset(text, offset);
+		if (!range) {
+			return undefined;
+		}
+		const command = /^\/(?<command>mcp|skills)\s+(?<subcommand>enable|disable|info)\s*$/i.exec(text.slice(0, range.start));
+		if (!command?.groups) {
+			return undefined;
+		}
+
+		const { command: commandName, subcommand } = command.groups;
+		if ((commandName.toLowerCase() === 'mcp' && !['enable', 'disable', 'info'].includes(subcommand.toLowerCase()))
+			|| (commandName.toLowerCase() === 'skills' && subcommand.toLowerCase() !== 'info')) {
+			return undefined;
+		}
+
+		const customizations = await this._sessionInfo.getSessionCustomizations(sessionId) ?? [];
+		const candidates = new Set<string>();
+		for (const customization of customizations) {
+			if (commandName.toLowerCase() === 'mcp' && customization.type === CustomizationType.McpServer) {
+				candidates.add(customization.name);
+			}
+			for (const child of customization.type === CustomizationType.McpServer ? [] : customization.children ?? []) {
+				if ((commandName.toLowerCase() === 'mcp' && child.type === CustomizationType.McpServer)
+					|| (commandName.toLowerCase() === 'skills' && child.type === CustomizationType.Skill)) {
+					candidates.add(child.name);
+				}
+			}
+		}
+
+		return Array.from(candidates)
+			.filter(name => matchesSlashCompletion(text.slice(range.start, offset), name))
+			.map(name => ({
+				insertText: name,
+				rangeStart: range.start,
+				rangeEnd: range.end,
+				attachment: {
+					type: MessageAttachmentKind.Simple,
+					label: name,
+				},
+			}))
+			.sort((a, b) => a.insertText.localeCompare(b.insertText));
 	}
 
 	private async _getKnownSkills(sessionId: string): Promise<{ readonly known: ReadonlySet<string>; readonly syncedContainerNames: ReadonlySet<string> }> {
@@ -268,4 +316,20 @@ export type ICopilotRuntimeSlashCommandInfo = RuntimeSlashCommandInfo;
 
 function isSyncedCustomization(container: PluginCustomization): boolean {
 	return container.uri.startsWith(SYNCED_CUSTOMIZATION_SCHEME + ':');
+}
+
+function getWordRangeAtOffset(text: string, offset: number): { start: number; end: number } | undefined {
+	if (offset < 0 || offset > text.length) {
+		return undefined;
+	}
+
+	let start = offset;
+	while (start > 0 && !/\s/.test(text[start - 1])) {
+		start--;
+	}
+	let end = offset;
+	while (end < text.length && !/\s/.test(text[end])) {
+		end++;
+	}
+	return { start, end };
 }
