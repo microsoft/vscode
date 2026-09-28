@@ -503,7 +503,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		SessionWorktreeCleanupEditor,
 		SessionWorktreeCleanupEditor.ID,
-		localize('sessionWorktreeCleanupEditor', "Agent Session Storage Management Editor"),
+		localize('sessionWorktreeCleanupEditor', "Clean Up Agent Worktrees Editor"),
 	),
 	[new SyncDescriptor(SessionWorktreeCleanupEditorInput)],
 );
@@ -512,7 +512,7 @@ registerAction2(class ManageAgentSessionStorageAction extends Action2 {
 	constructor() {
 		super({
 			id: MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID,
-			title: localize2('manageAgentSessionStorage', "Manage Agent Session Storage"),
+			title: localize2('manageAgentSessionStorage', "Clean Up Agent Worktrees"),
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: ChatContextKeys.enabled,

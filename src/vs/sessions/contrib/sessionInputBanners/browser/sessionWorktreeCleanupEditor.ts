@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -12,6 +13,7 @@ import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
@@ -85,11 +87,11 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		parent.appendChild(this.scrollableElement.getDomNode());
 		const content = dom.append(this.container, dom.$('.session-worktree-cleanup-content'));
 
-		dom.append(content, dom.$('h1', undefined, localize('sessionWorktreeCleanup.heading', "Manage Agent Session Storage")));
+		dom.append(content, dom.$('h1', undefined, localize('sessionWorktreeCleanup.heading', "Clean Up Agent Worktrees")));
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
-			localize('sessionWorktreeCleanup.intro', "Inactive, unpinned sessions older than the selected period can be marked as done to clean up their worktrees. Active, running, needs-input, and pinned sessions are always protected.")));
+			localize('sessionWorktreeCleanup.intro', "Inactive, unpinned sessions older than the selected period can be cleaned up to reclaim the disk space their worktrees use. Cleaning up a session marks it as done and deletes its worktree; you can restore the session later to recreate it. Active, running, needs-input, and pinned sessions are always protected.")));
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
-			localize('sessionWorktreeCleanup.reopen', "Return here any time from the Sessions More Actions (...) menu, a session's context menu, or by running Manage Agent Session Storage from the Command Palette.")));
+			localize('sessionWorktreeCleanup.reopen', "Return here any time from the Sessions More Actions (...) menu, a session's context menu, or by running Clean Up Agent Worktrees from the Command Palette.")));
 
 		this.renderAutomaticCleanup(content);
 
@@ -111,7 +113,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 		const footer = dom.append(content, dom.$('.session-worktree-cleanup-footer'));
 		this.cleanupButton = this.editorDisposables.add(new Button(footer, defaultButtonStyles));
-		this.cleanupButton.label = localize('sessionWorktreeCleanup.cleanupButton', "Mark as Done and Clean Up");
+		this.cleanupButton.label = localize('sessionWorktreeCleanup.cleanupButton', "Clean Up Worktrees");
 		this.cleanupButton.enabled = false;
 		this.editorDisposables.add(this.cleanupButton.onDidClick(() => void this.cleanupSelected()));
 
@@ -217,7 +219,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		dom.append(header, dom.$('span.title', { role: 'columnheader' }, localize('sessionWorktreeCleanup.sessionColumn', "Session")));
 		dom.append(header, dom.$('span', { role: 'columnheader' }, localize('sessionWorktreeCleanup.lastUsedColumn', "Last Used")));
 		dom.append(header, dom.$('span', { role: 'columnheader' }, localize('sessionWorktreeCleanup.storageColumn', "Storage")));
-		dom.append(header, dom.$('span', { role: 'columnheader' }, localize('sessionWorktreeCleanup.actionsColumn', "Actions")));
 
 		// Only list rows that meet every cleanup criterion; the summary reports how many were excluded.
 		for (const worktree of [...eligible].sort((a, b) => (b.sizeBytes ?? -1) - (a.sizeBytes ?? -1))) {
@@ -238,16 +239,23 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				this.updateCleanupButton();
 				this.updateScrollDimensions();
 			}));
-			const titleElement = dom.append(row, dom.$('span.title', { role: 'cell', title }, title));
-			titleElement.tabIndex = 0;
+			const titleCell = dom.append(row, dom.$('span.title', { role: 'cell' }));
+			const openSession = () => void this.sessionsService.openSession(worktree.session.resource).catch(error => this.notificationService.error(error));
+			const titleLink = dom.append(titleCell, dom.$('a.session-worktree-cleanup-session-link', {
+				role: 'link',
+				tabIndex: 0,
+				title: localize('sessionWorktreeCleanup.openSession', "Open {0}", title),
+			}, title));
+			this.rowDisposables.add(dom.addDisposableListener(titleLink, dom.EventType.CLICK, () => openSession()));
+			this.rowDisposables.add(dom.addDisposableListener(titleLink, dom.EventType.KEY_DOWN, event => {
+				const keyboardEvent = new StandardKeyboardEvent(event);
+				if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
+					keyboardEvent.preventDefault();
+					openSession();
+				}
+			}));
 			dom.append(row, dom.$('span', { role: 'cell', title: worktree.session.updatedAt.get().toLocaleString() }, fromNow(worktree.session.updatedAt.get(), true, true)));
 			dom.append(row, dom.$('span', { role: 'cell' }, ByteSize.formatSize(worktree.sizeBytes ?? 0)));
-			const actions = dom.append(row, dom.$('span', { role: 'cell' }));
-			const openButton = this.rowDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
-			openButton.label = localize('sessionWorktreeCleanup.openSession', "Open Session");
-			this.rowDisposables.add(openButton.onDidClick(() => {
-				void this.sessionsService.openSession(worktree.session.resource).catch(error => this.notificationService.error(error));
-			}));
 		}
 		this.updateCleanupButton();
 		this.updateScrollDimensions();
@@ -258,10 +266,10 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			return;
 		}
 		const selected = this.getSelected();
-		const selectedBytes = selected.reduce((total, candidate) => total + candidate.sizeBytes, 0);
+		const selectedWorktrees = selected.reduce((total, candidate) => total + candidate.worktreeCount, 0);
 		this.cleanupButton.label = selected.length === 0
-			? localize('sessionWorktreeCleanup.cleanupButton', "Mark as Done and Clean Up")
-			: localize('sessionWorktreeCleanup.cleanupSelection', "Mark {0} as Done and Reclaim About {1}", selected.length, ByteSize.formatSize(selectedBytes));
+			? localize('sessionWorktreeCleanup.cleanupButton', "Clean Up Worktrees")
+			: localize('sessionWorktreeCleanup.cleanupSelection', "Clean Up {0} Worktrees", selectedWorktrees);
 		this.cleanupButton.enabled = selected.length > 0;
 	}
 
@@ -283,8 +291,10 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	private renderAutomaticCleanup(content: HTMLElement): void {
 		const section = dom.append(content, dom.$('.session-worktree-cleanup-automatic'));
-		dom.append(section, dom.$('h2', undefined, localize('sessionWorktreeCleanup.automaticHeading', "Automatic Cleanup")));
-		dom.append(section, dom.$('p', undefined, localize('sessionWorktreeCleanup.automaticDescription', "For merged pull requests, automatically mark inactive sessions as done first, then optionally delete them after an additional retention period.")));
+		const heading = dom.append(section, dom.$('h2.session-worktree-cleanup-settings-heading'));
+		heading.appendChild(renderIcon(Codicon.settingsGear));
+		dom.append(heading, dom.$('span', undefined, localize('sessionWorktreeCleanup.automaticHeading', "Cleanup Settings")));
+		dom.append(section, dom.$('p', undefined, localize('sessionWorktreeCleanup.automaticDescription', "These options change your settings. For merged pull requests, automatically mark inactive sessions as done first, then optionally delete them after an additional retention period.")));
 		this.renderAutomaticSetting(section, ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays,
 			localize('sessionWorktreeCleanup.autoMark', "Mark merged sessions as done after"),
 			localize('sessionWorktreeCleanup.autoMarkAria', "Automatically mark merged sessions as done"));

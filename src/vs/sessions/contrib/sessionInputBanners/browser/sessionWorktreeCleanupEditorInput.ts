@@ -28,7 +28,7 @@ export class SessionWorktreeCleanupEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return localize('sessionWorktreeCleanupEditor.name', "Manage Agent Session Storage");
+		return localize('sessionWorktreeCleanupEditor.name', "Clean Up Agent Worktrees");
 	}
 
 	override getIcon(): ThemeIcon {

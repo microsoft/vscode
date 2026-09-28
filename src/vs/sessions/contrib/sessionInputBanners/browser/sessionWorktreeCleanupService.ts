@@ -325,12 +325,13 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		}
 
 		const selectedBytes = selected.reduce((total, candidate) => total + candidate.sizeBytes, 0);
+		const worktreeCount = selected.reduce((total, candidate) => total + candidate.worktreeCount, 0);
 		const confirmation = await this.dialogService.confirm({
-			message: selected.length === 1
-				? localize('worktreeCleanup.confirm.one', "Mark 1 session as done and clean up its worktree?")
-				: localize('worktreeCleanup.confirm.many', "Mark {0} sessions as done and clean up their worktrees?", selected.length),
-			detail: localize('worktreeCleanup.confirm.detail', "This can reclaim about {0}. You can restore sessions marked as done later.", ByteSize.formatSize(selectedBytes)),
-			primaryButton: localize('worktreeCleanup.confirm.primary', "Mark as Done and Clean Up"),
+			message: worktreeCount === 1
+				? localize('worktreeCleanup.confirm.one', "Clean up 1 worktree?")
+				: localize('worktreeCleanup.confirm.many', "Clean up {0} worktrees?", worktreeCount),
+			detail: localize('worktreeCleanup.confirm.detail', "This reclaims about {0} and marks the selected sessions as done. You can restore a session later to recreate its worktree.", ByteSize.formatSize(selectedBytes)),
+			primaryButton: localize('worktreeCleanup.confirm.primary', "Clean Up"),
 		});
 		if (!confirmation.confirmed) {
 			return false;
@@ -339,9 +340,9 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		for (const candidate of selected) {
 			await this.sessionsManagementService.archiveSession(candidate.session);
 		}
-		const message = selected.length === 1
-			? localize('worktreeCleanup.archived.one', "Marked 1 session as done. Worktree cleanup continues in the background.")
-			: localize('worktreeCleanup.archived.many', "Marked {0} sessions as done. Worktree cleanup continues in the background.", selected.length);
+		const message = worktreeCount === 1
+			? localize('worktreeCleanup.archived.one', "Cleaning up 1 worktree in the background.")
+			: localize('worktreeCleanup.archived.many', "Cleaning up {0} worktrees in the background.", worktreeCount);
 		status(message);
 		this._lastScanAt = 0;
 		return true;
