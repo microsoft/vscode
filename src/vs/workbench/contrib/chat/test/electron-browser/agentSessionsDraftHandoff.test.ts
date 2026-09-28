@@ -911,12 +911,14 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
-	test('Got it! dismisses the current education banner without suppressing future education', async () => {
+	test('Got it! suppresses future education without disabling parallel work', async () => {
 		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
-		h.showBanner();
+		const contribution = h.showBanner();
 		await h.click(1);
 		const afterFeedback = h.notification;
+		contribution.dispose();
 		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
+		h.showBanner();
 
 		assert.deepStrictEqual({
 			afterFeedback,
@@ -925,7 +927,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			updates: h.configuration.updates,
 		}, {
 			afterFeedback: undefined,
-			nextTitle: 'You\'re using a new Copilot experience',
+			nextTitle: undefined,
 			enabled: false,
 			updates: [],
 		});

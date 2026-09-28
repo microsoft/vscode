@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { activeContrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../platform/theme/common/themeService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../workbench/common/theme.js';
-import { getSessionChatDragData, IDraggedSessionChat } from '../dnd.js';
+import { IDraggedSessionChat } from '../dnd.js';
 
 /** Zone of a target group where a dragged chat can be dropped. */
 export type ChatDropZone = 'left' | 'right' | 'top' | 'bottom' | 'center';
@@ -25,6 +25,9 @@ export interface IChatGroupDropTargetDelegate {
 
 	/** Whether the drag can be accepted by this session's grid. */
 	isChatDrag(event: DragEvent): boolean;
+
+	/** Resolve a chat drag or a drag of this session's main chat. */
+	getChatDragData(event: DragEvent): IDraggedSessionChat | undefined;
 
 	/** Resolve a child element to its owning chat group id + root element. */
 	findTargetGroup(child: HTMLElement): { readonly id: number; readonly element: HTMLElement } | undefined;
@@ -55,6 +58,7 @@ class ChatGroupDropOverlay extends Themable {
 		private readonly _targetElement: HTMLElement,
 		private readonly _onDrop: (groupId: number, zone: ChatDropZone, data: IDraggedSessionChat | undefined) => void,
 		private readonly _isChatDrag: (event: DragEvent) => boolean,
+		private readonly _getChatDragData: (event: DragEvent) => IDraggedSessionChat | undefined,
 		@IThemeService themeService: IThemeService,
 	) {
 		super(themeService);
@@ -115,7 +119,7 @@ class ChatGroupDropOverlay extends Themable {
 				EventHelper.stop(e, true);
 
 				const zone = this._currentZone;
-				const data = getSessionChatDragData(e);
+				const data = this._getChatDragData(e);
 				this.dispose();
 
 				if (zone) {
@@ -294,6 +298,7 @@ export class ChatGroupDropTarget extends Themable {
 			targetGroup.element,
 			(groupId: number, zone: ChatDropZone, data: IDraggedSessionChat | undefined) => this._delegate.onChatDrop(groupId, zone, data),
 			event => this._delegate.isChatDrag(event),
+			event => this._delegate.getChatDragData(event),
 		);
 	}
 

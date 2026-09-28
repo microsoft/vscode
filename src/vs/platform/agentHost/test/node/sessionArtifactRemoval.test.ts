@@ -11,12 +11,14 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { META_GITHUB_STATE, META_PENDING_RECORDED_PULL_REQUESTS } from '../../common/agentHostGitStateService.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
+import { SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
 import { readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import type { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
+import { SessionArtifacts } from '../../node/shared/sessionArtifacts.js';
 import { SESSION_ARTIFACTS_KEY } from '../../node/shared/persistSessionMetadata.js';
 import type { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
@@ -117,6 +119,80 @@ suite('Session Artifact Removal', () => {
 		}, {
 			pending: undefined,
 			artifacts: ['file', 'reference'],
+		});
+	});
+
+	test('a queued removal does not cancel the association of a replacement artifact', async () => {
+		const writeStarted = new DeferredPromise<void>();
+		const finishWrite = new DeferredPromise<void>();
+		class DelayedDatabase extends TestSessionDatabase {
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+				if (values[SESSION_ARTIFACTS_KEY]?.includes('"replacement"')) {
+					await writeStarted.complete();
+					await finishWrite.p;
+				}
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+			}
+		}
+		const database = new DelayedDatabase();
+		const fixture = await createFixture(database);
+		const { service, session, stateManager, artifactAccessor } = fixture;
+		const pending = JSON.stringify([{
+			chat: 'recording-chat', folderKey: 'file:///work', workingDirectory: 'file:///work',
+			url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
+		}]);
+		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, pending);
+		const replacement = new SessionArtifacts(stateManager, session.toString(), artifactAccessor.persist).mutate(collection =>
+			new SessionArtifactCollection(collection.remove('pr').artifacts).add({
+				type: SessionArtifactType.PullRequest, label: 'Replacement', isArtifact: true, link: artifacts[0].link,
+			}, () => 'replacement'));
+		await writeStarted.p;
+		const removal = service.removeSessionArtifact(session, 'pr');
+		await finishWrite.complete();
+		await Promise.all([replacement, removal]);
+
+		assert.deepStrictEqual({
+			artifacts: readSessionArtifacts(stateManager.getSessionState(session.toString())?._meta).map(artifact => artifact.id),
+			pending: await database.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS),
+		}, {
+			artifacts: ['file', 'reference', 'replacement'],
+			pending,
+		});
+	});
+
+	test('reports successful removal when pending-association cleanup fails', async () => {
+		class FailingCleanupDatabase extends TestSessionDatabase {
+			override async deleteMetadata(keys: readonly string[]): Promise<void> {
+				if (keys.includes(META_PENDING_RECORDED_PULL_REQUESTS)) {
+					throw new Error('cleanup unavailable');
+				}
+				return super.deleteMetadata(keys);
+			}
+		}
+		const warnings: string[] = [];
+		class TestLogService extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}
+		const database = new FailingCleanupDatabase();
+		const { service, session, stateManager } = await createFixture(database, new TestLogService());
+		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, JSON.stringify([{
+			chat: 'recording-chat', folderKey: 'file:///work', workingDirectory: 'file:///work',
+			url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
+		}]));
+
+		await service.removeSessionArtifact(session, 'pr');
+
+		assert.deepStrictEqual({
+			artifacts: readSessionArtifacts(stateManager.getSessionState(session.toString())?._meta).map(artifact => artifact.id),
+			pending: await database.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS),
+			warnings,
+		}, {
+			artifacts: ['file', 'reference'],
+			pending: JSON.stringify([{
+				chat: 'recording-chat', folderKey: 'file:///work', workingDirectory: 'file:///work',
+				url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
+			}]),
+			warnings: ['[AgentService] Failed to remove pending pull request association'],
 		});
 	});
 
