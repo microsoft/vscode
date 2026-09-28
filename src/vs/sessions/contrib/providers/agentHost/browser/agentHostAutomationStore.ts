@@ -723,6 +723,9 @@ function parseCronValue(value: string | undefined, minimum: number, maximum: num
 }
 
 function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['triggers'] {
+	if (schedule.timeZone !== undefined || schedule.interval === 'custom') {
+		throw new Error(localize('automationHostScheduleUnsupported', "This schedule cannot be transferred to an Agent Host. Choose a local-time schedule."));
+	}
 	if (schedule.interval === 'manual') {
 		return [];
 	}

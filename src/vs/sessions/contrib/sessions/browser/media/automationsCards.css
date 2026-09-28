@@ -325,7 +325,7 @@
 	font-size: 12px;
 }
 
-/* Loading and error states */
+/* Loading state */
 .automations-cards-state {
 	display: flex;
 	flex-direction: column;
@@ -340,10 +340,6 @@
 .automations-cards-state-icon {
 	font-size: var(--vscode-codiconFontSize);
 	color: var(--vscode-descriptionForeground);
-}
-
-.automations-cards-error .automations-cards-state-icon {
-	color: var(--vscode-errorForeground);
 }
 
 .automations-cards-state-title {
@@ -378,10 +374,14 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.automations-cards-partial-state-error {
-	border-color: var(--vscode-inputValidation-warningBorder);
-	background-color: var(--vscode-inputValidation-warningBackground);
-	color: var(--vscode-inputValidation-warningForeground);
+.automations-cards-empty .automations-cards-partial-state {
+	width: fit-content;
+	max-width: 100%;
+	text-align: left;
+}
+
+.automations-cards-partial-state .codicon-warning {
+	color: var(--vscode-editorWarning-foreground);
 }
 
 .automations-cards-partial-state-icon {
@@ -621,4 +621,79 @@
 .hc-black .automations-template-card,
 .hc-light .automations-template-card {
 	border-color: var(--vscode-contrastBorder);
+}
+.automations-history-scope {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.automations-history-header.cloud-history {
+	flex-wrap: wrap;
+	row-gap: var(--vscode-spacing-size80);
+}
+
+.cloud-history .automations-history-scope {
+	order: 1;
+	flex-basis: 100%;
+}
+
+.cloud-automation .automations-card-meta {
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size40);
+}
+
+.cloud-automation .automations-card-meta-item {
+	max-width: 100%;
+}
+
+.cloud-automation .automations-card-folder {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.cloud-automation .automations-card-folder > span:last-child {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.cloud-automation .automations-card-meta-item + .automations-card-meta-item::before {
+	content: none;
+}
+
+.automations-temporary-run.cloud-automation-run {
+	min-height: 54px;
+}
+
+.cloud-automation-run .session-main {
+	min-width: 0;
+}
+
+.cloud-automation-run.openable {
+	cursor: pointer;
+}
+
+.cloud-automation-run.openable:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.cloud-automation-run .session-title:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.cloud-automation-run .session-title-toolbar {
+	display: none;
+	position: relative;
+	height: var(--vscode-codiconFontSize);
+}
+
+.cloud-automation-run:hover .session-title-toolbar,
+.cloud-automation-run:focus-within .session-title-toolbar,
+.phone-layout .cloud-automation-run .session-title-toolbar {
+	display: block;
 }

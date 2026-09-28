@@ -990,7 +990,7 @@ abstract class BaseArchiveSessionAction extends Action2 {
 				id: Menus.AutomationsHistoryItem,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
+				when: ContextKeyExpr.and(SessionIsArchivedContext.negate(), ContextKeyExpr.not('sessionsAutomationRunHasExternalResource')),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '1_edit',

@@ -14,6 +14,22 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { CloudSandboxEnabledSettingId, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { CLOUD_AUTOMATIONS_ENABLED_SETTING } from './cloudAutomationStore.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { localize } from '../../../../../nls.js';
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'sessions',
+	properties: {
+		[CLOUD_AUTOMATIONS_ENABLED_SETTING]: {
+			type: 'boolean',
+			default: false,
+			tags: ['preview'],
+			description: localize('cloudAutomations.enabled', "Enables managing cloud automations for private GitHub repositories in the Agents Window. Disabling this setting hides cloud management; existing cloud schedules continue running on GitHub."),
+		},
+	},
+});
 
 /**
  * Registers the {@link CopilotChatSessionsProvider} as a sessions provider.

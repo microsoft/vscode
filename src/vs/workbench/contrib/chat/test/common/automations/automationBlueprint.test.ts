@@ -165,5 +165,16 @@ suite('Automation blueprints', () => {
 				'',
 			].join('\n'),
 		});
+
+		test('does not export UTC or unsupported cloud schedules as local-time blueprints', () => {
+			const automation: IAutomationDescriptor = {
+				id: 'cloud', name: 'Cloud review', prompt: 'Review issues.',
+				schedule: { interval: 'daily', scheduleHour: 12, scheduleMinute: 30, scheduleDay: 0, timeZone: 'UTC' },
+				target: { kind: 'workspace', folderUri: URI.parse('github-remote-file://github/example/private/HEAD'), providerId: 'cloud', sessionTypeId: 'copilot-cloud-agent', isolation: { kind: 'default' } },
+				enabled: false, createdAt: '2026-09-22T00:00:00Z', updatedAt: '2026-09-22T00:00:00Z',
+			};
+			assert.throws(() => automationToBlueprint(automation), AutomationBlueprintParseError);
+			assert.throws(() => automationToBlueprint({ ...automation, schedule: { ...automation.schedule, interval: 'custom' } }), AutomationBlueprintParseError);
+		});
 	});
 });

@@ -24,6 +24,10 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileOperationError, FileOperationResult, IFileContent, IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IRequestService } from '../../../../../../platform/request/common/request.js';
+import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
@@ -137,6 +141,7 @@ function createMockAgentSession(resource: URI, opts?: {
 // ---- Mock Agent Sessions Service --------------------------------------------
 
 class MockAgentSessionsModel {
+	onResolve: ((provider: string | string[] | undefined) => Promise<void>) | undefined;
 	private readonly _sessions: IAgentSession[] = [];
 	private readonly _onDidChangeSessions = new Emitter<void>();
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;
@@ -175,7 +180,9 @@ class MockAgentSessionsModel {
 		this._onDidChangeSessions.fire();
 	}
 
-	async resolve(): Promise<void> { }
+	async resolve(provider?: string | string[]): Promise<void> {
+		await this.onResolve?.(provider);
+	}
 
 	dispose(): void {
 		this._onDidChangeSessions.dispose();
@@ -191,6 +198,7 @@ interface ICreateProviderOptions {
 	readonly providerMode?: 'default' | 'sandbox';
 	readonly consolidatedRemoteWorkspaces?: boolean;
 	readonly commandService?: ICommandService;
+	readonly commandExecutions?: IExecutedCommand[];
 	readonly repositoryPicker?: Pick<RepositoryPicker, 'pickRepository' | 'dispose'>;
 	readonly notificationErrors?: string[];
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
@@ -304,6 +312,10 @@ function createProviderWithConfig(
 	opts?: ICreateProviderOptions,
 ): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService; labelService: MockLabelService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
+	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None });
+	instantiationService.stub(IRequestService, {});
+	instantiationService.stub(IAuthenticationService, {});
+	instantiationService.stub(ISessionsRecentWorkspacesService, { onDidChangeRecentWorkspaces: Event.None, getRecentWorkspaces: () => [] });
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, opts?.consolidatedRemoteWorkspaces ?? false);
@@ -313,13 +325,19 @@ function createProviderWithConfig(
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
-	instantiationService.stub(ICommandService, opts?.commandService ?? { executeCommand: async () => undefined });
+	instantiationService.stub(ICommandService, opts?.commandService ?? {
+		executeCommand: async (id: string, ...args: unknown[]) => {
+			opts?.commandExecutions?.push({ id, args });
+			return undefined;
+		},
+	});
 	instantiationService.stub(IAgentSessionsService, {
 		model: model as unknown as IAgentSessionsModel,
 		onDidChangeSessionArchivedState: Event.None,
 		getSession: (resource: URI) => model.getSession(resource),
 	});
 	instantiationService.stub(IChatSessionsService, {
+		activateChatSessionItemProvider: async () => { },
 		registerChatSessionContentProvider: () => toDisposable(() => { }),
 		getChatSessionContribution: () => ({ type: 'test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
@@ -395,6 +413,10 @@ function createProviderForSendTests(
 	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; notifications?: string[]; languageModelsService?: Partial<ILanguageModelsService>; providerMode?: 'default' | 'sandbox'; onGetChatSession?: () => void; chatContentProviders?: IChatSessionContentProvider[]; storageService?: IStorageService },
 ): TestSandboxCopilotProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
+	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None });
+	instantiationService.stub(IRequestService, {});
+	instantiationService.stub(IAuthenticationService, {});
+	instantiationService.stub(ISessionsRecentWorkspacesService, { onDidChangeRecentWorkspaces: Event.None, getRecentWorkspaces: () => [] });
 
 	const configService = opts?.configurationService ?? new TestConfigurationService();
 
@@ -648,6 +670,61 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
+	test('only the default provider owns the cloud automation catalogue', () => {
+		const providers = (['default', 'sandbox'] as const).map(providerMode => createProvider(disposables, model, { providerMode }));
+		assert.deepStrictEqual(providers.map(provider => ({
+			automationCatalogue: provider.automations !== undefined,
+			automationConfiguration: provider.supportsAutomationSessionConfiguration,
+		})), [
+			{ automationCatalogue: true, automationConfiguration: true },
+			{ automationCatalogue: false, automationConfiguration: false },
+		]);
+	});
+
+	test('opening a cloud task waits for exact task resolution and the projected session catalogue', async () => {
+		const resource = URI.parse('copilot-cloud-agent:/task/task-to-open');
+		const commands: IExecutedCommand[] = [];
+		const resolvedProviders: (string | string[] | undefined)[] = [];
+		const resolving = new DeferredPromise<void>();
+		const publish = new DeferredPromise<void>();
+		model.onResolve = async provider => {
+			resolvedProviders.push(provider);
+			await resolving.complete();
+			await publish.p;
+			model.addSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud }));
+		};
+		const provider = createProvider(disposables, model, { commandExecutions: commands });
+		const opening = provider.resolveSessionResource(resource);
+		await resolving.p;
+		assert.strictEqual(provider.getSessions().length, 0);
+		await publish.complete();
+		const resolved = await opening;
+		await provider.resolveSessionResource(resource);
+		assert.deepStrictEqual({
+			resolved: resolved?.toString(),
+			commands,
+			resolvedProviders,
+			sessions: provider.getSessions().map(session => session.resource.toString()),
+		}, {
+			resolved: resource.toString(),
+			commands: [{ id: 'github.copilot.chat.cloudSessions.resolveTask', args: [resource] }],
+			resolvedProviders: [AgentSessionProviders.Cloud],
+			sessions: [resource.toString()],
+		});
+	});
+
+	test('cloud task opening declines unrelated resources and sandbox creation without a command', async () => {
+		const commands: IExecutedCommand[] = [];
+		const provider = createProvider(disposables, model, { commandExecutions: commands });
+		const sandbox = createProvider(disposables, model, { providerMode: 'sandbox', commandExecutions: commands });
+		const results = await Promise.all([
+			provider.resolveSessionResource(URI.parse('copilotcli:/session')),
+			provider.resolveSessionResource(URI.parse('copilot-cloud-agent:/untitled-draft')),
+			sandbox.resolveSessionResource(URI.parse('copilot-cloud-agent:/task/task-to-open')),
+		]);
+		assert.deepStrictEqual({ results, commands }, { results: [undefined, undefined, undefined], commands: [] });
+	});
+
 	(isWeb ? test : test.skip)('authenticates before opening the original picker and supplies browser repository data', async () => {
 		const steps: string[] = [];
 		const gitHubService = new class extends TestGitHubService {
@@ -676,6 +753,29 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.deepStrictEqual({ steps, uri: workspace?.uri.toString() }, {
 			steps: ['authenticate', 'picker', 'search:microsoft/vscode', 'dispose'],
 			uri: 'https://github.com/microsoft/vscode',
+		});
+	});
+
+	test('remote-only browse uses the repository picker on desktop without offering a clone', async () => {
+		const options: boolean[] = [];
+		let authenticated = false;
+		const gitHubService = new class extends TestGitHubService {
+			override async authenticateForRepositoryAccess(): Promise<void> { authenticated = true; }
+		}();
+		const provider = createProvider(disposables, model, {
+			providerMode: 'sandbox',
+			gitHubService,
+			repositoryPicker: {
+				pickRepository: async (_getRepositories, pickerOptions) => {
+					options.push(pickerOptions?.preferRemote === true);
+					return { repository: 'example/private' };
+				},
+				dispose: () => { },
+			},
+		});
+		const workspace = await provider.browseActions[0].run(undefined, { preferRemote: true });
+		assert.deepStrictEqual({ authenticated, options, root: workspace?.folders[0]?.root.toString() }, {
+			authenticated: true, options: [true], root: 'github-remote-file://github/example/private/HEAD',
 		});
 	});
 
@@ -1201,6 +1301,19 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 2);
+	});
+
+	test('projects the cloud automation marker without hiding runs from the session resolver', () => {
+		const resource = URI.parse('copilot-cloud-agent:/task/automation-task');
+		model.addSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, metadata: { isAutomation: true } }));
+		const provider = createProvider(disposables, model);
+		const session = provider.getSessions()[0];
+		const values: boolean[] = [];
+		disposables.add(autorun(reader => values.push(session.isAutomation?.read(reader) ?? false)));
+		model.replaceSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, metadata: {} }));
+		assert.deepStrictEqual({ values, resource: session.resource.toString(), count: provider.getSessions().length }, {
+			values: [true, false], resource: resource.toString(), count: 1,
+		});
 	});
 
 	test('publishes changesets on each chat', () => {

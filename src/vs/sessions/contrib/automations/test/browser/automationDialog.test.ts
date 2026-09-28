@@ -48,7 +48,7 @@ import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/p
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { IAutomationDescriptor, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, IAutomationProviderConfiguration, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
@@ -57,12 +57,12 @@ import { workbenchInstantiationService } from '../../../../../workbench/test/bro
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionTypePicker } from '../../../chat/browser/mobile/mobileSessionTypePicker.js';
 import { SessionModelSelection } from '../../../chat/browser/sessionModelSelection.js';
-import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IAutomationSessionConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationDialogProviders, getAutomationSessionTypeEntries, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { AutomationDialogService } from '../../browser/automationDialogService.js';
-import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
@@ -110,6 +110,7 @@ suite('Automation dialog creation', () => {
 			automations: constObservable(options.existing ? [options.existing] : []),
 			catalogueState: constObservable('ready'),
 			canUpdateAutomation: () => true,
+			getProviderConfiguration: () => undefined,
 		}));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		let targetModel: AutomationIsolationModel | undefined;
@@ -427,11 +428,11 @@ suite('Automation dialog layout', () => {
 		handle.showTargetValidationError(validation.sessionTypeError);
 		assert.deepStrictEqual({ unavailable, crossHost, resolved: validationPresentation() }, {
 			unavailable: {
-				text: 'Choose an available Agent Host that supports automations.',
+				text: 'Choose an available provider that supports automations.',
 				visible: true, description: targetError.id, invalid: 'true', role: 'status', live: 'polite',
 			},
 			crossHost: {
-				text: 'To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.',
+				text: 'To use another provider, duplicate this automation. The original keeps its schedule until you disable it.',
 				visible: true, description: targetError.id, invalid: 'true', role: 'status', live: 'polite',
 			},
 			resolved: { text: '', visible: false, description: null, invalid: null, role: 'status', live: 'polite' },
@@ -477,7 +478,7 @@ suite('Automation dialog layout', () => {
 			states: [['host'], []],
 			creationProviders: [],
 			editableError: undefined,
-			restrictedError: 'Choose an available Agent Host that supports automations.',
+			restrictedError: 'Choose an available provider that supports automations.',
 		});
 	});
 
@@ -1153,6 +1154,106 @@ suite('Automation workspace trust', () => {
 suite('Automation dialog target validation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('offers Cloud for remote repositories without inheriting a local CLI target', () => {
+		const remote = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/repository/HEAD' });
+		const cloud: IProviderSessionType = { providerId: 'cloud', sessionType: { id: 'cloud', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.GitHub } };
+		const cli: IProviderSessionType = { providerId: 'cloud', sessionType: { ...cloud.sessionType, id: 'copilotcli' } };
+		const local: IProviderSessionType = { providerId: 'local', sessionType: { ...cli.sessionType, label: 'Copilot' } };
+		const eligibility = observableValue<string | undefined>('eligibility', 'Requires a private repository');
+		const folder = observableValue<URI | undefined>('folder', FOLDER);
+		const configuration = upcastPartial<IAutomationProviderConfiguration>({
+			sessionTypes: ['cloud'],
+			getTargetDisabledReason: () => eligibility,
+		});
+		const sessions = upcastPartial<ISessionsManagementService>({
+			onDidChangeSessionTypes: Event.None,
+			getSessionTypesForFolder: uri => isEqual(uri, remote) ? [cloud] : [local, cli],
+			getAllProviderSessionTypes: () => [local, cloud, cli],
+		});
+		const entries = getAutomationSessionTypeEntries(sessions, constObservable(['local', 'cloud']), folder, constObservable(false), id => id === 'cloud' ? configuration : undefined);
+		disposables.add(autorun(reader => entries.read(reader)));
+		const snapshot = () => entries.get().map(entry => ({
+			providerId: entry.providerId, sessionType: entry.sessionType.id, reason: entry.disabledReason,
+		}));
+		const publicLocal = snapshot();
+		folder.set(remote, undefined);
+		const publicRemote = snapshot();
+		eligibility.set(undefined, undefined);
+		const privateRemote = snapshot();
+		folder.set(FOLDER, undefined);
+		assert.deepStrictEqual({ publicLocal, publicRemote, privateRemote, unsupportedLocal: snapshot(), ordinary: sessions.getSessionTypesForFolder(FOLDER).map(type => type.sessionType.id) }, {
+			publicLocal: [
+				{ providerId: 'local', sessionType: 'copilotcli', reason: undefined },
+				{ providerId: 'cloud', sessionType: 'cloud', reason: 'Requires a private repository' },
+			],
+			publicRemote: [{ providerId: 'cloud', sessionType: 'cloud', reason: 'Requires a private repository' }],
+			privateRemote: [{ providerId: 'cloud', sessionType: 'cloud', reason: undefined }],
+			unsupportedLocal: [
+				{ providerId: 'local', sessionType: 'copilotcli', reason: undefined },
+				{ providerId: 'cloud', sessionType: 'cloud', reason: 'The selected session type cannot use this target.' },
+			],
+			ordinary: ['copilotcli', 'copilotcli'],
+		});
+	});
+
+	test('ignores eligibility for the previous repository and reacts to account invalidation', () => {
+		const first = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/first/HEAD' });
+		const second = first.with({ path: '/owner/second/HEAD' });
+		const pending = 'Checking repository eligibility…';
+		const firstReason = observableValue<string | undefined>('firstEligibility', pending);
+		const secondReason = observableValue<string | undefined>('secondEligibility', pending);
+		const folder = observableValue<URI | undefined>('folder', first);
+		const configuration = upcastPartial<IAutomationProviderConfiguration>({
+			sessionTypes: ['cloud'],
+			getTargetDisabledReason: uri => isEqual(uri, first) ? firstReason : secondReason,
+		});
+		const cloud: IProviderSessionType = { providerId: 'cloud', sessionType: { id: 'cloud', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.GitHub } };
+		const sessions = upcastPartial<ISessionsManagementService>({
+			onDidChangeSessionTypes: Event.None,
+			getSessionTypesForFolder: () => [cloud],
+			getAllProviderSessionTypes: () => [cloud],
+		});
+		const entries = getAutomationSessionTypeEntries(sessions, constObservable(['cloud']), folder, constObservable(false), () => configuration);
+		disposables.add(autorun(reader => entries.read(reader)));
+		folder.set(second, undefined);
+		firstReason.set(undefined, undefined);
+		const staleResult = entries.get()[0].disabledReason;
+		secondReason.set(undefined, undefined);
+		const currentResult = entries.get()[0].disabledReason;
+		secondReason.set(pending, undefined);
+		const changedAccount = entries.get()[0].disabledReason;
+		secondReason.set('Unable to check repository eligibility', undefined);
+		assert.deepStrictEqual({ staleResult, currentResult, changedAccount, failed: entries.get()[0].disabledReason }, {
+			staleResult: pending,
+			currentResult: undefined,
+			changedAccount: pending,
+			failed: 'Unable to check repository eligibility',
+		});
+	});
+
+	test('blocks submission while eligibility is pending, denied, or failed without retargeting a saved definition', () => {
+		const state = createFormState({ providerId: 'cloud', sessionTypeId: 'cloud', isolationMode: undefined });
+		const savedTarget = { providerId: state.providerId, sessionTypeId: state.sessionTypeId, folderUri: state.folderUri };
+		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
+		const form = document.createElement('form');
+		const button = disposables.add(new Button(form, defaultButtonStyles));
+		const sessions = upcastPartial<ISessionsManagementService>({ isNewSessionTargetAvailable: () => true });
+		const results = ['Checking repository eligibility…', 'Requires a private repository', 'Unable to check repository eligibility', undefined].map(reason => {
+			state.targetDisabledReason = reason;
+			updateSaveButtonState(button, state, validation, form, () => 'prompt', () => undefined, sessions, true, 'cloud');
+			return { enabled: button.enabled, reason: validation.sessionTypeError };
+		});
+		assert.deepStrictEqual({ results, target: { providerId: state.providerId, sessionTypeId: state.sessionTypeId, folderUri: state.folderUri } }, {
+			results: [
+				{ enabled: false, reason: 'Checking repository eligibility…' },
+				{ enabled: false, reason: 'Requires a private repository' },
+				{ enabled: false, reason: 'Unable to check repository eligibility' },
+				{ enabled: true, reason: undefined },
+			],
+			target: savedTarget,
+		});
+	});
+
 	for (const editing of [false, true]) {
 		test(`validates the retained host, workspace, and session type before ${editing ? 'saving' : 'creating'}`, () => {
 			const remoteFolder = URI.parse('vscode-remote://ssh-remote+host/workspace');
@@ -1592,8 +1693,8 @@ suite('Automation branch picker', () => {
 		const differentHost = validation.sessionTypeError;
 		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined, sessionsManagementService, true, 'remote');
 		assert.deepStrictEqual({ unavailable, differentHost, sameHost: validation.sessionTypeError }, {
-			unavailable: 'Choose an available Agent Host that supports automations.',
-			differentHost: 'To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.',
+			unavailable: 'Choose an available provider that supports automations.',
+			differentHost: 'To use another provider, duplicate this automation. The original keeps its schedule until you disable it.',
 			sameHost: undefined,
 		});
 	});

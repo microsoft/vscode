@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -23,12 +24,14 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { IPickedSessionType, IPreferredSessionType, ISessionTypePickerOptions, SessionTypePicker } from '../../browser/sessionTypePicker.js';
+import { IPickedSessionType, IPreferredSessionType, ISessionTypePickerEntry, ISessionTypePickerOptions, SessionTypePicker } from '../../browser/sessionTypePicker.js';
+import { MobileSessionTypePicker } from '../../browser/mobile/mobileSessionTypePicker.js';
 
 // ---- Mocks ------------------------------------------------------------------
 
@@ -148,6 +151,18 @@ function createPicker(
 	localProviderIds: readonly string[] = [],
 	services: ITestPickerServices = {},
 ): TestSessionTypePicker {
+	const instantiationService = createPickerInstantiationService(disposables, managementService, storage, actionWidgetService, localProviderIds, services);
+	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
+}
+
+function createPickerInstantiationService(
+	disposables: DisposableStore,
+	managementService: MockSessionsManagementService,
+	storage: IStorageService,
+	actionWidgetService: Partial<IActionWidgetService>,
+	localProviderIds: readonly string[] = [],
+	services: ITestPickerServices = {},
+): TestInstantiationService {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IActionWidgetService, actionWidgetService);
 	instantiationService.stub(ISessionsManagementService, managementService);
@@ -171,7 +186,7 @@ function createPicker(
 		lookupLanguageModel: () => undefined,
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
+	return instantiationService;
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -219,6 +234,128 @@ suite('SessionTypePicker', () => {
 			ordinary: ['extension-session', 'copilot', 'claude'],
 		});
 	});
+
+	test('caller-owned choices show disabled reasons without changing ordinary session choices', () => {
+		const local = sessionType('local', 'copilotcli', 'Copilot');
+		const cloud = sessionType('cloud', 'cloud', 'Cloud');
+		management.setSessionTypes([local]);
+		const disabledReason = 'Requires a private repository';
+		const entries = constObservable<readonly ISessionTypePickerEntry[]>([local, { ...cloud, disabledReason }]);
+		let rows: { label: string | undefined; disabled: boolean | undefined; hover: IActionListItem<IPickedSessionType>['hover'] }[] = [];
+		const actionWidget = new class extends mock<IActionWidgetService>() {
+			override readonly isVisible = false;
+			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[]): void {
+				rows = items.map(item => ({ label: item.label, disabled: item.disabled, hover: item.hover }));
+			}
+		}();
+		const picker = createPicker(disposables, session, management, storage, { sessionTypes: entries, persistSelection: false }, actionWidget);
+		picker.setFolderSource(constObservable(folder));
+		picker.render(document.createElement('div'));
+		picker.showPicker();
+		picker.pick({ providerId: 'cloud', sessionTypeId: 'cloud' });
+		const ordinary = createPicker(disposables, session, management, storage);
+		ordinary.setFolderSource(constObservable(folder));
+		assert.deepStrictEqual({ rows, selected: picker.selectedPick, ordinary: ordinary.offeredSessionTypeIds, preference: picker.getUserPickedSessionType() }, {
+			rows: [
+				{ label: 'Copilot', disabled: false, hover: undefined },
+				{ label: 'Cloud', disabled: true, hover: { content: disabledReason } },
+			],
+			selected: { providerId: 'local', sessionTypeId: 'copilotcli' },
+			ordinary: ['copilotcli'],
+			preference: undefined,
+		});
+	});
+
+	test('caller-owned availability defaults to a valid type and leaves no invalid fallback', () => {
+		const local = sessionType('local', 'copilotcli', 'Copilot');
+		const cloud = sessionType('cloud', 'cloud', 'Cloud');
+		const entries = observableValue<readonly ISessionTypePickerEntry[]>('automationChoices', [local, cloud]);
+		const picker = createPicker(disposables, session, management, storage, { sessionTypes: entries, persistSelection: false });
+		picker.setFolderSource(constObservable(folder), { initialPick: { sessionTypeId: 'cloud' } });
+		const picks = [picker.selectedPick];
+		entries.set([local, { ...cloud, disabledReason: 'Requires a private repository' }], undefined);
+		picks.push(picker.selectedPick);
+		entries.set([{ ...cloud, disabledReason: 'Requires a private repository' }], undefined);
+		picks.push(picker.selectedPick);
+		entries.set([cloud], undefined);
+		picks.push(picker.selectedPick);
+		assert.deepStrictEqual(picks, [
+			{ providerId: 'cloud', sessionTypeId: 'cloud' },
+			{ providerId: 'local', sessionTypeId: 'copilotcli' },
+			undefined,
+			{ providerId: 'cloud', sessionTypeId: 'cloud' },
+		]);
+	});
+
+	test('saved choices remain selected when caller-owned availability changes', () => {
+		const local = sessionType('local', 'copilotcli', 'Copilot');
+		const cloud = sessionType('cloud', 'cloud', 'Cloud');
+		const entries = observableValue<readonly ISessionTypePickerEntry[]>('automationChoices', [local, cloud]);
+		const picker = createPicker(disposables, session, management, storage, {
+			sessionTypes: entries, persistSelection: false, preserveUnavailableSelection: true,
+		});
+		const savedPick = { providerId: 'cloud', sessionTypeId: 'cloud' };
+		picker.setFolderSource(constObservable(folder), { initialPick: savedPick, preserveUnavailableInitialPick: true });
+		entries.set([local, { ...cloud, disabledReason: 'Requires a private repository' }], undefined);
+		assert.deepStrictEqual(picker.selectedPick, savedPick);
+	});
+
+	test('rechecks caller-owned availability after asynchronous selection preparation', async () => {
+		const local = sessionType('local', 'copilotcli', 'Copilot');
+		const cloud = sessionType('cloud', 'cloud', 'Cloud');
+		const entries = observableValue<readonly ISessionTypePickerEntry[]>('automationChoices', [local, cloud]);
+		const preparation = new DeferredPromise<boolean>();
+		const picker = createPicker(disposables, session, management, storage, {
+			sessionTypes: entries, persistSelection: false, prepareSessionTypeSelection: () => preparation.p,
+		});
+		picker.setFolderSource(constObservable(folder));
+		const selection = picker.prepareAndPick({ providerId: 'cloud', sessionTypeId: 'cloud' });
+		entries.set([local, { ...cloud, disabledReason: 'Checking repository eligibility…' }], undefined);
+		await preparation.complete(true);
+		await selection;
+		assert.deepStrictEqual(picker.selectedPick, { providerId: 'local', sessionTypeId: 'copilotcli' });
+	});
+
+	test('mobile choices show disabled reasons and reject a stale eligibility grant', () => runWithFakedTimers({}, async () => {
+		const local = sessionType('local', 'copilotcli', 'Copilot');
+		const cloud = sessionType('cloud', 'cloud', 'Cloud');
+		const disabledReason = 'Requires a private repository';
+		const entries = observableValue<readonly ISessionTypePickerEntry[]>('automationChoices', [local, { ...cloud, disabledReason }]);
+		const container = document.createElement('div');
+		container.classList.add('phone-layout');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const instantiationService = createPickerInstantiationService(disposables, management, storage, { isVisible: false });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: container });
+		const picker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, session, { sessionTypes: entries, persistSelection: false }));
+		picker.setFolderSource(constObservable(folder));
+		picker.render(container);
+		picker.showPicker();
+		disposables.add(toDisposable(() => container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click()));
+		const findCloud = () => Array.from(container.querySelectorAll<HTMLButtonElement>('.mobile-picker-sheet-item'))
+			.find(row => row.querySelector('.mobile-picker-sheet-label')?.textContent === 'Cloud')!;
+		const disabledRow = findCloud();
+		const disabled = {
+			disabled: disabledRow.disabled,
+			ariaDisabled: disabledRow.getAttribute('aria-disabled'),
+			description: disabledRow.querySelector('.mobile-picker-sheet-description')?.textContent,
+		};
+		container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')!.click();
+		await timeout(200);
+		entries.set([local, cloud], undefined);
+		picker.showPicker();
+		const staleRow = findCloud();
+		const staleRowWasEnabled = !staleRow.disabled;
+		entries.set([local, { ...cloud, disabledReason }], undefined);
+		staleRow.click();
+		await timeout(200);
+		assert.deepStrictEqual({ disabled, staleRowWasEnabled, selected: picker.selectedPick, open: !!container.querySelector('.mobile-picker-sheet') }, {
+			disabled: { disabled: true, ariaDisabled: 'true', description: disabledReason },
+			staleRowWasEnabled: true,
+			selected: { providerId: 'local', sessionTypeId: 'copilotcli' },
+			open: false,
+		});
+	}));
 
 	for (const quickChat of [false, true]) {
 		for (const initialSelection of [false, true]) {

@@ -32,6 +32,7 @@ function automation(providerId: string): IAutomationDescriptor {
 }
 
 class TestAuthority extends mock<ISessionsProviderAutomations>() {
+	override readonly enabled = observableValue(this, true);
 	override readonly catalogueState = observableValue<AutomationCatalogueState>(this, 'ready');
 	override readonly canCreateAutomation = this.catalogueState.map(state => state === 'ready');
 	override readonly unavailableReason = observableValue<string | undefined>(this, undefined);
@@ -155,6 +156,20 @@ suite('ProviderAutomationService', () => {
 		assert.deepStrictEqual(available, [[], ['local'], []]);
 	});
 
+	test('disabled optional integrations do not turn a provider-less catalogue into empty-ready', () => {
+		const authority = new TestAuthority('optional-cloud');
+		authority.enabled.set(false, undefined);
+		const { service } = setup([provider(authority)]);
+		const states: AutomationCatalogueState[] = [];
+		disposables.add(autorun(reader => states.push(service.catalogueState.read(reader))));
+		assert.throws(() => service.createAutomation(automation('optional-cloud')), AutomationUnavailableError);
+		authority.enabled.set(true, undefined);
+		authority.enabled.set(false, undefined);
+		assert.deepStrictEqual({ states, definitions: service.automations.get(), canCreate: service.canCreateAutomation('optional-cloud') }, {
+			states: ['unavailable', 'ready', 'unavailable'], definitions: [], canCreate: false,
+		});
+	});
+
 	test('preserves incompatible host upgrade guidance in the unavailable catalogue', () => {
 		const host = new TestAuthority('remote');
 		host.catalogueState.set('unavailable', undefined);
@@ -176,6 +191,28 @@ suite('ProviderAutomationService', () => {
 		first.catalogueState.set('unavailable', undefined);
 		second.catalogueState.set('ready', undefined);
 		assert.deepStrictEqual(states, ['ready', 'loading', 'error', 'unavailable']);
+	});
+
+	test('includes failed providers and their reason in the partial-catalogue warning', () => {
+		const cloud = new TestAuthority('cloud');
+		cloud.catalogueState.set('error', undefined);
+		cloud.unavailableReason.set('GitHub is temporarily unavailable.', undefined);
+		const { service } = setup([provider(cloud)]);
+		assert.deepStrictEqual(service.unavailableProviders.get(), [{ id: 'cloud', label: 'cloud', unavailableReason: 'GitHub is temporarily unavailable.' }]);
+	});
+
+	test('routes run cancellation only to the authority that supports it', async () => {
+		const local = new TestAuthority('local');
+		const remote = new TestAuthority('remote');
+		const stopped: string[] = [];
+		const run: IAutomationRun = { id: 'remote-run', automationId: 'remote-automation', status: 'running', trigger: 'external', startedAt: '2026-01-02T00:00:00Z' };
+		remote.runs.set([run], undefined);
+		remote.canStopRun = candidate => candidate.id === run.id;
+		remote.stopRun = async candidate => { stopped.push(candidate.id); };
+		const { service } = setup([provider(local), provider(remote)]);
+		await service.stopRun(run);
+		await assert.rejects(service.stopRun({ ...run, automationId: 'local-automation' }), AutomationUnavailableError);
+		assert.deepStrictEqual({ canStop: service.canStopRun(run), stopped, localCalls: local.calls }, { canStop: true, stopped: ['remote-run'], localCalls: [] });
 	});
 
 	test('missing, unsupported and disconnected providers cannot recreate browser automations', () => {

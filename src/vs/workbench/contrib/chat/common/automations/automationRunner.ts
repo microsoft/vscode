@@ -23,6 +23,10 @@ export type AutomationDispatchFailure =
 
 /** Outcome of the dispatch phase of {@link IAutomationRunner.runOnce}. */
 export type IAutomationRunDispatch =
+	/** The service may have accepted the request; retrying could create another execution. */
+	| { readonly kind: 'uncertain'; readonly message: string }
+	/** The authority accepted the request; its run will arrive through normal catalogue refresh. */
+	| { readonly kind: 'accepted' }
 	/** The host accepted the request and created a session for it. */
 	| { readonly kind: 'started'; readonly run: IAutomationRun; readonly sessionResource: URI }
 	/** Another run already held the automation's run slot, so nothing was dispatched. */

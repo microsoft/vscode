@@ -105,13 +105,14 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 			let isFirstInGroup = true;
 			for (const { providerId, sessionType } of types) {
 				const availability = this._getPickerAvailability(sessionType);
+				const disabledReason = this._getDisabledReason(providerId, sessionType.id);
 				sheetItems.push({
 					id: `${providerId}\u0000${sessionType.id}`,
 					label: sessionType.label,
 					icon: sessionType.icon,
 					checked: providerId === this._picked?.providerId && sessionType.id === this._picked?.sessionTypeId,
-					disabled: availability !== SessionTypeAvailability.Available,
-					description: getSessionTypeUnavailableLabel(availability),
+					disabled: disabledReason !== undefined || availability !== SessionTypeAvailability.Available,
+					description: disabledReason ?? getSessionTypeUnavailableLabel(availability),
 					sectionTitle: showSectionHeaders && isFirstInGroup ? groupTitle : undefined,
 				});
 				isFirstInGroup = false;

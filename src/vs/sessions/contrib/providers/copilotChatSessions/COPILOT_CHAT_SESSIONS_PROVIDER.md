@@ -24,6 +24,12 @@ On web, the contribution also registers a sandbox-only instance (`cloud-sandbox-
 
 Cloud drafts implement the `ISession` contract and expose provider-declared option groups and remote workspace metadata. A local folder can host a Cloud draft only for the GitHub repository it tracks; the draft targets that remote repository. Shared new-session UI consumes the observable loading, workspace, model, and capability contracts and does not branch on draft classes.
 
+## Cloud automations
+
+The provider exposes an opt-in, account-scoped cloud automation store through the shared automation contract. Only the cloud session type is eligible; ordinary local CLI sessions do not gain browser-owned automation execution.
+
+Automation configuration reuses an uncommitted cloud draft for repository/model selection. GitHub's APIs own saved definitions, schedules, and manual dispatch. Existing cloud tasks open through the normal task-backed cloud session viewer, without provisioning another session, resending the prompt, or converting the task to AHP. Cloud automation ownership and catalogue behavior are defined in [AUTOMATIONS.md](../../../AUTOMATIONS.md).
+
 ## Existing sessions
 
 `AgentSessionAdapter` projects an existing Copilot Cloud `IAgentSession` into a stable `ISession` facade. Agent sessions of any other provider type are ignored. It updates observable state in a transaction and preserves resource identity while metadata changes.
