@@ -442,6 +442,37 @@ suite('ChatWidget', () => {
 		}]);
 	});
 
+	function createStartEditingWidget(input: object, request: IChatRequestViewModel, configurationService: TestConfigurationService) {
+		let editing: IChatRequestViewModel | undefined;
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			_store: { value: store },
+			_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
+			_editingDisposables: { value: store.add(new MutableDisposable()) },
+			configurationService: { value: configurationService },
+			telemetryService: { value: NullTelemetryService },
+			viewModel: {
+				value: {
+					model: { getRequests: () => [], setCheckpoint: () => { } },
+					sessionResource: URI.parse('agent-host-copilot:/session'),
+					get editing() { return editing; },
+					setEditing: (request: IChatRequestViewModel | undefined) => { editing = request; },
+				},
+			},
+			input: { value: input },
+			inputPart: { value: input },
+			contribs: { value: [] },
+			onDidChangeItems: { value: () => { } },
+			listWidget: {
+				value: {
+					getTemplateDataForRequestId: () => ({ currentElement: request }),
+					acquireAutoScrollHold: () => Disposable.None,
+				},
+			},
+		});
+		return widget;
+	}
+
 	test('editing a steering request passes its model and configuration to the input', async () => {
 		const modelId = 'agent-host-copilot:claude-opus-4.8';
 		const modelConfiguration = { reasoningEffort: 'xhigh' };
@@ -466,36 +497,151 @@ suite('ChatWidget', () => {
 			modelConfiguration,
 			pendingKind: ChatRequestQueueKind.Steering,
 		});
-		let editing: IChatRequestViewModel | undefined;
-		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
-		Object.defineProperties(widget, {
-			_store: { value: store },
-			_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
-			configurationService: { value: configurationService },
-			telemetryService: { value: NullTelemetryService },
-			viewModel: {
-				value: {
-					model: { getRequests: () => [], setCheckpoint: () => { } },
-					sessionResource: URI.parse('agent-host-copilot:/session'),
-					get editing() { return editing; },
-					setEditing: (request: IChatRequestViewModel) => { editing = request; },
-				},
-			},
-			input: { value: input },
-			inputPart: { value: input },
-			contribs: { value: [] },
-			onDidChangeItems: { value: () => { } },
-			listWidget: {
-				value: {
-					getTemplateDataForRequestId: () => ({ currentElement: request }),
-					acquireAutoScrollHold: () => Disposable.None,
-				},
-			},
-		});
+		const widget = createStartEditingWidget(input, request, configurationService);
 
 		widget.startEditing(request.id);
 
 		assert.deepStrictEqual(input.requestModelByIdentifier.firstCall.args, [modelId, modelConfiguration]);
+	});
+
+	function createFakeInputPart(name: string) {
+		const onDidFocus = store.add(new Emitter<void>());
+		const entriesMap = observableValue(`${name}.entriesMap`, ToolAndToolSetEnablementMap.fromMap(new Map()));
+		const counts = { updateContext: 0, dispose: 0 };
+		const part = upcastPartial<ChatInputPart>({
+			element: mainWindow.document.createElement('div'),
+			inputUri: URI.parse(`chat-input:/${name}`),
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
+				getValue: () => 'original request', getModel: () => null, focus: () => { },
+				onDidChangeModelContent: Event.None, onDidChangeCursorSelection: Event.None,
+			}),
+			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({
+				attachments: [], getAttachmentIDs: () => new Set(), addContext: () => { },
+				updateContext: () => { counts.updateContext++; },
+			}),
+			selectedToolsModel: upcastPartial<ChatInputPart['selectedToolsModel']>({ entriesMap }),
+			selectedLanguageModel: observableValue(`${name}.model`, undefined),
+			height: observableValue(`${name}.height`, 0),
+			currentModeObs: observableValue(`${name}.mode`, upcastPartial<ReturnType<ChatInputPart['currentModeObs']['get']>>({ id: 'agent' })),
+			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({}),
+			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
+			onDidLoadInputState: Event.None,
+			onDidFocus: onDidFocus.event,
+			onDidAcceptFollowup: Event.None,
+			onDidChangeCurrentChatMode: Event.None,
+			onDidClickOverlay: Event.None,
+			render: () => { },
+			layout: () => { },
+			setChatMode: () => { },
+			setPermissionLevel: () => { },
+			setEditing: () => { },
+			toggleChatInputOverlay: () => { },
+			renderAttachedContext: () => { },
+			setValue: () => { },
+			focus: () => { },
+			dispose: () => { counts.dispose++; },
+		});
+		return { part, onDidFocus, entriesMap, counts };
+	}
+
+	test('releases the inline request edit input and its subscriptions when editing finishes', async () => {
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('chat.editRequests', 'inline');
+		const main = createFakeInputPart('main');
+		const inline = createFakeInputPart('inline');
+		const onDidChangeAgents = store.add(new Emitter<void>());
+		const onDidChangeContext = store.add(new Emitter<void>());
+		let scopedServiceDisposed = false;
+		let disposedTipPresenters = 0;
+		const instantiationService = {
+			createChild: () => ({ createInstance: () => inline.part, dispose: () => { scopedServiceDisposed = true; } }),
+			createInstance: (ctor: unknown) => ctor === ChatInputPart ? main.part : { dispose: () => { disposedTipPresenters++; } },
+		};
+		const inlineInputHolder = store.add(new MutableDisposable<ChatInputPart>());
+		const request = upcastPartial<IChatRequestViewModel>({
+			id: 'request',
+			message: { text: 'original request', parts: [] },
+			messageText: 'original request',
+			variables: [],
+		});
+		const rowContainer = mainWindow.document.createElement('div');
+		const requestTimestampContainer = dom.append(rowContainer, dom.$('div'));
+		let editing: IChatRequestViewModel | undefined;
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			_store: { value: store.add(new DisposableStore()) },
+			_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
+			_editingDisposables: { value: store.add(new MutableDisposable()) },
+			inputPartDisposable: { value: store.add(new MutableDisposable()) },
+			inlineInputPartDisposable: { value: inlineInputHolder },
+			mainPasteTargetRegistration: { value: store.add(new MutableDisposable()) },
+			inlinePasteTargetRegistration: { value: store.add(new MutableDisposable()) },
+			_gettingStartedTip: { value: store.add(new MutableDisposable()) },
+			customizationMigrationNotice: { value: store.add(new MutableDisposable()) },
+			_onDidChangeActiveInputEditor: { value: { fire: () => { } } },
+			_onDidChangeContentHeight: { value: { fire: () => { } } },
+			inputContainer: { value: undefined, writable: true },
+			location: { value: ChatAgentLocation.Chat },
+			viewContext: { value: {} },
+			viewOptions: { value: {} },
+			instantiationService: { value: instantiationService },
+			chatPasteTargetService: { value: { registerTarget: () => Disposable.None } },
+			chatAgentService: { value: { onDidChangeAgents: onDidChangeAgents.event } },
+			contextKeyService: { value: { onDidChangeContext: onDidChangeContext.event } },
+			configurationService: { value: configurationService },
+			telemetryService: { value: NullTelemetryService },
+			logService: { value: new NullLogService() },
+			viewModel: {
+				value: {
+					model: { getRequests: () => [], setCheckpoint: () => { } },
+					sessionResource: URI.parse('chat-session:/session'),
+					get editing() { return editing; },
+					setEditing: (request: IChatRequestViewModel | undefined) => { editing = request; },
+				},
+			},
+			contribs: { value: [] },
+			refreshParsedInput: { value: () => { } },
+			onDidChangeItems: { value: () => { } },
+			listWidget: {
+				value: {
+					getTemplateDataForRequestId: () => ({ currentElement: request, rowContainer, requestTimestampContainer }),
+					acquireAutoScrollHold: () => Disposable.None,
+				},
+			},
+		});
+		const createInput = (ChatWidget.prototype as unknown as { createInput(container: HTMLElement): void }).createInput;
+		createInput.call(widget, mainWindow.document.createElement('div'));
+
+		widget.startEditing(request.id);
+		const whileEditing = { input: widget.input === inline.part, focusListener: inline.onDidFocus.hasListeners() };
+		main.entriesMap.set(ToolAndToolSetEnablementMap.fromMap(new Map()), undefined);
+		widget.finishedEditing();
+		const updatesAfterEdit = main.counts.updateContext + inline.counts.updateContext;
+		inline.entriesMap.set(ToolAndToolSetEnablementMap.fromMap(new Map()), undefined);
+
+		assert.deepStrictEqual({
+			whileEditing,
+			input: widget.input === main.part,
+			inlineDisposed: inline.counts.dispose > 0,
+			inlineInputHeld: inlineInputHolder.value !== undefined,
+			disposedTipPresenters,
+			scopedServiceDisposed,
+			inlineFocusListener: inline.onDidFocus.hasListeners(),
+			mainFocusListener: main.onDidFocus.hasListeners(),
+			toolUpdatesFromInlineInput: main.counts.updateContext + inline.counts.updateContext - updatesAfterEdit,
+			rowChildren: rowContainer.childElementCount,
+		}, {
+			whileEditing: { input: true, focusListener: true },
+			input: true,
+			inlineDisposed: true,
+			inlineInputHeld: false,
+			disposedTipPresenters: 0,
+			scopedServiceDisposed: true,
+			inlineFocusListener: false,
+			mainFocusListener: true,
+			toolUpdatesFromInlineInput: 0,
+			rowChildren: 1,
+		});
 	});
 
 	test('confirms before cancelling changed request edits', async () => {

@@ -76,6 +76,7 @@ export enum ChatConfiguration {
 	InlineChatAgentHostEnabled = 'chat.inlineChat.agentHost.enabled',
 	CollapseCompletedResponses = 'chat.agent.collapseCompletedResponses',
 	SimpleTerminalCollapsible = 'chat.tools.terminal.simpleCollapsible',
+	TerminalOutputReflow = 'chat.tools.terminal.outputReflow',
 	CompressOutputEnabled = 'chat.tools.compressOutput.enabled',
 	ThinkingPhrases = 'chat.agent.thinking.phrases',
 	AutoExpandToolFailures = 'chat.tools.autoExpandFailures',
@@ -268,11 +269,9 @@ export enum ThinkingDisplayMode {
 
 export enum ChatProgressAnimation {
 	Off = 'off',
-	Weave = 'weave',
 	Draw = 'draw',
-	Orbit = 'orbit',
-	Accordion = 'accordion',
-	Dial = 'dial',
+	DrawMonochrome = 'drawMonochrome',
+	DrawMonochromeNoIcon = 'drawMonochromeNoIcon',
 }
 
 export enum ChatProgressVerbosity {
