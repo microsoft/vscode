@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { PluginFormat, type IMcpServerDefinition, type IParsedHookGroup } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -972,6 +972,89 @@ suite('CopilotSessionLauncher shared session config', () => {
 					'[Copilot:session-1] SDK resumeSession started: attemptId=<id>',
 					'[Copilot:session-1] SDK resumeSession settled: attemptId=<id>, outcome=success, elapsedMs=<ms>',
 				],
+			});
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
+	test('projects hooks onto the SDK callback surface only for plugins without a file dir', async () => {
+		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: { options: { update: async () => ({ success: true }) } },
+		} as unknown as CopilotSession;
+		const client = {
+			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+				reportManagedSettings(config);
+				createConfigs.push(config);
+				return session;
+			},
+			resumeSession: async () => { throw new Error('Unexpected resume'); },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+		};
+		const launcher = createTestLauncher();
+		const dirPluginRoot = URI.file('/tmp/dir-plugin');
+		const hookGroup = (root: URI, type: string): IParsedHookGroup => {
+			const uri = URI.joinPath(root, 'hooks', 'hooks.json');
+			return {
+				type,
+				commands: [{ command: 'noop' }],
+				uri,
+				originalId: type,
+				customization: { type: CustomizationType.Hook, id: uri.toString(), uri: uri.toString(), name: type },
+			};
+		};
+		// A file-backed plugin: the runtime discovers and fires its hooks from
+		// `pluginDirectories`, so VS Code must NOT re-project them (double-fire).
+		const dirPlugin: ICopilotPluginInfo = {
+			format: PluginFormat.Copilot,
+			hooks: [hookGroup(dirPluginRoot, 'SessionStart')],
+			mcpServers: [],
+			agents: [],
+			skills: [],
+			instructions: [],
+			pluginDir: dirPluginRoot,
+		};
+		// A plugin without a file dir: the runtime cannot discover its hooks, so
+		// VS Code must project them onto the SDK callback surface.
+		const dirlessPlugin: ICopilotPluginInfo = {
+			format: PluginFormat.Copilot,
+			hooks: [hookGroup(URI.file('/tmp/dirless-plugin'), 'SessionEnd')],
+			mcpServers: [],
+			agents: [],
+			skills: [],
+			instructions: [],
+			pluginDir: undefined,
+		};
+		const plan: CopilotSessionLaunchPlan = {
+			client,
+			sessionId: 'session-1',
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [dirPlugin, dirlessPlugin], mcpServers: {} },
+			disabledRootMcpServers: [],
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			kind: 'create',
+			model: undefined,
+		};
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch(plan, testRuntime));
+			const hooks = createConfigs[0].hooks ?? {};
+			assert.deepStrictEqual({
+				// The file-backed plugin's `SessionStart` hook is left to runtime discovery.
+				onSessionStart: typeof hooks.onSessionStart === 'function',
+				// The dir-less plugin's `SessionEnd` hook is projected explicitly.
+				onSessionEnd: typeof hooks.onSessionEnd === 'function',
+			}, {
+				onSessionStart: false,
+				onSessionEnd: true,
 			});
 		} finally {
 			sessions.dispose();

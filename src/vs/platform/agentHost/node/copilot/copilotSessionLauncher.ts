@@ -929,8 +929,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
 		// exception: the SDK validates the session-start `agent:` against `customAgents`
 		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
-		// Hooks are also projected explicitly below because plugin directory discovery
-		// does not register their commands with the SDK callback surface.
+		// Hooks follow the same rule as skills: the runtime now discovers and fires a
+		// file-backed plugin's hooks from `pluginDirectories`, so only plugins without a
+		// file dir are projected onto the SDK callback surface (see the `hooks` option
+		// below) — projecting a file-backed plugin's hooks too would fire them twice.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
@@ -1061,7 +1063,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// VS Code owns durable MCP credentials; the runtime must not consult its keychain store.
 			mcpOAuthTokenStorage: 'in-memory',
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
-			hooks: toSdkHooks(plugins.flatMap(p => p.hooks), {
+			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
