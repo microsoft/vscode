@@ -12,7 +12,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { ImageCarouselEditor } from '../../../contrib/imageCarousel/browser/imageCarouselEditor.js';
 import { ImageCarouselEditorInput } from '../../../contrib/imageCarousel/browser/imageCarouselEditorInput.js';
 import { ICarouselImage, IImageCarouselCollection } from '../../../contrib/imageCarousel/browser/imageCarouselTypes.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
 import '../../../contrib/imageCarousel/browser/media/imageCarousel.css';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { NullFileSystemProvider } from '../../../../platform/files/test/common/nullFileSystemProvider.js';
@@ -58,7 +58,9 @@ async function renderCarousel(context: ComponentFixtureContext, collection: IIma
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
-		additionalServices: ({ defineInstance }) => {
+		additionalServices: registration => {
+			registerWorkbenchServices(registration);
+			const { defineInstance } = registration;
 			const fileService = new FileService(new NullLogService());
 			disposableStore.add(fileService.registerProvider(Schemas.file, new NullFileSystemProvider()));
 			disposableStore.add(fileService);

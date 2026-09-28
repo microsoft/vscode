@@ -5,6 +5,7 @@
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { getImageMimeType } from '../../../../base/common/image.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -15,7 +16,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import type { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
-import { extractImagesFromChatRequest, extractImagesFromChatResponse, extractImagesFromChatVariables, IChatExtractedImage } from '../common/chatImageExtraction.js';
+import { extractImagesFromChatRequest, extractImagesFromChatResponse, extractImagesFromChatVariables, getChatImageSourceUri, IChatExtractedImage } from '../common/chatImageExtraction.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { IChatWidgetService } from './chat.js';
 
@@ -38,6 +39,8 @@ export interface IChatImageCarouselService {
 
 export interface ICarouselImage {
 	readonly id: string;
+	readonly uri?: URI;
+	readonly sourceUri?: URI;
 	readonly name: string;
 	readonly mimeType: string;
 	readonly data: Uint8Array;
@@ -59,6 +62,7 @@ export interface ICarouselCollectionArgs {
 }
 
 export interface ICarouselSingleImageArgs {
+	readonly sourceUri?: URI;
 	readonly name: string;
 	readonly mimeType: string;
 	readonly data: Uint8Array;
@@ -105,7 +109,7 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: request?.messageText ?? extractedTitle,
-				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption: toCaptionText(caption) }))
+				images: dedupedImages.map(({ uri, sourceUri, name, mimeType, data, caption }) => ({ id: uri.toString(), uri, sourceUri, name, mimeType, data: data.buffer, caption: toCaptionText(caption) }))
 			});
 		}
 	}
@@ -123,7 +127,7 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: item.messageText,
-				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption: toCaptionText(caption) }))
+				images: dedupedImages.map(({ uri, sourceUri, name, mimeType, data, caption }) => ({ id: uri.toString(), uri, sourceUri, name, mimeType, data: data.buffer, caption: toCaptionText(caption) }))
 			});
 		}
 	}
@@ -133,7 +137,7 @@ export async function collectCarouselSections(
 		if (inputImages.length > 0) {
 			sections.push({
 				title: currentInput.text.trim() || localize('chatImageCarousel.currentInput', "Current Input"),
-				images: inputImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption: toCaptionText(caption) }))
+				images: inputImages.map(({ uri, sourceUri, name, mimeType, data, caption }) => ({ id: uri.toString(), uri, sourceUri, name, mimeType, data: data.buffer, caption: toCaptionText(caption) }))
 			});
 		}
 	}
@@ -274,8 +278,8 @@ export function buildSingleImageArgs(resource: URI, data: Uint8Array): ICarousel
 	} catch {
 		// keep raw segment if it isn't valid percent-encoding
 	}
-	const mimeType = getMediaMime(resource.path) ?? getMediaMime(name) ?? 'image/png';
-	return { name, mimeType, data, title: name };
+	const mimeType = getImageMimeType(VSBuffer.wrap(data)) ?? getMediaMime(resource.path) ?? getMediaMime(name) ?? 'image/png';
+	return { name, mimeType, data, title: name, sourceUri: getChatImageSourceUri(resource) };
 }
 
 //#endregion
