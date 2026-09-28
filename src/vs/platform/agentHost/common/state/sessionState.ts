@@ -227,10 +227,11 @@ export interface UsageInfoMeta {
 		} | undefined;
 	};
 	/**
-	 * Per-source context-window attribution breakdown reported by the SDK's
-	 * `session.rpc.metadata.getContextAttribution()`. Populated asynchronously
-	 * after each usage event and piped to the context-usage widget as
-	 * `promptTokenDetails`.
+	 * Per-source context-window attribution breakdown reported by the provider
+	 * SDK (Copilot: `session.rpc.metadata.getContextAttribution()`, populated
+	 * asynchronously after the usage event; Claude: `Query.getContextUsage()`,
+	 * awaited and merged into the result's usage report). Piped to the
+	 * context-usage widget as `promptTokenDetails`.
 	 */
 	contextAttribution?: IContextAttributionData;
 	/**

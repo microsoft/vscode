@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { CLAUDE_AGENT_PROVIDER_ID, IAgentModelInfo } from '../../common/agent.js';
 import { AGENT_MODEL_GROUP_ID_META_KEY } from '../../common/agentModelSource.js';
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
-import { claudeTransportForProvider, mergeClaudeModelCatalogs, parseClaudeModelSelection, resolveClaudeSessionTransport, toClaudeModelSelectionId, toClaudeSdkModelId } from '../../node/claude/claudeModelSelection.js';
+import { applyObservedNativeModelLimits, claudeTransportForProvider, mergeClaudeModelCatalogs, parseClaudeModelSelection, resolveClaudeSessionTransport, toClaudeModelSelectionId, toClaudeSdkModelId } from '../../node/claude/claudeModelSelection.js';
 
 suite('claudeModelSelection', () => {
 
@@ -96,6 +96,65 @@ suite('claudeModelSelection', () => {
 				mergeClaudeModelCatalogs([model('claude-opus-4-8', 'Opus')], [model('claude-opus-4-8', 'Opus')]).map(m => m.id),
 				['@provider=copilot:claude-opus-4-8', '@provider=anthropic:claude-opus-4-8'],
 			);
+		});
+	});
+
+	suite('applyObservedNativeModelLimits', () => {
+
+		const merged = mergeClaudeModelCatalogs(
+			[{ provider: CLAUDE_AGENT_PROVIDER_ID, id: 'claude-sonnet-4.5', name: 'Sonnet (Copilot)', supportsVision: false, maxContextWindow: 128_000, maxPromptTokens: 128_000, maxOutputTokens: 4_096 }],
+			[
+				{ provider: CLAUDE_AGENT_PROVIDER_ID, id: 'claude-sonnet-4-5-20250929', name: 'Sonnet', supportsVision: false },
+				{ provider: CLAUDE_AGENT_PROVIDER_ID, id: 'claude-haiku-4-5-20251001', name: 'Haiku', supportsVision: false },
+			],
+		);
+
+		test('fills only native models with an observation, matching on the date-less SDK id, and leaves Copilot limits alone', () => {
+			// The prompt limit is the window minus the output cap so consumers that
+			// sum the two recover the window the SDK reported.
+			const limits = new Map([['claude-sonnet-4-5', { contextWindow: 200_000, maxOutputTokens: 64_000 }]]);
+			assert.deepStrictEqual(
+				applyObservedNativeModelLimits(merged, limits).map(m => ({ id: m.id, maxContextWindow: m.maxContextWindow, maxPromptTokens: m.maxPromptTokens, maxOutputTokens: m.maxOutputTokens })),
+				[
+					{ id: '@provider=copilot:claude-sonnet-4.5', maxContextWindow: 128_000, maxPromptTokens: 128_000, maxOutputTokens: 4_096 },
+					{ id: '@provider=anthropic:claude-sonnet-4-5-20250929', maxContextWindow: 200_000, maxPromptTokens: 136_000, maxOutputTokens: 64_000 },
+					{ id: '@provider=anthropic:claude-haiku-4-5-20251001', maxContextWindow: undefined, maxPromptTokens: undefined, maxOutputTokens: undefined },
+				],
+			);
+		});
+
+		test('an observation without a usable output cap publishes the whole window as the prompt limit and no output cap', () => {
+			const catalog = mergeClaudeModelCatalogs([], [{ provider: CLAUDE_AGENT_PROVIDER_ID, id: 'claude-sonnet-4-5-20250929', name: 'Sonnet', supportsVision: false }]);
+			const limitsOf = (limits: Map<string, { contextWindow: number; maxOutputTokens: number }>) =>
+				applyObservedNativeModelLimits(catalog, limits).map(m => ({ maxContextWindow: m.maxContextWindow, maxPromptTokens: m.maxPromptTokens, maxOutputTokens: m.maxOutputTokens }));
+			assert.deepStrictEqual(
+				{
+					noCap: limitsOf(new Map([['claude-sonnet-4-5', { contextWindow: 200_000, maxOutputTokens: 0 }]])),
+					capExceedsWindow: limitsOf(new Map([['claude-sonnet-4-5', { contextWindow: 200_000, maxOutputTokens: 200_000 }]])),
+				},
+				{
+					noCap: [{ maxContextWindow: 200_000, maxPromptTokens: 200_000, maxOutputTokens: 0 }],
+					capExceedsWindow: [{ maxContextWindow: 200_000, maxPromptTokens: 200_000, maxOutputTokens: 0 }],
+				},
+			);
+		});
+
+		test('an alias row (`haiku`) receives the limits observed for the concrete id it resolves to', () => {
+			const catalog = mergeClaudeModelCatalogs([], [{ provider: CLAUDE_AGENT_PROVIDER_ID, id: 'haiku', name: 'Haiku', supportsVision: false }]);
+			const limits = new Map([['claude-haiku-4-5', { contextWindow: 200_000, maxOutputTokens: 64_000 }]]);
+			const aliases = new Map([['haiku', 'claude-haiku-4-5']]);
+			assert.deepStrictEqual(
+				[
+					applyObservedNativeModelLimits(catalog, limits, aliases).map(m => m.maxContextWindow),
+					applyObservedNativeModelLimits(catalog, limits).map(m => m.maxContextWindow),
+				],
+				[[200_000], [undefined]],
+			);
+		});
+
+		test('no observations is a no-op copy', () => {
+			const applied = applyObservedNativeModelLimits(merged, new Map());
+			assert.deepStrictEqual({ applied, isCopy: applied !== merged }, { applied: merged, isCopy: true });
 		});
 	});
 

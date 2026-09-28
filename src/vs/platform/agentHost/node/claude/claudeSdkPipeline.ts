@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKMessage, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -16,10 +16,23 @@ import { AgentSignal } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import type { IContextAttributionData } from '../../common/state/sessionState.js';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
+import { contextPromptTokens, toClaudeContextAttribution } from './claudeContextUsage.js';
+import { buildClaudeUsageInfo } from './claudeMapSessionEvents.js';
+import type { IClaudeModelLimits } from './claudeModelSelection.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
+
+/** Upper bound, in milliseconds, on the post-result `getContextUsage` control round-trip. */
+const DEFAULT_CONTEXT_USAGE_TIMEOUT_MS = 2000;
+
+/** A model named in a result's `modelUsage`, with the limits the SDK reported for it. */
+export interface IClaudeObservedModelLimits extends IClaudeModelLimits {
+	/** SDK model id exactly as `modelUsage` keys it. */
+	readonly model: string;
+}
 
 /**
  * Callback the agent supplies via {@link ClaudeSdkPipeline.attachRematerializer}
@@ -178,6 +191,89 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	/**
+	 * Report every model's SDK-declared limits from a result's `modelUsage`.
+	 * Error results carry the same map, so limits are observed on every
+	 * result subtype.
+	 */
+	private _observeModelLimits(message: Extract<SDKMessage, { type: 'result' }>): void {
+		for (const [model, usage] of Object.entries(message.modelUsage)) {
+			if (Number.isFinite(usage.contextWindow) && usage.contextWindow > 0) {
+				this._onDidObserveModelLimits.fire({
+					model,
+					contextWindow: usage.contextWindow,
+					maxOutputTokens: Number.isFinite(usage.maxOutputTokens) && usage.maxOutputTokens > 0 ? usage.maxOutputTokens : 0,
+				});
+			}
+		}
+	}
+
+	/**
+	 * Emit the `ChatUsage` for a successful `result`: the base usage from the
+	 * message, enriched with the SDK's context-window breakdown
+	 * (`_meta.contextAttribution`) when {@link _fetchContextAttribution}
+	 * answers in time. Exactly one `ChatUsage` per successful SDK `result`:
+	 * the workbench counts a second report with different prompt tokens as
+	 * another model call, so the mapper emits none for results.
+	 *
+	 * The enriched report's `inputTokens` is {@link contextPromptTokens} when
+	 * the report carries `apiUsage`; the base `input_tokens` excludes cache
+	 * reads and undercounts the window, but stays as the fallback.
+	 *
+	 * Nothing is emitted when the query was swapped or aborted while the fetch
+	 * was pending: the turn has already ended and a late report could carry
+	 * another turn's credit state into persisted usage.
+	 */
+	private async _emitResultUsage(query: Query, message: Extract<SDKMessage, { type: 'result'; subtype: 'success' }>, turnId: string): Promise<void> {
+		const base = buildClaudeUsageInfo(message);
+		const fetched = await this._fetchContextAttribution(query);
+		if (this._query !== query || this._abortController.signal.aborted) {
+			this._logService.trace(`[Claude:${this.sessionId}] turn ${turnId} ended while its context usage was pending, skipping its usage report`);
+			return;
+		}
+		this._onDidProduceSignal.fire({
+			kind: 'action',
+			resource: this.chatChannelUri,
+			action: {
+				type: ActionType.ChatUsage,
+				turnId,
+				usage: fetched
+					? { ...base, inputTokens: fetched.promptTokens ?? base.inputTokens, _meta: { contextAttribution: fetched.contextAttribution } }
+					: base,
+			},
+		});
+	}
+
+	/**
+	 * Fetch the SDK's context-window breakdown for the current turn, or
+	 * `undefined` when it cannot be had in time so the caller falls back to
+	 * the base usage report. Bounded by {@link _contextUsageTimeoutMs}: the
+	 * report is a control round-trip to the subprocess and turn completion
+	 * must not hang on it. Any failure, timeout, or malformed report falls
+	 * back and logs at trace; a report that arrives after the query was
+	 * swapped or aborted is discarded.
+	 */
+	private async _fetchContextAttribution(query: Query): Promise<{ readonly contextAttribution: IContextAttributionData; readonly promptTokens: number | undefined } | undefined> {
+		try {
+			const contextUsage = await raceTimeout(query.getContextUsage({ detail: 'summary' }), this._contextUsageTimeoutMs);
+			if (!contextUsage) {
+				this._logService.trace(`[Claude:${this.sessionId}] getContextUsage timed out after ${this._contextUsageTimeoutMs}ms`);
+				return undefined;
+			}
+			if (this._query !== query || this._abortController.signal.aborted) {
+				return undefined;
+			}
+			const contextAttribution = toClaudeContextAttribution(contextUsage);
+			if (!contextAttribution) {
+				return undefined;
+			}
+			return { contextAttribution, promptTokens: contextPromptTokens(contextUsage) };
+		} catch (err) {
+			this._logService.trace(`[Claude:${this.sessionId}] getContextUsage failed: ${err}`);
+			return undefined;
+		}
+	}
+
+	/**
 	 * Bind a fresh SDK stream off the current warm subprocess. The stream is
 	 * long-lived: it spans every turn until a rebind swaps the subprocess (the
 	 * prompt iterable parks between turns rather than ending), so {@link _query}
@@ -197,6 +293,9 @@ export class ClaudeSdkPipeline extends Disposable {
 	 */
 	private _query: Query | undefined;
 	private _warm: WarmQuery;
+
+	/** Upper bound on the post-result `getContextUsage` control round-trip. Overridable by tests. */
+	protected _contextUsageTimeoutMs = DEFAULT_CONTEXT_USAGE_TIMEOUT_MS;
 	private _abortController: AbortController;
 
 	private readonly _queue: ClaudePromptQueue;
@@ -242,6 +341,14 @@ export class ClaudeSdkPipeline extends Disposable {
 	 *     a steering entry to the SDK.
 	 */
 	readonly onDidProduceSignal: Event<AgentSignal> = this._onDidProduceSignal.event;
+
+	private readonly _onDidObserveModelLimits = this._register(new Emitter<IClaudeObservedModelLimits>());
+	/**
+	 * Fires once per model named in a `result`'s `modelUsage` with the context
+	 * window and output cap the SDK reports for it. The agent folds these into
+	 * the native model catalog, which `supportedModels()` publishes without limits.
+	 */
+	readonly onDidObserveModelLimits: Event<IClaudeObservedModelLimits> = this._onDidObserveModelLimits.event;
 
 	private readonly _router: ClaudeSdkMessageRouter;
 
@@ -541,7 +648,9 @@ export class ClaudeSdkPipeline extends Disposable {
 	 *
 	 * A rebind ({@link _rebindQuery}) swaps in a new `_query` while the loop is
 	 * still draining the OLD (now-disposed) one; that old pass then ends with
-	 * the "stream ended without a result" guard. Because `_consumerLoopRunning`
+	 * the "stream ended without a result" guard, or it may end earlier via the
+	 * mid-loop return right after the usage await in {@link _processMessages},
+	 * once that pass notices `_query` has moved on. Because `_consumerLoopRunning`
 	 * stays `true` for the whole handoff, the {@link send} that queued the
 	 * post-rebind prompt already saw {@link _ensureConsumerLoop} no-op — so if
 	 * this pass just stopped, nothing would ever read the new query and `send`
@@ -680,6 +789,25 @@ export class ClaudeSdkPipeline extends Disposable {
 				const turnId = parent?.turnId;
 				const clientContext = parent?.clientContext;
 				const turnDuration = parent?.stopWatch.elapsed();
+				if (message.type === 'result' && message.subtype === 'success' && turnId !== undefined) {
+					// Usage must land before the router maps the result: a success
+					// result with `is_error` maps to `ChatError`, which ends the
+					// active turn, and the reducer applies `ChatUsage` only to the
+					// active turn. The await stalls this loop for at most
+					// `_contextUsageTimeoutMs`.
+					await this._emitResultUsage(query, message, turnId);
+					// An abort during the await above can have re-sent through
+					// `_rebindQuery`, which yields the new turn into the SAME queue
+					// this pass is draining. Resuming a stale pass past this point
+					// would `settleHead()` the WRONG (new) entry and complete it
+					// early, so re-validate before routing/settling.
+					if (this._query !== query) {
+						return;
+					}
+					if (this._abortController.signal.aborted) {
+						throw new CancellationError();
+					}
+				}
 				try {
 					await this._router.handle(message, turnId, {
 						turnDuration,
@@ -690,6 +818,7 @@ export class ClaudeSdkPipeline extends Disposable {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
 				if (message.type === 'result') {
+					this._observeModelLimits(message);
 					const completed = this._queue.settleHead();
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
 					// Final result: queue fully drained → protocol turn done.
