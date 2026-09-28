@@ -77,6 +77,13 @@ const TABBED_PICKER_WIDTH = 360;
  */
 const RESTORE_CONNECT_GRACE_MS = 5000;
 const MAX_UNIFIED_RECENT_WORKSPACES = 10;
+/**
+ * A touch tap fires a Gesture Tap and, shortly after, a browser "ghost" click. Both would toggle
+ * the picker, opening then immediately closing it. A click within this window of a tap on the same
+ * trigger is treated as that ghost click and ignored. A deliberate mouse click has no preceding tap,
+ * so double-click toggling is unaffected.
+ */
+const GHOST_CLICK_GUARD_MS = 500;
 
 /**
  * Item type used in the action list.
@@ -658,12 +665,21 @@ export class WorkspacePicker extends Disposable {
 		}));
 
 		triggerDisposables.add(touch.Gesture.addTarget(trigger));
-		[dom.EventType.CLICK, touch.EventType.Tap].forEach(eventType => {
-			triggerDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
-				dom.EventHelper.stop(e, true);
-				this.showPicker(false, trigger, options?.group, options?.attachesContext);
-			}));
-		});
+		// A touch tap fires a Gesture Tap and then a browser ghost click; ignore that click so a
+		// single tap does not open and immediately re-close the picker.
+		let lastTapAt = 0;
+		triggerDisposables.add(dom.addDisposableListener(trigger, touch.EventType.Tap, (e) => {
+			lastTapAt = this._now();
+			dom.EventHelper.stop(e, true);
+			this.showPicker(false, trigger, options?.group, options?.attachesContext);
+		}));
+		triggerDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
+			dom.EventHelper.stop(e, true);
+			if (this._now() - lastTapAt < GHOST_CLICK_GUARD_MS) {
+				return;
+			}
+			this.showPicker(false, trigger, options?.group, options?.attachesContext);
+		}));
 		triggerDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
@@ -687,6 +703,11 @@ export class WorkspacePicker extends Disposable {
 		});
 
 		return triggerDisposables;
+	}
+
+	/** Overridable clock so the ghost-click guard can be tested deterministically. */
+	protected _now(): number {
+		return Date.now();
 	}
 
 	/**
