@@ -15,7 +15,7 @@ import { isWindows } from '../../../../base/common/platform.js';
 import type { killTree } from '../../../../base/node/processes.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectServerDescendants, isSameServerProcess, killServer, stopServer } from './serverIntegrationTestHelpers.js';
+import { collectServerDescendants, isSameServerProcess, isSameWindowsProcessRunning, killServer, stopServer } from './serverIntegrationTestHelpers.js';
 
 class TestServerProcess extends ChildProcess {
 	override readonly pid = process.pid + 1;
@@ -299,6 +299,75 @@ suite('Agent Host test server cleanup', () => {
 			isSameServerProcess(descendant, [{ ...descendant, ppid: 100, creationTime: '134349012340000002' }]),
 			isSameServerProcess(descendant, []),
 		], [true, false, false]);
+	});
+
+	for (const { name, probeError, creationTime, expectedRunning, expectedQueries } of [
+		{ name: 'exited PID', probeError: 'ESRCH', creationTime: '200', expectedRunning: false, expectedQueries: 0 },
+		{ name: 'live PID', probeError: undefined, creationTime: '200', expectedRunning: true, expectedQueries: 1 },
+		{ name: 'reused PID', probeError: undefined, creationTime: '300', expectedRunning: false, expectedQueries: 1 },
+		{ name: 'access denied to live PID', probeError: 'EPERM', creationTime: '200', expectedRunning: true, expectedQueries: 1 },
+		{ name: 'access denied to exited PID', probeError: 'EPERM', creationTime: undefined, expectedRunning: false, expectedQueries: 1 },
+	]) {
+		test(`checks ${name} with only the necessary CIM identity queries`, async () => {
+			const descendant = { pid: 200, name: 'node.exe', commandLine: 'node child.js', creationTime: '200' };
+			const probes: number[] = [];
+			const queryBudgets: number[] = [];
+			const running = await isSameWindowsProcessRunning(descendant, 1_234, async timeoutMs => {
+				queryBudgets.push(timeoutMs);
+				return creationTime ? [{ ...descendant, ppid: 100, creationTime }] : [];
+			}, pid => {
+				probes.push(pid);
+				if (probeError) {
+					throw Object.assign(new Error(probeError), { code: probeError });
+				}
+			});
+			assert.deepStrictEqual({ running, probes, queryBudgets }, {
+				running: expectedRunning,
+				probes: [200],
+				queryBudgets: expectedQueries ? [1_234] : [],
+			});
+		});
+	}
+
+	test('preserves unexpected process probe and CIM errors', async () => {
+		const descendant = { pid: 200, name: 'node.exe', commandLine: 'node child.js', creationTime: '200' };
+		const probeError = new Error('Unexpected process probe failure');
+		const queryError = new Error('CIM failed');
+		await assert.rejects(isSameWindowsProcessRunning(descendant, 1_000,
+			async () => assert.fail('Must not query after an unexpected probe error'),
+			() => { throw probeError; },
+		), error => error === probeError);
+		await assert.rejects(isSameWindowsProcessRunning(descendant, 1_000,
+			async () => { throw queryError; },
+			() => { },
+		), error => error === queryError);
+	});
+
+	test('only queries CIM for surviving descendants, not exited siblings or post-kill polling', async () => {
+		const server = new TestServerProcess();
+		const descendants = [
+			{ pid: 200, name: 'node.exe', commandLine: 'node child.js', creationTime: '200' },
+			{ pid: 201, name: 'node.exe', commandLine: 'node sibling.js', creationTime: '300' },
+		];
+		const livePids = new Set([200]);
+		let queries = 0;
+		const kills: number[] = [];
+		await stopServer({ process: server, port: 0 }, async () => descendants, 0, {
+			killTree: async () => { server.exit(); },
+			killProcess: pid => {
+				kills.push(pid);
+				livePids.delete(pid);
+			},
+			isSameProcessRunning: (descendant, timeoutMs) => isSameWindowsProcessRunning(descendant, timeoutMs, async () => {
+				queries++;
+				return descendants.filter(process => livePids.has(process.pid)).map(process => ({ ...process, ppid: server.pid }));
+			}, pid => {
+				if (!livePids.has(pid)) {
+					throw Object.assign(new Error('Process not found'), { code: 'ESRCH' });
+				}
+			}),
+		});
+		assert.deepStrictEqual({ queries, kills }, { queries: 1, kills: [200] });
 	});
 
 	test('persists cleanup targets and outcomes without command lines', async () => {

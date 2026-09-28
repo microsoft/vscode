@@ -6,6 +6,7 @@
 import { ChildProcess, execFile, fork } from 'child_process';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
 import { DeferredPromise, Promises, raceTimeout, timeout } from '../../../../base/common/async.js';
+import { getErrorCode } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { appendFileSync, mkdirSync } from 'fs';
@@ -772,8 +773,25 @@ export function isSameServerProcess(descendant: IServerDescendant, processList: 
 	return process?.name === descendant.name && process.commandLine === descendant.commandLine && process.creationTime === descendant.creationTime;
 }
 
-async function isSameWindowsProcessRunning(descendant: IServerDescendant, timeoutMs: number): Promise<boolean> {
-	return isSameServerProcess(descendant, await getWindowsProcessList(timeoutMs));
+export async function isSameWindowsProcessRunning(
+	descendant: IServerDescendant,
+	timeoutMs: number,
+	readProcessList = getWindowsProcessList,
+	probeProcess: (pid: number) => void = pid => { process.kill(pid, 0); },
+): Promise<boolean> {
+	try {
+		probeProcess(descendant.pid);
+	} catch (error) {
+		const code = getErrorCode(error);
+		if (code === 'ESRCH') {
+			return false;
+		}
+		// Signal 0 can report EPERM while a Windows process exits; CIM still resolves its identity.
+		if (code !== 'EPERM') {
+			throw error;
+		}
+	}
+	return isSameServerProcess(descendant, await readProcessList(timeoutMs));
 }
 
 interface IServerProcessOperations {
