@@ -26,7 +26,7 @@ import { AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING, SessionWorktreeCleanupSer
 suite('SessionWorktreeCleanupService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shows an inline nudge above the reclaimable-size threshold', async () => {
+	test('shows an inline suggestion above the reclaimable-size threshold', async () => {
 		const service = disposables.add(createService(
 			[createSession('eligible', oldDate())],
 			true,
@@ -35,28 +35,20 @@ suite('SessionWorktreeCleanupService', () => {
 
 		await service.activate();
 
-		assert.deepStrictEqual(service.nudge.get() && {
-			title: service.nudge.get()?.title,
-			description: service.nudge.get()?.description,
-			primaryAction: service.nudge.get()?.primaryAction.label,
-			secondaryAction: service.nudge.get()?.secondaryAction?.label,
-			dismissLabel: service.nudge.get()?.dismissLabel,
+		assert.deepStrictEqual(service.suggestion.get() && {
+			description: service.suggestion.get()?.description,
 		}, {
-			title: 'Clean up agent session worktrees',
 			description: '1 agent session worktree has been inactive for at least 14 days and can be cleaned up, reclaiming about 6.00GB. Active, running, needs-input, and pinned sessions are excluded.',
-			primaryAction: 'Manage Session Storage',
-			secondaryAction: 'Don\'t Show Again',
-			dismissLabel: 'Dismiss Worktree Cleanup Suggestion',
 		});
 	});
 
-	test('shows an inline nudge at 20 existing worktrees below the size threshold', async () => {
+	test('shows an inline suggestion at 20 existing worktrees below the size threshold', async () => {
 		const sessions = Array.from({ length: 20 }, (_, index) => createSession(`session-${index}`, oldDate()));
 		const service = disposables.add(createService(sessions, true, () => 1));
 
 		await service.activate();
 
-		assert.strictEqual(service.nudge.get()?.description, '20 agent session worktrees have been inactive for at least 14 days and can be cleaned up, reclaiming about 20B. Active, running, needs-input, and pinned sessions are excluded.');
+		assert.strictEqual(service.suggestion.get()?.description, '20 agent session worktrees have been inactive for at least 14 days and can be cleaned up, reclaiming about 20B. Active, running, needs-input, and pinned sessions are excluded.');
 	});
 
 	test('counts archived worktrees that still exist toward the worktree threshold', async () => {
@@ -68,7 +60,7 @@ suite('SessionWorktreeCleanupService', () => {
 
 		await service.activate();
 
-		assert.strictEqual(service.nudge.get()?.description, '1 agent session worktree has been inactive for at least 14 days and can be cleaned up, reclaiming about 1B. Active, running, needs-input, and pinned sessions are excluded.');
+		assert.strictEqual(service.suggestion.get()?.description, '1 agent session worktree has been inactive for at least 14 days and can be cleaned up, reclaiming about 1B. Active, running, needs-input, and pinned sessions are excluded.');
 	});
 
 	test('requires at least one eligible candidate', async () => {
@@ -77,7 +69,7 @@ suite('SessionWorktreeCleanupService', () => {
 
 		await service.activate();
 
-		assert.strictEqual(service.nudge.get(), undefined);
+		assert.strictEqual(service.suggestion.get(), undefined);
 	});
 
 	test('does not scan when automatic prompting is disabled', async () => {
@@ -90,7 +82,7 @@ suite('SessionWorktreeCleanupService', () => {
 
 		await service.activate();
 
-		assert.deepStrictEqual({ scanCount, nudge: service.nudge.get() }, { scanCount: 0, nudge: undefined });
+		assert.deepStrictEqual({ scanCount, suggestion: service.suggestion.get() }, { scanCount: 0, suggestion: undefined });
 	});
 
 	test('dismisses the automatic suggestion for the service lifetime', async () => {
@@ -101,10 +93,10 @@ suite('SessionWorktreeCleanupService', () => {
 		));
 		await service.activate();
 
-		service.nudge.get()?.onDismiss();
+		service.suggestion.get()?.dismiss();
 		await service.activate();
 
-		assert.strictEqual(service.nudge.get(), undefined);
+		assert.strictEqual(service.suggestion.get(), undefined);
 	});
 
 	test('does not show again after disabling cleanup suggestions', async () => {
@@ -122,20 +114,20 @@ suite('SessionWorktreeCleanupService', () => {
 		));
 		await service.activate();
 
-		await service.nudge.get()?.secondaryAction?.run();
+		await service.suggestion.get()?.disable();
 
 		assert.deepStrictEqual({
 			enabled: configurationService.getValue(AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING),
 			updates: configurationService.updates,
-			nudge: service.nudge.get(),
+			suggestion: service.suggestion.get(),
 		}, {
 			enabled: false,
 			updates: [{ key: AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING, value: false }],
-			nudge: undefined,
+			suggestion: undefined,
 		});
 	});
 
-	test('opens the storage manager once per window from the inline nudge', async () => {
+	test('opens the storage manager once per window from the inline suggestion', async () => {
 		const commands: { id: string; args: readonly unknown[] }[] = [];
 		const service = disposables.add(createService(
 			[createSession('eligible', oldDate())],
@@ -148,18 +140,18 @@ suite('SessionWorktreeCleanupService', () => {
 		));
 		await service.activate();
 
-		await service.nudge.get()?.primaryAction.run();
+		await service.suggestion.get()?.manage();
 		await service.activate();
 
 		assert.deepStrictEqual({
 			commands,
-			nudge: service.nudge.get(),
+			suggestion: service.suggestion.get(),
 		}, {
 			commands: [{
 				id: 'sessions.chat.manageAgentSessionWorktrees',
 				args: [],
 			}],
-			nudge: undefined,
+			suggestion: undefined,
 		});
 	});
 
@@ -257,7 +249,7 @@ suite('SessionWorktreeCleanupService', () => {
 
 		await service.activate();
 
-		assert.strictEqual(service.nudge.get()?.description, '1 agent session worktree has been inactive for at least 14 days and can be cleaned up, reclaiming about 6.00GB. Active, running, needs-input, and pinned sessions are excluded.');
+		assert.strictEqual(service.suggestion.get()?.description, '1 agent session worktree has been inactive for at least 14 days and can be cleaned up, reclaiming about 6.00GB. Active, running, needs-input, and pinned sessions are excluded.');
 	});
 
 	test('adjusting the untouched period loads additional eligible sessions', async () => {

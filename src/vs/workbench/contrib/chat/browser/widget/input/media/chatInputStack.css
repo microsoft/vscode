@@ -15,9 +15,27 @@
  * Now members meet directly and a docked member squares the top corners of what
  * follows. Members only declare what they are showing - see `chatInputStack.ts`.
  *
- * `display` is not set here; hosts own that, and their layout, using the classes
- * below. `gap` is the exception, since members meeting is the point.
+ * The docked stack's `display` is not set here; hosts own that layout. Its `gap`
+ * is the exception, since members meeting is the point.
  */
+
+.chat-input-surface-stack {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
+/*
+ * Standalone surfaces use one shared spacing tier. Their slots own visibility,
+ * while the stack owns adjacency, so any combination composes to the same gap.
+ */
+.interactive-session .chat-input-surface-stack > .chat-input-surface-stack-slot:empty {
+	display: none;
+}
+
+.interactive-session .chat-input-surface-stack > .chat-input-surface-stack-slot:not(:empty) {
+	margin-block: 0;
+}
 
 .chat-input-stack {
 	gap: 0;

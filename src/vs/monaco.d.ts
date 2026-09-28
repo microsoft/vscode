@@ -3497,6 +3497,11 @@ declare namespace monaco.editor {
 		 */
 		wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 		/**
+		 * Control whether an indicator is rendered at the wrapping column of soft wrapped lines.
+		 * Defaults to false.
+		 */
+		wordWrapIndicator?: boolean;
+		/**
 		 * Override the `wordWrap` setting.
 		 */
 		wordWrapOverride1?: 'off' | 'on' | 'inherit';
@@ -3722,6 +3727,11 @@ declare namespace monaco.editor {
 		 */
 		formatOnPaste?: boolean;
 		/**
+		 * Controls the width used to render full-width characters.
+		 * Defaults to 'font'.
+		 */
+		fullwidthCharacterWidth?: 'font' | 'twoCells';
+		/**
 		 * Controls whether double-clicking next to a bracket or quote selects the content inside.
 		 * Defaults to true.
 		 */
@@ -3791,6 +3801,11 @@ declare namespace monaco.editor {
 		 * Set to 0 to have an unlimited length.
 		 */
 		selectionHighlightMaxLength?: number;
+		/**
+		 * Controls how occurrences of selected text are matched for occurrence selection and highlighting.
+		 * Defaults to 'findOptions', which uses the Find widget's match case and whole word settings.
+		 */
+		selectedTextMatchMode?: 'findOptions' | 'caseSensitive' | 'caseInsensitive';
 		/**
 		 * Enable semantic occurrences highlight.
 		 * Defaults to 'singleFile'.
@@ -4001,6 +4016,8 @@ declare namespace monaco.editor {
 		 */
 		inlineCompletionsAccessibilityVerbose?: boolean;
 	}
+
+	export type DiffEditorViewMode = 'inline' | 'sideBySide' | 'automatic';
 
 	export interface IDiffEditorBaseOptions {
 		/**
@@ -5209,55 +5226,59 @@ declare namespace monaco.editor {
 		selectionHighlight = 122,
 		selectionHighlightMaxLength = 123,
 		selectionHighlightMultiline = 124,
-		selectOnLineNumbers = 125,
-		showFoldingControls = 126,
-		showUnused = 127,
-		snippetSuggestions = 128,
-		smartSelect = 129,
-		smoothScrolling = 130,
-		stickyScroll = 131,
-		stickyTabStops = 132,
-		stopRenderingLineAfter = 133,
-		suggest = 134,
-		suggestFontSize = 135,
-		suggestLineHeight = 136,
-		suggestOnTriggerCharacters = 137,
-		suggestSelection = 138,
-		tabCompletion = 139,
-		tabIndex = 140,
-		trimWhitespaceOnDelete = 141,
-		unicodeHighlighting = 142,
-		unusualLineTerminators = 143,
-		useShadowDOM = 144,
-		useTabStops = 145,
-		wordBreak = 146,
-		wordSegmenterLocales = 147,
-		wordSeparators = 148,
-		wordWrap = 149,
-		wordWrapBreakAfterCharacters = 150,
-		wordWrapBreakBeforeCharacters = 151,
-		wordWrapColumn = 152,
-		wordWrapOverride1 = 153,
-		wordWrapOverride2 = 154,
-		wrappingIndent = 155,
-		wrappingStrategy = 156,
-		showDeprecated = 157,
-		inertialScroll = 158,
-		inlayHints = 159,
-		wrapOnEscapedLineFeeds = 160,
-		effectiveCursorStyle = 161,
-		editorClassName = 162,
-		pixelRatio = 163,
-		tabFocusMode = 164,
-		layoutInfo = 165,
-		wrappingInfo = 166,
-		defaultColorDecorators = 167,
-		colorDecoratorsActivatedOn = 168,
-		inlineCompletionsAccessibilityVerbose = 169,
-		effectiveEditContext = 170,
-		scrollOnMiddleClick = 171,
-		effectiveAllowVariableFonts = 172,
-		doubleClickSelectsBlock = 173
+		selectedTextMatchMode = 125,
+		selectOnLineNumbers = 126,
+		showFoldingControls = 127,
+		showUnused = 128,
+		snippetSuggestions = 129,
+		smartSelect = 130,
+		smoothScrolling = 131,
+		stickyScroll = 132,
+		stickyTabStops = 133,
+		stopRenderingLineAfter = 134,
+		suggest = 135,
+		suggestFontSize = 136,
+		suggestLineHeight = 137,
+		suggestOnTriggerCharacters = 138,
+		suggestSelection = 139,
+		tabCompletion = 140,
+		tabIndex = 141,
+		trimWhitespaceOnDelete = 142,
+		unicodeHighlighting = 143,
+		unusualLineTerminators = 144,
+		useShadowDOM = 145,
+		useTabStops = 146,
+		wordBreak = 147,
+		wordSegmenterLocales = 148,
+		wordSeparators = 149,
+		wordWrap = 150,
+		wordWrapBreakAfterCharacters = 151,
+		wordWrapBreakBeforeCharacters = 152,
+		wordWrapColumn = 153,
+		wordWrapOverride1 = 154,
+		wordWrapOverride2 = 155,
+		wrappingIndent = 156,
+		wrappingStrategy = 157,
+		showDeprecated = 158,
+		inertialScroll = 159,
+		inlayHints = 160,
+		wrapOnEscapedLineFeeds = 161,
+		wordWrapIndicator = 162,
+		effectiveCursorStyle = 163,
+		editorClassName = 164,
+		pixelRatio = 165,
+		tabFocusMode = 166,
+		layoutInfo = 167,
+		wrappingInfo = 168,
+		defaultColorDecorators = 169,
+		colorDecoratorsActivatedOn = 170,
+		inlineCompletionsAccessibilityVerbose = 171,
+		effectiveEditContext = 172,
+		scrollOnMiddleClick = 173,
+		effectiveAllowVariableFonts = 174,
+		doubleClickSelectsBlock = 175,
+		fullwidthCharacterWidth = 176,
+		effectiveFullwidthCharacterWidth = 177
 	}
 
 	export const EditorOptions: {
@@ -5314,7 +5335,7 @@ declare namespace monaco.editor {
 		renderRichScreenReaderContent: IEditorOption<EditorOption.renderRichScreenReaderContent, boolean>;
 		stickyScroll: IEditorOption<EditorOption.stickyScroll, Readonly<Required<IEditorStickyScrollOptions>>>;
 		experimentalGpuAcceleration: IEditorOption<EditorOption.experimentalGpuAcceleration, 'on' | 'off'>;
-		experimentalWhitespaceRendering: IEditorOption<EditorOption.experimentalWhitespaceRendering, 'off' | 'svg' | 'font'>;
+		experimentalWhitespaceRendering: IEditorOption<EditorOption.experimentalWhitespaceRendering, 'off' | 'font' | 'svg'>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
 		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, number>;
 		find: IEditorOption<EditorOption.find, Readonly<Required<IEditorFindOptions>>>;
@@ -5333,6 +5354,7 @@ declare namespace monaco.editor {
 		fontVariations: IEditorOption<EditorOption.fontVariations, string>;
 		formatOnPaste: IEditorOption<EditorOption.formatOnPaste, boolean>;
 		formatOnType: IEditorOption<EditorOption.formatOnType, boolean>;
+		fullwidthCharacterWidth: IEditorOption<EditorOption.fullwidthCharacterWidth, 'font' | 'twoCells'>;
 		glyphMargin: IEditorOption<EditorOption.glyphMargin, boolean>;
 		gotoLocation: IEditorOption<EditorOption.gotoLocation, Readonly<Required<IGotoLocationOptions>>>;
 		hideCursorInOverviewRuler: IEditorOption<EditorOption.hideCursorInOverviewRuler, boolean>;
@@ -5391,6 +5413,7 @@ declare namespace monaco.editor {
 		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, boolean>;
 		selectionHighlightMaxLength: IEditorOption<EditorOption.selectionHighlightMaxLength, number>;
 		selectionHighlightMultiline: IEditorOption<EditorOption.selectionHighlightMultiline, boolean>;
+		selectedTextMatchMode: IEditorOption<EditorOption.selectedTextMatchMode, 'findOptions' | 'caseSensitive' | 'caseInsensitive'>;
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'never' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
@@ -5418,6 +5441,7 @@ declare namespace monaco.editor {
 		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, string[]>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'wordWrapColumn' | 'on' | 'off' | 'bounded'>;
+		wordWrapIndicator: IEditorOption<EditorOption.wordWrapIndicator, boolean>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
@@ -5435,6 +5459,7 @@ declare namespace monaco.editor {
 		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
 		effectiveEditContextEnabled: IEditorOption<EditorOption.effectiveEditContext, boolean>;
 		effectiveAllowVariableFonts: IEditorOption<EditorOption.effectiveAllowVariableFonts, boolean>;
+		effectiveFullwidthCharacterWidth: IEditorOption<EditorOption.effectiveFullwidthCharacterWidth, 'font' | 'twoCells'>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;
@@ -6611,6 +6636,11 @@ declare namespace monaco.languages {
 	export function getLanguages(): ILanguageExtensionPoint[];
 
 	export function getEncodedLanguageId(languageId: string): number;
+
+	/**
+	 * Compute the score of a language selector against a candidate Uri and language.
+	 */
+	export function score(selector: LanguageSelector | undefined, candidateUri: Uri, candidateLanguage: string): number;
 
 	/**
 	 * An event emitted when a language is associated for the first time with a text model.

@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, fork } from 'child_process';
+import { ChildProcess, execFile, fork } from 'child_process';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
-import { raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise, Promises, raceTimeout, timeout } from '../../../../base/common/async.js';
+import { getErrorCode } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
-import { mkdirSync } from 'fs';
+import { appendFileSync, mkdirSync } from 'fs';
 import { userInfo } from 'os';
+import { promisify } from 'util';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
-import { CapiReplayProxy, type CapiReplayMode } from './e2e/harness/capiReplayProxy.js';
+import { CapiReplayProxy, type CapiReplayMode, type ICapiReplayResponse } from './e2e/harness/capiReplayProxy.js';
 import { dirname, resolve as resolvePath } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import {
@@ -76,9 +78,17 @@ interface IPendingCall {
 	reject: (err: Error) => void;
 }
 
+/**
+ * Default bound for one protocol request or notification wait. Short locally
+ * so a wedged host fails fast; longer on CI, where the E2E entrypoints run in
+ * parallel on a shared agent and contention alone can push a call past 5s.
+ */
 function getProtocolOperationTimeout(): number {
 	if (AGENT_HOST_E2E_COVERAGE) {
 		return 30_000;
+	}
+	if (isCI) {
+		return 20_000;
 	}
 	return isWindows ? 8_000 : 5_000;
 }
@@ -653,38 +663,291 @@ export interface IServerHandle {
 }
 
 const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
+const SERVER_EXIT_TIMEOUT_MS = 1_000;
+const SERVER_DESCENDANT_CLEANUP_TIMEOUT_MS = 5_000;
+
+interface IServerDescendant {
+	readonly pid: number;
+	readonly name: string;
+	readonly commandLine: string;
+	readonly creationTime: string;
+}
+
+interface IWindowsProcessInfo {
+	readonly pid: number;
+	readonly ppid: number;
+	readonly name: string;
+	readonly commandLine: string | null;
+	readonly creationTime: string | null;
+}
+
+let serverCleanupLogPath: string | undefined;
+
+function logServerCleanup(pid: number | undefined, message: string): void {
+	if (!serverCleanupLogPath) {
+		const directory = resolvePath(process.cwd(), '.build', 'logs', 'integration-tests');
+		mkdirSync(directory, { recursive: true });
+		serverCleanupLogPath = resolvePath(directory, `agent-host-cleanup-${process.pid}.log`);
+	}
+	const entry = `[agent-host-cleanup ${new Date().toISOString()}] runner=${process.pid} server=${pid}: ${message}\n`;
+	// Windows Electron renderers do not forward stdout, so retain diagnostics in the CI logs artifact too.
+	appendFileSync(serverCleanupLogPath, entry);
+	process.stdout.write(entry);
+}
+
+export function collectServerDescendants(pid: number, processList: readonly IWindowsProcessInfo[]): IServerDescendant[] {
+	const root = processList.find(process => process.pid === pid);
+	if (!root?.creationTime) {
+		throw new Error(`Cannot determine creation time of Agent Host test server ${pid}`);
+	}
+	logServerCleanup(pid, `Snapshot root: name=${root.name} creationTime=${root.creationTime}`);
+	const childrenByParent = new Map<number, IWindowsProcessInfo[]>();
+	for (const process of processList) {
+		let children = childrenByParent.get(process.ppid);
+		if (!children) {
+			children = [];
+			childrenByParent.set(process.ppid, children);
+		}
+		children.push(process);
+	}
+
+	const descendants: IServerDescendant[] = [];
+	const visited = new Set([pid]);
+	const collectDescendants = (parentPid: number, parentCreationTime: string): void => {
+		for (const process of childrenByParent.get(parentPid) ?? []) {
+			if (visited.has(process.pid)) {
+				continue;
+			}
+			visited.add(process.pid);
+			// Windows retains a dead parent's PID, which may now belong to an unrelated, younger process.
+			if (!process.commandLine || !process.creationTime || BigInt(process.creationTime) < BigInt(parentCreationTime)) {
+				logServerCleanup(pid, `Pruned branch: pid=${process.pid} ppid=${process.ppid} name=${process.name} creationTime=${process.creationTime} parentCreationTime=${parentCreationTime} readableCommandLine=${!!process.commandLine}`);
+				continue;
+			}
+			descendants.push({ pid: process.pid, name: process.name, commandLine: process.commandLine, creationTime: process.creationTime });
+			collectDescendants(process.pid, process.creationTime);
+		}
+	};
+	collectDescendants(pid, root.creationTime);
+	return descendants;
+}
+
+let pendingWindowsProcessList: Promise<IWindowsProcessInfo[]> | undefined;
+
+function getWindowsProcessList(timeoutMs: number): Promise<IWindowsProcessInfo[]> {
+	// Share concurrent identity checks, but never retain a snapshot after its query completes.
+	return pendingWindowsProcessList ??= readWindowsProcessList(timeoutMs).finally(() => { pendingWindowsProcessList = undefined; });
+}
+
+async function readWindowsProcessList(timeoutMs = SERVER_SHUTDOWN_TIMEOUT_MS): Promise<IWindowsProcessInfo[]> {
+	const { stdout } = await promisify(execFile)(
+		resolvePath(process.env['WINDIR'] || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+		['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', `
+			$ErrorActionPreference = 'Stop'
+			[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+			$processes = @(Get-CimInstance Win32_Process | ForEach-Object {
+				@{
+					pid = [int]$_.ProcessId
+					ppid = [int]$_.ParentProcessId
+					name = $_.Name
+					commandLine = $_.CommandLine
+					creationTime = if ($null -ne $_.CreationDate) { $_.CreationDate.ToFileTimeUtc().ToString() } else { $null }
+				}
+			})
+			ConvertTo-Json -InputObject $processes -Compress
+		`],
+		{ windowsHide: true, timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 },
+	);
+	return JSON.parse(stdout);
+}
+
+async function getServerDescendants(pid: number): Promise<IServerDescendant[]> {
+	if (!isWindows) {
+		return [];
+	}
+	return collectServerDescendants(pid, await readWindowsProcessList());
+}
+
+export function isSameServerProcess(descendant: IServerDescendant, processList: readonly IWindowsProcessInfo[]): boolean {
+	const process = processList.find(process => process.pid === descendant.pid);
+	return process?.name === descendant.name && process.commandLine === descendant.commandLine && process.creationTime === descendant.creationTime;
+}
+
+export async function isSameWindowsProcessRunning(
+	descendant: IServerDescendant,
+	timeoutMs: number,
+	readProcessList = getWindowsProcessList,
+	probeProcess: (pid: number) => void = pid => { process.kill(pid, 0); },
+): Promise<boolean> {
+	try {
+		probeProcess(descendant.pid);
+	} catch (error) {
+		const code = getErrorCode(error);
+		if (code === 'ESRCH') {
+			return false;
+		}
+		// Signal 0 can report EPERM while a Windows process exits; CIM still resolves its identity.
+		if (code !== 'EPERM') {
+			throw error;
+		}
+	}
+	return isSameServerProcess(descendant, await readProcessList(timeoutMs));
+}
+
+interface IServerProcessOperations {
+	killTree(pid: number, forceful: boolean): Promise<void>;
+	killProcess(pid: number): void;
+	isSameProcessRunning(descendant: IServerDescendant, timeoutMs: number): Promise<boolean>;
+}
+
+const defaultServerProcessOperations: IServerProcessOperations = {
+	killTree: async (pid, forceful) => {
+		if (isWindows) {
+			// Only terminate verified descendants, never let taskkill /T follow stale PPIDs.
+			process.kill(pid);
+		} else {
+			await killTree(pid, forceful);
+		}
+	},
+	killProcess: pid => { process.kill(pid); },
+	isSameProcessRunning: isSameWindowsProcessRunning,
+};
 
 /** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
-export async function stopServer(server: IServerHandle | undefined): Promise<void> {
+export async function stopServer(
+	server: IServerHandle | undefined,
+	getDescendants = getServerDescendants,
+	timeoutMs = SERVER_SHUTDOWN_TIMEOUT_MS,
+	processOperations = defaultServerProcessOperations,
+): Promise<void> {
+	await shutdownServer(server, getDescendants, timeoutMs, processOperations, false);
+}
+
+/** Forcefully stop an Agent Host test server and its verified descendants. */
+export async function killServer(
+	server: IServerHandle | undefined,
+	killProcessTree: IServerProcessOperations['killTree'] = defaultServerProcessOperations.killTree,
+	getDescendants = getServerDescendants,
+): Promise<void> {
+	await shutdownServer(server, getDescendants, SERVER_SHUTDOWN_TIMEOUT_MS, { ...defaultServerProcessOperations, killTree: killProcessTree }, true);
+}
+
+async function shutdownServer(
+	server: IServerHandle | undefined,
+	getDescendants: typeof getServerDescendants,
+	timeoutMs: number,
+	processOperations: IServerProcessOperations,
+	forceful: boolean,
+): Promise<void> {
 	const serverProcess = server?.process;
 	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
 		return;
 	}
 
-	const serverExit = new Promise<void>(resolve => {
-		const onExit = () => resolve();
-		serverProcess.once('exit', onExit);
-		if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
-			serverProcess.removeListener('exit', onExit);
-			resolve();
-		}
-	});
-	serverProcess.stdin?.end();
-	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
+	logServerCleanup(serverProcess.pid, `Starting ${forceful ? 'forceful' : 'graceful'} shutdown`);
+	const deadline = Date.now() + timeoutMs;
+	const serverExit = new DeferredPromise<void>();
+	const onExit = () => serverExit.complete();
+	serverProcess.once('exit', onExit);
+	let descendants: IServerDescendant[] = [];
+	let snapshotError: Error | undefined;
+	try {
 		try {
-			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
-				const pid = serverProcess.pid;
-				if (pid === undefined) {
-					throw new Error('Agent Host test server has no process id');
+			if (serverProcess.pid !== undefined) {
+				const snapshot = await raceTimeout(getDescendants(serverProcess.pid), Math.max(0, deadline - Date.now()));
+				if (snapshot === undefined) {
+					throw new Error('Timed out capturing Agent Host test server descendants');
 				}
-				await killTree(pid, true);
+				descendants = snapshot;
+				logServerCleanup(serverProcess.pid, `Captured ${descendants.length} descendants: ${JSON.stringify(descendants.map(({ pid, name, creationTime }) => ({ pid, name, creationTime })))}`);
 			}
 		} catch (error) {
-			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+			snapshotError = new Error('Failed to capture Agent Host test server descendants', { cause: error });
+			logServerCleanup(serverProcess.pid, `${snapshotError.message}: ${error}`);
+		}
+		if (!forceful) {
+			serverProcess.stdin?.end();
+		}
+		if (forceful || !await raceTimeout(serverExit.p.then(() => true), Math.max(0, deadline - Date.now()))) {
+			await killServerProcess(server, (pid, forceful) => processOperations.killTree(pid, forceful));
+		}
+		logServerCleanup(serverProcess.pid, `Server exited: code=${serverProcess.exitCode} signal=${serverProcess.signalCode}`);
+	} finally {
+		serverProcess.removeListener('exit', onExit);
+	}
+	if (snapshotError) {
+		throw snapshotError;
+	}
+
+	const descendantDeadline = Date.now() + SERVER_DESCENDANT_CLEANUP_TIMEOUT_MS;
+	const isSameProcessRunning = async (descendant: IServerDescendant): Promise<boolean> => {
+		const remainingMs = descendantDeadline - Date.now();
+		if (remainingMs > 0) {
+			const running = await raceTimeout(processOperations.isSameProcessRunning(descendant, remainingMs), remainingMs);
+			if (running !== undefined) {
+				return running;
+			}
+		}
+		throw new Error(`Timed out cleaning up Agent Host test server descendant ${descendant.pid}`);
+	};
+	const killResults = await Promises.settled(descendants.map(async descendant => {
+		if (!await isSameProcessRunning(descendant)) {
+			logServerCleanup(serverProcess.pid, `Skipping exited or replaced descendant: pid=${descendant.pid} name=${descendant.name} creationTime=${descendant.creationTime}`);
+			return undefined;
+		}
+		try {
+			logServerCleanup(serverProcess.pid, `Terminating descendant: pid=${descendant.pid} name=${descendant.name} creationTime=${descendant.creationTime}`);
+			processOperations.killProcess(descendant.pid);
+		} catch (error) {
+			logServerCleanup(serverProcess.pid, `Descendant termination failed: pid=${descendant.pid}: ${error}`);
+			return { descendant, succeeded: false as const, error };
+		}
+		return { descendant, succeeded: true as const };
+	}));
+	// Recheck identities after all kills settle to avoid sharing a snapshot from an in-flight kill.
+	await Promises.settled(killResults.map(async result => {
+		if (!result) {
+			return;
+		}
+		let attempts = 0;
+		while (await isSameProcessRunning(result.descendant)) {
+			if (!result.succeeded && ++attempts === 5) {
+				throw result.error;
+			}
+			await timeout(Math.min(50, Math.max(0, descendantDeadline - Date.now())));
+		}
+		logServerCleanup(serverProcess.pid, `${result.succeeded ? 'Descendant exit verified' : 'Descendant exited after failed termination'}: pid=${result.descendant.pid}`);
+	}));
+	logServerCleanup(serverProcess.pid, 'Shutdown complete');
+}
+
+async function killServerProcess(server: IServerHandle | undefined, killProcessTree: IServerProcessOperations['killTree']): Promise<void> {
+	const serverProcess = server?.process;
+	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+		return;
+	}
+	const pid = serverProcess.pid;
+	if (pid === undefined) {
+		throw new Error('Agent Host test server has no process id');
+	}
+
+	const serverExit = new DeferredPromise<void>();
+	const onExit = () => serverExit.complete();
+	serverProcess.once('exit', onExit);
+	try {
+		try {
+			logServerCleanup(pid, `Terminating server${isWindows ? ' (single PID)' : ' process tree'}`);
+			await killProcessTree(pid, true);
+		} catch (error) {
+			logServerCleanup(pid, `Server termination failed: ${error}`);
+			// taskkill can finish before Node delivers the owned process's exit event.
+			if (!await raceTimeout(serverExit.p.then(() => true), SERVER_EXIT_TIMEOUT_MS)) {
 				throw error;
 			}
 		}
-		await serverExit;
+		await serverExit.p;
+	} finally {
+		serverProcess.removeListener('exit', onExit);
 	}
 }
 
@@ -805,7 +1068,7 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options: { readonly homeDir: string; readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
+export async function startRealServer(options: { readonly homeDir: string; readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean; readonly matchModelRequestsByProjection?: boolean; readonly recordingModelResponse?: ICapiReplayResponse }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
 	// `capiReplay` records/replays in front of the mock LLM server, so it implies
 	// a mock upstream even when `mockLlm` was not explicitly requested — unless
 	// `real` is set, in which case the proxy forwards to real CAPI/GitHub.
@@ -822,6 +1085,8 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 			workDir: options.capiReplay.workDir,
 			allowPosixCommands: options.capiReplay.allowPosixCommands,
 			allowStaleRecordedRequest: options.capiReplay.allowStaleRecordedRequest,
+			matchModelRequestsByProjection: options.capiReplay.matchModelRequestsByProjection,
+			recordingModelResponse: options.capiReplay.recordingModelResponse,
 			homeDir: options.homeDir,
 			userName: userInfo().username,
 			// Real hosts (consumer defaults); override for Enterprise/Business accounts.
@@ -833,6 +1098,7 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 			workDir: options.capiReplay.workDir,
 			allowPosixCommands: options.capiReplay.allowPosixCommands,
 			allowStaleRecordedRequest: options.capiReplay.allowStaleRecordedRequest,
+			matchModelRequestsByProjection: options.capiReplay.matchModelRequestsByProjection,
 			homeDir: options.homeDir,
 			userName: userInfo().username,
 			upstreamUrl: mockLlmServer!.url,
@@ -1027,11 +1293,11 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
  * requests) live on the session's default chat channel, so reading them
  * requires merging the session snapshot with its default chat snapshot.
  */
-export async function fetchSessionWithChat(c: TestProtocolClient, sessionUri: string): Promise<ISessionWithDefaultChat> {
+export async function fetchSessionWithChat(c: TestProtocolClient, sessionUri: string, timeoutMs?: number): Promise<ISessionWithDefaultChat> {
 	const owningSession = parseDefaultChatUri(sessionUri) ?? sessionUri;
 	const chatUri = parseDefaultChatUri(sessionUri) ? sessionUri : buildDefaultChatUri(sessionUri);
-	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: owningSession });
-	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: chatUri });
+	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: owningSession }, timeoutMs);
+	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: chatUri }, timeoutMs);
 	return mergeSessionWithDefaultChat(
 		sessionSnap.snapshot!.state as SessionState,
 		chatSnap.snapshot?.state as ChatState | undefined,

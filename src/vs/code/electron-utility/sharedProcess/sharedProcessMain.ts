@@ -18,10 +18,16 @@ import { LanguagePackCachedDataCleaner } from './contrib/languagePackCachedDataC
 import { LocalizationsUpdater } from './contrib/localizationsUpdater.js';
 import { LogsDataCleaner } from './contrib/logsDataCleaner.js';
 import { UnusedWorkspaceStorageDataCleaner } from './contrib/storageDataCleaner.js';
+import { AgentFinderRestProvider } from '../../../platform/agentFinder/common/agentFinderRestProvider.js';
+import { COPILOT_CONNECTORS_REQUEST_CHANNEL_NAME, CopilotConnectorsRequestChannel } from '../../../platform/copilotConnectors/common/copilotConnectorsIpc.js';
+import { CopilotConnectorsRequestService } from '../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { IChecksumService } from '../../../platform/checksum/common/checksumService.js';
 import { ChecksumService } from '../../../platform/checksum/node/checksumService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ConfigurationService } from '../../../platform/configuration/common/configurationService.js';
+import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, CustomizationMarketplaceChannel } from '../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService } from '../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources } from '../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDiagnosticsService } from '../../../platform/diagnostics/common/diagnostics.js';
 import { DiagnosticsService } from '../../../platform/diagnostics/node/diagnosticsService.js';
 import { IDownloadService } from '../../../platform/download/common/download.js';
@@ -70,6 +76,7 @@ import { UserDataSyncService } from '../../../platform/userDataSync/common/userD
 import { UserDataSyncServiceChannel } from '../../../platform/userDataSync/common/userDataSyncServiceIpc.js';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from '../../../platform/userDataSync/common/userDataSyncStoreService.js';
 import { IUserDataProfileStorageService } from '../../../platform/userDataProfile/common/userDataProfileStorageService.js';
+import { markNodeCompileCacheReady } from '../../../base/node/nodeCompileCache.js';
 import { SharedProcessUserDataProfileStorageService } from '../../../platform/userDataProfile/node/userDataProfileStorageService.js';
 import { ActiveWindowManager } from '../../../platform/windows/node/windowTracker.js';
 import { ISignService } from '../../../platform/sign/common/sign.js';
@@ -89,11 +96,12 @@ import { IExtensionsScannerService } from '../../../platform/extensionManagement
 import { ExtensionsScannerService } from '../../../platform/extensionManagement/node/extensionsScannerService.js';
 import { ISSHRemoteAgentHostMainService, SSH_REMOTE_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService } from '../../../platform/agentHost/node/sshRemoteAgentHostService.js';
+import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostMainService } from '../../../platform/agentHost/common/devContainerAgentHost.js';
+import { DevContainerAgentHostMainService } from '../../../platform/agentHost/node/devContainerAgentHostService.js';
 import { IWSLRemoteAgentHostMainService, WSL_REMOTE_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { WSLRemoteAgentHostMainService } from '../../../platform/agentHost/node/wslRemoteAgentHostService.js';
-import { ITunnelAgentHostMainService, ITunnelAgentHostHostingService, TUNNEL_AGENT_HOST_CHANNEL, TUNNEL_HOST_CHANNEL } from '../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ITunnelAgentHostMainService, TUNNEL_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 import { TunnelAgentHostMainService } from '../../../platform/agentHost/node/tunnelAgentHostService.js';
-import { TunnelHostMainService } from '../../../platform/agentHost/node/tunnelHostMainService.js';
 import { IUserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
 import { IExtensionsProfileScannerService } from '../../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { PolicyChannelClient } from '../../../platform/policy/common/policyIpc.js';
@@ -423,19 +431,25 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// SSH Remote Agent Host
 		services.set(ISSHRemoteAgentHostMainService, new SyncDescriptor(SSHRemoteAgentHostMainService, undefined, true));
 
+		// Dev Container Agent Host
+		services.set(IDevContainerAgentHostMainService, new SyncDescriptor(DevContainerAgentHostMainService, undefined, true));
+
 		// WSL Remote Agent Host
 		services.set(IWSLRemoteAgentHostMainService, new SyncDescriptor(WSLRemoteAgentHostMainService, undefined, true));
 
 		// Tunnel Agent Host
 		services.set(ITunnelAgentHostMainService, new SyncDescriptor(TunnelAgentHostMainService, undefined, true));
 
-		// Tunnel Host (hosting local agent host for remote connections)
-		services.set(ITunnelAgentHostHostingService, new SyncDescriptor(TunnelHostMainService, undefined, true));
-
 		return new InstantiationService(services);
 	}
 
 	private initChannels(accessor: ServicesAccessor): void {
+
+		const instantiationService = accessor.get(IInstantiationService);
+		this.server.registerChannel(COPILOT_CONNECTORS_REQUEST_CHANNEL_NAME, new CopilotConnectorsRequestChannel(() => instantiationService.createInstance(CopilotConnectorsRequestService)));
+		this.server.registerChannel(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, new CustomizationMarketplaceChannel(() => new CustomizationMarketplaceService([
+			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => instantiationService.createInstance(AgentFinderRestProvider)),
+		])));
 
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
@@ -512,6 +526,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const sshRemoteAgentHostChannel = ProxyChannel.fromService(accessor.get(ISSHRemoteAgentHostMainService), this._store);
 		this.server.registerChannel(SSH_REMOTE_AGENT_HOST_CHANNEL, sshRemoteAgentHostChannel);
 
+		// Dev Container Agent Host
+		const devContainerAgentHostChannel = ProxyChannel.fromService(accessor.get(IDevContainerAgentHostMainService), this._store);
+		this.server.registerChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL, devContainerAgentHostChannel);
+
 		// WSL Remote Agent Host
 		const wslRemoteAgentHostChannel = ProxyChannel.fromService(accessor.get(IWSLRemoteAgentHostMainService), this._store);
 		this.server.registerChannel(WSL_REMOTE_AGENT_HOST_CHANNEL, wslRemoteAgentHostChannel);
@@ -520,9 +538,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const tunnelAgentHostChannel = ProxyChannel.fromService(accessor.get(ITunnelAgentHostMainService), this._store);
 		this.server.registerChannel(TUNNEL_AGENT_HOST_CHANNEL, tunnelAgentHostChannel);
 
-		// Tunnel Host
-		const tunnelHostChannel = ProxyChannel.fromService(accessor.get(ITunnelAgentHostHostingService), this._store);
-		this.server.registerChannel(TUNNEL_HOST_CHANNEL, tunnelHostChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {
@@ -616,6 +631,7 @@ export async function main(configuration: ISharedProcessConfiguration): Promise<
 		await sharedProcess.init();
 
 		process.parentPort.postMessage(SharedProcessLifecycle.initDone);
+		markNodeCompileCacheReady();
 	} catch (error) {
 		process.parentPort.postMessage({ error: error.toString() });
 	}

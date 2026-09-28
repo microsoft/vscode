@@ -33,7 +33,7 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
  */
 class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
 	private _sources: URI[] = [];
-	private _remove: (() => void) | undefined = () => { };
+	private _remove: (() => Promise<boolean>) | undefined = async () => true;
 	private _nextDiscoveryBarrier: Promise<void> | undefined;
 
 	constructor(
@@ -55,13 +55,13 @@ class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
 		await this._refreshPlugins();
 	}
 
-	async setRemoveAndRefresh(uri: URI, remove: (() => void) | undefined): Promise<void> {
+	async setRemoveAndRefresh(uri: URI, remove: (() => Promise<boolean>) | undefined): Promise<void> {
 		this._sources = [uri];
 		this._remove = remove;
 		await this._refreshPlugins();
 	}
 
-	async setRemoveAndRefreshAfter(uri: URI, remove: (() => void) | undefined, barrier: Promise<void>): Promise<void> {
+	async setRemoveAndRefreshAfter(uri: URI, remove: (() => Promise<boolean>) | undefined, barrier: Promise<void>): Promise<void> {
 		this._sources = [uri];
 		this._remove = remove;
 		this._nextDiscoveryBarrier = barrier;
@@ -150,17 +150,23 @@ suite('AgentPlugin format detection', () => {
 		const removeCounts = [0, 0];
 		const discovery = createDiscovery();
 		discovery.start(mockEnablementModel);
-		await discovery.setRemoveAndRefresh(uri, () => removeCounts[0]++);
+		await discovery.setRemoveAndRefresh(uri, async () => {
+			removeCounts[0]++;
+			return true;
+		});
 		const initialPlugin = getDiscoveredPlugins(discovery)[0];
-		initialPlugin.remove?.();
+		await initialPlugin.remove?.();
 
 		await discovery.setRemoveAndRefresh(uri, undefined);
 		const managedPlugin = getDiscoveredPlugins(discovery)[0];
 		const managedRemove = managedPlugin.remove;
 
-		await discovery.setRemoveAndRefresh(uri, () => removeCounts[1]++);
+		await discovery.setRemoveAndRefresh(uri, async () => {
+			removeCounts[1]++;
+			return true;
+		});
 		const removablePlugin = getDiscoveredPlugins(discovery)[0];
-		removablePlugin.remove?.();
+		await removablePlugin.remove?.();
 
 		assert.deepStrictEqual({
 			reusedManagedPlugin: managedPlugin === initialPlugin,
@@ -182,16 +188,19 @@ suite('AgentPlugin format detection', () => {
 		let removeCount = 0;
 		const discovery = createDiscovery();
 		discovery.start(mockEnablementModel);
-		await discovery.setRemoveAndRefresh(uri, () => { });
+		await discovery.setRemoveAndRefresh(uri, async () => true);
 
 		const staleDiscoveryBarrier = new DeferredPromise<void>();
 		const staleRefresh = discovery.setRemoveAndRefreshAfter(uri, undefined, staleDiscoveryBarrier.p);
-		await discovery.setRemoveAndRefresh(uri, () => removeCount++);
+		await discovery.setRemoveAndRefresh(uri, async () => {
+			removeCount++;
+			return true;
+		});
 		staleDiscoveryBarrier.complete();
 		await staleRefresh;
 
 		const plugin = getDiscoveredPlugins(discovery)[0];
-		plugin.remove?.();
+		await plugin.remove?.();
 
 		assert.deepStrictEqual({
 			hasRemove: plugin.remove !== undefined,
@@ -536,6 +545,70 @@ suite('AgentPlugin format detection', () => {
 
 		await waitForState(plugins[0].agents, a => a.length > 0);
 		assert.strictEqual(plugins[0].agents.get()[0].name, 'reviewer');
+	}));
+
+	test('reads Automation blueprints from Agent Plugin default and configured directories', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/automation-plugin');
+		await writeFile('/plugins/automation-plugin/plugin.json', JSON.stringify({
+			$schema: AGENT_PLUGIN_SCHEMA,
+			name: 'automation-plugin',
+			extensions: {
+				'com.github.copilot': {
+					automations: { paths: ['./custom-automations/'] },
+				},
+			},
+		}));
+		await writeFile('/plugins/automation-plugin/automations/daily-review.automation.md', [
+			'---',
+			'version: 1',
+			'id: daily-review',
+			'name: Daily review',
+			'schedule:',
+			'  kind: cron',
+			'  expression: "0 9 * * *"',
+			'  timeZone: local',
+			'---',
+			'Review the workspace.',
+		].join('\n'));
+		await writeFile('/plugins/automation-plugin/com.github.copilot/custom-automations/weekly-review.automation.md', [
+			'---',
+			'version: 1',
+			'id: weekly-review',
+			'name: Weekly review',
+			'schedule:',
+			'  kind: cron',
+			'  expression: "30 10 * * 5"',
+			'  timeZone: local',
+			'---',
+			'Review the workspace for the past week.',
+		].join('\n'));
+		await writeFile('/plugins/automation-plugin/automations/invalid.automation.md', 'Not a blueprint');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = getDiscoveredPlugins(discovery);
+		await waitForState(plugins[0].automations, automations => automations.length === 2);
+		assert.deepStrictEqual(plugins[0].automations.get().map(automation => ({
+			id: automation.blueprint.id,
+			name: automation.blueprint.name,
+			schedule: automation.blueprint.schedule,
+			path: automation.uri.path,
+		})), [
+			{
+				id: 'daily-review',
+				name: 'Daily review',
+				schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 },
+				path: '/plugins/automation-plugin/automations/daily-review.automation.md',
+			},
+			{
+				id: 'weekly-review',
+				name: 'Weekly review',
+				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				path: '/plugins/automation-plugin/com.github.copilot/custom-automations/weekly-review.automation.md',
+			},
+		]);
 	}));
 
 	test('manifest skills field adds supplemental skill directories', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

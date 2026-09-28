@@ -6,7 +6,7 @@
 import { findNodeAtLocation, Node, parse as parseJSONC, parseTree } from '../../../../../base/common/json.js';
 import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -187,6 +187,8 @@ export interface IParseAllHookFilesOptions {
 	additionalDisabledFileUris?: readonly URI[];
 	/** If true, also collect hooks from custom agent frontmatter */
 	includeAgentHooks?: boolean;
+	/** Restrict parsed hooks to one storage scope. */
+	preferredStorage?: PromptsStorage;
 }
 
 /**
@@ -203,7 +205,9 @@ export async function parseAllHookFiles(
 	token: CancellationToken,
 	options?: IParseAllHookFilesOptions
 ): Promise<IParsedHook[]> {
-	const hookFiles = await promptsService.listPromptFiles(PromptsType.hook, token);
+	const hookFiles = options?.preferredStorage
+		? await promptsService.listPromptFilesForStorage(PromptsType.hook, options.preferredStorage, token)
+		: await promptsService.listPromptFiles(PromptsType.hook, token);
 	const parsedHooks: IParsedHook[] = [];
 
 	for (const hookFile of hookFiles) {
@@ -284,7 +288,7 @@ export async function parseAllHookFiles(
 	if (options?.includeAgentHooks) {
 		const agents = await promptsService.getCustomAgents(token);
 		for (const agent of agents) {
-			if (!agent.hooks || !agent.enabled) {
+			if (!agent.hooks || !agent.enabled || options.preferredStorage && agent.source.storage !== options.preferredStorage) {
 				continue;
 			}
 			for (const hookTypeValue of Object.values(HookType)) {

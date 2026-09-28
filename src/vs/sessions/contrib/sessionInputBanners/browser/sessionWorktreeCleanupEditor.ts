@@ -44,6 +44,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private summary: HTMLElement | undefined;
 	private cleanupButton: Button | undefined;
 	private scrollableElement: DomScrollableElement | undefined;
+	private layoutDimension: dom.Dimension | undefined;
 	private minimumAgeDays = 14;
 	private worktreesOnly = true;
 	private worktrees: readonly ISessionWorktree[] = [];
@@ -76,7 +77,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 		dom.append(content, dom.$('h1', undefined, localize('sessionWorktreeCleanup.heading', "Manage Agent Session Storage")));
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
-			localize('sessionWorktreeCleanup.intro', "Completed, inactive, unpinned sessions older than the selected period can be archived to clean up their worktrees. Active, running, needs-input, and pinned sessions are always protected.")));
+			localize('sessionWorktreeCleanup.intro', "Inactive, unpinned sessions older than the selected period can be marked as done to clean up their worktrees. Active, running, needs-input, and pinned sessions are always protected.")));
 
 		this.renderAutomaticCleanup(content);
 
@@ -123,12 +124,25 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	}
 
 	override layout(dimension: dom.Dimension): void {
+		this.layoutDimension = dimension;
 		if (this.scrollableElement) {
 			const scrollableNode = this.scrollableElement.getDomNode();
 			scrollableNode.style.width = `${dimension.width}px`;
 			scrollableNode.style.height = `${dimension.height}px`;
-			this.scrollableElement.scanDomNode();
+			this.updateScrollDimensions();
 		}
+	}
+
+	private updateScrollDimensions(): void {
+		if (!this.container || !this.scrollableElement || !this.layoutDimension) {
+			return;
+		}
+		this.scrollableElement.setScrollDimensions({
+			width: this.layoutDimension.width,
+			height: this.layoutDimension.height,
+			scrollWidth: this.container.scrollWidth,
+			scrollHeight: this.container.scrollHeight,
+		});
 	}
 
 	private async load(): Promise<void> {
@@ -215,7 +229,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 					this.selectedSessionIds.delete(worktree.session.sessionId);
 				}
 				this.updateCleanupButton();
-				this.scrollableElement?.scanDomNode();
+				this.updateScrollDimensions();
 			}));
 			const titleElement = dom.append(row, dom.$('span.title', { role: 'cell', title }, title));
 			titleElement.tabIndex = 0;
@@ -224,7 +238,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			dom.append(row, dom.$('span.status', { role: 'cell' }, worktree.cleanupState === 'eligible' ? localize('sessionWorktreeCleanup.ready', "Ready") : this.cleanupService.getCleanupStateLabel(worktree.cleanupState)));
 		}
 		this.updateCleanupButton();
-		this.scrollableElement?.scanDomNode();
+		this.updateScrollDimensions();
 	}
 
 	private updateCleanupButton(): void {
@@ -258,7 +272,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.renderAutomaticSetting(section, ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays,
 			localize('sessionWorktreeCleanup.autoMark', "Mark merged sessions as done after"),
 			localize('sessionWorktreeCleanup.autoMarkAria', "Automatically mark merged sessions as done"));
-		this.renderAutomaticSetting(section, ChatConfiguration.AutoDeleteArchivedMergedSessionsAfterDays,
+		this.renderAutomaticSetting(section, ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 			localize('sessionWorktreeCleanup.autoDelete', "Permanently delete automatically completed sessions after"),
 			localize('sessionWorktreeCleanup.autoDeleteAria', "Automatically delete completed merged sessions"));
 	}

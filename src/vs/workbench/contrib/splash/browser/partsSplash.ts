@@ -9,7 +9,7 @@ import { Color } from '../../../../base/common/color.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { editorBackground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
-import { getThemeTypeSelector, IPartsSplashPartBounds, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { getThemeTypeSelector, IPartsSplashPartBounds } from '../../../../platform/theme/common/themeService.js';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from '../../../browser/parts/editor/editor.js';
 import * as themes from '../../../common/theme.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
@@ -22,6 +22,7 @@ import { ISplashStorageService } from './splash.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { TitleBarSetting } from '../../../../platform/window/common/window.js';
+import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 
 export class PartsSplash {
 
@@ -34,7 +35,7 @@ export class PartsSplash {
 	private _didChangeTitleBarStyle?: boolean;
 
 	constructor(
-		@IThemeService private readonly _themeService: IThemeService,
+		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
@@ -69,7 +70,9 @@ export class PartsSplash {
 	}
 
 	private _savePartsSplash() {
-		const theme = this._themeService.getColorTheme();
+		const theme = this._themeService.getBaseColorTheme();
+		const modernUIShellBackground = theme.getColor(themes.MODERN_UI_SHELL_BACKGROUND);
+		const modernUIInactiveShellBackground = theme.getColor(themes.MODERN_UI_INACTIVE_SHELL_BACKGROUND);
 
 		this._partSplashService.saveWindowSplash({
 			zoomLevel: this._configService.getValue<undefined>('window.zoomLevel'),
@@ -78,22 +81,28 @@ export class PartsSplash {
 				foreground: theme.getColor(foreground)?.toString(),
 				background: Color.Format.CSS.formatHex(theme.getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(theme)),
 				editorBackground: theme.getColor(editorBackground)?.toString(),
-				titleBarBackground: theme.getColor(themes.TITLE_BAR_ACTIVE_BACKGROUND)?.toString(),
+				titleBarBackground: theme.getColor(themes.TITLE_BAR_ACTIVE_BACKGROUND)?.makeOpaque(themes.WORKBENCH_BACKGROUND(theme)).toString(),
+				titleBarInactiveBackground: theme.getColor(themes.TITLE_BAR_INACTIVE_BACKGROUND)?.makeOpaque(themes.WORKBENCH_BACKGROUND(theme)).toString(),
 				titleBarBorder: theme.getColor(themes.TITLE_BAR_BORDER)?.toString(),
 				activityBarBackground: theme.getColor(themes.ACTIVITY_BAR_BACKGROUND)?.toString(),
 				activityBarBorder: theme.getColor(themes.ACTIVITY_BAR_BORDER)?.toString(),
 				modernActivityBarBackground: theme.getColor(themes.MODERN_ACTIVITY_BAR_BACKGROUND)?.toString(),
 				modernActivityBarInactiveBackground: theme.getColor(themes.MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND)?.toString(),
 				modernActivityBarBorder: theme.getColor(themes.MODERN_ACTIVITY_BAR_BORDER)?.toString(),
+				modernPanelBorder: theme.getColor(themes.MODERN_PANEL_BORDER)?.toString(),
+				modernUIShellBackground: modernUIShellBackground?.makeOpaque(themes.WORKBENCH_BACKGROUND(theme)).toString(),
+				modernUIInactiveShellBackground: modernUIInactiveShellBackground?.makeOpaque(themes.WORKBENCH_BACKGROUND(theme)).toString(),
 				sideBarBackground: theme.getColor(themes.SIDE_BAR_BACKGROUND)?.toString(),
 				sideBarBorder: theme.getColor(themes.SIDE_BAR_BORDER)?.toString(),
 				panelBackground: theme.getColor(themes.PANEL_BACKGROUND)?.toString(),
 				editorGroupBorder: theme.getColor(themes.EDITOR_GROUP_BORDER)?.toString(),
 				editorBorder: theme.getColor(themes.EDITOR_BORDER)?.toString(),
+				surfaceBackground: theme.getColor(themes.SURFACE_BACKGROUND)?.toString(),
 				surfaceBorder: theme.getColor(themes.SURFACE_BORDER)?.toString(),
 				agentsPanelBackground: theme.getColor('agentsPanel.background')?.toString(),
 				agentsPanelBorder: theme.getColor('agentsPanel.border')?.toString(),
 				statusBarBackground: theme.getColor(themes.STATUS_BAR_BACKGROUND)?.toString(),
+				statusBarInactiveBackground: theme.getColor(themes.STATUS_BAR_INACTIVE_BACKGROUND)?.toString(),
 				statusBarBorder: theme.getColor(themes.STATUS_BAR_BORDER)?.toString(),
 				statusBarNoFolderBackground: theme.getColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND)?.toString(),
 				windowBorder: theme.getColor(themes.WINDOW_ACTIVE_BORDER)?.toString() ?? theme.getColor(themes.WINDOW_INACTIVE_BORDER)?.toString()

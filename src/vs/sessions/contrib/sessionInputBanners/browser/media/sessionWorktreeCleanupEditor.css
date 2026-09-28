@@ -16,8 +16,8 @@
 }
 
 .session-worktree-cleanup-content h1 {
-	font-size: var(--vscode-agents-fontSize-heading1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-heading1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	margin: 0 0 var(--vscode-spacing-size80);
 }
 
@@ -96,7 +96,7 @@
 .session-worktree-cleanup-row.header {
 	border-top: 0;
 	background: var(--vscode-editorWidget-background);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .session-worktree-cleanup-row .title {
@@ -124,8 +124,8 @@
 }
 
 .session-worktree-cleanup-automatic h2 {
-	font-size: var(--vscode-agents-fontSize-heading2);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	margin: 0 0 var(--vscode-spacing-size80);
 }
 

@@ -5,7 +5,6 @@
 
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Limiter, RunOnceScheduler } from '../../../../base/common/async.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -16,7 +15,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { localize } from '../../../../nls.js';
-import { IChatInputNudgeOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNudge.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -36,6 +34,13 @@ export interface ISessionWorktreeCleanupCandidate {
 	readonly sizeBytes: number;
 }
 
+export interface ISessionWorktreeCleanupSuggestion {
+	readonly description: string;
+	manage(): Promise<void>;
+	disable(): Promise<void>;
+	dismiss(): void;
+}
+
 export type SessionWorktreeCleanupState = 'eligible' | 'active' | 'running' | 'needsInput' | 'pinned' | 'recent' | 'archived' | 'untitled' | 'error' | 'unavailable';
 
 export interface ISessionWorktree {
@@ -49,8 +54,9 @@ export const ISessionWorktreeCleanupService = createDecorator<ISessionWorktreeCl
 
 export interface ISessionWorktreeCleanupService {
 	readonly _serviceBrand: undefined;
-	readonly nudge: IObservable<IChatInputNudgeOptions | undefined>;
+	readonly suggestion: IObservable<ISessionWorktreeCleanupSuggestion | undefined>;
 	activate(): Promise<void>;
+	suppressForWindow(): void;
 	getWorktrees(minimumAgeDays: number, includeSessionsWithoutWorktrees?: boolean): Promise<readonly ISessionWorktree[]>;
 	cleanupWorktrees(candidates: readonly ISessionWorktreeCleanupCandidate[]): Promise<boolean>;
 	getCleanupStateLabel(state: SessionWorktreeCleanupState): string;
@@ -65,8 +71,8 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	private _refreshPromise: Promise<void> | undefined;
 	private _activated = false;
 	private _dismissed = false;
-	private readonly _nudge = observableValue<IChatInputNudgeOptions | undefined>(this, undefined);
-	readonly nudge: IObservable<IChatInputNudgeOptions | undefined> = this._nudge;
+	private readonly _suggestion = observableValue<ISessionWorktreeCleanupSuggestion | undefined>(this, undefined);
+	readonly suggestion: IObservable<ISessionWorktreeCleanupSuggestion | undefined> = this._suggestion;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -85,7 +91,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			}
 			this._lastScanAt = 0;
 			if (!this._isEnabled()) {
-				this._nudge.set(undefined, undefined);
+				this._suggestion.set(undefined, undefined);
 				return;
 			}
 			if (this._activated) {
@@ -145,9 +151,9 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		const totalBytes = candidates.reduce((total, candidate) => total + candidate.sizeBytes, 0);
 		const thresholdReached = existing.length >= CLEANUP_THRESHOLD_WORKTREES || totalBytes >= CLEANUP_THRESHOLD_BYTES;
 		if (thresholdReached && candidates.length > 0 && !this._dismissed) {
-			this._nudge.set(this._createNudge(candidates.length, totalBytes), undefined);
+			this._suggestion.set(this._createSuggestion(candidates.length, totalBytes), undefined);
 		} else {
-			this._nudge.set(undefined, undefined);
+			this._suggestion.set(undefined, undefined);
 		}
 	}
 
@@ -237,38 +243,27 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			.sort((a, b) => a.session.updatedAt.get().getTime() - b.session.updatedAt.get().getTime());
 	}
 
-	private _createNudge(candidateCount: number, reclaimableBytes: number): IChatInputNudgeOptions {
+	private _createSuggestion(candidateCount: number, reclaimableBytes: number): ISessionWorktreeCleanupSuggestion {
 		const description = candidateCount === 1
 			? localize('worktreeCleanup.nudge.descriptionOne', "1 agent session worktree has been inactive for at least 14 days and can be cleaned up, reclaiming about {0}. Active, running, needs-input, and pinned sessions are excluded.", ByteSize.formatSize(reclaimableBytes))
 			: localize('worktreeCleanup.nudge.descriptionMany', "{0} agent session worktrees have been inactive for at least 14 days and can be cleaned up, reclaiming about {1}. Active, running, needs-input, and pinned sessions are excluded.", candidateCount, ByteSize.formatSize(reclaimableBytes));
 		return {
-			title: localize('worktreeCleanup.nudge.title', "Clean up agent session worktrees"),
 			description,
-			icon: Codicon.trash,
-			primaryAction: {
-				label: localize('worktreeCleanup.nudge.manage', "Manage Session Storage"),
-				errorMessage: localize('worktreeCleanup.nudge.manageError', "Unable to manage agent session worktrees"),
-				run: async () => {
-					this._dismissed = true;
-					this._nudge.set(undefined, undefined);
-					await this.commandService.executeCommand(MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID);
-				},
+			manage: async () => {
+				this.suppressForWindow();
+				await this.commandService.executeCommand(MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID);
 			},
-			secondaryAction: {
-				label: localize('worktreeCleanup.nudge.dontShowAgain', "Don't Show Again"),
-				errorMessage: localize('worktreeCleanup.nudge.dontShowAgainError', "Unable to disable worktree cleanup suggestions"),
-				run: async () => {
-					this._dismissed = true;
-					this._nudge.set(undefined, undefined);
-					await this.configurationService.updateValue(AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING, false, ConfigurationTarget.APPLICATION);
-				},
+			disable: async () => {
+				this.suppressForWindow();
+				await this.configurationService.updateValue(AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING, false, ConfigurationTarget.APPLICATION);
 			},
-			dismissLabel: localize('worktreeCleanup.nudge.dismiss', "Dismiss Worktree Cleanup Suggestion"),
-			onDismiss: () => {
-				this._dismissed = true;
-				this._nudge.set(undefined, undefined);
-			},
+			dismiss: () => this.suppressForWindow(),
 		};
+	}
+
+	suppressForWindow(): void {
+		this._dismissed = true;
+		this._suggestion.set(undefined, undefined);
 	}
 
 	getWorktrees(minimumAgeDays: number, includeSessionsWithoutWorktrees = false): Promise<readonly ISessionWorktree[]> {
@@ -345,7 +340,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			case 'recent':
 				return localize('worktreeCleanup.state.recent', "Updated within the selected period");
 			case 'archived':
-				return localize('worktreeCleanup.state.archived', "Archived; cleanup may still be in progress");
+				return localize('worktreeCleanup.state.archived', "Already marked as done; cleanup may still be in progress");
 			case 'untitled':
 				return localize('worktreeCleanup.state.untitled', "Session has not started");
 			case 'error':

@@ -6,7 +6,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Do not run any other command or tool. Then reply with exactly "deleted".'
     response:
       content:
         - type: tool_use
@@ -14,21 +14,21 @@ exchanges:
           name: ${shell}
           input:
             command: node -e "require('fs').unlinkSync('delete-me.txt')"
-            description: Delete file delete-me.txt
+            description: Delete file using node
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Do not run any other command or tool. Then reply with exactly "deleted".'
         - role: assistant
           content:
             - type: tool_use
-              name: bash
+              name: powershell
               input:
                 command: node -e "require('fs').unlinkSync('delete-me.txt')"
-                description: Delete file delete-me.txt
+                description: Delete file using node
         - role: user
           content:
             - type: tool_result

@@ -30,6 +30,7 @@ suite('AgentPluginRepositoryService', () => {
 			cloneRepository: async () => { },
 			pull: async () => false,
 			checkout: async () => { },
+			checkoutCommit: async () => { },
 			revParse: async () => '',
 			fetch: async () => { },
 			fetchRepository: async () => { },
@@ -488,7 +489,7 @@ suite('AgentPluginRepositoryService', () => {
 		const service = createService(async () => true, undefined, {
 			revParse: async () => { calls.push('revParse'); return ''; },
 			fetch: async () => { calls.push('fetch'); },
-			checkout: async () => { calls.push('checkout'); },
+			checkoutCommit: async () => { calls.push('checkoutCommit'); },
 			pull: async () => { calls.push('pull'); return false; },
 		});
 
@@ -511,7 +512,7 @@ suite('AgentPluginRepositoryService', () => {
 			marketplaceType: MarketplaceType.Copilot,
 		});
 
-		assert.deepStrictEqual(calls, ['revParse', 'fetch', 'checkout', 'revParse']);
+		assert.deepStrictEqual(calls, ['revParse', 'fetch', 'checkoutCommit', 'revParse']);
 	});
 
 	// =========================================================================

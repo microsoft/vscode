@@ -812,6 +812,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					uri: URI.revive(folder.uri),
 					label: folder.label,
 					source: folder.source,
+					destinationGroupId: folder.destinationGroupId,
 				}));
 			},
 		};
@@ -890,6 +891,7 @@ namespace ChatNotebookEdit {
 			kind: 'notebookEdit',
 			uri: URI.revive(part.uri),
 			done: part.done,
+			autoTier: part.autoTier,
 			edits: part.edits.map(NotebookDto.fromCellEditOperationDto)
 		};
 	}

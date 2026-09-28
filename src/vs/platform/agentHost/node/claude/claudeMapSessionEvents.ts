@@ -8,7 +8,7 @@ import type { URI } from '../../../../base/common/uri.js';
 import { LogLevel, type ILogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -498,10 +498,10 @@ function mapResult(
 				type: ActionType.ChatError,
 				turnId,
 				duration: typeof turnDuration === 'number' && Number.isFinite(turnDuration) ? Math.max(0, turnDuration) : 0,
-				error: {
+				part: createErrorResponsePart({
 					errorType: message.subtype,
 					...extractForwardedErrorInfo(errorText),
-				},
+				}),
 			},
 		});
 	}

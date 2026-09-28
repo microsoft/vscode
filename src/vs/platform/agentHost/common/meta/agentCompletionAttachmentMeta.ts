@@ -42,6 +42,8 @@ export interface IAgentHostCompletionAction {
 export interface ICommandCompletionAttachmentMeta {
 	/** The slash command name (without the leading `/`). */
 	readonly command: string;
+	/** Whether this text-dispatched command originated from a runtime skill. */
+	readonly isSkill?: true;
 	/** Optional human-readable description of the command. */
 	readonly description?: string;
 	/**
@@ -96,6 +98,7 @@ export function readCompletionAttachmentMeta(attachment: SimpleMessageAttachment
 		return {
 			kind: 'command',
 			command: meta['command'],
+			...(meta['isSkill'] === true ? { isSkill: true } : {}),
 			...(typeof meta['description'] === 'string' ? { description: meta['description'] } : {}),
 			...(typeof meta['argumentHint'] === 'string' ? { argumentHint: meta['argumentHint'] } : {}),
 			...(action ? { action } : {}),
@@ -121,6 +124,9 @@ export function readCompletionAttachmentMeta(attachment: SimpleMessageAttachment
  */
 export function toCommandCompletionAttachmentMeta(meta: ICommandCompletionAttachmentMeta): Record<string, unknown> {
 	const result: Record<string, unknown> = { command: meta.command };
+	if (meta.isSkill === true) {
+		result['isSkill'] = true;
+	}
 	if (meta.description !== undefined) {
 		result['description'] = meta.description;
 	}
