@@ -268,9 +268,9 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		// Header row: icon + title + mute + dismiss
 		const headerRow = dom.append(container, $('.chat-input-notification-header'));
 
-		// Severity icon
-		const iconElement = dom.append(headerRow, $('.chat-input-notification-icon'));
-		iconElement.appendChild(dom.$(ThemeIcon.asCSSSelector(severityToIcon[notification.severity])));
+		// Header icon; the title conveys its meaning to screen readers.
+		const iconElement = dom.append(headerRow, $('.chat-input-notification-icon', { 'aria-hidden': 'true' }));
+		iconElement.appendChild(dom.$(ThemeIcon.asCSSSelector(notification.icon ?? severityToIcon[notification.severity])));
 
 		// Title
 		const titleElement = dom.append(headerRow, $('.chat-input-notification-title'));

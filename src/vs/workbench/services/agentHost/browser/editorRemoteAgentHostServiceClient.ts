@@ -301,6 +301,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().createChat(session, chat, options);
 	}
 
+	refreshSubscription(resource: URI): Promise<void> {
+		return this._requireClient().refreshSubscription(resource);
+	}
+
 	disposeChat(chat: URI): Promise<void> {
 		return this._requireClient().disposeChat(chat);
 	}

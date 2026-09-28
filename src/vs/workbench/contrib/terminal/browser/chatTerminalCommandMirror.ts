@@ -101,7 +101,7 @@ export interface IDetachedTerminalCommandMirrorRenderResult {
 interface IDetachedTerminalCommandMirror {
 	attach(container: HTMLElement): Promise<void>;
 	renderCommand(): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined>;
-	layout(widthPx: number): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined>;
+	layout(widthPx: number, reflow?: boolean): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined>;
 	getRowHeightPx(): number | undefined;
 	onDidUpdate: Event<IDetachedTerminalCommandMirrorRenderResult>;
 	onDidInput: Event<string>;
@@ -492,9 +492,10 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	 * Resizes the mirror to fill the given width, relying on xterm's native resize reflow to
 	 * re-wrap soft-wrapped lines. No-op when the resulting cols are unchanged. The column
 	 * count derives from the mirror's own xterm font metrics, which reflect the actual
-	 * renderer cell size rather than a configuration-based estimate.
+	 * renderer cell size rather than a configuration-based estimate. When reflow is disabled,
+	 * the mirror uses the source terminal's cols instead of filling the width.
 	 */
-	async layout(widthPx: number): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined> {
+	async layout(widthPx: number, reflow = true): Promise<IDetachedTerminalCommandMirrorRenderResult | undefined> {
 		if (this._store.isDisposed || widthPx <= 0) {
 			return undefined;
 		}
@@ -510,7 +511,9 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (this._store.isDisposed) {
 			return undefined;
 		}
-		const cols = computeChatTerminalMirrorCols(widthPx, detached.xterm.getFont(), getMirrorDevicePixelRatio(detached), measureMirrorHorizontalChrome(detached));
+		const cols = reflow
+			? computeChatTerminalMirrorCols(widthPx, detached.xterm.getFont(), getMirrorDevicePixelRatio(detached), measureMirrorHorizontalChrome(detached))
+			: this._xtermTerminal.raw.cols ?? ChatTerminalMirrorMetrics.MirrorColCountFallback;
 		if (detached.xterm.cols === cols) {
 			return undefined;
 		}
@@ -901,9 +904,10 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 	 * Resizes the mirror to fill the given width, relying on xterm's native resize reflow to
 	 * re-wrap soft-wrapped lines. No-op when the resulting cols are unchanged. The column
 	 * count derives from the mirror's own xterm font metrics, which reflect the actual
-	 * renderer cell size rather than a configuration-based estimate.
+	 * renderer cell size rather than a configuration-based estimate. When reflow is disabled,
+	 * the mirror uses its initial fallback cols instead of filling the width.
 	 */
-	public async layout(widthPx: number): Promise<{ lineCount?: number; maxColumnWidth?: number } | undefined> {
+	public async layout(widthPx: number, reflow = true): Promise<{ lineCount?: number; maxColumnWidth?: number } | undefined> {
 		if (widthPx <= 0) {
 			return undefined;
 		}
@@ -912,7 +916,9 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			if (this._store.isDisposed) {
 				return undefined;
 			}
-			const cols = computeChatTerminalMirrorCols(widthPx, terminal.xterm.getFont(), getMirrorDevicePixelRatio(terminal), measureMirrorHorizontalChrome(terminal));
+			const cols = reflow
+				? computeChatTerminalMirrorCols(widthPx, terminal.xterm.getFont(), getMirrorDevicePixelRatio(terminal), measureMirrorHorizontalChrome(terminal))
+				: ChatTerminalMirrorMetrics.MirrorColCountFallback;
 			if (terminal.xterm.cols === cols) {
 				return undefined;
 			}
