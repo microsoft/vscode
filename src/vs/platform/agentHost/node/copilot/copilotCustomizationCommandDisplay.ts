@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { appendEscapedMarkdownInlineCode, escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownCodeBlockFence, appendEscapedMarkdownInlineCode, escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import type { CopilotSlashCommandOutput, CopilotSlashCommandResult, ICopilotSlashCommandHandler, RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 
@@ -127,18 +127,23 @@ function formatCopilotMcpOutput(input: string, result: CopilotSlashCommandResult
 	if (lines.length < 5 || lines[0] !== 'MCP Servers' || lines[1] !== '' || lines[3] !== '') {
 		return undefined;
 	}
-	const servers: string[] = [];
-	let failedServer = false;
+	const servers: { line: string; details: string[] }[] = [];
+	let currentServer: { line: string; details: string[] } | undefined;
 	for (const line of lines.slice(4)) {
 		if (line.startsWith('- ') && line.length > 2) {
-			servers.push(`- ${escapeCustomizationMarkdownText(line.slice(2))}`);
-			failedServer = /\(failed[^)]*\): error:/.test(line);
-		} else if (failedServer && line && !line.startsWith('- ')) {
-			servers[servers.length - 1] += `  \n  ${escapeCustomizationMarkdownText(line)}`;
+			currentServer = { line: line.slice(2), details: [] };
+			servers.push(currentServer);
+		} else if (currentServer && /\([^)]+\): error:/.test(currentServer.line) && line && !line.startsWith('- ')) {
+			currentServer.details.push(line);
 		} else {
 			return undefined;
 		}
 	}
+	const formattedServerGroups = servers.map(server => formatCopilotMcpServer(server.line, server.details));
+	if (formattedServerGroups.some(server => server === undefined)) {
+		return undefined;
+	}
+	const formattedServers = formattedServerGroups.flatMap(server => server ?? []);
 
 	return {
 		kind: 'text',
@@ -147,10 +152,34 @@ function formatCopilotMcpOutput(input: string, result: CopilotSlashCommandResult
 			'',
 			escapeCustomizationMarkdownText(lines[2]),
 			'',
-			...servers,
+			...formattedServers,
 		].join('\n'),
 		markdown: true,
 	};
+}
+
+function formatCopilotMcpServer(line: string, details: readonly string[]): string[] | undefined {
+	const errorMatch = /^(?<name>.+) \((?<status>[^)]+)\): error: (?<error>.+)$/.exec(line);
+	if (!errorMatch?.groups) {
+		return details.length === 0 ? [`- ${escapeCustomizationMarkdownText(line)}`] : undefined;
+	}
+
+	const stderrSeparator = '; last stderr: ';
+	const separatorIndex = errorMatch.groups.error.indexOf(stderrSeparator);
+	const error = separatorIndex === -1 ? errorMatch.groups.error : errorMatch.groups.error.slice(0, separatorIndex);
+	const lastStderr = separatorIndex === -1 ? undefined : errorMatch.groups.error.slice(separatorIndex + stderrSeparator.length);
+	const diagnostic = [`${localize('copilotMcp.error', "Error")}: ${error}`];
+
+	if (details.length > 0) {
+		diagnostic.push('', details[0], ...details.slice(1));
+	} else if (lastStderr) {
+		diagnostic.push('', `${localize('copilotMcp.lastStderr', "Last stderr")}: ${lastStderr}`);
+	}
+
+	return [
+		`- ${escapeCustomizationMarkdownText(errorMatch.groups.name)} — **${escapeCustomizationMarkdownText(errorMatch.groups.status)}**`,
+		...appendEscapedMarkdownCodeBlockFence(diagnostic.join('\n'), 'text').split('\n').map(line => `  ${line}`),
+	];
 }
 
 function formatCopilotPluginOutput(input: string, result: CopilotSlashCommandResult): CopilotSlashCommandOutput | undefined {
