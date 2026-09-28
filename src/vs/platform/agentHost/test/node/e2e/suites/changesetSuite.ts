@@ -1642,7 +1642,9 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	if (context.tier === 'parity') {
 		const supportsProviderFileEdits = config.streamingFileCreateToolName !== undefined || config.fileOperationStrategy === 'shell';
 		const providerFileEditsEnabled = config.fileOperationStrategy !== 'shell' || context.portableShellToolReplayEnabled;
-		(config.supportsMultipleChats && supportsProviderFileEdits && providerFileEditsEnabled ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
+		// Quarantined on Codex Windows: https://github.com/microsoft/vscode/issues/338153
+		const providerChangesetAggregationEnabled = config.provider !== 'codex' || !context.isWindows;
+		(config.supportsMultipleChats && supportsProviderFileEdits && providerFileEditsEnabled && providerChangesetAggregationEnabled ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
 			this.timeout(240_000);
 			const workspace = createGitWorkspace(`ahp-provider-session-changeset-${config.provider}-`);
 			const sessionUri = await createSessionIn(workspace, 'provider-session-changeset');

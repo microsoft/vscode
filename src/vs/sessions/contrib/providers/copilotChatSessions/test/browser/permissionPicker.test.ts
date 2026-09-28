@@ -192,7 +192,7 @@ suite('Copilot PermissionPicker', () => {
 		});
 	});
 
-	test('sandbox toggle editability follows managed bypass policy', async () => {
+	test('sandbox toggle locks direct disabling under managed enablement', async () => {
 		const sandboxSettingId = 'test.sandbox.enabled';
 		const writes: unknown[] = [];
 		const configurationService = new class extends TestConfigurationService {
@@ -266,12 +266,12 @@ suite('Copilot PermissionPicker', () => {
 					writes.length = 0;
 					toggle.onChange(false);
 					toggle.onChange(true);
-					const disabled = managed && bypass !== true;
+					const disabled = managed;
 					assert.deepStrictEqual({ checked: toggle.checked, disabled: toggle.disabled, title: toggle.title, writes }, {
 						checked: true,
 						disabled,
 						title: managed
-							? disabled ? 'Sandboxing is required by your organization' : 'Sandboxing is enabled by your organization, but you may disable it'
+							? 'Sandboxing is required by your organization'
 							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.',
 						writes: disabled ? [] : (initiallyChecked ? [false, true] : [true]).map(enabled => ({ session: 'test-session', enabled })),
 					});
@@ -279,6 +279,7 @@ suite('Copilot PermissionPicker', () => {
 			}
 		}
 
+		managedSandboxEnforced.set(false, undefined);
 		sandboxEnabled.set(false, undefined);
 		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.checked, false);
 		sandboxEnabled.set(true, undefined);
@@ -287,12 +288,13 @@ suite('Copilot PermissionPicker', () => {
 		sandboxEnabled.set(undefined, undefined);
 
 		const toggle = picker['_getSandboxStandaloneToggle']()!;
+		managedSandboxEnforced.set(true, undefined);
 		allowBypass = false;
 		writes.length = 0;
 		toggle.onChange(false);
 		assert.deepStrictEqual({ writes, disabled: picker['_getSandboxStandaloneToggle']()!.disabled }, { writes: [], disabled: true });
 		allowBypass = true;
-		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.disabled, false);
+		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.disabled, true);
 
 		picker['_triggerElement'] = document.createElement('div');
 		allowBypass = false;
@@ -312,11 +314,66 @@ suite('Copilot PermissionPicker', () => {
 		managedSettingsChanged.fire();
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, rowDisabled: true, title: 'Sandboxing is required by your organization', hasHover: true },
-			{ disabled: false, rowDisabled: false, title: 'Sandboxing is enabled by your organization, but you may disable it', hasHover: false },
 			{ disabled: false, rowDisabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.', hasHover: false },
-			{ disabled: false, rowDisabled: false, title: 'Sandboxing is enabled by your organization, but you may disable it', hasHover: false },
 			{ disabled: true, rowDisabled: true, title: 'Sandboxing is required by your organization', hasHover: true },
 		]);
+	});
+
+	test('sandbox re-enablement observes host confirmation and session bypass policy', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const allowsBypass = observableValue('sessionAllowsBypass', false);
+		const confirmedEnabled = observableValue<boolean | undefined>('confirmedEnabled', undefined);
+		const writes: boolean[] = [];
+		const states: { checked: boolean | undefined; disabled: boolean | undefined }[] = [];
+		const record = <T>(items: readonly IActionListItem<T>[]) => {
+			const toggle = items.find(item => item.standaloneToggle)?.standaloneToggle;
+			states.push({ checked: toggle?.checked, disabled: toggle?.disabled });
+		};
+		const picker = store.add(new PermissionPicker(
+			{
+				getPermissionLevelMeta: (_level, meta) => meta,
+				setPermissionLevel: () => { },
+				isSandboxToggleApplicable: () => true,
+				getSandboxToggleProvider: () => 'copilotcli',
+				getSandboxToggleSettingId: () => 'test.sandbox.enabled',
+				sandboxEnabled: constObservable(false),
+				sandboxConfirmedEnabled: confirmedEnabled,
+				setSandboxEnabled: enabled => writes.push(enabled),
+				managedSandboxEnforced: constObservable(true),
+				managedSandboxAllowsBypass: allowsBypass,
+			},
+			new class extends mock<IActionWidgetService>() {
+				override readonly isVisible = false;
+				override updateItems<T>(items: readonly IActionListItem<T>[]): void { record(items); }
+			}(),
+			configurationService,
+			new TestDialogService(),
+			new class extends mock<IOpenerService>() { }(),
+			store.add(new TestStorageService()),
+			NullTelemetryService,
+			new class extends mock<IHoverService>() { }(),
+			{ ...unmanagedEnablementService, managedSandboxAllowsBypass: constObservable(true) },
+		));
+		const items = picker.getActionListItems(() => true);
+		record(items);
+		store.add(picker.watchSandboxToggle(items));
+		items.find(item => item.standaloneToggle)!.standaloneToggle!.onChange(false);
+		allowsBypass.set(true, undefined);
+		confirmedEnabled.set(false, undefined);
+		picker.getActionListItems(() => true).find(item => item.standaloneToggle)!.standaloneToggle!.onChange(true);
+		confirmedEnabled.set(true, undefined);
+		allowsBypass.set(false, undefined);
+		assert.deepStrictEqual({ states, writes }, {
+			states: [
+				{ checked: true, disabled: true },
+				{ checked: false, disabled: false },
+				{ checked: true, disabled: true },
+			],
+			writes: [true],
+		});
 	});
 
 	test('uses descriptions aligned with the agent host permission picker', () => {

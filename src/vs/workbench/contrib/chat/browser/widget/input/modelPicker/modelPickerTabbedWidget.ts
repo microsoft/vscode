@@ -36,7 +36,7 @@ import { getModelPickerAccessibilityProvider } from './modelPickerItems.js';
 import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
-import { createMessageBanner } from './modelPickerHover.js';
+import { createMessageBanner, getModelHoverContent } from './modelPickerHover.js';
 
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
@@ -592,12 +592,33 @@ export class TabbedModelPicker extends Disposable {
 			items.push({ kind: ActionListItemKind.Separator, label: localize('chat.modelPicker.alternativeRouting', "Alternative routing") });
 			if (hydra) {
 				const item = this._createModelItem(hydra, context);
+				const description = localize('chat.modelPicker.hydraFusionDescription', "HydraFusion picks a workflow for each task, using one or more models to draft, review, or escalate when needed.");
+				let hoverContent: ReturnType<typeof getModelHoverContent>;
 				items.push({
 					...item,
 					detail: localize('chat.modelPicker.hydraFusionDetail', "May use multiple models"),
 					badge: item.badge ?? hydra.metadata.detail,
-					ariaDescription: [item.ariaDescription, hydra.metadata.tooltip].filter(Boolean).join(', '),
-					tooltip: [item.tooltip, hydra.metadata.tooltip].filter(Boolean).join(' \u00b7 '),
+					ariaDescription: [item.ariaDescription, description].filter(Boolean).join(', '),
+					tooltip: [item.tooltip, description].filter(Boolean).join(' \u00b7 '),
+					hover: {
+						content: () => {
+							hoverContent ??= getModelHoverContent(hydra, context.isUBB, undefined, this._openerService, description);
+							if (!hoverContent) {
+								throw new Error('HydraFusion model hover is unavailable');
+							}
+							return hoverContent.element;
+						},
+						disposable: { dispose: () => hoverContent?.disposable.dispose() },
+						disposeContent: content => {
+							if (hoverContent?.element === content) {
+								hoverContent.disposable.dispose();
+								hoverContent = undefined;
+							}
+						},
+						expandable: true,
+						tabThroughPanel: true,
+						getTabbableElements: () => hoverContent?.tabbableElements ?? [],
+					},
 					className: `${item.className} chat-model-picker-routing-model${!item.badge && hydra.metadata.detail ? ' chat-model-picker-badge-preview' : ''}`,
 				});
 			}

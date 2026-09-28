@@ -5,8 +5,10 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -66,6 +68,7 @@ export interface INewSessionComposerPicker {
 }
 
 export interface INewSessionComposer {
+	readonly sessionResource?: IObservable<URI | undefined>;
 	readonly modelPicker?: INewSessionComposerPicker;
 	readonly workspacePreselectionSource?: NewSessionWorkspacePreselectionSource;
 	readonly workspaceSelection?: IWorkspaceSelectionSnapshot;
@@ -91,6 +94,7 @@ export interface INewSessionComposerService {
 	readonly userNavigationVersion: IObservable<number>;
 	readonly inputVersion: IObservable<number>;
 	readonly hasDraftInput: boolean | undefined;
+	hasDraftInputForSession(sessionResource: URI): boolean;
 	notifyUserNavigation(): void;
 	readonly onWillSendRequest: Event<{ readonly options: ISendRequestOptions; readonly selection: IWorkspaceSelectionSnapshot | undefined }>;
 	notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void;
@@ -134,12 +138,22 @@ export class NewSessionComposerService extends Disposable implements INewSession
 		return ready.length ? ready.some(composer => composer.hasInput) : undefined;
 	}
 
+	hasDraftInputForSession(sessionResource: URI): boolean {
+		return [...this._composers].some(composer => isEqual(composer.sessionResource?.get(), sessionResource)
+			&& (composer.isInputReady === false || composer.hasInput === true));
+	}
+
 	registerComposer(composer: INewSessionComposer): IDisposable {
 		this._composers.add(composer);
 		this._activeComposer.set(composer, undefined);
 		const inputListener = composer.onDidChangeInput?.(() => this._inputVersion.set(this._inputVersion.get() + 1, undefined)) ?? Disposable.None;
-		return combinedDisposable(inputListener, toDisposable(() => {
+		const sessionListener = autorun(reader => {
+			composer.sessionResource?.read(reader);
+			this._inputVersion.set(this._inputVersion.read(undefined) + 1, undefined);
+		});
+		return combinedDisposable(inputListener, sessionListener, toDisposable(() => {
 			this._composers.delete(composer);
+			this._inputVersion.set(this._inputVersion.get() + 1, undefined);
 			if (this._activeComposer.get() === composer) {
 				this._activeComposer.set(Array.from(this._composers).at(-1), undefined);
 			}
