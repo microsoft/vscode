@@ -2346,6 +2346,22 @@ suite('ActionListWidget', () => {
 		);
 	});
 
+	test('rebuilding the items in place can preserve the scroll position', () => {
+		const items = Array.from({ length: 20 }, (_, index) => action(`item-${index}`));
+		const widget = createActionListWidget(disposables, {
+			items: items.map((item, index) => index === 0 ? { ...item, item: { id: 'item-0', checked: true } } : item),
+			listOptions: { showFilter: true, focusFilterOnOpen: true },
+		});
+		widget.layout(120, 200);
+		widget.focus();
+		const list = (widget as unknown as { _list: { scrollTop: number } })._list;
+		list.scrollTop = 120;
+
+		widget.updateItems(items.map(item => ({ ...item })), undefined, { preserveScrollPosition: true });
+
+		assert.strictEqual(list.scrollTop, 120);
+	});
+
 	test('removing the focused row toolbar restores focus inside the remaining list', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [

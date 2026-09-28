@@ -106,6 +106,8 @@ export interface IActionListItemHover {
 export interface IActionListUpdateOptions {
 	/** Retain the open hover or submenu when its replacement item has the same id. */
 	readonly preserveHover?: boolean;
+	/** Keep the current viewport when items are refreshed in place. */
+	readonly preserveScrollPosition?: boolean;
 	/** Animate a visible focused item's move. The caller must respect reduced motion. */
 	readonly animateItemMove?: boolean;
 }
@@ -1747,6 +1749,7 @@ export class ActionListWidget<T> extends Disposable {
 	 * the number of visible rows changed.
 	 */
 	updateItems(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void {
+		const scrollTop = options?.preserveScrollPosition ? this._list.scrollTop : undefined;
 		const expandedItemId = (this._currentSubmenuElement?.item as { id?: string } | undefined)?.id;
 		const preservedItem = options?.preserveHover && expandedItemId
 			? items.find(item => (item.item as { id?: string } | undefined)?.id === (focusItemId ?? expandedItemId))
@@ -1800,6 +1803,9 @@ export class ActionListWidget<T> extends Disposable {
 			}
 		} else if (focusItemId !== undefined) {
 			this.focusItemById(focusItemId);
+		}
+		if (scrollTop !== undefined) {
+			this._list.scrollTop = scrollTop;
 		}
 	}
 
