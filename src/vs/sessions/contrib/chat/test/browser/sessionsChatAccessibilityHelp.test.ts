@@ -109,6 +109,29 @@ suite('SessionsChatAccessibilityHelp', () => {
 		);
 	});
 
+	test('documents the Copilot to Local feedback survey', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			survey: content.includes('a two-step feedback survey may appear above the chat input'),
+			keyboard: content.includes('use Up and Down Arrow to choose why you switched'),
+			acknowledgement: content.includes('the questions are replaced above the input by a message that your feedback was recorded'),
+		}, {
+			survey: true,
+			keyboard: true,
+			acknowledgement: true,
+		});
+	});
+
 	test('describes External section keyboard actions only when the section is enabled', () => {
 		const snapshots = [true, false].map(enabled => {
 			const instantiationService = store.add(new TestInstantiationService());
