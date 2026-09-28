@@ -127,6 +127,17 @@ animation in glass mode because that animation isolates the backdrop; toasts ret
 animation and switch to glass only after it finishes. With reduced motion,
 toasts apply glass immediately without waiting for a transition event.
 
+GPU lifecycle coverage uses [an Electron integration test](../../../platform/gpu/test/electron-main/gpuProcess.integrationTest.ts)
+with a separate process and temporary profile. It crashes that process's GPU via
+the DevTools protocol and observes Electron's native exit/recovery events,
+capability invalidation, renderer IPC reconnects, and crash-fallback telemetry.
+It covers service startup both before and after GPU initialization.
+A separate launch disables hardware acceleration and verifies solid-surface
+eligibility across reconnects. No GPU events or feature-status values are mocked.
+After transpiling, run it with
+`./scripts/test-integration.sh --run src/vs/platform/gpu/test/electron-main/gpuProcess.integrationTest.ts`
+(or `scripts\test-integration.bat` on Windows).
+
 ## Colors
 
 | Color ID | Purpose | Default |

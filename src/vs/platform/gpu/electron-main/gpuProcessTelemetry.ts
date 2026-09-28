@@ -20,21 +20,20 @@ export class GPUProcessTelemetry extends Disposable {
 		super();
 
 		const gpuInfoUpdate = Event.filter<undefined, GPUFeatureStatus>(gpuProcessMainService.onDidUpdateFeatureStatus, (status): status is GPUFeatureStatus => status !== undefined, this._store);
-		const registerCrashListener = (status: GPUFeatureStatus & { skia_graphite?: string }) => {
-			if (status.skia_graphite === 'enabled') {
-				const pendingGpuInfoListener = this._register(new MutableDisposable());
-				this._register(gpuProcessMainService.onDidExitProcess(({ reason }) => {
-					if (reason === 'crashed') {
-						pendingGpuInfoListener.value = Event.once(gpuInfoUpdate)(status => this.reportFallback(status));
-					}
-				}));
-			}
+		const isGraphiteEnabled = (status: (GPUFeatureStatus & { skia_graphite?: string }) | undefined) => status?.skia_graphite === 'enabled' || status?.skia_graphite === 'enabled_on';
+		const registerCrashListener = () => {
+			const pendingGpuInfoListener = this._register(new MutableDisposable());
+			this._register(gpuProcessMainService.onDidExitProcess(({ reason }) => {
+				if (reason === 'crashed') {
+					pendingGpuInfoListener.value = Event.once(gpuInfoUpdate)(status => this.reportFallback(status));
+				}
+			}));
 		};
-		const initialGpuFeatureStatus = gpuProcessMainService.featureStatus;
-		if (initialGpuFeatureStatus) {
-			registerCrashListener(initialGpuFeatureStatus);
+		if (isGraphiteEnabled(gpuProcessMainService.featureStatus)) {
+			registerCrashListener();
 		} else {
-			this._register(Event.once(gpuInfoUpdate)(registerCrashListener));
+			// Initial feature status can report Graphite disabled before GPU initialization completes.
+			this._register(Event.onceIf(gpuInfoUpdate, isGraphiteEnabled)(registerCrashListener));
 		}
 	}
 
