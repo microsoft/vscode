@@ -5756,6 +5756,41 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #205598 - retains auto-closed actions created by a reentrant decorations listener', () => {
+		usingCursor({
+			text: [''],
+			languageId: autoClosingLanguageId
+		}, (editor, model) => {
+			const results = [];
+			for (let iteration = 0; iteration < 3; iteration++) {
+				editor.executeEdits('test', [{ range: model.getFullModelRange(), text: '' }], [new Selection(1, 1, 1, 1)]);
+				for (let pair = 0; pair <= iteration; pair++) {
+					editor.trigger('keyboard', 'type', { text: '(' });
+				}
+				let armed = true;
+				const listener = disposables.add(model.onDidChangeDecorations(() => {
+					if (armed) {
+						armed = false;
+						editor.trigger('keyboard', 'type', { text: '(' });
+					}
+				}));
+				editor.setPosition(new Position(1, model.getLineMaxColumn(1)));
+				listener.dispose();
+				editor.trigger('keyboard', 'type', { text: ')' });
+				editor.setPosition(new Position(1, 1));
+				results.push({
+					value: model.getValue(),
+					autoClosedDecorations: model.getAllDecorations().filter(d => d.options.description.startsWith('auto-closed-')).length
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{ value: '()()', autoClosedDecorations: 0 },
+				{ value: '(())()', autoClosedDecorations: 0 },
+				{ value: '((()))()', autoClosedDecorations: 0 }
+			]);
+		});
+	});
+
 	test('issue #118270 - auto closing deletes only those characters that it inserted', () => {
 		usingCursor({
 			text: [
