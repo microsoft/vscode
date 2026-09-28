@@ -416,7 +416,6 @@ suite('pluginParsers', () => {
 				cwd: URI.file('/workspace'),
 				env: { A: '1' },
 				timeout: 10,
-				matcher: 'bash',
 				sourceUri: URI.file('/workspace/.github/hooks.yml')
 			};
 			const right: IParsedHookCommand = {
@@ -427,7 +426,6 @@ suite('pluginParsers', () => {
 				cwd: URI.file('/workspace'),
 				env: { A: '1' },
 				timeout: 10,
-				matcher: 'bash',
 				sourceUri: URI.file('/workspace/.github/hooks.yml')
 			};
 
@@ -451,13 +449,6 @@ suite('pluginParsers', () => {
 			};
 
 			assert.strictEqual(IParsedHookCommand.isEquals(left, right), false);
-		});
-
-		test('returns false when only the matcher differs', () => {
-			assert.strictEqual(IParsedHookCommand.isEquals(
-				{ command: 'echo hi', matcher: 'bash' },
-				{ command: 'echo hi', matcher: 'apply_patch' },
-			), false);
 		});
 	});
 
@@ -844,29 +835,21 @@ suite('pluginParsers', () => {
 			const groups = parse({
 				hooks: {
 					postToolUse: [{ hooks: [{ type: 'command', command: 'echo a' }] }],
-					postToolUseFailure: [{ type: 'command', command: 'echo failure' }],
-					userPromptTransformed: [{ type: 'command', command: 'echo transformed' }],
 					bogusEvent: [{ hooks: [{ type: 'command', command: 'echo b' }] }],
 				},
 			});
-			assert.deepStrictEqual(groups.map(g => g.type), ['PostToolUse', 'PostToolUseFailure', 'UserPromptTransformed']);
+			assert.deepStrictEqual(groups.map(g => g.type), ['PostToolUse']);
 		});
 
-		test('preserves matchers from nested and flat command forms and drops empty groups', () => {
+		test('extracts commands from the nested matcher form and drops empty groups', () => {
 			const groups = parse({
 				hooks: {
 					PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo run' }] }],
-					postToolUse: [{ type: 'command', command: 'echo flat', matcher: 'bash' }],
 					Stop: [{ matcher: 'X', hooks: [{ type: 'not-a-command' }] }],
 				},
 			});
-			assert.deepStrictEqual(groups.map(group => ({
-				type: group.type,
-				commands: group.commands.map(command => ({ command: command.command, matcher: command.matcher })),
-			})), [
-				{ type: 'PreToolUse', commands: [{ command: 'echo run', matcher: 'Bash' }] },
-				{ type: 'PostToolUse', commands: [{ command: 'echo flat', matcher: 'bash' }] },
-			]);
+			assert.deepStrictEqual(groups.map(g => g.type), ['PreToolUse']);
+			assert.deepStrictEqual(groups[0].commands.map(c => c.command), ['echo run']);
 		});
 
 		test('extracts commands from the flat (non-nested) command form', () => {

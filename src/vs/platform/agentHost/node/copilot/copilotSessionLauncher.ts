@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import { Sequencer } from '../../../../base/common/async.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -34,7 +36,7 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
-import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
@@ -115,6 +117,25 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 
 const ContextTiers = ['default', 'long_context'] as const;
 const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
+
+function toSdkInstalledPlugins(plugins: readonly ICopilotPluginInfo[]): SdkInstalledPlugin[] {
+	const result = new Map<string, SdkInstalledPlugin>();
+	for (const plugin of plugins) {
+		if (plugin.pluginDir?.scheme !== Schemas.file) {
+			continue;
+		}
+		const path = plugin.pluginDir.fsPath;
+		result.set(path, {
+			name: basename(plugin.pluginDir),
+			marketplace: '',
+			installed_at: '1970-01-01T00:00:00.000Z',
+			enabled: true,
+			cache_path: path,
+			source: { source: 'local', path },
+		});
+	}
+	return [...result.values()];
+}
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
@@ -233,8 +254,12 @@ export interface ICopilotSessionLauncher {
 }
 
 type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'> & {
-	readonly rpc: Pick<CopilotClient['rpc'], 'account' | 'sandbox'>;
+	readonly rpc: Pick<CopilotClient['rpc'], 'account' | 'sandbox'> & {
+		readonly sessions: Pick<CopilotClient['rpc']['sessions'], 'setAdditionalPlugins'>;
+	};
 };
+
+type SdkInstalledPlugin = Parameters<CopilotClient['rpc']['sessions']['setAdditionalPlugins']>[0]['plugins'][number];
 
 interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
@@ -627,6 +652,7 @@ export async function applySandboxConfig(session: CopilotSessionWrapper['session
 }
 
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
+	private readonly _launchSequencer = new Sequencer();
 
 	/**
 	 * Memoized handle for the single shared BYOK loopback proxy, started lazily
@@ -650,8 +676,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 	) { }
 
-	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
+	launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
+		return this._launchSequencer.queue(() => this._launch(plan, runtime));
+	}
+
+	private async _launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.configurationResource.toString()}, chat=${runtime.chatUri.toString()}`);
+		await plan.client.rpc.sessions.setAdditionalPlugins({ plugins: toSdkInstalledPlugins(plan.snapshot.plugins) });
 		let managedSettingsResolved = false;
 		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
 		const sandboxConfig = async (session: CopilotSessionWrapper['session']) => {
@@ -929,8 +960,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
 		// exception: the SDK validates the session-start `agent:` against `customAgents`
 		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
-		// Hooks are also projected explicitly below because plugin directory discovery
-		// does not register their commands with the SDK callback surface.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
@@ -1061,11 +1090,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// VS Code owns durable MCP credentials; the runtime must not consult its keychain store.
 			mcpOAuthTokenStorage: 'in-memory',
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
-			hooks: toSdkHooks(plugins.flatMap(p => p.hooks), {
+			hooks: {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
-			}),
+			},
 			mcpServers,
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,

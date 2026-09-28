@@ -33,6 +33,7 @@ interface IPluginSessionOptions {
 	readonly hookType?: 'PreToolUse' | 'PostToolUse' | 'UserPromptSubmit' | 'SessionStart' | 'SessionEnd';
 	readonly hookExitCode?: number;
 	readonly hookStdout?: string;
+	readonly secondHookStdout?: string;
 	readonly pluginName?: string;
 	readonly publisher?: TestProtocolClient;
 	readonly clientId?: string;
@@ -78,12 +79,15 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 				'  process.exit(Number(exitCode));',
 				'});',
 			].join('\n'));
-			const command = [process.execPath, hookScript, hookLog, options.hookType, String(options.hookExitCode ?? 0), options.hookStdout ?? '']
-				.map(value => JSON.stringify(value))
-				.join(' ');
+			const hookCommand = (tag: string, stdout: string) => [process.execPath, hookScript, hookLog, tag, String(options.hookExitCode ?? 0), stdout]
+				.map(value => JSON.stringify(value)).join(' ');
+			const hooks = [{ type: 'command', command: hookCommand(options.hookType, options.hookStdout ?? '') }];
+			if (options.secondHookStdout !== undefined) {
+				hooks.push({ type: 'command', command: hookCommand(`${options.hookType}After`, options.secondHookStdout) });
+			}
 			writeFileSync(join(hooksDirectory, 'hooks.json'), JSON.stringify({
 				hooks: {
-					[options.hookType]: [{ hooks: [{ type: 'command', command }] }],
+					[options.hookType]: [{ hooks }],
 				},
 			}));
 		}
@@ -466,12 +470,13 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 
 		pluginHookTest('plugin PreToolUse hook runs before an MCP tool', async function () {
 			this.timeout(180_000);
-			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-pre-tool', { hookType: 'PreToolUse' });
+			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-pre-tool', { hookType: 'PreToolUse', hookStdout: '{}', secondHookStdout: '' });
 			await pluginState(sessionUri, pluginUri);
 			await driveTurnToCompletion(context.client, sessionUri, 'turn-hook-pre-tool', 'Call customization_probe exactly once, then reply with only its exact result.', 2);
 			const hookContent = await waitForHook(hookLog, 'PreToolUse');
 
 			assert.ok(hookContent.includes('customization_probe'));
+			assert.ok(hookContent.includes('PreToolUseAfter:'));
 		});
 
 		pluginHookTest('plugin PostToolUse hook runs after an MCP tool result', async function () {

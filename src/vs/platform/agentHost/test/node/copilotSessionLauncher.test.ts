@@ -5,8 +5,10 @@
 
 import type { CopilotClient, CopilotSession, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -61,6 +63,7 @@ const testRuntime: ICopilotSessionRuntime = {
 };
 
 const testWorkingDirectory = URI.file(process.cwd());
+const emptyPluginSessionsRpc = { setAdditionalPlugins: async () => ({}) };
 
 function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
 	config?.onEvent?.({
@@ -72,9 +75,14 @@ function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
 
 function returningSession(session: CopilotSession): CopilotClient {
 	return {
-		createSession: async config => { reportManagedSettings(config); return session; },
-		resumeSession: async (_id, config) => { reportManagedSettings(config); return session; },
-	} as CopilotClient;
+		createSession: async (config: SessionConfig) => { reportManagedSettings(config); return session; },
+		resumeSession: async (_id: string, config: ResumeSessionConfig) => { reportManagedSettings(config); return session; },
+		rpc: {
+			account: new class extends mock<CopilotClient['rpc']['account']>() { },
+			sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) },
+			sessions: emptyPluginSessionsRpc,
+		},
+	} as unknown as CopilotClient;
 }
 
 class CapturingLogService extends NullLogService {
@@ -190,6 +198,11 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		const client = {
 			createSession: async (config: ResumeSessionConfig) => initialize(config),
 			resumeSession: async (_id: string, config: ResumeSessionConfig | undefined) => initialize(config),
+			rpc: {
+				account: new class extends mock<CopilotClient['rpc']['account']>() { },
+				sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) },
+				sessions: emptyPluginSessionsRpc,
+			},
 		} as unknown as CopilotClient;
 		const shared = {
 			client, sessionId: 'sess-1', workingDirectory: testWorkingDirectory,
@@ -661,6 +674,8 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 						}];
 					},
 				},
+				sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) },
+				sessions: emptyPluginSessionsRpc,
 			},
 			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
 				reportManagedSettings(config);
@@ -746,6 +761,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 	test('passes Agent Host defaults, managed permissions, and exit-plan handler to create and resume', async () => {
 		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
 		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
+		const pluginRegistrations: Array<Parameters<CopilotClient['rpc']['sessions']['setAdditionalPlugins']>[0]> = [];
 		const session = {
 			sessionId: 'session-1',
 			on: () => () => { },
@@ -763,7 +779,11 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeConfigs.push(config);
 				return session;
 			},
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: {
+				account: new class extends mock<CopilotClient['rpc']['account']>() { },
+				sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) },
+				sessions: { setAdditionalPlugins: async (params: Parameters<CopilotClient['rpc']['sessions']['setAdditionalPlugins']>[0]) => { pluginRegistrations.push(params); return {}; } },
+			},
 		};
 		const managedSettingsPermissions: IAgentHostManagedSettingsPermissions = {
 			disableBypassPermissionsMode: 'disable',
@@ -858,6 +878,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 
 			assert.deepStrictEqual({
 				createClientName: createConfigs[0].clientName,
+				pluginRegistrations,
+				createHookKeys: Object.keys(createConfigs[0].hooks ?? {}).sort(),
 				createGitHubMcpToolConfig: createConfigs[0].githubMcpToolConfig,
 				createPluginDirectories: createConfigs[0].pluginDirectories,
 				createMcpServers: createConfigs[0].mcpServers,
@@ -900,6 +922,17 @@ suite('CopilotSessionLauncher shared session config', () => {
 					.map(message => message.replace(/attemptId=[\da-f-]+/g, 'attemptId=<id>').replace(/elapsedMs=\d+$/, 'elapsedMs=<ms>')),
 			}, {
 				createClientName: 'vscode-agent-host',
+				pluginRegistrations: Array.from({ length: 3 }, () => ({
+					plugins: [pluginDir, syntheticPluginDir].map(directory => ({
+						name: basename(directory),
+						marketplace: '',
+						installed_at: '1970-01-01T00:00:00.000Z',
+						enabled: true,
+						cache_path: directory.fsPath,
+						source: { source: 'local', path: directory.fsPath },
+					})),
+				})),
+				createHookKeys: ['onPostToolUse', 'onPreToolUse', 'onUserPromptSubmitted'],
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
 				createPluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
 				createMcpServers: {
@@ -978,6 +1011,83 @@ suite('CopilotSessionLauncher shared session config', () => {
 			await launcher.disposeByokProxyHandle();
 		}
 	});
+
+	test('serializes plugin registration with session creation', async () => {
+		const launcher = createTestLauncher();
+		const events: string[] = [];
+		const firstRegistrationStarted = new DeferredPromise<void>();
+		const firstRegistrationRelease = new DeferredPromise<void>();
+		let registrationCount = 0;
+		const session = (sessionId: string) => ({
+			sessionId,
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: { options: { update: async () => ({ success: true }) } },
+		}) as unknown as CopilotSession;
+		const client: CopilotSessionLaunchPlan['client'] = {
+			rpc: {
+				account: new class extends mock<CopilotClient['rpc']['account']>() { },
+				sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) },
+				sessions: {
+					setAdditionalPlugins: async ({ plugins }) => {
+						events.push(`register:${plugins[0]?.name}`);
+						if (registrationCount++ === 0) {
+							firstRegistrationStarted.complete();
+							await firstRegistrationRelease.p;
+						}
+						return {};
+					},
+				},
+			},
+			createSession: async config => {
+				reportManagedSettings(config);
+				events.push(`create:${config.sessionId}`);
+				return session(config.sessionId!);
+			},
+			resumeSession: async () => { throw new Error('Unexpected resume'); },
+		};
+		const plan = (sessionId: string, pluginDir: URI): CopilotSessionLaunchPlan => ({
+			kind: 'create',
+			client,
+			sessionId,
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: {
+				tools: [],
+				plugins: [{
+					format: PluginFormat.Copilot,
+					hooks: [],
+					mcpServers: [],
+					skills: [],
+					agents: [],
+					instructions: [],
+					pluginDir,
+				}],
+				mcpServers: {},
+			},
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			model: undefined,
+		});
+
+		const first = launcher.launch(plan('first', URI.file('/plugins/first')), testRuntime);
+		await firstRegistrationStarted.p;
+		const second = launcher.launch(plan('second', URI.file('/plugins/second')), testRuntime);
+		firstRegistrationRelease.complete();
+		const sessions = await Promise.all([first, second]);
+		try {
+			assert.deepStrictEqual(events, [
+				'register:first',
+				'create:first',
+				'register:second',
+				'create:second',
+			]);
+		} finally {
+			sessions.forEach(session => session.dispose());
+			await launcher.disposeByokProxyHandle();
+		}
+	});
 });
 
 suite('CopilotSessionLauncher resume fallback', () => {
@@ -1007,7 +1117,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			resumeSession: async () => {
 				throw new TestSdkError(message, code);
 			},
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) }, sessions: emptyPluginSessionsRpc },
 		};
 		return {
 			launcher: createTestLauncher(undefined, {}, logService, sessionOpenTelemetry),
@@ -1873,7 +1983,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 			},
 		} as unknown as CopilotSession;
 		const client: CopilotSessionLaunchPlan['client'] = {
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) }, sessions: emptyPluginSessionsRpc },
 			createSession: async config => {
 				capiCalls.push(config.capi);
 				return session;

@@ -1038,7 +1038,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const launchPlanBase = {
 		client: {
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) }, sessions: { setAdditionalPlugins: async () => ({}) } },
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
 		},
@@ -14995,7 +14995,6 @@ Use the attached image as context.
 			assert.strictEqual((entry.first as Error).message, 'post tool boom');
 			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in onPostToolUse: tool=edit');
 		});
-
 	});
 
 	// ---- client tool calls ----
