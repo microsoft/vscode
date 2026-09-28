@@ -276,13 +276,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		[NEW_SESSION_WELCOME_NAME_SETTING]: '',
 		[NEW_SESSION_WELCOME_PHRASES_SETTING]: false,
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: withControlPickers,
+		[UNIFIED_WORKSPACE_PICKER_SETTING]: experimentalComposerLayout,
+		[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalComposerLayout,
 		...(chatBackground === 'codicons' ? {
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
 			[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
-		} : {}),
-		...(experimentalComposerLayout ? {
-			[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
-			[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
 		} : {}),
 	});
 	disposableStore.add(configurationService.onDidChangeConfigurationEmitter);
@@ -565,123 +563,129 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		}
 	}
 	await nextFrame();
-	const optionsToggle = view.element.querySelector<HTMLElement>('.new-chat-session-options-toggle');
-	const sessionOptions = view.element.querySelector<HTMLElement>('.new-chat-session-options-details');
-	const optionsTray = view.element.querySelector<HTMLElement>('.new-chat-session-options');
-	const promptBox = view.element.querySelector<HTMLElement>('.new-chat-input-container');
-	assert(!!optionsToggle && !!sessionOptions && !!optionsTray && !!promptBox && sessionOptions.hidden && sessionOptions.inert
-		&& optionsToggle.getAttribute('aria-expanded') === 'false', 'Session options must be collapsed by default.');
-	await nextFrame();
 	const heading = view.element.querySelector<HTMLElement>('h1.new-session-heading');
 	assert(heading?.textContent === 'What should we build?');
 	const headingStyle = targetWindow.getComputedStyle(heading);
-	assert(headingStyle.textAlign === 'center'
-		&& headingStyle.fontSize === headingStyle.getPropertyValue('--vscode-fontSize-heading1').trim(),
-		'The welcome heading must use the largest heading token and be centered.');
-	const collapsedTrayBounds = optionsTray.getBoundingClientRect();
-	const promptBounds = promptBox.getBoundingClientRect();
-	assert(!!(optionsTray.compareDocumentPosition(promptBox) & Node.DOCUMENT_POSITION_FOLLOWING),
-		'The tray must precede the prompt in reading and keyboard order.');
-	if (!phoneLayout) {
-		assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
-			'The collapsed tray must join the top of the prompt.');
-	}
-	assert(collapsedTrayBounds.width < promptBounds.width, 'The collapsed tray must fit its controls, not the prompt width.');
-	if (expandSessionOptions) {
-		optionsToggle.click();
-		assert(!sessionOptions.hidden && !sessionOptions.inert && optionsToggle.getAttribute('aria-expanded') === 'true');
-		if (withControlPickers && width >= 800) {
-			assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => label.checkVisibility()),
-				'Wide composers must show every picker label when expanded.');
-		}
+	assert(experimentalComposerLayout
+		? headingStyle.display !== 'none'
+			&& headingStyle.textAlign === 'center'
+			&& headingStyle.fontSize === headingStyle.getPropertyValue('--vscode-fontSize-heading1').trim()
+		: headingStyle.display === 'none',
+		'The welcome heading must be visible and styled only in the experimental composer.');
+	const promptBox = view.element.querySelector<HTMLElement>('.new-chat-input-container');
+	assert(!!promptBox);
+	if (experimentalComposerLayout) {
+		const optionsToggle = view.element.querySelector<HTMLElement>('.new-chat-session-options-toggle');
+		const sessionOptions = view.element.querySelector<HTMLElement>('.new-chat-session-options-details');
+		const optionsTray = view.element.querySelector<HTMLElement>('.new-chat-session-options');
+		assert(!!optionsToggle && !!sessionOptions && !!optionsTray && sessionOptions.hidden && sessionOptions.inert
+			&& optionsToggle.getAttribute('aria-expanded') === 'false', 'Session options must be collapsed by default.');
 		await nextFrame();
-		assert(optionsTray.getBoundingClientRect().width > collapsedTrayBounds.width, 'The tray must grow with its revealed controls.');
-	}
-	const trayBounds = optionsTray.getBoundingClientRect();
-	if (expandSessionOptions && withControlPickers && !phoneLayout) {
-		assert(Math.abs(trayBounds.height - collapsedTrayBounds.height) < 1,
-			'Expanding the tray must compact pickers rather than increase its height.');
-	}
-	if (!phoneLayout) {
-		assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
-			'The tray must remain joined to the top of the prompt after expansion.');
-	}
-	const trayStyle = targetWindow.getComputedStyle(optionsTray);
-	assert(parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0
-		&& trayStyle.borderBottomLeftRadius === '0px' && trayStyle.borderBottomRightRadius === '0px',
-		'The tray must round its outer top corners and keep its joined bottom edge square.');
-	assert(trayBounds.left > promptBounds.left && trayBounds.right < promptBounds.right,
-		'The tray must remain inset from the prompt.');
-	if (phoneLayout) {
-		assert(Math.abs(trayBounds.left + trayBounds.width / 2 - promptBounds.left - promptBounds.width / 2) < 1,
-			'The phone workspace picker must retain its centered layout.');
-	} else {
-		const inset = parseFloat(trayStyle.getPropertyValue('--vscode-spacing-size160'));
-		assert(Math.abs(trayBounds.left - promptBounds.left - inset) < 1
-			&& Math.abs(collapsedTrayBounds.left - trayBounds.left) < 1,
-			'The tray must remain left-aligned at the same token inset when expanded or collapsed.');
-	}
-	const toggleStyle = targetWindow.getComputedStyle(optionsToggle);
-	assert(toggleStyle.display === 'flex' && toggleStyle.alignItems === 'center' && toggleStyle.justifyContent === 'center',
-		'The disclosure chevron must be centered within its button.');
-	const controls = [...optionsTray.querySelectorAll<HTMLElement>('.action-label[role="button"]')].filter(control => control.checkVisibility());
-	const referenceStyle = controls[0] && targetWindow.getComputedStyle(controls[0]);
-	for (const [index, control] of controls.entries()) {
-		const style = targetWindow.getComputedStyle(control);
-		const bounds = control.getBoundingClientRect();
-		const label = control.querySelector<HTMLElement>('.sessions-chat-dropdown-label');
-		const labelBounds = label?.checkVisibility() ? label.getBoundingClientRect() : undefined;
-		assert(style.height === referenceStyle.height && style.padding === referenceStyle.padding
-			&& style.gap === referenceStyle.gap && style.fontSize === referenceStyle.fontSize,
-			'Every tray picker must have the same control size, padding, icon gap and text size.');
-		assert(!labelBounds || Math.abs(bounds.top + bounds.height / 2 - labelBounds.top - labelBounds.height / 2) < 1,
-			'Picker text must be vertically centered within the control.');
-		const next = controls[index + 1]?.getBoundingClientRect();
-		if (next && Math.abs(next.top - bounds.top) < 1) {
-			assert(Math.abs(next.left - bounds.right - parseFloat(targetWindow.getComputedStyle(optionsTray).getPropertyValue('--vscode-spacing-size80'))) < 1,
-				'Adjacent pickers must have equal design-token spacing.');
+		const collapsedTrayBounds = optionsTray.getBoundingClientRect();
+		const promptBounds = promptBox.getBoundingClientRect();
+		assert(!!(optionsTray.compareDocumentPosition(promptBox) & Node.DOCUMENT_POSITION_FOLLOWING),
+			'The tray must precede the prompt in reading and keyboard order.');
+		if (!phoneLayout) {
+			assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
+				'The collapsed tray must join the top of the prompt.');
 		}
-	}
-	const lastControl = controls.at(-1)?.getBoundingClientRect();
-	assert(controls.every(control => Math.abs(control.getBoundingClientRect().top - controls[0].getBoundingClientRect().top) < 1),
-		'Tray pickers must stay on one row instead of stacking.');
-	assert(!!controls[0]?.querySelector<HTMLElement>('.sessions-chat-dropdown-label')?.checkVisibility(),
-		'The workspace name must remain visible when other pickers compact.');
-	const toggleBounds = optionsToggle.getBoundingClientRect();
-	assert(!lastControl || Math.abs(toggleBounds.top + toggleBounds.height / 2 - lastControl.top - lastControl.height / 2) < 1,
-		'The chevron and the picker text must share the same center line.');
-	for (const decoration of optionsTray.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-chevron, .repository-config-separator')) {
-		assert(targetWindow.getComputedStyle(decoration).display === 'none', 'Tray pickers must not show separators or dropdown chevrons.');
-	}
-	const harnessLabel = optionsTray.querySelector<HTMLElement>('.sessions-chat-session-type-picker .sessions-chat-dropdown-label');
-	assert(!harnessLabel || targetWindow.getComputedStyle(harnessLabel).marginLeft === '0px',
-		'The harness must use the picker gap without an additional label margin.');
-	if (expandSessionOptions && withControlPickers && width < 400 && !phoneLayout) {
-		assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => !label.checkVisibility()),
-			'Narrow trays must show repository and harness icons without labels.');
-		const states: boolean[][] = [];
-		for (const resizedWidth of [800, 480, 440, 380, 440, 480, 800]) {
-			container.style.width = `${resizedWidth}px`;
-			view.layout(resizedWidth, height, 0, 0);
+		assert(collapsedTrayBounds.width < promptBounds.width, 'The collapsed tray must fit its controls, not the prompt width.');
+		if (expandSessionOptions) {
+			optionsToggle.click();
+			assert(!sessionOptions.hidden && !sessionOptions.inert && optionsToggle.getAttribute('aria-expanded') === 'true');
+			if (withControlPickers && width >= 800) {
+				assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => label.checkVisibility()),
+					'Wide composers must show every picker label when expanded.');
+			}
+			await nextFrame();
+			assert(optionsTray.getBoundingClientRect().width > collapsedTrayBounds.width, 'The tray must grow with its revealed controls.');
+		}
+		const trayBounds = optionsTray.getBoundingClientRect();
+		if (expandSessionOptions && withControlPickers && !phoneLayout) {
+			assert(Math.abs(trayBounds.height - collapsedTrayBounds.height) < 1,
+				'Expanding the tray must compact pickers rather than increase its height.');
+		}
+		if (!phoneLayout) {
+			assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
+				'The tray must remain joined to the top of the prompt after expansion.');
+		}
+		const trayStyle = targetWindow.getComputedStyle(optionsTray);
+		assert(parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0
+			&& trayStyle.borderBottomLeftRadius === '0px' && trayStyle.borderBottomRightRadius === '0px',
+			'The tray must round its outer top corners and keep its joined bottom edge square.');
+		assert(trayBounds.left > promptBounds.left && trayBounds.right < promptBounds.right,
+			'The tray must remain inset from the prompt.');
+		if (phoneLayout) {
+			assert(Math.abs(trayBounds.left + trayBounds.width / 2 - promptBounds.left - promptBounds.width / 2) < 1,
+				'The phone workspace picker must retain its centered layout.');
+		} else {
+			const inset = parseFloat(trayStyle.getPropertyValue('--vscode-spacing-size160'));
+			assert(Math.abs(trayBounds.left - promptBounds.left - inset) < 1
+				&& Math.abs(collapsedTrayBounds.left - trayBounds.left) < 1,
+				'The tray must remain left-aligned at the same token inset when expanded or collapsed.');
+		}
+		const toggleStyle = targetWindow.getComputedStyle(optionsToggle);
+		assert(toggleStyle.display === 'flex' && toggleStyle.alignItems === 'center' && toggleStyle.justifyContent === 'center',
+			'The disclosure chevron must be centered within its button.');
+		const controls = [...optionsTray.querySelectorAll<HTMLElement>('.action-label[role="button"]')].filter(control => control.checkVisibility());
+		const referenceStyle = controls[0] && targetWindow.getComputedStyle(controls[0]);
+		for (const [index, control] of controls.entries()) {
+			const style = targetWindow.getComputedStyle(control);
+			const bounds = control.getBoundingClientRect();
+			const label = control.querySelector<HTMLElement>('.sessions-chat-dropdown-label');
+			const labelBounds = label?.checkVisibility() ? label.getBoundingClientRect() : undefined;
+			assert(style.height === referenceStyle.height && style.padding === referenceStyle.padding
+				&& style.gap === referenceStyle.gap && style.fontSize === referenceStyle.fontSize,
+				'Every tray picker must have the same control size, padding, icon gap and text size.');
+			assert(!labelBounds || Math.abs(bounds.top + bounds.height / 2 - labelBounds.top - labelBounds.height / 2) < 1,
+				'Picker text must be vertically centered within the control.');
+			const next = controls[index + 1]?.getBoundingClientRect();
+			if (next && Math.abs(next.top - bounds.top) < 1) {
+				assert(Math.abs(next.left - bounds.right - parseFloat(targetWindow.getComputedStyle(optionsTray).getPropertyValue('--vscode-spacing-size80'))) < 1,
+					'Adjacent pickers must have equal design-token spacing.');
+			}
+		}
+		const lastControl = controls.at(-1)?.getBoundingClientRect();
+		assert(controls.every(control => Math.abs(control.getBoundingClientRect().top - controls[0].getBoundingClientRect().top) < 1),
+			'Tray pickers must stay on one row instead of stacking.');
+		assert(!!controls[0]?.querySelector<HTMLElement>('.sessions-chat-dropdown-label')?.checkVisibility(),
+			'The workspace name must remain visible when other pickers compact.');
+		const toggleBounds = optionsToggle.getBoundingClientRect();
+		assert(!lastControl || Math.abs(toggleBounds.top + toggleBounds.height / 2 - lastControl.top - lastControl.height / 2) < 1,
+			'The chevron and the picker text must share the same center line.');
+		for (const decoration of optionsTray.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-chevron, .repository-config-separator')) {
+			assert(targetWindow.getComputedStyle(decoration).display === 'none', 'Tray pickers must not show separators or dropdown chevrons.');
+		}
+		const harnessLabel = optionsTray.querySelector<HTMLElement>('.sessions-chat-session-type-picker .sessions-chat-dropdown-label');
+		assert(!harnessLabel || targetWindow.getComputedStyle(harnessLabel).marginLeft === '0px',
+			'The harness must use the picker gap without an additional label margin.');
+		if (expandSessionOptions && withControlPickers && width < 400 && !phoneLayout) {
+			assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => !label.checkVisibility()),
+				'Narrow trays must show repository and harness icons without labels.');
+			const states: boolean[][] = [];
+			for (const resizedWidth of [800, 480, 440, 380, 440, 480, 800]) {
+				container.style.width = `${resizedWidth}px`;
+				view.layout(resizedWidth, height, 0, 0);
+				await nextFrame();
+				await nextFrame();
+				states.push([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].map(label => label.checkVisibility()));
+			}
+			assert(equals(states, [
+				[true, true, true],
+				[true, true, false],
+				[true, false, false],
+				[false, false, false],
+				[true, false, false],
+				[true, true, false],
+				[true, true, true],
+			]), 'Pickers must compact one at a time from right to left and restore as the chat widens.');
+			container.style.width = `${width}px`;
+			view.layout(width, height, 0, 0);
 			await nextFrame();
 			await nextFrame();
-			states.push([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].map(label => label.checkVisibility()));
+			assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => !label.checkVisibility()),
+				'Picker labels must compact again when the tray narrows.');
 		}
-		assert(equals(states, [
-			[true, true, true],
-			[true, true, false],
-			[true, false, false],
-			[false, false, false],
-			[true, false, false],
-			[true, true, false],
-			[true, true, true],
-		]), 'Pickers must compact one at a time from right to left and restore as the chat widens.');
-		container.style.width = `${width}px`;
-		view.layout(width, height, 0, 0);
-		await nextFrame();
-		await nextFrame();
-		assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => !label.checkVisibility()),
-			'Picker labels must compact again when the tray narrows.');
 	}
 	if (withConfiguredModel && withControlPickers && width >= 800) {
 		for (const selector of ['.agent-host-permissions-button', '.model-picker-config']) {
@@ -707,7 +711,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	const repositoryConfigContainer = view.element.querySelector<HTMLElement>('.new-chat-repo-config-container');
 	if (withControlPickers) {
-		assert(!!repositoryConfigContainer && sessionOptions.contains(repositoryConfigContainer));
+		const sessionOptions = view.element.querySelector<HTMLElement>('.new-chat-session-options-details');
+		assert(!!repositoryConfigContainer && !!sessionOptions?.contains(repositoryConfigContainer));
 		assert(repositoryConfigContainer.querySelectorAll('.action-label:not(.separator)').length === 2);
 		const primaryToolbar = promptBox.querySelector<HTMLElement>('.sessions-chat-toolbar');
 		assert(!!primaryToolbar);

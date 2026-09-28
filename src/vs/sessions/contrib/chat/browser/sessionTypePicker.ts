@@ -392,8 +392,14 @@ export class SessionTypePicker extends Disposable {
 	/** Source session-type availability from the selected workspace while displaying the active draft's type. */
 	setSessionWorkspaceFolderSource(source: IObservable<URI | undefined>): void {
 		this._sessionWorkspaceFolderSource = source;
+		let previousFolder = source.get();
+		this._picked = this._readStoredPick();
 		this._sessionWorkspaceFolderSourceWatch.value = autorun(reader => {
-			source.read(reader);
+			const folder = source.read(reader);
+			if (!isEqual(folder, previousFolder)) {
+				this._picked = this._readStoredPick();
+			}
+			previousFolder = folder;
 			this._recompute();
 		});
 	}
@@ -773,7 +779,7 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	private _readStoredPick(): IPreferredSessionType | undefined {
-		const folderUri = this._folderSource?.get();
+		const folderUri = this._folderSource?.get() ?? this._sessionWorkspaceFolderSource?.get();
 		if (folderUri) {
 			const repositoryPicks = this._readRepositoryPicks();
 			const repositoryKey = this.uriIdentityService.extUri.getComparisonKey(folderUri);
@@ -809,7 +815,7 @@ export class SessionTypePicker extends Disposable {
 
 	private _writeStoredPick(pick: IPickedSessionType): void {
 		const stored: IStoredSessionTypePick = { providerId: pick.providerId, sessionTypeId: pick.sessionTypeId };
-		const folderUri = this._folderSource?.get();
+		const folderUri = this._folderSource?.get() ?? this._sessionWorkspaceFolderSource?.get();
 		if (folderUri) {
 			const repositoryKey = this.uriIdentityService.extUri.getComparisonKey(folderUri);
 			const entries = {
@@ -832,7 +838,7 @@ export class SessionTypePicker extends Disposable {
 	 * reading {@link getUserPickedSessionType} fall back to the preferred type.
 	 */
 	private _clearStoredPick(): void {
-		const folderUri = this._folderSource?.get();
+		const folderUri = this._folderSource?.get() ?? this._sessionWorkspaceFolderSource?.get();
 		if (folderUri) {
 			const repositoryKey = this.uriIdentityService.extUri.getComparisonKey(folderUri);
 			const entries = {

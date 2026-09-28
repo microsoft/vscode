@@ -496,7 +496,7 @@ suite('NewChatWidget', () => {
 			shiftTabPrevented: false,
 			leftPrevented: false,
 			rightPrevented: false,
-			focused: 'Workspace',
+			focused: isWeb ? 'Select Repository' : 'Workspace',
 		});
 	});
 

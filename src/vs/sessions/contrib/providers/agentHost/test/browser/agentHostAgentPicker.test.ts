@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationType, type AgentCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../../platform/agentHost/common/customAgents.js';
-import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -17,6 +17,7 @@ import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConf
 import '../../browser/agentHostAgentPicker.js';
 import '../../browser/mobile/mobileChatInputConfigPicker.js';
 import '../../../../chat/browser/modelPicker.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
 
 suite('agentHostAgentPicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,23 +26,46 @@ suite('agentHostAgentPicker', () => {
 	const beta: AgentCustomization = { type: CustomizationType.Agent, id: 'agent://b', uri: 'agent://b', name: 'beta', description: 'b desc' };
 	const agents: readonly AgentCustomization[] = [alpha, beta];
 
-	test('orders the new-session agent before mode and model without duplicating it in automations', () => {
-		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
-		IsPhoneLayoutContext.bindTo(context).set(false);
-		const inDialog = ChatContextKeys.inAutomationsDialog.bindTo(context);
-		const ids = ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker', 'sessions.modelPicker'];
-		const controls = () => [Menus.NewSessionControl, Menus.NewSessionConfig].flatMap(menu =>
+	test('places the new-session agent according to the effective composer layout without duplicating it in automations', () => {
+		const createContext = (unifiedPicker: boolean, experimentalLayout: boolean, inAutomationsDialog: boolean) => {
+			const configuration = new TestConfigurationService({
+				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
+				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
+			});
+			disposables.add(configuration.onDidChangeConfigurationEmitter);
+			const context = disposables.add(new ContextKeyService(configuration));
+			SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
+			IsPhoneLayoutContext.bindTo(context).set(false);
+			ChatContextKeys.inAutomationsDialog.bindTo(context).set(inAutomationsDialog);
+			return context;
+		};
+		const ids = ['sessions.agentHost.agentPicker', 'sessions.modelPicker'];
+		const controls = (context: ContextKeyService, menu: MenuId) =>
 			MenuRegistry.getMenuItems(menu).filter(isIMenuItem)
 				.filter(item => ids.includes(item.command.id) && context.contextMatchesRules(item.when))
 				.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-				.map(item => item.command.id));
-		inDialog.set(false);
-		const newSession = controls();
-		inDialog.set(true);
-		assert.deepStrictEqual({ newSession, automationSecondary: controls() }, {
-			newSession: ids,
-			automationSecondary: ['sessions.agentHost.newSessionModePicker', 'sessions.modelPicker'],
+				.map(item => item.command.id);
+		const snapshot = (context: ContextKeyService) => ({
+			control: controls(context, Menus.NewSessionControl),
+			config: controls(context, Menus.NewSessionConfig),
+		});
+		assert.deepStrictEqual({
+			legacyNewSession: snapshot(createContext(false, false, false)),
+			experimentalNewSession: snapshot(createContext(true, true, false)),
+			automationSecondary: snapshot(createContext(true, true, true)),
+		}, {
+			legacyNewSession: {
+				control: [],
+				config: ids,
+			},
+			experimentalNewSession: {
+				control: ['sessions.agentHost.agentPicker'],
+				config: ['sessions.modelPicker'],
+			},
+			automationSecondary: {
+				control: [],
+				config: ['sessions.modelPicker'],
+			},
 		});
 	});
 

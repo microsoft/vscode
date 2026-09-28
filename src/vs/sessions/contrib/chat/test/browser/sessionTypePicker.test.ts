@@ -1023,7 +1023,7 @@ suite('SessionTypePicker', () => {
 		});
 	});
 
-	test('folder-driven mode remembers different harnesses per repository', () => {
+	test('session workspace source remembers different harnesses per repository', () => {
 		const folderA = URI.file('/a');
 		const folderB = URI.file('/b');
 		const types = [
@@ -1034,7 +1034,7 @@ suite('SessionTypePicker', () => {
 		management.setSessionTypesForFolder(folderB, types);
 		const folderSource = observableValue<URI | undefined>('folder', folderA);
 		const picker = createPicker(disposables, session, management, storage);
-		picker.setFolderSource(folderSource);
+		picker.setSessionWorkspaceFolderSource(folderSource);
 
 		picker.pick({ providerId: 'cloud', sessionTypeId: 'cloud-agent' });
 		folderSource.set(folderB, undefined);
@@ -1061,12 +1061,12 @@ suite('SessionTypePicker', () => {
 		management.setSessionTypesForFolder(folder, types);
 		storage.store('sessions.userSelectedSessionType', JSON.stringify({ providerId: 'cloud', sessionTypeId: 'cloud-agent' }), StorageScope.PROFILE, StorageTarget.MACHINE);
 		const picker = createPicker(disposables, session, management, storage);
-		picker.setFolderSource(constObservable(folder));
+		picker.setSessionWorkspaceFolderSource(constObservable(folder));
 		const restoredLegacyPreference = picker.selectedPick;
 
 		picker.pick({ providerId: 'local', sessionTypeId: 'copilot-cli' });
 		const freshPicker = createPicker(disposables, observableValue<ISession | undefined>('session2', undefined), management, storage);
-		freshPicker.setFolderSource(constObservable(folder));
+		freshPicker.setSessionWorkspaceFolderSource(constObservable(folder));
 
 		assert.deepStrictEqual({ restoredLegacyPreference, restoredRepositoryDefault: freshPicker.selectedPick }, {
 			restoredLegacyPreference: { providerId: 'cloud', sessionTypeId: 'cloud-agent' },

@@ -31,6 +31,11 @@
 }
 
 .new-chat-widget-content .new-session-heading {
+	display: none;
+}
+
+.new-chat-widget-content.experimental-new-session-composer .new-session-heading {
+	display: block;
 	margin: 0 0 var(--vscode-spacing-size240);
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-heading1);
@@ -55,8 +60,13 @@
 	display: none;
 	width: 100%;
 	max-width: 800px;
-	padding: 0 var(--vscode-spacing-size160);
+	padding: 0;
 	box-sizing: border-box;
+	margin-bottom: var(--vscode-spacing-size20);
+}
+
+.experimental-new-session-composer .new-session-workspace-picker-container {
+	padding: 0 var(--vscode-spacing-size160);
 	margin-top: var(--vscode-spacing-size120);
 	margin-bottom: 0;
 }
