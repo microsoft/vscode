@@ -6,6 +6,7 @@ parameters:
       - unit-node
       - unit-browser-chromium
       - integration-electron
+      - integration-browser-chromium
       - integration-browser-firefox
       - integration-remote
       - smoke-electron
