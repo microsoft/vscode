@@ -71,7 +71,7 @@ Quick chats are identified through `ISession.isQuickChat`, not by checking for a
 
 ### Archived sessions
 
-Archiving removes custom-group membership. Restoring a session does not restore its former membership. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
+Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing a bulk archive from the list: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
 
 ## Durable user intent
 
