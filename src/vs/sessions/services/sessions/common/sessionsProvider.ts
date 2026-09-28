@@ -14,7 +14,7 @@ import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/comm
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationUnavailableReasonCode, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
@@ -131,6 +131,8 @@ export interface ISessionsProviderAutomations extends IAutomationStore {
 	readonly canCreateAutomation: IObservable<boolean>;
 	/** Explanation and recovery guidance for provider unavailability, when present. */
 	readonly unavailableReason?: IObservable<string | undefined>;
+	/** Optional category for grouped unavailability messages. */
+	readonly unavailableReasonCode?: IObservable<AutomationUnavailableReasonCode | undefined>;
 }
 
 /**
