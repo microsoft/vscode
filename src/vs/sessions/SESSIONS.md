@@ -222,6 +222,25 @@ The contribution retains background chat models while initial or queued requests
 
 Inspection is a one-shot read of verified protocol state for the exact host-qualified session or chat, independent of whether its workbench chat model is loaded. It returns the chat state and bounded latest-turn response or error, not a full transcript or a delivery acknowledgement. It does not claim client tools, mark the chat read, approve input, reconnect, or send a turn. Unavailable targets are reported explicitly rather than returning stale content; temporary subscriptions are released after the read.
 
+## Implementation comparisons
+
+The opt-in `sessions.comparison.enabled` feature is owned by the Comparison
+contribution in the Agents Window. It associates independently created sessions
+with one shared prompt and base branch or commit; it does not introduce another
+session provider or agent execution path. Launches use
+`ISessionsManagementService.createAndSendNewChatRequest`, require advertised
+worktree configuration support, and request a new isolated branch per attempt.
+Normal provider model availability, workspace trust, permissions, and billing
+continue to apply.
+
+Comparison history stores the prompt, target models, session resources, launch
+outcomes, and the user's preferred attempt in workspace-local machine storage.
+Results remain live views of their sessions, not immutable evaluation snapshots.
+Restoring history never resends a prompt; unfinished launches are marked
+interrupted. Choosing a preference neither merges changes nor deletes, archives,
+or cancels the other sessions. Session navigation and change review continue
+through `ISessionsService` and the existing editor services.
+
 ## State propagation
 
 Use the narrowest mechanism that represents a change:

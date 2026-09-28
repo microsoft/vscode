@@ -502,6 +502,7 @@ import '../workbench/services/policies/browser/managedSettingsUpdate.contributio
 import './contrib/automations/browser/automations.contribution.js';
 import './contrib/remoteSessions/browser/remoteSessions.contribution.js';
 import './contrib/customViewTest/browser/customViewTest.contribution.js';
+import './contrib/comparison/browser/comparison.contribution.js';
 
 // Onboarding: the engine + spotlight presentation (from the workbench layer) and
 // the Agents window scenario data.
