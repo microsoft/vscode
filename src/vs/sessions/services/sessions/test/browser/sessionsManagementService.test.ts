@@ -2199,6 +2199,35 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('opening the main chat to the side of its already visible session keeps the peer active until the split opens', async () => {
+		const main = { ...stubChat, resource: URI.parse('test:///session/main') };
+		const peer = { ...stubChat, resource: URI.parse('test:///session/peer') };
+		const session = stubSession({
+			sessionId: 'session',
+			providerId: 'test',
+			chats: constObservable([main, peer]),
+			mainChat: constObservable(main),
+		});
+		const { view, sessionsPartService } = createSessionsManagementService(session, disposables);
+		await view.openChat(session, peer.resource);
+		const openedToSide: string[] = [];
+		sessionsPartService.sessionViews.set(session.sessionId, upcastPartial<SessionView>({
+			openChatToSide: async resource => { openedToSide.push(resource.toString()); },
+		}));
+
+		await view.openSessionToSide(session, { forceMainChat: true });
+
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().map(candidate => candidate?.sessionId),
+			activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+			openedToSide,
+		}, {
+			visible: [session.sessionId],
+			activeChat: peer.resource.toString(),
+			openedToSide: [main.resource.toString()],
+		});
+	});
+
 	test('restoreVisibleSessions lays out the grid atomically without intermediate single-session states', async () => {
 		const sessionA = stubSession({ sessionId: 'a', providerId: 'test' });
 		const sessionB = stubSession({ sessionId: 'b', providerId: 'test' });

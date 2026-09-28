@@ -1427,7 +1427,7 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 		}
 
 		const lastRequested = sessions[sessions.length - 1];
-		await sessionsService.openSessionToSide(lastRequested, { source: 'sessionsList' });
+		await sessionsService.openSessionToSide(lastRequested, { source: 'sessionsList', forceMainChat: true });
 
 		const visibleAfterOpen = sessionsService.visibleSessions.get();
 		const opened = visibleAfterOpen.find(s => s?.sessionId === lastRequested.sessionId);
