@@ -17,10 +17,10 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationType, FileCustomizationMigrationFailureReason, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, FileCustomizationMigrationFailureReason, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, type MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
-import { createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, resolveClosestMigrationTargetFolder, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
+import { createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, resolveWorkspaceMigrationTargetFolder, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 
 class DeleteFailingFileSystemProvider extends InMemoryFileSystemProvider {
@@ -747,16 +747,17 @@ suite('customizationMigration', () => {
 	});
 
 	test('keeps a workspace prompt in its own workspace folder of a multi-root workspace', async () => {
-		const customization: IPromptPath = {
+		const customization: MigratableConfiguration = {
 			uri: URI.file('/workspace-b/.github/prompts/review.prompt.md'),
 			name: 'Review',
 			storage: PromptsStorage.local,
 			type: PromptsType.prompt,
 			source: PromptFileSource.GitHubWorkspace,
+			workspaceGroupId: 'workspace-b',
 		};
 		const availableFolders: ICustomizationSourceFolder[] = [
-			{ uri: URI.file('/workspace-a/.github/skills'), label: '.github/skills', source: PromptsStorage.local },
-			{ uri: URI.file('/workspace-b/.github/skills'), label: '.github/skills', source: PromptsStorage.local },
+			{ uri: URI.file('/workspace-a/.github/skills'), label: '.github/skills', source: PromptsStorage.local, workspaceGroupId: 'workspace-a' },
+			{ uri: URI.file('/workspace-b/.github/skills'), label: '.github/skills', source: PromptsStorage.local, workspaceGroupId: 'workspace-b' },
 		];
 
 		const fileService = store.add(new FileService(new NullLogService()));
@@ -770,7 +771,7 @@ suite('customizationMigration', () => {
 			fileService,
 			undefined,
 			{
-				resolveTargetFolder: migrated => resolveClosestMigrationTargetFolder(migrated.uri, availableFolders[0], availableFolders),
+				resolveTargetFolder: migrated => resolveWorkspaceMigrationTargetFolder(migrated.workspaceGroupId, availableFolders[0], availableFolders),
 			},
 		);
 
@@ -785,25 +786,25 @@ suite('customizationMigration', () => {
 		});
 	});
 
-	test('resolves the closest migration target folder', () => {
+	test('resolves the migration target folder in the originating workspace group', () => {
 		const workspaceFolders: ICustomizationSourceFolder[] = [
-			{ uri: URI.file('/workspace-a/.github/skills'), label: '.github/skills', source: PromptsStorage.local },
-			{ uri: URI.file('/workspace-b/.claude/skills'), label: '.claude/skills', source: PromptsStorage.local },
-			{ uri: URI.file('/workspace-b/.github/skills'), label: '.github/skills', source: PromptsStorage.local },
+			{ uri: URI.file('/workspace-a/.github/skills'), label: '.github/skills', source: PromptsStorage.local, workspaceGroupId: 'workspace-a' },
+			{ uri: URI.file('/workspace-b/.claude/skills'), label: '.claude/skills', source: PromptsStorage.local, workspaceGroupId: 'workspace-b' },
+			{ uri: URI.file('/workspace-b/.github/skills'), label: '.github/skills', source: PromptsStorage.local, workspaceGroupId: 'workspace-b' },
 		];
-		const resolve = (customization: URI, target: ICustomizationSourceFolder) =>
-			resolveClosestMigrationTargetFolder(customization, target, workspaceFolders).uri.path;
+		const resolve = (workspaceGroupId: string | undefined, target: ICustomizationSourceFolder) =>
+			resolveWorkspaceMigrationTargetFolder(workspaceGroupId, target, workspaceFolders).uri.path;
 
 		assert.deepStrictEqual({
-			otherWorkspaceFolder: resolve(URI.file('/workspace-b/.github/prompts/review.prompt.md'), workspaceFolders[0]),
-			preservedDestination: resolve(URI.file('/workspace-b/.github/prompts/review.prompt.md'), { uri: URI.file('/workspace-a/.claude/skills'), label: '.claude/skills', source: PromptsStorage.local }),
-			sameWorkspaceFolder: resolve(URI.file('/workspace-a/.github/prompts/review.prompt.md'), workspaceFolders[0]),
-			unrelatedTarget: resolve(URI.file('/workspace-c/.github/prompts/review.prompt.md'), workspaceFolders[0]),
+			otherWorkspaceFolder: resolve('workspace-b', workspaceFolders[0]),
+			preservedDestination: resolve('workspace-b', { uri: URI.file('/workspace-a/.claude/skills'), label: '.claude/skills', source: PromptsStorage.local, workspaceGroupId: 'workspace-a' }),
+			sameWorkspaceFolder: resolve('workspace-a', workspaceFolders[0]),
+			unknownWorkspaceFolder: resolve(undefined, workspaceFolders[0]),
 		}, {
 			otherWorkspaceFolder: '/workspace-b/.github/skills',
 			preservedDestination: '/workspace-b/.claude/skills',
 			sameWorkspaceFolder: '/workspace-a/.github/skills',
-			unrelatedTarget: '/workspace-a/.github/skills',
+			unknownWorkspaceFolder: '/workspace-a/.github/skills',
 		});
 	});
 });

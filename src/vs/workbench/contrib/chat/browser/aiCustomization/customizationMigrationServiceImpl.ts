@@ -165,11 +165,18 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			const folders = await provider.provideSourceFolders(sessionResource, targetType, token);
 			sourceFolders.set(targetType, folders ?? []);
 		}
-		const filteredCandidates = candidates.filter(customization => {
+		const filteredCandidates = candidates.flatMap(customization => {
 			const targetType = getCustomizationMigrationTargetType(customization);
 			const compatibleFolders = sourceFolders.get(targetType)?.filter(folder => folder.source === customization.storage) ?? [];
-			return compatibleFolders.length > 0
-				&& (!excludeSupportedLocations || !compatibleFolders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(customization.uri, folder.uri)));
+			if (compatibleFolders.length === 0
+				|| excludeSupportedLocations && compatibleFolders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(customization.uri, folder.uri))
+			) {
+				return [];
+			}
+			return [{
+				...customization,
+				workspaceGroupId: provider.getWorkspaceGroupId?.(sessionResource, customization.uri),
+			}];
 		});
 		return { type, files: filteredCandidates.map(customization => customization.uri), candidates: filteredCandidates };
 	}

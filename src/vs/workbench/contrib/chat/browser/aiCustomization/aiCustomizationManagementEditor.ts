@@ -111,7 +111,7 @@ import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js'
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
-import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveClosestMigrationTargetFolder } from './customizationMigration.js';
+import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationBanner, type ICustomizationMigrationCandidatePresentation, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import {
 	CustomizationMigrationDashboard,
@@ -2098,7 +2098,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			// A folder picked through the file dialog is used as is.
 			return targetFolder;
 		}
-		return resolveClosestMigrationTargetFolder(customization.uri, targetFolder, availableFolders);
+		return resolveWorkspaceMigrationTargetFolder(customization.workspaceGroupId, targetFolder, availableFolders);
 	}
 
 	private async runCustomizationMigration(customizations: readonly MigratableConfiguration[], targetFolders: CustomizationMigrationTargetFolders, deleteOriginalFiles: boolean): Promise<IMigratedCustomizationsWithFailureReasonsResult> {

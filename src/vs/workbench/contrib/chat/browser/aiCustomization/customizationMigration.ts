@@ -58,41 +58,23 @@ export interface ICustomizationMigrationOptions {
 }
 
 /**
- * Picks the target folder that is closest to the customization that is being migrated.
- * In a multi-root workspace every workspace folder contributes its own source folders,
- * so a workspace customization must not be moved into a different workspace folder.
+ * Picks the corresponding target folder in the customization's workspace group.
  */
-export function resolveClosestMigrationTargetFolder(
-	customizationUri: URI,
+export function resolveWorkspaceMigrationTargetFolder(
+	workspaceGroupId: string | undefined,
 	targetFolder: ICustomizationSourceFolder,
 	availableFolders: readonly ICustomizationSourceFolder[],
 ): ICustomizationSourceFolder {
-	const targetProximity = getSharedPathSegmentCount(customizationUri, targetFolder.uri);
-	const closerFolders = availableFolders.filter(folder => getSharedPathSegmentCount(customizationUri, folder.uri) > targetProximity);
-	if (closerFolders.length === 0) {
+	if (!workspaceGroupId) {
 		return targetFolder;
 	}
 
-	// Prefer a folder that mirrors the selected destination (e.g. `.github/skills`)
-	// so that the destination the user picked is preserved across workspace folders.
-	return closerFolders.find(folder => hasSameFolderLayout(folder.uri, targetFolder.uri)) ?? closerFolders[0];
+	const workspaceFolders = availableFolders.filter(folder => folder.workspaceGroupId === workspaceGroupId);
+	return workspaceFolders.find(folder => hasSameFolderLayout(folder.uri, targetFolder.uri)) ?? workspaceFolders[0] ?? targetFolder;
 }
 
 function hasSameFolderLayout(folder: URI, other: URI): boolean {
 	return basename(folder) === basename(other) && basename(dirname(folder)) === basename(dirname(other));
-}
-
-function getSharedPathSegmentCount(one: URI, other: URI): number {
-	if (one.scheme !== other.scheme || one.authority !== other.authority) {
-		return 0;
-	}
-	const oneSegments = one.path.split('/');
-	const otherSegments = other.path.split('/');
-	let count = 0;
-	while (count < oneSegments.length && count < otherSegments.length && oneSegments[count] === otherSegments[count]) {
-		count++;
-	}
-	return count;
 }
 
 const retainedPromptHeaderKeys = new Set([

@@ -2870,8 +2870,8 @@ suite('aiCustomizationManagementEditor', () => {
 	test('migrates workspace customizations into their own workspace folder', async () => {
 		const editor = createTestEditor();
 		const workspaceFolders: ICustomizationSourceFolder[] = [
-			{ uri: URI.file('/workspace-a/.github/skills'), label: '.github/skills', source: PromptsStorage.local },
-			{ uri: URI.file('/workspace-b/.github/skills'), label: '.github/skills', source: PromptsStorage.local },
+			{ uri: URI.file('/workspace-a/.github/skills'), label: '.github/skills', source: PromptsStorage.local, workspaceGroupId: 'workspace-a' },
+			{ uri: URI.file('/workspace-b/.github/skills'), label: '.github/skills', source: PromptsStorage.local, workspaceGroupId: 'workspace-b' },
 		];
 		editor.customizationMigrationTargetFoldersByType = new Map([[PromptsType.skill, workspaceFolders]]);
 		const targetFolders = new Map<PromptsType, ReadonlyMap<PromptsStorage, ICustomizationSourceFolder>>([
@@ -2882,6 +2882,7 @@ suite('aiCustomizationManagementEditor', () => {
 			storage: PromptsStorage.local,
 			type: PromptsType.prompt,
 			source: PromptFileSource.GitHubWorkspace,
+			workspaceGroupId: root.slice(1),
 		});
 		const customFolder: ICustomizationSourceFolder = { uri: URI.file('/custom/skills'), label: '/custom/skills', source: PromptsStorage.local };
 
