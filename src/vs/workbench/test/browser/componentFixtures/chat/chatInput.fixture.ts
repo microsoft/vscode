@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../base/common/observable.js';
@@ -18,8 +19,10 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../contrib/cha
 import { ChatAgentLocation } from '../../../../contrib/chat/common/constants.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { ChatInputNotificationSeverity, IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationWidget } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { CopilotHarnessIntroductionButtonVariant, copilotHarnessIntroductionButtonVariants, CopilotHarnessIntroductionCopyVariant, copilotHarnessIntroductionCopyVariants, getCopilotHarnessIntroductionContent } from '../../../../contrib/chat/browser/agentSessions/copilotHarnessIntroduction.js';
-import { defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { registerChatFixtureServices } from './chatFixtureUtils.js';
 import { ChatInputFixtureOptions, renderChatInput } from './renderChatInput.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
@@ -147,6 +150,37 @@ const copilotIntroductionOptions: ChatInputFixtureOptions = {
 	notification: createCopilotIntroductionNotification(),
 };
 
+function renderCopilotIntroductionComparison(context: ComponentFixtureContext): void {
+	const { container, disposableStore } = context;
+	const width = 500;
+	container.classList.add('monaco-workbench', 'copilot-introduction-comparison');
+	container.style.display = 'grid';
+	container.style.gridTemplateColumns = `repeat(2, ${width}px)`;
+	container.style.width = 'max-content';
+	container.style.gap = 'var(--vscode-spacing-size240)';
+	container.style.padding = 'var(--vscode-spacing-size160)';
+	container.style.backgroundColor = 'var(--vscode-editor-background)';
+	container.style.color = 'var(--vscode-foreground)';
+	for (const copy of copilotHarnessIntroductionCopyVariants) {
+		for (const buttons of copilotHarnessIntroductionButtonVariants) {
+			const card = dom.append(container, dom.$('section.copilot-introduction-comparison-card'));
+			card.dataset.copy = copy;
+			card.dataset.buttons = buttons;
+			const heading = dom.append(card, dom.$('h3'));
+			heading.textContent = `${copy} / ${buttons === 'dismiss' ? 'X + two buttons' : 'original feedback buttons'}`;
+			heading.style.margin = '0 0 var(--vscode-spacing-size80)';
+			heading.style.fontSize = 'var(--vscode-fontSize-body1)';
+			heading.style.fontWeight = 'var(--vscode-fontWeight-semiBold)';
+			const instantiationService = createEditorServices(disposableStore, {
+				colorTheme: context.theme,
+				additionalServices: reg => registerChatFixtureServices(reg, { notification: createCopilotIntroductionNotification(copy, buttons) }),
+			});
+			const widget = disposableStore.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+			dom.append(card, widget.domNode);
+		}
+	}
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
 	WithSandboxing: defineComponentFixture({ render: context => renderChatInput(context, { sandboxingEnabled: true }) }),
@@ -199,6 +233,9 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 			}),
 		] as const))
 	)),
+	AllCopilotIntroductionVariants: defineComponentFixture({
+		render: renderCopilotIntroductionComparison,
+	}),
 	// A run of three: notice, todo list, then the input. Covers a notice docking
 	// to a widget rather than straight to the input.
 	WithNotificationAndTodos: defineComponentFixture({
