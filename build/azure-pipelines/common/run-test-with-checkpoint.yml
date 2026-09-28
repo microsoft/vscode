@@ -1,0 +1,34 @@
+parameters:
+  - name: enabled
+    type: boolean
+  - name: testId
+    type: string
+  - name: testStep
+    type: step
+
+steps:
+  - ${{ if eq(parameters.enabled, false) }}:
+    - ${{ parameters.testStep }}
+
+  - ${{ else }}:
+    - ${{ each pair in parameters.testStep }}:
+        ${{ if eq(pair.key, 'script') }}:
+          script: |
+            set -e
+            ${{ pair.value }}
+            node "$(Build.SourcesDirectory)/build/azure-pipelines/common/testCheckpoint.ts" record ${{ parameters.testId }}
+        ${{ elseif eq(pair.key, 'powershell') }}:
+          powershell: |
+            . "$(Build.SourcesDirectory)/build/azure-pipelines/win32/exec.ps1"
+            $ErrorActionPreference = "Stop"
+            exec {
+              ${{ pair.value }}
+            }
+            exec { node "$(Build.SourcesDirectory)/build/azure-pipelines/common/testCheckpoint.ts" record ${{ parameters.testId }} }
+        ${{ elseif ne(pair.key, 'condition') }}:
+          ${{ pair.key }}: ${{ pair.value }}
+      condition: and(${{ coalesce(parameters.testStep.condition, 'succeeded()') }}, ne(variables['TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_HIT'], 'true'))
+
+    - template: ./publish-test-checkpoint.yml@self
+      parameters:
+        testId: ${{ parameters.testId }}

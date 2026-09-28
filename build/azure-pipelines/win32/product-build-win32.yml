@@ -14,12 +14,17 @@ parameters:
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
     default: false
+  - name: VSCODE_SKIP_SUCCESSFUL_TEST_TASKS
+    type: boolean
+    default: false
 
 # The product is built by three jobs, so that retrying a failed job never
 # repeats the work of the jobs that already succeeded:
 #   1. Compile: compiles the client, server and web server builds and
 #      publishes them as the compilation_win32_<arch> artifact.
 #   2. Test: tests the builds of the compilation artifact (only when tests run).
+#      Retrying it skips the test tasks that already passed in an earlier
+#      attempt (see ../common/test-checkpoints.md).
 #   3. Sign: code signs the builds of the compilation artifact together with
 #      the CLI, packages them and publishes the product artifacts, including
 #      the standalone CLI.
@@ -134,6 +139,7 @@ jobs:
             VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
             VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
             VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+            VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
 
   - job: Windows_${{ parameters.VSCODE_ARCH }}_Sign
     displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
