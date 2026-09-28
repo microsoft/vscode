@@ -376,11 +376,7 @@ export class CodeCell extends Disposable {
 		}
 
 		this._register(this.templateData.editor.onDidChangeCursorSelection((e) => {
-			// Do not react to selection changes once the cell is being disposed. Disposal
-			// synchronously detaches the text editor (see `dispose` -> `detachTextEditor`),
-			// which fires cursor/decoration events while a list render transaction may still
-			// be active. Revealing the cell here would re-enter `ListView.render` and throw
-			// "Already in transaction".
+			// Disposal synchronously detaches the editor and fires this event while a list render may still be active; revealing would re-enter `ListView.render`.
 			if (this._isDisposed) {
 				return;
 			}
