@@ -19,7 +19,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationService, IPromptChoice, IPromptChoiceWithMenu, NoOpNotification } from '../../../../../platform/notification/common/notification.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsSetUpService } from '../../../../browser/sessionsSetUpService.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
@@ -50,6 +50,8 @@ suite('Agents Window workspace handoff', () => {
 		const composerSessionResource = observableValue<URI | undefined>('composerSessionResource', undefined);
 		const storage = disposables.add(new InMemoryStorageService());
 		const drafts: IChatDraft[] = [];
+		const draftOptions: ISelectWorkspaceOptions[] = [];
+		const noWorkspaceSelections: ISelectNoWorkspaceOptions[] = [];
 		const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
 		const notifications: (IPromptChoice | IPromptChoiceWithMenu)[][] = [];
 		const states: WorkspaceHandoffState[] = [];
@@ -98,6 +100,7 @@ suite('Agents Window workspace handoff', () => {
 					return applies ? 'applied' : 'notReady';
 				},
 				applyDraft: async (draft, folder, options, token) => {
+					draftOptions.push(options);
 					await draftReady;
 					if (token.isCancellationRequested || input.inputText || input.attachments.length) {
 						return 'preserved';
@@ -112,6 +115,7 @@ suite('Agents Window workspace handoff', () => {
 					drafts.push(input);
 					return 'applied';
 				},
+				selectNoWorkspace: options => noWorkspaceSelections.push(options ?? {}),
 			}) : undefined,
 		});
 		instantiationService.stub(ISessionsPartService, sessionsPartService);
@@ -140,6 +144,7 @@ suite('Agents Window workspace handoff', () => {
 		const handoff = disposables.add(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
 		return {
 			handoff, composerService, sessionsService, sessionsPartService, activeSession, initialRestoreComplete, onWillSend, states, selections, notifications, openingOptions, storage, drafts,
+			draftOptions, noWorkspaceSelections,
 			set providerReady(value: boolean) { providerReady = value; },
 			set acceptsWorkspace(value: (folder: URI) => boolean) { acceptsWorkspace = value; },
 			set viewReady(value: boolean) { viewReady = value; },
@@ -270,10 +275,11 @@ suite('Agents Window workspace handoff', () => {
 	test('copies a workspace-less draft into the new-session composer', async () => {
 		const harness = createHarness();
 		await harness.handoff.selectWorkspace({
-			preferDevContainer: false, isDefault: false, draft: serializeChatDraft({ inputText: 'No workspace yet', attachments: [] }),
+			preferDevContainer: false, isDefault: false, draft: serializeChatDraft({ inputText: 'No workspace yet', attachments: [] }), noWorkspace: true,
 		}, state => harness.states.push(state));
-		assert.deepStrictEqual({ state: harness.states.at(-1), input: harness.input.inputText, selections: harness.selections }, {
+		assert.deepStrictEqual({ state: harness.states.at(-1), input: harness.input.inputText, selections: harness.selections, noWorkspaceSelections: harness.noWorkspaceSelections }, {
 			state: 'applied', input: 'No workspace yet', selections: [],
+			noWorkspaceSelections: [{ userSelection: false, preserveNavigation: true }],
 		});
 	});
 

@@ -35,6 +35,7 @@ export interface IAgentsWindowWorkspaceHandoff {
 	readonly preferDevContainer: boolean;
 	readonly isDefault: boolean;
 	readonly draft?: IAgentsWindowDraft;
+	readonly noWorkspace?: boolean;
 }
 
 /** Keeps one opening intent alive until the target composer applies it or a newer user intent wins. */
@@ -143,6 +144,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			}
 
 			let draftNeedsNavigation = !!intent.draft;
+			let noWorkspaceNeedsSelection = !!intent.noWorkspace;
 			const deadline = Date.now() + WORKSPACE_HANDOFF_TIMEOUT_MS;
 			while (!source.token.isCancellationRequested) {
 				const currentSession = this.sessionsService.activeSession.get();
@@ -166,6 +168,11 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 					return;
 				}
 				const view = draftNeedsNavigation ? undefined : this.sessionsPartService.getSessionView(session?.sessionId);
+				if (noWorkspaceNeedsSelection && view) {
+					view.selectNoWorkspace({ userSelection: false, preserveNavigation: true });
+					noWorkspaceNeedsSelection = false;
+					continue;
+				}
 				const options = {
 					providerId: resolved?.providerId,
 					preferDevContainer: intent.preferDevContainer,

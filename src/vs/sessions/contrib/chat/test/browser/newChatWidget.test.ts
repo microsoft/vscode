@@ -28,7 +28,7 @@ import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { IChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
@@ -245,9 +245,9 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 interface ISelectNoWorkspaceHarness {
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
-	readonly _workspacePicker: { selectNoWorkspace(): void };
-	readonly sessionsService: { openQuickChat(options?: ICreateNewSessionOptions): { readonly sessionId: string } };
-	_openQuickChat(options?: ICreateNewSessionOptions): { readonly sessionId: string } | undefined;
+	readonly _workspacePicker: { selectNoWorkspace(userSelection?: boolean): void };
+	readonly sessionsService: { openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): { readonly sessionId: string } };
+	_openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): { readonly sessionId: string } | undefined;
 }
 
 interface INoWorkspaceOptionHarness {
@@ -280,7 +280,7 @@ interface IRestoreNoWorkspaceDraftHarness {
 
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
-const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness, options?: ICreateNewSessionOptions) => void;
+const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness, options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions) => void;
 const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as ISelectNoWorkspaceHarness['_openQuickChat'];
 const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspaceOption') as (this: INoWorkspaceOptionHarness) => IWorkspacePickerNoWorkspaceOption | undefined;
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
@@ -446,7 +446,7 @@ suite('NewChatWidget', () => {
 					return { sessionId: 'quick-chat' };
 				},
 			},
-			_openQuickChat: options => openQuickChat.call(harness, options),
+			_openQuickChat: (options, preserveNavigation) => openQuickChat.call(harness, options, preserveNavigation),
 		};
 		selectNoWorkspace.call(harness, { providerId: 'agenthost-remote-test' });
 
@@ -462,6 +462,30 @@ suite('NewChatWidget', () => {
 			noWorkspaceSelectCount: 1,
 			quickChatOpenCount: 1,
 			quickChatOptions: { providerId: 'agenthost-remote-test' },
+		});
+	});
+
+	test('programmatic No workspace selection preserves navigation', () => {
+		const userSelections: boolean[] = [];
+		const preserveNavigation: (boolean | undefined)[] = [];
+		const harness: ISelectNoWorkspaceHarness = {
+			_pendingPreferredUpgrade: disposables.add(new MutableDisposable()),
+			_newSessionCreation: disposables.add(new MutableDisposable()),
+			_workspacePicker: { selectNoWorkspace: userSelection => userSelections.push(userSelection ?? true) },
+			sessionsService: {
+				openQuickChat: (_options, preserve) => {
+					preserveNavigation.push(preserve);
+					return { sessionId: 'quick-chat' };
+				},
+			},
+			_openQuickChat: (options, preserve) => openQuickChat.call(harness, options, preserve),
+		};
+
+		selectNoWorkspace.call(harness, undefined, { userSelection: false, preserveNavigation: true });
+
+		assert.deepStrictEqual({ userSelections, preserveNavigation }, {
+			userSelections: [false],
+			preserveNavigation: [true],
 		});
 	});
 
@@ -1867,4 +1891,5 @@ suite('NewChatWidget', () => {
 			});
 		});
 	}
+
 });
