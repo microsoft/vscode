@@ -83,7 +83,7 @@ class FixtureActionViewItemService extends Disposable implements IActionViewItem
 
 class FixtureAutomationService extends mock<IAutomationService>() {
 	override getProviderConfiguration(id: string | undefined): IAutomationProviderConfiguration | undefined {
-		return id === 'cloud' ? { sessionTypes: ['copilot-cloud-agent'], label: 'GitHub Cloud', description: 'Cloud automation', timeZone: 'UTC', defaultEnabled: false, tools: [] } : undefined;
+		return id === 'cloud' ? { sessionTypes: ['copilot-cloud-agent'], label: 'GitHub Cloud', description: 'Cloud automation', timeZone: 'UTC', tools: [] } : undefined;
 	}
 
 	override readonly automations: IObservable<readonly IAutomationDescriptor[]>;

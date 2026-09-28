@@ -93,7 +93,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			label: localize('cloudAutomations.provider', "GitHub Cloud"),
 			description: localize('cloudAutomations.description', "Runs on GitHub even when VS Code is closed and may consume credits. Requires a private repository."),
 			timeZone: 'UTC',
-			defaultEnabled: false,
+			targetChangeDisabledReason: localize('cloudAutomations.targetImmutable', "The repository and provider cannot be changed for an existing cloud automation. Duplicate this automation to use another target."),
 			getTargetDisabledReason: workspace => this.getTargetDisabledReason(workspace),
 			tools: [
 				{ id: 'read', label: localize('cloudAutomations.read', "Read Files") },

@@ -509,6 +509,23 @@
 	margin-right: 0;
 }
 
+.automation-provider-configured > .automation-form-checkbox-row {
+	border-top: 0;
+	padding-top: 0;
+	margin-top: 0;
+}
+
+.automation-target-readonly {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automation-target-readonly > span:not(.codicon) {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
 /*
  * Lay the Schedule / Time / Day controls along a single horizontal axis.
  * Each control lives in its own `.automation-form-schedule-group`

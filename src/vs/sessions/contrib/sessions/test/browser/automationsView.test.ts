@@ -1163,7 +1163,7 @@ suite('AutomationsCardsWidget', () => {
 
 	test('cloud cards show an accessible cloud icon and enable directly without editing', async () => {
 		const { automationService, automationDialogService, instantiationService, widget, notificationErrors } = setup();
-		automationService.configuration = { sessionTypes: ['cloud'], label: 'GitHub Cloud', description: '', timeZone: 'UTC', defaultEnabled: false, tools: [] };
+		automationService.configuration = { sessionTypes: ['cloud'], label: 'GitHub Cloud', description: '', timeZone: 'UTC', tools: [] };
 		const item = automation({ enabled: false });
 		automationService.setAutomations([item]);
 		const command = CommandsRegistry.getCommand('sessions.automations.enable')!;

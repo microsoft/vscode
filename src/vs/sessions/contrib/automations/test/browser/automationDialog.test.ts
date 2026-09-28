@@ -71,7 +71,7 @@ const FOLDER = URI.file('/workspace');
 suite('Automation dialog creation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function openDialog(options: IShowAutomationDialogOptions = {}) {
+	function openDialog(options: IShowAutomationDialogOptions = {}, providerConfiguration?: IAutomationProviderConfiguration) {
 		const configurationService = new TestConfigurationService();
 		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
 		const instantiationService = workbenchInstantiationService({
@@ -91,26 +91,36 @@ suite('Automation dialog creation', () => {
 			providerId: 'host',
 			sessionType: { id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.None },
 		}];
+		const cloudType = { providerId: 'cloud', sessionType: { id: 'cloud', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.None } };
+		const sessionTypesChanged = disposables.add(new Emitter<void>());
+		const getProviderConfiguration = (id: string | undefined) => id === 'cloud' ? providerConfiguration : undefined;
+		let configurationError: Error | undefined;
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			automationSession: constObservable(undefined),
-			onDidChangeSessionTypes: Event.None,
-			getSessionTypesForFolder: () => types,
+			onDidChangeSessionTypes: sessionTypesChanged.event,
+			getSessionTypesForFolder: uri => providerConfiguration ? uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? [cloudType] : [...types, cloudType] : types,
+			getAllProviderSessionTypes: () => providerConfiguration ? [...types, cloudType] : types,
 			getQuickChatSessionTypes: () => types,
 			isNewSessionTargetAvailable: () => true,
 			isQuickChatTargetAvailable: () => true,
 			resolveWorkspace: () => ({ providerId: 'host', workspace: createWorkspace(false) }),
 			createAutomationQuickChat: () => upcastPartial<ISession>({ sessionId: 'draft' }),
 			createAutomationSession: () => upcastPartial<ISession>({ sessionId: 'draft' }),
-			supportsAutomationSessionConfiguration: () => false,
-			getAutomationSessionConfiguration: async () => null,
+			supportsAutomationSessionConfiguration: () => providerConfiguration !== undefined,
+			getAutomationSessionConfiguration: async () => {
+				if (configurationError) {
+					throw configurationError;
+				}
+				return null;
+			},
 			discardAutomationSession: () => { },
 		}));
 		instantiationService.stub(IAutomationService, upcastPartial<IAutomationService>({
-			availableProviders: constObservable([{ id: 'host', label: 'Host' }]),
+			availableProviders: constObservable([{ id: 'host', label: 'Host' }, ...(providerConfiguration ? [{ id: 'cloud', label: 'Cloud' }] : [])]),
 			automations: constObservable(options.existing ? [options.existing] : []),
 			catalogueState: constObservable('ready'),
 			canUpdateAutomation: () => true,
-			getProviderConfiguration: () => undefined,
+			getProviderConfiguration,
 		}));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		let targetModel: AutomationIsolationModel | undefined;
@@ -153,7 +163,11 @@ suite('Automation dialog creation', () => {
 		disposables.add(toDisposable(() => cancelButton.click()));
 		const nameInput = container.querySelector<HTMLInputElement>('.automation-form-input-host input')!;
 		return {
-			result, saveButton, nameInput,
+			result, saveButton, nameInput, container,
+			cancel: () => cancelButton.click(),
+			refreshTypes: () => sessionTypesChanged.fire(),
+			failConfigurationCapture: (error: Error) => { configurationError = error; },
+			setWorkspace: (uri: URI) => targetModel?.setQuickChat(false, uri),
 			getTarget: () => ({ quickChat: targetModel?.isQuickChat, workspace: selectedWorkspace }),
 			setPrompt: (prompt: string) => {
 				promptInput.value = prompt;
@@ -165,6 +179,89 @@ suite('Automation dialog creation', () => {
 			},
 		};
 	}
+
+	const cloudRepository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/example/private-repo/HEAD' });
+	const cloudConfiguration: IAutomationProviderConfiguration = {
+		sessionTypes: ['cloud'], label: 'GitHub Cloud', description: 'Runs on GitHub.', timeZone: 'UTC', tools: [],
+		targetChangeDisabledReason: 'Duplicate this automation to use another target.',
+		getTargetDisabledReason: () => constObservable(undefined),
+	};
+
+	test('new cloud selection keeps Enabled checked and preserves an explicit unchecked choice', async () => {
+		const dialog = openDialog({}, cloudConfiguration);
+		dialog.setWorkspace(cloudRepository);
+		dialog.setPrompt('Review changes');
+		await timeout(0);
+		const checkbox = dialog.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="Enabled"]')!;
+		const initial = checkbox.getAttribute('aria-checked');
+		checkbox.click();
+		dialog.refreshTypes();
+		dialog.setWorkspace(FOLDER);
+		dialog.setWorkspace(cloudRepository);
+		await timeout(0);
+		const afterRetarget = checkbox.getAttribute('aria-checked');
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ initial, afterRetarget, kind: result?.kind, enabled: result?.kind === 'create' ? result.value.enabled : undefined, provider: result?.value.target?.providerId }, {
+			initial: 'true', afterRetarget: 'false', kind: 'create', enabled: false, provider: 'cloud',
+		});
+	});
+
+	for (const editing of [false, true]) {
+		test(`cloud ${editing ? 'edit' : 'duplicate'} preserves saved enabled state and explains target mutability`, async () => {
+			const existing: IAutomationDescriptor = {
+				id: 'cloud-automation', name: 'Review', prompt: 'Review changes',
+				target: { kind: 'workspace', folderUri: cloudRepository, providerId: 'cloud', sessionTypeId: 'cloud', isolation: { kind: 'default' } },
+				schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1, timeZone: 'UTC' },
+				enabled: false, createdAt: '', updatedAt: '',
+			};
+			const dialog = openDialog(editing ? { existing } : { initialValues: existing }, cloudConfiguration);
+			await timeout(0);
+			const target = dialog.container.querySelector<HTMLElement>('.automation-target-toolbar')!;
+			const controls = dialog.container.querySelector<HTMLElement>('.automation-session-configuration')!;
+			const enabled = dialog.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="Enabled"]')!;
+			assert.deepStrictEqual({
+				enabled: enabled.getAttribute('aria-checked'),
+				readonly: target.classList.contains('automation-target-readonly'),
+				targetButtons: target.querySelectorAll('button, [role="button"]').length > 0,
+				hint: dialog.container.querySelector('.automation-target-row .automation-form-hint')?.textContent,
+				controlsHidden: controls.style.display === 'none',
+				cloudForm: !!dialog.container.querySelector('.automation-provider-configured'),
+			}, {
+				enabled: 'false', readonly: editing, targetButtons: !editing,
+				hint: editing ? cloudConfiguration.targetChangeDisabledReason : undefined,
+				controlsHidden: true, cloudForm: true,
+			});
+			dialog.saveButton.click();
+			const result = await dialog.result;
+			assert.deepStrictEqual(result?.value.target, existing.target);
+		});
+	}
+
+	test('cloud configuration errors remain visible even when the empty controls row is hidden', async () => {
+		const dialog = openDialog({}, cloudConfiguration);
+		dialog.setWorkspace(cloudRepository);
+		dialog.setPrompt('Review changes');
+		await timeout(0);
+		const controls = dialog.container.querySelector<HTMLElement>('.automation-session-configuration')!;
+		const initiallyHidden = controls.style.display === 'none';
+		dialog.failConfigurationCapture(new Error('Configuration could not be loaded'));
+		dialog.saveButton.click();
+		await timeout(0);
+		const error = dialog.container.querySelector<HTMLElement>('.automation-session-configuration-error')!;
+		assert.deepStrictEqual({
+			initiallyHidden,
+			controlsVisible: controls.style.display !== 'none',
+			errorVisible: error.style.display !== 'none',
+			error: error.textContent,
+			dialogOpen: !!dialog.container.querySelector('.automation-dialog'),
+		}, {
+			initiallyHidden: true, controlsVisible: true, errorVisible: true,
+			error: 'Configuration could not be loaded', dialogOpen: true,
+		});
+		dialog.cancel();
+		await dialog.result;
+	});
 
 	for (const { label, prompt, name } of [
 		{ label: 'short prompt', prompt: '  Review changes  ', name: 'Review changes' },

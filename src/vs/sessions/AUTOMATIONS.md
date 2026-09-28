@@ -86,7 +86,7 @@ Cloud automation management is opt-in through `chat.automations.cloud.enabled`. 
 
 The stable Copilot provider exposes the cloud store; it is not a synthetic Agent Host. The catalogue tracks private GitHub repositories selected in the profile, including recently selected GitHub workspaces. Discovery references are stored per account, but definitions, prompts, schedules, and run state remain server-owned. Account changes clear cached data and cancel pending reads before another account is presented.
 
-Cloud mutations use the account-bound Copilot API transport. Creation grants an explicit reviewed tool selection and starts disabled unless the user chooses enablement. The form retains the draft while the actual mutation is pending and on definite errors. An uncertain mutation result blocks blind resubmission; closing the form does not roll back a request already sent.
+Cloud mutations use the account-bound Copilot API transport. Creation grants an explicit reviewed tool selection and uses the form's reviewed enabled state; changing providers does not override that state. The form retains the draft while the actual mutation is pending and on definite errors. An uncertain mutation result blocks blind resubmission; closing the form does not roll back a request already sent.
 
 Cloud guarded edits compare a fresh definition with the reviewed editable state before PATCH. This is an optimistic preflight, not atomic server-side compare-and-swap. Only changed fields are sent and unknown trigger fields are preserved. Repository/authority retargeting requires explicit duplication rather than moving history.
 

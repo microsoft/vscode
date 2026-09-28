@@ -1145,7 +1145,10 @@ export function renderForm(
 	}));
 
 	// The picker is authoritative for the session type
-	const providerConfiguration = observableValue<IAutomationProviderConfiguration | undefined>(form, getProviderConfiguration(state.providerId));
+	const initialProviderConfiguration = getProviderConfiguration(state.providerId);
+	const providerConfiguration = observableValue<IAutomationProviderConfiguration | undefined>(form, initialProviderConfiguration);
+	const targetChangeDisabledReason = isEdit ? initialProviderConfiguration?.targetChangeDisabledReason : undefined;
+	const sessionConfigurationErrorMessage = observableValue<string | undefined>(form, undefined);
 	const isolationModel = new AutomationIsolationModel(state);
 	const workspaceControlsVisible = derived(reader => {
 		const folder = isolationModel.folderUriObs.read(reader);
@@ -1214,8 +1217,7 @@ export function renderForm(
 	workspacePicker.canBrowseGitHub = () => allowedProviders.get().some(id => getProviderConfiguration(id) !== undefined);
 	workspacePicker.onSelectionError = error => {
 		logService.error('[AutomationDialog] Failed to select a workspace.', error);
-		sessionConfigurationError.textContent = getErrorMessage(error);
-		DOM.show(sessionConfigurationError);
+		sessionConfigurationErrorMessage.set(getErrorMessage(error), undefined);
 	};
 
 	const automationSessionDraftSynchronizer = disposables.add(new AutomationSessionDraftSynchronizer(
@@ -1353,45 +1355,54 @@ export function renderForm(
 		usesCombinedConfigPicker.set(!!session && sessionsManagementService.usesCombinedNewSessionConfigPicker(session));
 	}));
 
-	const targetToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, targetContainer, Menus.AutomationsDialogTargetToolbar, {
-		ariaLabel: localize('automation.form.targetOptions', "Automation target options"),
-		telemetrySource: 'automations.dialog',
-		hiddenItemStrategy: HiddenItemStrategy.NoHide,
-		responsiveBehavior: {
-			enabled: true,
-			kind: 'all',
-			actionMinWidth: 22,
-			allowOverflow: false,
-		},
-		actionViewItemProvider: (action, itemOptions) => {
-			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
-				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), undefined, itemOptions);
-			}
-			if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
-				return new AutomationPickerActionViewItem(action, container => workspacePicker.render(container), undefined, itemOptions);
-			}
-			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
-				return instantiationService.createInstance(
-					AutomationIsolationGroupActionViewItem,
-					action,
-					state,
-					isolationModel,
-					isolationModel.folderUriObs,
-					onDidChangeSessionTarget.event,
-					revalidate,
-					itemOptions,
-					workspaceControlsVisible,
-				);
-			}
-			return undefined;
-		},
-	}));
-	const targetLayout = disposables.add(new ChatInputPickerResponsiveLayout('AutomationDialog.target', targetContainer, {
-		getItems: () => getAutomationToolbarResponsiveItems(targetToolbar, { canShrink: false }),
-		hasOverflow: () => targetToolbar.hasOverflow(),
-		relayout: () => targetToolbar.relayout(),
-	}));
-	targetLayout.layout();
+	if (targetChangeDisabledReason && initialProviderConfiguration && initialTarget?.kind === 'workspace') {
+		targetContainer.classList.add('automation-target-readonly');
+		const icon = DOM.append(targetContainer, renderIcon(Codicon.cloud));
+		icon.setAttribute('aria-hidden', 'true');
+		const workspace = sessionsManagementService.resolveWorkspace(initialTarget.folderUri)?.workspace;
+		DOM.append(targetContainer, $('span', undefined, localize('automation.form.savedTarget', "{0} · {1}", workspace?.label ?? initialTarget.folderUri.toString(), initialProviderConfiguration.label)));
+		DOM.append(targetRow, $('span.automation-form-hint', undefined, targetChangeDisabledReason));
+	} else {
+		const targetToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, targetContainer, Menus.AutomationsDialogTargetToolbar, {
+			ariaLabel: localize('automation.form.targetOptions', "Automation target options"),
+			telemetrySource: 'automations.dialog',
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'all',
+				actionMinWidth: 22,
+				allowOverflow: false,
+			},
+			actionViewItemProvider: (action, itemOptions) => {
+				if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
+					return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), undefined, itemOptions);
+				}
+				if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
+					return new AutomationPickerActionViewItem(action, container => workspacePicker.render(container), undefined, itemOptions);
+				}
+				if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
+					return instantiationService.createInstance(
+						AutomationIsolationGroupActionViewItem,
+						action,
+						state,
+						isolationModel,
+						isolationModel.folderUriObs,
+						onDidChangeSessionTarget.event,
+						revalidate,
+						itemOptions,
+						workspaceControlsVisible,
+					);
+				}
+				return undefined;
+			},
+		}));
+		const targetLayout = disposables.add(new ChatInputPickerResponsiveLayout('AutomationDialog.target', targetContainer, {
+			getItems: () => getAutomationToolbarResponsiveItems(targetToolbar, { canShrink: false }),
+			hasOverflow: () => targetToolbar.hasOverflow(),
+			relayout: () => targetToolbar.relayout(),
+		}));
+		targetLayout.layout();
+	}
 
 	const chatInputStyles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-input-background)',
@@ -1472,15 +1483,21 @@ export function renderForm(
 	DOM.hide(sessionConfigurationError);
 	disposables.add(autorun(reader => {
 		const hasTarget = isolationModel.isQuickChatObs.read(reader) || isolationModel.folderUriObs.read(reader) !== undefined;
-		setAutomationControlVisible(sessionConfiguration, hasTarget);
+		const providerConfigured = providerConfiguration.read(reader) !== undefined;
+		formContent.classList.toggle('automation-provider-configured', providerConfigured);
+		const errorMessage = sessionConfigurationErrorMessage.read(reader);
+		setAutomationControlVisible(sessionConfigurationError, !!errorMessage);
+		sessionConfigurationError.textContent = errorMessage ?? '';
 		setAutomationControlVisible(sessionConfigContainer, hasTarget);
+		setAutomationControlVisible(sessionControlsContainer, hasTarget && !providerConfigured);
 		const availability = automationSessionDraftSynchronizer.availability.read(reader);
 		const pending = availability === 'pending';
 		const controlsUnavailable = availability !== 'available';
+		setAutomationControlVisible(sessionConfiguration, !!errorMessage || hasTarget && (!providerConfigured || controlsUnavailable));
 		for (const container of [sessionConfigContainer, sessionControlsContainer]) {
 			container.classList.toggle('controls-unavailable', controlsUnavailable);
 			container.toggleAttribute('inert', controlsUnavailable);
-			container.setAttribute('aria-hidden', String(!hasTarget || controlsUnavailable));
+			container.setAttribute('aria-hidden', String(!hasTarget || controlsUnavailable || container === sessionControlsContainer && providerConfigured));
 			container.setAttribute('aria-busy', String(pending));
 		}
 		sessionConfigurationUnavailable.textContent = pending
@@ -1542,7 +1559,6 @@ export function renderForm(
 	const toolDisposables = disposables.add(new DisposableStore());
 	const toolsByProvider = new Map<string, string[] | undefined>();
 	let selectedTools: string[] | undefined;
-	let previousProvider = initialTarget?.providerId;
 	disposables.add(autorun(reader => {
 		const configuration = providerConfiguration.read(reader);
 		toolDisposables.clear();
@@ -1552,14 +1568,10 @@ export function renderForm(
 		timeSelect.setAriaLabel(timeLabel.textContent);
 		if (configuration === undefined || state.providerId === undefined) {
 			selectedTools = undefined;
-			previousProvider = state.providerId;
 			return;
 		}
 		const providerId = state.providerId;
 		providerDescription.textContent = configuration.description;
-		if (previousProvider !== state.providerId || initialTarget === undefined) {
-			setEnabled(configuration.defaultEnabled);
-		}
 		const storedTools = initialTarget?.providerId === state.providerId ? initialSessionConfiguration?.sessionTemplate?.config?.tools : undefined;
 		selectedTools = toolsByProvider.has(providerId) ? toolsByProvider.get(providerId)
 			: isStringArray(storedTools) ? [...storedTools] : initialTarget?.providerId === providerId ? undefined : configuration.tools.map(tool => tool.id);
@@ -1594,7 +1606,6 @@ export function renderForm(
 		DOM.append(toolsContainer, $('p', undefined, selectedTools === undefined
 			? localize('automation.toolsNotReported', "GitHub did not report the saved tool selection. Unchanged permissions will be preserved. Select tools to replace it explicitly.")
 			: localize('automation.toolsReview', "These tools can read or change repository content and run commands. GitHub enforces the effective permissions.")));
-		previousProvider = state.providerId;
 	}));
 	const saveStatus = DOM.append(form, $('span.automation-form-save-status', {
 		role: 'status',
@@ -1654,13 +1665,7 @@ export function renderForm(
 			}
 		},
 		showSessionConfigurationError: message => {
-			if (message) {
-				DOM.show(sessionConfigurationError);
-				sessionConfigurationError.textContent = message;
-			} else {
-				DOM.hide(sessionConfigurationError);
-				sessionConfigurationError.textContent = '';
-			}
+			sessionConfigurationErrorMessage.set(message, undefined);
 		},
 		focusSessionConfigurationError: () => sessionConfigurationError.focus(),
 		getFocusableElements: () => {

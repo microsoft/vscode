@@ -240,7 +240,8 @@ export interface IAutomationProviderConfiguration {
 	readonly label: string;
 	readonly description: string;
 	readonly timeZone: 'UTC';
-	readonly defaultEnabled: boolean;
+	/** Explains why an existing automation's target cannot be changed in the editor. */
+	readonly targetChangeDisabledReason?: string;
 	readonly tools: readonly { readonly id: string; readonly label: string }[];
 	/** UI-only target eligibility; return a reason while checking or unavailable, otherwise undefined. */
 	getTargetDisabledReason?(workspace: URI | undefined): IObservable<string | undefined>;
