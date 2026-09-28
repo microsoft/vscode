@@ -1068,6 +1068,37 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(calls, [diagnostic]);
 	});
 
+	test('UI timing bridge allowlists payloads, rejects invalid durations and drains the exporter', async () => {
+		const calls: unknown[] = [];
+		let flushed = 0;
+		const localServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, localServer, { allowExtensionMethods: false },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService,
+			{
+				...NullAgentHostOTelService, diagnosticsEnabled: true,
+				emitUserInteraction: timing => calls.push(timing), flush: async () => { flushed++; }
+			},
+		));
+		const transport = new MockProtocolTransport();
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'ui-timing' }));
+		const timing = {
+			schemaVersion: 1, rendererId: 'renderer', interactionOrdinal: 1,
+			result: 'hidden', requestPhase: 'unknown', timeToTermination: 0, windowVisible: false, windowFocused: false,
+		};
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'vscode/reportChatUserInteraction', { ...timing, prompt: 'private', path: 'private' }));
+		await response;
+		assert.deepStrictEqual(calls, [timing]);
+		assert.strictEqual(flushed, 1);
+		const invalid = waitForResponse(transport, 3);
+		transport.simulateMessage(request(3, 'vscode/reportChatUserInteraction', { ...timing, timeToTermination: -1 }));
+		assert.ok(hasKey(await invalid, { error: true }));
+		assert.strictEqual(calls.length, 1);
+	});
+
 	test('advertises and routes external session import', async () => {
 		const transport = connectClient('client-import');
 		const initialized = findResponse(transport.sent, 1);
@@ -2172,7 +2203,7 @@ suite('ProtocolServerHandler', () => {
 			summary: 'Session Summary',
 			chats: [
 				{ chat: defaultChat, kind: 'default', summary: 'Default Chat' },
-				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
+				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
 			],
 		});
 
@@ -2189,7 +2220,7 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			chats: [
 				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined },
-				{ resource: peerChat.toString(), title: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
+				{ resource: peerChat.toString(), title: 'Peer Chat', archived: true, origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
 			],
 			defaultChat: defaultChat.toString(),
 		});

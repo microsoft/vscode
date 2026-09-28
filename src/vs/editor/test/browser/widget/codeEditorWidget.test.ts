@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { ILanguageService } from '../../../common/languages/language.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
-import { withTestCodeEditor } from '../testCodeEditor.js';
+import { GlyphMarginLane } from '../../../common/model.js';
+import { createTextModel } from '../../common/testTextModel.js';
+import { createCodeEditorServices, withTestCodeEditor } from '../testCodeEditor.js';
 
 suite('CodeEditorWidget', () => {
 
@@ -240,6 +243,43 @@ suite('CodeEditorWidget', () => {
 			const result4 = editor.getBottomForLineNumber(2);
 			assert.ok(result4 > 0, 'Should return a valid position for valid line number');
 		});
+	});
+
+	test('issue #146841: widgets do not keep the DOM of a detached view alive', () => {
+		const disposables = new DisposableStore();
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const instantiationService = createCodeEditorServices(disposables);
+		const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, {}, { contributions: [] }));
+		const model = disposables.add(createTextModel('line1\nline2'));
+		editor.setModel(model);
+
+		const contentWidgetNode = document.createElement('div');
+		const overflowingContentWidgetNode = document.createElement('div');
+		const overlayWidgetNode = document.createElement('div');
+		const glyphMarginWidgetNode = document.createElement('div');
+		const widgetNodes = [contentWidgetNode, overflowingContentWidgetNode, overlayWidgetNode, glyphMarginWidgetNode];
+		editor.addContentWidget({ getId: () => 'test.content', getDomNode: () => contentWidgetNode, getPosition: () => null });
+		editor.addContentWidget({ getId: () => 'test.overflowingContent', allowEditorOverflow: true, getDomNode: () => overflowingContentWidgetNode, getPosition: () => null });
+		editor.addOverlayWidget({ getId: () => 'test.overlay', getDomNode: () => overlayWidgetNode, getPosition: () => null });
+		editor.addGlyphMarginWidget({ getId: () => 'test.glyph', getDomNode: () => glyphMarginWidgetNode, getPosition: () => ({ lane: GlyphMarginLane.Center, zIndex: 0, range: new Range(1, 1, 1, 1) }) });
+		const connectedBeforeDetach = widgetNodes.map(node => node.isConnected);
+
+		editor.setModel(null);
+		const parentsAfterDetach = widgetNodes.map(node => node.parentElement);
+
+		editor.setModel(model);
+		const connectedAfterReattach = widgetNodes.map(node => node.isConnected);
+
+		assert.deepStrictEqual({ connectedBeforeDetach, parentsAfterDetach, connectedAfterReattach }, {
+			connectedBeforeDetach: [true, true, true, true],
+			parentsAfterDetach: [null, null, null, null],
+			connectedAfterReattach: [true, true, true, true],
+		});
+
+		disposables.dispose();
 	});
 
 });

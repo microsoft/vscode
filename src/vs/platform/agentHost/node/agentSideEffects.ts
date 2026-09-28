@@ -1570,7 +1570,7 @@ export class AgentSideEffects extends Disposable {
 		this._turnTracker.markActivity(sessionKey, turnId, readyAction.type);
 	}
 
-	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn, automaticArchive = false): void {
+	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn, automaticArchive = false, clientSeq?: number): void {
 		let clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
@@ -1664,7 +1664,10 @@ export class AgentSideEffects extends Disposable {
 				if (agentId) {
 					this._toolCallAgents.delete(toolCallKey);
 					const agent = this._options.agents.get().find(a => a.id === agentId);
-					agent?.respondToPermissionRequest(action.toolCallId, action.approved);
+					agent?.respondToPermissionRequest(action.toolCallId, action.approved, {
+						selectedOptionId: action.selectedOptionId,
+						origin: clientId !== undefined && clientSeq !== undefined ? { clientId, clientSeq } : undefined,
+					});
 				} else {
 					this._logService.warn(`[AgentSideEffects] No agent for tool call confirmation: ${action.toolCallId}`);
 				}
@@ -1823,6 +1826,13 @@ export class AgentSideEffects extends Disposable {
 				const agent = this._options.getAgent(sessionChannel);
 				agent?.stopMcpServer?.(URI.parse(sessionChannel), action.id).catch(err => {
 					this._logService.warn(`[AgentSideEffects] stopMcpServer failed for ${sessionChannel}`, err);
+				});
+				break;
+			}
+			case ActionType.SessionMcpServerBackgroundRequested: {
+				const agent = this._options.getAgent(sessionChannel);
+				agent?.backgroundMcpServerStartup?.(URI.parse(sessionChannel), action.id).catch(err => {
+					this._logService.warn(`[AgentSideEffects] backgroundMcpServerStartup failed for ${sessionChannel}`, err);
 				});
 				break;
 			}
@@ -2257,7 +2267,7 @@ function buildTurnFailure(stage: AgentHostTurnFailureStage, err: unknown): IAgen
 }
 
 function buildTurnFailureError(stage: AgentHostTurnFailureStage, err: unknown): ErrorInfo {
-	const message = String(err);
+	const message = getErrorMessage(err);
 	const forwarded = tryParseForwardedChatError(err instanceof Error ? err.message : message);
 	const errorType = stage === 'modelSelection' ? 'modelSelectionFailed'
 		: stage === 'workingDirectory' ? 'workingDirectoryFailed' : 'sendFailed';

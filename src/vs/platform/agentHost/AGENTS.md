@@ -11,6 +11,7 @@
 # Multi-Chat Architecture
 
 > Node runtime service construction is documented separately in [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md).
+> Host startup timings, process-lifetime correlation, and session workload counts are documented in [`PERFORMANCE.md`](PERFORMANCE.md).
 
 > **Status: COMPLETE** (2026-07-01) All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and Copilot all use the unified orchestrator path.
 >
@@ -94,6 +95,12 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 **File organization rule:** `common/agent.ts` holds the *provider model* — `IAgent` and every type/helper/signal reachable from it (chat lifecycle, create/materialize/legacy-migration payloads, config-resolution parameters, `AgentSignal`/`AgentSession`). `common/agentService.ts` holds the *orchestrator-facing service surface* — `IAgentService`, `IAgentConnection`, `IAgentHostService`, settings/env constants, and diagnostics types. The dependency is one-directional: `agentService.ts` may import from `agent.ts`, but `agent.ts` must never import from `agentService.ts`. `agentService.ts` re-exports the public provider types from `agent.ts` for call-site compatibility; new provider code should import directly from `agent.ts`.
 
 ### Orchestrator layer
+
+Shared UI first-progress observations use the capability-gated VS Code-only
+`vscode/reportChatUserInteraction` RPC, not the generated chat protocol. The
+handler validates a content-free payload and drains the existing OTel exporter
+before acknowledging. The renderer clock and visibility semantics remain owned
+by the chat UI; see [the OTel contract](OTEL.md#user-perceived-first-progress).
 
 Artifact removal uses the VS Code-only `vscode/removeSessionArtifact` extension RPC with `{ session: string, artifactId: string }` and a void result. Clients gate the optional `removeSessionArtifact(URI, string)` connection method with `supportsAgentHostArtifactRemoval(initializeResult)` (`_meta['vscode.removeSessionArtifact'] === true`). This does not extend the generated AHP protocol.
 
@@ -217,11 +224,9 @@ Migration returns known native entries as plain metadata. Discovery classifies u
 
 ### Automatic titles
 
-`chat.agentHost.experimental.deferredTitleGeneration` (host root key `deferredTitleGeneration`) is an opt-in, default-off host scheduling experiment. It takes precedence over `chat.agentHost.experimental.activeAgentTitleGeneration`. With deferred naming off, the active-agent setting keeps the legacy choice between foreground `rename_chat` naming and immediate utility-model naming; its workbench default is enabled outside Stable, while the standalone root schema defaults to disabled.
+Deferred naming is the default host scheduling strategy for new sessions. There is no title-generation setting or root-config gate.
 
-The workbench setting opts into automatic experiment overrides via `experiment: { mode: 'auto' }`, using treatment name `config.chat.agentHost.experimental.deferredTitleGeneration`. The effective setting is synced to the host root key; the `experimental` tag alone does not enable experiment overrides.
-
-The title controller snapshots `titleGenerationStrategy` on the first session-scoped lookup, including provider creation before state registration, and persists it once session state exists. Failed creation clears the snapshot. All its chats, including peers added later, share that strategy; root changes affect new sessions only. Restore hydrates the strategy before the provider materializes its tool inventory. Older sessions without this metadata retain the legacy active-agent/utility choice, never implicitly opting into deferred naming. Existing materialized legacy sessions use their advertised rename-tool membership as a compatibility fallback only.
+The title controller snapshots `titleGenerationStrategy` on the first session-scoped lookup, including provider creation before state registration, and persists it once session state exists. Failed creation clears the snapshot. All its chats, including peers added later, share that strategy. Restore hydrates a persisted strategy before the provider materializes its tool inventory, so existing `activeAgent`, `utility`, and `deferred` sessions retain their behavior. Older sessions without this metadata remain on utility naming, while existing materialized legacy sessions use their advertised rename-tool membership as a compatibility fallback only.
 
 Deferred mode synchronously publishes and starts persisting an automatic fallback title, without a utility request, GitHub enrichment, foreground rename reminder, or automatic-naming tool guidance. The existing `SessionTitleContribution` starts at most one non-awaited utility refinement after the first new successful response with nonempty markdown. Forks wait for their first new response rather than titling the inherited history during creation; locally handled commands do not consume this opportunity. A separate `deferredTitleSeed` record preserves the seed and first-response index across restart. Hydration restores eligibility only when that record still matches the persisted title and automatic provenance; it never generates a title itself. Terminal outcomes consume eligibility before any utility call, so completed, failed, cancelled, or empty first turns are not retried after restart. Cancellation, errors, empty responses, unavailable utility credentials, and disposal retain the fallback.
 
@@ -237,7 +242,9 @@ Sessions created by the `create_session` server tool record only the creating se
 
 An independent session inherits the creating session's host-owned isolation selection independently of provider-owned configuration; otherwise it uses worktree isolation. The optional `worktree` argument overrides that selection. Agents set it to `true` when the work needs an isolated Git worktree (not for read-only work); `false` is still accepted to work without one. With `false`, an exact linked-worktree root reported by Git resolves to its primary checkout before session creation. Nested and ordinary additional workspace folders are preserved. The target workspace still constrains the effective selection, so a folder that cannot support Git worktrees resolves to folder isolation.
 
-A `currentSession` chat without `workspace` shares the current session's complete workspace. With `workspace`, the host first adds that folder to the session (`addSessionWorkingDirectoryForChat`) and assigns the resulting checkout only to the new chat; existing chats keep their folders. The folder is prepared with the explicit `worktree` choice, otherwise the creating session's isolation, otherwise directly. An omitted `worktree` reuses a checkout of that repository already in the session; `worktree: true` always creates a fresh detached worktree. This requires a provider that supports multiple working directories and a ready session with a workspace; otherwise the tool fails before creating the chat. `worktree` requires `workspace` for both relationships.
+A `currentSession` chat without `workspace` shares the current session's complete workspace. With `workspace`, the host first adds that folder to the session (`addSessionWorkingDirectoryForChat`) and assigns the resulting checkout only to the new chat; existing chats keep their folders. The folder is prepared with the explicit `worktree` choice, otherwise the creating session's isolation, otherwise directly. An omitted `worktree` reuses a checkout of that repository already in the session; `worktree: true` always creates a fresh detached worktree. This requires a ready session with a workspace; otherwise the tool fails before creating the chat. `worktree` requires `workspace` for both relationships.
+
+All of the above applies only when the session's provider advertises the `multipleWorkingDirectories` capability, which follows that provider's own multi-root setting (`chat.agentHost.copilotAgent.multiRootEnabled`, `chat.agentHost.claudeAgent.multiRootEnabled`, `chat.agentHost.codexAgent.multiRootEnabled`). Without it, the session is offered the shared-workspace variant of `create_session`: `relationship` is required, every `currentSession` chat shares the session's workspace, and `workspace` and `worktree` are rejected for `currentSession` and remain valid only for `independent` sessions.
 
 ---
 
@@ -459,7 +466,7 @@ No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibli
 
 Client-synced skills are advertised through `turn/start.additionalContext`, using the enabled plugins' skill names, descriptions, and file paths. Every turn receives the current catalog, including an explicit empty catalog after removal; older catalogs can remain in conversation history but no longer describe the current selection. Native skills discovery remains unchanged and separate from the session's client-plugin customization projection.
 
-The thread's permission profiles grant read-only access to its enabled skill directories, reapplied through the existing start/resume path when those directories or the selected profile change. While these grants are active, omit `turn/start.permissions`: the pinned SDK otherwise reloads the process-global profile and discards the thread's read grants. The filesystem override preserves the provider's existing restrictions and profile inheritance.
+The thread's permission profiles grant read-only access to enabled native skill directories (from `skills/list` across its workspace roots) and enabled synced plugin packages, including shared resources. Synced cache paths follow the session's plugin enablement even if a native catalog also lists them. Skip grants already covered by workspace roots, comparing canonical paths so a read grant cannot downgrade existing workspace write access. Reapply the grants through the existing start/resume path when the directories or selected profile change. While these grants are active, omit `turn/start.permissions`: the pinned SDK otherwise reloads the process-global profile and discards the thread's read grants. Use the shared `codexPermissionProfileReadRoots` builder to preserve the provider's baseline restrictions and profile inheritance.
 
 POSIX profiles start from an empty restricted filesystem policy and explicitly grant baseline access, including read-only workspace metadata. Do not replace that default confinement with explicit deny entries: Codex preserves denied reads even after approval, which prevents `require_escalated` from executing outside the sandbox. Both launch and per-thread skill profiles must allow approved commands to escalate without changing permissions for subsequent ordinary commands.
 
@@ -598,15 +605,50 @@ and forks do not copy it. Codex retains its native sandbox/permission preset;
 Claude does not advertise this unsupported control.
 
 Both the Copilot SDK sandbox and custom terminal sandbox read the same effective
-session configuration. The launcher subscribes to `onEvent` before create/resume
+session configuration. `SandboxSettingsResolutionHelper` resolves the user-editable
+enablement, bypass, and outbound-network toggles against the runtime-resolved floor.
+Managed enablement forces on; managed bypass and outbound denial force off, while
+managed permission never widens a local restriction. Filesystem settings remain
+local inputs and are not intersected or unioned by this helper.
+The SDK configuration builder forwards enablement, configured
+bypass/network choices, filesystem rules, and required host-generated read paths.
+It leaves optional working-directory grants, developer-tool access, credential
+injection, local-network access, and filesystem cleanup behavior to the runtime
+rather than hardcoding those capabilities.
+The launcher subscribes to `onEvent` before create/resume
 to capture the runtime's authoritative managed-settings snapshot. Missing
 snapshots log an error and continue with the available session selection, root
-settings, and any known managed policy. Failed SDK sandbox updates fail closed. Runtime-owned sandbox floors
-are transient, cannot be set through client config, and permanently replace
-disallowed `off` selections with `default`; policy removal cannot revive them.
-Managed asks remain one-time-only. An ordinary sandbox escape's “Allow in this
-Session” changes the owner's sandbox selection, not global settings or tool
-allow lists.
+settings, and any known managed policy. Failed SDK sandbox updates fail closed.
+Runtime-owned sandbox floors are transient and cannot be set through client config.
+Explicit managed enablement replaces disallowed `off` selections with `default`;
+policy removal cannot revive them. Fail-closed-only restrictions keep the toggle
+editable, while the SDK remains responsible for accepting or rejecting an attempt.
+Managed asks remain one-time-only. Direct disabling is locked even when managed
+`allowBypass` is true. A supported SDK sandbox escape's “Allow in this Session”
+calls `sandbox.disableForSession` with the real pending SDK permission request ID.
+Only a successful opt-out changes the owner's sandbox selection; global settings
+and tool allow lists are untouched. The callback returns `no-result` because that
+RPC also completes the permission request. Host-generated terminal prompts cannot
+offer this SDK action. After an approved opt-out, the user may re-enable sandboxing;
+successful re-enablement locks direct disabling again.
+
+The host publishes the resolved floor in the optional `vscode.sandboxPolicy`
+session `_meta` slot through the server-only `SessionMetaChanged` action, including
+the optional outbound-network restriction.
+Session snapshots include it for reconnecting clients; subsequent resolutions
+replace it, including an explicit disabled floor when the requirement disappears.
+Clients validate this metadata and use it only for that session's sandbox controls,
+not to modify global settings. Missing metadata from older or other hosts is not
+evidence of an enforced floor. Enforcement remains runtime-owned.
+Local desktop pickers use renderer-managed policy until session policy is published;
+this fallback never applies to remote hosts or overrides a host-published policy.
+
+The optional `vscode.sandboxState` session metadata records enablement after a
+successful SDK update. Pickers update optimistically; a failed client change restores
+the last successful value unless a newer sandbox request superseded it. The host
+publishes the failure before the rollback, with the originating client ID and sequence number, so only
+that window logs and displays a standard error notification, once per request.
+Retry is manual through the relevant control; no retry action or toggle-local error UI is added.
 
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed and registered by `createAgentServiceComposition`. Consumers resolve their service identifiers through constructor injection; `AgentService` neither owns nor exposes them.
 

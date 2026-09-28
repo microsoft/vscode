@@ -365,9 +365,28 @@ suite('Async', () => {
 				assert.strictEqual(factoryCalls, 0);
 			}
 		});
+
+		test('disposal releases the queued factory', async () => {
+			const throttler = new async.Throttler();
+			const activeTask = new async.DeferredPromise<void>();
+			let queuedCalls = 0;
+
+			const active = throttler.queue(() => activeTask.p);
+			const queued = throttler.queue(async () => { queuedCalls++; });
+			throttler.dispose();
+			const retainedAfterDispose = (throttler as unknown as { queuedPromiseFactory: unknown }).queuedPromiseFactory;
+
+			activeTask.complete();
+			await Promise.all([active, queued]);
+			assert.deepStrictEqual({ retainedAfterDispose, queuedCalls }, { retainedAfterDispose: null, queuedCalls: 0 });
+		});
 	});
 
 	suite('Delayer', function () {
+		function getDelayerTask(delayer: async.Delayer<unknown>): unknown {
+			return (delayer as unknown as { task: unknown }).task;
+		}
+
 		test('simple', () => {
 			let count = 0;
 			const factory = () => {
@@ -436,6 +455,19 @@ suite('Async', () => {
 				const throttledDelayer = new async.ThrottledDelayer<void>(100);
 				throttledDelayer.dispose();
 				await assert.rejects(() => throttledDelayer.trigger(async () => { }, 0));
+			});
+
+			test('cancel releases the pending task', async () => {
+				const throttledDelayer = store.add(new async.ThrottledDelayer<number>(0));
+				let taskCalls = 0;
+
+				const canceled = throttledDelayer.trigger(async () => ++taskCalls);
+				throttledDelayer.cancel();
+				const retainedAfterCancel = getDelayerTask((throttledDelayer as unknown as { delayer: async.Delayer<unknown> }).delayer);
+
+				const canceledWithCancellationError = await canceled.then(() => false, isCancellationError);
+				const result = await throttledDelayer.trigger(async () => 42);
+				assert.deepStrictEqual({ retainedAfterCancel, canceledWithCancellationError, taskCalls, result }, { retainedAfterCancel: null, canceledWithCancellationError: true, taskCalls: 0, result: 42 });
 			});
 		});
 
@@ -584,6 +616,52 @@ suite('Async', () => {
 			assert(delayer.isTriggered());
 
 			return p;
+		});
+
+		for (const release of ['cancel', 'dispose'] as const) {
+			test(`${release} releases the pending task`, async () => {
+				const delayer = store.add(new async.Delayer<number>(0));
+				let taskCalls = 0;
+
+				const canceled = delayer.trigger(() => ++taskCalls);
+				delayer[release]();
+				const retainedAfterRelease = getDelayerTask(delayer);
+
+				const canceledWithCancellationError = await canceled.then(() => false, isCancellationError);
+				const result = await delayer.trigger(() => 42);
+				assert.deepStrictEqual({ retainedAfterRelease, canceledWithCancellationError, taskCalls, result }, { retainedAfterRelease: null, canceledWithCancellationError: true, taskCalls: 0, result: 42 });
+			});
+		}
+
+		test('cancel after the delay elapsed does not run the task', async () => {
+			const delayer = store.add(new async.Delayer<number>(MicrotaskDelay.MicrotaskDelay));
+			let taskCalls = 0;
+
+			const canceled = delayer.trigger(() => ++taskCalls);
+			// runs after the delay elapsed but before the task is invoked
+			queueMicrotask(() => delayer.cancel());
+
+			const canceledWithCancellationError = await canceled.then(() => false, isCancellationError);
+			assert.deepStrictEqual({ canceledWithCancellationError, taskCalls }, { canceledWithCancellationError: true, taskCalls: 0 });
+		});
+
+		test('cancel and trigger after the delay elapsed settles both triggers', async () => {
+			const delayer = store.add(new async.Delayer<number>(MicrotaskDelay.MicrotaskDelay));
+			const calls: string[] = [];
+
+			const canceled = delayer.trigger(() => { calls.push('canceled'); return 1; });
+			let retriggered!: Promise<number | string>;
+			// runs after the delay elapsed but before the canceled task is invoked
+			queueMicrotask(() => {
+				delayer.cancel();
+				retriggered = delayer.trigger(() => { calls.push('retriggered'); return 2; });
+			});
+
+			const canceledResult = await canceled.then(value => value, error => isCancellationError(error) ? 'canceled' : error);
+			const stillPending = async.timeout(10);
+			const retriggeredResult = await Promise.race([retriggered, stillPending.then(() => 'pending')]);
+			stillPending.cancel();
+			assert.deepStrictEqual({ canceledResult, retriggeredResult, calls }, { canceledResult: 'canceled', retriggeredResult: 2, calls: ['retriggered'] });
 		});
 	});
 

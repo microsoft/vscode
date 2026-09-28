@@ -120,6 +120,7 @@
     "defaultChatParticipant",
     "contribSourceControlInputBoxMenu",
     "authLearnMore",
+    "authIssuers",
     "testObserver",
     "aiTextSearchProvider",
     "chatParticipantPrivate",
@@ -4075,7 +4076,7 @@
           },
           "github.copilot.chat.responsesApi.promptCacheBreakpoint.enabled": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "markdownDescription": "%github.copilot.config.responsesApi.promptCacheBreakpoint.enabled%",
             "tags": [
               "experimental",

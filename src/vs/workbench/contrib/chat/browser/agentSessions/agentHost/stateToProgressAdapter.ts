@@ -5,7 +5,7 @@
 
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
@@ -544,17 +544,26 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	const value = stringOrMarkdownToString(content, connectionAuthority);
 	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
 	switch (meta.kind) {
-		case AgentSystemNotificationKind.FusionProgress:
+		case AgentSystemNotificationKind.FusionProgress: {
+			if (meta.fusionStatus === 'selected') {
+				const description = meta.fusionDescription === undefined
+					? markdown.value
+					: escapeMarkdownSyntaxTokens(meta.fusionDescription);
+				return description ? {
+					kind: 'systemNotification',
+					content: { ...markdown, value: description },
+					presentation: 'workflowDescription',
+				} : undefined;
+			}
 			return {
 				kind: 'systemNotification',
 				content: markdown,
-				collapsible: meta.fusionStatus !== 'selected',
-				presentation: meta.fusionStatus === 'selected' ? 'workflow' : undefined,
-				icon: meta.fusionStatus === 'selected' ? Codicon.layers
-					: meta.fusionStatus === 'failed' ? Codicon.error
-						: meta.fusionStatus === 'cancelled' ? Codicon.circleSlash
-							: meta.fusionStatus === 'degraded' ? Codicon.warning : Codicon.check,
+				collapsible: true,
+				icon: meta.fusionStatus === 'failed' ? Codicon.error
+					: meta.fusionStatus === 'cancelled' ? Codicon.circleSlash
+						: meta.fusionStatus === 'degraded' ? Codicon.warning : Codicon.check,
 			};
+		}
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
@@ -2062,18 +2071,10 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 }
 
 /**
- * Builds {@link IChatExternalEdit} progress parts for a completed tool call
- * that produced file edits. Returns an empty array if the tool call has no
- * edits. Each emitted part carries the URI, edit kind, before/after content
- * URIs, and the diff stats already known from the agent host protocol —
- * downstream rendering can produce a static "edit pill" without re-deriving
- * any of this from an editing session.
- *
- * `connectionAuthority` is required so all emitted URIs are wrapped via
- * {@link toAgentHostUri}; otherwise the chat session would receive raw
- * remote URIs that its file system providers cannot resolve.
+ * Builds per-file edit pills with protocol diff metadata and connection-scoped resource URIs.
+ * An optional root subagent id keeps child edits out of the parent's own content flow.
  */
-export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionAuthority: string): IChatProgress[] {
+export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionAuthority: string, subAgentInvocationId?: string): IChatExternalEdit[] {
 	if (tc.status !== ToolCallStatus.Completed) {
 		return [];
 	}
@@ -2081,10 +2082,13 @@ export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionA
 	if (fileEdits.length === 0) {
 		return [];
 	}
-	const parts: IChatProgress[] = [];
+	const parts: IChatExternalEdit[] = [];
 	for (const edit of fileEdits) {
 		const part = fileEditToExternalEdit(edit, tc.toolCallId, connectionAuthority);
 		if (part) {
+			if (subAgentInvocationId !== undefined) {
+				part.subAgentInvocationId = subAgentInvocationId;
+			}
 			parts.push(part);
 		}
 	}

@@ -13,14 +13,14 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyValue, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../../workbench/common/views.js';
-import { ICloseEditorOptions, IEditorGroup, IEditorGroupsService, IEditorReplacement, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ICloseEditorOptions, IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService, IEditorReplacement, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorsChangeEvent, IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
@@ -723,6 +723,18 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			harness.applyWorkingSetCalls.push(workingSet);
 			harness.onApplyWorkingSet?.(workingSet);
 			return true;
+		}
+		override registerContextKeyProvider<T extends ContextKeyValue>(provider: IEditorGroupContextKeyProvider<T>): IDisposable {
+			const key = provider.contextKey.bindTo(contextKeyService);
+			const registrations = new DisposableStore();
+			const update = () => key.set(provider.getGroupContextKeyValue(testActiveGroup));
+			if (provider.onDidChange) {
+				registrations.add(provider.onDidChange(update));
+			}
+			registrations.add(harness.onDidActiveEditorChange.event(update));
+			registrations.add(toDisposable(() => key.reset()));
+			update();
+			return registrations;
 		}
 		override deleteWorkingSet() { }
 	});

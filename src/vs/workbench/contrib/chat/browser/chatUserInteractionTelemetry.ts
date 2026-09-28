@@ -6,9 +6,11 @@
 import { addDisposableListener, getWindow } from '../../../../base/browser/dom.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatWidget } from './chat.js';
+import { IChatUserInteractionOTelService } from './chatUserInteractionOTel.js';
 import { IChatProgress, IChatToolInvocation } from '../common/chatService/chatService.js';
 import { getChatSessionTelemetryContext } from '../common/chatService/chatServiceTelemetry.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../common/constants.js';
@@ -35,6 +37,7 @@ export interface IChatUserInteractionOptions {
 	readonly window: Window;
 	readonly visible: boolean;
 	readonly context?: IChatUserInteractionTelemetryContext;
+	readonly getSessionResource?: () => URI | undefined;
 	readonly now?: () => number;
 }
 
@@ -68,15 +71,18 @@ export class ChatUserInteraction extends Disposable {
 	private _requestPhase: ChatRequestPhase = 'unknown';
 	private _getWidget: (() => IChatWidget | undefined) | undefined;
 	private _renderWidget: IChatWidget | undefined;
+	private readonly _otelIdentity: ReturnType<IChatUserInteractionOTelService['begin']>;
 
 	constructor(
 		private readonly _options: IChatUserInteractionOptions,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
+		@IChatUserInteractionOTelService private readonly _otelService: IChatUserInteractionOTelService,
 	) {
 		super();
 		this._now = _options.now ?? (() => globalThis.performance.now());
 		this.startedAt = this._now();
+		this._otelIdentity = this._otelService.begin();
 		this._context = _options.context ?? {};
 		this._register(addDisposableListener(_options.window, 'pagehide', () => this.cancel('disposed')));
 		this._register(addDisposableListener(_options.window.document, 'visibilitychange', () => {
@@ -227,6 +233,18 @@ export class ChatUserInteraction extends Disposable {
 		};
 		this._logService.trace('[ChatTTFP] end', { interactionId: this.id, ...data });
 		this._telemetryService.publicLog2<ChatUserPerceivedTimeToFirstProgressEvent, ChatUserPerceivedTimeToFirstProgressClassification>('chat.userPerceivedTimeToFirstProgress', data);
+		this._otelService.report({
+			schemaVersion: 1,
+			...this._otelIdentity,
+			requestId: data.requestId,
+			result: data.result,
+			requestPhase: data.requestPhase,
+			firstProgressKind: data.firstProgressKind,
+			timeToFirstProgress: data.timeToFirstProgress,
+			timeToTermination: data.timeToTermination,
+			windowVisible: data.windowVisible,
+			windowFocused: data.windowFocused,
+		}, response?.session.sessionResource ?? this._options.getSessionResource?.(), data.sessionType);
 		this._onDidFinish.fire();
 		super.dispose();
 	}

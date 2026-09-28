@@ -26,6 +26,7 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
 import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostWorkspaceTrustConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createContextSizeConfigSchemaPropertyFromLimits, getModelContextSize } from '../../common/agentModelConfiguration.js';
@@ -88,7 +89,7 @@ import { CODEX_PORTABLE_HISTORY_HEADER, ICodexProxyService, type ICodexProxyHand
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { captureCopilotTelemetryContext } from '../shared/copilotSkuTelemetry.js';
-import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isGitHubMcpToolName } from '../shared/agentMergeToolRestrictions.js';
+import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isGitHubMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
@@ -101,7 +102,7 @@ import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile,
 import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
-import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse, type ICodexAccountState } from './codexAccountState.js';
+import { codexAccountRateLimitsFromResponse, codexAccountStateFromResponse, type ICodexAccountState } from './codexAccountState.js';
 import { getCodexAccountTelemetryContext } from './codexAccountTelemetry.js';
 import type { IAgentProviderTurnTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { CodexProfileImageStore, fetchCodexProfileImage } from './codexProfileImage.js';
@@ -1155,6 +1156,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _openAIAccountState: ICodexAccountState = { usageSource: 'openai', status: 'unknown' };
 	private readonly _accountRefreshSequencer = new Sequencer();
 	private _openAIAccountRateLimit: ICodexAccountInfo['rateLimit'];
+	private _openAIAccountRateLimits: ICodexAccountInfo['rateLimits'];
 	private _openAIAccountRateLimitUpdatedAt: number | undefined;
 	private _openAIAccountRateLimitRequest = 0;
 	private _openAIAccountProfileImage: ICodexAccountInfo['profileImage'];
@@ -1328,6 +1330,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostStartupPerformance private readonly _startupPerformance: IAgentHostStartupPerformance,
 	) {
 		super();
 		this._worktree = worktree;
@@ -1434,6 +1437,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			&& previousState.email === state.email;
 		if (!sameChatGPTAccount) {
 			this._openAIAccountRateLimit = undefined;
+			this._openAIAccountRateLimits = undefined;
 			this._openAIAccountRateLimitUpdatedAt = undefined;
 			this._openAIAccountRateLimitRequest++;
 			this._openAIAccountProfileImage = undefined;
@@ -1545,6 +1549,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			profileImage: state.authType === 'chatgpt' ? this._openAIAccountProfileImage : undefined,
 			requiresOpenaiAuth: state.requiresOpenaiAuth,
 			rateLimit: state.authType === 'chatgpt' ? this._openAIAccountRateLimit : undefined,
+			rateLimits: state.authType === 'chatgpt' ? this._openAIAccountRateLimits : undefined,
 		};
 	}
 
@@ -1989,17 +1994,16 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _buildCustomizationLaunch(session: ICodexSession): Promise<ICodexCustomizationLaunch> {
 		const plugins = this._enabledClientPlugins(session);
-		const [workspaceAgents, workspaceSkills] = await Promise.all([
+		const [workspaceAgents, workspaceSkills, skillReadRoots] = await Promise.all([
 			discoverCodexWorkspaceAgents(this._customizationWorkingDirectories(session), this._fileService),
 			discoverCodexWorkspaceSkills(this._customizationWorkingDirectories(session), this._fileService),
+			this._customizationReadRoots(session, plugins),
 		]);
 		const customization = await codexCustomizationConfig(workspaceAgents.agents, plugins, session.agent, this._fileService);
 		const developerInstructions = [
 			customization.developerInstructions,
 			session.managedWorkingDirectory ? AGENT_HOST_WORKSPACELESS_INSTRUCTIONS : '',
 		].filter(instruction => instruction.length > 0).join('\n\n');
-		const skillReadRoots = distinctAbsolutePaths(plugins
-			.flatMap(plugin => plugin.parsed?.skills.map(skill => dirname(skill.uri.fsPath)) ?? [])).sort();
 		const config: Record<string, JsonValue> = skillReadRoots.length ? codexPermissionProfileReadRoots(skillReadRoots) : {};
 		let skillPermissionProfile: string | undefined;
 		if (skillReadRoots.length) {
@@ -2047,6 +2051,39 @@ export class CodexAgent extends Disposable implements IAgent {
 			selectedCapabilityRoots,
 			signature,
 		};
+	}
+
+	/** Include native skill resources and enabled plugin packages without downgrading workspace access. */
+	private async _customizationReadRoots(session: ICodexSession, plugins: readonly ICodexClientPlugin[]): Promise<string[]> {
+		const connection = await this._ensureConnection();
+		const skills = await this._fetchSkills(session, connection.client);
+		const roots = distinctAbsolutePaths((skills?.data ?? []).flatMap(entry =>
+			(entry.skills ?? []).filter(skill => skill.enabled).map(skill => dirname(skill.path))));
+		const pluginRoots = plugins.flatMap(plugin => plugin.synced.pluginDir
+			? [plugin.synced.pluginDir.fsPath]
+			: plugin.parsed?.skills.map(skill => dirname(skill.uri.fsPath)) ?? []);
+		const config = this._readSessionConfig(session.configurationResource);
+		const { sandboxMode } = this._resolveSessionPermissions(session.configurationResource);
+		const mode = session.agentMergeTurn && sandboxMode === 'danger-full-access' ? 'workspace-write' : sandboxMode;
+		const workspaceRoots = this._permissionRuntimeWorkspaceRoots(this._runtimeWorkspaceRoots(session), config, mode) ?? [];
+		const canonicalUri = async (path: string): Promise<URI> => URI.file(await fs.promises.realpath(path).catch(() => path));
+		const [canonicalRoots, canonicalPluginRoots, canonicalWorkspaceRoots, pluginCacheRoot] = await Promise.all([
+			Promise.all(roots.map(canonicalUri)),
+			Promise.all(pluginRoots.map(canonicalUri)),
+			Promise.all(workspaceRoots.map(canonicalUri)),
+			canonicalUri(this._pluginManager.basePath.fsPath),
+		]);
+		// Synced cache paths follow this session's plugin enablement, even if a
+		// native catalog also discovers a cached skill.
+		const readableRoots = [
+			...canonicalRoots.filter(root => !extUriBiasedIgnorePathCase.isEqualOrParent(root, pluginCacheRoot)),
+			...canonicalPluginRoots,
+		];
+		// A more-specific read entry would override an existing workspace write
+		// grant. Canonicalize both sides so symlinked skills retain that access.
+		return distinctAbsolutePaths(readableRoots
+			.filter(root => !canonicalWorkspaceRoots.some(workspace => extUriBiasedIgnorePathCase.isEqualOrParent(root, workspace)))
+			.map(root => root.fsPath)).sort();
 	}
 
 	private _enabledClientPlugins(session: ICodexSession): readonly ICodexClientPlugin[] {
@@ -2742,7 +2779,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * Client-plugin servers win a name collision with the root config. Any
 	 * OAuth bearer token acquired for an auth-gated http server (see
 	 * {@link handleAuthenticationToken}) is injected as an `Authorization`
-	 * header so codex connects authenticated.
+	 * header so codex connects authenticated. Agent Merge turns omit GitHub MCP
+	 * servers so they use only the dedicated Agent Merge GitHub tools.
 	 */
 	private _buildSessionMcpServers(session: ICodexSession): Record<string, ICodexMcpServerConfigJson> {
 		const configuredRoot = codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey));
@@ -2753,7 +2791,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		const workspace = codexMcpServersFromDefinitions(this._sessionMcpDiscoveries.get(session.sessionId)?.discovery.definitions ?? []);
 		const enabledWorkspace = Object.fromEntries(Object.entries(workspace).filter(([name]) => this._isMcpServerEnabledForSdk(session, name)));
 		const clientPlugins = codexMcpServersFromPlugins(this._enabledClientPlugins(session), session.workingDirectory);
-		const enabledConfiguredServers = session.agentMergeTurn ? {} : { ...root, ...enabledWorkspace, ...clientPlugins };
+		const configuredServers = { ...root, ...enabledWorkspace, ...clientPlugins };
+		const enabledConfiguredServers = session.agentMergeTurn
+			? Object.fromEntries(Object.entries(configuredServers).filter(([name, server]) => !isAgentMergeRestrictedMcpServer(name, server)))
+			: configuredServers;
 		const builtInGitHub = this._builtInGitHubMcpServer(session, enabledConfiguredServers);
 		return injectCodexMcpAuthTokens({ ...builtInGitHub, ...enabledConfiguredServers }, this._mcpAuthTokens);
 	}
@@ -3378,7 +3419,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (request !== this._openAIAccountRateLimitRequest || !this._isCurrentChatGPTAccountClient(client, accountEmail)) {
 				return;
 			}
-			this._openAIAccountRateLimit = codexAccountRateLimitFromResponse(response);
+			this._openAIAccountRateLimits = codexAccountRateLimitsFromResponse(response);
+			this._openAIAccountRateLimit = this._openAIAccountRateLimits[0];
 			this._openAIAccountRateLimitUpdatedAt = this._openAIAccountRateLimit ? Date.now() : undefined;
 			this._publishAccountInfo(this._toAccountInfo(this._openAIAccountState));
 		} catch (error) {
@@ -7152,13 +7194,17 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _listCodexChats(): Promise<IAgentChatMetadata[] | undefined> {
-		return this._codexChatList ??= this._doListCodexChats().finally(() => {
+	private _listCodexChats(kind: 'migration' | 'discovery'): Promise<IAgentChatMetadata[] | undefined> {
+		return this._codexChatList ??= this._doListCodexChats(kind).finally(() => {
 			this._codexChatList = undefined;
 		});
 	}
 
-	private async _doListCodexChats(): Promise<IAgentChatMetadata[] | undefined> {
+	private async _doListCodexChats(kind: 'migration' | 'discovery'): Promise<IAgentChatMetadata[] | undefined> {
+		const timing = this._startupPerformance.start(kind === 'migration' ? 'sessionMigrationScan' : 'sessionDiscoveryScan', this.id);
+		let pageCount = 0;
+		let scannedSessionCount = 0;
+		let truncated = false;
 		// Provider-native threads are continuously discovered into the
 		// orchestrator-owned registry. Threads with no live in-memory session are
 		// mapped to `codex:/<threadId>` below.
@@ -7168,17 +7214,27 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._codexChatDiscovery.value?.watch(conn.codexHome);
 			}
 			const threads = await collectThreadListPages<Thread>(
-				request => conn.client.request<'thread/list', ThreadListResponse>('thread/list', {
-					...request,
-					// Repair legacy catalogs once; subsequent reads must not repeatedly scan rollouts or write the index.
-					useStateDbOnly: this._codexChatListInitialized,
-					sortKey: 'updated_at',
-				}),
-				collected => this._logService.warn(`[Codex] thread/list hit the ${THREAD_LIST_MAX_PAGES}-page cap after ${collected} threads; some sessions may be missing`),
+				async request => {
+					const response = await conn.client.request<'thread/list', ThreadListResponse>('thread/list', {
+						...request,
+						// Repair legacy catalogs once; subsequent reads must not repeatedly scan rollouts or write the index.
+						useStateDbOnly: this._codexChatListInitialized,
+						sortKey: 'updated_at',
+					});
+					pageCount++;
+					scannedSessionCount += response.data.length;
+					return response;
+				},
+				collected => {
+					truncated = true;
+					this._logService.warn(`[Codex] thread/list stopped before exhausting the catalog after ${collected} threads (maximum ${THREAD_LIST_MAX_PAGES} pages); some sessions may be missing`);
+				},
 			);
 			if (!this._isCurrentConnection(conn)) {
+				timing?.complete('unavailable', { scannedSessionCount, pageCount, truncated });
 				return undefined;
 			}
+			timing?.complete(truncated ? 'partial' : 'success', { scannedSessionCount, pageCount, truncated });
 			// Map persisted threads back to the URI the workbench already
 			// knows them by. After `_materializeIfNeeded` runs, the codex
 			// thread is persisted to disk under its thread id but the
@@ -7221,6 +7277,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._codexChatListInitialized = true;
 			return metadata;
 		} catch (err) {
+			timing?.complete('error', { pageCount, ...(pageCount > 0 ? { scannedSessionCount } : {}) });
 			// Discovery runs independently for every provider; a rejection here
 			// should not take a sibling provider's discovery
 			// down with it. `undefined` signals "can't enumerate yet" so the
@@ -7231,17 +7288,33 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private _markCatalogStartupContext(sdkAvailability: 'available' | 'unavailable' | 'unknown'): void {
+		this._startupPerformance.mark('providerContext', { provider: this.id, activationState: this._activated ? 'active' : 'inactive', sdkAvailability });
+	}
+
+	private async _isCatalogSdkAvailable(): Promise<boolean> {
+		let sdkAvailability: 'available' | 'unavailable' | 'unknown' = 'unknown';
+		try {
+			const available = await this._isSdkResolvableWithoutDownload();
+			sdkAvailability = available ? 'available' : 'unavailable';
+			return available;
+		} finally {
+			this._markCatalogStartupContext(sdkAvailability);
+		}
+	}
+
 	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
 		// Registration-time migration is ambient. Defer until explicit Codex use
 		// rather than claiming an authoritative empty catalog without enumerating.
 		if (!this._activated) {
+			this._markCatalogStartupContext('unknown');
 			return AgentChatMigrationDeferred;
 		}
-		if (!(await this._isSdkResolvableWithoutDownload())) {
+		if (!(await this._isCatalogSdkAvailable())) {
 			this._logService.info('[Codex] SDK not downloaded yet; deferring the migratable chat list');
 			return AgentChatMigrationDeferred;
 		}
-		const chats = await this._listCodexChats();
+		const chats = await this._listCodexChats('migration');
 		if (!chats) {
 			return undefined;
 		}
@@ -7258,13 +7331,17 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _startCodexChatDiscovery(): Promise<void> {
-		if (this._isShuttingDown || this._store.isDisposed || !this._activated) {
+		if (this._isShuttingDown || this._store.isDisposed) {
+			return Promise.resolve();
+		}
+		if (!this._activated) {
+			this._markCatalogStartupContext('unknown');
 			return Promise.resolve();
 		}
 		if (!this._codexChatDiscovery.value) {
 			this._codexChatDiscovery.value = this._instantiationService.createInstance(CodexChatDiscovery, async () => {
 				// Ambient discovery cannot grant SDK download consent or cross the activation boundary.
-				if (this._isShuttingDown || this._store.isDisposed || !(await this._isSdkResolvableWithoutDownload())) {
+				if (this._isShuttingDown || this._store.isDisposed || !(await this._isCatalogSdkAvailable())) {
 					return undefined;
 				}
 				if (this._isShuttingDown || this._store.isDisposed) {
@@ -7295,7 +7372,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private async _emitCodexChats(): Promise<boolean> {
 		try {
 			const generation = this._connectionGeneration;
-			const chats = await this._listCodexChats();
+			const chats = await this._listCodexChats('discovery');
 			if (chats && !this._isShuttingDown && !this._store.isDisposed) {
 				const changed = chats.filter(chat => !equals(this._discoveredCodexChats.get(chat.chat.toString()), chat));
 				const limiter = new Limiter<IAgentDiscoveredChat>(4);
@@ -7711,12 +7788,19 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 	}
 
+	/** Fetch the native skill catalog for every workspace root. */
+	private async _fetchSkills(session: ICodexSession, client: ICodexAppServerClient): Promise<SkillsListResponse | undefined> {
+		const skills = await client.request<'skills/list', SkillsListResponse>('skills/list', {
+			cwds: this._workingDirectories(session).map(directory => directory.fsPath),
+		}).catch(err => { this._logService.warn(`[Codex] skills/list failed: ${err instanceof Error ? err.message : String(err)}`); return undefined; });
+		return session.managedWorkingDirectory && skills
+			? { ...skills, data: skills.data.map(entry => ({ ...entry, skills: entry.skills.filter(skill => skill.scope !== 'repo') })) }
+			: skills;
+	}
+
 	/**
-	 * Fetches the skills and hooks codex has loaded for `session`'s working
-	 * directory (`skills/list` + `hooks/list`, both cwd-scoped) and projects
-	 * them into {@link DirectoryCustomization} containers. Best-effort: returns
-	 * an empty array when no connection is ready, no working directory is known,
-	 * or the app-server rejects the request.
+	 * Projects native skills and primary-workspace hooks into customization
+	 * containers. Best-effort when no connection or working directory is known.
 	 */
 	private async _fetchSkillHookContainers(session: ICodexSession): Promise<DirectoryCustomization[]> {
 		if (this._connection.kind !== 'ready' || !session.workingDirectory) {
@@ -7725,18 +7809,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		const cwd = session.workingDirectory.fsPath;
 		const client = this._connection.client;
 		const [skills, hooks] = await Promise.all([
-			client.request<'skills/list', SkillsListResponse>('skills/list', { cwds: [cwd] })
-				.catch(err => { this._logService.warn(`[Codex] skills/list failed: ${err instanceof Error ? err.message : String(err)}`); return undefined; }),
+			this._fetchSkills(session, client),
 			client.request<'hooks/list', HooksListResponse>('hooks/list', { cwds: [cwd] })
 				.catch(err => { this._logService.warn(`[Codex] hooks/list failed: ${err instanceof Error ? err.message : String(err)}`); return undefined; }),
 		]);
-		const effectiveSkills = session.managedWorkingDirectory && skills
-			? { ...skills, data: skills.data.map(entry => ({ ...entry, skills: entry.skills.filter(skill => skill.scope !== 'repo') })) }
-			: skills;
 		const effectiveHooks = session.managedWorkingDirectory && hooks
 			? { ...hooks, data: hooks.data.map(entry => ({ ...entry, hooks: entry.hooks.filter(hook => hook.source !== 'project') })) }
 			: hooks;
-		return [...codexSkillsToContainers(effectiveSkills), ...codexHooksToContainers(effectiveHooks)];
+		return [...codexSkillsToContainers(skills), ...codexHooksToContainers(effectiveHooks)];
 	}
 
 	/** Builds per-thread project-hook grants bound to the current Workspace Trust snapshot. */

@@ -252,7 +252,7 @@ export class ReleaseNotesTryouts extends Disposable {
 					this.restoreFocus(index, 'run');
 				}
 			} else {
-				const result = await this._tryoutService.run(id, tokenSource.token);
+				const result = await this._tryoutService.run(id, tokenSource.token, { source: 'releaseNotes' });
 				if (tokenSource.token.isCancellationRequested || this._store.isDisposed) {
 					return;
 				}

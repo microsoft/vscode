@@ -546,6 +546,25 @@ suite('ChatInputNotificationWidget', () => {
 		};
 	}
 
+	test('only marks a banner shown when its host becomes visible', () => {
+		const hostVisible = observableValue('hostVisible', false);
+		const telemetryService = new RecordingTelemetryService();
+		const { notificationService, widget } = createWidget({ delegate: { hostVisible }, telemetryService });
+		let shown = 0;
+		showNotification(notificationService, { id: 'promo', message: 'Sale', actions: [], onDidShow: () => shown++ });
+		const contents = widget.domNode.firstChild;
+		const whileHidden = shown;
+		hostVisible.set(true, undefined);
+		hostVisible.set(false, undefined);
+		hostVisible.set(true, undefined);
+		assert.deepStrictEqual({
+			whileHidden,
+			shown,
+			sameContents: widget.domNode.firstChild === contents,
+			impressions: telemetryService.events.filter(event => event.name === 'chatInputNotificationShown').length,
+		}, { whileHidden: 0, shown: 1, sameContents: true, impressions: 1 });
+	});
+
 	function clickAction(widget: ChatInputNotificationWidget): void {
 		const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-action-button');
 		assert.ok(button);
@@ -603,6 +622,75 @@ suite('ChatInputNotificationWidget', () => {
 			{ label: 'Ignore', secondary: true, tabIndex: 0, description: 'Don\'t Show Again' },
 		]);
 		assert.ok(widget.domNode.querySelector('.chat-input-notification-dismiss'));
+	});
+
+	test('uses explicit accessible labels for icon-only actions', () => {
+		const { notificationService, widget } = createWidget();
+		showNotification(notificationService, {
+			id: 'feedback',
+			message: 'Copilot preview',
+			actions: [{
+				kind: ChatInputNotificationActionKind.Command,
+				label: '$(thumbsup)',
+				ariaLabel: 'Helpful',
+				iconOnly: true,
+				tooltip: 'Helpful',
+				commandId: 'test.helpful',
+			}],
+		});
+		const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-action-button');
+		assert.deepStrictEqual({
+			icon: !!button?.querySelector('.codicon-thumbsup'),
+			iconOnly: button?.classList.contains('icon-only'),
+			compactActions: widget.domNode.querySelector('.chat-input-notification-actions')?.classList.contains('compact'),
+			ariaLabel: button?.getAttribute('aria-label'),
+			description: button?.getAttribute('aria-description'),
+		}, {
+			icon: true,
+			iconOnly: true,
+			compactActions: true,
+			ariaLabel: 'Copilot preview Helpful',
+			description: null,
+		});
+	});
+
+	test('splits a leading outlined action from trailing feedback actions', () => {
+		const { notificationService, widget } = createWidget();
+		showNotification(notificationService, {
+			id: 'feedback',
+			message: 'Copilot preview',
+			actions: [{
+				kind: ChatInputNotificationActionKind.Command,
+				label: 'Learn More',
+				commandId: 'test.learnMore',
+				primary: false,
+				leading: true,
+				outlined: true,
+			}, {
+				kind: ChatInputNotificationActionKind.Command,
+				label: '$(thumbsup) Got it!',
+				commandId: 'test.gotIt',
+				primary: true,
+			}],
+		});
+		const actions = widget.domNode.querySelector('.chat-input-notification-actions');
+		const buttons = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')];
+
+		assert.deepStrictEqual({
+			split: actions?.classList.contains('split'),
+			buttons: buttons.map(button => ({
+				label: button.textContent,
+				leading: button.classList.contains('leading'),
+				outlined: button.classList.contains('outlined'),
+				secondary: button.classList.contains('secondary'),
+			})),
+		}, {
+			split: true,
+			buttons: [
+				{ label: 'Learn More', leading: true, outlined: true, secondary: true },
+				{ label: 'Got it!', leading: false, outlined: false, secondary: false },
+			],
+		});
 	});
 
 	test('actions without explicit commandArgs are executed with empty args', async () => {
