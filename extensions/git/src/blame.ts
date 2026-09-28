@@ -441,10 +441,10 @@ export class GitBlameController {
 			// Working tree diff information. Diff Editor (Working Tree) -> Text Editor
 			const diffInformationWorkingTree = getWorkingTreeDiffInformation(textEditor);
 
-			// Working tree diff information is present and it is stale. Diff information
+			// Working tree diff information is not present or it is stale. Diff information
 			// may be stale when the selection changes because of a content change and the diff
 			// information is not yet updated.
-			if (diffInformationWorkingTree?.isStale) {
+			if (!diffInformationWorkingTree || diffInformationWorkingTree.isStale) {
 				this.textEditorBlameInformation = undefined;
 				return;
 			}
@@ -460,7 +460,7 @@ export class GitBlameController {
 				return;
 			}
 
-			workingTreeChanges = diffInformationWorkingTree?.changes ?? [];
+			workingTreeChanges = diffInformationWorkingTree.changes;
 			workingTreeAndIndexChanges = diffInformationWorkingTreeAndIndex?.changes;
 
 			// For staged resources, we provide an additional "original resource" so that the editor
