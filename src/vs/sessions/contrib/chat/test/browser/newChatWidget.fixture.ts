@@ -568,8 +568,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const headingStyle = targetWindow.getComputedStyle(heading);
 	assert(experimentalComposerLayout
 		? headingStyle.display !== 'none'
-			&& headingStyle.textAlign === 'center'
-			&& headingStyle.fontSize === headingStyle.getPropertyValue('--vscode-fontSize-heading1').trim()
+		&& headingStyle.textAlign === 'center'
+		&& headingStyle.fontSize === headingStyle.getPropertyValue('--vscode-fontSize-heading1').trim()
 		: headingStyle.display === 'none',
 		'The welcome heading must be visible and styled only in the experimental composer.');
 	const promptBox = view.element.querySelector<HTMLElement>('.new-chat-input-container');
@@ -641,7 +641,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				'Picker text must be vertically centered within the control.');
 			const next = controls[index + 1]?.getBoundingClientRect();
 			if (next && Math.abs(next.top - bounds.top) < 1) {
-				assert(Math.abs(next.left - bounds.right - parseFloat(targetWindow.getComputedStyle(optionsTray).getPropertyValue('--vscode-spacing-size80'))) < 1,
+				const trayStyle = targetWindow.getComputedStyle(optionsTray);
+				const spacing = parseFloat(trayStyle.getPropertyValue('--vscode-spacing-size80'));
+				const stroke = parseFloat(trayStyle.getPropertyValue('--vscode-strokeThickness'));
+				assert(Math.abs(next.left - bounds.right - spacing) <= stroke,
 					'Adjacent pickers must have equal design-token spacing.');
 			}
 		}
@@ -712,18 +715,27 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const repositoryConfigContainer = view.element.querySelector<HTMLElement>('.new-chat-repo-config-container');
 	if (withControlPickers) {
 		const sessionOptions = view.element.querySelector<HTMLElement>('.new-chat-session-options-details');
-		assert(!!repositoryConfigContainer && !!sessionOptions?.contains(repositoryConfigContainer));
+		const sessionControls = view.element.querySelector<HTMLElement>('.new-chat-session-controls');
+		assert(!!repositoryConfigContainer);
+		assert(!!sessionOptions && !!sessionControls);
 		assert(repositoryConfigContainer.querySelectorAll('.action-label:not(.separator)').length === 2);
 		const primaryToolbar = promptBox.querySelector<HTMLElement>('.sessions-chat-toolbar');
-		assert(!!primaryToolbar);
-		const [attach, controls, models] = [...primaryToolbar.children];
-		assert(attach.classList.contains('sessions-chat-attach-button')
-			&& controls.classList.contains('new-chat-session-controls')
-			&& models.classList.contains('sessions-chat-config-toolbar'),
-			'Prompt controls must appear in attachment, agent/mode, model order.');
-		const controlItems = controls.querySelectorAll<HTMLElement>('.actions-container > .action-item');
-		assert(controlItems[0]?.textContent === 'Agent' && !!controlItems[1]?.querySelector('.agent-host-mode-permissions-trigger'),
-			'The agent picker must precede the shared mode/permissions trigger inside the prompt.');
+		const secondaryControls = view.element.querySelector<HTMLElement>('.new-chat-controls-container');
+		assert(!!primaryToolbar && !!secondaryControls);
+		if (experimentalComposerLayout) {
+			const [attach, controls, models] = [...primaryToolbar.children];
+			assert(sessionOptions.contains(repositoryConfigContainer)
+				&& attach.classList.contains('sessions-chat-attach-button')
+				&& controls.classList.contains('new-chat-session-controls')
+				&& models.classList.contains('sessions-chat-config-toolbar'),
+				'Experimental controls must appear in workspace/repository/harness order above and attachment, agent/mode, model order inside the prompt.');
+			const controlItems = controls.querySelectorAll<HTMLElement>('.actions-container > .action-item');
+			assert(controlItems[0]?.textContent === 'Agent' && !!controlItems[1]?.querySelector('.agent-host-mode-permissions-trigger'),
+				'The agent picker must precede the shared mode/permissions trigger inside the prompt.');
+		} else {
+			assert(secondaryControls.contains(sessionControls) && !sessionOptions.contains(repositoryConfigContainer),
+				'Legacy controls must remain below the prompt.');
+		}
 	} else if (hasChatBackground) {
 		assert(!!repositoryConfigContainer
 			&& repositoryConfigContainer.classList.contains('has-no-actions')
