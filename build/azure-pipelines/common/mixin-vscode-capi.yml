@@ -1,3 +1,8 @@
+parameters:
+  - name: condition
+    type: string
+    default: succeeded()
+
 steps:
   # Check out the private microsoft/vscode-capi repository using the agent's
   # GitHub App (Monaco) credentials instead of cloning it with a PAT. The
@@ -6,6 +11,7 @@ steps:
     path: s/.build/vscode-capi
     fetchDepth: 1
     retryCountOnTaskFailure: 3
+    condition: ${{ parameters.condition }}
     displayName: Checkout microsoft/vscode-capi
 
   - pwsh: |
@@ -29,4 +35,5 @@ steps:
       } finally {
         Pop-Location
       }
+    condition: ${{ parameters.condition }}
     displayName: Mixin vscode-capi

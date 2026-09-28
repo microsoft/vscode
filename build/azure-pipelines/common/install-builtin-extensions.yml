@@ -1,16 +1,22 @@
+parameters:
+  - name: condition
+    type: string
+    default: succeeded()
+
 steps:
   - pwsh: mkdir .build -ea 0
-    condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
+    condition: and(${{ parameters.condition }}, contains(variables['Agent.OS'], 'windows'))
     displayName: Create .build folder
 
   - script: mkdir -p .build
-    condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
+    condition: and(${{ parameters.condition }}, not(contains(variables['Agent.OS'], 'windows')))
     displayName: Create .build folder
 
   - script: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
     env:
       VSCODE_ARCH: $(VSCODE_ARCH)
       VSCODE_EXTENSION_TARGET: $(VSCODE_EXTENSION_TARGET)
+    condition: ${{ parameters.condition }}
     displayName: Prepare built-in extensions cache key
 
   - task: Cache@2
@@ -18,6 +24,7 @@ steps:
       key: '"builtin-extensions" | .build/builtindepshash'
       path: .build/builtInExtensions
       cacheHitVar: BUILTIN_EXTENSIONS_RESTORED
+    condition: ${{ parameters.condition }}
     displayName: Restore built-in extensions cache
 
   - script: node build/lib/builtInExtensions.ts
@@ -25,5 +32,5 @@ steps:
       GITHUB_TOKEN: "$(github-token-code-oss)"
       VSCODE_ARCH: $(VSCODE_ARCH)
       VSCODE_EXTENSION_TARGET: $(VSCODE_EXTENSION_TARGET)
-    condition: and(succeeded(), ne(variables.BUILTIN_EXTENSIONS_RESTORED, 'true'))
+    condition: and(${{ parameters.condition }}, ne(variables.BUILTIN_EXTENSIONS_RESTORED, 'true'))
     displayName: Download built-in extensions

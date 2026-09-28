@@ -5,6 +5,9 @@ parameters:
       - darwin
       - linux
       - win32
+  - name: condition
+    type: string
+    default: succeeded()
 
 # Produces the dictation-runtime for ONE VS Code build:
 #   - STAMP: writes the (target-agnostic) product.dictationRuntime results file
@@ -29,7 +32,7 @@ parameters:
 steps:
   - task: AzureCLI@2
     displayName: "Dictation runtime: fetch CDN credentials"
-    condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+    condition: and(${{ parameters.condition }}, eq(lower(variables['VSCODE_PUBLISH']), 'true'))
     inputs:
       azureSubscription: vscode
       scriptType: pscore
@@ -51,6 +54,7 @@ steps:
         AZURE_TENANT_ID: $(AZURE_TENANT_ID)
         AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
         AZURE_ID_TOKEN: $(AZURE_ID_TOKEN)
+      condition: ${{ parameters.condition }}
       displayName: "Dictation runtime: build + upload"
 
   - ${{ if ne(parameters.vscodePlatform, 'win32') }}:
@@ -63,4 +67,5 @@ steps:
         AZURE_TENANT_ID: $(AZURE_TENANT_ID)
         AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
         AZURE_ID_TOKEN: $(AZURE_ID_TOKEN)
+      condition: ${{ parameters.condition }}
       displayName: "Dictation runtime: build + upload"

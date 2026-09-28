@@ -14,6 +14,9 @@ parameters:
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
     default: false
+  - name: VSCODE_REUSE_COMPILATION
+    type: boolean
+    default: false
 
 jobs:
   - job: Windows_${{ parameters.VSCODE_ARCH }}
@@ -101,3 +104,4 @@ jobs:
           VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
           VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
           VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+          VSCODE_REUSE_COMPILATION: ${{ parameters.VSCODE_REUSE_COMPILATION }}
