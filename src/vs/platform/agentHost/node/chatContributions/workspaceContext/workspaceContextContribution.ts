@@ -49,7 +49,8 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			return undefined;
 		}
 		firstTurnSeen.set(true, undefined);
-		const { enumerationRoots } = resolveAgentHostFileCompletionRoots((state.workingDirectories ?? []).map(directory => URI.parse(directory)));
+		// Use the directories the provider will run in, not session state: a worktree created on this send is not in state until the provider materializes.
+		const { enumerationRoots } = resolveAgentHostFileCompletionRoots(turn.workingDirectories ?? []);
 		if (enumerationRoots.length === 0) {
 			return undefined;
 		}

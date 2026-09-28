@@ -37,8 +37,9 @@ suite('WorkspaceContextContribution', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
-			workingDirectories: [...(options.roots ?? [URI.file('/workspace').toString()])],
+			workingDirectories: [URI.file('/workspace').toString()],
 		});
+		const roots = (options.roots ?? [URI.file('/workspace').toString()]).map(root => URI.parse(root));
 		const instantiation = store.add(new InstantiationService(new ServiceCollection(
 			[ILogService, log],
 			[IAgentHostStateManager, state],
@@ -50,8 +51,8 @@ suite('WorkspaceContextContribution', () => {
 			isTruncated: options.truncated ?? false,
 		});
 		let turn = 0;
-		const send = (channel = chat) => service.outgoingTurn({
-			session, chat: channel, turnId: String(++turn),
+		const send = (channel = chat, { workingDirectories }: { workingDirectories?: readonly URI[] } = { workingDirectories: roots }) => service.outgoingTurn({
+			session, chat: channel, turnId: String(++turn), workingDirectories,
 			message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } },
 		});
 		return { log, state, service, session, chat, enumerate, send };
@@ -100,21 +101,14 @@ suite('WorkspaceContextContribution', () => {
 		}, { roots: ['/workspace', '/other'], structure: workspaceHeading + '\npackage.json\nsrc/\n\tmain.ts\n\n' + otherHeading + '\nmeta.json' });
 	});
 
-	test('uses a peer chat\'s restricted working directories', async () => {
-		const context = setupContext({
-			roots: ['/workspace', '/other'].map(path => URI.file(path).toString()),
-			files: ['/workspace/private.ts', '/other/meta.json'],
-		});
-		const peer = buildChatUri(context.session, 'restricted');
-		context.state.addChat(context.session, peer, {
-			title: 'Restricted', origin: { kind: ChatOriginKind.User },
-			workingDirectories: [URI.file('/other').toString()],
-		});
-		const result = await context.send(peer);
+	test('uses the turn\'s resolved working directories instead of session state', async () => {
+		const context = setupContext({ files: ['/worktrees/agent/meta.json'] });
+		const worktree = URI.file('/worktrees/agent');
+		const result = await context.send(context.chat, { workingDirectories: [worktree] });
 		assert.deepStrictEqual({
 			roots: context.enumerate.getCalls().map(call => call.args[0].path),
 			structure: result.instructions?.[0].split('```text\n')[1].split('\n```')[0],
-		}, { roots: ['/other'], structure: otherHeading + '\nmeta.json' });
+		}, { roots: ['/worktrees/agent'], structure: JSON.stringify(worktree.fsPath).slice(1, -1) + '\nmeta.json' });
 	});
 
 	test('bounds the snapshot and keeps root-level orientation ahead of deep files', async () => {
@@ -150,6 +144,14 @@ suite('WorkspaceContextContribution', () => {
 			assert.deepStrictEqual(await context.send(), { message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } });
 		});
 	}
+
+	test('does not add context to a workspace-less turn', async () => {
+		const context = setupContext();
+		assert.deepStrictEqual({ result: await context.send(context.chat, {}), enumerations: context.enumerate.callCount }, {
+			result: { message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } },
+			enumerations: 0,
+		});
+	});
 
 	test('logs enumeration errors without blocking the user message', async () => {
 		const context = setupContext();

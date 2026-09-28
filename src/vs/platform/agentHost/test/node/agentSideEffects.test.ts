@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -71,6 +72,7 @@ import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/loca
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostWorkspaceFiles } from '../../node/agentHostWorkspaceFiles.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
@@ -1557,6 +1559,49 @@ suite('AgentSideEffects', () => {
 				'- Avoid extraneous steps or context-gathering prior to providing the command, unless context is required to resolve ambiguity.',
 				'</terminal_chat>',
 			].join('\n')]);
+		});
+
+		test('snapshots the worktree created for the first send, not the folder in session state', async () => {
+			const repository = URI.file('/repo');
+			const worktree = URI.file('/worktrees/repo-agent');
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'copilotcli',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				workingDirectories: [repository.toString()],
+			});
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
+			const getFiles = sinon.stub(AgentHostWorkspaceFiles.prototype, 'getFiles').callsFake(async root => ({ files: [URI.joinPath(root, 'meta.json')], isTruncated: false }));
+			disposables.add(toDisposable(() => getFiles.restore()));
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [worktree],
+			});
+			disposables.add(localSideEffects.registerProgressListener(agent));
+
+			localSideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } },
+			});
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			const snapshot = (!URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined)?.find(instruction => instruction.startsWith('<workspace_info>'));
+			assert.deepStrictEqual({
+				enumerated: getFiles.getCalls().map(call => call.args[0].toString()),
+				structure: snapshot?.split('```text\n')[1].split('\n```')[0],
+			}, {
+				enumerated: [worktree.toString()],
+				structure: `${JSON.stringify(worktree.fsPath).slice(1, -1)}\nmeta.json`,
+			});
 		});
 
 		test('adds focused edit guidance for an editor inline-chat surface', async () => {

@@ -96,7 +96,7 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 ### Orchestrator layer
 
-Copilot chats receive a bounded initial workspace-file snapshot through `WorkspaceContextContribution`. It uses the chat's effective working directories and the existing ignore-aware `AgentHostWorkspaceFiles` enumerator, excludes hidden and dependency paths, and never reads file contents. The snapshot is first-turn-only (also on restore), and discovery failures use the contribution dispatcher's logging without blocking the user's message.
+Copilot chats receive a bounded initial workspace-file snapshot through `WorkspaceContextContribution`. It uses the working directories resolved for the turn (`IOutgoingTurn.workingDirectories`, including a worktree created on the first send, which session state does not reflect until the provider materializes) and the existing ignore-aware `AgentHostWorkspaceFiles` enumerator, excludes hidden and dependency paths, and never reads file contents. The snapshot is first-turn-only (also on restore), and discovery failures use the contribution dispatcher's logging without blocking the user's message.
 
 Shared UI first-progress observations use the capability-gated VS Code-only
 `vscode/reportChatUserInteraction` RPC, not the generated chat protocol. The
