@@ -143,12 +143,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 	protected override doGetSymbolPicks(symbolsPromise: Promise<DocumentSymbol[]>, query: IPreparedQuery, options: { extraContainerLabel?: string } | undefined, token: CancellationToken, model: ITextModel): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
 		const picksPromise = super.doGetSymbolPicks(symbolsPromise, query, options, token, model);
 
-		// Decorate the picks in a continuation instead of `await`ing the promise
-		// before returning it. Awaiting adds microtask hops before the quick pick
-		// observes the picks, which can delay them past a programmatic `accept`
-		// that fires right after the picker opens (e.g. the second command of a
-		// `runCommands` keybinding), turning the accept into a silent no-op
-		// (fixes #307333).
+		// Decorate via a continuation to not delay the returned promise (#307333); it runs before the picker's own `then` on the same promise.
 		picksPromise.then(picks => {
 			const modelUri = model.uri;
 			for (const pick of picks) {
@@ -170,7 +165,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 					};
 				}
 			}
-		});
+		}, () => { /* rejection is surfaced through the returned promise */ });
 
 		return picksPromise;
 	}
