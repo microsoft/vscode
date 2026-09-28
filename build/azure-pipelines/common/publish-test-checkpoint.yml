@@ -14,6 +14,8 @@ parameters:
       - copilot-extension
       - copilot-completions-core
       - copilot-sanity
+  - name: condition
+    type: string
 
 steps:
   - task: 1ES.PublishPipelineArtifact@1
@@ -22,6 +24,6 @@ steps:
       artifactName: $(TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_ARTIFACT)
       sbomEnabled: false
       isProduction: false
-    condition: and(succeeded(), eq(variables['TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_READY'], 'true'), ne(variables['TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_HIT'], 'true'))
+    condition: ${{ parameters.condition }}
     displayName: Publish ${{ parameters.testId }} checkpoint
     timeoutInMinutes: 2

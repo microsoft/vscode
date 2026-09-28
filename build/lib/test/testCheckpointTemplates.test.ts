@@ -103,7 +103,8 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
-	test('wrapper preserves the test step and gates it on its checkpoint', () => {
+	test('wrapper preserves the test step and gates it and its checkpoint on the same condition', () => {
+		const condition = 'and(${{ coalesce(parameters.testStep.condition, \'succeeded()\') }}, ne(variables[\'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}_HIT\'], \'true\'))';
 		assert.deepStrictEqual({
 			parameters: wrapper.parameters,
 			copiedMetadata: pairs['${{ elseif ne(pair.key, \'condition\') }}'],
@@ -112,8 +113,8 @@ suite('Product test checkpoint templates', () => {
 		}, {
 			parameters: [{ name: 'testId', type: 'string' }, { name: 'testStep', type: 'step' }],
 			copiedMetadata: { '${{ pair.key }}': '${{ pair.value }}' },
-			condition: 'and(${{ coalesce(parameters.testStep.condition, \'succeeded()\') }}, ne(variables[\'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}_HIT\'], \'true\'))',
-			publisher: { template: './publish-test-checkpoint.yml@self', parameters: { testId: '${{ parameters.testId }}' } },
+			condition,
+			publisher: { template: './publish-test-checkpoint.yml@self', parameters: { testId: '${{ parameters.testId }}', condition } },
 		});
 	});
 

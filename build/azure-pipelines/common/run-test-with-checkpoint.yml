@@ -26,3 +26,5 @@ steps:
   - template: ./publish-test-checkpoint.yml@self
     parameters:
       testId: ${{ parameters.testId }}
+      # Same condition as the test step, so that the checkpoint is published whenever the test runs
+      condition: and(${{ coalesce(parameters.testStep.condition, 'succeeded()') }}, ne(variables['TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_HIT'], 'true'))

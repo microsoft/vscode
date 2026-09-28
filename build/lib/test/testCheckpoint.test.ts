@@ -235,7 +235,7 @@ suite('Product test checkpoints', () => {
 		]);
 	});
 
-	test('publisher requires success, explicit readiness and a restore miss', () => {
+	test('publisher uses the condition of its test step', () => {
 		const publisher = load(readFileSync(path.join(repositoryRoot, 'build/azure-pipelines/common/publish-test-checkpoint.yml'), 'utf8')) as { steps: object[] };
 		const prefix = 'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}';
 		assert.deepStrictEqual(publisher.steps, [{
@@ -246,7 +246,7 @@ suite('Product test checkpoints', () => {
 				sbomEnabled: false,
 				isProduction: false,
 			},
-			condition: `and(succeeded(), eq(variables['${prefix}_READY'], 'true'), ne(variables['${prefix}_HIT'], 'true'))`,
+			condition: '${{ parameters.condition }}',
 			displayName: 'Publish ${{ parameters.testId }} checkpoint',
 			timeoutInMinutes: 2,
 		}]);
