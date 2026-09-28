@@ -327,7 +327,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				return { banner: connectionBanner, recovery: undefined };
 			}
 
-			return { banner: readOnly?.content, recovery: undefined };
+			return { banner: view?.isInputBlocked.read(reader) ? undefined : readOnly?.content, recovery: undefined };
 		});
 
 		this._contextDisposables.add(autorun(reader => {
