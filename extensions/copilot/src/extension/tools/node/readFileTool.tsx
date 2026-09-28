@@ -38,7 +38,7 @@ import { getImageMimeType } from './imageToolUtils';
 import { assertFileNotContentExcluded, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
 import { IGrepResultService } from './grepResultService';
 import { IRegionContextProviderService, type PathInfo, type RegionResult } from '../../../platform/languageContextProvider/common/regionContextProvider';
-import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
+import { Disposable } from '../../../util/vs/base/common/lifecycle';
 
 export const getReadFileV2Description = (orig: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation => ({
 	name: ToolName.ReadFile,
@@ -128,12 +128,11 @@ type EndLineInfo = {
 	startLines: Map<number, ReadAdjustment>;
 };
 
-export class ReadFileTool implements ICopilotTool<ReadFileParams> {
+export class ReadFileTool extends Disposable implements ICopilotTool<ReadFileParams> {
 	public static toolName = ToolName.ReadFile;
 	public static readonly nonDeferred = true;
 	private _promptContext: IBuildPromptContext | undefined;
 	private readonly adjustedReadRequests = new Map<string, Map<string, Map<number, EndLineInfo>>>();
-	private readonly disposables: DisposableStore = new DisposableStore();
 
 	constructor(
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
@@ -151,14 +150,10 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		@IGrepResultService private readonly grepResultService: IGrepResultService,
 		@IRegionContextProviderService private readonly regionContextProvider: IRegionContextProviderService
 	) {
-		this.disposables.add(grepResultService.onDidRemoveSession(sessionUri => {
+		super();
+		this._register(grepResultService.onDidRemoveSession(sessionUri => {
 			this.adjustedReadRequests.delete(sessionUri.toString());
 		}));
-
-	}
-
-	public dispose() {
-		this.disposables.dispose();
 	}
 
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ReadFileParams>, token: vscode.CancellationToken) {
@@ -228,7 +223,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 								const regionResult: RegionResult | undefined = await this.regionContextProvider.getRegions(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatches, { start: startLine, end: endLine });
 								const adjustedRange = regionResult?.regions[0]?.range;
 								if (regionResult !== undefined && adjustedRange !== undefined && documentSnapshot.version === documentSnapshot.document.version) {
-									const pathInfo = regionResult?.paths;
+									const pathInfo = regionResult.paths;
 									// For telemetry purpose send the adjusted region information
 									const continuousLines = continuousReadStartLine !== undefined ? startLine - continuousReadStartLine : 0;
 									this.sendAdjustedRegionTelemetry(options, startLine, endLine, adjustedRange.start, adjustedRange.end, pathInfo, continuousLines, documentSnapshot);
