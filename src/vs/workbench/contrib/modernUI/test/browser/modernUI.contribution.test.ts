@@ -2647,6 +2647,57 @@ suite('ModernUIContribution', () => {
 		}
 	});
 
+	test('applies custom connected tab outlines in light and dark themes', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-large: 8px; --vscode-strokeThickness: 1px;';
+		const themeStyle = document.createElement('style');
+		root.appendChild(themeStyle);
+		const editor = appendElement(root, 'part editor editor-tabs-multiple');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(row, 'tabs-container');
+		appendElement(appendElement(tabs, 'tab'), 'tab-fill');
+		const fill = appendElement(appendElement(tabs, 'tab active'), 'tab-fill');
+		const targetWindow = getWindow(root);
+		const state = () => ({
+			cap: [targetWindow.getComputedStyle(fill).borderTopColor, targetWindow.getComputedStyle(fill).borderLeftColor, targetWindow.getComputedStyle(fill).borderBottomColor],
+			shoulder: targetWindow.getComputedStyle(fill, '::after').borderLeftColor,
+			separator: targetWindow.getComputedStyle(row, '::after').backgroundColor,
+			frame: targetWindow.getComputedStyle(group, '::after').borderLeftColor,
+			outerStroke: targetWindow.getComputedStyle(editor).getPropertyValue('--modern-ui-editor-border-color').trim(),
+		});
+
+		for (const [themeType, unfocusedAlpha] of [['vs-dark', '0.5'], ['vs', '0.7']] as const) {
+			root.classList.remove('vs-dark', 'vs');
+			root.classList.add(themeType);
+			const actual: Record<string, unknown> = {};
+			const expected: Record<string, unknown> = {};
+			for (const [name, customizations, active, unfocused] of [
+				['explicit', { 'tab.connectedActiveBorder': '#ff0000', 'tab.unfocusedConnectedActiveBorder': '#00ff00' }, 'rgb(255, 0, 0)', 'rgb(0, 255, 0)'],
+				['derived', { 'tab.connectedActiveBorder': '#ff0000' }, 'rgb(255, 0, 0)', `rgba(255, 0, 0, ${unfocusedAlpha})`],
+			] as const) {
+				const theme = ColorThemeData.createUnloadedTheme(themeType, { [editorBackground]: '#333333', ...customizations });
+				themeStyle.textContent = generateColorThemeCSS(theme, '.monaco-workbench', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+				for (const isActive of [true, false]) {
+					group.classList.toggle('active', isActive);
+					const border = isActive ? active : unfocused;
+					actual[`${name}, active group: ${isActive}`] = state();
+					expected[`${name}, active group: ${isActive}`] = { cap: [border, border, 'rgba(0, 0, 0, 0)'], shoulder: border, separator: border, frame: border, outerStroke: 'transparent' };
+				}
+			}
+
+			themeStyle.textContent = generateColorThemeCSS(ColorThemeData.createUnloadedTheme(themeType, { [editorBackground]: '#333333' }), '.monaco-workbench', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			group.classList.add('active');
+			actual.unset = { frame: targetWindow.getComputedStyle(group, '::after').content, outerStroke: state().outerStroke };
+			expected.unset = { frame: 'none', outerStroke: '' };
+
+			assert.deepStrictEqual(actual, expected, themeType);
+		}
+	});
+
 	test('preserves the connected HC focus frame in a multi-tab modal editor', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
 		store.add(toDisposable(() => root.remove()));
