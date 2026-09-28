@@ -88,8 +88,8 @@ This branch's OpenAI contributor is unconditional for GPT families, legacy `o1`/
 
 | Section | Action | What changes |
 |---|---|---|
-| `code_change_rules` | transform | drops the "Validate that your changes preserve existing behavior" bullet; appends Copilot Chat `implementationDiscipline` |
-| `guidelines` | transform | drops the "Reflect on command output", "Clean up temporary files" and "Ask for guidance" tips; appends Copilot Chat `<instructions>` (exploration restraint), `operationalSafety`, `parallelizationStrategy`, `communicationStyle` |
+| `code_change_rules` | transform | drops the "Validate that your changes preserve existing behavior" bullet; appends Copilot Chat `implementationDiscipline` (first line reworded to agree with the foundation's completeness bullet) |
+| `guidelines` | transform | drops the "Reflect on command output", "Clean up temporary files" and "Ask for guidance" tips; appends Copilot Chat `<instructions>` (exploration restraint), `operationalSafety`, `parallelizationStrategy`, `communicationStyle`, with `operationalSafety` scoped to remote/shared actions, progress updates bounded rather than banned, and the emoji rule deferring to tool output formats, so none contradicts foundation text left in the prompt |
 | `tool_instructions` | transform | drops the foundation's `<example>` blocks and the `<ask_user>` walkthrough (~940 tokens; `trimFoundationToolInstructions`), keeps `<bash>` mode/`read_bash` guidance, `<task>` delegation policy and the `<sql>` todo contract; appends Copilot Chat `toolUseInstructions` with SDK tool names (`view`/`edit`/`create`/`bash`). The registry appends the universal host lines after the transform |
 | `last_instructions` | transform | drops "Your goal is to deliver complete, working solutions … Verify your changes actually work …", the `<task_completion>` block (keeping its dependency-install bullet as a plain line) and "be thorough" (`trimFoundationLastInstructions`); `<tool_calling>` and any other foundation text survive |
 

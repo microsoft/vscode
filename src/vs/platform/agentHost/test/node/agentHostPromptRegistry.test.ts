@@ -427,6 +427,24 @@ suite('AgentHostPromptRegistry', () => {
 			assert.doesNotMatch(result, /You are a highly sophisticated/);
 		});
 
+		test('alternate-prompt wording agrees with the foundation text it sits alongside', async () => {
+			const guidelines = await runTransform(sectionsOf('claude-opus-5').guidelines, '');
+			// Progress updates are bounded, not banned (the SDK asks for short updates at transitions).
+			assert.doesNotMatch(guidelines, /I will now/);
+			assert.match(guidelines, /Progress updates: at most one short sentence at a meaningful transition/);
+			// Local git operations the task needs are allowed; only remote/shared actions need confirmation.
+			assert.doesNotMatch(guidelines, /git reset --hard|amending published commits/);
+			assert.match(guidelines, /Local git operations inside the workspace[^\n]*are fine when the task calls for them/);
+			assert.match(guidelines, /Ask the user before actions that reach outside the workspace/);
+			// The emoji rule defers to tool output formats that require them.
+			assert.match(guidelines, /emojis unless explicitly requested or required by a tool's output format/);
+			// Completeness and discipline no longer read as opposites.
+			assert.match(OPUS_ALT_PROMPT_IMPLEMENTATION_DISCIPLINE, /^<implementation_discipline>\nFully address what was asked, but avoid over-engineering/);
+			// Read-size guidance matches the SDK's view_range advice for large files.
+			assert.doesNotMatch(OPUS_ALT_PROMPT_TOOL_INSTRUCTIONS, /large section at once/);
+			assert.match(OPUS_ALT_PROMPT_TOOL_INSTRUCTIONS, /When a file fits in a single read, read it once; for large files, read the ranges you need with view_range/);
+		});
+
 		test('uses the Copilot Chat Opus exploration wording', async () => {
 			const opus = await runTransform(sectionsOf('claude-opus-5').guidelines, '');
 			assert.match(opus, /Avoid redundant searches for information already found/);
