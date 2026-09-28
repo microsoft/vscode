@@ -9,7 +9,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { Disposable, ImmortalReference, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -36,7 +36,6 @@ import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubP
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest } from '../../../github/common/types.js';
 import { SessionInputBanners } from '../../browser/sessionInputBanners.js';
-import { ISessionWorktreeCleanupService } from '../../browser/sessionWorktreeCleanupService.js';
 
 suite('SessionInputBanners', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -163,10 +162,6 @@ suite('SessionInputBanners', () => {
 			instantiationService,
 			new NullLogService(),
 			chatWidgetService,
-			upcastPartial<ISessionWorktreeCleanupService>({
-				suggestion: constObservable(undefined),
-				activate: async () => { },
-			}),
 		));
 		banners.setActive(true);
 

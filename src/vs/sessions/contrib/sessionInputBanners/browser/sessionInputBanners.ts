@@ -27,7 +27,6 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, SessionStatus } from '../../../services/sessions/common/session.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
 import { ISessionInputBanner, ISessionInputBannerAction, SessionInputBannerWidget } from './sessionInputBannerWidget.js';
-import { ISessionWorktreeCleanupService, ISessionWorktreeCleanupSuggestion } from './sessionWorktreeCleanupService.js';
 
 const STORAGE_KEY_DISMISSED = 'sessions.inputBanners.dismissedItems';
 const LEGACY_STORAGE_KEY_CI_DISMISSED = 'sessions.inputBanners.ci.dismissed';
@@ -57,13 +56,7 @@ interface IAgentCommentsBannerState extends IBaseBannerState {
 	readonly kind: 'agentComments';
 }
 
-interface IWorktreeCleanupBannerState {
-	readonly id: 'worktreeCleanup';
-	readonly kind: 'worktreeCleanup';
-	readonly suggestion: ISessionWorktreeCleanupSuggestion;
-}
-
-type BannerState = IPRBannerState | IAgentCommentsBannerState | IWorktreeCleanupBannerState;
+type BannerState = IPRBannerState | IAgentCommentsBannerState;
 
 function pullRequestKey(pullRequest: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>): string {
 	return `${pullRequest.owner.toLowerCase()}/${pullRequest.repo.toLowerCase()}#${pullRequest.number}`;
@@ -126,13 +119,6 @@ export class SessionInputBanners extends Disposable {
 		}
 
 		const states: BannerState[] = [];
-		if (this._active.read(reader)) {
-			const suggestion = this.sessionWorktreeCleanupService.suggestion.read(reader);
-			if (suggestion) {
-				states.push({ id: 'worktreeCleanup', kind: 'worktreeCleanup', suggestion });
-			}
-		}
-
 		const session = this._session.read(reader);
 		if (!session) {
 			return states;
@@ -228,7 +214,6 @@ export class SessionInputBanners extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@ISessionWorktreeCleanupService private readonly sessionWorktreeCleanupService: ISessionWorktreeCleanupService,
 	) {
 		super();
 
@@ -277,9 +262,6 @@ export class SessionInputBanners extends Disposable {
 
 	setActive(active: boolean): void {
 		this._active.set(active, undefined);
-		if (active) {
-			void this.sessionWorktreeCleanupService.activate().catch(error => this.logService.warn('[SessionInputBanners] Failed to refresh session worktree usage', error));
-		}
 	}
 
 	setDebugData(data: ISessionChatPillsDebugData | undefined): void {
@@ -327,29 +309,6 @@ export class SessionInputBanners extends Disposable {
 	}
 
 	private _toBanner(state: BannerState, index: number, total: number): ISessionInputBanner {
-		if (state.kind === 'worktreeCleanup') {
-			return {
-				id: state.id,
-				icon: Codicon.trash,
-				accent: false,
-				text: state.suggestion.description,
-				ariaLabel: state.suggestion.description,
-				actions: [{
-					id: 'manageSessionStorage',
-					label: localize('inputBanner.manageSessionStorage', "Manage Session Storage"),
-					primary: true,
-					run: () => state.suggestion.manage(),
-				}, {
-					id: 'disableWorktreeCleanupPrompt',
-					label: localize('inputBanner.dontShowWorktreeCleanupAgain', "Don't Show Again"),
-					run: () => state.suggestion.disable(),
-				}],
-				dismissTooltip: localize('inputBanner.dismissWorktreeCleanup', "Dismiss Worktree Cleanup Suggestion"),
-				focusAfterDismiss: () => this.chatWidgetService.lastFocusedWidget?.focusInput(),
-				dismiss: () => state.suggestion.dismiss(),
-			};
-		}
-
 		const compact = total > 1;
 		const text = state.kind === 'pullRequest'
 			? this._pullRequestText(state, compact)

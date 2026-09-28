@@ -11,6 +11,7 @@ import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scro
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { fromNow } from '../../../../base/common/date.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
@@ -27,11 +28,12 @@ import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPan
 import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
-import { ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupService } from './sessionWorktreeCleanupService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, CLEANUP_THRESHOLD_BYTES, CLEANUP_THRESHOLD_WORKTREES, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupService } from './sessionWorktreeCleanupService.js';
 import { SessionWorktreeCleanupEditorInput } from './sessionWorktreeCleanupEditorInput.js';
 import './media/sessionWorktreeCleanupEditor.css';
 
-const MINIMUM_AGE_OPTIONS = [7, 14, 30, 60, 90];
+const MINIMUM_AGE_OPTIONS = [7, 15, 30, 60, 90];
 
 export class SessionWorktreeCleanupEditor extends EditorPane {
 
@@ -45,7 +47,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private cleanupButton: Button | undefined;
 	private scrollableElement: DomScrollableElement | undefined;
 	private layoutDimension: dom.Dimension | undefined;
-	private minimumAgeDays = 14;
+	private minimumAgeDays = 15;
 	private worktreesOnly = true;
 	private worktrees: readonly ISessionWorktree[] = [];
 	private selectedSessionIds = new Set<string>();
@@ -61,6 +63,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super(SessionWorktreeCleanupEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -78,6 +81,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		dom.append(content, dom.$('h1', undefined, localize('sessionWorktreeCleanup.heading', "Manage Agent Session Storage")));
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
 			localize('sessionWorktreeCleanup.intro', "Inactive, unpinned sessions older than the selected period can be marked as done to clean up their worktrees. Active, running, needs-input, and pinned sessions are always protected.")));
+		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
+			localize('sessionWorktreeCleanup.reopen', "Return here any time from the Sessions More Actions (...) menu, a session's context menu, or by running Manage Agent Session Storage from the Command Palette.")));
 
 		this.renderAutomaticCleanup(content);
 
@@ -175,18 +180,24 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.rowDisposables.clear();
 		dom.clearNode(this.list);
 		const eligible = this.worktrees.filter(worktree => worktree.cleanupState === 'eligible');
+		const tooRecent = this.worktrees.filter(worktree => worktree.cleanupState === 'recent').length;
 		const worktreeCount = this.worktrees.filter(worktree => worktree.hasWorktree).length;
 		const reclaimableBytes = eligible.reduce((total, worktree) => total + (worktree.sizeBytes ?? 0), 0);
 		const summary = this.worktreesOnly
-			? localize('sessionWorktreeCleanup.worktreeSummary', "{0} of {1} worktrees can be cleaned up, reclaiming about {2}.", eligible.length, worktreeCount, ByteSize.formatSize(reclaimableBytes))
-			: localize('sessionWorktreeCleanup.sessionSummary', "{0} of {1} sessions can be marked as done. {2} worktrees can reclaim about {3}.", eligible.length, this.worktrees.length, worktreeCount, ByteSize.formatSize(reclaimableBytes));
+			? localize('sessionWorktreeCleanup.worktreeSummary', "{0} of {1} worktrees inactive for at least {2} days can be cleaned up, reclaiming about {3}.", eligible.length, worktreeCount, this.minimumAgeDays, ByteSize.formatSize(reclaimableBytes))
+			: localize('sessionWorktreeCleanup.sessionSummary', "{0} of {1} sessions inactive for at least {2} days can be marked as done. {3} worktrees can reclaim about {4}.", eligible.length, this.worktrees.length, this.minimumAgeDays, worktreeCount, ByteSize.formatSize(reclaimableBytes));
+		const recentNote = tooRecent === 0
+			? undefined
+			: tooRecent === 1
+				? localize('sessionWorktreeCleanup.tooRecentOne', " 1 more was used within the last {0} days.", this.minimumAgeDays)
+				: localize('sessionWorktreeCleanup.tooRecentMany', " {0} more were used within the last {1} days.", tooRecent, this.minimumAgeDays);
 		const eligibilityDescription = localize(
 			'sessionWorktreeCleanup.eligibilityDescription',
 			"Includes sessions untouched for at least {0} days that are not active, running, waiting for input, pinned, already done, untitled, or in an error state.",
 			this.minimumAgeDays,
 		);
 		dom.clearNode(this.summary);
-		dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, summary));
+		dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, recentNote ? summary + recentNote : summary));
 		const eligibilityInfo = dom.append(this.summary, dom.$('button.session-worktree-cleanup-info', {
 			type: 'button',
 			'aria-label': localize('sessionWorktreeCleanup.eligibilityInfo', "Why these sessions can be marked as done"),
@@ -208,9 +219,10 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		dom.append(header, dom.$('span.title', { role: 'columnheader' }, localize('sessionWorktreeCleanup.sessionColumn', "Session")));
 		dom.append(header, dom.$('span', { role: 'columnheader' }, localize('sessionWorktreeCleanup.lastUsedColumn', "Last Used")));
 		dom.append(header, dom.$('span', { role: 'columnheader' }, localize('sessionWorktreeCleanup.storageColumn', "Storage")));
-		dom.append(header, dom.$('span', { role: 'columnheader' }, localize('sessionWorktreeCleanup.statusColumn', "Status")));
+		dom.append(header, dom.$('span', { role: 'columnheader' }, localize('sessionWorktreeCleanup.actionsColumn', "Actions")));
 
-		for (const worktree of [...this.worktrees].sort((a, b) => (b.sizeBytes ?? -1) - (a.sizeBytes ?? -1))) {
+		// Only list rows that meet every cleanup criterion; the summary reports how many were excluded.
+		for (const worktree of [...eligible].sort((a, b) => (b.sizeBytes ?? -1) - (a.sizeBytes ?? -1))) {
 			const row = dom.append(this.list, dom.$('.session-worktree-cleanup-row', { role: 'row' }));
 			const title = worktree.session.title.get() || localize('sessionWorktreeCleanup.untitled', "Untitled session");
 			const checkbox = this.rowDisposables.add(new Checkbox(
@@ -219,9 +231,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				defaultCheckboxStyles,
 			));
 			row.appendChild(checkbox.domNode);
-			if (worktree.cleanupState !== 'eligible' || worktree.sizeBytes === undefined) {
-				checkbox.disable();
-			}
 			this.rowDisposables.add(checkbox.onChange(() => {
 				if (checkbox.checked) {
 					this.selectedSessionIds.add(worktree.session.sessionId);
@@ -233,9 +242,14 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			}));
 			const titleElement = dom.append(row, dom.$('span.title', { role: 'cell', title }, title));
 			titleElement.tabIndex = 0;
-			dom.append(row, dom.$('span', { role: 'cell' }, worktree.session.updatedAt.get().toLocaleDateString()));
+			dom.append(row, dom.$('span', { role: 'cell', title: worktree.session.updatedAt.get().toLocaleString() }, fromNow(worktree.session.updatedAt.get(), true, true)));
 			dom.append(row, dom.$('span', { role: 'cell' }, worktree.hasWorktree ? ByteSize.formatSize(worktree.sizeBytes ?? 0) : localize('sessionWorktreeCleanup.noWorktree', "No worktree")));
-			dom.append(row, dom.$('span.status', { role: 'cell' }, worktree.cleanupState === 'eligible' ? localize('sessionWorktreeCleanup.ready', "Ready") : this.cleanupService.getCleanupStateLabel(worktree.cleanupState)));
+			const actions = dom.append(row, dom.$('span', { role: 'cell' }));
+			const openButton = this.rowDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+			openButton.label = localize('sessionWorktreeCleanup.openSession', "Open Session");
+			this.rowDisposables.add(openButton.onDidClick(() => {
+				void this.sessionsService.openSession(worktree.session.resource).catch(error => this.notificationService.error(error));
+			}));
 		}
 		this.updateCleanupButton();
 		this.updateScrollDimensions();
@@ -275,6 +289,40 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.renderAutomaticSetting(section, ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 			localize('sessionWorktreeCleanup.autoDelete', "Permanently delete automatically completed sessions after"),
 			localize('sessionWorktreeCleanup.autoDeleteAria', "Automatically delete completed merged sessions"));
+		this.renderSuggestionSetting(section);
+	}
+
+	/**
+	 * Renders the toggle that controls whether the storage cleanup suggestion is surfaced. This is
+	 * the durable, keyboard reachable equivalent of the suggestion's own "Don't Show Again" button,
+	 * so users who only hear the suggestion announced can still turn it off.
+	 */
+	private renderSuggestionSetting(container: HTMLElement): void {
+		const row = dom.append(container, dom.$('.session-worktree-cleanup-setting'));
+		const label = localize('sessionWorktreeCleanup.suggestion', "Suggest cleaning up session storage when it grows large");
+		const checkbox = this.editorDisposables.add(new Checkbox(label, false, defaultCheckboxStyles));
+		row.appendChild(checkbox.domNode);
+		dom.append(row, dom.$('span', undefined, label));
+		const descriptionId = 'session-worktree-cleanup-suggestion-description';
+		checkbox.domNode.setAttribute('aria-describedby', descriptionId);
+		dom.append(container, dom.$('.session-worktree-cleanup-setting-description', { id: descriptionId }, localize(
+			'sessionWorktreeCleanup.suggestionDescription',
+			"Checked when the Agents window opens and after sessions change, measuring disk usage at most once an hour. A suggestion appears below the Sessions list when at least {0} inactive worktrees are eligible for cleanup or eligible worktrees use at least {1}. Dismissing it hides it until the window reloads.",
+			CLEANUP_THRESHOLD_WORKTREES,
+			ByteSize.formatSize(CLEANUP_THRESHOLD_BYTES),
+		)));
+		const update = () => {
+			checkbox.checked = this.configurationService.getValue<boolean>(AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING) === true;
+		};
+		update();
+		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING)) {
+				update();
+			}
+		}));
+		this.editorDisposables.add(checkbox.onChange(() => {
+			void this.configurationService.updateValue(AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, checkbox.checked, ConfigurationTarget.APPLICATION).then(update, error => this.notificationService.error(error));
+		}));
 	}
 
 	private renderAutomaticSetting(container: HTMLElement, setting: string, label: string, ariaLabel: string): void {
@@ -301,10 +349,22 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			const value = checkbox.checked ? Math.max(1, Number(days.value) || 15) : 0;
 			void this.configurationService.updateValue(setting, value, ConfigurationTarget.APPLICATION).then(update, error => this.notificationService.error(error));
 		}));
-		this.editorDisposables.add(dom.addDisposableListener(days, dom.EventType.CHANGE, () => {
-			if (checkbox.checked) {
-				void this.configurationService.updateValue(setting, Math.max(1, Number(days.value) || 15), ConfigurationTarget.APPLICATION).then(update, error => this.notificationService.error(error));
+		const saveDays = (normalize: boolean) => {
+			if (!checkbox.checked) {
+				return;
 			}
-		}));
+			const value = Number(days.value);
+			if (!Number.isInteger(value) || value < 1) {
+				if (!normalize) {
+					return;
+				}
+				days.value = '1';
+				void this.configurationService.updateValue(setting, 1, ConfigurationTarget.APPLICATION).then(update, error => this.notificationService.error(error));
+				return;
+			}
+			void this.configurationService.updateValue(setting, value, ConfigurationTarget.APPLICATION).then(update, error => this.notificationService.error(error));
+		};
+		this.editorDisposables.add(dom.addDisposableListener(days, dom.EventType.INPUT, () => saveDays(false)));
+		this.editorDisposables.add(dom.addDisposableListener(days, dom.EventType.CHANGE, () => saveDays(true)));
 	}
 }

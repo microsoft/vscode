@@ -185,6 +185,64 @@
 		overflow: hidden;
 	}
 
+	.agent-sessions-storage-cleanup-notice {
+		display: none;
+		flex-shrink: 0;
+		flex-direction: column;
+		gap: var(--vscode-spacing-size80);
+		margin: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
+		padding: var(--vscode-spacing-size100);
+		border: var(--vscode-strokeThickness) solid var(--vscode-sideBarSectionHeader-border, transparent);
+		border-radius: var(--vscode-cornerRadius-medium);
+		background-color: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background));
+	}
+
+	.agent-sessions-storage-cleanup-notice.visible {
+		display: flex;
+	}
+
+	.agent-sessions-storage-cleanup-notice-content {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--vscode-spacing-size80);
+		min-width: 0;
+	}
+
+	.agent-sessions-storage-cleanup-notice-icon {
+		flex-shrink: 0;
+		color: var(--vscode-icon-foreground);
+	}
+
+	.agent-sessions-storage-cleanup-notice-description {
+		flex: 1;
+		min-width: 0;
+		line-height: 18px;
+		color: var(--vscode-foreground);
+	}
+
+	.agent-sessions-storage-cleanup-notice-dismiss.monaco-button {
+		flex-shrink: 0;
+		min-width: 20px;
+		width: 20px;
+		height: 20px;
+		padding: 0;
+		border: none;
+		background: transparent;
+		color: var(--vscode-icon-foreground);
+	}
+
+	.agent-sessions-storage-cleanup-notice-info.monaco-button:hover,
+	.agent-sessions-storage-cleanup-notice-dismiss.monaco-button:hover {
+		background: var(--vscode-toolbar-hoverBackground);
+	}
+
+	.agent-sessions-storage-cleanup-notice-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--vscode-spacing-size40);
+		padding-left: var(--vscode-spacing-size240);
+	}
+
 	.agent-sessions-customizations-section {
 		overflow: hidden;
 		min-height: 0;

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -20,13 +20,13 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { DEFAULT_CHAT_CAPABILITIES, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING, SessionWorktreeCleanupService } from '../../browser/sessionWorktreeCleanupService.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, SessionWorktreeCleanupService } from '../../browser/sessionWorktreeCleanupService.js';
 
 suite('SessionWorktreeCleanupService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shows an inline suggestion above the reclaimable-size threshold', async () => {
+	test('shows a storage suggestion above the reclaimable-size threshold', async () => {
 		const service = disposables.add(createService(
 			[createSession('eligible', oldDate())],
 			true,
@@ -38,20 +38,20 @@ suite('SessionWorktreeCleanupService', () => {
 		assert.deepStrictEqual(service.suggestion.get() && {
 			description: service.suggestion.get()?.description,
 		}, {
-			description: '1 agent session worktree has been inactive for at least 14 days and can be cleaned up, reclaiming about 6.00GB. Active, running, needs-input, and pinned sessions are excluded.',
+			description: '1 agent session worktree has been inactive for at least 15 days and can be cleaned up, reclaiming about 6.00GB.',
 		});
 	});
 
-	test('shows an inline suggestion at 20 existing worktrees below the size threshold', async () => {
+	test('shows a storage suggestion at 20 eligible worktrees below the size threshold', async () => {
 		const sessions = Array.from({ length: 20 }, (_, index) => createSession(`session-${index}`, oldDate()));
 		const service = disposables.add(createService(sessions, true, () => 1));
 
 		await service.activate();
 
-		assert.strictEqual(service.suggestion.get()?.description, '20 agent session worktrees have been inactive for at least 14 days and can be cleaned up, reclaiming about 20B. Active, running, needs-input, and pinned sessions are excluded.');
+		assert.strictEqual(service.suggestion.get()?.description, '20 agent session worktrees have been inactive for at least 15 days and can be cleaned up, reclaiming about 20B.');
 	});
 
-	test('counts archived worktrees that still exist toward the worktree threshold', async () => {
+	test('does not count ineligible worktrees toward the worktree threshold', async () => {
 		const sessions = [
 			createSession('eligible', oldDate()),
 			...Array.from({ length: 19 }, (_, index) => createSession(`archived-${index}`, oldDate(), SessionStatus.Completed, true)),
@@ -60,7 +60,7 @@ suite('SessionWorktreeCleanupService', () => {
 
 		await service.activate();
 
-		assert.strictEqual(service.suggestion.get()?.description, '1 agent session worktree has been inactive for at least 14 days and can be cleaned up, reclaiming about 1B. Active, running, needs-input, and pinned sessions are excluded.');
+		assert.strictEqual(service.suggestion.get(), undefined);
 	});
 
 	test('requires at least one eligible candidate', async () => {
@@ -100,7 +100,7 @@ suite('SessionWorktreeCleanupService', () => {
 	});
 
 	test('does not show again after disabling cleanup suggestions', async () => {
-		const configurationService = new TrackingConfigurationService({ [AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING]: true });
+		const configurationService = new TrackingConfigurationService({ [AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING]: true });
 		const service = disposables.add(createService(
 			[createSession('eligible', oldDate())],
 			true,
@@ -117,17 +117,17 @@ suite('SessionWorktreeCleanupService', () => {
 		await service.suggestion.get()?.disable();
 
 		assert.deepStrictEqual({
-			enabled: configurationService.getValue(AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING),
+			enabled: configurationService.getValue(AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING),
 			updates: configurationService.updates,
 			suggestion: service.suggestion.get(),
 		}, {
 			enabled: false,
-			updates: [{ key: AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING, value: false }],
+			updates: [{ key: AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, value: false }],
 			suggestion: undefined,
 		});
 	});
 
-	test('opens the storage manager once per window from the inline suggestion', async () => {
+	test('opens the storage manager once per window from the storage suggestion', async () => {
 		const commands: { id: string; args: readonly unknown[] }[] = [];
 		const service = disposables.add(createService(
 			[createSession('eligible', oldDate())],
@@ -158,6 +158,7 @@ suite('SessionWorktreeCleanupService', () => {
 	test('reuses the qualifying scan when opening the storage manager', async () => {
 		let scanCount = 0;
 		const progressTitles: (string | undefined)[] = [];
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionsChangeEvent>());
 		const service = disposables.add(createService(
 			[createSession('eligible', oldDate())],
 			true,
@@ -167,9 +168,15 @@ suite('SessionWorktreeCleanupService', () => {
 			},
 			undefined,
 			title => progressTitles.push(title),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			onDidChangeSessions.event,
 		));
 
 		await service.activate();
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
 		const worktrees = await service.getWorktrees(14);
 
 		assert.deepStrictEqual({
@@ -183,7 +190,32 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
-	test('worktree manager data distinguishes missing worktrees from existing worktrees', async () => {
+	test('refreshes after sessions become available following activation', async () => {
+		const sessions: ISession[] = [];
+		let scanCount = 0;
+		const service = disposables.add(createService(
+			sessions,
+			true,
+			() => {
+				scanCount++;
+				return 6 * ByteSize.GB;
+			},
+		));
+
+		await service.activate();
+		sessions.push(createSession('eligible', oldDate()));
+		await service.refresh();
+
+		assert.deepStrictEqual({
+			scanCount,
+			description: service.suggestion.get()?.description,
+		}, {
+			scanCount: 1,
+			description: '1 agent session worktree has been inactive for at least 15 days and can be cleaned up, reclaiming about 6.00GB.',
+		});
+	});
+
+	test('worktree manager data excludes missing and already-done worktrees', async () => {
 		const eligible = createSession('eligible', oldDate());
 		const running = createSession('running', oldDate(), SessionStatus.InProgress);
 		const recent = createSession('recent', new Date());
@@ -214,7 +246,6 @@ suite('SessionWorktreeCleanupService', () => {
 				{ label: 'eligible', sizeBytes: 4 * ByteSize.GB, state: 'eligible' },
 				{ label: 'running', sizeBytes: ByteSize.GB, state: 'running' },
 				{ label: 'recent', sizeBytes: ByteSize.GB, state: 'recent' },
-				{ label: 'archived', sizeBytes: ByteSize.GB, state: 'archived' },
 			],
 		});
 	});
@@ -249,7 +280,7 @@ suite('SessionWorktreeCleanupService', () => {
 
 		await service.activate();
 
-		assert.strictEqual(service.suggestion.get()?.description, '1 agent session worktree has been inactive for at least 14 days and can be cleaned up, reclaiming about 6.00GB. Active, running, needs-input, and pinned sessions are excluded.');
+		assert.strictEqual(service.suggestion.get()?.description, '1 agent session worktree has been inactive for at least 15 days and can be cleaned up, reclaiming about 6.00GB.');
 	});
 
 	test('adjusting the untouched period loads additional eligible sessions', async () => {
@@ -277,8 +308,9 @@ suite('SessionWorktreeCleanupService', () => {
 	test('optionally includes old sessions without worktrees', async () => {
 		const withWorktree = createSession('with-worktree', oldDate());
 		const withoutWorktree = createSession('without-worktree', oldDate(), SessionStatus.Completed, false, false);
+		const recentWithoutWorktree = createSession('recent-without-worktree', new Date(), SessionStatus.Completed, false, false);
 		const service = disposables.add(createService(
-			[withWorktree, withoutWorktree],
+			[withWorktree, withoutWorktree, recentWithoutWorktree],
 			true,
 			() => ByteSize.GB,
 		));
@@ -310,7 +342,8 @@ function createService(
 	activeSession?: IActiveSession,
 	onCommand?: (id: string, args: readonly unknown[]) => void,
 	pinnedSession?: ISession,
-	configurationService = new TestConfigurationService({ [AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING]: enabled }),
+	configurationService = new TestConfigurationService({ [AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING]: enabled }),
+	onDidChangeSessions: Event<ISessionsChangeEvent> = Event.None,
 ): SessionWorktreeCleanupService {
 	return new SessionWorktreeCleanupService(
 		upcastPartial<ISessionsManagementService>({
@@ -318,7 +351,7 @@ function createService(
 			getSessionWorktreeDiskUsage: async session => sizeForSession(session),
 			archiveSession: async () => { },
 			onDidArchiveSession: Event.None,
-			onDidChangeSessions: Event.None,
+			onDidChangeSessions,
 		}),
 		upcastPartial<ISessionsService>({ activeSession: constObservable(activeSession) }),
 		upcastPartial<ISessionsListModelService>({ isSessionPinned: session => session === pinnedSession }),

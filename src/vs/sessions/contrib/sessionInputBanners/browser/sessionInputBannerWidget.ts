@@ -49,7 +49,7 @@ export interface ISessionInputBanner {
 	readonly icon: ThemeIcon;
 	/** Use the orange accent (border + icon) reserved for CI failures. */
 	readonly accent: boolean;
-	/** Single-line text; ellipsized when it does not fit next to the actions. */
+	/** Text shown beside the icon and actions. */
 	readonly text: string;
 	readonly ariaLabel: string;
 	readonly actions: readonly ISessionInputBannerAction[];

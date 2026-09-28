@@ -85,7 +85,7 @@
 
 .session-worktree-cleanup-row {
 	display: grid;
-	grid-template-columns: 28px minmax(180px, 1fr) 120px 100px minmax(140px, 0.6fr);
+	grid-template-columns: 28px minmax(180px, 1fr) 120px 100px 100px;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 	min-height: 36px;
@@ -104,10 +104,6 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-.session-worktree-cleanup-row .status {
-	color: var(--vscode-descriptionForeground);
 }
 
 .session-worktree-cleanup-footer {
@@ -135,6 +131,12 @@
 
 .session-worktree-cleanup-setting .disabled {
 	color: var(--vscode-disabledForeground);
+}
+
+.session-worktree-cleanup-setting-description {
+	margin: calc(-1 * var(--vscode-spacing-size40)) 0 var(--vscode-spacing-size80) 28px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 18px;
 }
 
 .session-worktree-cleanup-setting input[type="number"] {

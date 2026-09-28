@@ -79,7 +79,8 @@ import { ISessionsRecentWorkspacesService } from '../../../services/sessions/bro
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, SessionsChatBackgroundTint, ToggleChatBackgroundTintAction } from './chatBackgroundTint.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING, ISessionWorktreeCleanupService, MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID, SessionWorktreeCleanupService } from '../../sessionInputBanners/browser/sessionWorktreeCleanupService.js';
+import { sessionStorageCleanupSuggestionConfigurationMigration } from '../../sessionInputBanners/browser/sessionStorageCleanupConfiguration.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktreeCleanupService, MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID, SessionWorktreeCleanupService } from '../../sessionInputBanners/browser/sessionWorktreeCleanupService.js';
 import { SessionWorktreeCleanupEditorInput } from '../../sessionInputBanners/browser/sessionWorktreeCleanupEditorInput.js';
 import { SessionWorktreeCleanupEditor } from '../../sessionInputBanners/browser/sessionWorktreeCleanupEditor.js';
 
@@ -506,23 +507,52 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[new SyncDescriptor(SessionWorktreeCleanupEditorInput)],
 );
 
-registerAction2(class ManageAgentSessionWorktreesAction extends Action2 {
+registerAction2(class ManageAgentSessionStorageAction extends Action2 {
 	constructor() {
 		super({
 			id: MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID,
-			title: localize2('manageAgentSessionWorktrees', "Chat: Manage Agent Session Worktrees"),
+			title: localize2('manageAgentSessionStorage', "Manage Agent Session Storage"),
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
+			menu: [{
+				id: Menus.SidebarSessionsHeader,
+				group: 'manage',
+				order: 0,
+				when: ChatContextKeys.enabled,
+			}, {
+				id: MenuId.SessionItemContextMenu,
+				group: '9_storage',
+				order: 0,
+				when: ChatContextKeys.enabled,
+			}],
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, section?: 'automatic'): Promise<void> {
+	override async run(accessor: ServicesAccessor, section?: unknown): Promise<void> {
 		accessor.get(ISessionWorktreeCleanupService).suppressForWindow();
 		const pane = await accessor.get(IEditorService).openEditor(new SessionWorktreeCleanupEditorInput(), { pinned: true });
 		if (section === 'automatic' && pane instanceof SessionWorktreeCleanupEditor) {
 			pane.focusAutomaticCleanup();
 		}
+	}
+});
+
+registerAction2(class DisableSessionStorageCleanupSuggestionsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chat.disableSessionStorageCleanupSuggestions',
+			title: localize2('disableSessionStorageCleanupSuggestions', "Disable Session Storage Cleanup Suggestions"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING}`, true)),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(ISessionWorktreeCleanupService).suppressForWindow();
+		await accessor.get(IConfigurationService).updateValue(AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, false, ConfigurationTarget.APPLICATION);
+		status(localize('sessionStorageCleanupSuggestionsDisabled', "Session storage cleanup suggestions disabled."));
 	}
 });
 
@@ -575,12 +605,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
-		[AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING]: {
+		[AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING]: {
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
-			description: localize('chat.agentSessions.worktreeLimitPrompt', "Controls whether the Agents Window suggests managing session storage when inactive worktrees reach the count or reclaimable-storage threshold."),
+			description: localize('chat.agentSessions.sessionStorageCleanupSuggestion', "Controls whether the Agents Window suggests cleaning up session storage when inactive worktrees reach the count or reclaimable-storage threshold."),
 		},
 		[LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING]: {
 			type: 'boolean',
@@ -669,4 +699,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	},
 });
 
-Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([unifiedWorkspacePickerConfigurationMigration]);
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([
+	unifiedWorkspacePickerConfigurationMigration,
+	sessionStorageCleanupSuggestionConfigurationMigration,
+]);
