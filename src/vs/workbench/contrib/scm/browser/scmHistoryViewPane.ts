@@ -11,7 +11,7 @@ import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browse
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeElementRenderDetails, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal, ISettableObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -30,6 +30,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../common/v
 import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemIndex, toHistoryItemHoverContent } from './scmHistory.js';
 import { getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeNode, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement, SCMIncomingHistoryItemId, SCMOutgoingHistoryItemId } from '../common/history.js';
+import { renderSCMHistoryItemIdentifier, SCMHistoryItemIdentifierSetting } from './scmHistoryItemIdentifier.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, ViewMode } from '../common/scm.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
@@ -442,6 +443,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 	get templateId(): string { return HistoryItemRenderer.TEMPLATE_ID; }
 
 	private readonly _badgesConfig: IObservable<'all' | 'filter'>;
+	private readonly _identifiersConfig: IObservable<boolean>;
 
 	constructor(
 		private readonly _viewContainerLocation: ViewContainerLocation | null,
@@ -456,6 +458,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		this._badgesConfig = observableConfigValue<'all' | 'filter'>('scm.graph.badges', 'filter', this._configurationService);
+		this._identifiersConfig = observableConfigValue(SCMHistoryItemIdentifierSetting, false, this._configurationService);
 	}
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
@@ -489,6 +492,19 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		templateData.graphContainer.classList.toggle('incoming-changes', historyItemViewModel.kind === 'incoming-changes');
 		templateData.graphContainer.classList.toggle('outgoing-changes', historyItemViewModel.kind === 'outgoing-changes');
 		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
+
+		if (historyItem.identifier?.length) {
+			templateData.elementDisposables.add(autorun(reader => {
+				const identifier = renderSCMHistoryItemIdentifier(historyItem, this._identifiersConfig.read(reader));
+				if (identifier) {
+					templateData.graphContainer.after(identifier);
+					reader.store.add(toDisposable(() => identifier.remove()));
+					reader.store.add(this._hoverService.setupDelayedHover(identifier, {
+						...hoverOptions, content: identifier.textContent ?? ''
+					}, hoverLifecycleOptions));
+				}
+			}));
+		}
 
 		const historyItemRef = provider.historyProvider.get()?.historyItemRef?.get();
 		const extraClasses = historyItemRef?.revision === historyItem.id ? ['history-item-current'] : [];
@@ -826,16 +842,24 @@ class SCMHistoryViewPaneActionRunner extends ActionRunner {
 
 class SCMHistoryTreeAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
+	private readonly _identifiersConfig: IObservable<boolean>;
+
+	constructor(configurationService: IConfigurationService) {
+		this._identifiersConfig = observableConfigValue(SCMHistoryItemIdentifierSetting, false, configurationService);
+	}
+
 	getWidgetAriaLabel(): string {
 		return localize('scm history', "Source Control History");
 	}
 
-	getAriaLabel(element: TreeElement): string {
+	getAriaLabel(element: TreeElement): string | IObservable<string> {
 		if (isSCMRepository(element)) {
 			return `${element.provider.name} ${element.provider.label}`;
 		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
 			const historyItem = element.historyItemViewModel.historyItem;
-			return `${stripIcons(historyItem.message).trim()}${historyItem.author ? `, ${historyItem.author}` : ''}`;
+			const label = `${stripIcons(historyItem.message).trim()}${historyItem.author ? `, ${historyItem.author}` : ''}`;
+			const identifier = historyItem.identifier?.map(part => part.text).join('');
+			return identifier ? derived(reader => this._identifiersConfig.read(reader) ? `${identifier}, ${label}` : label) : label;
 		} else {
 			return '';
 		}
@@ -2007,7 +2031,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			],
 			this._treeDataSource,
 			{
-				accessibilityProvider: new SCMHistoryTreeAccessibilityProvider(),
+				accessibilityProvider: new SCMHistoryTreeAccessibilityProvider(this.configurationService),
 				identityProvider: this._treeIdentityProvider,
 				collapseByDefault: (e: unknown) => !isSCMHistoryItemChangeNode(e),
 				compressionEnabled: compressionEnabled.get(),
