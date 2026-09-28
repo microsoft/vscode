@@ -156,6 +156,7 @@ suite('Agents Window workspace handoff', () => {
 			set draftReady(value: Promise<void>) { draftReady = value; },
 			get input() { return input; },
 			edit: (value: IChatDraft) => { input = value; inputChanged.fire(); },
+			notifyInputChanged: () => inputChanged.fire(),
 			openDraft: (draft: IChatDraft, folder: URI | undefined = folderUri) => handoff.selectWorkspace({ folderUri: folder, preferDevContainer: true, isDefault: false, draft: serializeChatDraft(draft) }, state => states.push(state)),
 			open: (isDefault = false, folder = folderUri) => handoff.selectWorkspace({ folderUri: folder, preferDevContainer: true, isDefault }, state => states.push(state)),
 		};
@@ -334,6 +335,27 @@ suite('Agents Window workspace handoff', () => {
 			}, {
 				beforeReady: { openings: [], active: current, drafts: [] },
 				state: 'applied', openings: [true], folder: requested, drafts: [input],
+			});
+		});
+	});
+
+	test('ignores blank input notifications while waiting for the workspace provider', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const harness = createHarness();
+			harness.providerReady = false;
+			const input = { inputText: 'Source task', attachments: [] };
+			const opening = harness.openDraft(input);
+			await timeout(100);
+			const versionBefore = harness.composerService.draftInputVersion.get();
+			harness.notifyInputChanged();
+			const versionAfter = harness.composerService.draftInputVersion.get();
+			harness.providerReady = true;
+			await opening;
+
+			assert.deepStrictEqual({
+				versionBefore, versionAfter, state: harness.states.at(-1), drafts: harness.drafts,
+			}, {
+				versionBefore: 0, versionAfter: 0, state: 'applied', drafts: [input],
 			});
 		});
 	});
