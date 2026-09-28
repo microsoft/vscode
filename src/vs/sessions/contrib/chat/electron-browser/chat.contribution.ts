@@ -39,6 +39,7 @@ import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { AgentsWindowWorkspaceHandoff } from '../browser/agentsWindowWorkspaceHandoff.js';
 import { SessionsWorkspaceSelectionTelemetry } from '../../sessions/browser/sessionsWorkspaceSelectionTelemetry.js';
+import { ParallelWorkOnboarding } from '../../onboardingTours/browser/parallelWorkOnboarding.js';
 
 export class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -47,6 +48,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	private readonly _workspaceSelectionTelemetry = this._register(new MutableDisposable<SessionsWorkspaceSelectionTelemetry>());
 	private readonly _openIntent = this._register(new MutableDisposable());
 	private readonly _workspaceHandoff: AgentsWindowWorkspaceHandoff;
+	private readonly _parallelWorkOnboarding: ParallelWorkOnboarding;
 	private _didHandleInitialWindowOpen = false;
 
 	constructor(
@@ -68,6 +70,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	) {
 		super();
 		this._workspaceHandoff = this._register(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
+		this._parallelWorkOnboarding = this._register(instantiationService.createInstance(ParallelWorkOnboarding));
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
 			this._workspaceHandoff.cancel();
 			const cancellation = new CancellationTokenSource();
@@ -75,6 +78,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			const workspaceUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
 			const sessionResource = args[1] ? URI.revive(args[1] as UriComponents) : undefined;
 			const source = isAgentsWindowOpenSource(args[2]) ? args[2] : AgentsWindowOpenSource.Unknown;
+			const onboardingSessionResource = source === AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff && args[5] ? URI.revive(args[5] as UriComponents) : undefined;
 			const workspaceArgumentIsDefault = args[3] === true;
 			if (args[4] !== undefined && !isAgentsWindowDraft(args[4])) {
 				this.logService.error('[AgentsHandoff] Invalid draft payload');
@@ -89,8 +93,14 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 				workspaceArgumentIsDefault,
 			});
 
-			this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft)
-				.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
+			const handoff = () => this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft);
+			const opening = onboardingSessionResource && !sessionResource
+				? this._parallelWorkOnboarding.runWithHandoff(handoff, async () => {
+					await this.waitForSessionAvailable(onboardingSessionResource, cancellation.token);
+					return this.sessionsManagementService.getSession(onboardingSessionResource);
+				}, cancellation.token)
+				: handoff();
+			opening.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
 		};
 		ipcRenderer.on('vscode:selectAgentsFolder', handleSelectAgentsFolder);
 		this._register({ dispose: () => ipcRenderer.removeListener('vscode:selectAgentsFolder', handleSelectAgentsFolder) });
