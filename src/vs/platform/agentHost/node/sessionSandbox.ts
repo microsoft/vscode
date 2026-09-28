@@ -6,17 +6,14 @@
 import { OperatingSystem } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { AgentSandboxEnabledValue, normalizeSandboxFileSystemPath } from '../../sandbox/common/settings.js';
+import { SandboxSettingsResolutionHelper } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { platformSessionSchema } from '../common/agentHostSchema.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, type ISandboxConfigValue } from '../common/sandboxConfigSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentConfigurationService } from './agentConfigurationService.js';
 
-/** A projection of the runtime's resolved sandbox floor, never a policy parser. */
-export interface ISessionSandboxPolicy {
-	readonly enabled: boolean;
-	readonly allowBypass?: boolean;
-}
+export type { ISessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
 
 /** Resolves sandbox settings for the executing Agent Host, independently of the client's OS or configuration source. */
 export function getSessionSandboxConfig(configuration: IAgentConfigurationService, session: string, platform: NodeJS.Platform = process.platform): ISandboxConfigValue {
@@ -40,22 +37,25 @@ export function getSessionSandboxConfig(configuration: IAgentConfigurationServic
 	return sandbox;
 }
 
-/** Resolves the owning session's enablement and bypass overrides without global settings. */
-export function getSessionSandboxOverrides(configuration: IAgentConfigurationService, session: string): Pick<ISandboxConfigValue, AgentHostSandboxKey.Enabled | AgentHostSandboxKey.WindowsEnabled | AgentHostSandboxKey.AllowUnsandboxedCommands> {
+/** Resolves the owning session's toggle overrides without changing global settings. */
+export function getSessionSandboxOverrides(configuration: IAgentConfigurationService, session: string): Pick<ISandboxConfigValue, AgentHostSandboxKey.Enabled | AgentHostSandboxKey.WindowsEnabled | AgentHostSandboxKey.AllowUnsandboxedCommands | AgentHostSandboxKey.AllowNetwork> {
 	session = resolveAgentHostSession(URI.parse(session)).toString();
 	const raw = configuration.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled];
 	const selection = platformSessionSchema.validate(SessionConfigKey.SandboxEnabled, raw) ? raw : undefined;
 	const policy = configuration.getSessionSandboxPolicy(session);
-	const enabled = policy?.enabled && !policy.allowBypass ? AgentSandboxEnabledValue.On
-		: selection === 'on' ? AgentSandboxEnabledValue.On
-			: selection === 'off' ? AgentSandboxEnabledValue.Off
-				: policy?.enabled ? AgentSandboxEnabledValue.On : undefined;
-	const allowUnsandboxedCommands = policy?.enabled ? policy.allowBypass === true : policy?.allowBypass === false ? false : undefined;
+	const authorizedDisable = policy?.allowBypass === true && configuration.getSessionSandboxEnabled(session) === false;
+	const localEnabled = selection === 'on' ? AgentSandboxEnabledValue.On
+		: selection === 'off' ? AgentSandboxEnabledValue.Off
+			: policy?.enabled ? AgentSandboxEnabledValue.On : undefined;
+	const enabled = SandboxSettingsResolutionHelper.resolveEnabled(localEnabled, policy?.enabled && !authorizedDisable);
+	const allowUnsandboxedCommands = SandboxSettingsResolutionHelper.resolveAllowBypass(undefined, policy?.allowBypass, policy?.enabled);
+	const allowNetwork = SandboxSettingsResolutionHelper.resolveAllowOutbound(undefined, policy?.allowOutbound);
 	return {
 		...(enabled !== undefined ? {
 			[AgentHostSandboxKey.Enabled]: enabled,
 			[AgentHostSandboxKey.WindowsEnabled]: enabled,
 		} : {}),
 		...(allowUnsandboxedCommands !== undefined ? { [AgentHostSandboxKey.AllowUnsandboxedCommands]: allowUnsandboxedCommands } : {}),
+		...(allowNetwork !== undefined ? { [AgentHostSandboxKey.AllowNetwork]: allowNetwork } : {}),
 	};
 }

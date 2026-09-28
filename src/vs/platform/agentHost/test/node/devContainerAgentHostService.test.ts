@@ -13,6 +13,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -22,10 +23,11 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
-import { ISshExec } from '../../node/sshRemoteAgentHostHelpers.js';
+import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
 
 class TestRelay implements IDevContainerRelay {
@@ -59,14 +61,19 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	readonly relayStarted = new DeferredPromise<void>();
 	relayResult: Promise<IDevContainerRelay> | undefined;
 	readonly execCommands: string[] = [];
+	readonly dockerCommands: string[][] = [];
 	readonly devContainerArgs: string[][] = [];
 	readonly localCommands: { readonly command: string; readonly args: readonly string[] }[] = [];
 	relayCommand: string | undefined;
+	failDevContainerUp = false;
+	endpointSessionId: string | undefined = NullTelemetryService.sessionId;
+	containerSessionIds: string[] = [NullTelemetryService.sessionId];
 	endpointPollsBeforeAvailable = 0;
 	endpointPolls = 0;
 	loadedCertificates = 0;
 	writtenCertificates: readonly string[] | undefined;
 	forceConcurrentRenameCollision = false;
+	private _spawnedAgentHost = false;
 	inheritedEnvironment: typeof process.env = process.env;
 	platform: NodeJS.Platform = process.platform;
 	remoteWorkspaceFolder = '/workspaces/project';
@@ -138,6 +145,14 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return this._resolveShellEnvironment();
 	}
 
+	protected override _runDocker(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+		this.dockerCommands.push([...args]);
+		if (args[0] === 'exec') {
+			return Promise.resolve({ stdout: `${this.containerSessionIds.join('\n')}\n`, stderr: '', code: 0 });
+		}
+		return Promise.resolve({ stdout: `${args.at(-1)}\n`, stderr: '', code: 0 });
+	}
+
 	resolveDevContainerEnvironment(): Promise<typeof process.env> {
 		return this._resolveDevContainerEnvironment();
 	}
@@ -193,6 +208,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			return Promise.resolve({ stdout: '', stderr: '', code: 0 });
 		}
 		assert.deepStrictEqual(args, ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', ...this.cacheMountConfigured ? [] : ['--mount', devContainerServerCacheMount]]);
+		if (this.failDevContainerUp) {
+			return Promise.reject(new Error('devcontainer up failed'));
+		}
 		this._reportOutput(connectionId, 'Starting Dev Container\n');
 		return Promise.resolve({
 			stdout: `[1 ms] Starting...\n${JSON.stringify({ outcome: 'success', containerId: 'container-id', remoteWorkspaceFolder: this.remoteWorkspaceFolder })}\n`,
@@ -280,22 +298,40 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			}
 			if (command.includes('agent endpoints')) {
 				this.endpointPolls++;
+				const endpoints = [{
+					schemaVersion: 2,
+					type: 'standalone',
+					pid: 42,
+					instanceId: 'instance',
+					protocolVersion: '1',
+					connectionToken: 'token',
+					endpoint: { type: 'tcp', host: '127.0.0.1', port: 1234 },
+				}];
+				if (this._spawnedAgentHost) {
+					endpoints.push({
+						...endpoints[0],
+						pid: 43,
+						instanceId: 'spawned-instance',
+						endpoint: { type: 'tcp', host: '127.0.0.1', port: 1235 },
+					});
+				}
 				return {
 					stdout: JSON.stringify({
 						userDataPath: '/home/vscode/.config/Code',
-						endpoints: this.endpointPolls <= this.endpointPollsBeforeAvailable ? [] : [{
-							schemaVersion: 2,
-							type: 'standalone',
-							pid: 42,
-							instanceId: 'instance',
-							protocolVersion: '1',
-							connectionToken: 'token',
-							endpoint: { type: 'tcp', host: '127.0.0.1', port: 1234 },
-						}],
+						endpoints: this.endpointPolls <= this.endpointPollsBeforeAvailable ? [] : endpoints,
 					}),
 					stderr: '',
 					code: 0,
 				};
+			}
+			if (command.includes(`/proc/42/environ`)) {
+				return { stdout: this.endpointSessionId ? `${this.endpointSessionId}\n` : '', stderr: '', code: 0 };
+			}
+			if (command.includes(`/proc/43/environ`)) {
+				return { stdout: `${NullTelemetryService.sessionId}\n`, stderr: '', code: 0 };
+			}
+			if (command.startsWith(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=`)) {
+				this._spawnedAgentHost = true;
 			}
 			return { stdout: '', stderr: '', code: 0 };
 		};
@@ -552,7 +588,7 @@ suite('Dev Container Agent Host Main Service', () => {
 		const connecting = service.connect({ connectionId: 'cancelled', workspaceFolder: '/workspace', name: 'Project' });
 		await service.disconnect('cancelled');
 		await assert.rejects(connecting, CancellationError);
-		assert.strictEqual(service.relay.disposed, true);
+		assert.deepStrictEqual(service.devContainerArgs, []);
 	});
 
 	test('reuses a standalone endpoint and exposes its relay', async () => {
@@ -828,6 +864,112 @@ suite('Dev Container Agent Host Main Service', () => {
 		child.emit('close', 1, null);
 
 		await assert.rejects(connecting, /Dev Container relay process exited before connecting \(exit code 1\)/);
+	});
+
+	test('marks a newly spawned Agent Host with the VS Code session ID', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.endpointSessionId = undefined;
+
+		await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		assert.ok(service.execCommands.some(command =>
+			command.startsWith(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(NullTelemetryService.sessionId)} `)
+		));
+		assert.ok(service.relayCommand?.includes(`agent relay ${shellEscape('spawned-instance')}`));
+	});
+
+	test('stops and removes the container after disconnecting its relay', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		await service.stopContainer('/workspace');
+		await assert.rejects(service.connect({
+			connectionId: 'automatic-reconnect',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		}), /is stopped/);
+		await service.connect({
+			connectionId: 'explicit-resume',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+			resume: true,
+		});
+		await service.removeContainer('/workspace');
+
+		assert.deepStrictEqual({
+			relayDisposed: service.relay.disposed,
+			dockerOperations: service.dockerCommands.map(command => command[0]),
+			sessionChecksUseMarker: service.dockerCommands
+				.filter(command => command[0] === 'exec')
+				.every(command => command.at(-1)?.includes(VSCODE_REMOTE_CONTAINERS_SESSION_ENV)),
+		}, {
+			relayDisposed: true,
+			dockerOperations: ['exec', 'stop', 'exec', 'rm'],
+			sessionChecksUseMarker: true,
+		});
+	});
+
+	test('does not stop or remove a container used by another VS Code session', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.containerSessionIds.push('other-session');
+		await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		const stopped = await service.stopContainer('/workspace');
+		const removed = await service.removeContainer('/workspace');
+		await service.connect({ connectionId: 'automatic-reconnect', workspaceFolder: '/workspace', name: 'Project Dev Container' });
+
+		assert.deepStrictEqual({
+			stopped,
+			removed,
+			dockerCommands: service.dockerCommands.map(command => command[0]),
+		}, {
+			stopped: false,
+			removed: false,
+			dockerCommands: ['exec', 'exec'],
+		});
+	});
+
+	(isLinux ? test.skip : test)('shares lifecycle state between case variants of a workspace', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		await service.connect({ connectionId: 'connection', workspaceFolder: '/workspace', name: 'Project' });
+		await service.stopContainer('/WORKSPACE');
+		await assert.rejects(service.connect({ connectionId: 'automatic-reconnect', workspaceFolder: '/Workspace', name: 'Project' }), /is stopped/);
+		assert.deepStrictEqual(service.dockerCommands.map(command => command[0]), ['exec', 'stop']);
+	});
+
+	test('keeps automatic reconnects suspended when an explicit resume fails', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+		await service.stopContainer('/workspace');
+		service.failDevContainerUp = true;
+
+		await assert.rejects(service.connect({
+			connectionId: 'failed-resume',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+			resume: true,
+		}), /devcontainer up failed/);
+		await assert.rejects(service.connect({
+			connectionId: 'automatic-reconnect',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		}), /is stopped/);
 	});
 
 	test('allows a cold Agent Host to register after the short default deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
