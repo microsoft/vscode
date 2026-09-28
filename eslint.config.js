@@ -10,6 +10,7 @@ import { builtinModules } from 'module';
 import path from 'path';
 import tseslint from 'typescript-eslint';
 
+// adding stylistic for adding styles
 import stylistic from '@stylistic/eslint-plugin';
 import * as pluginLocal from './.eslint-plugin-local/index.ts';
 import * as pluginCopilotLocal from './extensions/copilot/.eslintplugin/index.ts';
