@@ -33,18 +33,24 @@ class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 	}
 
 	async saveProfile(name: string, content: string): Promise<{ readonly id: string; readonly link: vscode.Uri } | null> {
-		const octokit = await this.getOctokit();
-		const result = await octokit.gists.create({
-			public: false,
-			files: {
-				[name]: {
-					content
+		try {
+			const octokit = await this.getOctokit();
+			const safeFileName = name.trim() || 'vscode-profile.json';
+			
+			const result = await octokit.gists.create({
+				public: false,
+				files: {
+					[safeFileName]: {
+						content
+					}
 				}
+			});
+			if (result.data.id && result.data.html_url) {
+				const link = vscode.Uri.parse(result.data.html_url);
+				return { id: result.data.id, link };
 			}
-		});
-		if (result.data.id && result.data.html_url) {
-			const link = vscode.Uri.parse(result.data.html_url);
-			return { id: result.data.id, link };
+		} catch (error) {
+			vscode.window.showErrorMessage(vscode.l10n.t('Failed to save profile to GitHub Gist: {0}', error instanceof Error ? error.message : String(error)));
 		}
 		return null;
 	}
@@ -68,10 +74,13 @@ class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 		try {
 			const gist = await octokit.gists.get({ gist_id });
 			if (gist.data.files) {
-				return gist.data.files[Object.keys(gist.data.files)[0]]?.content ?? null;
+				const files = Object.values(gist.data.files);
+				if (files.length > 0 && files[0]?.content) {
+					return files[0].content;
+				}
 			}
 		} catch (error) {
-			// ignore
+			console.error('Failed to read profile from GitHub Gist:', error);
 		}
 		return null;
 	}
