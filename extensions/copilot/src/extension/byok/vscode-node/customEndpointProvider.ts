@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { t } from '@vscode/l10n';
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
@@ -206,8 +207,12 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
  *    conflicting credentials.
  * 4. Omits the Responses API `store` property when Zero Data Retention was not
  *    explicitly configured, allowing custom implementations to use their own default.
+ * 5. Normalizes structured Chat Completions text and thinking blocks without
+ *    changing response parsing for other providers or API types.
  */
 export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
+	protected override readonly chatCompletionContentParser = parseCustomEndpointChatCompletionContent;
+
 	/**
 	 * Reserved auth headers that we permit users to override via `requestHeaders`
 	 * for this subclass only. Other well-known auth headers like `x-api-key`,
@@ -321,4 +326,42 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 		}
 		return value.split('${apiKey}').join(this._apiKey);
 	}
+}
+
+function unsupportedChatCompletionContent(): Error {
+	return new Error(t('Unsupported Chat Completions response content. Expected a string or an array of text and thinking blocks containing text strings. Check the custom endpoint response format.'));
+}
+
+function parseChatCompletionTextBlock(block: unknown): string {
+	if (block && typeof block === 'object' && 'type' in block && block.type === 'text' && 'text' in block && typeof block.text === 'string') {
+		return block.text;
+	}
+	throw unsupportedChatCompletionContent();
+}
+
+function parseCustomEndpointChatCompletionContent(content: unknown): { text: string; thinking?: string } {
+	if (content === null || content === undefined) {
+		return { text: '' };
+	}
+	if (typeof content === 'string') {
+		return { text: content };
+	}
+	if (!Array.isArray(content)) {
+		throw unsupportedChatCompletionContent();
+	}
+
+	let text = '';
+	let thinking = '';
+	const blocks: readonly unknown[] = content;
+	for (const block of blocks) {
+		if (block && typeof block === 'object' && 'type' in block && block.type === 'thinking') {
+			if (!('thinking' in block) || !Array.isArray(block.thinking)) {
+				throw unsupportedChatCompletionContent();
+			}
+			thinking += block.thinking.map(parseChatCompletionTextBlock).join('');
+		} else {
+			text += parseChatCompletionTextBlock(block);
+		}
+	}
+	return { text, thinking: thinking || undefined };
 }

@@ -13,20 +13,21 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { IChatMLFetcher, Source } from '../../chat/common/chatMLFetcher';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../chat/common/commonTypes';
-import { getTextPart } from '../../chat/common/globalStringUtils';
+import { getTextPart, toTextParts } from '../../chat/common/globalStringUtils';
 import { CHAT_MODEL, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
 import { isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
 import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride, PENDING_DEPRECATION_CODE } from '../../networking/common/networking';
-import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, RawMessageConversionCallback } from '../../networking/common/openai';
+import { CAPIChatMessage, ChatCompletion, ChatCompletionContentParser, FinishedCompletionReason, RawMessageConversionCallback } from '../../networking/common/openai';
 import { prepareChatCompletionForReturn } from '../../networking/node/chatStream';
 import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
 import { SSEProcessor } from '../../networking/node/stream';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
+import { extractThinkingDeltaFromChoice } from '../../thinking/common/thinkingUtils';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
 import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
@@ -86,9 +87,10 @@ export async function defaultChatResponseProcessor(
 	expectedNumChoices: number,
 	finishCallback: FinishedCallback,
 	telemetryData: TelemetryData,
-	cancellationToken?: CancellationToken | undefined
+	cancellationToken?: CancellationToken | undefined,
+	contentParser?: ChatCompletionContentParser
 ) {
-	const processor = await SSEProcessor.create(logService, telemetryService, expectedNumChoices, response, cancellationToken);
+	const processor = await SSEProcessor.create(logService, telemetryService, expectedNumChoices, response, cancellationToken, contentParser);
 	const finishedCompletions = processor.processSSE(finishCallback);
 	const chatCompletions = AsyncIterableObject.map(finishedCompletions, (solution) => {
 		const loggedReason = solution.reason ?? 'client-trimmed';
@@ -102,15 +104,16 @@ export async function defaultChatResponseProcessor(
 	return chatCompletions;
 }
 
-export async function defaultNonStreamChatResponseProcessor(response: Response, finishCallback: FinishedCallback, telemetryData: TelemetryData) {
+export async function defaultNonStreamChatResponseProcessor(response: Response, finishCallback: FinishedCallback, telemetryData: TelemetryData, contentParser?: ChatCompletionContentParser) {
 	const textResponse = await response.text();
 	const jsonResponse = JSON.parse(textResponse);
 	const completions: ChatCompletion[] = [];
 	for (let i = 0; i < (jsonResponse?.choices?.length || 0); i++) {
 		const choice = jsonResponse.choices[i];
+		const content = contentParser?.(choice.message.content);
 		const message: Raw.AssistantChatMessage = {
-			role: choice.message.role,
-			content: choice.message.content,
+			role: content ? Raw.ChatRole.Assistant : choice.message.role,
+			content: content ? toTextParts(content.text) : choice.message.content,
 			name: choice.message.name,
 			// Normalize property name: OpenAI API uses snake_case (tool_calls) but our types expect camelCase (toolCalls)
 			// See: https://platform.openai.com/docs/api-reference/chat/object#chat-object-choices-message-tool_calls
@@ -144,6 +147,7 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 		}
 		await finishCallback(messageText, i, {
 			text: messageText,
+			...(content ? { thinking: extractThinkingDeltaFromChoice({ message: { ...choice.message, thinking: choice.message.thinking ?? content.thinking } }) } : {}),
 			copilotToolCalls: functionCall,
 		});
 		completions.push(completion);
@@ -204,6 +208,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string; showBanner?: boolean } | undefined;
 
 	private readonly _supportsStreaming: boolean;
+	protected readonly chatCompletionContentParser?: ChatCompletionContentParser;
 
 	constructor(
 		public readonly modelMetadata: IChatModelInformation,
@@ -515,9 +520,9 @@ export class ChatEndpoint implements IChatEndpoint {
 		} else if (this.useMessagesApi) {
 			return processResponseFromMessagesEndpoint(this._instantiationService, telemetryService, logService, response, finishCallback, telemetryData);
 		} else if (!this._supportsStreaming) {
-			return defaultNonStreamChatResponseProcessor(response, finishCallback, telemetryData);
+			return defaultNonStreamChatResponseProcessor(response, finishCallback, telemetryData, this.chatCompletionContentParser);
 		} else {
-			return defaultChatResponseProcessor(telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData, cancellationToken);
+			return defaultChatResponseProcessor(telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData, cancellationToken, this.chatCompletionContentParser);
 		}
 	}
 

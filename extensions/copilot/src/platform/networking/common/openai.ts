@@ -11,6 +11,9 @@ import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ThinkingData, ThinkingDataInMessage } from '../../thinking/common/thinking';
 import { ICopilotReference, RequestId } from './fetch';
 
+/** Opt-in normalization for providers with non-standard Chat Completions content. */
+export type ChatCompletionContentParser = (content: unknown) => { text: string; thinking?: string };
+
 /**
  * How the logprobs field looks in the OpenAI API chunks.
  */
