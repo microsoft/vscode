@@ -114,7 +114,8 @@ export function universalToolInstructions(context: IToolInstructionContext, line
 /**
  * Folds universal tool-instructions `content` into a per-model contributor's
  * `existing` `tool_instructions` override (if any), so a contributor's section
- * is preserved rather than clobbered.
+ * is preserved rather than clobbered. A transform override is wrapped so the
+ * universal lines are appended after its output; only `remove` is left alone.
  *
  * @param existing the per-model contributor's `tool_instructions` override, if any.
  */
@@ -124,10 +125,16 @@ function composeToolInstructions(existing: SectionOverride | undefined, content:
 	if (!existing) {
 		return { action: 'append', content: `\n${content}` };
 	}
-	// A `remove` or transform-function override is a deliberate, non-composable
-	// choice by the contributor; preserve it untouched rather than fight it.
-	if (existing.action === 'remove' || typeof existing.action === 'function') {
+	// A `remove` override is a deliberate, non-composable choice by the
+	// contributor: there is no section left to fold our lines into.
+	if (existing.action === 'remove') {
 		return existing;
+	}
+	// A transform rewrites the foundation section; run it, then append our lines
+	// to its result so host plumbing survives whatever the contributor trimmed.
+	if (typeof existing.action === 'function') {
+		const transform = existing.action;
+		return { action: async current => `${await transform(current)}\n${content}` };
 	}
 	// Fold our lines into the contributor's content (preserve it, don't clobber),
 	// then pad relative to the foundation by where this action places the content:
