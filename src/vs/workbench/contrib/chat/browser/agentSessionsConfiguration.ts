@@ -63,6 +63,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
+		[ChatConfiguration.OpenInEditorPreserveHiddenChat]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: nls.localize('chat.experimental.openInEditor.preserveHiddenChat', "Controls whether opening a session from the Agents Window preserves a hidden Chat view when reusing an existing editor window."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays]: {
 			type: 'integer',
 			minimum: 0,
