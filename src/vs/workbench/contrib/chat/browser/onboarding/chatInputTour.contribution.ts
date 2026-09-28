@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow } from '../../../../../base/browser/dom.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
+import { Disposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -17,45 +20,61 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { registerOnboardingTargetProvider, resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
+import { IOnboardingTarget, registerOnboardingTargetProvider, resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../../onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService, isOnboardingDeveloperModeEnabled } from '../../../onboarding/common/onboardingScenarioService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatOnboardingExperience } from '../../common/constants.js';
 import { EditorChatUsage } from '../../common/editorChatUsage.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { AgentHostChatInputPicker } from '../agentSessions/agentHost/agentHostChatInputPicker.js';
 import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 
 /**
- * Onboarding tour that introduces a brand-new user to the chat input the first
- * time they open the Chat view. It spotlights two controls without opening them:
+ * Onboarding tour that introduces a brand-new user to the Copilot harness chat
+ * input the first time they open the Chat view. It walks through three controls:
  *
- *  1. The mode picker — switch between Agent, Ask and Plan.
- *  2. The model picker — switch between language models.
+ *  1. Agent mode — opens the mode and permissions picker on its agent mode section.
+ *  2. Permissions — opens the same picker on its permissions section.
+ *  3. The model picker — switch between language models to balance reasoning and cost.
  *
  * Which onboarding experience a user gets is controlled by
  * {@link ChatConfiguration.OnboardingExperience}. The setting is registered with
  * `experiment: { mode: 'auto' }` so an ExP treatment can drive it once the
- * experiment is set up.
+ * experiment is set up. The tour only runs for Copilot harness chats, which the
+ * `chat.defaultToCopilotHarness` experiment makes the default.
  */
 export const CHAT_INPUT_TOUR_ID = 'chat.onboarding.chatInput';
 
 /** Onboarding target ids resolved by {@link ChatInputTourTrigger}. */
 export const ChatInputTourTarget = {
-	ModePicker: 'chat.input.modePicker',
+	AgentMode: 'chat.input.agentMode',
+	Permissions: 'chat.input.permissions',
 	ModelPicker: 'chat.input.modelPicker',
 } as const;
 
 const chatInputTourPayload: ISpotlightPayload = {
 	steps: [
 		{
-			id: 'modePicker',
-			targetId: ChatInputTourTarget.ModePicker,
-			title: localize('chat.onboarding.chatInput.mode.title', "Get the Right Kind of Help"),
-			description: localize('chat.onboarding.chatInput.mode.description', "Sometimes you want Chat to make changes for you, and sometimes you just want answers or a plan to review first. Use this button to choose how hands-on Chat should be."),
-			placement: 'above',
+			id: 'agentMode',
+			targetId: ChatInputTourTarget.AgentMode,
+			title: localize('chat.onboarding.chatInput.agentMode.title', "Get the Right Kind of Help"),
+			description: localize('chat.onboarding.chatInput.agentMode.description', "Sometimes you want to work through a change together, and sometimes you want a plan to review first or the agent to finish on its own. Pick an agent mode to choose how hands-on the agent should be."),
+			placement: 'left',
+			openTarget: true,
+			missingTarget: { kind: 'skip' },
+		},
+		{
+			id: 'permissions',
+			targetId: ChatInputTourTarget.Permissions,
+			title: localize('chat.onboarding.chatInput.permissions.title', "Decide What Needs Your Approval"),
+			description: localize('chat.onboarding.chatInput.permissions.description', "Permissions set when the agent checks with you before it edits files or runs commands. Keep approvals on while you get started, and allow more once you trust how it works."),
+			placement: 'left',
+			openTarget: true,
 			missingTarget: { kind: 'skip' },
 		},
 		{
@@ -71,8 +90,8 @@ const chatInputTourPayload: ISpotlightPayload = {
 
 /**
  * Builds the chat input tour scenario. The `signal` is driven by
- * {@link ChatInputTourTrigger} and flips once an eligible user has the Chat view
- * open with both pickers rendered.
+ * {@link ChatInputTourTrigger} and flips once an eligible user has a Copilot
+ * harness chat open in the Chat view with every tour target rendered.
  */
 export function createChatInputTour(signal: IObservable<boolean>): IOnboardingScenario<ISpotlightPayload> {
 	return {
@@ -87,11 +106,33 @@ export function createChatInputTour(signal: IObservable<boolean>): IOnboardingSc
 	};
 }
 
-function getChatInputTourTargetElement(widget: IChatWidget, targetId: string): HTMLElement | undefined {
+/**
+ * Resolves a tour target through the chat input's pickers. With the combined
+ * mode and permissions picker, both the agent mode and permissions steps point
+ * at that picker and open it on the matching section. Otherwise the permissions
+ * step points at the separate permissions picker. While a picker's menu is open,
+ * the spotlight highlights the menu together with the picker.
+ */
+function resolveChatInputTourTarget(widget: IChatWidget, targetId: string, getOpenMenu: (picker: AgentHostChatInputPicker) => HTMLElement | undefined, whenMenuClosed: () => Promise<void>): IOnboardingTarget | undefined {
+	const input = widget.inputPart;
 	switch (targetId) {
-		case ChatInputTourTarget.ModePicker: return widget.inputPart.modePickerElement;
-		case ChatInputTourTarget.ModelPicker: return widget.inputPart.modelPickerElement;
-		default: return undefined;
+		case ChatInputTourTarget.AgentMode: {
+			const picker = input.getAgentHostPicker(SessionConfigKey.Mode);
+			const element = picker?.triggerElement;
+			return picker && element ? { element, open: async () => { await whenMenuClosed(); picker.open(); }, popup: () => getOpenMenu(picker) } : undefined;
+		}
+		case ChatInputTourTarget.Permissions: {
+			const modePicker = input.getAgentHostPicker(SessionConfigKey.Mode);
+			const picker = modePicker?.combinesPermissions ? modePicker : input.getAgentHostPicker(SessionConfigKey.AutoApprove);
+			const element = picker?.triggerElement;
+			return picker && element ? { element, open: async () => { await whenMenuClosed(); picker.open(picker === modePicker); }, popup: () => getOpenMenu(picker) } : undefined;
+		}
+		case ChatInputTourTarget.ModelPicker: {
+			const element = input.modelPickerElement;
+			return element ? { element } : undefined;
+		}
+		default:
+			return undefined;
 	}
 }
 
@@ -99,10 +140,11 @@ function getChatInputTourTargetElement(widget: IChatWidget, targetId: string): H
  * Decides *when* the chat input tour runs and resolves its spotlight targets.
  *
  * The tour is only offered when {@link ChatConfiguration.OnboardingExperience} is
- * `spotlight` and the user has never sent a chat message from an editor window,
- * as recorded by {@link EditorChatUsage}. Once a Chat view widget is visible, the
- * trigger waits for the mode and model pickers to render before flipping the
- * signal, because the onboarding engine marks a tour shown as soon as it starts.
+ * `spotlight`, the Chat view shows a Copilot harness chat, and the user has never
+ * sent a chat message from an editor window, as recorded by {@link EditorChatUsage}.
+ * Once such a widget is visible, the trigger waits for the agent mode,
+ * permissions, and model pickers to render before flipping the signal, because
+ * the onboarding engine marks a tour shown as soon as it starts.
  *
  * The `onboarding.developerMode` setting bypasses the "no messages sent" gate so
  * the tour can be previewed on demand.
@@ -112,13 +154,17 @@ export class ChatInputTourTrigger extends Disposable {
 	/** Delay before the first readiness check, so restore and input rendering can settle. */
 	static readonly SETTLE_DELAY_MS = 1_000;
 	static readonly RETRY_DELAY_MS = 500;
-	static readonly MAX_ATTEMPTS = 20;
+	/** The Copilot harness pickers render once the Agent Host resolves the session configuration. */
+	static readonly MAX_ATTEMPTS = 40;
+	static readonly MENU_CLOSE_DELAY_MS = 50;
+	static readonly MENU_CLOSE_ATTEMPTS = 20;
 
 	private readonly _trigger = observableValue<boolean>(this, false);
 	readonly signal: IObservable<boolean> = this._trigger;
 
 	private readonly _experience: IObservable<string>;
 	private readonly _pendingCheck = this._register(new MutableDisposable());
+	private readonly _widgetListeners = this._register(new DisposableMap<IChatWidget>());
 	private _hasSentRequest: boolean;
 	private _targetWidget: IChatWidget | undefined;
 
@@ -128,29 +174,56 @@ export class ChatInputTourTrigger extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextViewService contextViewService: IContextViewService,
+		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 	) {
 		super();
 
 		this._hasSentRequest = new EditorChatUsage(storageService).getMessageCount() > 0;
 		this._experience = observableConfigValue<string>(ChatConfiguration.OnboardingExperience, ChatOnboardingExperience.None, configurationService);
 
+		const getOpenMenu = (picker: AgentHostChatInputPicker) => picker.isOpen ? contextViewService.getContextViewElement() : undefined;
+		const whenMenuClosed = () => this._whenMenuClosed();
 		for (const targetId of Object.values(ChatInputTourTarget)) {
-			this._register(registerOnboardingTargetProvider(targetId, scope => {
-				const element = scope === undefined && this._targetWidget ? getChatInputTourTargetElement(this._targetWidget, targetId) : undefined;
-				return element ? { element } : undefined;
-			}));
+			this._register(registerOnboardingTargetProvider(targetId, scope => scope === undefined && this._targetWidget ? resolveChatInputTourTarget(this._targetWidget, targetId, getOpenMenu, whenMenuClosed) : undefined));
 		}
 
 		this._register(chatService.onDidAcceptRequest(() => {
 			this._hasSentRequest = true;
 			this._pendingCheck.clear();
 		}));
-		this._register(chatWidgetService.onDidAddWidget(() => this._update()));
+		for (const widget of chatWidgetService.getAllWidgets()) {
+			this._watchWidget(widget);
+		}
+		this._register(chatWidgetService.onDidAddWidget(widget => {
+			this._watchWidget(widget);
+			this._update();
+		}));
+		this._register(chatWidgetService.onDidRemoveWidget(widget => this._widgetListeners.deleteAndDispose(widget)));
 		this._register(chatWidgetService.onDidChangeWidgetVisibility(() => this._update()));
 		this._register(autorun(reader => {
 			this._experience.read(reader);
 			this._update();
 		}));
+	}
+
+	/** Re-checks eligibility when a widget switches sessions, e.g. to or from the Copilot harness. */
+	private _watchWidget(widget: IChatWidget): void {
+		if (!this._widgetListeners.has(widget)) {
+			this._widgetListeners.set(widget, widget.onDidChangeViewModel(() => this._update()));
+		}
+	}
+
+	/**
+	 * Closes any open menu and waits for it to finish animating closed, since a picker
+	 * cannot open while another menu is still shown. Moving between steps closes the
+	 * previous step's menu as focus leaves it.
+	 */
+	private async _whenMenuClosed(): Promise<void> {
+		this.actionWidgetService.hide();
+		for (let attempt = 0; this.actionWidgetService.isVisible && attempt < ChatInputTourTrigger.MENU_CLOSE_ATTEMPTS; attempt++) {
+			await timeout(ChatInputTourTrigger.MENU_CLOSE_DELAY_MS);
+		}
 	}
 
 	private _isEligible(): boolean {
@@ -163,8 +236,14 @@ export class ChatInputTourTrigger extends Disposable {
 		return !this._hasSentRequest || isOnboardingDeveloperModeEnabled(this.configurationService, CHAT_INPUT_TOUR_ID);
 	}
 
-	private _getVisibleChatViewWidgets(): readonly IChatWidget[] {
-		return this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).filter(widget => widget.visible && isIChatViewViewContext(widget.viewContext));
+	private _getCandidateWidgets(): readonly IChatWidget[] {
+		return this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).filter(widget => {
+			const sessionResource = widget.viewModel?.sessionResource;
+			return widget.visible
+				&& isIChatViewViewContext(widget.viewContext)
+				&& !!sessionResource
+				&& getChatSessionType(sessionResource) === SessionType.AgentHostCopilot;
+		});
 	}
 
 	private _update(): void {
@@ -172,7 +251,9 @@ export class ChatInputTourTrigger extends Disposable {
 			this._pendingCheck.clear();
 			return;
 		}
-		if (!this._pendingCheck.value && this._getVisibleChatViewWidgets().length > 0) {
+		if (this._getCandidateWidgets().length === 0) {
+			this._pendingCheck.clear();
+		} else if (!this._pendingCheck.value) {
 			this._scheduleCheck(0);
 		}
 	}
@@ -184,11 +265,11 @@ export class ChatInputTourTrigger extends Disposable {
 			if (!this._isEligible()) {
 				return;
 			}
-			const widget = this._getVisibleChatViewWidgets().find(candidate => this._hasVisibleTargets(candidate));
+			const widget = this._getCandidateWidgets().find(candidate => this._hasVisibleTargets(candidate));
 			if (widget) {
 				this._targetWidget = widget;
 				this._trigger.set(true, undefined);
-			} else if (attempt + 1 < ChatInputTourTrigger.MAX_ATTEMPTS && this._getVisibleChatViewWidgets().length > 0) {
+			} else if (attempt + 1 < ChatInputTourTrigger.MAX_ATTEMPTS && this._getCandidateWidgets().length > 0) {
 				this._scheduleCheck(attempt + 1);
 			}
 		}, delay);
@@ -226,7 +307,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enum: [ChatOnboardingExperience.None, ChatOnboardingExperience.Spotlight],
 			enumDescriptions: [
 				localize('chat.onboarding.experience.none', "Do not show a chat onboarding experience."),
-				localize('chat.onboarding.experience.spotlight', "Spotlight the mode and model pickers the first time the Chat view opens, if no chat messages have been sent yet."),
+				localize('chat.onboarding.experience.spotlight', "Spotlight the agent mode, permissions, and model pickers the first time the Chat view shows a Copilot harness chat, if no chat messages have been sent yet."),
 			],
 			default: ChatOnboardingExperience.None,
 			scope: ConfigurationScope.APPLICATION,
