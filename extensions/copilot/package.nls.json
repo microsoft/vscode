@@ -287,6 +287,7 @@
 	"github.copilot.chat.tools.grepSearch.outputFormat": "The output format for the grep search tool. Can be either 'grep' or 'tag'. The default is 'grep'.",
 	"github.copilot.chat.tools.grepSearch.defaultMaxResults": "The default maximum number of results to return from the grep search tool. The default is 100.",
 	"github.copilot.chat.tools.grepSearch.maxResultsCap": "The maximum number of results that can be returned from the grep search tool. The default is 200.",
+	"github.copilot.chat.tools.readFile.allowLineAdjustments": "Allow line adjustments at the beginning or the end of the read region. The default is false.",
 	"copilot.tools.errors.description": "Check errors for a particular file",
 	"copilot.tools.applyPatch.description": "Edit text files in the workspace",
 	"copilot.tools.findTestFiles.description": "For a source code file, find the file that contains the tests. For a test file, find the file that contains the code under test",

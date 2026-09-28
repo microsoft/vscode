@@ -4354,6 +4354,15 @@
               "experimental",
               "onExp"
             ]
+          },
+          "github.copilot.chat.tools.readFile.allowLineAdjustments": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.chat.tools.readFile.allowLineAdjustments%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
           }
         }
       },
