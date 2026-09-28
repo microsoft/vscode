@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { AgentHostLanguageModelProvider } from '../../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { usageInfoToChatUsage } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ChatContextUsageWidget, isSameContextUsageData, resolveContextWindowInputTokens } from '../../../../browser/widgetHosts/viewPane/chatContextUsageWidget.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from '../../../../browser/widgetHosts/viewPane/chatContextUsageDetails.js';
 import { IChatUsage } from '../../../../common/chatService/chatService.js';
@@ -120,6 +124,8 @@ suite('ChatContextUsageWidget', () => {
 
 	const AUTO_MODEL = 'vendor:auto';
 	const CONCRETE_MODEL = 'vendor:gpt';
+	const DECLARED_WINDOW_MODEL = 'vendor:declared-window';
+	const TIERED_WINDOW_MODEL = 'vendor:tiered-window';
 
 	// Mirrors the Agent Host scenario where the synthetic "auto" model advertises
 	// a zero-sized context window (it routes to a concrete model) while the
@@ -127,6 +133,13 @@ suite('ChatContextUsageWidget', () => {
 	const models: Record<string, Partial<ILanguageModelChatMetadata>> = {
 		[AUTO_MODEL]: { maxInputTokens: 0, maxOutputTokens: 0 },
 		[CONCRETE_MODEL]: { maxInputTokens: 100_000, maxOutputTokens: 8_000 },
+		[DECLARED_WINDOW_MODEL]: { maxInputTokens: 100_000, maxOutputTokens: 20_000, maxContextWindowTokens: 100_000 },
+		[TIERED_WINDOW_MODEL]: {
+			maxInputTokens: 100_000,
+			maxOutputTokens: 20_000,
+			maxContextWindowTokens: 100_000,
+			configurationSchema: { properties: { contextSize: { type: 'number', default: 40_000 } } },
+		},
 	};
 
 	function createLanguageModelsService(): ILanguageModelsService {
@@ -137,7 +150,7 @@ suite('ChatContextUsageWidget', () => {
 		} as unknown as ILanguageModelsService;
 	}
 
-	function createWidget(instantiationService: IInstantiationService = {} as IInstantiationService): ChatContextUsageWidget {
+	function createWidget(instantiationService: IInstantiationService = {} as IInstantiationService, languageModelsService: ILanguageModelsService = createLanguageModelsService()): ChatContextUsageWidget {
 		const hoverService = {
 			setupDelayedHover: () => Disposable.None,
 			showInstantHover: () => { },
@@ -145,14 +158,14 @@ suite('ChatContextUsageWidget', () => {
 		return store.add(new ChatContextUsageWidget(
 			hoverService,
 			instantiationService,
-			createLanguageModelsService(),
+			languageModelsService,
 			new MockContextKeyService(),
 			store.add(new InMemoryStorageService()),
 			new TestConfigurationService(),
 		));
 	}
 
-	function createWidgetWithData(): { widget: ChatContextUsageWidget; getData: () => IChatContextUsageData | undefined } {
+	function createWidgetWithData(languageModelsService?: ILanguageModelsService): { widget: ChatContextUsageWidget; getData: () => IChatContextUsageData | undefined } {
 		let currentData: IObservable<IChatContextUsageData | undefined> | undefined;
 		const details = {
 			domNode: document.createElement('div'),
@@ -164,7 +177,7 @@ suite('ChatContextUsageWidget', () => {
 				currentData = data;
 				return details;
 			},
-		} as unknown as IInstantiationService);
+		} as unknown as IInstantiationService, languageModelsService);
 		return { widget, getData: () => currentData?.get() };
 	}
 
@@ -177,6 +190,86 @@ suite('ChatContextUsageWidget', () => {
 	function usage(actualModelId?: string): IChatUsage {
 		return { kind: 'usage', promptTokens: 50_000, completionTokens: 4_000, actualModelId };
 	}
+
+	for (const { name, limits } of [
+		{ name: 'only a total context window', limits: { maxContextWindow: 108_000 } },
+		{ name: 'a total context window and output limit', limits: { maxContextWindow: 108_000, maxOutputTokens: 8_000 } },
+		{ name: 'separate input and output limits', limits: { maxPromptTokens: 100_000, maxOutputTokens: 8_000 } },
+	]) {
+		test(`renders BYOK usage without a Copilot catalogue when the host reports ${name}`, async () => {
+			const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'agent-host-copilotcli'));
+			provider.updateModels([{ provider: 'copilotcli', id: 'custom/model', name: 'Custom Model', ...limits }]);
+			const [model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			const { widget, getData } = createWidgetWithData(upcastPartial<ILanguageModelsService>({
+				lookupLanguageModel: id => id === model.identifier ? model.metadata : undefined,
+				getModelConfiguration: () => undefined,
+			}));
+
+			widget.setSelectedModel(model.identifier);
+			widget.update(createRequest(model.identifier, usageInfoToChatUsage({ inputTokens: 50_000, outputTokens: 4_000 })));
+
+			assert.deepStrictEqual({
+				visible: widget.isVisible.get(),
+				detailsShown: widget.showDetails(),
+				usedTokens: getData()?.usedTokens,
+				totalContextWindow: getData()?.totalContextWindow,
+				percentage: widget.domNode.querySelector('.percentage-label')?.textContent,
+				ariaLabel: widget.domNode.getAttribute('aria-label'),
+			}, {
+				visible: true,
+				detailsShown: true,
+				usedTokens: 54_000,
+				totalContextWindow: 108_000,
+				percentage: '50%',
+				ariaLabel: 'Context window usage: 50%',
+			});
+		});
+	}
+
+	test('uses the selected model context window for usage, output reserve, and accessible labels', () => {
+		const { widget, getData } = createWidgetWithData();
+		widget.update(createRequest(CONCRETE_MODEL, { kind: 'usage', promptTokens: 80_000, completionTokens: 10_000 }));
+		widget.setSelectedModel(DECLARED_WINDOW_MODEL);
+		widget.showDetails();
+
+		assert.deepStrictEqual({
+			data: getData(),
+			label: widget.domNode.querySelector('.percentage-label')?.textContent,
+			ariaLabel: widget.domNode.getAttribute('aria-label'),
+			error: widget.domNode.classList.contains('error'),
+		}, {
+			data: {
+				usedTokens: 90_000,
+				completionTokens: 10_000,
+				totalContextWindow: 100_000,
+				percentage: 90,
+				outputBufferPercentage: 10,
+				promptTokenDetails: undefined,
+				sessionCost: 0,
+			},
+			label: '90%',
+			ariaLabel: 'Context window usage: 90%',
+			error: true,
+		});
+	});
+
+	test('respects configured and default input tiers without exceeding a declared context window', () => {
+		const results = [
+			{ modelId: TIERED_WINDOW_MODEL, contextSize: undefined },
+			{ modelId: TIERED_WINDOW_MODEL, contextSize: 40_000 },
+			{ modelId: TIERED_WINDOW_MODEL, contextSize: 100_000 },
+			{ modelId: TIERED_WINDOW_MODEL, contextSize: 150_000 },
+			{ modelId: CONCRETE_MODEL, contextSize: 40_000 },
+		].map(({ modelId, contextSize }) => {
+			const { widget, getData } = createWidgetWithData();
+			widget.setModelConfigurationResolver(() => contextSize === undefined ? undefined : { contextSize }, Event.None);
+			widget.update(createRequest(modelId, usage()));
+			widget.showDetails();
+			return getData()?.totalContextWindow;
+		});
+
+		assert.deepStrictEqual(results, [60_000, 60_000, 100_000, 100_000, 48_000]);
+	});
 
 	test('falls back to the actual model window when "auto" is selected (regression for #321781)', () => {
 		const widget = createWidget();

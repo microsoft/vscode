@@ -12,8 +12,8 @@ import type { ITunnelDuplexStream, ITunnelMessageSocket, ITunnelSocketCloseEvent
 
 const websocketAcceptGuid = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const headerTerminator = VSBuffer.fromString('\r\n\r\n').buffer;
-const defaultMaxFramePayloadLength = 0x100000;
-const defaultMaxMessagePayloadLength = 0x800000;
+// Match the former web proxy and NodeTunnelSocketFactory's `ws` default maxPayload.
+const defaultMaxPayloadLength = 100 * 1024 * 1024;
 const defaultCloseTimeoutMs = 5000;
 /** Options used to establish a WebSocket connection over an existing tunnel stream. */
 export interface IWebSocketOverDuplexOptions {
@@ -62,8 +62,8 @@ export async function connectWebSocketOverDuplex(
 		responseReader.detach();
 		const socket = new TunnelMessageSocket(
 			stream,
-			options.maxFramePayloadLength ?? defaultMaxFramePayloadLength,
-			options.maxMessagePayloadLength ?? defaultMaxMessagePayloadLength,
+			options.maxFramePayloadLength ?? defaultMaxPayloadLength,
+			options.maxMessagePayloadLength ?? defaultMaxPayloadLength,
 			options.closeTimeoutMs ?? defaultCloseTimeoutMs,
 		);
 		for (const chunk of responseReader.remainingChunks(headerEnd)) {
@@ -438,7 +438,7 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 			return;
 		}
 		this.sendClose(closeCode, '');
-		this.finishClose({ error });
+		this.finishClose({ code: closeCode, error });
 		this.endStream();
 	}
 

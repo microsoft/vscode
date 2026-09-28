@@ -9,6 +9,7 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { Schemas } from '../../../../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ICommandEvent, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
@@ -100,12 +101,15 @@ suite('ChatInputNotificationWidget', () => {
 		};
 	}
 
-	function createNotificationService(): IChatInputNotificationService {
+	function createNotificationService(logService?: ILogService): IChatInputNotificationService {
 		const descriptor = getSingletonServiceDescriptors().find(([id]) => id === IChatInputNotificationService)?.[1];
 		assert.ok(descriptor);
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
 		instantiationService.stub(ICommandService, new TestCommandService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		if (logService) {
+			instantiationService.stub(ILogService, logService);
+		}
 
 		const childInstantiationService = store.add(instantiationService.createChild(new ServiceCollection(
 			[IChatInputNotificationService, new SyncDescriptor(descriptor.ctor, descriptor.staticArguments)]
@@ -415,6 +419,38 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
+	test('auto-dismiss respects input-instance ownership even when two inputs show the same session', () => {
+		const notificationService = createNotificationService();
+		const sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-session' });
+		const owner = URI.from({ scheme: Schemas.vscodeChatInput, path: '/owner' });
+		const other = URI.from({ scheme: Schemas.vscodeChatInput, path: '/other' });
+		notificationService.setNotification({
+			id: 'owned', inputUri: owner, sessionResources: [sessionResource],
+			severity: ChatInputNotificationSeverity.Info, message: 'Owned notice', description: undefined,
+			actions: [], dismissible: true, autoDismissOnMessage: true,
+		});
+		notificationService.handleMessageSent(context({ sessionResource, inputUri: other }));
+		const afterOtherInput = notificationService.getActiveNotification()?.id;
+		notificationService.handleMessageSent(context({ sessionResource, inputUri: owner }));
+		assert.deepStrictEqual({ afterOtherInput, afterOwner: notificationService.getActiveNotification() }, {
+			afterOtherInput: 'owned', afterOwner: undefined,
+		});
+	});
+
+	test('logs a producer dismissal failure without leaving the notice active', () => {
+		const log = store.add(new RecordingLogService());
+		const notificationService = createNotificationService(log);
+		let errors = 0;
+		store.add(log.onError(() => errors++));
+		notificationService.setNotification({
+			id: 'owned', severity: ChatInputNotificationSeverity.Info, message: 'Owned notice', description: undefined,
+			actions: [], dismissible: true, autoDismissOnMessage: false,
+			onDismiss: () => { throw new Error('dismiss failed'); },
+		});
+		notificationService.dismissNotification('owned');
+		assert.deepStrictEqual({ errors, active: notificationService.getActiveNotification() }, { errors: 1, active: undefined });
+	});
+
 	test('auto-dismiss on message applies the sending input predicate', () => {
 		const notificationService = createNotificationService();
 		const notification: IChatInputNotification = {
@@ -510,6 +546,25 @@ suite('ChatInputNotificationWidget', () => {
 		};
 	}
 
+	test('only marks a banner shown when its host becomes visible', () => {
+		const hostVisible = observableValue('hostVisible', false);
+		const telemetryService = new RecordingTelemetryService();
+		const { notificationService, widget } = createWidget({ delegate: { hostVisible }, telemetryService });
+		let shown = 0;
+		showNotification(notificationService, { id: 'promo', message: 'Sale', actions: [], onDidShow: () => shown++ });
+		const contents = widget.domNode.firstChild;
+		const whileHidden = shown;
+		hostVisible.set(true, undefined);
+		hostVisible.set(false, undefined);
+		hostVisible.set(true, undefined);
+		assert.deepStrictEqual({
+			whileHidden,
+			shown,
+			sameContents: widget.domNode.firstChild === contents,
+			impressions: telemetryService.events.filter(event => event.name === 'chatInputNotificationShown').length,
+		}, { whileHidden: 0, shown: 1, sameContents: true, impressions: 1 });
+	});
+
 	function clickAction(widget: ChatInputNotificationWidget): void {
 		const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-action-button');
 		assert.ok(button);
@@ -544,6 +599,98 @@ suite('ChatInputNotificationWidget', () => {
 
 		assert.deepStrictEqual(commandService.executed, [{ id: 'test.usePromo', args: [{ modelIdentifier: 'm' }] }]);
 		assert.strictEqual(notificationService.dismissed.join(','), 'promo');
+	});
+
+	test('supports a leading primary action and a keyboard-reachable Ignore button with managed hover', () => {
+		const { notificationService, widget } = createWidget();
+		showNotification(notificationService, {
+			id: 'parallel', message: 'Run agents side by side',
+			actions: [{
+				kind: ChatInputNotificationActionKind.Command, label: 'Open Agents Window', commandId: 'test.open', primary: true,
+			}, {
+				kind: ChatInputNotificationActionKind.Command, label: 'Ignore', commandId: 'test.ignore', primary: false, tooltip: 'Don\'t Show Again',
+			}],
+		});
+		const buttons = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')];
+		assert.deepStrictEqual(buttons.map(button => ({
+			label: button.textContent,
+			secondary: button.classList.contains('secondary'),
+			tabIndex: button.tabIndex,
+			description: button.getAttribute('aria-description'),
+		})), [
+			{ label: 'Open Agents Window', secondary: false, tabIndex: 0, description: null },
+			{ label: 'Ignore', secondary: true, tabIndex: 0, description: 'Don\'t Show Again' },
+		]);
+		assert.ok(widget.domNode.querySelector('.chat-input-notification-dismiss'));
+	});
+
+	test('uses explicit accessible labels for icon-only actions', () => {
+		const { notificationService, widget } = createWidget();
+		showNotification(notificationService, {
+			id: 'feedback',
+			message: 'Copilot preview',
+			actions: [{
+				kind: ChatInputNotificationActionKind.Command,
+				label: '$(thumbsup)',
+				ariaLabel: 'Helpful',
+				iconOnly: true,
+				tooltip: 'Helpful',
+				commandId: 'test.helpful',
+			}],
+		});
+		const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-action-button');
+		assert.deepStrictEqual({
+			icon: !!button?.querySelector('.codicon-thumbsup'),
+			iconOnly: button?.classList.contains('icon-only'),
+			compactActions: widget.domNode.querySelector('.chat-input-notification-actions')?.classList.contains('compact'),
+			ariaLabel: button?.getAttribute('aria-label'),
+			description: button?.getAttribute('aria-description'),
+		}, {
+			icon: true,
+			iconOnly: true,
+			compactActions: true,
+			ariaLabel: 'Copilot preview Helpful',
+			description: null,
+		});
+	});
+
+	test('splits a leading outlined action from trailing feedback actions', () => {
+		const { notificationService, widget } = createWidget();
+		showNotification(notificationService, {
+			id: 'feedback',
+			message: 'Copilot preview',
+			actions: [{
+				kind: ChatInputNotificationActionKind.Command,
+				label: 'Learn More',
+				commandId: 'test.learnMore',
+				primary: false,
+				leading: true,
+				outlined: true,
+			}, {
+				kind: ChatInputNotificationActionKind.Command,
+				label: '$(thumbsup) Got it!',
+				commandId: 'test.gotIt',
+				primary: true,
+			}],
+		});
+		const actions = widget.domNode.querySelector('.chat-input-notification-actions');
+		const buttons = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')];
+
+		assert.deepStrictEqual({
+			split: actions?.classList.contains('split'),
+			buttons: buttons.map(button => ({
+				label: button.textContent,
+				leading: button.classList.contains('leading'),
+				outlined: button.classList.contains('outlined'),
+				secondary: button.classList.contains('secondary'),
+			})),
+		}, {
+			split: true,
+			buttons: [
+				{ label: 'Learn More', leading: true, outlined: true, secondary: true },
+				{ label: 'Got it!', leading: false, outlined: false, secondary: false },
+			],
+		});
 	});
 
 	test('actions without explicit commandArgs are executed with empty args', async () => {

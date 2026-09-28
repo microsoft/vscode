@@ -13,14 +13,14 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyValue, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../../workbench/common/views.js';
-import { ICloseEditorOptions, IEditorGroup, IEditorGroupsService, IEditorReplacement, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ICloseEditorOptions, IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService, IEditorReplacement, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorsChangeEvent, IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
@@ -68,17 +68,34 @@ export function makeSession(resource: URI, opts?: {
 	isCreated?: boolean;
 	changes?: readonly ISessionFileChange[];
 	workspace?: ISessionWorkspace;
+	chatWorkspace?: ISessionWorkspace;
 	isQuickChat?: boolean;
 }): IActiveSession {
 	const status = observableValue('status', opts?.status ?? SessionStatus.Completed);
+	const workspace = opts?.workspace ?? {
+		uri: URI.file('/repo'),
+		label: 'test',
+		icon: Codicon.repo,
+		folders: [{
+			root: URI.file('/repo'),
+			workingDirectory: URI.file('/repo'),
+			name: 'repo',
+			description: undefined,
+			gitRepository: undefined,
+		}],
+		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
+	};
 	const chat: IChat = {
 		resource,
 		createdAt: new Date(),
+		workspace: constObservable(opts?.chatWorkspace ?? workspace),
 		title: observableValue('title', 'Test'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status,
 		checkpoints: observableValue('checkpoints', undefined),
 		changes: observableValue('changes', opts?.changes ?? []),
+		changesets: constObservable([]),
 		modelId: observableValue('modelId', undefined),
 		modelSource: observableValue('modelSource', undefined),
 		mode: observableValue('mode', undefined),
@@ -96,25 +113,10 @@ export function makeSession(resource: URI, opts?: {
 		sessionType: 'local',
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('workspace', opts?.workspace ?? {
-			uri: URI.file('/repo'),
-			label: 'test',
-			icon: Codicon.repo,
-			folders: [{
-				root: URI.file('/repo'),
-				workingDirectory: URI.file('/repo'),
-				name: 'repo',
-				description: undefined,
-				gitRepository: undefined,
-			}],
-			requiresWorkspaceTrust: false,
-			isVirtualWorkspace: false,
-		}),
+		workspace: observableValue('workspace', workspace),
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
-		changesets: constObservable([]),
-		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,
 		loading: observableValue('loading', false),
@@ -721,6 +723,18 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			harness.applyWorkingSetCalls.push(workingSet);
 			harness.onApplyWorkingSet?.(workingSet);
 			return true;
+		}
+		override registerContextKeyProvider<T extends ContextKeyValue>(provider: IEditorGroupContextKeyProvider<T>): IDisposable {
+			const key = provider.contextKey.bindTo(contextKeyService);
+			const registrations = new DisposableStore();
+			const update = () => key.set(provider.getGroupContextKeyValue(testActiveGroup));
+			if (provider.onDidChange) {
+				registrations.add(provider.onDidChange(update));
+			}
+			registrations.add(harness.onDidActiveEditorChange.event(update));
+			registrations.add(toDisposable(() => key.reset()));
+			update();
+			return registrations;
 		}
 		override deleteWorkingSet() { }
 	});

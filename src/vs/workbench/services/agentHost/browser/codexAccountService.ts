@@ -80,7 +80,23 @@ export function createCodexAccountMenuActions(service: ICodexAccountService, vis
 }
 
 export function openCodexAuthUrl(openerService: Pick<IOpenerService, 'open'>, authUrl: string): Promise<boolean> {
-	return openerService.open(authUrl, { openExternal: true, skipValidation: true });
+	let parsedAuthUrl: URL;
+	try {
+		parsedAuthUrl = new URL(authUrl);
+	} catch {
+		return Promise.resolve(false);
+	}
+	if (parsedAuthUrl.protocol !== 'https:' || !isTrustedCodexAuthHost(parsedAuthUrl.hostname)) {
+		return Promise.resolve(false);
+	}
+	return openerService.open(parsedAuthUrl.href, { openExternal: true, skipValidation: true });
+}
+
+function isTrustedCodexAuthHost(hostname: string): boolean {
+	const normalizedHostname = hostname.toLowerCase();
+	return ['openai.com', 'chatgpt.com'].some(domain =>
+		normalizedHostname === domain || normalizedHostname.endsWith(`.${domain}`)
+	);
 }
 
 export async function readCodexProfileImageDataUri(

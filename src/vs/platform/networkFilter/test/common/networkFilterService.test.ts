@@ -88,6 +88,55 @@ suite('AgentNetworkFilterService', () => {
 
 	suite('isUriAllowed', () => {
 
+		for (const { name, allowedDomains } of [
+			{ name: 'deny-only', allowedDomains: [] },
+			{ name: 'allow-all', allowedDomains: ['*'] },
+		]) {
+			test(`blocks Unicode wildcard deny patterns with ${name} policy`, async () => {
+				configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, allowedDomains);
+				configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*.b\u00fccher.de']);
+				const service = await createService();
+				const urls = [
+					'https://xn--bcher-kva.de/',
+					'https://sub.xn--bcher-kva.de/',
+					'https://xn--bcher-kva.de/private',
+					'https://sub.xn--bcher-kva.de/private',
+					'https://b\u00fccher.de/private',
+					'https://sub.b\u00fccher.de/private',
+					'https://example.com/private',
+					'https://notxn--bcher-kva.de/private',
+					'https://xn--bcher-kva.de.example.com/private',
+				];
+
+				assert.deepStrictEqual({
+					enabled: service.isEnabled(),
+					allowed: urls.map(url => service.isUriAllowed(URI.parse(url))),
+				}, {
+					enabled: true,
+					allowed: [false, false, false, false, false, false, true, true, true],
+				});
+			});
+		}
+
+		test('allows Unicode wildcard allow patterns without allowing unrelated domains', async () => {
+			configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.b\u00fccher.de']);
+			const service = await createService();
+			const urls = [
+				'https://xn--bcher-kva.de/private',
+				'https://sub.xn--bcher-kva.de/private',
+				'https://b\u00fccher.de/private',
+				'https://sub.b\u00fccher.de/private',
+				'https://example.com/private',
+				'https://notxn--bcher-kva.de/private',
+				'https://xn--bcher-kva.de.example.com/private',
+			];
+
+			assert.deepStrictEqual(
+				urls.map(url => service.isUriAllowed(URI.parse(url))),
+				[true, true, true, true, false, false, false],
+			);
+		});
+
 		test('allows file URIs', async () => {
 			const service = await createService();
 			configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*']);

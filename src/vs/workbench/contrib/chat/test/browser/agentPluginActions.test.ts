@@ -6,10 +6,12 @@
 import assert from 'assert';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { CustomizationEnablementKind, CustomizationType, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { createUninstallPluginAction, getAgentHostPluginEnablementActions } from '../../browser/agentPluginActions.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { createPolicyManagedEnablementAction, createUninstallPluginAction, getAgentHostPluginEnablementActions, getPluginPolicyEnablement, isPluginPolicyBlocked } from '../../browser/agentPluginActions.js';
 import { IAgentHostCustomizationService } from '../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { ContributionEnablementState } from '../../common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
@@ -17,12 +19,13 @@ import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPlu
 suite('AgentPluginActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createPlugin(remove?: () => Promise<boolean>): IAgentPlugin {
+	function createPlugin(remove?: () => Promise<boolean>, policyEnablement?: boolean): IAgentPlugin {
 		return {
 			uri: URI.file('/plugins/local-plugin'),
 			format: PluginFormat.Copilot,
 			label: 'Local Plugin',
 			enablement: observableValue('enablement', ContributionEnablementState.EnabledProfile),
+			policyEnablement: observableValue('policyEnablement', policyEnablement),
 			remove,
 			hooks: observableValue('hooks', []),
 			commands: observableValue('commands', []),
@@ -66,6 +69,52 @@ suite('AgentPluginActions', () => {
 
 	test('does not create uninstall action for a non-removable plugin', () => {
 		assert.strictEqual(createUninstallPluginAction(createPlugin()), undefined);
+	});
+
+	test('does not create uninstall action for a force-enabled plugin', () => {
+		assert.strictEqual(createUninstallPluginAction(createPlugin(async () => true, true)), undefined);
+	});
+
+	test('reads managed plugin enablement in both directions', () => {
+		const required = createPlugin(undefined, true);
+		const blocked = createPlugin(undefined, false);
+		const unmanaged = createPlugin();
+
+		assert.deepStrictEqual({
+			required: getPluginPolicyEnablement(required),
+			requiredBlocked: isPluginPolicyBlocked(required),
+			blocked: getPluginPolicyEnablement(blocked),
+			blockedBlocked: isPluginPolicyBlocked(blocked),
+			unmanaged: getPluginPolicyEnablement(unmanaged),
+			unmanagedBlocked: isPluginPolicyBlocked(unmanaged),
+		}, {
+			required: true,
+			requiredBlocked: false,
+			blocked: false,
+			blockedBlocked: true,
+			unmanaged: undefined,
+			unmanagedBlocked: false,
+		});
+	});
+
+	test('creates managed enablement actions for required and blocked plugins', () => {
+		const notificationService = new class extends mock<INotificationService>() {
+			override warn(): never {
+				throw new Error('Unexpected notification');
+			}
+		}();
+		const required = store.add(createPolicyManagedEnablementAction(createPlugin(undefined, true), notificationService)!);
+		const blocked = store.add(createPolicyManagedEnablementAction(createPlugin(undefined, false), notificationService)!);
+
+		assert.deepStrictEqual({
+			required: required.label,
+			blocked: blocked.label,
+			unmanaged: createPolicyManagedEnablementAction(createPlugin(), notificationService)?.label,
+		}, {
+			required: 'Disable',
+			blocked: 'Enable',
+			unmanaged: undefined,
+		});
 	});
 
 	test('offers scoped enablement actions for host-published plugins', () => {

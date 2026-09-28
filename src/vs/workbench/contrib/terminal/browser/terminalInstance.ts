@@ -2140,6 +2140,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _updateTitleProperties(title: string | undefined, eventSource: TitleEventSource): string {
 		if (title === undefined) {
+			if (eventSource === TitleEventSource.Api) {
+				this._staticTitle = undefined;
+				this._titleSource = TitleEventSource.Process;
+				this._messageTitleDisposable.value = this.xterm?.raw.onTitleChange(e => this._onTitleChange(e));
+			}
 			return this._processName;
 		}
 		switch (eventSource) {

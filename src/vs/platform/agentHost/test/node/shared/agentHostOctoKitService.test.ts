@@ -130,7 +130,7 @@ suite('AgentHostOctoKitService', () => {
 
 		const result = await service.createPullRequest('o', 'r', 'My PR', 'Body', 'feature', 'main', false, 'gh-token', signal());
 
-		assert.deepStrictEqual(result, { url: 'https://github.com/o/r/pull/42', number: 42, nodeId: 'PR_node_42' });
+		assert.deepStrictEqual(result, { url: 'https://github.com/o/r/pull/42', number: 42, title: 'My PR', nodeId: 'PR_node_42' });
 
 		const cap = captured();
 		assert.strictEqual(cap.url, 'https://api.github.com/repos/o/r/pulls');
@@ -170,7 +170,7 @@ suite('AgentHostOctoKitService', () => {
 	});
 
 	test('findPullRequestByHeadBranch fetches the latest matching pull request', async () => {
-		const { fetch, captured } = capturingFetch(jsonResponse([{ html_url: 'https://github.com/o/r/pull/9', number: 9, node_id: 'PR_node_9', created_at: '2026-08-09T12:00:00.000Z' }]));
+		const { fetch, captured } = capturingFetch(jsonResponse([{ html_url: 'https://github.com/o/r/pull/9', number: 9, title: 'Existing PR', node_id: 'PR_node_9', created_at: '2026-08-09T12:00:00.000Z' }]));
 		const service = makeService(fetch);
 
 		const result = await service.findPullRequestByHeadBranch('o', 'r', 'feature/test', 'tok', signal());
@@ -180,7 +180,7 @@ suite('AgentHostOctoKitService', () => {
 			url: captured().url,
 			method: captured().init?.method,
 		}, {
-			result: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: 'PR_node_9', createdAt: Date.parse('2026-08-09T12:00:00.000Z') },
+			result: { url: 'https://github.com/o/r/pull/9', number: 9, title: 'Existing PR', nodeId: 'PR_node_9', createdAt: Date.parse('2026-08-09T12:00:00.000Z') },
 			url: 'https://api.github.com/repos/o/r/pulls?head=o%3Afeature%2Ftest&state=all&sort=updated&direction=desc&per_page=1',
 			method: 'GET',
 		});

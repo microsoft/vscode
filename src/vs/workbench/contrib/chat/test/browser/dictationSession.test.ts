@@ -144,6 +144,26 @@ suite('DictationSession', () => {
 		}
 	});
 
+	test('clears the active editor when startup ends without recording', async () => {
+		const { service } = createService('', true);
+		const editor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
+		let starts = 0;
+		service.start = async () => { starts++; };
+
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		await startDictation(service, editor, mainWindow, new NullLogService());
+
+		assert.deepStrictEqual({
+			starts,
+			isDictating: isDictating(),
+			isActiveForEditor: isDictationActiveForEditor(editor),
+		}, {
+			starts: 2,
+			isDictating: false,
+			isActiveForEditor: false,
+		});
+	});
+
 	test('stops only when the submitted editor owns dictation', async () => {
 		const { service } = createService('hello world', true);
 		const dictationEditor = store.add(createTestCodeEditor(store.add(createTextModel(''))));

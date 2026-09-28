@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from '../../../base/common/async.js';
 import { getExpirationTime, getRemainingTimeInSeconds, isExpired } from '../../../base/common/date.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
@@ -38,10 +39,16 @@ interface IStoredAuthToken {
 	readonly expiresAt: number | undefined;
 }
 
+interface IAuthenticationRequest {
+	readonly resource: string;
+	readonly completed: DeferredPromise<void>;
+}
+
 export class AgentHostAuthenticationService extends Disposable implements IAgentHostAuthenticationService, IAgentHostAuthenticationController {
 
 	declare readonly _serviceBrand: undefined;
 	private readonly _tokens = new Map<string, IStoredAuthToken>();
+	private readonly _authenticationRequests = new Map<string, IAuthenticationRequest>();
 	private readonly _onDidChangeAuthToken = this._register(new Emitter<IAgentHostAuthTokenChangeEvent>());
 	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
 
@@ -49,9 +56,34 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		private readonly _logService: ILogService,
 	) {
 		super();
+		this._register(toDisposable(() => {
+			this._tokens.clear();
+			for (const request of this._authenticationRequests.values()) {
+				request.completed.complete();
+			}
+			this._authenticationRequests.clear();
+		}));
 	}
 
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>): Promise<AuthenticateResult> {
+		const scopes = this._normalizeScopes(params.scopes);
+		const key = this._key(params.resource, scopes);
+		const previousRequest = this._authenticationRequests.get(key);
+		const request: IAuthenticationRequest = { resource: params.resource, completed: new DeferredPromise<void>() };
+		this._authenticationRequests.set(key, request);
+		// Wake replayers only after the replacement request is visible.
+		previousRequest?.completed.complete();
+		try {
+			return await this._authenticate(params, providers, scopes, key, request);
+		} finally {
+			if (this._authenticationRequests.get(key) === request) {
+				this._authenticationRequests.delete(key);
+			}
+			request.completed.complete();
+		}
+	}
+
+	private async _authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scopes: readonly string[], key: string, request: IAuthenticationRequest): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentHostAuthenticationService] authenticate called: resource=${params.resource}`);
 		const expiresAt = getExpirationTime(params.expiresIn);
 		const providerList = [...providers];
@@ -98,8 +130,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				);
 			}
 		}
-		const scopes = this._normalizeScopes(params.scopes);
-		const key = this._key(params.resource, scopes);
+		if (this._authenticationRequests.get(key) !== request) {
+			return { authenticated };
+		}
 		const previousToken = this._tokens.get(key)?.token;
 		if (!authenticated && !rejected) {
 			authenticated = this._tokens.get(key)?.token === params.token;
@@ -119,8 +152,19 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	async replay(provider: IAgent): Promise<void> {
+		while (true) {
+			const pending = [...this._authenticationRequests.values()].filter(request =>
+				provider.handleAuthenticationToken || provider.getProtectedResources().some(resource => resource.resource === request.resource));
+			if (pending.length === 0) {
+				break;
+			}
+			await Promise.all(pending.map(request => request.completed.p));
+		}
 		const protectedResources = new Set(provider.getProtectedResources().map(resource => resource.resource));
 		for (const [key, stored] of this._tokens) {
+			if (this._authenticationRequests.has(key) || this._tokens.get(key) !== stored) {
+				continue;
+			}
 			const now = Date.now();
 			if (isExpired(stored.expiresAt, now)) {
 				this._tokens.delete(key);

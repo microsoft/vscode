@@ -369,7 +369,7 @@
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
-	margin-bottom: var(--vscode-spacing-size120);
+	margin-top: var(--vscode-spacing-size120);
 	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
 	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
 	border-radius: var(--vscode-cornerRadius-small);

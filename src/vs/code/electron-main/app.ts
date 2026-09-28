@@ -16,6 +16,7 @@ import { getPathLabel } from '../../base/common/labels.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { join, posix } from '../../base/common/path.js';
+import { mark } from '../../base/common/performance.js';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
 import { assertType } from '../../base/common/types.js';
 import { URI } from '../../base/common/uri.js';
@@ -65,6 +66,8 @@ import { ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import { IMenubarMainService, MenubarMainService } from '../../platform/menubar/electron-main/menubarMainService.js';
 import type { IOSProxyConfig } from '../../platform/native/common/native.js';
 import { INativeHostMainService, NativeHostMainService } from '../../platform/native/electron-main/nativeHostMainService.js';
+import { ONBOARDING_TRYOUT_CHANNEL } from '../../platform/onboarding/common/onboardingTryoutHandoff.js';
+import { OnboardingTryoutHandoff } from '../../platform/onboarding/electron-main/onboardingTryoutHandoff.js';
 import { GlobalKeybindingsMainService, IGlobalKeybindingsMainService } from '../../platform/globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
 import { METERED_CONNECTION_CHANNEL } from '../../platform/meteredConnection/common/meteredConnectionIpc.js';
@@ -96,7 +99,7 @@ import { NativeURLService } from '../../platform/url/common/urlService.js';
 import { ElectronURLListener } from '../../platform/url/electron-main/electronUrlListener.js';
 import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
 import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
-import { AgentsWindowOpenSource, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from '../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, parseExternalAgentsWindowNewSessionLinkUri } from '../../platform/window/common/window.js';
 import { getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
 import { ICodeWindow } from '../../platform/window/electron-main/window.js';
 import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
@@ -150,6 +153,8 @@ import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../pla
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 import { IProtocolMainService } from '../../platform/protocol/electron-main/protocol.js';
+import { createRemoteResourceRequestHandler } from '../../platform/protocol/electron-main/remoteResourceProtocol.js';
+import { logNodeCompileCacheStatus, markNodeCompileCacheReady, waitForNodeCompileCacheReady } from '../../base/node/nodeCompileCache.js';
 
 type OSProxyConfigEvent = {
 	readonly success: boolean;
@@ -690,17 +695,18 @@ export class CodeApplication extends Disposable {
 	}
 
 	async startup(): Promise<void> {
+		mark('code/willStartCodeApplication');
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
 		this.logService.debug('args:', this.environmentMainService.args);
+		logNodeCompileCacheStatus(message => this.logService.info(message));
 
-		// Make sure we associate the program with the app user model id
-		// This will help Windows to associate the running program with
-		// any shortcut that is pinned to the taskbar and prevent showing
-		// two icons in the taskbar for the same app.
+		// Associate the program with the app user model id so that Windows
+		// matches it with pinned taskbar shortcuts. Use a distinct id in
+		// portable mode to not interfere with a regularly installed version.
 		const win32AppUserModelId = this.productService.win32AppUserModelId;
 		if (isWindows && win32AppUserModelId) {
-			app.setAppUserModelId(win32AppUserModelId);
+			app.setAppUserModelId(this.environmentMainService.isPortable ? `${win32AppUserModelId}.Portable` : win32AppUserModelId);
 		}
 
 		// Fix native tabs on macOS 10.13
@@ -731,17 +737,21 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Resolve unique machine ID
+		mark('code/willResolveMachineId');
 		const [machineId, sqmId, devDeviceId] = await Promise.all([
 			resolveMachineId(this.stateService, this.logService),
 			resolveSqmId(this.stateService, this.logService),
 			resolveDevDeviceId(this.stateService, this.logService)
 		]);
+		mark('code/didResolveMachineId');
 
 		// Shared process
 		const { sharedProcessReady, sharedProcessClient } = this.setupSharedProcess(machineId, sqmId, devDeviceId);
 
 		// Services
+		mark('code/willInitAppServices');
 		const appInstantiationService = await this.initServices(machineId, sqmId, devDeviceId, sharedProcessReady);
+		mark('code/didInitAppServices');
 
 		// Error telemetry
 		appInstantiationService.invokeFunction(accessor => this._register(new ErrorTelemetry(accessor.get(ILogService), accessor.get(ITelemetryService))));
@@ -755,7 +765,7 @@ export class CodeApplication extends Disposable {
 		// cannot fully observe.
 		const agentHostStarter = appInstantiationService.createInstance(ElectronAgentHostStarter, { machineId, sqmId, devDeviceId });
 		// This manager self-disposes after its lifecycle join; CodeApplication disposes before later shutdown listeners run.
-		appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter, process.platform);
+		const agentHostProcessManager = appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter, process.platform);
 
 		// Metered connection telemetry
 		appInstantiationService.invokeFunction(accessor => {
@@ -769,22 +779,39 @@ export class CodeApplication extends Disposable {
 		this._register(appInstantiationService.createInstance(UserDataProfilesHandler));
 
 		// Init Channels
+		mark('code/willInitChannels');
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
+		mark('code/didInitChannels');
 
 		// Setup Protocol URL Handlers
+		mark('code/willSetupProtocolUrlHandlers');
 		const initialProtocolUrls = await appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
+		mark('code/didSetupProtocolUrlHandlers');
 
 		// Signal phase: ready - before opening first window
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
 		// Open Windows
-		await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls));
+		mark('code/willOpenFirstWindow');
+		const windows = await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls));
+		mark('code/didOpenFirstWindow');
 
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Post Open Windows Tasks
 		this.afterWindowOpen(appInstantiationService);
+
+		const isGeneratingNodeCompileCache = process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1';
+		const shouldStartCriticalNodeProcesses = isGeneratingNodeCompileCache || process.env['VSCODE_MEASURE_NODE_COMPILE_CACHE'] === '1';
+		if (shouldStartCriticalNodeProcesses) {
+			await Promise.all([
+				...windows.map(window => window.ready()),
+				sharedProcessReady,
+				appInstantiationService.invokeFunction(accessor => accessor.get(ILocalPtyService).getLatency()),
+				agentHostProcessManager.start()
+			]);
+		}
 
 		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
@@ -795,9 +822,21 @@ export class CodeApplication extends Disposable {
 
 				// Eventually Post Open Window Tasks
 				this.eventuallyAfterWindowOpen(appInstantiationService);
+
+				if (shouldStartCriticalNodeProcesses) {
+					markNodeCompileCacheReady(message => this.logService.info(message));
+				}
 			}, 2500));
 		}, 2500));
 		eventuallyPhaseScheduler.schedule();
+
+		if (isGeneratingNodeCompileCache) {
+			await Promise.all([
+				this.lifecycleMainService.when(LifecycleMainPhase.Eventually),
+				waitForNodeCompileCacheReady()
+			]);
+			await this.lifecycleMainService.quit();
+		}
 	}
 
 	private async setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): Promise<IInitialProtocolUrls | undefined> {
@@ -1039,6 +1078,15 @@ export class CodeApplication extends Disposable {
 				context: OpenContext.LINK,
 				cli: { ...this.environmentMainService.args },
 			}, undefined, agentSessionLink, AgentsWindowOpenSource.Link);
+			return windows.length > 0;
+		}
+
+		const newSessionLink = parseExternalAgentsWindowNewSessionLinkUri(uri, this.productService.urlProtocol);
+		if (newSessionLink) {
+			const windows = await windowsMainService.openAgentsWindow({
+				context: OpenContext.LINK,
+				cli: { ...this.environmentMainService.args },
+			}, newSessionLink.workspaceUri, undefined, AgentsWindowOpenSource.Link, false, newSessionLink.draft);
 			return windows.length > 0;
 		}
 
@@ -1305,7 +1353,10 @@ export class CodeApplication extends Disposable {
 		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
 
 		// MCP
-		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
+		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService, [
+			process.env,
+			() => this.resolveShellEnvironment(this.environmentMainService.args, process.env, false),
+		]));
 		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
 
 		// Dev Only: CSS service (for ESM)
@@ -1406,6 +1457,9 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
+		const tryoutHandoff = disposables.add(accessor.get(IInstantiationService).createInstance(OnboardingTryoutHandoff));
+		mainProcessElectronServer.registerChannel(ONBOARDING_TRYOUT_CHANNEL, ProxyChannel.fromService(tryoutHandoff, disposables));
+
 		// Web Content Extractor
 		const webContentExtractorChannel = ProxyChannel.fromService(accessor.get(IWebContentExtractorService), disposables);
 		mainProcessElectronServer.registerChannel('webContentExtractor', webContentExtractorChannel);
@@ -1489,16 +1543,18 @@ export class CodeApplication extends Disposable {
 
 		// Then check for windows from protocol links to open
 		if (initialProtocolUrls) {
-			const agentSessionProtocolUrlIndex = initialProtocolUrls.urls.findIndex(protocolUrl =>
-				parseExternalOpenSessionLinkUri(protocolUrl.uri, this.productService.urlProtocol));
-			if (agentSessionProtocolUrlIndex >= 0) {
-				const [agentSessionProtocolUrl] = initialProtocolUrls.urls.splice(agentSessionProtocolUrlIndex, 1);
-				const agentSessionLink = parseExternalOpenSessionLinkUri(agentSessionProtocolUrl.uri, this.productService.urlProtocol);
+			const agentsWindowProtocolUrlIndex = initialProtocolUrls.urls.findIndex(protocolUrl =>
+				parseExternalOpenSessionLinkUri(protocolUrl.uri, this.productService.urlProtocol)
+				|| parseExternalAgentsWindowNewSessionLinkUri(protocolUrl.uri, this.productService.urlProtocol));
+			if (agentsWindowProtocolUrlIndex >= 0) {
+				const [agentsWindowProtocolUrl] = initialProtocolUrls.urls.splice(agentsWindowProtocolUrlIndex, 1);
+				const agentSessionLink = parseExternalOpenSessionLinkUri(agentsWindowProtocolUrl.uri, this.productService.urlProtocol);
+				const newSessionLink = parseExternalAgentsWindowNewSessionLinkUri(agentsWindowProtocolUrl.uri, this.productService.urlProtocol);
 				return windowsMainService.openAgentsWindow({
 					context: OpenContext.LINK,
 					cli: args,
 					initialStartup: true,
-				}, undefined, agentSessionLink, AgentsWindowOpenSource.Link);
+				}, newSessionLink?.workspaceUri, agentSessionLink, AgentsWindowOpenSource.Link, false, newSessionLink?.draft);
 			}
 
 			// Openables can open as windows directly
@@ -1622,12 +1678,8 @@ export class CodeApplication extends Disposable {
 		this.installMutex();
 
 		// Remote Authorities
-		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
-			callback({
-				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
-				method: request.method
-			});
-		});
+		protocol.handle(Schemas.vscodeRemoteResource, createRemoteResourceRequestHandler(this.logService));
+		this._register(toDisposable(() => protocol.unhandle(Schemas.vscodeRemoteResource)));
 
 		// Start to fetch shell environment (if needed) after window has opened
 		// Since this operation can take a long time, we want to warm it up while

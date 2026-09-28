@@ -932,6 +932,44 @@ suite('PromptsService', () => {
 			sinon.restore();
 		});
 
+		const getPluginAgentPreToolUseHooks = async (pluginUri: URI, format: PluginFormat, hookProperties: readonly string[]) => {
+			const workspaceUri = URI.file('/workspace');
+			const agentUri = URI.joinPath(pluginUri, 'agents', 'reviewer.md');
+			workspaceContextService.setWorkspace(testWorkspace(workspaceUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			await mockFiles(fileService, [{
+				path: agentUri.path,
+				contents: [
+					'---',
+					'name: reviewer',
+					'hooks:',
+					'  PreToolUse:',
+					'    - type: command',
+					...hookProperties.map(property => `      ${property}`),
+					'      env:',
+					'        EXISTING: "value"',
+					'---',
+				],
+			}]);
+
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				format,
+				label: 'test-plugin',
+				enablement: observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
+				hooks: observableValue('testPluginHooks', []),
+				commands: observableValue('testPluginCommands', []),
+				skills: observableValue('testPluginSkills', []),
+				agents: observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', [{ uri: agentUri, name: 'reviewer' }]),
+				instructions: observableValue('testPluginInstructions', []),
+				mcpServerDefinitions: observableValue('testPluginMcpServers', []),
+				automations: observableValue('testPluginAutomations', []),
+			};
+			testPluginsObservable.set([plugin], undefined);
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+			return { hooks: agents[0]?.hooks?.[HookType.PreToolUse], workspaceUri };
+		};
 
 		test('reads agent files with bounded concurrency', async () => {
 			const rootFolder = '/custom-agents-concurrency';
@@ -1043,6 +1081,53 @@ suite('PromptsService', () => {
 				agents.map(agent => agent.name).sort(),
 				['agent1', 'agent2'],
 			);
+		});
+
+		test('resolves CLAUDE_PLUGIN_ROOT in hooks from Claude plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/claude-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.Claude,
+				['command: "${CLAUDE_PLUGIN_ROOT}/scripts/pre-tool.sh"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `${pluginUri.fsPath}/scripts/pre-tool.sh`,
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					CLAUDE_PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves and quotes PLUGIN_ROOT aliases in hooks from Open Plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/open plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.OpenPlugin,
+				[
+					'bash: "${PLUGIN_ROOT}/scripts/pre-tool.sh"',
+					'powershell: "${PLUGIN_ROOT}/scripts/pre-tool.ps1"',
+				],
+			);
+			const quotedScript = (name: string) => `"${pluginUri.fsPath}/scripts/${name}"`;
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				windows: quotedScript('pre-tool.ps1'),
+				linux: quotedScript('pre-tool.sh'),
+				osx: quotedScript('pre-tool.sh'),
+				windowsSource: 'powershell',
+				linuxSource: 'bash',
+				osxSource: 'bash',
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
 		});
 
 

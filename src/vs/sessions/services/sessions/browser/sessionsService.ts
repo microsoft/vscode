@@ -33,6 +33,7 @@ import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -77,6 +78,8 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	 * of the active session in the grid instead of replacing it in place.
 	 */
 	readonly toSide?: boolean;
+	/** Require the created draft to start in a Dev Container rather than falling back to host execution. */
+	readonly requireDevContainer?: boolean;
 }
 
 /**
@@ -106,6 +109,7 @@ export interface IOpenSessionOptions {
 	readonly preserveFocus?: boolean;
 	readonly source?: SessionOpenSource;
 	readonly restoreOnlySideOrToolChat?: boolean;
+	readonly forceMainChat?: boolean;
 }
 
 /**
@@ -270,9 +274,9 @@ export interface ISessionsService {
 	 * Open a new **quick chat**: create a concrete workspace-less draft session
 	 * (via {@link ISessionsManagementService.createQuickChat}) and show it as the
 	 * active session. Returns the activated session, or `undefined` when no
-	 * provider supports quick chats.
+	 * provider supports quick chats. Automatic fallbacks preserve pending navigation.
 	 */
-	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined;
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined;
 
 	/**
 	 * Switch to the new-chat-in-session view.
@@ -385,12 +389,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 */
 	private readonly _recencyHistory: SessionsRecencyHistory;
 
-	/**
-	 * Session id (or `undefined` for the new-session slot) that focus was last
-	 * moved into in response to an active-session change. Tracks the active id
-	 * so unrelated visibility updates don't re-focus and steal focus.
-	 */
-	private _focusedActiveSessionId: string | undefined;
+	/** Tracks wrapper identity so same-ID replacements restore focus but unrelated visibility changes do not. */
+	private _focusedActiveSession: IActiveSession | undefined;
 
 	/** The in-flight foreground send's "keep newest chat active" follow. */
 	private readonly _sendFollow = this._register(new MutableDisposable<DisposableStore>());
@@ -484,13 +484,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}));
 
-		// Viewing a session marks it read. This keeps the active session read
-		// while it stays active, so `ISession.isRead` is the single source of
-		// truth for read state (no display-only overlay needed).
+		// Honor explicit unread marks until the user leaves the session and returns.
+		let previousActiveSessionId: string | undefined;
 		this._register(autorun(reader => {
 			const activeSession = this.activeSession.read(reader);
-			if (activeSession && !activeSession.isRead.read(reader)) {
-				this.sessionsManagementService.markRead(activeSession);
+			const isRead = activeSession?.isRead.read(reader);
+			const activeSessionChanged = activeSession?.sessionId !== previousActiveSessionId;
+			previousActiveSessionId = activeSession?.sessionId;
+			if (activeSession && (activeSessionChanged || !isRead)) {
+				this.sessionsManagementService.markRead(activeSession, { preserveExplicitUnread: !activeSessionChanged }).catch(onUnexpectedError);
 			}
 		}));
 
@@ -517,17 +519,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const preserveFocus = this._visibility.activePreserveFocus.read(reader);
 			this.sessionsPartService.updateVisibleSessions(visible, active);
 
-			// Move keyboard focus into the active session whenever it changes
-			// (e.g. after opening, switching to, or restoring a session) so the
-			// user can start typing immediately. The focus is guarded so a
-			// session the user is already interacting with is never re-focused
-			// (which would steal focus from the clicked element), and the id
-			// check ensures unrelated visibility updates do not move focus.
-			// `preserveFocus` (published atomically with the active session)
-			// suppresses the focus move for background opens.
-			const activeId = active?.sessionId;
-			if (activeId !== this._focusedActiveSessionId) {
-				this._focusedActiveSessionId = activeId;
+			if (active !== this._focusedActiveSession) {
+				this._focusedActiveSession = active;
 				if (!preserveFocus) {
 					this.sessionsPartService.focusSession(active);
 				}
@@ -538,14 +531,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// to the active session.
 		this._register(this.sessionsPartService.onDidFocusSession(sessionId => {
 			const session = this.visibleSessions.get().find(s => s?.sessionId === sessionId);
-			if (session) {
+			if (sessionId === undefined || session) {
 				this.setActive(session);
 			}
 		}));
 	}
 
 	private _onDidReplaceSession(from: ISession, to: ISession): void {
-		this._visibility.updateSession(from, to);
+		const sessionView = this.sessionsPartService.getSessionView(from.sessionId);
+		const preserveFocus = !sessionView || this.sessionsPartService.getFocusedSessionView() !== sessionView;
+		this._visibility.updateSession(from, to, preserveFocus);
 	}
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
@@ -891,12 +886,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 		});
 	}
 
-	private _applyActiveChatSelection(session: ISession, restoreOnlySideOrToolChat: boolean | undefined): void {
-		if (!restoreOnlySideOrToolChat) {
+	private _applyActiveChatSelection(session: ISession, options: IOpenSessionOptions | undefined): void {
+		if (!options?.forceMainChat && !options?.restoreOnlySideOrToolChat) {
 			return;
 		}
 		const state = this._sessionStates.get(session.resource);
-		if (state?.activeChatOrigin === ChatOriginKind.SideChat || state?.activeChatOrigin === ChatOriginKind.Tool) {
+		if (!options.forceMainChat && (state?.activeChatOrigin === ChatOriginKind.SideChat || state?.activeChatOrigin === ChatOriginKind.Tool)) {
 			return;
 		}
 		const mainChat = session.mainChat.get();
@@ -935,7 +930,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (token.isCancellationRequested) {
 				return;
 			}
-			this._applyActiveChatSelection(sessionData, options?.restoreOnlySideOrToolChat);
+			this._applyActiveChatSelection(sessionData, options);
 			this.sessionOpenTelemetryService.sessionResolved(
 				telemetryAttempt,
 				sessionData.resource,
@@ -1019,7 +1014,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (options?.chatResource) {
 			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
 		} else {
-			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source, restoreOnlySideOrToolChat: options?.restoreOnlySideOrToolChat });
+			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source, restoreOnlySideOrToolChat: options?.restoreOnlySideOrToolChat, forceMainChat: options?.forceMainChat });
 		}
 	}
 
@@ -1141,6 +1136,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._startOpenSession();
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
+				if (options?.requireDevContainer) {
+					const provider = this.sessionsProvidersService.getProvider(session.providerId);
+					if (!provider || !isAgentHostProvider(provider) || !provider.preferDevContainer) {
+						this.sessionsManagementService.discardNewSession(session);
+						throw new Error(`Session provider '${session.providerId}' does not support Dev Container drafts.`);
+					}
+					try {
+						provider.preferDevContainer(session.sessionId, { required: true });
+					} catch (error) {
+						this.sessionsManagementService.discardNewSession(session);
+						throw error;
+					}
+				}
 				this._activateOrInsert(session, options?.toSide);
 				return { session, trustDeclined: false };
 			} catch (e) {
@@ -1193,8 +1201,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._activate(session);
 	}
 
-	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined {
-		return this._openQuickChat(options, 'explicit');
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false): IActiveSession | undefined {
+		return this._openQuickChat(options, preserveNavigation ? 'automatic' : 'explicit');
 	}
 
 	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent): IActiveSession | undefined {
@@ -1317,7 +1325,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _restoreInitialChat(session: ISession): IChat {
 		const chats = session.chats.get();
-		let initialChat = chats[0];
+		let initialChat = chats[0] ?? session.mainChat.get();
 		const sessionState = this._sessionStates.get(session.resource);
 		if (sessionState?.activeChatResource) {
 			try {
