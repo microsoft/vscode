@@ -60,6 +60,7 @@ suite('AgentHostSandboxNotification', () => {
 			this.notifications.delete(id);
 		}
 		override dismissNotification(id: string): void {
+			this.notifications.get(id)?.onDismiss?.();
 			this.notifications.delete(id);
 		}
 	}
@@ -70,13 +71,17 @@ suite('AgentHostSandboxNotification', () => {
 		const service = new NotificationService();
 		store.add(new AgentHostSandboxNotification(resource, subscription, service));
 
-		assert.deepStrictEqual([...service.notifications.values()], [{
+		assert.deepStrictEqual([...service.notifications.values()].map(({ onDismiss, ...notification }) => ({
+			...notification,
+			hasDismissHandler: typeof onDismiss === 'function',
+		})), [{
 			id: `agentHost.sandboxUnsupported.${resource.toString()}`,
 			severity: ChatInputNotificationSeverity.Warning,
 			message: 'Sandboxing is unavailable in this environment',
 			description: 'Install bubblewrap.\n[not a command](command:evil)',
 			actions: [],
 			dismissible: true,
+			hasDismissHandler: true,
 			autoDismissOnMessage: false,
 			sessionResources: [resource],
 		}]);
@@ -116,22 +121,50 @@ suite('AgentHostSandboxNotification', () => {
 		assert.strictEqual(service.updates, 1);
 	});
 
-	test('dismissed warnings stay hidden until the diagnostic changes', () => {
+	test('dismissed warnings stay hidden when diagnostics change, sandboxing toggles, or the connection recovers', () => {
 		const subscription = store.add(new TestSubscription());
 		subscription.setValue(['Install bubblewrap.']);
 		const service = new NotificationService();
 		store.add(new AgentHostSandboxNotification(resource, subscription, service));
 		service.dismissNotification(`agentHost.sandboxUnsupported.${resource.toString()}`);
 		subscription.setValue(['Install bubblewrap.']);
-		const unchanged = service.notifications.size;
 		subscription.setValue(['Bubblewrap cannot create a namespace.']);
+		subscription.setValue();
+		subscription.setValue(['Install bubblewrap.']);
+		subscription.setError();
+		subscription.setValue(['Install bubblewrap.']);
 		assert.deepStrictEqual({
-			unchanged,
-			descriptions: [...service.notifications.values()].map(notification => notification.description),
+			remaining: service.notifications.size,
+			updates: service.updates,
 		}, {
-			unchanged: 0,
-			descriptions: ['Bubblewrap cannot create a namespace.'],
+			remaining: 0,
+			updates: 1,
 		});
+	});
+
+	test('dismissal survives reopening a chat without suppressing other sessions', () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue(['Unsupported.']);
+		const service = new NotificationService();
+		const notification = store.add(new AgentHostSandboxNotification(resource, subscription, service));
+		service.dismissNotification(`agentHost.sandboxUnsupported.${resource.toString()}`);
+		notification.dispose();
+		store.add(new AgentHostSandboxNotification(resource, subscription, service));
+		const otherResource = URI.parse('vscode-chat-session://remote-provider/session-b');
+		store.add(new AgentHostSandboxNotification(otherResource, subscription, service));
+		assert.deepStrictEqual([...service.notifications.values()].map(notification => notification.sessionResources), [[otherResource]]);
+	});
+
+	test('a new window notification service can show a previously dismissed session', () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue(['Unsupported.']);
+		const service = new NotificationService();
+		const notification = store.add(new AgentHostSandboxNotification(resource, subscription, service));
+		service.dismissNotification(`agentHost.sandboxUnsupported.${resource.toString()}`);
+		notification.dispose();
+		const reloadedService = new NotificationService();
+		store.add(new AgentHostSandboxNotification(resource, subscription, reloadedService));
+		assert.deepStrictEqual([...reloadedService.notifications.values()].map(notification => notification.sessionResources), [[resource]]);
 	});
 
 	test('clears the notice on subscription failure and restores it after reconnect', () => {
