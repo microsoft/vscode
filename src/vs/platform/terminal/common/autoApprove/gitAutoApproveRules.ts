@@ -16,12 +16,14 @@ export const gitAutoApproveRules: Readonly<Record<string, boolean>> = {
 	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+show\\b/': true,
 	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+show\\b.*\\s--output(=|\\s|$)/': false,
 	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+diff\\b.*\\s--[^\\w\\s]*o[^\\w\\s]*u[^\\w\\s]*t[^\\w\\s]*p[^\\w\\s]*u[^\\w\\s]*t[^\\w\\s]*(=|\\s|$)/': false,
 	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
 
 	// git grep
-	// - `--open-files-in-pager`: This is the configured pager, so no risk of code execution
-	// - See notes on `grep` in the terminal auto-approval configuration.
+	// - `-O`, `--open-files-in-pager`: May execute an external pager
 	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+grep\\b.*\\s(?-i:-[aIivwhHEGPFnlLqzco]*[^\\w\\s]*O\\S*)(\\s|$)/': false,
+	'/^git(\\s+(-(?-i:C)\\s+\\S+|--no-pager))*\\s+grep\\b.*\\s(?-i:--[^\\w\\s]*o[^\\w\\s]*p\\S*)(\\s|$)/': false,
 
 	// git branch
 	// - `-d`, `-D`, `--delete`: Prevent branch deletion

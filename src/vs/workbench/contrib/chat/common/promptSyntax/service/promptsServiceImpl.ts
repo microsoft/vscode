@@ -782,7 +782,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 					const hookWorkspaceFolder = this.workspaceService.getWorkspaceFolder(uri) ?? defaultFolder;
 					const workspaceRootUri = hookWorkspaceFolder?.uri;
 					const target = getTarget(PromptsType.agent, ast.header ?? promptPath.uri);
-					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target);
+					const plugin = promptPath.storage === PromptsStorage.plugin && promptPath.pluginUri
+						? this.agentPluginService.plugins.get().find(candidate => isEqual(candidate.uri, promptPath.pluginUri))
+						: undefined;
+					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target, plugin);
 				}
 				const extra = {
 					sessionTypes: promptPath.sessionTypes,

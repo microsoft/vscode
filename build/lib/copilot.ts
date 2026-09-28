@@ -118,6 +118,8 @@ function toCopilotPackagePlatformArch(platform: string, arch: string): string {
 }
 
 const copilotOptionalNativePayloadDirs = [
+	'builtin',
+	'builtin-skills',
 	'clipboard',
 	'foundry-local-sdk',
 	'mxc-bin',
@@ -233,9 +235,7 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
 
 	const packageDir = path.join(nodeModulesRoot, '@github', `copilot-sdk-${copilotPackagePlatformArch}`);
 	const requiredFiles = [
-		path.join('builtin-skills', 'customize-cloud-agent', 'SKILL.md'),
-		path.join('builtin-skills', 'github-pr-media', 'SKILL.md'),
-		'sdk/index.js',
+		'copilot-sdk/index.js',
 		path.join('prebuilds', copilotPackagePlatformArch, platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime'),
 		path.join('prebuilds', copilotPackagePlatformArch, 'runtime.node'),
 	];

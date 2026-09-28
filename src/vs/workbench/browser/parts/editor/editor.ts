@@ -29,6 +29,9 @@ export interface IEditorPartCreationOptions {
 export const DEFAULT_EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
 export const DEFAULT_EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
 
+export const CONNECTED_EDITOR_TABS_CLASS = 'modern-ui-connected-editor-tabs';
+export const CONNECTED_EDITOR_TABS_SELECTOR = `.${CONNECTED_EDITOR_TABS_CLASS}`;
+
 export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: 'multiple',
 	highlightModifiedTabs: false,

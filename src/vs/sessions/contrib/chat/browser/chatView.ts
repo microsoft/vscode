@@ -7,13 +7,15 @@ import './media/chatView.css';
 import './media/voiceChatView.css';
 import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -22,6 +24,7 @@ import { scrollbarShadow } from '../../../../platform/theme/common/colorRegistry
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
@@ -31,7 +34,12 @@ import { chatPersistentContentVisibleClass, ChatWidget, SESSIONS_CHAT_ITEM_HORIZ
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatModel, IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatRequestTextPart } from '../../../../workbench/contrib/chat/common/requestParser/chatParserTypes.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -55,6 +63,8 @@ import { SessionArchiveNudge } from './sessionArchiveNudge.js';
 import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
+import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 
@@ -106,7 +116,7 @@ export class NewChatView extends AbstractChatView {
 
 		this.element.classList.add('chat-view-new');
 		this.kind = isNewChatInSession ? 'newChatInSession' : 'newSession';
-		const widgetOptions = { ...options, petHostPreferred: this._isVisibleObs };
+		const widgetOptions = { ...options, inputVisible: this._isVisibleObs, petHostPreferred: this._isVisibleObs };
 		this._widget = this._register(isNewChatInSession
 			? instantiationService.createInstance(NewChatInSessionWidget, widgetOptions)
 			: instantiationService.createInstance(NewChatWidget, widgetOptions));
@@ -126,8 +136,24 @@ export class NewChatView extends AbstractChatView {
 		this._widget.focusInput();
 	}
 
+	override focusWorkspacePicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusWorkspacePicker();
+		}
+	}
+
+	override focusHarnessPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusHarnessPicker();
+		}
+	}
+
 	override selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
 		return this._widget instanceof NewChatWidget ? this._widget.selectWorkspace(folderUri, options) : 'notReady';
+	}
+
+	override applyDraft(draft: IAgentsWindowDraft, folderUri: URI | undefined, options: ISelectWorkspaceOptions, token: CancellationToken): Promise<WorkspaceSelectionResult> {
+		return this._widget instanceof NewChatWidget ? this._widget.applyDraft(draft, folderUri, options, token) : Promise.resolve('notReady');
 	}
 
 	override selectNoWorkspace(): void {
@@ -189,6 +215,7 @@ export class ChatView extends AbstractChatView {
 
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
+	private readonly _preparationModel = this._register(new MutableDisposable<ChatModel>());
 
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -211,6 +238,7 @@ export class ChatView extends AbstractChatView {
 	private _isActive = true;
 	/** Whether this view occupies the first group in the session's chat grid. */
 	private readonly _isPrimaryObs = observableValue(this, false);
+	private _isSplit = false;
 	/** Observable mirror of {@link _isActive} so the voice overlay can react. */
 	private readonly _isActiveObs = observableValue<boolean>(this, true);
 
@@ -227,7 +255,7 @@ export class ChatView extends AbstractChatView {
 	private readonly _voiceInitiatedHereKey: IContextKey<boolean>;
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
@@ -244,6 +272,8 @@ export class ChatView extends AbstractChatView {
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
@@ -286,6 +316,7 @@ export class ChatView extends AbstractChatView {
 			},
 			this._buildStyles(this._isActive)
 		));
+		this._widget.setMaximumWidth(AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
 		this._register(this._widget.onDidChangeStickyScrollDomNode(() => this._layoutStickyScrollBackground()));
 		this._register(this.chatBackgroundService.onDidChangeBackground(() => this._updateChatBackground()));
@@ -381,14 +412,34 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _setupTranscriptPreparationProgress(chatModel: IObservable<IChatModel | undefined>): void {
+		let lastPreparationMessage: string | undefined;
+		let lastPreparationModel: ChatModel | undefined;
 		this._register(autorun(reader => {
 			const resource = this._currentChatResourceObs.read(reader);
 			const session = this._currentSessionObs.read(reader);
+			const preparation = session?.preparationProgress?.read(reader);
 			const statusMessage = session
-				? getSessionStatusMessage(session.status.read(reader), session.description.read(reader))
+				? session.isNewSessionRequestInProgress?.read(reader)
+					? session.description.read(reader)
+					: getSessionStatusMessage(session.status.read(reader), session.description.read(reader))
 				: undefined;
 			const activity = typeof statusMessage === 'string' ? statusMessage : statusMessage ? renderAsPlaintext(statusMessage) : undefined;
 			const model = chatModel.read(reader);
+			const preparationModel = this._preparationModel.value;
+			if (preparationModel && preparation && (preparation.message !== lastPreparationMessage || preparationModel !== lastPreparationModel)) {
+				lastPreparationMessage = preparation.message;
+				lastPreparationModel = preparationModel;
+				preparationModel.acceptResponseProgress(preparationModel.getRequests()[0], {
+					kind: 'progressMessage',
+					id: 'sessionPreparation',
+					content: new MarkdownString().appendText(preparation.message),
+					shimmer: true,
+				});
+			}
+			if (!preparation) {
+				lastPreparationMessage = undefined;
+				lastPreparationModel = undefined;
+			}
 			let showProgress: boolean;
 			let requestCount = 0;
 			let visibleRequestCount = 0;
@@ -411,8 +462,10 @@ export class ChatView extends AbstractChatView {
 				showProgress = shouldShowTranscriptPreparationProgress(requestCount, visibleRequestCount, hiddenRequestIncomplete);
 			}
 			const showCompletion = shouldShowTranscriptPreparationCompletion(requestCount, visibleRequestCount, hiddenRequestState, readyMessage);
-			const progress = showCompletion ? readyMessage : getTranscriptProgress(showProgress, activity);
-			this._widget.setTranscriptProgress(progress, progress, showCompletion ? { complete: true } : undefined);
+			const progress = preparation?.message ?? (showCompletion ? readyMessage : getTranscriptProgress(showProgress, activity));
+			this._widget.setTranscriptProgress(progress, progress, preparation
+				? { detail: preparation.showLog ? { label: localize('sessionPreparation.showLog', "Show Log"), run: preparation.showLog } : undefined, onCancel: preparation.cancel, inTranscript: !!preparationModel }
+				: showCompletion ? { complete: true } : undefined);
 		}));
 	}
 
@@ -498,12 +551,38 @@ export class ChatView extends AbstractChatView {
 		this._currentChatResourceObs.set(resource, undefined);
 		this.logService.trace(`[ChatView] setChat start uri=${resource.toString()} session=${session?.resource.toString()}`);
 
-		this._loadChat(resource, session, previousChatResource, previousSession);
+		const preparationInput = session?.preparationProgress?.get() && this.sessionsManagementService.getInFlightNewSessionRequest(session.resource);
+		if (preparationInput) {
+			this._loadCts.value?.cancel();
+			this._showPreparationInput(preparationInput);
+			this._setLoading(false);
+			this._layoutChatWidget();
+		} else {
+			this._preparationModel.clear();
+			this._loadChat(resource, session, previousChatResource, previousSession);
+		}
+	}
+
+	private _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>): void {
+		// This view owns the model; do not register or persist it as a chat session.
+		const model = this.instantiationService.createInstance(ChatModel, undefined, {
+			initialLocation: ChatAgentLocation.Chat,
+			canUseTools: false,
+			disableBackgroundKeepAlive: true,
+			isReadOnly: constObservable(true),
+		});
+		this._preparationModel.value = model;
+		const lines = input.query.split('\n');
+		model.addRequest({
+			text: input.query,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, input.query.length), new Range(1, 1, lines.length, lines.at(-1)!.length + 1), input.query)],
+		}, { variables: input.attachedContext ?? [] }, 0);
+		this._widget.setModel(model);
 	}
 
 	private _retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void {
 		const resource = this._currentChatResource;
-		if (!resource || this._modelRef.value || !addedSessionTypes.includes(getChatSessionType(resource))) {
+		if (!resource || this._modelRef.value || this._preparationModel.value || !addedSessionTypes.includes(getChatSessionType(resource))) {
 			return;
 		}
 		this._loadChat(resource, this._currentSessionObs.get());
@@ -589,6 +668,9 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _saveCurrentViewState(): void {
+		if (this._preparationModel.value) {
+			return;
+		}
 		const resource = this._widget.viewModel?.sessionResource;
 		if (resource) {
 			this.viewStateService.set(resource, this._widget.getViewState());
@@ -609,6 +691,9 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _reportModelUnbound(): void {
+		if (this._preparationModel.value) {
+			return;
+		}
 		const session = this._currentSessionObs.get();
 		if (session && this._currentChatResource) {
 			this.sessionOpenTelemetryService.modelUnbound(session.resource, this._currentChatResource);
@@ -754,12 +839,21 @@ export class ChatView extends AbstractChatView {
 	}
 
 	override attach(uris: URI[]): void {
+		if (this._widget.isTranscriptProgressActive) {
+			this.notificationService.info(localize('sessionPreparation.attachUnavailable', "Wait for session preparation to finish before adding attachments."));
+			return;
+		}
 		for (const uri of uris) {
 			this._widget.attachmentModel.addFile(uri).catch(err => this.logService.error('[ChatView] Failed to attach file as context', err));
 		}
 	}
 
-	override setPrimary(primary: boolean): void {
+	override setPrimary(primary: boolean, split = false): void {
+		if (this._isSplit !== split) {
+			this._isSplit = split;
+			this._widget.setMaximumWidth(split ? Number.POSITIVE_INFINITY : AGENTS_CENTERED_CONTENT_MAX_WIDTH);
+			this._layoutChatWidget();
+		}
 		if (this._isPrimaryObs.get() === primary) {
 			return;
 		}

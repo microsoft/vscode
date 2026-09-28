@@ -82,6 +82,11 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly modelId?: string;
 	/**
+	 * Optional model-specific primitive values to scope to this session.
+	 * Requires {@link modelId} and provider support.
+	 */
+	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
+	/**
 	 * Optional chat mode identifier (typically a value from `ChatModeKind`)
 	 * to apply via {@link ISessionsProvider.setMode}. Skipped if the
 	 * provider does not implement the setter.
@@ -121,9 +126,9 @@ export interface ICreateNewSessionOptions {
 	readonly worktreeCreateNewBranch?: boolean;
 	/**
 	 * Invoked after the provider creates the provisional session, before its
-	 * configuration and first request are applied.
+	 * configuration and first request are applied. Asynchronous preparation is awaited.
 	 */
-	readonly onSessionCreated?: (session: ISession) => void;
+	readonly onSessionCreated?: (session: ISession) => void | Promise<void>;
 }
 
 /**
@@ -248,6 +253,9 @@ export interface ISessionsManagementService {
 	 * Get new sessions whose first request is still being prepared or sent.
 	 */
 	getInFlightNewSessionRequests(): readonly ISession[];
+
+	/** The submitted input while a new session is being prepared, without committing chat history. */
+	getInFlightNewSessionRequest(resource: URI): Pick<ISendRequestOptions, 'query' | 'attachedContext'> | undefined;
 
 	/**
 	 * Get a session by its resource URI.
@@ -538,8 +546,17 @@ export interface ISessionsManagementService {
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;
 
+	/** Permanently imports an external session through its provider without sending a message. */
+	importSession(session: ISession): Promise<void>;
+
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
+
+	/** Archive a chat independently of its owning session. */
+	archiveChat(session: ISession, chat: IChat): Promise<void>;
+
+	/** Unarchive a chat independently of its owning session. */
+	unarchiveChat(session: ISession, chat: IChat): Promise<void>;
 
 	/**
 	 * Mark a session as read or unread through its provider, which owns and
@@ -568,8 +585,8 @@ export interface ISessionsManagementService {
 	 */
 	deleteSessions(sessions: readonly ISession[]): Promise<void>;
 
-	/** Delete a single chat from a session by its URI. */
-	deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<void>;
+	/** Delete a single chat from a session by its URI, returning whether it was deleted. */
+	deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean>;
 
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;

@@ -345,6 +345,32 @@ suite('PolicyConfiguration', () => {
 		assert.deepStrictEqual(actual.keys, ['policy.orphanReferenceSetting']);
 	});
 
+	test('initialize: nullable boolean reference preserves an explicit false policy and an unset default', async () => {
+		const reference: IConfigurationNode = {
+			id: '_test_nullable_policy_reference',
+			properties: {
+				'policy.nullableReference': {
+					type: ['boolean', 'null'],
+					default: null,
+					policyReference: { name: 'PolicyShared' },
+				},
+			},
+		};
+		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		registry.registerConfiguration(reference);
+		try {
+			await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ PolicyShared: false })));
+			await testObject.initialize();
+			assert.deepStrictEqual({
+				defaultValue: defaultConfiguration.configurationModel.getValue('policy.nullableReference'),
+				policyValue: testObject.configurationModel.getValue('policy.nullableReference'),
+				policyType: policyService.policyDefinitions.PolicyShared.type,
+			}, { defaultValue: null, policyValue: false, policyType: 'boolean' });
+		} finally {
+			registry.deregisterConfigurations([reference]);
+		}
+	});
+
 	test('initialize: the owner definition is authoritative; a reference only contributes the policy name', async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyShared': false })));
 

@@ -40,6 +40,24 @@ const LINE_COLUMN_REGEX = /:(?:line\s+)?([\d]+)(?::([\d]+))?$/;
 
 const MAX_LENGTH = 2000;
 
+/**
+ * Converts a `file:` URI detected in console output into a URI that can be
+ * handed to the file and editor services.
+ *
+ * Going through the file system path is needed because the raw URI may carry a
+ * path that is not directly usable, see https://github.com/microsoft/vscode/issues/109076.
+ * The result must be built with `URI.file` rather than `URI.parse`: a file
+ * system path is not a URI, and `URI.parse('c:/foo/bar.js')` reads the drive
+ * letter as the scheme, which left every `file:` link with a drive letter
+ * unopenable (https://github.com/microsoft/vscode/issues/334283).
+ */
+export function fileLinkToUri(uri: URI, pathSeparator: string): URI {
+	const fsPath = uri.fsPath;
+	return URI.file(osPath.normalize(
+		((pathSeparator === osPath.posix.sep) && platform.isWindows) ? fsPath.replace(/\\/g, osPath.posix.sep) : fsPath
+	));
+}
+
 type LinkKind = 'web' | 'path' | 'text';
 type LinkPart = {
 	kind: LinkKind;
@@ -233,19 +251,16 @@ export class LinkDetector implements ILinkDetector {
 		if (lineCol) {
 			uri = uri.with({
 				path: uri.path.slice(0, lineCol.index),
-				fragment: `L${lineCol[0].slice(1)}`
+				// `L<line>,<column>` so that the fragment stays parseable by `extractSelection`
+				fragment: `L${lineCol[1]}${lineCol[2] ? `,${lineCol[2]}` : ''}`
 			});
 		}
 
 		this.decorateLink(link, uri, fulltext, hoverBehavior, async () => {
 
 			if (uri.scheme === Schemas.file) {
-				// Just using fsPath here is unsafe: https://github.com/microsoft/vscode/issues/109076
-				const fsPath = uri.fsPath;
 				const path = await this.pathService.path;
-				const fileUrl = osPath.normalize(((path.sep === osPath.posix.sep) && platform.isWindows) ? fsPath.replace(/\\/g, osPath.posix.sep) : fsPath);
-
-				const fileUri = URI.parse(fileUrl);
+				const fileUri = fileLinkToUri(uri, path.sep);
 				const exists = await this.fileService.exists(fileUri);
 				if (!exists) {
 					return;

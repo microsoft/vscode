@@ -44,12 +44,13 @@ function isSafeRedirectDestination(dest: string, isPowerShell?: boolean): boolea
 	if (isPowerShell && cleaned.toLowerCase() === '$null') {
 		return true;
 	}
-	if ((cleaned.startsWith(`'`) && cleaned.endsWith(`'`)) ||
-		(cleaned.startsWith('"') && cleaned.endsWith('"'))) {
+	const isQuoted = (cleaned.startsWith(`'`) && cleaned.endsWith(`'`)) ||
+		(cleaned.startsWith('"') && cleaned.endsWith('"'));
+	if (isQuoted) {
 		cleaned = cleaned.slice(1, -1);
 	}
 	// File-descriptor duplication: `&N`, optionally followed by `-` to close.
-	if (/^&[0-9]+-?$/.test(cleaned)) {
+	if (!isQuoted && /^&[0-9]+-?$/.test(cleaned)) {
 		return true;
 	}
 	// PowerShell uses `$null` as its null sink. In particular, `/dev/null`
@@ -81,6 +82,10 @@ function classifyFileRedirect(redirectText: string, isPowerShell?: boolean): Fil
 	const rawDest = destMatch[1].trim();
 	if (isSafeRedirectDestination(rawDest, isPowerShell)) {
 		return { kind: 'safeWrite' };
+	}
+	const fullyQuoted = /^'[^']*'$/.test(rawDest) || /^"(?:[^"\\]|\\.)*"$/.test(rawDest);
+	if (/[*?\[]/.test(rawDest) && (isPowerShell || !fullyQuoted)) {
+		return { kind: 'unsafeWrite', dest: undefined };
 	}
 	let dest = rawDest;
 	if ((dest.startsWith(`'`) && dest.endsWith(`'`)) ||
@@ -636,8 +641,11 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 
 	// Safe lockfile-only installs
 	'npm ci': true,
+	'/^npm\\s+ci\\s+\\S/': false,
 	'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+	'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
 	'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+	'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
 
 	// Safe commands with dangerous arg blocking
 	column: true,

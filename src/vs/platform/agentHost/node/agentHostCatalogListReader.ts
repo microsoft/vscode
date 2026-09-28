@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Limiter } from '../../../base/common/async.js';
 import { AgentSession, type IAgentSessionMetadata } from '../common/agent.js';
-import { SessionStatus, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
+import { ChatOriginKind } from '../common/state/protocol/state.js';
+import { isSubagentChatUri, SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
+import { fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
 import type { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
 
@@ -17,63 +20,102 @@ export type AgentHostCatalogListResult =
 	 * hidden and must never fall back into the top-level list.
 	 */
 	| { readonly eligible: false; readonly chatBacking: true }
-	/** The central row is missing, stale or unusable; the caller falls back and schedules a repair. */
+	/** The central row is missing, stale, unusable, or unreadable; the caller falls back and repairs only non-read failures. */
 	| { readonly eligible: false; readonly chatBacking: false; readonly detail: string; readonly error?: Error };
+
+export type AgentHostCatalogListManyResult = {
+	readonly results: readonly AgentHostCatalogListResult[];
+	readonly bulkReadError?: undefined;
+} | {
+	readonly results: readonly AgentHostCatalogListResult[];
+	readonly bulkReadError: Error;
+	readonly fallbackReadCount: number;
+	readonly fallbackRecoveredRowCount: number;
+	readonly fallbackReadFailureCount: number;
+	readonly fallbackDurationMs: number;
+};
 
 /**
  * Eligibility boundary between the `sessions_v2` catalog and the session list:
  * it checks that a stored row still describes the registered session, then
- * hands the payload's own decoded data to the caller without re-parsing it.
+ * hands sanitized decoded data to every catalog consumer.
  */
 export class AgentHostCatalogListReader {
 
 	constructor(private readonly _catalogDatabase: IAgentHostDatabase) { }
 
 	async read(registered: IRegisteredSession): Promise<AgentHostCatalogListResult> {
-		const session = registered.session.toString();
 		try {
-			const catalog = await this._catalogDatabase.getSessionV2(session);
-			if (!catalog) {
-				return ineligible('no central row');
-			}
-			if (catalog.session !== session) {
-				return ineligible(`central row identity ${catalog.session} does not match`);
-			}
-			if (catalog.isChatBacking) {
-				return { eligible: false, chatBacking: true };
-			}
-			if (AgentSession.provider(registered.session) !== registered.provider || catalog.provider !== registered.provider) {
-				return ineligible(`central row provider ${catalog.provider} does not match ${registered.provider}`);
-			}
-			if (catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
-				return ineligible(`central row payload version ${catalog.payloadVersion} is outdated`);
-			}
-			const decoded = decodeAgentHostCatalogPayload(catalog.payload);
-			if (!decoded.ok) {
-				return ineligible(`central payload is ${decoded.reason}: ${decoded.error}`);
-			}
-			// A payload can only become chat-backing through a write that also
-			// updates the row marker, but an inconsistent row must still hide
-			// the session rather than surface a backing as a top-level entry.
-			if (decoded.value.data.isChatBacking) {
-				return { eligible: false, chatBacking: true };
-			}
-			const data = reviveAgentHostCatalogData(decoded.value.data);
-			return { eligible: true, metadata: this._toSessionMetadata(registered, data), data };
+			return this._read(registered, await this._catalogDatabase.getSessionV2(registered.session.toString()));
 		} catch (error) {
+			return readFailed(error);
+		}
+	}
+
+	async readMany(registeredSessions: readonly IRegisteredSession[]): Promise<AgentHostCatalogListManyResult> {
+		if (registeredSessions.length === 0) {
+			return { results: [] };
+		}
+		try {
+			const sessions = registeredSessions.map(registered => registered.session.toString());
+			const catalogBySession = new Map((await this._catalogDatabase.listSessionsV2(sessions)).map(catalog => [catalog.session, catalog]));
+			return { results: registeredSessions.map(registered => this._read(registered, catalogBySession.get(registered.session.toString()))) };
+		} catch (error) {
+			const bulkReadError = toError(error);
+			const fallbackStartedAt = Date.now();
+			const limiter = new Limiter<AgentHostCatalogListResult>(4);
+			const results = await Promise.all(registeredSessions.map(registered => limiter.queue(() => this.read(registered))));
 			return {
-				eligible: false,
-				chatBacking: false,
-				detail: 'central row read failed',
-				error: error instanceof Error ? error : new Error(String(error)),
+				results,
+				bulkReadError,
+				fallbackReadCount: registeredSessions.length,
+				fallbackRecoveredRowCount: results.filter(result => result.eligible || result.chatBacking).length,
+				fallbackReadFailureCount: results.filter(result => !result.eligible && !result.chatBacking && result.error !== undefined).length,
+				fallbackDurationMs: Date.now() - fallbackStartedAt,
 			};
 		}
+	}
+
+	private _read(registered: IRegisteredSession, catalog: Awaited<ReturnType<IAgentHostDatabase['getSessionV2']>>): AgentHostCatalogListResult {
+		const session = registered.session.toString();
+		if (!catalog) {
+			return ineligible('no central row');
+		}
+		if (catalog.session !== session) {
+			return ineligible(`central row identity ${catalog.session} does not match`);
+		}
+		if (catalog.isChatBacking) {
+			return { eligible: false, chatBacking: true };
+		}
+		if (AgentSession.provider(registered.session) !== registered.provider || catalog.provider !== registered.provider) {
+			return ineligible(`central row provider ${catalog.provider} does not match ${registered.provider}`);
+		}
+		if (catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+			return ineligible(`central row payload version ${catalog.payloadVersion} is outdated`);
+		}
+		const decoded = decodeAgentHostCatalogPayload(catalog.payload);
+		if (!decoded.ok) {
+			return ineligible(`central payload is ${decoded.reason}: ${decoded.error}`);
+		}
+		// A payload can only become chat-backing through a write that also
+		// updates the row marker, but an inconsistent row must still hide
+		// the session rather than surface a backing as a top-level entry.
+		if (decoded.value.data.isChatBacking) {
+			return { eligible: false, chatBacking: true };
+		}
+		const revivedData = reviveAgentHostCatalogData(decoded.value.data);
+		const data = {
+			...revivedData,
+			chats: revivedData.chats.filter(chat => !isSubagentChatUri(chat.uri) && fromCatalogChatOrigin(chat.origin)?.kind !== ChatOriginKind.Tool),
+		};
+		return { eligible: true, metadata: this._toSessionMetadata(registered, data), data };
 	}
 
 	private _toSessionMetadata(registered: IRegisteredSession, data: AgentHostCatalogRevivedData): IAgentSessionMetadata {
 		let status = withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsRead, data.isRead);
 		status = withSessionStatusFlag(status, SessionStatus.IsArchived, data.isArchived);
-		const meta = withSessionExternal(data._meta, registered.external);
+		// Payloads written by earlier versions record the session folder's GitHub state on its own.
+		const meta = withSessionExternal(withMigratedSessionGitHubState(data._meta, data.workingDirectories[0]?.toString()), registered.external);
 		return {
 			session: registered.session,
 			startTime: registered.startTime,
@@ -85,6 +127,14 @@ export class AgentHostCatalogListReader {
 			project: data.project,
 			workingDirectories: [...data.workingDirectories],
 			changes: data.changes,
+			chats: data.chats.map(chat => ({
+				chat: chat.uri,
+				summary: chat.summary,
+				kind: chat.kind,
+				origin: fromCatalogChatOrigin(chat.origin),
+				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+				...(chat.archived === true ? { archived: true } : {}),
+			})),
 			...(meta !== undefined ? { _meta: meta } : {}),
 		};
 	}
@@ -92,4 +142,17 @@ export class AgentHostCatalogListReader {
 
 function ineligible(detail: string): AgentHostCatalogListResult {
 	return { eligible: false, chatBacking: false, detail };
+}
+
+function readFailed(error: unknown): AgentHostCatalogListResult {
+	return {
+		eligible: false,
+		chatBacking: false,
+		detail: 'central row read failed',
+		error: toError(error),
+	};
+}
+
+function toError(error: unknown): Error {
+	return error instanceof Error ? error : new Error(String(error));
 }

@@ -12,6 +12,9 @@ import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -22,7 +25,7 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
-import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider } from '../../../../../services/authentication/common/authentication.js';
+import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider, type IAuthenticationProviderSessionOptions } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
 import { AgentHostAuthenticationRecovery, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
@@ -62,6 +65,7 @@ function createAuthInstantiationService(disposables: Pick<DisposableStore, 'add'
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	return instantiationService;
 }
 
@@ -926,6 +930,61 @@ suite('resolveMcpServerAuthentication', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('preserves OAuth context when selecting an account', async () => {
+		const authorizationServer = URI.parse('https://issuer.example/tenant');
+		const resource = 'https://resource.example/mcp';
+		const oauthClient = { clientId: 'client-a', clientSecret: 'client-secret' };
+		const session: AuthenticationSession = {
+			id: 'session', accessToken: 'token', account: { id: 'account', label: 'Account' }, scopes: ['read']
+		};
+		const selections: (IAuthenticationProviderSessionOptions | undefined)[] = [];
+		const authService = createMockAuthService({
+			isDynamicAuthenticationProvider: () => true,
+			getSessions: async () => [session],
+			getProvider: () => new class extends mock<IAuthenticationProvider>() {
+				override readonly supportsMultipleAccounts = true;
+			}(),
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, authService);
+		instantiationService.stub(IAuthenticationMcpAccessService, {
+			isAccessAllowedForUrl: () => false,
+			updateAllowedMcpServers: () => { },
+		});
+		instantiationService.stub(IAuthenticationMcpService, {
+			getAccountPreference: () => undefined,
+			updateAccountPreference: () => { },
+			selectSession: async (_providerId, _serverId, _serverName, _scopes, _sessions, options) => {
+				selections.push(options);
+				return session;
+			},
+		});
+		instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+			getClientRegistration: async () => oauthClient,
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+
+		const authenticated = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+			resource,
+			authorization_servers: [authorizationServer.toString(true)],
+		}, {
+			allowInteraction: true,
+			logPrefix: '[Test]',
+			mcpServerId: 'server',
+			mcpServerName: 'Server',
+			mcpServerUrl: resource,
+			oauthClient,
+			scopes: ['read'],
+			authenticate: async () => { },
+		});
+
+		assert.deepStrictEqual({ authenticated, selections }, {
+			authenticated: true,
+			selections: [{ authorizationServer, resource, ...oauthClient }]
+		});
+	});
+
 	test('uses challenge scopes without replacing the protected resource scope catalog', async () => {
 		const requestedScopes: (readonly string[] | undefined)[] = [];
 		const authService = createMockAuthService({
@@ -1560,6 +1619,122 @@ suite('authenticateProtectedResources', () => {
 	});
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const enabled of [undefined, false, true]) {
+		test(`connector-scoped authentication preference is experiment gated: ${enabled}`, async () => {
+			const account = { id: 'active-account', label: 'Active' };
+			const scopes = ['read:user', 'user:email'];
+			const current: AuthenticationSession = { id: 'current', accessToken: 'current-token', account, scopes };
+			const authorized: AuthenticationSession = {
+				id: 'authorized', accessToken: 'authorized-token', account, scopes: [...scopes, 'write:plugin_gateway_connections'],
+			};
+			const lookups: { scopes: string[] | undefined; accountId: string | undefined; silent: boolean | undefined }[] = [];
+			const authService = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: async (_providerId, requested, options: IAuthenticationProviderSessionOptions) => {
+					lookups.push({ scopes: requested, accountId: options.account?.id, silent: options.silent });
+					return requested ? [current] : [
+						{ ...authorized, id: 'another-account', accessToken: 'another-token', account: { id: 'other', label: 'Other' } },
+						{ ...authorized, id: 'broader', accessToken: 'broader-token', scopes: [...authorized.scopes, 'repo'] },
+						authorized,
+						current,
+					];
+				},
+			});
+			const commandService = new TestCommandService();
+			const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: enabled,
+			}));
+			const agents = [new class extends mock<AgentInfo>() {
+				override readonly protectedResources = [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], scopes_supported: scopes }];
+			}()];
+			const tokens: string[] = [];
+			await instantiationService.invokeFunction(authenticateProtectedResources, agents, {
+				logPrefix: '[AgentHost]',
+				authenticate: async request => { tokens.push(request.token); },
+			});
+			assert.deepStrictEqual({ tokens, lookups, prompts: commandService.calls }, {
+				tokens: [enabled ? 'authorized-token' : 'current-token'],
+				lookups: [
+					{ scopes, accountId: undefined, silent: undefined },
+					...(enabled ? [{ scopes: undefined, accountId: account.id, silent: true }] : []),
+				],
+				prompts: [],
+			});
+		});
+	}
+
+	test('a connector authorization upgrade replaces the token forwarded to a running agent host', async () => {
+		const account = { id: 'active-account', label: 'Active' };
+		const scopes = ['read:user', 'user:email'];
+		const current: AuthenticationSession = { id: 'current', accessToken: 'current-token', account, scopes };
+		const authorized: AuthenticationSession = {
+			id: 'authorized', accessToken: 'authorized-token', account, scopes: [...scopes, 'write:plugin_gateway_connections'],
+		};
+		let sessions: readonly AuthenticationSession[] = [current];
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, requested) => requested ? [current] : sessions,
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+		}));
+		const agents = [new class extends mock<AgentInfo>() {
+			override readonly protectedResources = [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], scopes_supported: scopes }];
+		}()];
+		const tokens: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { tokens.push(request.token); },
+		};
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		sessions = [current, authorized];
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		assert.deepStrictEqual(tokens, ['current-token', 'authorized-token']);
+	});
+
+	for (const alternative of ['other-account', 'missing-base-scope', 'rejected', 'lookup-failed']) {
+		test(`connector preference retains usable Copilot authentication for ${alternative}`, async () => {
+			const account = { id: 'active-account', label: 'Active' };
+			const scopes = ['read:user', 'user:email'];
+			const current: AuthenticationSession = { id: 'current', accessToken: 'current-token', account, scopes };
+			const authorized: AuthenticationSession = {
+				id: 'authorized', accessToken: 'authorized-token',
+				account: alternative === 'other-account' ? { id: 'other', label: 'Other' } : account,
+				scopes: [...(alternative === 'missing-base-scope' ? [] : scopes), 'write:plugin_gateway_connections'],
+			};
+			const authService = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: async (_providerId, requested) => {
+					if (!requested && alternative === 'lookup-failed') {
+						throw new Error('Provider unavailable');
+					}
+					return requested ? [current] : [current, authorized];
+				},
+			});
+			const commandService = new TestCommandService();
+			const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+			}));
+			const resource = { resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], scopes_supported: scopes };
+			const agents = [new class extends mock<AgentInfo>() { override readonly protectedResources = [resource]; }()];
+			const cache = new AgentHostAuthTokenCache();
+			if (alternative === 'rejected') {
+				cache.rejectSession(resource.resource, scopes, authorized);
+			}
+			const tokens: string[] = [];
+			await instantiationService.invokeFunction(authenticateProtectedResources, agents, {
+				authTokenCache: cache, logPrefix: '[AgentHost]',
+				authenticate: async request => { tokens.push(request.token); },
+			});
+			assert.deepStrictEqual({ tokens, prompts: commandService.calls }, { tokens: ['current-token'], prompts: [] });
+		});
+	}
 
 	test('skips authenticate when the cached token is unchanged', async () => {
 		const authService = createMockAuthService({

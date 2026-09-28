@@ -69,7 +69,7 @@ registerAction2(class CopyAgentHostChatLinkAction extends Action2 {
 			title: localize2('copyAgentHostChatLink', "Copy Link"),
 			menu: [{
 				id: Menus.SessionChatItemContext,
-				group: '2_copy',
+				group: '3_copy',
 				order: 1,
 				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}],

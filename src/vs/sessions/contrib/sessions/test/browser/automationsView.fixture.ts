@@ -94,7 +94,9 @@ class FixtureAutomationService extends mock<IAutomationService>() {
 		this.unavailableProviders = constObservable(unavailableProviders);
 	}
 
-	override async deleteRun(): Promise<void> { }
+	override canRunAutomation(): boolean { return true; }
+	override canUpdateAutomation(): boolean { return true; }
+	override canDeleteAutomation(): boolean { return true; }
 }
 
 class FixtureSessionsManagementService extends mock<ISessionsManagementService>() {
@@ -135,8 +137,6 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 					: run.status === 'completed'
 						? SessionStatus.Completed
 						: SessionStatus.InProgress),
-				changesets: constObservable([]),
-				changes: constObservable([]),
 				modelId: constObservable(undefined),
 				mode: constObservable(undefined),
 				loading: constObservable(false),
@@ -144,7 +144,10 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 				description: constObservable(undefined),
 				lastTurnEnd: constObservable(undefined),
 				chats: constObservable<readonly IChat[]>([]),
-				mainChat: constObservable(new class extends mock<IChat>() { }()),
+				mainChat: constObservable(upcastPartial<IChat>({
+					changes: constObservable([]),
+					changesets: constObservable([]),
+				})),
 			}));
 		}
 	}
@@ -414,6 +417,5 @@ function createRun(id: string, automationId: string, status: IAutomationRun['sta
 		startedAt: startedAt.toISOString(),
 		completedAt: status === 'completed' || status === 'failed' ? startedAt.toISOString() : undefined,
 		errorMessage,
-		leaderWindowId: 1,
 	};
 }

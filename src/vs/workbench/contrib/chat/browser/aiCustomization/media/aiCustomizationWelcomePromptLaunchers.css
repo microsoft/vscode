@@ -21,8 +21,8 @@
 
 .ai-customization-management-editor .welcome-prompts-inner {
 	margin: 0 auto;
-	max-width: 840px;
-	padding: var(--vscode-spacing-size240) var(--vscode-spacing-size200) var(--vscode-spacing-size320);
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
+	padding: 0 0 var(--vscode-spacing-size320);
 	box-sizing: border-box;
 }
 

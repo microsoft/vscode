@@ -87,6 +87,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../platform/opener/test/common/nullOpenerService.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { IApplicationSharedStorageValueChangeEvent, IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageEntry, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../platform/telemetry/common/telemetryUtils.js';
@@ -777,6 +778,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		getVisibleResolvedFeedbackIds: () => new Set(),
 		hasLoadedFeedback: () => true,
 		getSessionForFile: () => undefined,
+		getChatChanges: () => [],
 		getFeedbackSessionResource: () => undefined,
 		registerFeedbackResourceScope: () => toDisposable(() => { }),
 		getMostRecentSessionForResource: () => undefined,
@@ -872,6 +874,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
  * Use with createEditorServices additionalServices option.
  */
 export function registerWorkbenchServices(registration: ServiceRegistration): void {
+	registration.defineInstance(IManagedSettingsService, new NullManagedSettingsService());
 	registration.defineInstance(IContextMenuService, {
 		showContextMenu: () => { },
 		onDidShowContextMenu: () => ({ dispose: () => { } }),
@@ -966,7 +969,7 @@ export function createTextModel(
 
 export interface ThemedFixtureGroupLabels {
 	readonly kind?: 'screenshot' | 'animated';
-	readonly blocksCi?: true;
+	readonly blocksCi?: boolean;
 	readonly flaky?: true;
 }
 
@@ -1055,14 +1058,7 @@ if (logOutsideTime) {
 let fixtureRenderCounter = 0;
 let sourceMapsInitialized = false;
 
-/**
- * Creates selected color-theme variants (Dark and Light by default), with optional additional theme variants.
- * The render function receives a context with container and disposableStore.
- *
- * Note: If render returns a Promise, the async work will run in background.
- * Component-explorer waits 2 animation frames after sync render returns,
- * which should be sufficient for most async setup, but timing is not guaranteed.
- */
+/** Creates themed fixtures, awaiting the render promise and virtual-time layout before reporting readiness. */
 export function defineComponentFixture(options: ComponentFixtureOptions): ThemedFixtures {
 	const createFixture = (themeVariant: ComponentFixtureThemeVariant) => defineFixture({
 		isolation: 'none',
