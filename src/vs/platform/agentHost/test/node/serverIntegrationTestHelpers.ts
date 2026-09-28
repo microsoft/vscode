@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, fork } from 'child_process';
-import type { IProcessInfo } from '@vscode/windows-process-tree';
+import { ChildProcess, execFile, fork } from 'child_process';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
 import { DeferredPromise, Promises, raceTimeout, retry } from '../../../../base/common/async.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
-import { mkdirSync } from 'fs';
+import { appendFileSync, mkdirSync } from 'fs';
 import { userInfo } from 'os';
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
@@ -669,10 +668,38 @@ interface IServerDescendant {
 	readonly pid: number;
 	readonly name: string;
 	readonly commandLine: string;
+	readonly creationTime: string;
 }
 
-export function collectServerDescendants(pid: number, processList: readonly IProcessInfo[]): IServerDescendant[] {
-	const childrenByParent = new Map<number, IProcessInfo[]>();
+interface IWindowsProcessInfo {
+	readonly pid: number;
+	readonly ppid: number;
+	readonly name: string;
+	readonly commandLine: string | null;
+	readonly creationTime: string | null;
+}
+
+let serverCleanupLogPath: string | undefined;
+
+function logServerCleanup(pid: number | undefined, message: string): void {
+	if (!serverCleanupLogPath) {
+		const directory = resolvePath(process.cwd(), '.build', 'logs', 'integration-tests');
+		mkdirSync(directory, { recursive: true });
+		serverCleanupLogPath = resolvePath(directory, `agent-host-cleanup-${process.pid}.log`);
+	}
+	const entry = `[agent-host-cleanup ${new Date().toISOString()}] runner=${process.pid} server=${pid}: ${message}\n`;
+	// Windows Electron renderers do not forward stdout, so retain diagnostics in the CI logs artifact too.
+	appendFileSync(serverCleanupLogPath, entry);
+	process.stdout.write(entry);
+}
+
+export function collectServerDescendants(pid: number, processList: readonly IWindowsProcessInfo[]): IServerDescendant[] {
+	const root = processList.find(process => process.pid === pid);
+	if (!root?.creationTime) {
+		throw new Error(`Cannot determine creation time of Agent Host test server ${pid}`);
+	}
+	logServerCleanup(pid, `Snapshot root: name=${root.name} creationTime=${root.creationTime}`);
+	const childrenByParent = new Map<number, IWindowsProcessInfo[]>();
 	for (const process of processList) {
 		let children = childrenByParent.get(process.ppid);
 		if (!children) {
@@ -684,41 +711,68 @@ export function collectServerDescendants(pid: number, processList: readonly IPro
 
 	const descendants: IServerDescendant[] = [];
 	const visited = new Set([pid]);
-	const collectDescendants = (parentPid: number): void => {
+	const collectDescendants = (parentPid: number, parentCreationTime: string): void => {
 		for (const process of childrenByParent.get(parentPid) ?? []) {
 			if (visited.has(process.pid)) {
 				continue;
 			}
 			visited.add(process.pid);
-			// Prune protected system branches that stale PPIDs can attach to a reused server PID.
-			if (!process.commandLine) {
+			// Windows retains a dead parent's PID, which may now belong to an unrelated, younger process.
+			if (!process.commandLine || !process.creationTime || BigInt(process.creationTime) < BigInt(parentCreationTime)) {
+				logServerCleanup(pid, `Pruned branch: pid=${process.pid} ppid=${process.ppid} name=${process.name} creationTime=${process.creationTime} parentCreationTime=${parentCreationTime} readableCommandLine=${!!process.commandLine}`);
 				continue;
 			}
-			descendants.push({ pid: process.pid, name: process.name, commandLine: process.commandLine });
-			collectDescendants(process.pid);
+			descendants.push({ pid: process.pid, name: process.name, commandLine: process.commandLine, creationTime: process.creationTime });
+			collectDescendants(process.pid, process.creationTime);
 		}
 	};
-	collectDescendants(pid);
+	collectDescendants(pid, root.creationTime);
 	return descendants;
+}
+
+let pendingWindowsProcessList: Promise<IWindowsProcessInfo[]> | undefined;
+
+function getWindowsProcessList(): Promise<IWindowsProcessInfo[]> {
+	// Share concurrent identity checks, but never retain a snapshot after its query completes.
+	return pendingWindowsProcessList ??= readWindowsProcessList().finally(() => { pendingWindowsProcessList = undefined; });
+}
+
+async function readWindowsProcessList(): Promise<IWindowsProcessInfo[]> {
+	const { stdout } = await promisify(execFile)(
+		resolvePath(process.env['WINDIR'] || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+		['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', `
+			$ErrorActionPreference = 'Stop'
+			[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+			$processes = @(Get-CimInstance Win32_Process | ForEach-Object {
+				@{
+					pid = [int]$_.ProcessId
+					ppid = [int]$_.ParentProcessId
+					name = $_.Name
+					commandLine = $_.CommandLine
+					creationTime = if ($null -ne $_.CreationDate) { $_.CreationDate.ToFileTimeUtc().ToString() } else { $null }
+				}
+			})
+			ConvertTo-Json -InputObject $processes -Compress
+		`],
+		{ windowsHide: true, timeout: SERVER_SHUTDOWN_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+	);
+	return JSON.parse(stdout);
 }
 
 async function getServerDescendants(pid: number): Promise<IServerDescendant[]> {
 	if (!isWindows) {
 		return [];
 	}
-	// Once the parent exits, taskkill /T can no longer discover its descendants.
-	const { getProcessList, ProcessDataFlag } = await import('@vscode/windows-process-tree');
-	const processList = await promisify(getProcessList)(pid, ProcessDataFlag.CommandLine);
-	return collectServerDescendants(pid, processList);
+	return collectServerDescendants(pid, await getWindowsProcessList());
+}
+
+export function isSameServerProcess(descendant: IServerDescendant, processList: readonly IWindowsProcessInfo[]): boolean {
+	const process = processList.find(process => process.pid === descendant.pid);
+	return process?.name === descendant.name && process.commandLine === descendant.commandLine && process.creationTime === descendant.creationTime;
 }
 
 async function isSameWindowsProcessRunning(descendant: IServerDescendant): Promise<boolean> {
-	const { getProcessList, ProcessDataFlag } = await import('@vscode/windows-process-tree');
-	// Signal 0 requires termination access on Windows and can report EPERM while a process exits.
-	return new Promise(resolve => getProcessList(descendant.pid, processList => {
-		const process = processList?.find(process => process.pid === descendant.pid);
-		resolve(process?.name === descendant.name && process.commandLine === descendant.commandLine);
-	}, ProcessDataFlag.CommandLine));
+	return isSameServerProcess(descendant, await getWindowsProcessList());
 }
 
 interface IServerProcessOperations {
@@ -728,7 +782,14 @@ interface IServerProcessOperations {
 }
 
 const defaultServerProcessOperations: IServerProcessOperations = {
-	killTree,
+	killTree: async (pid, forceful) => {
+		if (isWindows) {
+			// Only terminate verified descendants, never let taskkill /T follow stale PPIDs.
+			process.kill(pid);
+		} else {
+			await killTree(pid, forceful);
+		}
+	},
 	killProcess: pid => { process.kill(pid); },
 	isSameProcessRunning: isSameWindowsProcessRunning,
 };
@@ -740,11 +801,31 @@ export async function stopServer(
 	timeoutMs = SERVER_SHUTDOWN_TIMEOUT_MS,
 	processOperations = defaultServerProcessOperations,
 ): Promise<void> {
+	await shutdownServer(server, getDescendants, timeoutMs, processOperations, false);
+}
+
+/** Forcefully stop an Agent Host test server and its verified descendants. */
+export async function killServer(
+	server: IServerHandle | undefined,
+	killProcessTree: IServerProcessOperations['killTree'] = defaultServerProcessOperations.killTree,
+	getDescendants = getServerDescendants,
+): Promise<void> {
+	await shutdownServer(server, getDescendants, SERVER_SHUTDOWN_TIMEOUT_MS, { ...defaultServerProcessOperations, killTree: killProcessTree }, true);
+}
+
+async function shutdownServer(
+	server: IServerHandle | undefined,
+	getDescendants: typeof getServerDescendants,
+	timeoutMs: number,
+	processOperations: IServerProcessOperations,
+	forceful: boolean,
+): Promise<void> {
 	const serverProcess = server?.process;
 	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
 		return;
 	}
 
+	logServerCleanup(serverProcess.pid, `Starting ${forceful ? 'forceful' : 'graceful'} shutdown`);
 	const deadline = Date.now() + timeoutMs;
 	const serverExit = new DeferredPromise<void>();
 	const onExit = () => serverExit.complete();
@@ -759,14 +840,19 @@ export async function stopServer(
 					throw new Error('Timed out capturing Agent Host test server descendants');
 				}
 				descendants = snapshot;
+				logServerCleanup(serverProcess.pid, `Captured ${descendants.length} descendants: ${JSON.stringify(descendants.map(({ pid, name, creationTime }) => ({ pid, name, creationTime })))}`);
 			}
 		} catch (error) {
 			snapshotError = new Error('Failed to capture Agent Host test server descendants', { cause: error });
+			logServerCleanup(serverProcess.pid, `${snapshotError.message}: ${error}`);
 		}
-		serverProcess.stdin?.end();
-		if (!await raceTimeout(serverExit.p.then(() => true), Math.max(0, deadline - Date.now()))) {
-			await killServer(server, (pid, forceful) => processOperations.killTree(pid, forceful));
+		if (!forceful) {
+			serverProcess.stdin?.end();
 		}
+		if (forceful || !await raceTimeout(serverExit.p.then(() => true), Math.max(0, deadline - Date.now()))) {
+			await killServerProcess(server, (pid, forceful) => processOperations.killTree(pid, forceful));
+		}
+		logServerCleanup(serverProcess.pid, `Server exited: code=${serverProcess.exitCode} signal=${serverProcess.signalCode}`);
 	} finally {
 		serverProcess.removeListener('exit', onExit);
 	}
@@ -776,11 +862,14 @@ export async function stopServer(
 
 	const killResults = await Promises.settled(descendants.map(async descendant => {
 		if (!await processOperations.isSameProcessRunning(descendant)) {
+			logServerCleanup(serverProcess.pid, `Skipping exited or replaced descendant: pid=${descendant.pid} name=${descendant.name} creationTime=${descendant.creationTime}`);
 			return undefined;
 		}
 		try {
+			logServerCleanup(serverProcess.pid, `Terminating descendant: pid=${descendant.pid} name=${descendant.name} creationTime=${descendant.creationTime}`);
 			processOperations.killProcess(descendant.pid);
 		} catch (error) {
+			logServerCleanup(serverProcess.pid, `Descendant termination failed: pid=${descendant.pid}: ${error}`);
 			return { descendant, succeeded: false as const, error };
 		}
 		return { descendant, succeeded: true as const };
@@ -796,6 +885,7 @@ export async function stopServer(
 					throw result.error;
 				}
 			}, 50, 5);
+			logServerCleanup(serverProcess.pid, `Descendant exited after failed termination: pid=${result.descendant.pid}`);
 			return;
 		}
 		await retry(async () => {
@@ -803,11 +893,12 @@ export async function stopServer(
 				throw new Error(`Agent Host test server descendant ${result.descendant.pid} did not exit after termination`);
 			}
 		}, 50, 100);
+		logServerCleanup(serverProcess.pid, `Descendant exit verified: pid=${result.descendant.pid}`);
 	}));
+	logServerCleanup(serverProcess.pid, 'Shutdown complete');
 }
 
-/** Forcefully kill an Agent Host test server and its child processes without graceful shutdown. */
-export async function killServer(server: IServerHandle | undefined, killProcessTree: IServerProcessOperations['killTree'] = killTree): Promise<void> {
+async function killServerProcess(server: IServerHandle | undefined, killProcessTree: IServerProcessOperations['killTree']): Promise<void> {
 	const serverProcess = server?.process;
 	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
 		return;
@@ -822,8 +913,10 @@ export async function killServer(server: IServerHandle | undefined, killProcessT
 	serverProcess.once('exit', onExit);
 	try {
 		try {
+			logServerCleanup(pid, `Terminating server${isWindows ? ' (single PID)' : ' process tree'}`);
 			await killProcessTree(pid, true);
 		} catch (error) {
+			logServerCleanup(pid, `Server termination failed: ${error}`);
 			// taskkill can finish before Node delivers the owned process's exit event.
 			if (!await raceTimeout(serverExit.p.then(() => true), SERVER_EXIT_TIMEOUT_MS)) {
 				throw error;
