@@ -26,6 +26,9 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { TestAgentHostStartupTelemetryService } from './testAgentHostStartupTelemetryService.js';
+import type { IAgentHostStartupMetrics } from '../../node/agentHostStartupPerformance.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
@@ -2113,6 +2116,7 @@ suite('AgentService (node dispatcher)', () => {
 		disposables.add(toDisposable(() => agent.dispose()));
 		registerTestAgentProvider(localService, agent);
 		const includeFiles = ['.env', '.env.local', 'config/**'];
+		const symlinkFolders = ['node_modules/**', '.cache/**'];
 
 		const initialWorktree = await localService.resolveSessionConfig({
 			provider: 'copilot',
@@ -2122,12 +2126,12 @@ suite('AgentService (node dispatcher)', () => {
 		const worktree = await localService.resolveSessionConfig({
 			provider: 'copilot',
 			workingDirectory,
-			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles, [SessionConfigKey.WorktreeSymlinkFolders]: symlinkFolders },
 		});
 		const folder = await localService.resolveSessionConfig({
 			provider: 'copilot',
 			workingDirectory,
-			config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
+			config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles, [SessionConfigKey.WorktreeSymlinkFolders]: symlinkFolders },
 		});
 
 		assert.deepStrictEqual({
@@ -2136,16 +2140,24 @@ suite('AgentService (node dispatcher)', () => {
 			worktreeBranch: worktree.values[SessionConfigKey.Branch],
 			worktreeReadOnly: worktree.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			worktreeValue: worktree.values[SessionConfigKey.WorktreeIncludeFiles],
+			worktreeSymlinkReadOnly: worktree.schema.properties[SessionConfigKey.WorktreeSymlinkFolders]?.readOnly,
+			worktreeSymlinkValue: worktree.values[SessionConfigKey.WorktreeSymlinkFolders],
 			folderReadOnly: folder.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			folderValue: folder.values[SessionConfigKey.WorktreeIncludeFiles],
+			folderSymlinkReadOnly: folder.schema.properties[SessionConfigKey.WorktreeSymlinkFolders]?.readOnly,
+			folderSymlinkValue: folder.values[SessionConfigKey.WorktreeSymlinkFolders],
 		}, {
 			initialWorktreeBranch: 'origin/main',
 			initialWorktreeDefault: 'origin/main',
 			worktreeBranch: 'feature',
 			worktreeReadOnly: true,
 			worktreeValue: includeFiles,
+			worktreeSymlinkReadOnly: true,
+			worktreeSymlinkValue: symlinkFolders,
 			folderReadOnly: true,
 			folderValue: includeFiles,
+			folderSymlinkReadOnly: true,
+			folderSymlinkValue: symlinkFolders,
 		});
 	});
 
@@ -2213,6 +2225,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.Branch]: 'feature/config',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
 				[SessionConfigKey.WorktreeBranchTrack]: false,
 				[SessionConfigKey.WorktreeCreateNewBranch]: false,
 				providerSetting: 'selected',
@@ -2231,6 +2244,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.Branch]: 'feature/config',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
 				[SessionConfigKey.WorktreeBranchTrack]: false,
 				[SessionConfigKey.WorktreeCreateNewBranch]: false,
 				providerSetting: 'completion',
@@ -2267,6 +2281,7 @@ suite('AgentService (node dispatcher)', () => {
 				branch: selected.values[SessionConfigKey.Branch],
 				branchPrefix: selected.values[SessionConfigKey.WorktreeBranchPrefix],
 				includeFiles: selected.values[SessionConfigKey.WorktreeIncludeFiles],
+				symlinkFolders: selected.values[SessionConfigKey.WorktreeSymlinkFolders],
 				branchTrack: selected.values[SessionConfigKey.WorktreeBranchTrack],
 				createNewBranch: selected.values[SessionConfigKey.WorktreeCreateNewBranch],
 				providerSetting: selected.values.providerSetting,
@@ -2299,7 +2314,7 @@ suite('AgentService (node dispatcher)', () => {
 				agentMergeController: { lastPromptFingerprint: 'fingerprint' },
 				providerSetting: 'initial',
 			},
-			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], branchTrack: false, createNewBranch: false, providerSetting: 'selected' },
+			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], symlinkFolders: ['node_modules/**'], branchTrack: false, createNewBranch: false, providerSetting: 'selected' },
 			folder: { isolation: 'folder', branch: 'feature/config', providerSetting: 'folder' },
 		});
 	});
@@ -6313,14 +6328,16 @@ suite('AgentService (node dispatcher)', () => {
 		class CountingMetadataAgent extends TimedExternalAgent {
 			metadataCalls: string[] = [];
 			prewarmCalls = 0;
+			prewarmSessionCounts: number[] = [];
 
 			override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
 				this.metadataCalls.push(resolveAgentChatContext(context, chat).configurationResource.toString());
 				return super.getChatMetadata(chat, context);
 			}
 
-			async prewarmSessionMetadata() {
+			async prewarmSessionMetadata(expectedSessionCount: number) {
 				this.prewarmCalls++;
+				this.prewarmSessionCounts.push(expectedSessionCount);
 				return toDisposable(() => { });
 			}
 		}
@@ -6383,7 +6400,7 @@ suite('AgentService (node dispatcher)', () => {
 		function createCentralCatalogService(
 			sessionDataService: ISessionDataService,
 			orchestratorDatabase: IAgentHostDatabase,
-			telemetryService = NullTelemetryService,
+			telemetryService: ITelemetryService = NullTelemetryService,
 			logService = new NullLogService(),
 		): AgentService {
 			return disposables.add(createTestAgentService(
@@ -6403,6 +6420,300 @@ suite('AgentService (node dispatcher)', () => {
 				orchestratorDatabase,
 			));
 		}
+
+		function getStartupTestInternals(service: AgentService) {
+			return service as unknown as {
+				_sessionCatalogEnabledSnapshot: boolean | undefined;
+				_migrateLegacyEnabledSnapshot: boolean | undefined;
+				_computeSessions(mode: AgentHostExternalSessionsMode, epoch?: number, collectMetrics?: (metrics: IAgentHostStartupMetrics) => void): Promise<readonly IAgentSessionMetadata[]>;
+				_ensureSessionsV2Imported(provider: IAgent, force?: boolean): Promise<void>;
+			};
+		}
+
+		test('startup telemetry counts registrations before visibility filtering and does not add database work', async () => {
+			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
+			for (const [provider, count] of [['copilotcli', 101], ['codex', 99], ['claude', 100], ['custom', 1]] as const) {
+				for (let i = 0; i < count; i++) {
+					await seedVerifiedSessionV2(orchestratorDatabase, new TestSessionDatabase(), AgentSession.uri(provider, `startup-${i}`), provider === 'copilotcli' && i === 100);
+				}
+			}
+			const baseSessionData = createSessionDataService();
+			let databaseOpens = 0;
+			const sessionData: ISessionDataService = {
+				...baseSessionData,
+				get storageAccessCounts() { return { opens: databaseOpens, stats: 0 }; },
+				openDatabase: resource => {
+					databaseOpens++;
+					return baseSessionData.openDatabase(resource);
+				},
+				tryOpenDatabase: resource => {
+					databaseOpens++;
+					return baseSessionData.tryOpenDatabase(resource);
+				},
+			};
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			const svc = createCentralCatalogService(sessionData, orchestratorDatabase, telemetry);
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.None });
+			const [first, overlapping] = await Promise.all([svc.listSessions(), svc.listSessions()]);
+			const subsequent = await svc.listSessions();
+			const timings = telemetry.events.filter(event => event.eventName === 'agentHost.startupMark' && event.data?.name === 'sessionList');
+			const data = timings[0]?.data;
+			const firstList = telemetry.events.filter(event => event.data?.name === 'firstSessionList');
+			assert.deepStrictEqual({
+				listSizes: [first.length, overlapping.length, subsequent.length],
+				databaseOpens,
+				timingCount: timings.length,
+				firstLists: firstList.map(({ data }) => [data?.registeredSessionCount, data?.copilotSessionCount, data?.codexSessionCount, data?.claudeSessionCount, data?.otherSessionCount, data?.visibleSessionCount, data?.hiddenSessionCount, data?.databaseOpenCount]),
+				correlated: data?.agentHostSessionId === telemetry.commonProperties.get('common.agentHostSessionId'),
+				metrics: data && {
+					outcome: data.outcome,
+					registered: data.registeredSessionCount,
+					copilot: data.copilotSessionCount,
+					codex: data.codexSessionCount,
+					claude: data.claudeSessionCount,
+					other: data.otherSessionCount,
+					visible: data.visibleSessionCount,
+					hidden: data.hiddenSessionCount,
+					catalog: data.catalogServedCount,
+					fallback: data.providerFallbackCount,
+					stateFallback: data.stateFallbackCount,
+					catalogEnabled: data.catalogEnabled,
+					externalSessionsMode: data.externalSessionsMode,
+					databaseOpens: data.databaseOpenCount,
+					databaseStats: data.databaseStatCount,
+				},
+			}, {
+				listSizes: [300, 300, 300],
+				databaseOpens: 0,
+				timingCount: 1,
+				firstLists: [[301, 101, 99, 100, 1, 300, 1, 0]],
+				correlated: true,
+				metrics: { outcome: 'success', registered: 301, copilot: 101, codex: 99, claude: 100, other: 1, visible: 300, hidden: 1, catalog: 300, fallback: 0, stateFallback: 0, catalogEnabled: true, externalSessionsMode: AgentHostExternalSessionsMode.None, databaseOpens: 0, databaseStats: 0 },
+			});
+		});
+
+		test('startup context snapshots do not freeze configuration decisions and reflect provider registration at each milestone', async () => {
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			const svc = createCentralCatalogService(createSessionDataService(), new TestAgentHostOrchestratorDatabase(), telemetry);
+			const internals = getStartupTestInternals(svc);
+			const before = [internals._sessionCatalogEnabledSnapshot, internals._migrateLegacyEnabledSnapshot];
+			svc.markStartupComplete();
+			const after = [internals._sessionCatalogEnabledSnapshot, internals._migrateLegacyEnabledSnapshot];
+			getConfigurationService(svc).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
+			const agent = disposables.add(new MockAgent('codex'));
+			registerTestAgentProvider(svc, agent);
+			await svc.listSessions();
+			assert.deepStrictEqual({
+				configurationUnchanged: before.every((value, index) => value === after[index]),
+				contexts: telemetry.events.filter(event => ['hostReady', 'firstSessionList', 'startupSettled'].includes(String(event.data?.name))).map(({ data }) => [
+					data?.name, data?.copilotRegistered, data?.claudeRegistered, data?.codexRegistered,
+				]),
+				listCatalogEnabled: telemetry.events.find(event => event.data?.name === 'firstSessionList')?.data?.catalogEnabled,
+			}, {
+				configurationUnchanged: true,
+				contexts: [['hostReady', false, false, false], ['firstSessionList', false, false, true], ['startupSettled', false, false, true]],
+				listCatalogEnabled: false,
+			});
+		});
+
+		for (const trackStorage of [true, false]) {
+			test(`startup telemetry reports migration totals ${trackStorage ? 'with' : 'without'} storage counters`, async () => {
+				let storageAccesses = { opens: 10, stats: 20 };
+				let scans = 0;
+				class EmptyStartupAgent extends MockAgent {
+					override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+						scans++;
+						storageAccesses = { opens: 13, stats: 27 };
+						return [];
+					}
+				}
+				const sessionData: ISessionDataService = {
+					...createSessionDataService(),
+					get storageAccessCounts() { return trackStorage ? storageAccesses : undefined; },
+				};
+				const telemetry = new TestAgentHostStartupTelemetryService();
+				const svc = createCentralCatalogService(sessionData, new TestAgentHostOrchestratorDatabase(), telemetry);
+				const agent = disposables.add(new EmptyStartupAgent('codex'));
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+
+				assert.deepStrictEqual({
+					scans,
+					metrics: telemetry.events.filter(event => event.data?.name === 'sessionMigration').map(({ data }) => ({
+						outcome: data?.outcome,
+						synchronized: data?.synchronizedSessionCount,
+						skipped: data?.skippedSessionCount,
+						excluded: data?.excludedSessionCount,
+						incomplete: data?.incompleteSessionCount,
+						failed: data?.failedSessionCount,
+						migrationState: data?.migrationState,
+						migrationForced: data?.migrationForced,
+						databaseOpens: data?.databaseOpenCount,
+						databaseStats: data?.databaseStatCount,
+					})),
+				}, {
+					scans: 1,
+					metrics: [{
+						outcome: 'success',
+						synchronized: 0,
+						skipped: 0,
+						excluded: 0,
+						incomplete: 0,
+						failed: 0,
+						migrationState: 'required',
+						migrationForced: false,
+						databaseOpens: trackStorage ? 3 : undefined,
+						databaseStats: trackStorage ? 7 : undefined,
+					}],
+				});
+			});
+		}
+
+		for (const hostReadyFirst of [true, false]) {
+			for (const slowFails of [true, false]) {
+				test(`startup telemetry records the first served mode when the sampled listing ${slowFails ? 'fails' : 'succeeds'} later and host readiness is ${hostReadyFirst ? 'first' : 'last'}`, async () => {
+					const telemetry = new TestAgentHostStartupTelemetryService();
+					const svc = createCentralCatalogService(createSessionDataService(), new TestAgentHostOrchestratorDatabase(), telemetry);
+					const gate = new DeferredPromise<void>();
+					getStartupTestInternals(svc)._computeSessions = async (mode, _epoch, collectMetrics) => {
+						if (mode === AgentHostExternalSessionsMode.Last30Days) {
+							await gate.p;
+							if (slowFails) {
+								throw new Error('sampled listing failed');
+							}
+						}
+						collectMetrics?.({ externalSessionsMode: mode, registeredSessionCount: 101, visibleSessionCount: mode === AgentHostExternalSessionsMode.None ? 1 : 101 });
+						return [];
+					};
+					if (hostReadyFirst) {
+						svc.markStartupComplete();
+					}
+					const slow = svc.listSessions(AgentHostExternalSessionsMode.Last30Days);
+					const slowResult = slowFails ? assert.rejects(slow, /sampled listing failed/) : slow;
+					await svc.listSessions(AgentHostExternalSessionsMode.None);
+					const milestones = () => telemetry.events.filter(event => ['hostReady', 'firstSessionList', 'startupSettled'].includes(String(event.data?.name)));
+					const beforeSlowSettles = milestones().map(event => event.data?.name);
+					if (!hostReadyFirst) {
+						svc.markStartupComplete();
+					}
+					gate.complete();
+					await slowResult;
+					svc.markStartupComplete();
+					await svc.listSessions(AgentHostExternalSessionsMode.None);
+					const firstList = milestones().find(event => event.data?.name === 'firstSessionList')?.data;
+					assert.deepStrictEqual({
+						beforeSlowSettles,
+						milestones: milestones().map(event => [event.data?.name, event.data?.since]),
+						firstList: [firstList?.externalSessionsMode, firstList?.registeredSessionCount, firstList?.visibleSessionCount],
+						sampled: telemetry.events.filter(event => event.data?.name === 'sessionList').map(event => event.data?.outcome),
+						milestoneBeforeSampledEnd: telemetry.events.findIndex(event => event.data?.name === 'startupSettled') < telemetry.events.findIndex(event => event.data?.name === 'sessionList'),
+					}, {
+						beforeSlowSettles: hostReadyFirst ? ['hostReady', 'firstSessionList', 'startupSettled'] : ['firstSessionList'],
+						milestones: (hostReadyFirst ? ['hostReady', 'firstSessionList', 'startupSettled'] : ['firstSessionList', 'hostReady', 'startupSettled']).map(name => [name, 'processStart']),
+						firstList: [AgentHostExternalSessionsMode.None, 101, 1],
+						sampled: slowFails ? ['error', 'success'] : ['success'],
+						milestoneBeforeSampledEnd: true,
+					});
+				});
+			}
+		}
+
+		test('startup telemetry still records first success after the sampled listing retry limit', async () => {
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			const svc = createCentralCatalogService(createSessionDataService(), new TestAgentHostOrchestratorDatabase(), telemetry);
+			let failures = 4;
+			getStartupTestInternals(svc)._computeSessions = async () => {
+				if (failures-- > 0) {
+					throw new Error('listing failed');
+				}
+				return [];
+			};
+			svc.markStartupComplete();
+			for (let i = 0; i < 4; i++) {
+				await assert.rejects(svc.listSessions(), /listing failed/);
+			}
+			const beforeSuccess = telemetry.events.filter(event => event.data?.name === 'startupSettled').length;
+			await svc.listSessions();
+			await svc.listSessions();
+			assert.deepStrictEqual({
+				beforeSuccess,
+				ends: telemetry.events.filter(event => event.data?.name === 'sessionList').map(event => event.data?.outcome),
+				milestones: telemetry.events.filter(event => ['firstSessionList', 'startupSettled'].includes(String(event.data?.name))).map(event => event.data?.name),
+			}, { beforeSuccess: 0, ends: ['error', 'error', 'error'], milestones: ['firstSessionList', 'startupSettled'] });
+		});
+
+		for (const backfilled of [true, false]) {
+			for (const force of [true, false]) {
+				test(`startup telemetry reuses the ${backfilled ? 'backfilled' : 'required'} migration decision with force ${force}`, async () => {
+					const database = new class extends TestAgentHostOrchestratorDatabase {
+						backfillReads = 0;
+						override async isSessionsV2Backfilled(provider: string, version: number): Promise<boolean> {
+							this.backfillReads++;
+							return super.isSessionsV2Backfilled(provider, version);
+						}
+					};
+					if (backfilled) {
+						await database.markSessionsV2Backfilled('codex', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
+					}
+					const telemetry = new TestAgentHostStartupTelemetryService();
+					const svc = createCentralCatalogService(createSessionDataService(), database, telemetry);
+					let scans = 0;
+					const agent = disposables.add(new class extends MockAgent {
+						override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+							scans++;
+							return [];
+						}
+					}('codex'));
+					await getStartupTestInternals(svc)._ensureSessionsV2Imported(agent, force);
+					assert.deepStrictEqual({
+						backfillReads: database.backfillReads,
+						scans,
+						context: telemetry.events.filter(event => event.data?.name === 'sessionMigration').map(({ data }) => [
+							data?.migrationState, data?.migrationForced, data?.outcome,
+						]),
+					}, {
+						backfillReads: 1,
+						scans: !backfilled || force ? 1 : 0,
+						context: [[backfilled ? 'backfilled' : 'required', force, 'success']],
+					});
+				});
+			}
+		}
+
+		test('startup telemetry reports unknown migration state when the existing backfill read fails', async () => {
+			const database = new class extends TestAgentHostOrchestratorDatabase {
+				override async isSessionsV2Backfilled(): Promise<boolean> {
+					throw new Error('backfill unavailable');
+				}
+			};
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			const svc = createCentralCatalogService(createSessionDataService(), database, telemetry);
+			const agent = disposables.add(new MockAgent('codex'));
+			await assert.rejects(getStartupTestInternals(svc)._ensureSessionsV2Imported(agent), /backfill unavailable/);
+			assert.deepStrictEqual(telemetry.events.filter(event => event.data?.name === 'sessionMigration').map(({ data }) => [
+				data?.migrationState, data?.migrationForced, data?.outcome,
+			]), [['unknown', false, 'error']]);
+		});
+
+		test('startup telemetry distinguishes a deferred provider migration from an empty scan', async () => {
+			class DeferredStartupAgent extends MockAgent {
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
+					return AgentChatMigrationDeferred;
+				}
+			}
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			const svc = createCentralCatalogService(createSessionDataService(), new TestAgentHostOrchestratorDatabase(), telemetry);
+			const agent = disposables.add(new DeferredStartupAgent('codex'));
+			registerTestAgentProvider(svc, agent);
+			await waitForInitialProviderMigration(svc, agent);
+			assert.deepStrictEqual(telemetry.events.filter(event => event.eventName === 'agentHost.startupMark' && event.data?.outcome).map(({ data }) => ({
+				name: data?.name,
+				provider: data?.provider,
+				outcome: data?.outcome,
+				migrationState: data?.migrationState,
+				hasScanCount: Object.hasOwn(data!, 'scannedSessionCount'),
+			})), [{ name: 'sessionMigration', provider: 'codex', outcome: 'deferred', migrationState: 'required', hasScanCount: false }]);
+		});
 
 		testWithExternalSessionClock('discovery publishes creation, recency and metadata changes through root notifications', async () => {
 			const svc = createExternalSessionService();
@@ -7602,6 +7913,7 @@ suite('AgentService (node dispatcher)', () => {
 				providerMetadataCalls: agent.metadataCalls,
 				providerPrewarmCalls: agent.prewarmCalls,
 				sessionDatabaseOpenSessions: [...new Set(databaseOpens)],
+				prewarmSessionCounts: agent.prewarmSessionCounts,
 				sessionDatabaseOpenCount: databaseOpens.length,
 			}, {
 				sessions: [centralSession.toString(), fallbackSession.toString()],
@@ -7609,8 +7921,44 @@ suite('AgentService (node dispatcher)', () => {
 				providerMetadataCalls: [fallbackSession.toString()],
 				providerPrewarmCalls: 1,
 				sessionDatabaseOpenSessions: [buildDefaultChatUri(fallbackSession), fallbackSession.toString()],
+				prewarmSessionCounts: [1],
 				sessionDatabaseOpenCount: 4,
 			});
+		});
+
+		test('prewarm counts include only fallback sessions and are grouped by provider', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const agents = [
+				disposables.add(new CountingMetadataAgent('copilot')),
+				disposables.add(new CountingMetadataAgent('other')),
+			];
+			for (const [index, agent] of agents.entries()) {
+				for (let i = 0; i < index + 2; i++) {
+					const session = agent.addSession(`fallback-${i}`, 25);
+					await orchestratorDatabase.registerSessionV2(session.toString(), {
+						provider: agent.id, startTime: 10, source: 'explicit',
+					}, { checkTombstone: false });
+				}
+				const eligible = agent.addSession('eligible', 30);
+				await orchestratorDatabase.registerSessionV2(eligible.toString(), {
+					provider: agent.id, startTime: 10, source: 'explicit',
+				}, { checkTombstone: false });
+				orchestratorDatabase.setCatalog(eligible, centralData(eligible, 30, 'Central'));
+			}
+			const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+			await svc.whenCatalogReconciliationIdle();
+			for (const agent of agents) {
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+			}
+			await svc.whenCatalogReconciliationIdle();
+
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				sessionCount: listed.length,
+				prewarmCounts: agents.map(agent => agent.prewarmSessionCounts),
+			}, { sessionCount: 7, prewarmCounts: [[2], [3]] });
 		});
 
 		test('central list drops an ineligible row whose fallback has no provider and lists eligible rows without a session database', async () => {
@@ -13581,6 +13929,7 @@ suite('AgentService (node dispatcher)', () => {
 				getWorktreeRoots: async () => [],
 				addWorktree: async () => { },
 				copyWorktreeIncludeFiles: async () => { },
+				symlinkWorktreeFolders: async () => [],
 				addExistingWorktree: async () => { },
 				removeWorktree: async () => { },
 				branchExists: async () => false,
@@ -13592,6 +13941,7 @@ suite('AgentService (node dispatcher)', () => {
 				mergeBranch: async () => '',
 				restore: async () => { },
 				hasUpstream: async () => false,
+				fetch: async () => { },
 				pull: async () => { },
 				push: async () => { },
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
@@ -13691,6 +14041,7 @@ suite('AgentService (node dispatcher)', () => {
 				getWorktreeRoots: async () => [],
 				addWorktree: async () => { },
 				copyWorktreeIncludeFiles: async () => { },
+				symlinkWorktreeFolders: async () => [],
 				addExistingWorktree: async () => { },
 				removeWorktree: async () => { },
 				branchExists: async () => false,
@@ -13701,6 +14052,7 @@ suite('AgentService (node dispatcher)', () => {
 				commitAll: async () => { },
 				mergeBranch: async () => '',
 				hasUpstream: async () => false,
+				fetch: async () => { },
 				pull: async () => { },
 				push: async () => { },
 				restore: async () => { },

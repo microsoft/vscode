@@ -56,7 +56,7 @@ function renderMyComponent({ container, disposableStore, theme }: ComponentFixtu
 
 Key points:
 - **`defineThemedFixtureGroup`** automatically creates Dark and Light variants for each fixture
-- **`defineComponentFixture`** wraps your render function with theme setup and shadow DOM isolation
+- **`defineComponentFixture`** wraps your render function with theme setup, async readiness, and disposable management
 - **`createEditorServices`** provides a `TestInstantiationService` with base editor services pre-registered
 - Always register created widgets with `disposableStore.add(...)` to prevent leaks
 - Pass `colorTheme: theme` to `createEditorServices` so theme colors render correctly
@@ -97,7 +97,7 @@ function renderMyComponent({ disposableStore, theme, fileIconTheme }: ComponentF
 
 ## CSS Scoping
 
-Fixtures render inside shadow DOM. The component-explorer automatically adopts the global VS Code stylesheets and theme CSS.
+Fixtures share the document and workbench stylesheets (`isolation: 'none'`). The helpers scope theme and file-icon styles, but DOM, CSS, and process-wide registrations are not isolated automatically.
 
 ### Matching production CSS selectors
 
@@ -161,9 +161,21 @@ const element = new class extends mock<IChatRequestViewModel>() { }();
 
 ## Async Rendering
 
-The component explorer waits **2 animation frames** after the synchronous render function returns. For most components, this is sufficient.
+The component explorer awaits the render promise, then waits two animation frames. Those frames are not a readiness guarantee for image decoding, native resize observers, delayed layout, or scrollbar idle timers.
 
-If your render function returns a `Promise`, the component explorer waits for the promise to resolve.
+The render promise must resolve only when the fixture represents its named state:
+
+- Await assets that affect the screenshot. An editor's `setInput()` may return before its main image or thumbnails have loaded; wait for the expected image count and await `decode()`, failing on missing or broken images.
+- Finish layout-changing actions before positioning the viewport. Wait for content height, scroll height, scroll position, and finite animations to settle, then scroll and settle again. Assert that an "offscreen" header is actually offscreen and a "visible" header is not covered by sticky content.
+- Account for transient visuals such as auto-hiding scrollbars. A stable height does not mean a stable screenshot.
+- Supply deterministic display data through existing services/options, such as a single custom thinking phrase. A seeded random generator alone does not make labels independent of render order or async callback order.
+- Use bounded, condition-based waits that throw on failure, not fixed sleeps or extra frames that silently accept an incomplete state.
+
+Fixtures that depend on native browser image decoding or resize/scroll callbacks can use `virtualTime: { enabled: false }` and explicitly await those operations. Virtual JavaScript time does not advance the browser's image decoder or layout pipeline.
+
+For async fixtures with paint-order-sensitive edges, `deferPaint: true` keeps the headless fixture transparent until rendering has finished, without changing its layout or interactive preview. It prevents intermediate paints from affecting the final rasterization; it does **not** replace awaiting readiness.
+
+Validate screenshot fixtures at the same readiness boundary CI uses: capture immediately after the headless `renderFixture()` resolves, after idle callbacks, and after remounting following another fixture. Compare exact hashes on the same platform and separately assert the intended state. The tests in `test/componentFixtures/playwright/tests/screenshotStability.spec.ts` cover these checks for scroll anchoring and image carousels.
 
 ### Pitfall: DOM reparenting causes flickering
 

@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../../../platform/product/common/product.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -23,6 +24,7 @@ const registeredAgentSessionsSettings = [
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
 const legacyAutoDeleteArchivedMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays');
+const legacyProgressAnimationMigration = migrations.find(migration => migration.key === ChatConfiguration.PersistentProgress);
 const legacyProgressVerbosityMigration = migrations.find(migration => migration.key === ChatConfiguration.PersistentProgressVerbosity);
 const persistentProgressSetting = chatProgressConfigurationProperties[ChatConfiguration.PersistentProgress];
 
@@ -44,7 +46,7 @@ suite('Chat configuration', () => {
 		});
 	});
 
-	test('gates persistent progress off while allowing an experiment override', () => {
+	test('defaults persistent progress to Draw in Insiders and Off otherwise while allowing experiment overrides', () => {
 		assert.deepStrictEqual({
 			type: persistentProgressSetting.type,
 			default: persistentProgressSetting.default,
@@ -52,7 +54,7 @@ suite('Chat configuration', () => {
 			experiment: persistentProgressSetting.experiment,
 		}, {
 			type: 'string',
-			default: 'off',
+			default: product.quality === 'insider' ? 'draw' : 'off',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		});
@@ -70,11 +72,23 @@ suite('Chat configuration', () => {
 		}, {
 			settings: ['chat.experimental.persistentProgress', 'chat.experimental.persistentProgressVerbosity'],
 			type: 'string',
-			default: 'off',
-			values: ['off', 'weave', 'draw', 'orbit', 'accordion', 'dial'],
-			labels: ['Off', 'Weave', 'Draw', 'Orbit and Lock', 'Accordion', 'Dial Rotation'],
-			descriptions: 6,
+			default: product.quality === 'insider' ? 'draw' : 'off',
+			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon'],
+			labels: ['Off', 'Draw', 'Draw (Monochrome)', 'Draw (Monochrome, No Icon)'],
+			descriptions: 4,
 		});
+	});
+
+	test('migrates removed progress animations to Draw', async () => {
+		assert.deepStrictEqual(await Promise.all(
+			['weave', 'orbit', 'accordion', 'dial'].map(value => legacyProgressAnimationMigration?.migrateFn(value, () => undefined)),
+		), Array.from({ length: 4 }, () => ({ value: 'draw' })));
+	});
+
+	test('preserves current progress styles and absent settings during migration', async () => {
+		assert.deepStrictEqual(await Promise.all(
+			['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon', undefined, 'unsupported'].map(value => legacyProgressAnimationMigration?.migrateFn(value, () => undefined)),
+		), [[], [], [], [], [], []]);
 	});
 
 	test('defaults persistent progress verbosity to Compact tool previews', () => {

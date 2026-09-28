@@ -244,6 +244,7 @@
 	"config.detectWorktrees": "Controls whether to automatically detect Git worktrees.",
 	"config.detectWorktreesLimit": "Controls the limit of Git worktrees detected.",
 	"config.worktreeIncludeFiles": "Configure patterns, using `.gitignore` syntax, for files and folders that are included when creating a new worktree. Only files and folders that match the patterns and are ignored by git (for example, listed in `.gitignore`) will be copied to the newly created worktree.",
+	"config.worktreeSymlinkFolders": "Configure patterns, using `.gitignore` syntax, for folders to symlink from the current checkout into newly created worktrees. Only folders that match the patterns and are ignored by git (for example, listed in `.gitignore`) will be symlinked. Changes made through a symlink affect the folder in the current checkout.",
 	"config.alwaysShowStagedChangesResourceGroup": "Always show the Staged Changes resource group.",
 	"config.alwaysSignOff": "Controls the signoff flag for all commits.",
 	"config.addAICoAuthor": "Controls whether a 'Co-authored-by' trailer is automatically added to the commit message when AI-generated code is included in the commit.",

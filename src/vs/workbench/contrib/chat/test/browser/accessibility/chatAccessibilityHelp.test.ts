@@ -33,6 +33,9 @@ suite('Chat Accessibility Help', () => {
 				introductionActions: help.includes('let us know, Learn More, Got it!, or Not Helpful'),
 				learnMorePersists: help.includes('Learn More opens documentation without hiding the introduction'),
 				introductionDismissal: help.includes('Not Helpful turns off future introductions'),
+				switchSurvey: help.includes('a two-step feedback survey may appear above the chat input'),
+				switchSurveyKeyboard: help.includes('use Up and Down Arrow to choose why you switched'),
+				switchSurveyAcknowledgement: help.includes('the questions are replaced above the input by a message that your feedback was recorded'),
 				agentHostOnly: help.includes('When another Agent Host session is running, a new Agent Host chat'),
 				copy: help.includes('copies the current prompt and attachments from that input without sending them or clearing it'),
 				singleOwner: help.includes('Only one chat input notification is shown at a time'),
@@ -46,6 +49,9 @@ suite('Chat Accessibility Help', () => {
 				introductionActions: true,
 				learnMorePersists: true,
 				introductionDismissal: true,
+				switchSurvey: true,
+				switchSurveyKeyboard: true,
+				switchSurveyAcknowledgement: true,
 				agentHostOnly: true,
 				copy: true,
 				singleOwner: true,
@@ -115,10 +121,11 @@ suite('Chat Accessibility Help', () => {
 			visibility: help.includes('on the hovered, selected, or keyboard-focused model'),
 			inlinePreferences: help.includes('In Auto mode, use Up and Down Arrow to focus an "Optimize for" preference'),
 			hydra: help.includes('HydraFusion, when available, is an alternative routing choice'),
+			hydraDescription: help.includes('press Right Arrow to open its description and focus Learn more'),
 			activation: help.includes('Enter or Space applies the preference and keeps the picker open'),
 			autoEntry: help.includes('both the Auto name and preference readout in the chat input open these routing choices'),
 			noAutoDetails: help.includes('Auto has no separate details page'),
-		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, inlinePreferences: true, hydra: true, activation: true, autoEntry: true, noAutoDetails: true });
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, inlinePreferences: true, hydra: true, hydraDescription: true, activation: true, autoEntry: true, noAutoDetails: true });
 	});
 
 	test('documents keyboard search in the model picker', () => {
@@ -327,6 +334,16 @@ suite('Chat Accessibility Help', () => {
 				agentView: false,
 			});
 		});
+	});
+
+	test('documents default-on terminal output reflow and how to disable it', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			defaultOn: help.includes('Terminal output reflows to fit the chat width by default'),
+			disable: help.includes('Set chat.tools.terminal.outputReflow to false'),
+			fixedWidth: help.includes('fixed-width previews with horizontal scrolling'),
+			previewOnly: help.includes('only changes the preview, not the terminal running the command'),
+		}, { defaultOn: true, disable: true, fixedWidth: true, previewOnly: true });
 	});
 
 	test('documents full terminal output in chat surfaces that render terminal tools', () => {

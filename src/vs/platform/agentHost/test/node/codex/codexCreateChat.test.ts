@@ -5,6 +5,7 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import { PassThrough } from 'stream';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -226,6 +227,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
+	instantiationService.stub(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiationService.stub(IAgentSdkDownloader, {
