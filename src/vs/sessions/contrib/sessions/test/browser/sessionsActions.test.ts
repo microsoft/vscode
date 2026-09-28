@@ -49,7 +49,7 @@ import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, SessionsList } fr
 import { SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -297,6 +297,29 @@ suite('Sessions - Actions', () => {
 		await command.handler(instantiationService, session);
 
 		assert.deepStrictEqual(opens, [{ source: 'sessionsList', forceMainChat: true }]);
+	});
+
+	test('disables single-session context menu actions for multiselection', () => {
+		const actionIds = new Set([
+			'sessions.chatCompositeBar.addChat',
+			RENAME_SESSION_COMMAND_ID,
+		]);
+		const actions = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
+			.filter(isIMenuItem)
+			.filter(item => actionIds.has(item.command.id))
+			.map(item => ({
+				id: item.command.id,
+				precondition: item.command.precondition?.serialize(),
+			}))
+			.sort((a, b) => a.id.localeCompare(b.id));
+
+		assert.deepStrictEqual(actions, [{
+			id: 'sessions.chatCompositeBar.addChat',
+			precondition: '!sessionItem.isMultiSelection',
+		}, {
+			id: RENAME_SESSION_COMMAND_ID,
+			precondition: '!sessionItem.isMultiSelection',
+		}]);
 	});
 
 	test('contributes per-session archived chat visibility actions', () => {
