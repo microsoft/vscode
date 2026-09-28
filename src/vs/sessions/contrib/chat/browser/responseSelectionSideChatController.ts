@@ -18,6 +18,7 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { editorSelectionBackground, editorSelectionForeground } from '../../../../platform/theme/common/colors/editorColors.js';
 import { defaultMenuStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -427,6 +428,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 	private _showFor(): void {
 		const wasVisible = this._visibleSurface !== undefined;
+		logSettingExperimentTrigger(this._telemetryService, AGENT_SESSIONS_RESPONSE_SELECTION_WIDGET_SETTING);
 		const mode = this._visibleMode ?? getResponseSelectionWidgetMode(this._configurationService);
 		this._visibleMode = mode;
 		if (mode !== ResponseSelectionWidgetMode.Ask && this._visibleSurface !== 'input') {

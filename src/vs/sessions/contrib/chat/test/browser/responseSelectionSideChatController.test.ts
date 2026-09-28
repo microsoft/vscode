@@ -19,6 +19,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationHandle, INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatResponseViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_WIDGET_SETTING, ResponseSelectionSideChatController, ResponseSelectionWidgetMode } from '../../browser/responseSelectionSideChatController.js';
@@ -258,6 +259,14 @@ suite('ResponseSelectionSideChatController', () => {
 		const callOrder: string[] = [];
 		const clipboardWrites: string[] = [];
 		const telemetryEvents: { name: string; data: unknown }[] = [];
+		const telemetryService = new class extends TestExperimentTriggerTelemetryService {
+			override publicLog2(name?: string, data?: object): void {
+				super.publicLog2(name, data);
+				if (name !== 'experimentTrigger') {
+					telemetryEvents.push({ name: name ?? '', data });
+				}
+			}
+		}();
 		const notificationService = new RecordingNotificationService();
 		const configurationService = new TestConfigurationService({
 			[AGENT_SESSIONS_RESPONSE_SELECTION_WIDGET_SETTING]: options?.responseSelectionWidget ?? ResponseSelectionWidgetMode.Ask,
@@ -287,9 +296,7 @@ suite('ResponseSelectionSideChatController', () => {
 			writeText: async text => { clipboardWrites.push(text); },
 		}));
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(ITelemetryService, upcastPartial<ITelemetryService>({
-			publicLog2: (name, data) => { telemetryEvents.push({ name, data }); },
-		}));
+		instantiationService.stub(ITelemetryService, telemetryService);
 
 		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget));
 		controller.setChat(chat);
@@ -347,6 +354,7 @@ suite('ResponseSelectionSideChatController', () => {
 			inputValue: () => inputValue,
 			clipboardWrites,
 			telemetryEvents,
+			experimentTriggers: telemetryService.triggers,
 			notificationService,
 			highlightedRanges,
 			inputHeight: () => inputDomNode(controller).offsetHeight,
@@ -432,6 +440,23 @@ suite('ResponseSelectionSideChatController', () => {
 		setSelection('');
 		assert.strictEqual(inputDomNode(controller).style.display, 'none');
 	});
+
+	for (const mode of [ResponseSelectionWidgetMode.Ask, ResponseSelectionWidgetMode.MenuWithCopy, ResponseSelectionWidgetMode.Menu]) {
+		test(`reports the response-selection experiment trigger in ${mode} mode`, () => {
+			const { setSelection, experimentTriggers } = setup({ responseSelectionWidget: mode });
+			const beforeSelection = [...experimentTriggers];
+
+			setSelection('hello world');
+
+			assert.deepStrictEqual({
+				beforeSelection,
+				afterSelection: experimentTriggers,
+			}, {
+				beforeSelection: [],
+				afterSelection: [`config.${AGENT_SESSIONS_RESPONSE_SELECTION_WIDGET_SETTING}`],
+			});
+		});
+	}
 
 	test('shows the action menu without Copy when configured', () => {
 		const { controller, setSelection } = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.Menu });
