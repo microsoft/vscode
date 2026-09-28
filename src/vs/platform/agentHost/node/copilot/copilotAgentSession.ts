@@ -886,6 +886,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	/** Display names for coordination tools, retained across turns and refreshed from lifecycle and task metadata. */
 	private readonly _subagentDisplayNamesByAgentId = new Map<string, string>();
+	private readonly _subagentNamesByAgentId = new Map<string, string>();
 	private readonly _resolveAgentName = (agentId: string) => this._subagentDisplayNamesByAgentId.get(agentId);
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
 	readonly modelCallTurnCorrelation = new ModelCallTurnCorrelation();
@@ -1229,6 +1230,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _shellInitScriptInstanceId = generateUuid().substring(0, 8);
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
+	private _selectedAgentName: string | undefined;
 	private _detectInterruptedTurnOnRestore: boolean;
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
 	private readonly _onTurnEnded: () => void;
@@ -1358,6 +1360,7 @@ export class CopilotAgentSession extends Disposable {
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
+		this._selectedAgentName = options.launchPlan.resolvedAgentName;
 		this._sandboxDiagnostics = this._register(this._instantiationService.createInstance(CopilotSandboxDiagnostics, this._ownerSessionUri.toString(), () => this._launchPlan.client.rpc.sandbox.getHostSupport()));
 		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
@@ -2710,6 +2713,7 @@ export class CopilotAgentSession extends Disposable {
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
 			handleUserPromptSubmitted: () => this.handleUserPromptSubmitted(),
+			getActiveAgentName: (inputSessionId, rootSessionId) => inputSessionId === rootSessionId ? this._selectedAgentName : this._subagentNamesByAgentId.get(inputSessionId),
 		};
 	}
 
@@ -4264,6 +4268,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${this.sessionId}] Selecting custom agent: ${name}`);
 			try {
 				await this._awaitControlPlaneRpc('rpc.agent.select', this._wrapper.session.rpc.agent.select({ name }));
+				this._selectedAgentName = name;
 			} catch (err) {
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.agent.select failed: name=${name}`);
 				throw err;
@@ -4272,6 +4277,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${this.sessionId}] Clearing custom agent selection`);
 			try {
 				await this._awaitControlPlaneRpc('rpc.agent.deselect', this._wrapper.session.rpc.agent.deselect());
+				this._selectedAgentName = undefined;
 			} catch (err) {
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.agent.deselect failed`);
 				throw err;
@@ -6372,6 +6378,7 @@ export class CopilotAgentSession extends Disposable {
 			if (e.agentId) {
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
 				this._subagentDisplayNamesByAgentId.set(e.agentId, e.data.agentDisplayName);
+				this._subagentNamesByAgentId.set(e.agentId, e.data.agentName);
 				this._activeSubagentAgentIds.add(e.agentId);
 				this._subagentTaskCompletionSchedulers.deleteAndDispose(e.agentId);
 			}

@@ -34,7 +34,7 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
-import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories, type IScopedAgentHookGroups } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
@@ -218,10 +218,38 @@ export interface ICopilotSessionRuntime {
 	handlePreToolUse(input: PreToolUseHookInput): Promise<PreToolUseHookOutput>;
 	handlePostToolUse(input: PostToolUseHookInput): Promise<void>;
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined;
+	/** Returns the custom agent handling a root or spawned runtime session. */
+	getActiveAgentName(inputSessionId: string, rootSessionId: string): string | undefined;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createClientSdkTools(toolSearchActive: boolean): Tool<any>[];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createServerSdkTools(): Tool<any>[];
+}
+
+function createScopedAgentHookGroups(plugins: readonly ICopilotPluginInfo[], runtime: ICopilotSessionRuntime): IScopedAgentHookGroups | undefined {
+	const hooksByAgentName = new Map<string, NonNullable<ICopilotPluginInfo['agents'][number]['hooks']>>();
+	const seenAgentNames = new Set<string>();
+	for (const plugin of plugins) {
+		for (const agent of plugin.agents) {
+			if (seenAgentNames.has(agent.name)) {
+				continue;
+			}
+			seenAgentNames.add(agent.name);
+			if (agent.hooks?.length) {
+				hooksByAgentName.set(agent.name, agent.hooks);
+			}
+		}
+	}
+	if (hooksByAgentName.size === 0) {
+		return undefined;
+	}
+	return {
+		all: [...hooksByAgentName.values()].flat(),
+		get: (inputSessionId, rootSessionId) => {
+			const agentName = runtime.getActiveAgentName(inputSessionId, rootSessionId);
+			return agentName ? hooksByAgentName.get(agentName) ?? [] : [];
+		},
+	};
 }
 
 export interface ICopilotSessionLauncher {
@@ -935,6 +963,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
 		const customAgents = plan.isEphemeral ? [] : await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
+		const scopedAgentHooks = createScopedAgentHookGroups(plugins, runtime);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
@@ -1064,7 +1093,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
-			}),
+			}, scopedAgentHooks),
 			mcpServers,
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,

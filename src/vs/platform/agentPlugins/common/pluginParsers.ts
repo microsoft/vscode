@@ -11,7 +11,7 @@ import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
-import { parseFrontMatter } from '../../../base/common/yaml.js';
+import { parseFrontMatter, type YamlNode } from '../../../base/common/yaml.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
 import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
@@ -28,10 +28,16 @@ export interface IParsedHookCommand {
 	readonly command?: string;
 	/** Windows-specific command. */
 	readonly windows?: string;
+	/** Original field that supplied the Windows command. */
+	readonly windowsSource?: 'windows' | 'powershell';
 	/** Linux-specific command. */
 	readonly linux?: string;
+	/** Original field that supplied the Linux command. */
+	readonly linuxSource?: 'linux' | 'bash';
 	/** macOS-specific command. */
 	readonly osx?: string;
+	/** Original field that supplied the macOS command. */
+	readonly osxSource?: 'osx' | 'bash';
 	/** Working directory. */
 	readonly cwd?: URI;
 	/** Environment variables. */
@@ -52,8 +58,11 @@ export namespace IParsedHookCommand {
 		}
 		return a.command === b.command
 			&& a.windows === b.windows
+			&& a.windowsSource === b.windowsSource
 			&& a.linux === b.linux
+			&& a.linuxSource === b.linuxSource
 			&& a.osx === b.osx
+			&& a.osxSource === b.osxSource
 			&& isURLEquals(a.cwd, b.cwd)
 			&& objectEquals(a.env, b.env)
 			&& a.timeout === b.timeout
@@ -105,6 +114,8 @@ export interface IAgentPluginResource extends INamedPluginResource {
 	readonly tools?: readonly string[];
 	readonly disableModelInvocation?: boolean;
 	readonly disableUserInvocation?: boolean;
+	/** Hooks that run only while this agent is active. */
+	readonly hooks?: readonly IParsedHookGroup[];
 }
 
 /** A parsed skill resource with normalized invocation metadata. */
@@ -738,6 +749,9 @@ function normalizeHookCommand(raw: Record<string, unknown>): IParsedHookCommand 
 	const windows = hasWindows ? raw.windows as string : (hasPowerShell ? raw.powershell as string : undefined);
 	const linux = hasLinux ? raw.linux as string : (hasBash ? raw.bash as string : undefined);
 	const osx = hasOsx ? raw.osx as string : (hasBash ? raw.bash as string : undefined);
+	const windowsSource = hasWindows ? 'windows' as const : (hasPowerShell ? 'powershell' as const : undefined);
+	const linuxSource = hasLinux ? 'linux' as const : (hasBash ? 'bash' as const : undefined);
+	const osxSource = hasOsx ? 'osx' as const : (hasBash ? 'bash' as const : undefined);
 
 	const timeout = typeof raw.timeout === 'number'
 		? raw.timeout
@@ -746,8 +760,11 @@ function normalizeHookCommand(raw: Record<string, unknown>): IParsedHookCommand 
 	return {
 		...(hasCommand && { command: raw.command as string }),
 		...(windows && { windows }),
+		...(windowsSource && { windowsSource }),
 		...(linux && { linux }),
+		...(linuxSource && { linuxSource }),
 		...(osx && { osx }),
+		...(osxSource && { osxSource }),
 		...(typeof raw.env === 'object' && raw.env !== null && { env: raw.env as Record<string, string> }),
 		...(timeout !== undefined && { timeout }),
 	};
@@ -1162,7 +1179,10 @@ export async function readInstructionComponents(
 export async function readAgentComponents(
 	dirs: readonly URI[],
 	fileService: IFileService,
-	options?: { readonly containmentRoot?: URI },
+	options?: {
+		readonly containmentRoot?: URI;
+		readonly parseHooks?: (agentUri: URI, hooks: unknown) => readonly IParsedHookGroup[];
+	},
 ): Promise<readonly IAgentPluginResource[]> {
 	const files = await readMarkdownComponents(dirs, fileService, options);
 	if (files.length === 0) {
@@ -1170,7 +1190,7 @@ export async function readAgentComponents(
 	}
 	const enriched = await Promise.all(files.map(async file => {
 		try {
-			const parsed = await parseAgentFile(file.uri, fileService);
+			const parsed = await parseAgentFileContents(file.uri, fileService, options?.parseHooks);
 			return {
 				uri: file.uri,
 				name: parsed.name || file.name,
@@ -1179,6 +1199,7 @@ export async function readAgentComponents(
 				...(parsed.tools?.length ? { tools: parsed.tools } : {}),
 				...(parsed.disableModelInvocation ? { disableModelInvocation: true } : {}),
 				...(parsed.userInvocable === false ? { disableUserInvocation: true } : {}),
+				...(parsed.hooks?.length ? { hooks: parsed.hooks } : {}),
 			} satisfies IAgentPluginResource;
 		} catch {
 			return file;
@@ -1199,6 +1220,37 @@ export async function readAgentComponents(
 }
 
 export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; model?: string; tools?: readonly string[]; disableModelInvocation?: boolean }> {
+	return parseAgentFileContents(uri, fileService);
+}
+
+interface IParsedAgentFileContents {
+	readonly name: string;
+	readonly description?: string;
+	readonly userInvocable?: boolean;
+	readonly model?: string;
+	readonly tools?: readonly string[];
+	readonly disableModelInvocation?: boolean;
+	readonly hooks?: readonly IParsedHookGroup[];
+}
+
+type PlainYamlValue = string | PlainYamlValue[] | { [key: string]: PlainYamlValue };
+
+function yamlNodeToPlainValue(node: YamlNode): PlainYamlValue {
+	switch (node.type) {
+		case 'scalar':
+			return node.value;
+		case 'sequence':
+			return node.items.map(yamlNodeToPlainValue);
+		case 'map':
+			return Object.fromEntries(node.properties.map(property => [property.key.value, yamlNodeToPlainValue(property.value)]));
+	}
+}
+
+async function parseAgentFileContents(
+	uri: URI,
+	fileService: IFileService,
+	parseHooks?: (agentUri: URI, hooks: unknown) => readonly IParsedHookGroup[],
+): Promise<IParsedAgentFileContents> {
 	// Use regex to strip the trailing `.agent.md` or .md before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
 	const nameFromFile = basename(uri).replace(/(\.agent)?\.md$/i, '');
 	try {
@@ -1211,7 +1263,11 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const tools = frontmatter?.getStringArrayValue('tools')?.map(value => value.trim()).filter(Boolean);
 		const infer = frontmatter?.getBooleanValue('infer');
 		const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'));
-		return { name, description, userInvocable, model, tools, disableModelInvocation };
+		const hooksNode = frontmatter?.header?.type === 'map'
+			? frontmatter.header.properties.find(property => property.key.value === 'hooks')?.value
+			: undefined;
+		const hooks = hooksNode && parseHooks ? parseHooks(uri, yamlNodeToPlainValue(hooksNode)) : undefined;
+		return { name, description, userInvocable, model, tools, disableModelInvocation, ...(hooks?.length ? { hooks } : {}) };
 	} catch {
 		return { name: nameFromFile };
 	}
@@ -1409,7 +1465,10 @@ export async function parsePlugin(
 			? Promise.resolve(embeddedMcp)
 			: readPluginMcpServers(pluginUri, mcpDirs, formatConfig, fileService),
 		readPluginSkills(pluginUri, skillDirs, formatConfig, fileService),
-		readAgentComponents(agentDirs, fileService, formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : undefined),
+		readAgentComponents(agentDirs, fileService, {
+			...(formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : {}),
+			parseHooks: (agentUri, hooks) => formatConfig.parseHooks(agentUri, { hooks }, pluginUri, workspaceRoot, userHome),
+		}),
 		readInstructionComponents(instructionDirs, fileService, formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : undefined),
 	]);
 

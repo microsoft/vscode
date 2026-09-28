@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { writeFileSync, unlinkSync } from 'fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync, unlinkSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -16,8 +16,8 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
-import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
-import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
+import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, rebasePluginAgentHooks, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
+import { PluginFormat, shellQuotePluginRootInCommand, type IMcpServerDefinition, type INamedPluginResource, type IParsedAgent, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
 function stubMcpCustomization(name = 'test'): McpServerCustomization {
@@ -682,6 +682,101 @@ suite('copilotPluginConverters', () => {
 			assert.strictEqual(input.prompt, 'Keep GitHub casing');
 			assert.deepStrictEqual(result, { additionalContext: 'Rename with exact casing' });
 		});
+
+		test('runs scoped hooks only for the active root or spawned agent session', async () => {
+			const expectedOutput = { additionalContext: 'agent-scoped' };
+			const { command, cleanup } = echoJsonCmd(expectedOutput);
+			try {
+				const hookGroup = makeHookGroup('PostToolUse', command);
+				const hooks = toSdkHooks([], undefined, {
+					all: [hookGroup],
+					get: (inputSessionId, rootSessionId) => inputSessionId === rootSessionId || inputSessionId === 'spawned-agent' ? [hookGroup] : [],
+				});
+				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+				const input = (sessionId: string) => ({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId });
+
+				assert.deepStrictEqual({
+					root: await hooks.onPostToolUse!(input('root-session'), { sessionId: 'root-session' }),
+					spawned: await hooks.onPostToolUse!(input('spawned-agent'), { sessionId: 'root-session' }),
+					unscoped: await hooks.onPostToolUse!(input('other-agent'), { sessionId: 'root-session' }),
+				}, {
+					root: expectedOutput,
+					spawned: expectedOutput,
+					unscoped: undefined,
+				});
+			} finally {
+				cleanup();
+			}
+		});
+
+		test('rebases materialized agent-hook roots to the source plugin', () => {
+			const materializedRoot = URI.file('/cache/root-hook-tpi');
+			const sourceRoot = URI.file('/plugins/root hook tpi');
+			const agentUri = URI.joinPath(materializedRoot, 'agents', 'asparagus.md');
+			const command = `echo hi > ${materializedRoot.fsPath}/scripts/hello.out`;
+			const plugin: IParsedPlugin = {
+				format: PluginFormat.OpenPlugin,
+				hooks: [],
+				mcpServers: [],
+				skills: [],
+				agents: [{
+					uri: agentUri,
+					name: 'asparagus',
+					hooks: [{
+						type: 'PreToolUse',
+						commands: [{
+							windows: command,
+							cwd: URI.joinPath(materializedRoot, 'scripts'),
+							env: { PLUGIN_ROOT: materializedRoot.fsPath },
+						}],
+						uri: agentUri,
+						originalId: 'PreToolUse',
+						customization: stubHookCustomization('PreToolUse'),
+					}],
+					customization: { type: CustomizationType.Agent, id: 'asparagus', uri: agentUri.toString(), name: 'asparagus' },
+				}],
+				instructions: [],
+			};
+
+			const rebased = rebasePluginAgentHooks(plugin, materializedRoot, sourceRoot);
+
+			assert.deepStrictEqual(rebased.agents[0].hooks?.[0].commands, [{
+				windows: shellQuotePluginRootInCommand(command, sourceRoot.fsPath, materializedRoot.fsPath),
+				cwd: URI.joinPath(sourceRoot, 'scripts'),
+				env: { PLUGIN_ROOT: sourceRoot.fsPath },
+			}]);
+		});
+
+		test('executes powershell hook fields with PowerShell on Windows', async function () {
+			if (process.platform !== 'win32') {
+				this.skip();
+			}
+			const directory = fileURLToPath(new URL(`./vscode hook root ${Date.now()}/`, import.meta.url));
+			const marker = `${directory}hello.out`;
+			mkdirSync(directory, { recursive: true });
+			try {
+				const hookGroup: IParsedHookGroup = {
+					type: 'PreToolUse',
+					commands: [{ windows: `echo hi > "${marker}"`, windowsSource: 'powershell' }],
+					uri: URI.file(`${directory}asparagus.md`),
+					originalId: 'PreToolUse',
+					customization: stubHookCustomization('PreToolUse'),
+				};
+				const hooks = toSdkHooks([hookGroup]);
+
+				await hooks.onPreToolUse!({
+					toolName: 'glob',
+					toolArgs: {},
+					timestamp: new Date(0),
+					workingDirectory: directory,
+					sessionId: 'root-session',
+				}, { sessionId: 'root-session' });
+
+				assert.strictEqual(readFileSync(marker, 'utf16le').replace(/^\uFEFF/, '').trim(), 'hi');
+			} finally {
+				rmSync(directory, { recursive: true, force: true });
+			}
+		});
 	});
 
 	// ---- parsedPluginsEqual ---------------------------------------------
@@ -745,6 +840,28 @@ suite('copilotPluginConverters', () => {
 				parsedPluginsEqual([defaults], [makePlugin({ skills: [makeSkill({ disableModelInvocation: true })] })]),
 				parsedPluginsEqual([defaults], [makePlugin({ skills: [makeSkill({ disableUserInvocation: true })] })]),
 			], [false, false]);
+		});
+
+		test('returns false when an agent-scoped hook differs', () => {
+			const agentUri = URI.file('/plugin/agents/asparagus.md');
+			const makePluginHook = (command: string): IParsedHookGroup => ({
+				type: 'PreToolUse',
+				commands: [{ command }],
+				uri: agentUri,
+				originalId: 'PreToolUse',
+				customization: stubHookCustomization('PreToolUse'),
+			});
+			const agent = (command: string): IParsedAgent => ({
+				uri: agentUri,
+				name: 'asparagus',
+				hooks: [makePluginHook(command)],
+				customization: { type: CustomizationType.Agent, id: 'asparagus', uri: agentUri.toString(), name: 'asparagus' },
+			});
+
+			assert.strictEqual(parsedPluginsEqual(
+				[makePlugin({ agents: [agent('echo before')] })],
+				[makePlugin({ agents: [agent('echo after')] })],
+			), false);
 		});
 
 		test('returns false for different MCP default cwd URIs', () => {

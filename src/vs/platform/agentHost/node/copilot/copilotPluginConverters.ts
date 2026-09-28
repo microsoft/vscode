@@ -6,14 +6,15 @@
 import { spawn } from 'child_process';
 import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
 import { Schemas } from '../../../../base/common/network.js';
-import { dirname } from '../../../../base/common/path.js';
+import { dirname, join } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { isEqualOrParent, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { shellQuotePluginRootInCommand, type IMcpServerDefinition, type INamedPluginResource, type IParsedAgent, type IParsedHookCommand, type IParsedHookGroup, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 
@@ -277,13 +278,36 @@ function resolveEffectiveCommand(hook: IParsedHookCommand, os: OperatingSystem):
 	return hook.command;
 }
 
+function resolveHookProcess(hook: IParsedHookCommand, os: OperatingSystem): { command: string; args: string[]; env?: Record<string, string> } | undefined {
+	const command = resolveEffectiveCommand(hook, os);
+	if (!command) {
+		return undefined;
+	}
+	if (os === OperatingSystem.Windows) {
+		if (hook.windowsSource === 'powershell') {
+			const systemRoot = process.env.SystemRoot || process.env.WINDIR;
+			const powershell = systemRoot ? join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe') : 'powershell.exe';
+			return {
+				command: powershell,
+				args: ['-ExecutionPolicy', 'Bypass', '-NoProfile', '-NoLogo', '-Command', command],
+				env: { POWERSHELL_UPDATECHECK: 'Off' },
+			};
+		}
+		return { command: 'cmd.exe', args: ['/c', command] };
+	}
+	if (hook.linuxSource === 'bash' || hook.osxSource === 'bash') {
+		return { command: '/bin/bash', args: ['-c', command] };
+	}
+	return { command: '/bin/sh', args: ['-c', command] };
+}
+
 /**
  * Executes a hook command as a shell process. Returns the stdout on success,
  * or throws on non-zero exit code or timeout.
  */
 function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<string> {
-	const command = resolveEffectiveCommand(hook, OS);
-	if (!command) {
+	const processConfig = resolveHookProcess(hook, OS);
+	if (!processConfig) {
 		return Promise.resolve('');
 	}
 
@@ -291,13 +315,9 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 	const cwd = hook.cwd?.fsPath;
 
 	return new Promise<string>((resolve, reject) => {
-		const isWindows = OS === OperatingSystem.Windows;
-		const shell = isWindows ? 'cmd.exe' : '/bin/sh';
-		const shellArgs = isWindows ? ['/c', command] : ['-c', command];
-
-		const child = spawn(shell, shellArgs, {
+		const child = spawn(processConfig.command, processConfig.args, {
 			cwd,
-			env: { ...process.env, ...hook.env },
+			env: { ...process.env, ...hook.env, ...processConfig.env },
 			stdio: ['pipe', 'pipe', 'pipe'],
 			timeout,
 		});
@@ -385,48 +405,42 @@ export function toSdkHooks(
 		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
 		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
+	scopedAgentHooks?: IScopedAgentHookGroups,
 ): SessionHooks {
-	// Group all commands by SDK handler key
-	const commandsByKey = new Map<keyof SessionHooks, IParsedHookCommand[]>();
-	for (const group of hookGroups) {
-		const sdkKey = HOOK_TYPE_TO_SDK_KEY[group.type];
-		if (!sdkKey) {
-			continue;
-		}
-		const existing = commandsByKey.get(sdkKey) ?? [];
-		existing.push(...group.commands);
-		commandsByKey.set(sdkKey, existing);
-	}
+	const commandsByKey = groupHookCommands(hookGroups);
+	const allScopedCommandsByKey = groupHookCommands(scopedAgentHooks?.all ?? []);
+	const hasCommands = (key: keyof SessionHooks) => commandsByKey.has(key) || allScopedCommandsByKey.has(key);
+	const getCommands = (key: keyof SessionHooks, inputSessionId: string, rootSessionId: string): readonly IParsedHookCommand[] => [
+		...(commandsByKey.get(key) ?? []),
+		...(groupHookCommands(scopedAgentHooks?.get(inputSessionId, rootSessionId) ?? []).get(key) ?? []),
+	];
 
 	const hooks: SessionHooks = {};
 
 	// Pre-tool-use handler
-	const preToolCommands = commandsByKey.get('onPreToolUse');
-	if (preToolCommands?.length || editTrackingHooks) {
-		hooks.onPreToolUse = async (input: PreToolUseHookInput) => {
+	if (hasCommands('onPreToolUse') || editTrackingHooks) {
+		hooks.onPreToolUse = async (input: PreToolUseHookInput, invocation) => {
 			const internalResult = await editTrackingHooks?.onPreToolUse(input);
 			if (internalResult !== undefined) {
 				return internalResult;
 			}
-			return runHookCommands(preToolCommands, input);
+			return runHookCommands(getCommands('onPreToolUse', input.sessionId, invocation.sessionId), input);
 		};
 	}
 
 	// Post-tool-use handler
-	const postToolCommands = commandsByKey.get('onPostToolUse');
-	if (postToolCommands?.length || editTrackingHooks) {
-		hooks.onPostToolUse = async (input: PostToolUseHookInput) => {
+	if (hasCommands('onPostToolUse') || editTrackingHooks) {
+		hooks.onPostToolUse = async (input: PostToolUseHookInput, invocation) => {
 			await editTrackingHooks?.onPostToolUse(input);
-			return runHookCommands(postToolCommands, input);
+			return runHookCommands(getCommands('onPostToolUse', input.sessionId, invocation.sessionId), input);
 		};
 	}
 
 	// User-prompt-submitted handler
-	const promptCommands = commandsByKey.get('onUserPromptSubmitted');
-	if (promptCommands?.length || editTrackingHooks?.onUserPromptSubmitted) {
-		hooks.onUserPromptSubmitted = async (input: UserPromptSubmittedHookInput) => {
+	if (hasCommands('onUserPromptSubmitted') || editTrackingHooks?.onUserPromptSubmitted) {
+		hooks.onUserPromptSubmitted = async (input: UserPromptSubmittedHookInput, invocation) => {
 			const stdin = JSON.stringify(input);
-			for (const cmd of promptCommands ?? []) {
+			for (const cmd of getCommands('onUserPromptSubmitted', input.sessionId, invocation.sessionId)) {
 				try {
 					await executeHookCommand(cmd, stdin);
 				} catch {
@@ -438,11 +452,10 @@ export function toSdkHooks(
 	}
 
 	// Session-start handler
-	const startCommands = commandsByKey.get('onSessionStart');
-	if (startCommands?.length) {
-		hooks.onSessionStart = async (input: SessionStartHookInput) => {
+	if (hasCommands('onSessionStart')) {
+		hooks.onSessionStart = async (input: SessionStartHookInput, invocation) => {
 			const stdin = JSON.stringify(input);
-			for (const cmd of startCommands) {
+			for (const cmd of getCommands('onSessionStart', input.sessionId, invocation.sessionId)) {
 				try {
 					await executeHookCommand(cmd, stdin);
 				} catch {
@@ -453,11 +466,10 @@ export function toSdkHooks(
 	}
 
 	// Session-end handler
-	const endCommands = commandsByKey.get('onSessionEnd');
-	if (endCommands?.length) {
-		hooks.onSessionEnd = async (input: SessionEndHookInput) => {
+	if (hasCommands('onSessionEnd')) {
+		hooks.onSessionEnd = async (input: SessionEndHookInput, invocation) => {
 			const stdin = JSON.stringify(input);
-			for (const cmd of endCommands) {
+			for (const cmd of getCommands('onSessionEnd', input.sessionId, invocation.sessionId)) {
 				try {
 					await executeHookCommand(cmd, stdin);
 				} catch {
@@ -468,11 +480,10 @@ export function toSdkHooks(
 	}
 
 	// Error-occurred handler
-	const errorCommands = commandsByKey.get('onErrorOccurred');
-	if (errorCommands?.length) {
-		hooks.onErrorOccurred = async (input: ErrorOccurredHookInput) => {
+	if (hasCommands('onErrorOccurred')) {
+		hooks.onErrorOccurred = async (input: ErrorOccurredHookInput, invocation) => {
 			const stdin = JSON.stringify(input);
-			for (const cmd of errorCommands) {
+			for (const cmd of getCommands('onErrorOccurred', input.sessionId, invocation.sessionId)) {
 				try {
 					await executeHookCommand(cmd, stdin);
 				} catch {
@@ -485,6 +496,64 @@ export function toSdkHooks(
 	return hooks;
 }
 
+/** Resolves hooks scoped to the custom agent handling a runtime session. */
+export interface IScopedAgentHookGroups {
+	readonly all: readonly IParsedHookGroup[];
+	get(inputSessionId: string, rootSessionId: string): readonly IParsedHookGroup[];
+}
+
+/** Rewrites materialized agent-hook roots to the client plugin's original directory. */
+export function rebasePluginAgentHooks(plugin: IParsedPlugin, materializedRoot: URI, sourceRoot: URI): IParsedPlugin {
+	const rebaseUri = (uri: URI | undefined): URI | undefined => {
+		if (!uri || !isEqualOrParent(uri, materializedRoot)) {
+			return uri;
+		}
+		const relative = relativePath(materializedRoot, uri);
+		return relative === undefined || relative.length === 0 ? sourceRoot : joinPath(sourceRoot, relative);
+	};
+	const rebaseString = (value: string | undefined, shellQuote: boolean): string | undefined => {
+		if (!value) {
+			return value;
+		}
+		return shellQuote
+			? shellQuotePluginRootInCommand(value, sourceRoot.fsPath, materializedRoot.fsPath)
+			: value.replaceAll(materializedRoot.fsPath, sourceRoot.fsPath);
+	};
+	const rebaseCommand = (command: IParsedHookCommand): IParsedHookCommand => ({
+		...command,
+		...(command.command !== undefined ? { command: rebaseString(command.command, true) } : {}),
+		...(command.windows !== undefined ? { windows: rebaseString(command.windows, true) } : {}),
+		...(command.linux !== undefined ? { linux: rebaseString(command.linux, true) } : {}),
+		...(command.osx !== undefined ? { osx: rebaseString(command.osx, true) } : {}),
+		...(command.cwd ? { cwd: rebaseUri(command.cwd) } : {}),
+		...(command.env ? { env: Object.fromEntries(Object.entries(command.env).map(([key, value]) => [key, rebaseString(value, false) ?? value])) } : {}),
+	});
+	return {
+		...plugin,
+		agents: plugin.agents.map(agent => agent.hooks?.length ? {
+			...agent,
+			hooks: agent.hooks.map(group => ({
+				...group,
+				commands: group.commands.map(rebaseCommand),
+			})),
+		} : agent),
+	};
+}
+
+function groupHookCommands(hookGroups: readonly IParsedHookGroup[]): Map<keyof SessionHooks, IParsedHookCommand[]> {
+	const commandsByKey = new Map<keyof SessionHooks, IParsedHookCommand[]>();
+	for (const group of hookGroups) {
+		const sdkKey = HOOK_TYPE_TO_SDK_KEY[group.type];
+		if (!sdkKey) {
+			continue;
+		}
+		const existing = commandsByKey.get(sdkKey) ?? [];
+		existing.push(...group.commands);
+		commandsByKey.set(sdkKey, existing);
+	}
+	return commandsByKey;
+}
+
 /**
  * Checks whether two sets of parsed plugins produce equivalent SDK config.
  * Used to determine if a session needs to be refreshed.
@@ -495,7 +564,7 @@ export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IPar
 	const serialize = (plugins: readonly IParsedPlugin[]) => {
 		return JSON.stringify(plugins.map(p => ({
 			format: p.format,
-			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
+			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, windowsSource: c.windowsSource, linux: c.linux, linuxSource: c.linuxSource, osx: c.osx, osxSource: c.osxSource, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
 			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
 			skills: p.skills.map(s => ({
 				uri: s.uri.toString(),
@@ -503,7 +572,11 @@ export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IPar
 				disableModelInvocation: s.disableModelInvocation,
 				disableUserInvocation: s.disableUserInvocation,
 			})),
-			agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
+			agents: p.agents.map(a => ({
+				uri: a.uri.toString(),
+				name: a.name,
+				hooks: a.hooks?.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, windowsSource: c.windowsSource, linux: c.linux, linuxSource: c.linuxSource, osx: c.osx, osxSource: c.osxSource, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
+			})),
 			instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
 		})));
 	};

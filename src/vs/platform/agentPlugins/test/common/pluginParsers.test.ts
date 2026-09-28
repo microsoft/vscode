@@ -591,6 +591,53 @@ suite('pluginParsers', () => {
 				});
 			});
 
+			test('parses and interpolates hooks from Open Plugin agent frontmatter', async () => {
+				const root = URI.from({ scheme: Schemas.inMemory, path: '/plugins/root hook tpi' });
+				const agentUri = URI.joinPath(root, 'agents', 'asparagus.md');
+				await write('/plugins/root hook tpi/.plugin/plugin.json', JSON.stringify({ name: 'root-hook-tpi' }));
+				await write('/plugins/root hook tpi/agents/asparagus.md', [
+					'---',
+					'name: asparagus',
+					'description: Verifies a Plugin-root hook.',
+					'hooks:',
+					'  PreToolUse:',
+					'    - type: command',
+					'      powershell: "echo hi > ${PLUGIN_ROOT}/scripts/hello.out"',
+					'---',
+				].join('\n'));
+
+				const plugin = await parse('/plugins/root hook tpi');
+
+				assert.deepStrictEqual({
+					format: plugin.format,
+					agents: plugin.agents.map(agent => ({
+						name: agent.name,
+						hooks: agent.hooks?.map(hook => ({
+							type: hook.type,
+							commands: hook.commands.map(command => ({
+								windows: command.windows,
+								windowsSource: command.windowsSource,
+								env: command.env,
+							})),
+						})),
+					})),
+				}, {
+					format: PluginFormat.OpenPlugin,
+					agents: [{
+						name: 'asparagus',
+						hooks: [{
+							type: 'PreToolUse',
+							commands: [{
+								windows: shellQuotePluginRootInCommand('echo hi > ${PLUGIN_ROOT}/scripts/hello.out', root.fsPath, '${PLUGIN_ROOT}'),
+								windowsSource: 'powershell',
+								env: { PLUGIN_ROOT: root.fsPath },
+							}],
+						}],
+					}],
+				});
+				assert.strictEqual(plugin.agents[0].hooks?.[0].uri.toString(), agentUri.toString());
+			});
+
 			test('resolves namespaced component paths relative to the extension directory', async () => {
 				await write('/plugins/example/plugin.json', JSON.stringify({
 					$schema: AGENT_PLUGIN_SCHEMA,

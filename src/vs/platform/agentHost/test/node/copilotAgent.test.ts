@@ -16687,6 +16687,41 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('_resolveAgentName translates a client plugin agent to its materialized copy', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			try {
+				const sourcePlugin = URI.file('/plugins/root hook tpi');
+				const materializedPlugin = URI.file('/agentPlugins/root-hook-tpi/revision');
+				const sourceAgent = URI.joinPath(sourcePlugin, 'agents', 'asparagus.md');
+				const materializedAgent = URI.joinPath(materializedPlugin, 'agents', 'asparagus.md');
+				const snapshot: IActiveClientSnapshot = {
+					tools: [],
+					mcpServers: {},
+					plugins: [{
+						format: PluginFormat.OpenPlugin,
+						hooks: [],
+						mcpServers: [],
+						skills: [],
+						agents: [{
+							uri: materializedAgent,
+							name: 'asparagus',
+							customization: { type: CustomizationType.Agent, id: materializedAgent.toString(), uri: materializedAgent.toString(), name: 'asparagus' },
+						}],
+						instructions: [],
+						sourceUri: sourcePlugin,
+						pluginDir: materializedPlugin,
+					}],
+				};
+
+				assert.strictEqual(
+					(agent as unknown as AgentInternals)._resolveAgentName(snapshot, { uri: sourceAgent.toString() }),
+					'asparagus',
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('_resolveAgentWhenMaterializing returns undefined when no agent is selected or neither resolves', async () => {
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
 			try {

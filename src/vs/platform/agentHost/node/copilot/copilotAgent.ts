@@ -84,7 +84,7 @@ import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
 import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
 import { createCopilotCliEnvironment } from './copilotCliEnvironment.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
-import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
+import { parsedPluginsEqual, rebasePluginAgentHooks, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
@@ -2863,8 +2863,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * snapshot that is, or will be, applied to the SDK session.
 	 */
 	private _resolveAgentName(snapshot: IActiveClientSnapshot, agent: AgentSelection): string | undefined {
+		const selectedAgentUri = URI.parse(agent.uri);
 		for (const plugin of snapshot.plugins) {
-			const found = plugin.agents.find(a => a.uri.toString() === agent.uri);
+			const rebasedAgentUri = plugin.sourceUri && plugin.pluginDir
+				? rebaseUnder(selectedAgentUri, plugin.sourceUri, plugin.pluginDir)
+				: undefined;
+			const found = plugin.agents.find(candidate => isEqual(candidate.uri, selectedAgentUri) || !!rebasedAgentUri && isEqual(candidate.uri, rebasedAgentUri));
 			if (found) {
 				return found.name;
 			}
@@ -6960,16 +6964,24 @@ class SessionPluginController extends Disposable {
 		const discovered = entry?.currentCustomizations() ?? [];
 		const discoveredDirectories = discovered.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory);
 		const sessionPlugin = discoveredDirectories.some(isEnabledForSdk) ? mapToParsedPlugin(discoveredDirectories) : undefined;
-		const withSdkRegistration = (plugin: IParsedPlugin, pluginDir: URI | undefined): ICopilotPluginInfo => ({
-			...plugin,
-			pluginDir,
-			mcpServers: plugin.mcpServers.map(definition => resolveCopilotMcpServerInfo(definition, pluginDir)),
-		});
+		const withSdkRegistration = (plugin: IParsedPlugin, pluginDir: URI | undefined, sourceUri?: URI): ICopilotPluginInfo => {
+			const resolvedPlugin = pluginDir?.scheme === Schemas.file && sourceUri?.scheme === Schemas.file
+				? rebasePluginAgentHooks(plugin, pluginDir, sourceUri)
+				: plugin;
+			return {
+				...resolvedPlugin,
+				pluginDir,
+				mcpServers: resolvedPlugin.mcpServers.map(definition => resolveCopilotMcpServerInfo(definition, pluginDir)),
+			};
+		};
 		const sessionPlugins: ICopilotPluginInfo[] = sessionPlugin ? [withSdkRegistration(sessionPlugin, undefined)] : [];
 
 		const primaryCwd = this._directory;
 		const withClientDefaults = (item: IResolvedCustomization): ICopilotPluginInfo => {
-			const plugin = item.plugin!;
+			const sourceUri = URI.parse(item.customization.uri);
+			const plugin = item.pluginDir?.scheme === Schemas.file && sourceUri.scheme === Schemas.file
+				? rebasePluginAgentHooks(item.plugin!, item.pluginDir, sourceUri)
+				: item.plugin!;
 			return {
 				...plugin,
 				pluginDir: item.pluginDir,
@@ -6990,7 +7002,10 @@ class SessionPluginController extends Disposable {
 		return [
 			...workspaceMcp,
 			...host.filter(item => !!item.plugin && isEnabledForSdk(item.customization))
-				.map(item => ({ ...withSdkRegistration(item.plugin!, item.pluginDir), sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
+				.map(item => {
+					const sourceUri = URI.parse(item.customization.uri);
+					return { ...withSdkRegistration(item.plugin!, item.pluginDir, sourceUri), sourceUri, ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) };
+				}),
 			...this._flattenClientCustomizations().filter(item => !!item.plugin && isEnabledForSdk(item.customization))
 				.map(item => ({ ...withClientDefaults(item), sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
 			...sessionPlugins,

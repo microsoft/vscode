@@ -1483,6 +1483,32 @@ suite('CopilotAgentSession', () => {
 			'[Copilot:test-session-1] rpc.agent.deselect timed out after 1ms',
 		]);
 	});
+
+	test('resolves selected and spawned custom agents for scoped hooks', async () => {
+		const { session, runtime, mockSession } = await createAgentSession(disposables);
+
+		await session.setAgent('asparagus');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'call-1',
+			agentName: 'reviewer',
+			agentDisplayName: 'Reviewer',
+			agentDescription: 'Reviews changes',
+		}, { agentId: 'spawned-agent' });
+
+		assert.deepStrictEqual({
+			root: runtime.getActiveAgentName('root-session', 'root-session'),
+			spawned: runtime.getActiveAgentName('spawned-agent', 'root-session'),
+			unknown: runtime.getActiveAgentName('unknown-agent', 'root-session'),
+		}, {
+			root: 'asparagus',
+			spawned: 'reviewer',
+			unknown: undefined,
+		});
+
+		await session.setAgent();
+		assert.strictEqual(runtime.getActiveAgentName('root-session', 'root-session'), undefined);
+	});
+
 	test('updates GitHub credentials through the SDK session RPC', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		await session.initializeSession();
