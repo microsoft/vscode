@@ -9,8 +9,8 @@
 //
 // The layer above {@link chunk}: every outbound payload is wrapped in one or
 // more {@link ChunkEnvelope}s, each carried by a Web PubSub `sendToGroup`
-// command. The inbound path is the mirror image. This module is pure JSON ↔
-// JSON; it owns no WebSocket and speaks no handshake.
+// command. The inbound path is the mirror image. This module owns no WebSocket
+// and speaks no handshake.
 
 import { type ChunkEnvelope, type ChunkOptions, Reassembler, chunk } from './chunking.js';
 import { parseGroupName, type ParseGroupNameOptions, type ParsedGroup } from './groups.js';
@@ -22,16 +22,12 @@ import { parseGroupName, type ParseGroupNameOptions, type ParsedGroup } from './
 export const RELIABLE_JSON_SUBPROTOCOL = 'json.reliable.webpubsub.azure.v1';
 
 /**
- * Web PubSub `sendToGroup` command on the outbound wire. `ackId` is a monotonic
- * per-publisher counter scoped to the connection.
+ * Serialized Web PubSub `sendToGroup` command, with its connection-scoped
+ * `ackId` retained separately for acknowledgement tracking.
  */
-export interface SendToGroupCommand {
-	readonly type: 'sendToGroup';
-	readonly group: string;
+export interface SerializedSendToGroupCommand {
 	readonly ackId: number;
-	readonly dataType: 'json';
-	readonly noEcho: true;
-	readonly data: ChunkEnvelope;
+	readonly serialized: string;
 }
 
 /**
@@ -64,22 +60,23 @@ export interface BuildPublishOptions {
 }
 
 /**
- * Build the list of {@link SendToGroupCommand}s to publish for a single
- * application payload. An oversized payload chunks into multiple envelopes,
- * each carried by its own frame with its own `ackId`.
+ * Build serialized commands without evaluating the payload again.
+ * Each chunk has its own frame and `ackId`.
  */
-export function buildPublish(options: BuildPublishOptions): SendToGroupCommand[] {
+export function buildPublish(options: BuildPublishOptions): SerializedSendToGroupCommand[] {
 	const envelopes = chunk(options.payload, options.chunkOptions);
-	return envelopes.map(
-		envelope => ({
+	return envelopes.map(envelope => {
+		const group = options.group;
+		const ackId = options.nextAckId();
+		const header = JSON.stringify({
 			type: 'sendToGroup',
-			group: options.group,
-			ackId: options.nextAckId(),
+			group,
+			ackId,
 			dataType: 'json',
 			noEcho: true,
-			data: envelope,
-		} satisfies SendToGroupCommand),
-	);
+		});
+		return { ackId, serialized: `${header.slice(0, -1)},"data":${envelope}}` };
+	});
 }
 
 /**

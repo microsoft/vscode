@@ -221,7 +221,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			for (const group of this._options.joinGroups) {
 				const ackId = ++this._ackId;
 				this._pendingJoinAcks.set(ackId, group);
-				this._sendRaw({ type: 'joinGroup', group, ackId });
+				this._sendRaw(JSON.stringify({ type: 'joinGroup', group, ackId }));
 			}
 			if (this._pendingJoinAcks.size === 0) {
 				onConnected();
@@ -307,7 +307,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			this._lastReceivedSequenceId = Math.max(this._lastReceivedSequenceId, sequenceId);
 			try {
 				// Receipt acknowledgements must not wait for reassembly or application processing.
-				this._sendRaw({ type: 'sequenceAck', sequenceId: this._lastReceivedSequenceId });
+				this._sendRaw(JSON.stringify({ type: 'sequenceAck', sequenceId: this._lastReceivedSequenceId }));
 			} catch (err) {
 				const error = new Error('Failed to send WPS sequence acknowledgement', { cause: err });
 				this._options.onProtocolError?.(error);
@@ -348,7 +348,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		for (const frame of frames) {
 			this._pendingPublishAcks.set(frame.ackId, Date.now() + WPS_TIMEOUT_MS);
 			try {
-				this._sendRaw(frame);
+				this._sendRaw(frame.serialized);
 			} catch (err) {
 				this._pendingPublishAcks.delete(frame.ackId);
 				throw err;
@@ -385,8 +385,8 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		}
 	}
 
-	private _sendRaw(obj: unknown): void {
-		this._ws?.send(JSON.stringify(obj));
+	private _sendRaw(serialized: string): void {
+		this._ws?.send(serialized);
 	}
 
 	/** Fire onClose exactly once and stop background work. */

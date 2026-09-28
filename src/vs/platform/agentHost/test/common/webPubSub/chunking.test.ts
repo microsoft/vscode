@@ -13,9 +13,13 @@ function b64(s: string): string {
 	return encodeBase64(VSBuffer.fromString(s), true /* padded */, false /* urlSafe */);
 }
 
-function reassembleAll(envelopes: ChunkEnvelope[], r = new Reassembler()): unknown {
+function parseEnvelopes(envelopes: string[]): ChunkEnvelope[] {
+	return envelopes.map(envelope => JSON.parse(envelope));
+}
+
+function reassembleAll(envelopes: string[], r = new Reassembler()): unknown {
 	let result: unknown = null;
-	for (const env of envelopes) {
+	for (const env of parseEnvelopes(envelopes)) {
 		result = r.ingest(env);
 	}
 	return result;
@@ -26,11 +30,6 @@ const encoder = new TextEncoder();
 /** UTF-8 bytes of `value` in its JSON wire form. */
 function wireBytes(value: unknown): number {
 	return encoder.encode(JSON.stringify(value)).byteLength;
-}
-
-/** Reassembles envelopes after carrying each one through its JSON wire form. */
-function reassembleFromWire(envelopes: ChunkEnvelope[]): unknown {
-	return reassembleAll(envelopes.map(envelope => JSON.parse(JSON.stringify(envelope))));
 }
 
 /** A string of repeated `unit`, padded with ASCII so its `kind: 'message'` envelope is exactly `envelopeBytes`. */
@@ -47,7 +46,7 @@ suite('WebPubSub - chunk', () => {
 
 	test('wraps a small payload in a single message envelope', () => {
 		const envelopes = chunk({ hello: 'world' });
-		assert.deepStrictEqual(envelopes, [{ kind: 'message', data: { hello: 'world' } }]);
+		assert.deepStrictEqual(parseEnvelopes(envelopes), [{ kind: 'message', data: { hello: 'world' } }]);
 	});
 
 	test('decides single-frame fit from UTF-8 envelope bytes at the ceiling', () => {
@@ -63,9 +62,9 @@ suite('WebPubSub - chunk', () => {
 				actual.push({
 					unit,
 					envelopeBytes: wireBytes({ kind: 'message', data: payload }),
-					kinds: envelopes.map(envelope => envelope.kind),
-					framesFit: envelopes.every(envelope => wireBytes(envelope) <= maxChunkBytes),
-					roundTrip: reassembleFromWire(envelopes),
+					kinds: parseEnvelopes(envelopes).map(envelope => envelope.kind),
+					framesFit: envelopes.every(envelope => encoder.encode(envelope).byteLength <= maxChunkBytes),
+					roundTrip: reassembleAll(envelopes),
 				});
 				expected.push({
 					unit,
@@ -81,7 +80,7 @@ suite('WebPubSub - chunk', () => {
 
 	test('splits an oversized payload into multiple chunk envelopes', () => {
 		const big = { blob: 'x'.repeat(5000) };
-		const envelopes = chunk(big, { maxChunkBytes: 1024, newGroupId: () => 'g1' });
+		const envelopes = parseEnvelopes(chunk(big, { maxChunkBytes: 1024, newGroupId: () => 'g1' }));
 		assert.ok(envelopes.length > 1);
 		assert.ok(envelopes.every(e => e.kind === 'chunk'));
 		const total = envelopes.length;
@@ -96,7 +95,7 @@ suite('WebPubSub - chunk', () => {
 	test('matches the pinned 200-byte portable split vector', () => {
 		const payload = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.repeat(7);
 		const groupId = '00000000-0000-4000-8000-000000000000';
-		assert.deepStrictEqual(chunk(payload, { maxChunkBytes: 200, newGroupId: () => groupId }), [
+		assert.deepStrictEqual(parseEnvelopes(chunk(payload, { maxChunkBytes: 200, newGroupId: () => groupId })), [
 			{
 				kind: 'chunk',
 				group_id: groupId,
@@ -125,7 +124,7 @@ suite('WebPubSub - chunk', () => {
 		// 12 raw bytes per segment: seq 3 ends with the first UTF-8 byte of U+1F600 and seq 4 carries the rest.
 		const payload = { jsonrpc: '2.0', id: 7, result: { text: '\u00e9\u20ac\ud83d\ude00"\\\n\t\u0000\u2028\ud800 end' } };
 		const envelopes = chunk(payload, { maxChunkBytes: 83, newGroupId: () => 'g1' });
-		assert.deepStrictEqual({ envelopes, roundTrip: reassembleFromWire(envelopes) }, {
+		assert.deepStrictEqual({ envelopes: parseEnvelopes(envelopes), roundTrip: reassembleAll(envelopes) }, {
 			envelopes: [
 				{ kind: 'chunk', group_id: 'g1', seq: 0, total: 7, bytes: 'eyJqc29ucnBjIjoi' },
 				{ kind: 'chunk', group_id: 'g1', seq: 1, total: 7, bytes: 'Mi4wIiwiaWQiOjcs' },
@@ -166,9 +165,9 @@ suite('WebPubSub - chunk', () => {
 		const actual = [keyed('small', long), keyed(long, 'small')].map(payload => {
 			const envelopes = chunk(payload, { maxChunkBytes, newGroupId: () => 'g1' });
 			return {
-				kinds: envelopes.map(envelope => envelope.kind),
-				framesFit: envelopes.every(envelope => wireBytes(envelope) <= maxChunkBytes),
-				delivered: reassembleFromWire(envelopes),
+				kinds: parseEnvelopes(envelopes).map(envelope => envelope.kind),
+				framesFit: envelopes.every(envelope => encoder.encode(envelope).byteLength <= maxChunkBytes),
+				delivered: reassembleAll(envelopes),
 			};
 		});
 		assert.deepStrictEqual(actual, [
@@ -207,7 +206,7 @@ suite('WebPubSub - chunk', () => {
 		const maxChunkBytes = 2 * DEFAULT_MAX_REASSEMBLY_BYTES;
 		const atCeiling = '\u00e9'.repeat(DEFAULT_MAX_REASSEMBLY_BYTES / 2 - 1);
 		const accepted = chunk(atCeiling, { maxChunkBytes });
-		assert.deepStrictEqual(accepted.map(envelope => envelope.kind === 'message' && envelope.data === atCeiling), [true]);
+		assert.deepStrictEqual(parseEnvelopes(accepted).map(envelope => envelope.kind === 'message' && envelope.data === atCeiling), [true]);
 		assert.throws(() => chunk(atCeiling + 'x', { maxChunkBytes }), /serialized payload is 33554433 bytes, exceeds 33554432-byte ceiling/);
 	});
 });
@@ -225,9 +224,9 @@ suite('WebPubSub - Reassembler', () => {
 		const envelopes = chunk({ blob: 'y'.repeat(4000) }, { maxChunkBytes: 1024, newGroupId: () => 'g1' });
 		const r = new Reassembler();
 		for (let i = 0; i < envelopes.length - 1; i++) {
-			assert.strictEqual(r.ingest(envelopes[i]!), null);
+			assert.strictEqual(r.ingest(JSON.parse(envelopes[i]!)), null);
 		}
-		assert.deepStrictEqual(r.ingest(envelopes.at(-1)!), { blob: 'y'.repeat(4000) });
+		assert.deepStrictEqual(r.ingest(JSON.parse(envelopes.at(-1)!)), { blob: 'y'.repeat(4000) });
 		assert.strictEqual(r.inFlightGroupCount, 0);
 	});
 

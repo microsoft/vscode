@@ -92,16 +92,10 @@ function base64ToBytes(b64: string): Uint8Array {
 }
 
 /**
- * Split an application payload into one or more {@link ChunkEnvelope}s.
- *
- * The `kind: "message"` envelope is serialized and UTF-8 encoded once, exactly
- * as it is sent. If it fits inside the ceiling, returns it as a one-element
- * array. Otherwise mints a `group_id` and returns `total = ceil(len(B) / R)`
- * `kind: "chunk"` envelopes, where `B` is the serialized payload inside that
- * envelope. The raw-byte budget is derived from the actual group id and the
- * widest permitted sequence fields so every serialized envelope fits.
+ * Serialize an application payload into one or more {@link ChunkEnvelope}s.
+ * Returns JSON strings so callers send the measured bytes without evaluating the payload again.
  */
-export function chunk(payload: unknown, options: ChunkOptions = {}): ChunkEnvelope[] {
+export function chunk(payload: unknown, options: ChunkOptions = {}): string[] {
 	const maxChunkBytes = options.maxChunkBytes ?? DEFAULT_MAX_CHUNK_BYTES;
 	if (maxChunkBytes <= 0 || !Number.isFinite(maxChunkBytes)) {
 		throw new ChunkingError(`maxChunkBytes must be a positive finite number, got ${maxChunkBytes}`);
@@ -129,7 +123,7 @@ export function chunk(payload: unknown, options: ChunkOptions = {}): ChunkEnvelo
 	}
 
 	if (messageBytes.byteLength <= maxChunkBytes) {
-		return [message];
+		return [messageSerialised];
 	}
 
 	const newGroupId = options.newGroupId ?? generateUuid;
@@ -158,18 +152,18 @@ export function chunk(payload: unknown, options: ChunkOptions = {}): ChunkEnvelo
 		throw new ChunkingError(`payload requires ${total} chunks, exceeds ${DEFAULT_MAX_SEGMENTS_PER_GROUP}-chunk ceiling`);
 	}
 
-	const out: ChunkEnvelope[] = new Array<ChunkEnvelope>(total);
+	const out: string[] = new Array<string>(total);
 	for (let i = 0; i < total; i++) {
 		const start = i * rawBudget;
 		const end = Math.min(start + rawBudget, rawBytes.byteLength);
 		const slice = rawBytes.subarray(start, end);
-		out[i] = {
+		out[i] = JSON.stringify({
 			kind: 'chunk',
 			group_id: groupId,
 			seq: i,
 			total,
 			bytes: bytesToBase64(slice),
-		};
+		} satisfies ChunkEnvelope);
 	}
 	return out;
 }
