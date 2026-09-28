@@ -70,6 +70,7 @@ suite('ChatWorkingLogo', () => {
 		const { configuration, fireChange } = createConfiguration();
 		const logo = store.add(new ChatWorkingProgressLogo('stable', configuration, store.add(new NullLogService()), accessibilityService));
 		parent.appendChild(logo.domNode);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 		const faces = [...logo.domNode.querySelectorAll('.chat-working-logo-face')];
 		const initial = { animation: logo.domNode.dataset.animation, animations: logo.domNode.getAnimations({ subtree: true }).length };
 		const snapshots = [];
@@ -203,7 +204,7 @@ suite('ChatWorkingLogo', () => {
 		assert.deepStrictEqual(filters, ['none', 'none', 'none', 'none']);
 	});
 
-	test('Ribbon preserves Draw appearance with fitted arc-length motion and an empty beat', () => {
+	test('Ribbon preserves Draw appearance with parabolic velocity and separate loops', () => {
 		const draw = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable'));
 		const { logo: ribbon, advanceTo, hasPendingFrame } = createDynamicLogo(ChatProgressAnimation.Ribbon);
 		const ribbonPaths = [...ribbon.domNode.querySelectorAll<SVGPathElement>('.chat-working-logo-ribbon-band')];
@@ -225,27 +226,15 @@ suite('ChatWorkingLogo', () => {
 			.flatMap(path => [...path.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)])
 			.flatMap(match => [Number(match[1]), Number(match[2])]);
 		const frameIntervalMs = 1000 / 30;
-		const sampledMotion = Array.from({ length: Math.ceil(ribbon.ribbonDurationMs / frameIntervalMs) + 1 }, (_, index) => {
-			const frame = getChatWorkingLogoRibbonFrame(Math.min(index * frameIntervalMs / ribbon.ribbonDurationMs, 0.999999));
-			return {
-				frame,
-				empty: Object.values(frame.paths).every(path => path.length === 0),
-			};
-		});
+		const sampledTie = Array.from({ length: Math.ceil(ribbon.ribbonDurationMs * 0.4 / frameIntervalMs) + 1 }, (_, index) =>
+			getChatWorkingLogoRibbonFrame(Math.min(index * frameIntervalMs / ribbon.ribbonDurationMs, 0.4)));
 		let maximumTravel = 0;
-		for (let index = 1; index < sampledMotion.length; index++) {
-			const previous = sampledMotion[index - 1];
-			const current = sampledMotion[index];
-			if (previous.empty && current.empty) {
-				continue;
-			}
-			maximumTravel = Math.max(
-				maximumTravel,
-				Math.abs(current.frame.head - previous.frame.head),
-				Math.abs(current.frame.tail - previous.frame.tail),
-			);
+		for (let index = 1; index < sampledTie.length; index++) {
+			maximumTravel = Math.max(maximumTravel, Math.abs(sampledTie[index].head - sampledTie[index - 1].head));
 		}
 		const compactDevicePixelScale = 0.84 * 12 / 84 * 2;
+		const tieStartSpeed = getChatWorkingLogoRibbonFrame(0.00001).head / fullLength / 0.00001;
+		const longQuadraticStartSpeed = (2 / 0.42) / 7600;
 		assert.deepStrictEqual({
 			duration: [draw.durationMs, ribbon.ribbonDurationMs],
 			sameColor: draw.domNode.style.color === ribbon.domNode.style.color,
@@ -267,23 +256,28 @@ suite('ChatWorkingLogo', () => {
 			continuedAfterRedundantActivation: continued.some((path, index) => path !== moving[index]),
 			tiedBands: tied.map(path => path.length > 0),
 			allMotionWithinMark: coordinates.every(value => value > -1.5 && value < 101.5),
-			drawMotionRatios: [0.105, 0.21, 0.315].map(progress => Math.round(getChatWorkingLogoRibbonFrame(progress).head / fullLength * 1000) / 1000),
-			hold: [0.42, 0.46, 0.5].map(progress => {
+			tieCubic: [0.1, 0.2, 0.3].map(progress => Math.round(getChatWorkingLogoRibbonFrame(progress).head / fullLength * 1000) / 1000),
+			hold: [0.4, 0.475, 0.55].map(progress => {
 				const frame = getChatWorkingLogoRibbonFrame(progress);
 				return [frame.tail, frame.head];
 			}),
-			eraseMotionRatios: [0.605, 0.71, 0.815].map(progress => Math.round(getChatWorkingLogoRibbonFrame(progress).tail / fullLength * 1000) / 1000),
-			emptyBeat: [0.92, 0.96, 0.999].map(progress => {
+			untieCubic: [0.65, 0.75, 0.85].map(progress => Math.round(getChatWorkingLogoRibbonFrame(progress).tail / fullLength * 1000) / 1000),
+			loopRest: [0.95, 0.975, 0.999].map(progress => {
 				const frame = getChatWorkingLogoRibbonFrame(progress);
 				return {
 					endsTogether: frame.tail === frame.head,
 					empty: Object.values(frame.paths).every(path => path.length === 0),
 				};
 			}),
-			maximumCompactDevicePixelTravelAt30Fps: Math.round(maximumTravel * compactDevicePixelScale * 1000) / 1000,
+			endpointSpeeds: {
+				fastestSpeedup: Math.round(tieStartSpeed / ribbon.ribbonDurationMs / longQuadraticStartSpeed * 1000) / 1000,
+				tieSlowest: Math.round((fullLength - getChatWorkingLogoRibbonFrame(0.39999).head) / fullLength / 0.00001 * 1000) / 1000,
+				untieSlowest: Math.round(getChatWorkingLogoRibbonFrame(0.55001).tail / fullLength / 0.00001 * 1000) / 1000,
+			},
+			maximumTieDevicePixelTravelAt30Fps: Math.round(maximumTravel * compactDevicePixelScale * 1000) / 1000,
 			pendingAfterStop: hasPendingFrame(),
 		}, {
-			duration: [2400, 7600],
+			duration: [2400, 4000],
 			sameColor: true,
 			lazyArtwork: [false, true],
 			viewBox: '6 6 84 84',
@@ -302,11 +296,16 @@ suite('ChatWorkingLogo', () => {
 			continuedAfterRedundantActivation: true,
 			tiedBands: [true, true, true],
 			allMotionWithinMark: true,
-			drawMotionRatios: [0.346, 0.669, 0.907],
+			tieCubic: [0.578, 0.875, 0.984],
 			hold: Array.from({ length: 3 }, () => [0, fullLength]),
-			eraseMotionRatios: [0.093, 0.331, 0.654],
-			emptyBeat: Array.from({ length: 3 }, () => ({ endsTogether: true, empty: true })),
-			maximumCompactDevicePixelTravelAt30Fps: 0.923,
+			untieCubic: [0.016, 0.125, 0.422],
+			loopRest: Array.from({ length: 3 }, () => ({ endsTogether: true, empty: true })),
+			endpointSpeeds: {
+				fastestSpeedup: 2.992,
+				tieSlowest: 0,
+				untieSlowest: 0,
+			},
+			maximumTieDevicePixelTravelAt30Fps: 3.875,
 			pendingAfterStop: false,
 		});
 	});

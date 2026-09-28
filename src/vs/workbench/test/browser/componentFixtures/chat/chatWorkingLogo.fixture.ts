@@ -34,7 +34,7 @@ const styles: readonly IProgressStyle[] = [
 	{
 		animation: ChatProgressAnimation.Ribbon,
 		name: 'Ribbon',
-		description: 'Use the same mark and product color as Draw with a fitted motion curve through the folds and a clean empty beat between loops.',
+		description: 'Use the same mark and product color as Draw. Parabolic velocity loads and unravels quickly, followed by a clean rest between loops.',
 	},
 ];
 
@@ -74,7 +74,7 @@ function renderStyle(context: ComponentFixtureContext, style: IProgressStyle, pa
 	dom.append(card, dom.$('p.chat-logo-motion-note', undefined, style.animation === ChatProgressAnimation.DrawMonochromeNoIcon
 		? 'The hidden icon has no running animation. The text gutter stays aligned with thinking and tool rows.'
 		: style.animation === ChatProgressAnimation.Ribbon
-			? 'The footprint and product color match Draw. The ribbon eases into the completed mark, holds, accelerates away, then stays hidden briefly before returning.'
+			? 'The footprint and product color match Draw. Mirrored cubic positions preserve the approved speed while removing the overlapping tails.'
 			: 'Three 320ms beats build the mark. Hold for 480ms, then erase in the same direction and order.'));
 }
 

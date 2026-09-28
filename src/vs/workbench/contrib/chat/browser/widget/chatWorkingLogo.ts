@@ -35,7 +35,7 @@ let ribbonMaskIdPool = 0;
 export class ChatWorkingLogo extends Disposable {
 	readonly domNode: HTMLElement;
 	readonly durationMs = 2400;
-	readonly ribbonDurationMs = 7600;
+	readonly ribbonDurationMs = 4000;
 
 	private animationFrame: MutableDisposable<IDisposable> | undefined;
 	private ribbonPaths: Map<ChatWorkingLogoRibbonBand, SVGPathElement> | undefined;

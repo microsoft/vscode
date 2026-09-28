@@ -67,19 +67,19 @@ const interpolate = (a: Point, b: Point, amount: number): Point => [
 const clamp = (value: number): number => value < 0 ? 0 : value > 1 ? 1 : value;
 const crossSectionMidpoint = (section: ICrossSection): Point => midpoint(section.a, section.b);
 
-const drawEnd = 0.42;
-const holdEnd = 0.5;
-const eraseEnd = 0.92;
-const arrivalSlope = 1.35;
+const tieDuration = 0.4;
+const holdEnd = 0.55;
+const untieEnd = 0.95;
 
-function arriveAtRest(value: number): number {
+function easeOutCubic(value: number): number {
 	const amount = clamp(value);
-	const squared = amount * amount;
-	return (arrivalSlope - 2) * squared * amount + (3 - 2 * arrivalSlope) * squared + arrivalSlope * amount;
+	const remaining = 1 - amount;
+	return 1 - remaining * remaining * remaining;
 }
 
-function departFromRest(value: number): number {
-	return 1 - arriveAtRest(1 - clamp(value));
+function easeInCubic(value: number): number {
+	const amount = clamp(value);
+	return amount * amount * amount;
 }
 
 function cubicAt(p0: Point, c0: Point, c1: Point, p1: Point, amount: number): Point {
@@ -465,15 +465,15 @@ const tiedPaths = ribbon.bands(0, ribbon.length);
 
 export function getChatWorkingLogoRibbonFrame(progress: number): IChatWorkingLogoRibbonFrame {
 	const wrapped = progress >= 0 && progress < 1 ? progress : ((progress % 1) + 1) % 1;
-	if (wrapped < drawEnd) {
-		const head = ribbon.length * arriveAtRest(wrapped / drawEnd);
+	if (wrapped < tieDuration) {
+		const head = ribbon.length * easeOutCubic(wrapped / tieDuration);
 		return { paths: head > 0 ? ribbon.bands(0, head) : emptyPaths, tail: 0, head };
 	}
 	if (wrapped < holdEnd) {
 		return { paths: tiedPaths, tail: 0, head: ribbon.length };
 	}
-	if (wrapped < eraseEnd) {
-		const tail = ribbon.length * departFromRest((wrapped - holdEnd) / (eraseEnd - holdEnd));
+	if (wrapped < untieEnd) {
+		const tail = ribbon.length * easeInCubic((wrapped - holdEnd) / (untieEnd - holdEnd));
 		return { paths: ribbon.bands(tail, ribbon.length), tail, head: ribbon.length };
 	}
 	return { paths: emptyPaths, tail: ribbon.length, head: ribbon.length };
