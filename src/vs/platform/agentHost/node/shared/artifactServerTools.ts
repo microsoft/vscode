@@ -245,16 +245,17 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					if (typeof id !== 'string' || id.length === 0) {
 						throw new Error(`Invalid ${ArtifactServerToolName.RemoveArtifactOrReference} input: id must be a non-empty string.`);
 					}
-					const result = await artifacts.mutate(collection => collection.remove(id));
+					const result = await artifacts.mutate(collection => collection.remove(id), async result => {
+						if (result.removed?.type === SessionArtifactType.PullRequest && result.removed.link && accessor.removePendingPullRequest) {
+							try {
+								await accessor.removePendingPullRequest(context.sessionUri, result.removed.link);
+							} catch (error) {
+								accessor.reportAssociationError?.(error);
+							}
+						}
+					});
 					if (!result.removed) {
 						return `No artifact or reference with id ${id}.`;
-					}
-					if (result.removed.type === SessionArtifactType.PullRequest && result.removed.link && accessor.removePendingPullRequest) {
-						try {
-							await accessor.removePendingPullRequest(context.sessionUri, result.removed.link);
-						} catch (error) {
-							accessor.reportAssociationError?.(error);
-						}
 					}
 					const message = result.removed.isArtifact ? REMOVED_ARTIFACT_MESSAGE : REMOVED_REFERENCE_MESSAGE;
 					return `${message}: ${result.removed.id}`;
