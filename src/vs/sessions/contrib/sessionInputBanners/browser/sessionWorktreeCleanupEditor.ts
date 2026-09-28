@@ -48,7 +48,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private scrollableElement: DomScrollableElement | undefined;
 	private layoutDimension: dom.Dimension | undefined;
 	private minimumAgeDays = 15;
-	private worktreesOnly = true;
 	private worktrees: readonly ISessionWorktree[] = [];
 	private selectedSessionIds = new Set<string>();
 	private renderVersion = 0;
@@ -97,14 +96,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 		this.editorDisposables.add(dom.addDisposableListener(ageSelect, dom.EventType.CHANGE, () => {
 			this.minimumAgeDays = Number(ageSelect.value);
-			void this.load();
-		}));
-		const worktreesOnlyLabel = dom.append(controls, dom.$('label.session-worktree-cleanup-filter'));
-		const worktreesOnlyCheckbox = this.editorDisposables.add(new Checkbox(localize('sessionWorktreeCleanup.worktreesOnly', "Sessions with worktrees only"), this.worktreesOnly, defaultCheckboxStyles));
-		worktreesOnlyLabel.appendChild(worktreesOnlyCheckbox.domNode);
-		dom.append(worktreesOnlyLabel, dom.$('span', undefined, localize('sessionWorktreeCleanup.worktreesOnly', "Sessions with worktrees only")));
-		this.editorDisposables.add(worktreesOnlyCheckbox.onChange(() => {
-			this.worktreesOnly = worktreesOnlyCheckbox.checked;
 			void this.load();
 		}));
 
@@ -157,7 +148,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, localize('sessionWorktreeCleanup.loading', "Measuring worktree storage...")));
 		}
 		try {
-			const worktrees = await this.cleanupService.getWorktrees(this.minimumAgeDays, !this.worktreesOnly);
+			const worktrees = await this.cleanupService.getWorktrees(this.minimumAgeDays);
 			if (version !== this.renderVersion || !this.list || !this.summary) {
 				return;
 			}
@@ -181,11 +172,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		dom.clearNode(this.list);
 		const eligible = this.worktrees.filter(worktree => worktree.cleanupState === 'eligible');
 		const tooRecent = this.worktrees.filter(worktree => worktree.cleanupState === 'recent').length;
-		const worktreeCount = this.worktrees.filter(worktree => worktree.hasWorktree).length;
 		const reclaimableBytes = eligible.reduce((total, worktree) => total + (worktree.sizeBytes ?? 0), 0);
-		const summary = this.worktreesOnly
-			? localize('sessionWorktreeCleanup.worktreeSummary', "{0} of {1} worktrees inactive for at least {2} days can be cleaned up, reclaiming about {3}.", eligible.length, worktreeCount, this.minimumAgeDays, ByteSize.formatSize(reclaimableBytes))
-			: localize('sessionWorktreeCleanup.sessionSummary', "{0} of {1} sessions inactive for at least {2} days can be marked as done. {3} worktrees can reclaim about {4}.", eligible.length, this.worktrees.length, this.minimumAgeDays, worktreeCount, ByteSize.formatSize(reclaimableBytes));
+		const summary = localize('sessionWorktreeCleanup.worktreeSummary', "{0} of {1} worktrees inactive for at least {2} days can be cleaned up, reclaiming about {3}.", eligible.length, this.worktrees.length, this.minimumAgeDays, ByteSize.formatSize(reclaimableBytes));
 		const recentNote = tooRecent === 0
 			? undefined
 			: tooRecent === 1
@@ -243,7 +231,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			const titleElement = dom.append(row, dom.$('span.title', { role: 'cell', title }, title));
 			titleElement.tabIndex = 0;
 			dom.append(row, dom.$('span', { role: 'cell', title: worktree.session.updatedAt.get().toLocaleString() }, fromNow(worktree.session.updatedAt.get(), true, true)));
-			dom.append(row, dom.$('span', { role: 'cell' }, worktree.hasWorktree ? ByteSize.formatSize(worktree.sizeBytes ?? 0) : localize('sessionWorktreeCleanup.noWorktree', "No worktree")));
+			dom.append(row, dom.$('span', { role: 'cell' }, ByteSize.formatSize(worktree.sizeBytes ?? 0)));
 			const actions = dom.append(row, dom.$('span', { role: 'cell' }));
 			const openButton = this.rowDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
 			openButton.label = localize('sessionWorktreeCleanup.openSession', "Open Session");

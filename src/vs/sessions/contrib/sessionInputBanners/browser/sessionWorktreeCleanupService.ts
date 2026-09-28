@@ -47,7 +47,6 @@ export type SessionWorktreeCleanupState = 'eligible' | 'active' | 'running' | 'n
 export interface ISessionWorktree {
 	readonly session: ISession;
 	readonly sizeBytes: number | undefined;
-	readonly hasWorktree: boolean;
 	readonly cleanupState: SessionWorktreeCleanupState;
 }
 
@@ -59,7 +58,7 @@ export interface ISessionWorktreeCleanupService {
 	activate(): Promise<void>;
 	refresh(): Promise<void>;
 	suppressForWindow(): void;
-	getWorktrees(minimumAgeDays: number, includeSessionsWithoutWorktrees?: boolean): Promise<readonly ISessionWorktree[]>;
+	getWorktrees(minimumAgeDays: number): Promise<readonly ISessionWorktree[]>;
 	cleanupWorktrees(candidates: readonly ISessionWorktreeCleanupCandidate[]): Promise<boolean>;
 }
 
@@ -175,7 +174,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			return [];
 		}
 		if (!getDiskUsage) {
-			return worktreeSessions.map(session => ({ session, sizeBytes: undefined, hasWorktree: true, cleanupState: 'unavailable' }));
+			return worktreeSessions.map(session => ({ session, sizeBytes: undefined, cleanupState: 'unavailable' }));
 		}
 
 		const limiter = new Limiter<ISessionWorktree>(2);
@@ -189,7 +188,6 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			return {
 				session,
 				sizeBytes,
-				hasWorktree: true,
 				cleanupState: this._getCleanupState(session, sizeBytes, activeSession, cutoff),
 			};
 		})));
@@ -284,38 +282,25 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		this._suggestion.set(undefined, undefined);
 	}
 
-	getWorktrees(minimumAgeDays: number, includeSessionsWithoutWorktrees = false): Promise<readonly ISessionWorktree[]> {
+	getWorktrees(minimumAgeDays: number): Promise<readonly ISessionWorktree[]> {
 		if (this._lastMeasuredWorktrees && Date.now() - this._lastMeasurementAt < SCAN_CACHE_DURATION_MS) {
-			return this._getWorktrees(minimumAgeDays, includeSessionsWithoutWorktrees);
+			return this._getWorktrees(minimumAgeDays);
 		}
 		return this.progressService.withProgress({
 			location: ProgressLocation.Notification,
 			title: localize('worktreeCleanup.measuringProgress', "Measuring agent session worktrees..."),
 			delay: 300,
-		}, () => this._getWorktrees(minimumAgeDays, includeSessionsWithoutWorktrees));
+		}, () => this._getWorktrees(minimumAgeDays));
 	}
 
-	private async _getWorktrees(minimumAgeDays: number, includeSessionsWithoutWorktrees: boolean): Promise<readonly ISessionWorktree[]> {
-		const measured = (await this._getMeasuredWorktrees(minimumAgeDays))
+	/**
+	 * Only sessions with a measured worktree are reported. Marking a session without a worktree as
+	 * done reclaims no storage, so it does not belong in a storage manager; the Sessions list owns
+	 * that decluttering.
+	 */
+	private async _getWorktrees(minimumAgeDays: number): Promise<readonly ISessionWorktree[]> {
+		return (await this._getMeasuredWorktrees(minimumAgeDays))
 			.filter(worktree => worktree.sizeBytes !== undefined && worktree.cleanupState !== 'archived');
-		if (!includeSessionsWithoutWorktrees) {
-			return measured;
-		}
-		const measuredSessionIds = new Set(measured.map(worktree => worktree.session.sessionId));
-		const activeSession = this.sessionsService.activeSession.get();
-		const cutoff = Date.now() - minimumAgeDays * DAY_MS;
-		const withoutWorktrees = this.sessionsManagementService.getSessions()
-			.filter(session => !session.isArchived.get()
-				&& !measuredSessionIds.has(session.sessionId)
-				&& session.workspace.get()?.folders.some(folder => folder.gitRepository?.workTreeUri) !== true)
-			.map(session => ({
-				session,
-				sizeBytes: 0,
-				hasWorktree: false,
-				cleanupState: this._getCleanupState(session, 0, activeSession, cutoff),
-			}))
-			.filter(worktree => worktree.cleanupState === 'eligible');
-		return [...measured, ...withoutWorktrees];
 	}
 
 	async cleanupWorktrees(selected: readonly ISessionWorktreeCleanupCandidate[]): Promise<boolean> {

@@ -215,13 +215,14 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
-	test('worktree manager data excludes missing and already-done worktrees', async () => {
+	test('worktree manager data excludes sessions without measurable active worktrees', async () => {
 		const eligible = createSession('eligible', oldDate());
 		const running = createSession('running', oldDate(), SessionStatus.InProgress);
 		const recent = createSession('recent', new Date());
 		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
 		const unavailable = createSession('unavailable', oldDate());
-		const sessions = [eligible, running, recent, archived, unavailable];
+		const withoutWorktree = createSession('without-worktree', oldDate(), SessionStatus.Completed, false, false);
+		const sessions = [eligible, running, recent, archived, unavailable, withoutWorktree];
 		const progressTitles: (string | undefined)[] = [];
 		const service = disposables.add(createService(
 			sessions,
@@ -305,32 +306,6 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
-	test('optionally includes old sessions without worktrees', async () => {
-		const withWorktree = createSession('with-worktree', oldDate());
-		const withoutWorktree = createSession('without-worktree', oldDate(), SessionStatus.Completed, false, false);
-		const recentWithoutWorktree = createSession('recent-without-worktree', new Date(), SessionStatus.Completed, false, false);
-		const service = disposables.add(createService(
-			[withWorktree, withoutWorktree, recentWithoutWorktree],
-			true,
-			() => ByteSize.GB,
-		));
-
-		const [worktreesOnly, allOldSessions] = await Promise.all([
-			service.getWorktrees(14),
-			service.getWorktrees(14, true),
-		]);
-
-		assert.deepStrictEqual({
-			worktreesOnly: worktreesOnly.map(item => item.session.sessionId),
-			allOldSessions: allOldSessions.map(item => ({ id: item.session.sessionId, hasWorktree: item.hasWorktree, state: item.cleanupState })),
-		}, {
-			worktreesOnly: ['with-worktree'],
-			allOldSessions: [
-				{ id: 'with-worktree', hasWorktree: true, state: 'eligible' },
-				{ id: 'without-worktree', hasWorktree: false, state: 'eligible' },
-			],
-		});
-	});
 });
 
 function createService(
