@@ -13,12 +13,14 @@ import { areNewSessionWelcomePhrasesEnabled, isExperimentalSessionComposerLayout
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import '../../browser/chat.contribution.js';
 
+// Capture the registered schema before configuration tests reset the shared registry.
+const experimentalNewSessionComposerLayoutProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING];
+
 suite('New session composer layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('can be configured in Agents settings', () => {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		assert.strictEqual(configurationRegistry.getConfigurationProperties()[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING].scope, ConfigurationScope.WINDOW);
+		assert.strictEqual(experimentalNewSessionComposerLayoutProperty.scope, ConfigurationScope.WINDOW);
 	});
 
 	for (const testCase of [
