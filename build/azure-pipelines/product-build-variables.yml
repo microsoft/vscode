@@ -76,6 +76,12 @@ variables:
     value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
   - name: VSCODE_CIBUILD
     value: ${{ or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), eq(parameters.VSCODE_BUILD_TYPE, 'CI')) }}
+  # Product x64 jobs are split into their own stage. The existing Linux stage
+  # continues to hold the CI test jobs and product ARM jobs.
+  - name: VSCODE_BUILD_STAGE_LINUX_X64
+    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))) }}
+  - name: VSCODE_BUILD_STAGE_LINUX_ARM
+    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true))) }}
   # The Windows stage holds the x64 jobs (and the CI test jobs), the WindowsARM64
   # stage the arm64 jobs, so that each stage lists its jobs in build order.
   - name: VSCODE_BUILD_STAGE_WINDOWS

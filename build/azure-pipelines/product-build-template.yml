@@ -171,14 +171,35 @@ stages:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-      - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}:
+        - stage: LinuxX64
+          displayName: Linux X64
+          dependsOn: []
+          pool:
+            name: 1es-ubuntu-22.04-x64
+            os: linux
+          jobs:
+            - template: linux/product-build-linux-cli.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+            - template: linux/product-build-linux-x64.yml@self
+              parameters:
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
+
+      - ${{ if and(eq(variables['VSCODE_BUILD_STAGE_LINUX'], true), or(eq(variables['VSCODE_CIBUILD'], true), eq(variables['VSCODE_BUILD_STAGE_LINUX_ARM'], true))) }}:
         - stage: Linux
           dependsOn: []
           pool:
             name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], true), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
               - template: linux/product-build-linux-cli.yml@self
                 parameters:
                   VSCODE_ARCH: x64
@@ -213,18 +234,6 @@ stages:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_TEST_SUITE: Remote
-
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))) }}:
-              - template: linux/product-build-linux.yml@self
-                parameters:
-                  NPM_ARCH: x64
-                  VSCODE_ARCH: x64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
               - template: linux/product-build-linux.yml@self

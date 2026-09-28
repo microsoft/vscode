@@ -5,8 +5,19 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
+  - name: VSCODE_COMPILE_TEST_SUITES
+    type: boolean
+    default: false
 
 steps:
+  - ${{ if eq(parameters.VSCODE_COMPILE_TEST_SUITES, true) }}:
+    - script: |
+        set -e
+        npm run compile --prefix test/smoke
+        npm run compile --prefix test/integration/browser
+      displayName: Compile test suites (non-OSS)
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
   - script: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
