@@ -119,7 +119,6 @@ node .github/skills/azure-pipelines/azure-pipeline.ts queue --parameter "VSCODE_
 | `VSCODE_PUBLISH` | boolean | `true` | `true`, `false` | Publish to builds.code.visualstudio.com |
 | `VSCODE_RELEASE` | boolean | `false` | `true`, `false` | Trigger release flow if successful |
 | `VSCODE_STEP_ON_IT` | boolean | `false` | `true`, `false` | Skip tests |
-| `VSCODE_SKIP_SUCCESSFUL_TEST_TASKS` | boolean | `true` | `true`, `false` | Skip test tasks that already passed in an earlier attempt of the same run (Windows x64 only) |
 | `VSCODE_USE_LEGACY_OSS_NOTICE` | boolean | `false` | `true`, `false` | Keep the legacy mixin ThirdPartyNotices.txt instead of the Component Governance notice |
 
 Example: run a quick CI-oriented validation with minimal publish/release side effects:

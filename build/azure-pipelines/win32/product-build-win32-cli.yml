@@ -11,8 +11,8 @@ parameters:
     default: 1es-windows-2022-x64
 
 jobs:
-  - job: WindowsCLI_${{ upper(parameters.VSCODE_ARCH) }}
-    displayName: Windows CLI (${{ upper(parameters.VSCODE_ARCH) }})
+  - job: Windows_${{ parameters.VSCODE_ARCH }}_CLI
+    displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }}) - CLI
     pool:
       name: ${{ parameters.VSCODE_POOL_NAME }}
       os: windows

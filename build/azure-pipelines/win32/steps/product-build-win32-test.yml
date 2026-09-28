@@ -7,17 +7,12 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
-  # When enabled, each test task records a checkpoint once it passes, and
-  # retries of the job skip the test tasks that already passed in this run
-  # (see ../../common/test-checkpoints.md). Only supported for Windows x64.
-  - name: VSCODE_SKIP_SUCCESSFUL_TEST_TASKS
-    type: boolean
-    default: false
 
+# Each test task records a checkpoint once it passes, and retries of the job
+# skip the test tasks that already passed in an earlier attempt of the same
+# run (see ../../common/test-checkpoints.md).
 steps:
   - template: ../../common/restore-test-checkpoints.yml@self
-    parameters:
-      enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -35,64 +30,36 @@ steps:
     retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
-    - ${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}:
-        powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { .\scripts\test.bat --build --tfs "Unit Tests" }
-          exec { node build/azure-pipelines/common/testCheckpoint.ts record unit-electron }
-        condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_UNIT_ELECTRON_HIT'], 'true'))
-      ${{ else }}:
-        powershell: .\scripts\test.bat --build --tfs "Unit Tests"
-      env:
-        VSCODE_SKIP_PRELAUNCH: '1'
-      displayName: 🧪 Run unit tests (Electron)
-      timeoutInMinutes: 15
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: unit-electron
+        testStep:
+          powershell: .\scripts\test.bat --build --tfs "Unit Tests"
+          env:
+            VSCODE_SKIP_PRELAUNCH: '1'
+          displayName: 🧪 Run unit tests (Electron)
+          timeoutInMinutes: 15
 
-    - ${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}:
-      - template: ../../common/publish-test-checkpoint.yml@self
-        parameters:
-          testId: unit-electron
-
-    - ${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}:
-        powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          New-Item -ItemType Directory -Force -Path .build\crashes | Out-Null
-          exec { npm run test-node -- --build }
-          exec { node build/azure-pipelines/common/testCheckpoint.ts record unit-node }
-        condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_UNIT_NODE_HIT'], 'true'))
-      ${{ else }}:
-        powershell: |
-          New-Item -ItemType Directory -Force -Path .build\crashes | Out-Null
-          npm run test-node -- --build
-      env:
-        NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
-      displayName: 🧪 Run unit tests (node.js)
-      timeoutInMinutes: 15
-
-    - ${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}:
-      - template: ../../common/publish-test-checkpoint.yml@self
-        parameters:
-          testId: unit-node
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: unit-node
+        testStep:
+          powershell: |
+            New-Item -ItemType Directory -Force -Path .build\crashes | Out-Null
+            npm run test-node -- --build
+          env:
+            NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
+          displayName: 🧪 Run unit tests (node.js)
+          timeoutInMinutes: 15
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
-    - ${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}:
-        powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests" }
-          exec { node build/azure-pipelines/common/testCheckpoint.ts record unit-browser-chromium }
-        condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_UNIT_BROWSER_CHROMIUM_HIT'], 'true'))
-      ${{ else }}:
-        powershell: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
-      displayName: 🧪 Run unit tests (Browser, Chromium)
-      timeoutInMinutes: 20
-
-    - ${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}:
-      - template: ../../common/publish-test-checkpoint.yml@self
-        parameters:
-          testId: unit-browser-chromium
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: unit-browser-chromium
+        testStep:
+          powershell: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
+          displayName: 🧪 Run unit tests (Browser, Chromium)
+          timeoutInMinutes: 20
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -138,7 +105,6 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
-        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
         testId: integration-electron
         testStep:
           powershell: |
@@ -162,7 +128,6 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
-        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
         testId: integration-browser-firefox
         testStep:
           powershell: |
@@ -176,7 +141,6 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
-        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
         testId: integration-remote
         testStep:
           powershell: |
@@ -211,8 +175,7 @@ steps:
       - pwsh: |
           $day = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
           Write-Host "##vso[task.setvariable variable=WSL_KERNEL_CACHE_DAY]$day"
-        ${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}:
-          condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'))
+        condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'))
         displayName: Set WSL kernel cache day
 
       - task: Cache@2
@@ -223,8 +186,7 @@ steps:
             "wsl-kernel" | "win32-x64"
           path: $(Build.SourcesDirectory)/.build/wsl-kernel-cache
           cacheHitVar: WSL_KERNEL_CACHE_RESULT
-        ${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}:
-          condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'))
+        condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'))
 
       - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps
         displayName: Prepare WSL Dev Container smoke tests
@@ -232,12 +194,10 @@ steps:
         env:
           WSL_KERNEL_CACHE_PATH: $(Build.SourcesDirectory)/.build/wsl-kernel-cache/wsl_update_x64.msi
           WSL_KERNEL_CACHE_RESULT: $(WSL_KERNEL_CACHE_RESULT)
-        ${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}:
-          condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'))
+        condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'))
 
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
-        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
         testId: smoke-electron
         testStep:
           powershell: |
@@ -263,7 +223,6 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
-        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
         testId: smoke-browser-chromium
         testStep:
           powershell: npm run smoketest-no-compile -- --web --tracing --headless
@@ -275,7 +234,6 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
-        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
         testId: smoke-remote
         testStep:
           powershell: npm run smoketest-no-compile -- --tracing --remote --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
@@ -293,22 +251,18 @@ steps:
     - template: ../../copilot/test-integration-steps.yml@self
       parameters:
         OS: win32
-        VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
 
-  - ${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}:
-    - powershell: node build/azure-pipelines/common/testCheckpoint.ts collect-results
-      displayName: Check test output availability
-      condition: succeededOrFailed()
+  - powershell: node build/azure-pipelines/common/testCheckpoint.ts collect-results
+    displayName: Check test output availability
+    condition: succeededOrFailed()
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results
     inputs:
       testResultsFiles: "*-results.xml"
       searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
-    ${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}:
-      condition: and(succeededOrFailed(), eq(variables['TEST_CHECKPOINT_RESULTS_AVAILABLE'], 'true'))
-    ${{ else }}:
-      condition: succeededOrFailed()
+    # All test tasks may have been skipped in a retry of the job
+    condition: and(succeededOrFailed(), eq(variables['TEST_CHECKPOINT_RESULTS_AVAILABLE'], 'true'))
 
   # Force-kill any lingering test processes that still hold smoke-test log
   # files open and would otherwise break the 1ES "Publish Log Files" output.

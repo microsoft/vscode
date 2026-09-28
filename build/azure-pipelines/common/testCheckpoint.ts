@@ -9,8 +9,8 @@ import path from 'node:path';
 import { retry } from './retry.ts';
 
 /**
- * Test tasks of the Windows x64 product build test job that record a
- * checkpoint once they pass.
+ * Test tasks of the Windows x64 test jobs that record a checkpoint once they
+ * pass.
  */
 export const testIds = [
 	'unit-electron',

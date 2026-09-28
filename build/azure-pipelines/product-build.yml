@@ -115,10 +115,6 @@ parameters:
     displayName: "Skip tests"
     type: boolean
     default: false
-  - name: VSCODE_SKIP_SUCCESSFUL_TEST_TASKS
-    displayName: "Skip successful test tasks on retries"
-    type: boolean
-    default: true
   - name: VSCODE_USE_LEGACY_OSS_NOTICE
     displayName: "Use legacy OSS Notice"
     type: boolean
@@ -351,13 +347,6 @@ extends:
                   VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_POOL_NAME: ${{ variables.VSCODE_WINDOWS_POOL }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
-              - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_POOL_NAME: ${{ variables.VSCODE_WINDOWS_POOL }}
-
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
                 parameters:
@@ -384,9 +373,13 @@ extends:
                   VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+              - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_POOL_NAME: ${{ variables.VSCODE_WINDOWS_POOL }}
               - template: build/azure-pipelines/win32/product-build-win32.yml@self
                 parameters:
                   VSCODE_ARCH: arm64

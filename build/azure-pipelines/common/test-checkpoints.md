@@ -7,12 +7,10 @@ Windows x64 test job, test checkpoints go one step further: retrying the test
 job (**Rerun failed jobs**) skips the test tasks that already passed in an
 earlier attempt of the same pipeline run and only runs the remaining ones.
 
-The `VSCODE_SKIP_SUCCESSFUL_TEST_TASKS` queue parameter of
-[the product pipeline](../product-build.yml) ("Skip successful test tasks on
-retries", default `true`) enables checkpoints. When it is disabled, template
-expansion omits the restore, recording, publishing and gating steps, and the job
-runs its original test steps. Other jobs, including the Windows CI test jobs,
-are unchanged.
+Checkpoints are always on in the Windows test steps
+([product-build-win32-test.yml](../win32/steps/product-build-win32-test.yml)),
+so they also apply to the Windows CI test jobs (Electron, Browser and Remote
+tests), which compile and test in a single job.
 
 The following test tasks are checkpointed:
 
@@ -46,7 +44,6 @@ Queue [the product pipeline](../product-build.yml) with, for example:
 VSCODE_BUILD_TYPE=Product
 VSCODE_BUILD_WIN32=true
 VSCODE_STEP_ON_IT=false
-VSCODE_SKIP_SUCCESSFUL_TEST_TASKS=true
 VSCODE_PUBLISH=false
 VSCODE_RELEASE=false
 ```
@@ -72,10 +69,10 @@ finds, and the test tasks that passed in the earlier attempt are skipped.
   lost response, the next attempt discovers it. Otherwise the test runs again.
 - Each identity has one sequential producer. Concurrent executions of the same
   job and test identity are not supported.
-- Reuse assumes equivalent inputs within a run, which holds because every
-  attempt of the test job tests the same compilation artifact. Queue a new run
-  to force all tests to run again. Queue parameters cannot be changed by
-  retrying an existing run.
+- Reuse assumes equivalent inputs within a run. Every attempt of the product
+  test job tests the same compilation artifact. The CI test jobs compile again
+  on retry, from the same commit. Queue a new run to force all tests to run
+  again.
 - Test results of the original execution remain in Azure DevOps. Skipping a
   task does not fabricate or republish passing results for the new attempt.
 - Artifacts follow the pipeline run's retention policy.

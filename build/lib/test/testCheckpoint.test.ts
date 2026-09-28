@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { suite, test } from 'node:test';
@@ -14,16 +13,6 @@ import { testCheckpoint } from '../../azure-pipelines/common/testCheckpoint.ts';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const helperPath = path.join(repositoryRoot, 'build/azure-pipelines/common/testCheckpoint.ts');
-const reuseCondition = '${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}';
-const powershell = process.platform === 'win32' ? 'powershell' : 'pwsh';
-const hasPowerShell = spawnSync(powershell, ['-NoLogo', '-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()'], { encoding: 'utf8' }).status === 0;
-
-const unitTests = [
-	{ id: 'unit-electron', command: '.\\scripts\\test.bat --build --tfs "Unit Tests"' },
-	{ id: 'unit-node', command: 'npm run test-node -- --build' },
-	{ id: 'unit-browser-chromium', command: 'npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"' },
-];
-
 const environment: NodeJS.ProcessEnv = {
 	AGENT_OS: 'Windows_NT',
 	VSCODE_ARCH: 'x64',
@@ -47,26 +36,6 @@ function variables(messages: readonly string[]): Record<string, string> {
 
 function artifactName(id: string, target = 'win32-x64'): string {
 	return `test-pass-Windows-Windows_x64_Test-${target}-${id}`;
-}
-
-interface TestStep {
-	script?: string;
-	powershell?: string;
-	condition?: string;
-	template?: string;
-	parameters?: { testId: string };
-	[reuseCondition]?: TestStep | TestStep[];
-	'${{ else }}'?: TestStep;
-}
-
-function testGroups(): TestStep[][] {
-	const template = load(readFileSync(path.join(repositoryRoot, 'build/azure-pipelines/win32/steps/product-build-win32-test.yml'), 'utf8')) as {
-		steps: Record<string, TestStep[]>[];
-	};
-	return [
-		template.steps.find(step => Object.hasOwn(step, '${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}'))!['${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}'],
-		template.steps.find(step => Object.hasOwn(step, '${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}'))!['${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}'],
-	];
 }
 
 suite('Product test checkpoints', () => {
@@ -282,65 +251,4 @@ suite('Product test checkpoints', () => {
 			timeoutInMinutes: 2,
 		}]);
 	});
-
-	test('each unit test has a guarded script and an immediate guarded publisher', () => {
-		const snapshots = testGroups().flatMap(group => group.flatMap((step, index) => {
-			const enabled = step[reuseCondition];
-			if (!enabled || Array.isArray(enabled)) {
-				return [];
-			}
-			const script = enabled.script ?? enabled.powershell;
-			assert.ok(script);
-			const id = /record (?<id>[\w-]+)/.exec(script)?.groups?.id;
-			const publisher = group[index + 1][reuseCondition];
-			assert.ok(Array.isArray(publisher));
-			return [{
-				id,
-				shell: enabled.powershell ? 'powershell' : 'script',
-				condition: enabled.condition,
-				publisher: publisher[0],
-				disabledScript: step['${{ else }}']?.script ?? step['${{ else }}']?.powershell,
-			}];
-		}));
-		assert.deepStrictEqual(snapshots, unitTests.map(({ id, command }) => ({
-			id,
-			shell: 'powershell',
-			condition: `and(succeeded(), ne(variables['TEST_CHECKPOINT_${id.replaceAll('-', '_').toUpperCase()}_HIT'], 'true'))`,
-			publisher: { template: '../../common/publish-test-checkpoint.yml@self', parameters: { testId: id } },
-			disabledScript: id === 'unit-node' ? `New-Item -ItemType Directory -Force -Path .build\\crashes | Out-Null\n${command}\n` : command,
-		})));
-	});
-
-	for (const { id, command } of unitTests) {
-		test(`${id}: actual enabled shell only records after a successful runner`, { skip: !hasPowerShell && 'PowerShell is not available' }, t => {
-			const directory = mkdtempSync(path.join(os.tmpdir(), 'test-checkpoint-shell-'));
-			t.after(() => rmSync(directory, { recursive: true, force: true }));
-			const enabled = testGroups().flat().map(step => step[reuseCondition])
-				.find(step => step && !Array.isArray(step) && step.powershell?.includes(`record ${id}`));
-			assert.ok(enabled && !Array.isArray(enabled) && enabled.powershell);
-			const original = enabled.powershell;
-			const quotePowerShell = (value: string) => `'${value.replaceAll('\'', '\'\'')}'`;
-			const results = [17, 0].map(exitCode => {
-				const script = original.replace(command, `& ${quotePowerShell(process.execPath)} -e "process.exit(${exitCode})"`)
-					.replace('. build/azure-pipelines/win32/exec.ps1', `. ${quotePowerShell(path.join(repositoryRoot, 'build/azure-pipelines/win32/exec.ps1'))}`)
-					.replace('node build/azure-pipelines/common/testCheckpoint.ts', `& ${quotePowerShell(process.execPath)} ${quotePowerShell(helperPath)}`);
-				const result = spawnSync(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script], {
-					cwd: directory,
-					env: { ...process.env, ...environment, AGENT_TEMPDIRECTORY: directory },
-					encoding: 'utf8',
-				});
-				assert.ifError(result.error);
-				return {
-					status: result.status,
-					stderr: exitCode !== 0 ? result.stderr.includes('exit code 17') : result.stderr,
-					ready: result.stdout.includes('_READY]true'),
-					fileExists: existsSync(path.join(directory, 'test-checkpoints/123/Windows/Windows_x64_Test/1/1', id, 'test-checkpoint.json')),
-				};
-			});
-			assert.deepStrictEqual(results, [
-				{ status: 1, stderr: true, ready: false, fileExists: false },
-				{ status: 0, stderr: '', ready: true, fileExists: true },
-			]);
-		});
-	}
 });

@@ -14,9 +14,6 @@ import { testCheckpoint, testIds } from '../../azure-pipelines/common/testCheckp
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const pipelineRoot = path.join(repositoryRoot, 'build/azure-pipelines');
-const flag = 'VSCODE_SKIP_SUCCESSFUL_TEST_TASKS';
-const reuse = '${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}';
-const enabled = '${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}';
 const testFile = 'win32/steps/product-build-win32-test.yml';
 const powershell = process.platform === 'win32' ? 'powershell' : 'pwsh';
 const hasPowerShell = spawnSync(powershell, ['-NoLogo', '-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()']).status === 0;
@@ -31,7 +28,6 @@ interface ScriptStep {
 }
 
 interface CheckpointParameters {
-	enabled: string;
 	testId: string;
 	testStep: ScriptStep;
 }
@@ -71,8 +67,7 @@ function allCalls(): CheckpointParameters[] {
 }
 
 const wrapper = readTemplate('common/run-test-with-checkpoint.yml');
-const enabledSteps = wrapper.steps[1]['${{ else }}'] as ScriptStep[];
-const pairs = enabledSteps[0]['${{ each pair in parameters.testStep }}'] as Record<string, ScriptStep>;
+const pairs = wrapper.steps[0]['${{ each pair in parameters.testStep }}'] as Record<string, ScriptStep>;
 
 function wrapScript(step: ScriptStep, testId: string): string {
 	const script = pairs['${{ elseif eq(pair.key, \'powershell\') }}'].powershell;
@@ -83,68 +78,55 @@ function wrapScript(step: ScriptStep, testId: string): string {
 }
 
 suite('Product test checkpoint templates', () => {
-	test('only the Windows x64 test job enables checkpoints', () => {
-		const declarations: { file: string; type: string; default?: boolean }[] = [];
-		const forwards: string[] = [];
+	test('only the Windows test steps use checkpoints', () => {
+		const users: string[] = [];
 		for (const file of globSync('**/*.yml', { cwd: pipelineRoot }).sort()) {
-			const template = readTemplate(file);
-			const parameter = Array.isArray(template?.parameters) ? template.parameters.find(parameter => parameter.name === flag) : undefined;
-			if (parameter) {
-				declarations.push({ file, type: parameter.type, default: parameter.default });
-			}
-			for (const call of records(template)) {
-				const args = call.parameters as Record<string, unknown> | undefined;
-				if (typeof call.template === 'string' && args && Object.hasOwn(args, flag)) {
-					forwards.push(`${file} -> ${call.template} [${args.VSCODE_ARCH ?? ''}]: ${args[flag]}`);
+			for (const record of records(readTemplate(file))) {
+				if (typeof record.template === 'string' && /\/(restore-test-checkpoints|run-test-with-checkpoint|publish-test-checkpoint)\.yml@self$/.test(record.template)) {
+					users.push(`${file} -> ${path.basename(record.template.replace(/@self$/, ''))}`);
 				}
 			}
 		}
-		assert.deepStrictEqual({ declarations, forwards }, {
-			declarations: [
-				{ file: 'copilot/test-integration-steps.yml', type: 'boolean', default: false },
-				{ file: 'product-build.yml', type: 'boolean', default: true },
-				{ file: 'win32/product-build-win32.yml', type: 'boolean', default: false },
-				{ file: testFile, type: 'boolean', default: false },
+		const copilot = readTemplate('copilot/test-integration-steps.yml').steps;
+		assert.deepStrictEqual({
+			users: [...new Set(users)],
+			// Only the win32 branch of the shared Copilot steps records checkpoints
+			nonWindowsCopilotCalls: calls(copilot.filter(step => !Object.hasOwn(step, '${{ if eq(parameters.OS, \'win32\') }}'))).length,
+		}, {
+			users: [
+				'common/run-test-with-checkpoint.yml -> publish-test-checkpoint.yml',
+				'copilot/test-integration-steps.yml -> run-test-with-checkpoint.yml',
+				`${testFile} -> restore-test-checkpoints.yml`,
+				`${testFile} -> run-test-with-checkpoint.yml`,
 			],
-			forwards: [
-				`product-build.yml -> build/azure-pipelines/win32/product-build-win32.yml@self [x64]: ${reuse}`,
-				`win32/product-build-win32.yml -> ./steps/product-build-win32-test.yml@self [\${{ parameters.VSCODE_ARCH }}]: ${reuse}`,
-				`${testFile} -> ../../copilot/test-integration-steps.yml@self []: ${reuse}`,
-			],
+			nonWindowsCopilotCalls: 0,
 		});
 	});
 
-	test('disabled wrapper inserts the original task and enabled wrapper preserves metadata', () => {
+	test('wrapper preserves the test step and gates it on its checkpoint', () => {
 		assert.deepStrictEqual({
-			enabledParameter: wrapper.parameters?.find(parameter => parameter.name === 'enabled'),
-			disabledSteps: wrapper.steps[0]['${{ if eq(parameters.enabled, false) }}'],
+			parameters: wrapper.parameters,
 			copiedMetadata: pairs['${{ elseif ne(pair.key, \'condition\') }}'],
-			condition: enabledSteps[0].condition,
-			publisher: enabledSteps[1],
+			condition: wrapper.steps[0].condition,
+			publisher: wrapper.steps[1],
 		}, {
-			enabledParameter: { name: 'enabled', type: 'boolean' },
-			disabledSteps: ['${{ parameters.testStep }}'],
+			parameters: [{ name: 'testId', type: 'string' }, { name: 'testStep', type: 'step' }],
 			copiedMetadata: { '${{ pair.key }}': '${{ pair.value }}' },
 			condition: 'and(${{ coalesce(parameters.testStep.condition, \'succeeded()\') }}, ne(variables[\'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}_HIT\'], \'true\'))',
 			publisher: { template: './publish-test-checkpoint.yml@self', parameters: { testId: '${{ parameters.testId }}' } },
 		});
 	});
 
-	test('restore requires explicit enablement and never resets an already initialized job', () => {
+	test('restore never resets an already initialized job', () => {
 		const restore = readTemplate('common/restore-test-checkpoints.yml');
-		assert.deepStrictEqual({
-			enabled: restore.parameters?.find(parameter => parameter.name === 'enabled'),
-			steps: restore.steps,
-		}, {
-			enabled: { name: 'enabled', type: 'boolean' },
+		assert.deepStrictEqual({ parameters: restore.parameters, steps: restore.steps }, {
+			parameters: undefined,
 			steps: [{
-				'${{ if eq(parameters.enabled, true) }}': [{
-					script: 'node "$(Build.SourcesDirectory)/build/azure-pipelines/common/testCheckpoint.ts" restore',
-					env: { SYSTEM_ACCESSTOKEN: '$(System.AccessToken)' },
-					condition: 'and(succeeded(), ne(variables[\'TEST_CHECKPOINTS_RESTORED\'], \'true\'))',
-					displayName: 'Restore test checkpoints',
-					timeoutInMinutes: 3,
-				}],
+				script: 'node "$(Build.SourcesDirectory)/build/azure-pipelines/common/testCheckpoint.ts" restore',
+				env: { SYSTEM_ACCESSTOKEN: '$(System.AccessToken)' },
+				condition: 'and(succeeded(), ne(variables[\'TEST_CHECKPOINTS_RESTORED\'], \'true\'))',
+				displayName: 'Restore test checkpoints',
+				timeoutInMinutes: 3,
 			}],
 		});
 	});
@@ -154,44 +136,42 @@ suite('Product test checkpoint templates', () => {
 		const index = steps.findIndex(step => step.task === 'PublishTestResults@2');
 		assert.ok(index > 0);
 		assert.deepStrictEqual({
-			collectors: steps[index - 1][enabled],
-			enabled: steps[index][enabled],
-			disabled: steps[index]['${{ else }}'],
+			collector: steps[index - 1],
+			condition: steps[index].condition,
 		}, {
-			collectors: [{
+			collector: {
 				powershell: 'node build/azure-pipelines/common/testCheckpoint.ts collect-results',
 				displayName: 'Check test output availability',
 				condition: 'succeededOrFailed()',
-			}],
-			enabled: { condition: 'and(succeededOrFailed(), eq(variables[\'TEST_CHECKPOINT_RESULTS_AVAILABLE\'], \'true\'))' },
-			disabled: { condition: 'succeededOrFailed()' },
+			},
+			condition: 'and(succeededOrFailed(), eq(variables[\'TEST_CHECKPOINT_RESULTS_AVAILABLE\'], \'true\'))',
 		});
 	});
 
 	test('every test task is registered, independently published and gated', async t => {
 		const expected = [
+			'unit-electron', 'unit-node', 'unit-browser-chromium',
 			'integration-electron', 'integration-browser-firefox', 'integration-remote',
 			'smoke-electron', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
-		const unitIds = ['unit-electron', 'unit-node', 'unit-browser-chromium'];
 		const publishedIds = readTemplate('common/publish-test-checkpoint.yml').parameters?.find(parameter => parameter.name === 'testId')?.values;
 		const steps = readTemplate(testFile).steps;
 		assert.deepStrictEqual({
-			calls: allCalls().map(call => [call.testId, call.enabled]),
+			calls: allCalls().map(call => call.testId),
 			publishedIds,
 			scriptIds: [...testIds],
 			firstStep: steps[0],
 			restores: records([...steps, ...readTemplate('copilot/test-integration-steps.yml').steps]).filter(step => step.template?.toString().endsWith('/restore-test-checkpoints.yml@self')).length,
 			copilot: records(steps).find(step => step.template === '../../copilot/test-integration-steps.yml@self')?.parameters,
 		}, {
-			calls: expected.map(id => [id, reuse]),
-			publishedIds: [...unitIds, ...expected],
-			scriptIds: [...unitIds, ...expected],
+			calls: expected,
+			publishedIds: expected,
+			scriptIds: expected,
 			// The checkpoints are restored once, before any other test step.
-			firstStep: { template: '../../common/restore-test-checkpoints.yml@self', parameters: { enabled: reuse } },
+			firstStep: { template: '../../common/restore-test-checkpoints.yml@self' },
 			restores: 1,
-			copilot: { OS: 'win32', VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: reuse },
+			copilot: { OS: 'win32' },
 		});
 
 		const temp = mkdtempSync(path.join(os.tmpdir(), 'checkpoint-inventory-'));
@@ -220,12 +200,12 @@ suite('Product test checkpoint templates', () => {
 	test('the WSL Dev Container setup is skipped together with the Electron smoke tests', () => {
 		const electron = readTemplate(testFile).steps.flatMap(step => (step['${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}'] ?? []) as ScriptStep[]);
 		const wsl = electron.flatMap(step => (step['${{ if eq(parameters.VSCODE_ARCH, \'x64\') }}'] ?? []) as ScriptStep[]);
-		const gated = { condition: 'and(succeeded(), ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'))' };
-		assert.deepStrictEqual(wsl.map(step => ({ displayName: step.displayName, condition: step.condition, reuse: step[enabled] })), [
-			{ displayName: 'Set WSL kernel cache day', condition: undefined, reuse: gated },
-			{ displayName: 'Restore WSL kernel installer cache', condition: undefined, reuse: gated },
-			{ displayName: 'Prepare WSL Dev Container smoke tests', condition: undefined, reuse: gated },
-			{ displayName: 'Clean up WSL Dev Container smoke tests', condition: 'and(always(), ne(variables[\'WSL_SMOKE_ROOT\'], \'\'))', reuse: undefined },
+		const gated = 'and(succeeded(), ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'))';
+		assert.deepStrictEqual(wsl.map(step => ({ displayName: step.displayName, condition: step.condition })), [
+			{ displayName: 'Set WSL kernel cache day', condition: gated },
+			{ displayName: 'Restore WSL kernel installer cache', condition: gated },
+			{ displayName: 'Prepare WSL Dev Container smoke tests', condition: gated },
+			{ displayName: 'Clean up WSL Dev Container smoke tests', condition: 'and(always(), ne(variables[\'WSL_SMOKE_ROOT\'], \'\'))' },
 		]);
 	});
 
