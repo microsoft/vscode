@@ -48,13 +48,14 @@ import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer,
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
-import { EnablementModel, IEnablementModel } from '../enablement.js';
+import { ContributionEnablementState, EnablementModel, IEnablementModel, isContributionDisabled, isContributionEnabled } from '../enablement.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../automations/automationBlueprint.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
-import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from './agentPluginEnablement.js';
+import { AgentPluginCollisionEnablementModel, getAgentPluginConfiguredEnablement, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService } from './agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
+import { IWorkspacePluginSettingsService } from './workspacePluginSettingsService.js';
 
 // Re-export shared helpers so existing consumers (including tests) continue to work.
 export { shellQuotePluginRootInCommand, resolveMcpServersMap, convertBareEnvVarsToVsCodeSyntax } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
@@ -99,6 +100,7 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
+		@IWorkspacePluginSettingsService workspacePluginSettingsService: IWorkspacePluginSettingsService,
 	) {
 		super();
 
@@ -121,16 +123,17 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			() => configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue,
 		);
 
-		const policyEnablement = derived(reader => {
+		const configuredEnablement = derived(reader => {
 			const discoveredPlugins = readDiscoveredAgentPlugins(discoveries, reader);
 			const policy = enabledPluginsPolicy.read(reader);
-			const result = new Map<string, boolean>();
-			if (discoveredPlugins && policy) {
+			const workspaceEnabledPlugins = workspacePluginSettingsService.enabledPlugins.read(reader);
+			const result = new Map<string, ContributionEnablementState>();
+			if (discoveredPlugins) {
 				for (const { plugins } of discoveredPlugins) {
 					for (const plugin of plugins) {
-						const policyValue = getAgentPluginPolicyEnablement(plugin, policy);
-						if (policyValue !== undefined) {
-							result.set(plugin.uri.toString(), policyValue);
+						const configuredState = getAgentPluginConfiguredEnablement(plugin, policy, workspaceEnabledPlugins);
+						if (configuredState !== undefined) {
+							result.set(plugin.uri.toString(), configuredState);
 						}
 					}
 				}
@@ -146,15 +149,21 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			if (!discoveredPlugins) {
 				return new Map<string, readonly string[]>();
 			}
-			const policy = enabledPluginsPolicy.read(reader);
+			const configured = configuredEnablement.read(reader);
 			return getCanonicalAgentPluginCollisionGroups(
 				discoveredPlugins,
-				plugin => isAgentPluginBlockedByPolicy(plugin, policy),
-				plugin => isAgentPluginForceEnabledByPolicy(plugin, policy),
+				plugin => {
+					const state = configured.get(plugin.uri.toString());
+					return state !== undefined && isContributionDisabled(state);
+				},
+				plugin => {
+					const state = configured.get(plugin.uri.toString());
+					return state !== undefined && isContributionEnabled(state);
+				},
 			);
 		});
 
-		this.enablementModel = new AgentPluginCollisionEnablementModel(baseEnablementModel, collisionGroups, policyEnablement);
+		this.enablementModel = new AgentPluginCollisionEnablementModel(baseEnablementModel, collisionGroups, configuredEnablement);
 
 		for (const { discovery } of discoveries) {
 			discovery.start(this.enablementModel);

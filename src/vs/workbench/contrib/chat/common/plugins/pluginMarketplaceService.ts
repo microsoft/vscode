@@ -13,7 +13,7 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -33,7 +33,6 @@ import { ChatConfiguration } from '../constants.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { FileBackedInstalledPluginsStore, IStoredInstalledPlugin } from './fileBackedInstalledPluginsStore.js';
 import { IWorkspacePluginSettingsService } from './workspacePluginSettingsService.js';
-import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { readAgentPluginManifest } from '../../../../../platform/agentPlugins/common/agentPluginParser.js';
 import { type IMarketplaceReference, deduplicateMarketplaceReferences, MarketplaceReferenceKind, parseMarketplaceObjectEntry, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
 import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from './strictKnownMarketplaces.js';
@@ -185,6 +184,8 @@ export interface IPluginMarketplaceService {
 	readonly onDidChangeMarketplaces: Event<void>;
 	/** Installed marketplace plugins, backed by storage. */
 	readonly installedPlugins: IObservable<readonly IMarketplaceInstalledPlugin[]>;
+	/** Resolves after the installed-plugin inventory has been loaded or migrated. */
+	readonly whenInstalledPluginsReady: Promise<void>;
 	/** Canonical IDs of marketplaces with updates detected by the periodic check. */
 	readonly marketplacesWithUpdates: IObservable<ReadonlySet<string>>;
 	/**
@@ -194,9 +195,9 @@ export interface IPluginMarketplaceService {
 	 */
 	readonly lastFetchedPlugins: IObservable<readonly IMarketplacePlugin[]>;
 	/**
-	 * Set of recommended plugin keys (`"pluginName@marketplaceName"`) aggregated
-	 * from workspace-defined settings (e.g. `.claude/settings.json`). Providers
-	 * may be added over time; consumers should not assume a specific source.
+	 * Set of repository-enabled plugin keys (`"pluginName@marketplaceName"`)
+	 * aggregated from trusted workspace settings. Also backs the legacy
+	 * `@recommended` marketplace filter.
 	 */
 	readonly recommendedPlugins: IObservable<ReadonlySet<string>>;
 	/** Clears all reported marketplaces, or only the provided canonical IDs. */
@@ -207,6 +208,7 @@ export interface IPluginMarketplaceService {
 	queryMarketplacePlugins(options: IPluginMarketplaceQuery, token: CancellationToken): Promise<IPluginMarketplacePage>;
 	fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]>;
 	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined;
+	isPluginInstalled(pluginUri: URI): boolean;
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
 	removeInstalledPlugin(pluginUri: URI): void;
 	/** Returns whether the given marketplace is trusted — either explicitly trusted by the user, or allowed by the enterprise allowlist when strict mode is active. */
@@ -364,6 +366,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	readonly onDidChangeMarketplaces: Event<void>;
 
 	readonly installedPlugins: IObservable<readonly IMarketplaceInstalledPlugin[]>;
+	readonly whenInstalledPluginsReady: Promise<void>;
 	readonly marketplacesWithUpdates: IObservable<ReadonlySet<string>> = this._marketplacesWithUpdates;
 	readonly lastFetchedPlugins: IObservable<readonly IMarketplacePlugin[]>;
 	readonly recommendedPlugins: IObservable<ReadonlySet<string>>;
@@ -377,7 +380,6 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspacePluginSettingsService private readonly _workspacePluginSettingsService: IWorkspacePluginSettingsService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IMeteredConnectionService private readonly _meteredConnectionService: IMeteredConnectionService,
 	) {
@@ -395,6 +397,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				_storageService,
 			)
 		);
+		this.whenInstalledPluginsReady = this._installedPluginsStore.whenInitialized;
 
 		this._trustedMarketplacesStore = this._register(
 			trustedMarketplacesMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, _storageService)
@@ -420,15 +423,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return result;
 		});
 
-		// Aggregate recommended plugin keys from all providers.
-		// Currently sourced from Claude workspace settings; more providers can be
-		// added here via additional observables in the derived computation.
-		// Only expose recommendations when the workspace is trusted.
-		const workspaceTrusted = observableFromEvent(this, this._workspaceTrustService.onDidChangeTrust, () => this._workspaceTrustService.isWorkspaceTrusted());
 		this.recommendedPlugins = derived(reader => {
-			if (!workspaceTrusted.read(reader)) {
-				return new Set<string>();
-			}
 			const enabledMap = this._workspacePluginSettingsService.enabledPlugins.read(reader);
 			const keys = new Set<string>();
 			for (const [key, value] of enabledMap) {
@@ -447,7 +442,6 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 					e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces),
 			) as Event<unknown> as Event<void>,
 			Event.fromObservableLight(this._workspacePluginSettingsService.extraMarketplaces),
-			Event.map(this._workspaceTrustService.onDidChangeTrust, () => { }),
 		);
 		this._register(this.onDidChangeMarketplaces(() => this._invalidateQueries()));
 		this._register(Event.filter(
@@ -610,9 +604,6 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	private _getConfiguredMarketplaceReferences(): readonly IMarketplaceReference[] {
 		const { effectiveValues } = readConfiguredMarketplaces(this._configurationService);
 		const configured = parseMarketplaceReferences(effectiveValues);
-		if (!this._workspaceTrustService.isWorkspaceTrusted()) {
-			return configured;
-		}
 		const workspaceEntries = this._workspacePluginSettingsService.extraMarketplaces.get();
 		return deduplicateMarketplaceReferences(workspaceEntries.map(entry => entry.reference), configured);
 	}
@@ -788,6 +779,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined {
 		return this._pluginMetadata.get(pluginUri.toString())
 			?? [...this._pluginMetadata.entries()].find(([key]) => isEqualOrParent(pluginUri, URI.parse(key)))?.[1];
+	}
+
+	isPluginInstalled(pluginUri: URI): boolean {
+		return this._installedPluginsStore.get().some(entry => isEqual(entry.pluginUri, pluginUri));
 	}
 
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void {
