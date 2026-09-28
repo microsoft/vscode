@@ -453,7 +453,7 @@ export interface IEditorOptions {
 	 */
 	columnSelection?: boolean;
 	/**
-	 * Paste copied column selections as a block, padding short destination lines with spaces, or using normal text pasting.
+	 * Paste copied column selections as a block into a single selection, padding short destination lines with spaces, or using normal text pasting.
 	 * Defaults to 'text'.
 	 */
 	columnSelectionPaste?: 'block' | 'text';
