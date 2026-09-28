@@ -33,8 +33,11 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 	private _regexpModel: RegexpModel | undefined;
 	private _regexpLoadFailed: boolean = false;
 
-	private _modelOperations: ModelOperations | undefined;
+	private _modelOperations: Promise<ModelOperations> | undefined;
 	private _loadFailed: boolean = false;
+
+	/** Pre-loaded chunks of the model bundle, keyed by the id webpack asks for. */
+	private readonly _modelChunks = new Map<string, unknown>();
 
 	private modelIdToCoreId = new Map<string, string | undefined>();
 
@@ -138,14 +141,78 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		return detected;
 	}
 
-	private async getModelOperations(): Promise<ModelOperations> {
-		if (this._modelOperations) {
-			return this._modelOperations;
+	/**
+	 * The model bundle lazily loads its TensorFlow CPU backend as a separate CommonJS chunk using
+	 * webpack's `require`-based chunk loading (`require("./<id>.js")`). A web worker has no
+	 * `require`, so `runModel` used to fail with `ReferenceError: require is not defined` before it
+	 * ever looked at the model -- and the error was swallowed, so detection just reported nothing.
+	 *
+	 * The chunk also cannot simply be evaluated: VS Code runs under Trusted Types, which forbids the
+	 * `Function` constructor outright. Unlike `script.src`, it cannot be unblocked by a policy (the
+	 * constructor does not accept `TrustedScript`), so `'unsafe-eval'` in the CSP makes no difference.
+	 *
+	 * Load the chunks as ES modules ahead of time instead, then give webpack a synchronous `require`
+	 * that only serves what is already loaded. The chunks are CommonJS and assign to a bare
+	 * `exports`, so `module` and `exports` are briefly defined on the global scope around each
+	 * import. That is safe for the bundle's own UMD header -- which prefers CommonJS over AMD when it
+	 * sees them -- because the bundle has already been imported by this point and `import()` caches.
+	 */
+	private async preloadModelChunks(bundleUri: string): Promise<void> {
+		const globalScope = globalThis as unknown as {
+			module?: unknown;
+			exports?: unknown;
+			require?: (id: string) => unknown;
+		};
+
+		if (this._modelChunks.size === 0) {
+			// The chunk ids are baked into the bundle and change between versions of
+			// @vscode/vscode-languagedetection, so read them back out of it rather than hard coding
+			// one. A false positive is harmless: that chunk simply fails to load and is skipped.
+			const source = await (await fetch(bundleUri)).text();
+			const chunkIds = new Set(Array.from(source.matchAll(/\.e\((?<chunkId>\d+)\)/g), match => match.groups!.chunkId));
+
+			for (const chunkId of chunkIds) {
+				const id = `./${chunkId}.js`;
+				const holder: { exports: unknown } = { exports: Object.create(null) };
+				globalScope.module = holder;
+				globalScope.exports = holder.exports;
+				try {
+					await import(/* webpackIgnore: true */ /* @vite-ignore */ new URL(id, bundleUri).toString());
+					this._modelChunks.set(id, holder.exports);
+				} catch {
+					// Not every match is a real chunk; skip whatever does not load.
+				} finally {
+					delete globalScope.module;
+					delete globalScope.exports;
+				}
+			}
 		}
 
+		globalScope.require ??= (id: string): unknown => {
+			const chunk = this._modelChunks.get(id);
+			if (!chunk) {
+				throw new Error(`The language detection model requested a chunk that was not pre-loaded: ${id}`);
+			}
+			return chunk;
+		};
+	}
+
+	/**
+	 * Caches the promise rather than the model operations themselves. `preloadModelChunks` briefly
+	 * defines `module` and `exports` on the global scope, and overlapping detection requests -- which
+	 * are routine, since each notebook cell status bar asks independently -- must not both enter that
+	 * window and overwrite one another's holder.
+	 */
+	private getModelOperations(): Promise<ModelOperations> {
+		this._modelOperations ??= this.createModelOperations();
+		return this._modelOperations;
+	}
+
+	private async createModelOperations(): Promise<ModelOperations> {
 		const uri: string = await this._host.$getIndexJsUri();
 		const { ModelOperations } = await importAMDNodeModule(uri, '') as typeof import('@vscode/vscode-languagedetection');
-		this._modelOperations = new ModelOperations({
+		await this.preloadModelChunks(uri);
+		return new ModelOperations({
 			modelJsonLoaderFunc: async () => {
 				const response = await fetch(await this._host.$getModelJsonUri());
 				try {
@@ -162,8 +229,6 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 				return buffer;
 			}
 		});
-
-		return this._modelOperations;
 	}
 
 	// This adjusts the language confidence scores to be more accurate based on:
