@@ -576,7 +576,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.chat.experimental.welcomeName', "Specifies the name used in new-session welcome messages. Only the first name is shown. Leave empty to use the first name from your signed-in GitHub profile when available; otherwise, welcome messages omit the name."),
+			description: localize('sessions.chat.experimental.welcomeName', "Specifies the name used in new-session welcome messages. Leave empty to use the first name from your signed-in GitHub profile when available; otherwise, welcome messages omit the name."),
 			tags: ['experimental'],
 		},
 		[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING]: {

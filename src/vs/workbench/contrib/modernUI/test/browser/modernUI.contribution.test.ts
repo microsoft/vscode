@@ -3465,11 +3465,13 @@ suite('ModernUIContribution', () => {
 		assert.deepStrictEqual({
 			overlaid: getFadeContent('title', 'tab'),
 			reserved: getFadeContent('title tab-actions-reserve-space', 'tab'),
+			connected: getFadeContent('title connected-tabs-labels', 'tab'),
 			dirty: getFadeContent('title', 'tab dirty'),
 			sticky: getFadeContent('title', 'tab sticky'),
 		}, {
 			overlaid: '""',
 			reserved: 'none',
+			connected: 'none',
 			dirty: 'none',
 			sticky: 'none',
 		});
