@@ -118,7 +118,7 @@ suite('Extension host inline debug adapters', () => {
 			handleMessage() { },
 			dispose() { throw error; }
 		});
-		assert.throws(() => adapter.stopSession(), error);
+		assert.throws(() => adapter.stopSession(), /^Error: implementation disposal failed$/);
 		assert.strictEqual(emitter.hasListeners(), false);
 	});
 });
