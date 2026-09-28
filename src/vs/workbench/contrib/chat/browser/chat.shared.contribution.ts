@@ -17,7 +17,7 @@ import { registerAction2 } from '../../../../platform/actions/common/actions.js'
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../../../platform/agentHost/common/agentHostManagedSettings.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
@@ -30,6 +30,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -109,6 +110,7 @@ import { ChatContextContributions } from './actions/chatContext.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
 import { ChatCopyActionRendering, registerChatCopyActions } from './actions/chatCopyActions.js';
 import { ChatModelFeedbackSurveyActionRendering, registerChatModelFeedbackSurveyActions } from './actions/chatModelFeedbackSurveyActions.js';
+import { ChatHarnessSwitchFeedbackSurveyService, IChatHarnessSwitchFeedbackSurveyService } from './feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
 import { ChatModelFeedbackSurveyService, IChatModelFeedbackSurveyService } from './feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { ChatModelFeedbackSurveyPromptContribution } from './feedbackSurvey/chatModelFeedbackSurveyPromptContribution.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
@@ -1953,7 +1955,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[mcpWorkspaceRootConfig]: {
 			type: 'boolean',
-			default: product.quality === 'insider',
+			default: true,
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 			markdownDescription: nls.localize('mcp.workspaceRootConfig.enabled', "Offer the workspace root `.mcp.json` file when adding MCP servers manually. When `.vscode/mcp.json` exists, choose which file to add to. Marketplace installations continue to use `.vscode/mcp.json`. Existing `.mcp.json` files can be opened and read independently of this setting."),
@@ -2364,6 +2366,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.tools.terminal.simpleCollapsible', "When enabled, terminal tool calls are always displayed in a collapsible container with a simplified view."),
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.TerminalOutputReflow]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.tools.terminal.outputReflow', "Controls whether terminal output in chat reflows to fit the available width. When disabled, previews use the terminal's column count, or 80 columns when no terminal is available, and scroll horizontally when needed. This does not resize the terminal running the command."),
+		},
 		[ChatConfiguration.CompressOutputEnabled]: {
 			type: 'boolean',
 			default: false,
@@ -2523,11 +2530,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			},
 		},
-		[ChatConfiguration.SubagentsUseRichRendering]: {
-			type: 'boolean',
-			description: nls.localize('chat.subagents.useRichRendering', "Controls whether subagents in chat editors use a rich presentation that opens each subagent in its own editor instead of rendering its full activity inline in the parent chat."),
-			default: true,
-		},
 		[ChatConfiguration.SubagentsShowCreditUsage]: {
 			type: 'boolean',
 			description: nls.localize('chat.subagents.showCreditUsage', "Controls whether AI credit usage is shown next to the duration for subagents."),
@@ -2563,17 +2565,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.customizations.structuredPreview.enabled', "Controls whether the Chat Customizations editor shows a structured preview for markdown customization files (agents, skills, instructions, prompts). When disabled, the editor always opens the raw markdown in the embedded code editor."),
 			default: false,
 		},
-		[ChatConfiguration.ChatCustomizationsListLayout]: {
-			type: 'string',
-			enum: ['tabs', 'tree'],
-			enumDescriptions: [
-				nls.localize('chat.experimental.customizations.listLayout.tabs', "Show customization groups as tabs above a flat tree."),
-				nls.localize('chat.experimental.customizations.listLayout.tree', "Show customization groups as collapsible parent nodes in a tree."),
-			],
-			tags: ['experimental'],
-			description: nls.localize('chat.experimental.customizations.listLayout', "Controls how groups are presented in customization management lists."),
-			default: 'tabs',
-		},
 		[ChatConfiguration.ChatCustomizationsToggleStyle]: {
 			type: 'string',
 			enum: ['checkbox', 'switch'],
@@ -2586,6 +2577,15 @@ configurationRegistry.registerConfiguration({
 			default: 'switch',
 		},
 		...customizationMarketplaceConfigurationProperties,
+		[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: nls.localize('chat.customizations.copilotConnectors.enabled', "Enables Copilot connectors in the unified marketplace and exposes connected connector MCP servers in Chat Customizations and Copilot agent sessions."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostMcpConnectorsEnabledConfigKey },
+		},
 		[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
@@ -3431,6 +3431,7 @@ registerSingleton(ISessionChatPillVisibilityService, SessionChatPillVisibility, 
 registerSingleton(IChatPasteTargetService, ChatPasteTargetService, InstantiationType.Delayed);
 registerSingleton(IChatSideChatService, ChatSideChatService, InstantiationType.Delayed);
 registerSingleton(IChatRequestOriginService, ChatRequestOriginService, InstantiationType.Delayed);
+registerSingleton(IChatHarnessSwitchFeedbackSurveyService, ChatHarnessSwitchFeedbackSurveyService, InstantiationType.Delayed);
 registerSingleton(IChatModelFeedbackSurveyService, ChatModelFeedbackSurveyService, InstantiationType.Delayed);
 registerSingleton(IChatPetService, ChatPetService, InstantiationType.Delayed);
 registerSingleton(IChatPetWidgetService, ChatPetWidgetService, InstantiationType.Delayed);

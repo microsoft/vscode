@@ -42,7 +42,7 @@ import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentPendingMessageSender, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
@@ -51,6 +51,7 @@ import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSea
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
+import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
@@ -62,11 +63,11 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
-import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
-import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
@@ -77,8 +78,9 @@ import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js'
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
+import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
+import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
@@ -234,6 +236,21 @@ function normalizeMcpServerUrl(value: string): string | undefined {
 	url.hash = '';
 	url.pathname = url.pathname.replace(/\/+$/, '');
 	return url.href;
+}
+
+/**
+ * Names of launched MCP servers that reach GitHub, whose tools Agent Merge turns deny. SDK-discovered plugin servers
+ * count regardless of launch enablement because the runtime can enable them later and resolves their name collisions.
+ */
+function getAgentMergeRestrictedMcpServerNames(plan: CopilotSessionLaunchPlan): ReadonlySet<string> {
+	const launchedServers = [
+		...Object.entries(toSessionConfigMcpServers(plan)),
+		...plan.snapshot.plugins.flatMap(plugin => plugin.mcpServers.filter(server => !isMcpServerExplicitlyProjected(server)).map(server => [server.name, server.configuration] as const)),
+	];
+	return new Set([
+		GITHUB_MCP_SERVER_NAME,
+		...launchedServers.filter(([name, server]) => isAgentMergeRestrictedMcpServer(name, server)).map(([name]) => name),
+	]);
 }
 
 type IMappedSessionEvents = { turns: Turn[]; subagentTurnsByToolCallId: ReadonlyMap<string, Turn[]> };
@@ -900,9 +917,12 @@ export class CopilotAgentSession extends Disposable {
 		reported: boolean;
 	}>();
 	/** Pending permission requests awaiting a renderer-side decision. */
-	private readonly _pendingPermissions = new PendingRequestRegistry<PermissionRequestResult, {
+	private readonly _pendingPermissions = new PendingRequestRegistry<PermissionRequestResult | { kind: 'disable-sandbox'; context: IAgentPermissionResponseContext }, {
 		readonly managedApprovalRequired: boolean;
+		readonly sdkSandboxBypass?: boolean;
 	}>();
+	private readonly _sandboxBypassRequests = new Map<string, string>();
+	private _sandboxDisabledForSession = false;
 	/** Cancels callbacks that began before or during an SDK abort. */
 	private readonly _abortCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	/** Delays cancelled callbacks until the SDK abort settles or the session is disposed. */
@@ -970,7 +990,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _developmentErrorInjectionEnabled: boolean;
 	private _dropLateRootTurnEvents = false;
 	private _agentMergeTurn = false;
-	private readonly _mcpServerNames: ReadonlySet<string>;
+	/** MCP servers whose tools Agent Merge turns deny because they expose GitHub. */
+	private readonly _agentMergeRestrictedMcpServerNames: ReadonlySet<string>;
 	/** Monotonic 0-based ordinal assigned to each turn as it starts, for numeric `turnIndex` telemetry parity. */
 	private _nextTurnOrdinal = 0;
 	/**
@@ -1010,6 +1031,10 @@ export class CopilotAgentSession extends Disposable {
 			this._idleWaiters.delete(waiter);
 			waiter.complete(false);
 		}
+	}
+
+	markConnectorConfigurationChanged(): void {
+		this._requiresConnectorConfigurationRefresh = true;
 	}
 
 	/**
@@ -1130,6 +1155,7 @@ export class CopilotAgentSession extends Disposable {
 	private _experimentalModeEnabled = false;
 	private readonly _permissionModeSequencer = new Sequencer();
 	private readonly _sandboxConfigSequencer = new Sequencer();
+	private readonly _sandboxDiagnostics: CopilotSandboxDiagnostics;
 	private readonly _mcpEnablementSequencer = new Sequencer();
 	private readonly _mcpServerLifecycleSequencer = new SequencerByKey<string>();
 	private readonly _steeringMessagesInFlight = new Set<string>();
@@ -1173,6 +1199,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingClientToolCalls = new PendingRequestRegistry<ToolResultObject>();
 	/** One-shot SDK callbacks, keyed by request id; answering one delivers a token but does not confirm acceptance. */
 	private readonly _pendingMcpAuthRequests = new PendingRequestRegistry<McpAuthResult | null | undefined, IPendingMcpAuthRequest>();
+	private _requiresConnectorConfigurationRefresh = false;
 	/**
 	 * Retains challenge metadata and its latest callback id so token delivery can report Starting.
 	 * Connected and needs-auth statuses remain the final lifecycle authority.
@@ -1331,6 +1358,7 @@ export class CopilotAgentSession extends Disposable {
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
+		this._sandboxDiagnostics = this._register(this._instantiationService.createInstance(CopilotSandboxDiagnostics, this._ownerSessionUri.toString(), () => this._launchPlan.client.rpc.sandbox.getHostSupport()));
 		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._shellManager = options.shellManager;
@@ -1347,11 +1375,7 @@ export class CopilotAgentSession extends Disposable {
 		this._repoInfoTelemetry = this._register(this._instantiationService.createInstance(AgentHostRepoInfoTelemetry, this._telemetryReporter));
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
-		this._mcpServerNames = new Set([
-			GITHUB_MCP_SERVER_NAME,
-			...Object.keys(this._appliedSnapshot.mcpServers),
-			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
-		]);
+		this._agentMergeRestrictedMcpServerNames = getAgentMergeRestrictedMcpServerNames(this._launchPlan);
 		this._appliedPluginSources = new Set(this._appliedSnapshot.plugins.flatMap(plugin => plugin.sourceUri ? [plugin.sourceUri.toString()] : []));
 		this._appliedPluginDirectories = this._appliedSnapshot.plugins.flatMap(plugin => plugin.pluginDir?.scheme === Schemas.file ? [plugin.pluginDir] : []);
 		const disabledMcpServers = new Set([
@@ -2297,6 +2321,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	get requiresMcpLaunchConfigurationRefresh(): boolean {
+		if (this._requiresConnectorConfigurationRefresh) {
+			return true;
+		}
 		this._markMcpLaunchConfigurationDirty();
 		return this._mcpLaunchConfigurationDirty;
 	}
@@ -2634,6 +2661,7 @@ export class CopilotAgentSession extends Disposable {
 		this._subscribeForMemoInvalidation();
 		this._subscribeForInstructionsCollectedTelemetry();
 		this._subscribeToPermissionConfigChanges();
+		await this._sandboxDiagnostics.update(this._platform !== 'linux' || this._isCustomTerminalToolEnabled() ? { enabled: false } : this._computeSdkSandboxConfig() ?? { enabled: false });
 		await this._syncShellInitScript();
 		this._promptCacheState = this._promptCache.read(this.resourceUri);
 		if (this._launchPlan.kind === 'resume') {
@@ -4261,6 +4289,7 @@ export class CopilotAgentSession extends Disposable {
 	private async _handlePermissionRequest(
 		request: PermissionRequest,
 	): Promise<PermissionRequestResult> {
+		let sandboxRequestId: string | undefined;
 		try {
 			const abortToken = this._abortToken;
 			const toolCallId = request.toolCallId;
@@ -4409,7 +4438,7 @@ export class CopilotAgentSession extends Disposable {
 
 			this._logService.info(`[Copilot:${this.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
 
-			const pendingPermission = this._pendingPermissions.register(toolCallId, { managedApprovalRequired });
+			const pendingPermission = this._pendingPermissions.register(toolCallId, { managedApprovalRequired, sdkSandboxBypass: requestSandboxBypass === true });
 
 			// Auto-approve shell commands that run sandboxed by default, since the
 			// sandbox already contains them. Commands that opted OUT of the sandbox
@@ -4464,6 +4493,7 @@ export class CopilotAgentSession extends Disposable {
 			// parent session, which has no matching ChatToolCallStart.
 			const trackedToolCall = this._activeToolCalls.get(toolCallId);
 			const parentToolCallId = trackedToolCall?.parentToolCallId;
+			sandboxRequestId = this._sandboxBypassRequests.get(toolCallId);
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
 				chat: this._chatChannelUri,
@@ -4494,11 +4524,15 @@ export class CopilotAgentSession extends Disposable {
 				permissionPath,
 				managedApprovalRequired,
 				requestSandboxBypass,
+				canAllowSessionSandboxBypass: requestSandboxBypass === true && sandboxRequestId !== undefined && this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString())?.allowBypass !== false,
 				shellLanguage,
 				parentToolCallId,
 			});
 
 			const result = await pendingPermission;
+			if (result.kind === 'disable-sandbox') {
+				return await this._disableSandboxForPendingRequest(toolCallId, sandboxRequestId, result.context, abortToken);
+			}
 			this._logService.info(`[Copilot:${this.sessionId}] Permission response: toolCallId=${toolCallId}, result=${result.kind}`);
 			if (!abortToken.isCancellationRequested && !managedApprovalRequired && result.kind === 'approve-once' && (request.kind === 'write' || request.kind === 'read' || request.kind === 'shell')) {
 				this._approvedDuplicablePermissionSignatures.set(toolCallId, safeStringify(request));
@@ -4507,6 +4541,38 @@ export class CopilotAgentSession extends Disposable {
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to handle permission request: kind=${request.kind}, toolCallId=${request.toolCallId ?? 'missing'}`);
 			throw error;
+		} finally {
+			if (request.toolCallId && this._sandboxBypassRequests.get(request.toolCallId) === sandboxRequestId) {
+				this._sandboxBypassRequests.delete(request.toolCallId);
+			}
+		}
+	}
+
+	private async _disableSandboxForPendingRequest(toolCallId: string, requestId: string | undefined, context: IAgentPermissionResponseContext, token: CancellationToken): Promise<PermissionRequestResult> {
+		const owner = this._ownerSessionUri.toString();
+		let enabled = this._configurationService.getSessionSandboxEnabled(owner) ?? true;
+		let resolved = false;
+		try {
+			await this._sandboxConfigSequencer.queue(async () => {
+				if (token.isCancellationRequested || !requestId || this._sandboxBypassRequests.get(toolCallId) !== requestId) {
+					throw new Error('Sandbox bypass permission request is no longer pending');
+				}
+				const result = await this._wrapper.session.rpc.sandbox.disableForSession({ requestId });
+				resolved = result.success;
+				enabled = result.enabled;
+				if (!result.success || result.enabled) {
+					throw new Error('Copilot SDK did not disable sandboxing for this session');
+				}
+				this._sandboxDisabledForSession = true;
+				this._configurationService.setSessionSandboxEnabled(owner, result.enabled);
+				await this._sandboxDiagnostics.update({ enabled: false });
+				this._configurationService.updateSessionConfig(owner, { [SessionConfigKey.SandboxEnabled]: 'off' });
+			});
+			return { kind: 'no-result' };
+		} catch (error) {
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to disable sandboxing from a permission request`);
+			this._configurationService.setSessionSandboxEnabled(owner, enabled, context.origin && { ...context.origin, message: getErrorMessage(error) });
+			return resolved ? { kind: 'no-result' } : { kind: 'reject' };
 		}
 	}
 
@@ -4586,14 +4652,12 @@ export class CopilotAgentSession extends Disposable {
 		return buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths());
 	}
 
-	/**
-	 * Grants the generated directory once a script has been materialized for
-	 * this instance and keeps it for the instance lifetime, so a command that
-	 * already holds the path can still read it after a clear. Sessions that
-	 * never configure a script see no policy change.
-	 */
+	/** Keeps the generated script readable until disposal, even after its configuration is cleared. */
 	private _sandboxExtraReadonlyPaths(): readonly string[] {
-		return this._shellInitScriptMaterialized ? [this._shellInitScriptDirectory().fsPath] : [];
+		return getVSCodeSandboxReadRoots({
+			sessionDataDirectory: this._sessionDataService.getSessionDataDir(this._ownerSessionUri),
+			shellInitDirectory: this._shellInitScriptMaterialized ? this._shellInitScriptDirectory() : undefined,
+		}).map(root => root.fsPath);
 	}
 
 	/**
@@ -4665,7 +4729,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			if (Object.hasOwn(event.config, SessionConfigKey.AutoApprove) || Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled)) {
-				void this._syncPermissionModeAfterConfigChange();
+				void this._syncPermissionModeAfterConfigChange(event);
 			}
 			if (Object.hasOwn(event.config, SessionConfigKey.ShellInitScripts)) {
 				void this._syncShellInitScript();
@@ -4685,14 +4749,20 @@ export class CopilotAgentSession extends Disposable {
 		return this._shellInitScriptSequencer.queue(() => this._clearShellInitScript());
 	}
 
-	private async _syncPermissionModeAfterConfigChange(): Promise<void> {
+	private async _syncPermissionModeAfterConfigChange(event?: IAgentSessionConfigurationChangeEvent): Promise<void> {
+		const owner = this._ownerSessionUri.toString();
+		const values = this._configurationService.getSessionConfigValues(owner);
 		try {
 			if (this.hasActiveTurn) {
 				await this.syncPermissionMode('config-change');
 			}
-			await this._applyEffectiveSandboxConfig(true);
+			const requestDisable = !!event?.origin && event.config[SessionConfigKey.SandboxEnabled] === 'off';
+			await this._applyEffectiveSandboxConfig(true, requestDisable);
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply permission config change${this.hasActiveTurn ? '; aborting active turn' : ''}`);
+			if (event?.origin && Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled)) {
+				this._configurationService.rejectSessionSandboxChange(owner, values, event.origin, getErrorMessage(error));
+			}
 			if (!this.hasActiveTurn) {
 				return;
 			}
@@ -4748,15 +4818,26 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Apply the SDK sandbox policy before a request or after configuration changes, including while idle.
 	 */
-	private async _applyEffectiveSandboxConfig(failOnError = true): Promise<void> {
-		return this._sandboxConfigSequencer.queue(() => this._updateEffectiveSandboxConfig(failOnError));
+	private async _applyEffectiveSandboxConfig(failOnError = true, requestDisable = false): Promise<void> {
+		return this._sandboxConfigSequencer.queue(() => this._updateEffectiveSandboxConfig(failOnError, requestDisable));
 	}
 
-	private async _updateEffectiveSandboxConfig(failOnError: boolean): Promise<void> {
+	private async _updateEffectiveSandboxConfig(failOnError: boolean, requestDisable: boolean): Promise<void> {
 		const base = this._computeSdkSandboxConfig();
-		const sandboxConfig: SandboxConfig = base ?? { enabled: false };
+		if (!base && this._sandboxDisabledForSession) {
+			// disableForSession already applied the opt-out. A bare disabled
+			// options.update does not preserve the runtime's managed sandbox floor.
+			return;
+		}
+		const sandboxConfig: SandboxConfig = requestDisable && this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString())?.failClosed
+			? { enabled: false }
+			: base ?? { enabled: false };
 		try {
-			await applySandboxConfig(this._wrapper.session, sandboxConfig, this.sessionId, this._logService);
+			if (await applySandboxConfig(this._wrapper.session, sandboxConfig, this.sessionId, this._logService)) {
+				this._sandboxDisabledForSession = false;
+				this._configurationService.setSessionSandboxEnabled(this._ownerSessionUri.toString(), sandboxConfig.enabled);
+				await this._sandboxDiagnostics.update(this._platform !== 'linux' || this._isCustomTerminalToolEnabled() ? { enabled: false } : sandboxConfig);
+			}
 		} catch (err) {
 			if (failOnError) {
 				throw err;
@@ -4928,8 +5009,12 @@ export class CopilotAgentSession extends Disposable {
 		return { items: [edit] };
 	}
 
-	respondToPermissionRequest(requestId: string, approved: boolean): boolean {
-		if (this._pendingPermissions.respond(requestId, approved ? { kind: 'approve-once' } : USER_DENIED_PERMISSION_RESULT)) {
+	respondToPermissionRequest(requestId: string, approved: boolean, context?: IAgentPermissionResponseContext): boolean {
+		const metadata = this._pendingPermissions.getMetadata(requestId);
+		const result = approved && context?.selectedOptionId === 'allow-session' && metadata?.sdkSandboxBypass && !metadata.managedApprovalRequired
+			? { kind: 'disable-sandbox', context } as const
+			: approved ? { kind: 'approve-once' } as const : USER_DENIED_PERMISSION_RESULT;
+		if (this._pendingPermissions.respond(requestId, result)) {
 			this._deletePendingEditContent(requestId);
 			return true;
 		}
@@ -5297,7 +5382,7 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			const restriction = this._agentMergeTurn
 				? getAgentMergeGitHubToolRestriction(input.toolName, input.toolArgs)
-				?? (isCopilotMcpToolName(input.toolName, this._mcpServerNames) ? AGENT_MERGE_GITHUB_TOOL_RESTRICTION : undefined)
+				?? (isCopilotMcpToolName(input.toolName, this._agentMergeRestrictedMcpServerNames) ? AGENT_MERGE_GITHUB_TOOL_RESTRICTION : undefined)
 				: undefined;
 			if (restriction) {
 				this._logService.warn(`[Copilot:${this.sessionId}] Denying restricted Agent Merge tool: ${input.toolName}`);
@@ -5647,6 +5732,9 @@ export class CopilotAgentSession extends Disposable {
 			this._recordAutoApproval(toolCallId, e.data.promptRequest?.assistedApproval);
 			const existing = this._toolApprovalRecords.get(toolCallId);
 			const permissionRequest = e.data.permissionRequest as { requestSandboxBypass?: boolean; toolName?: string };
+			if (permissionRequest.requestSandboxBypass && !e.data.resolvedByHook) {
+				this._sandboxBypassRequests.set(toolCallId, e.data.requestId);
+			}
 			this._toolApprovalRecords.set(toolCallId, {
 				permissionRequested: true,
 				resolvedByHook: existing?.resolvedByHook || e.data.resolvedByHook === true,
@@ -5662,6 +5750,9 @@ export class CopilotAgentSession extends Disposable {
 			const toolCallId = e.data.toolCallId;
 			if (!toolCallId) {
 				return;
+			}
+			if (this._sandboxBypassRequests.get(toolCallId) === e.data.requestId) {
+				this._sandboxBypassRequests.delete(toolCallId);
 			}
 			const existing = this._toolApprovalRecords.get(toolCallId);
 			const record = {
@@ -7979,6 +8070,7 @@ export class CopilotAgentSession extends Disposable {
 			this._deletePendingEditContent(toolCallId);
 		}
 		this._pendingPermissions.denyAll({ kind: 'reject' });
+		this._sandboxBypassRequests.clear();
 		this._approvedDuplicablePermissionSignatures.clear();
 	}
 

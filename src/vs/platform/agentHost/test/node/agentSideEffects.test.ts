@@ -57,6 +57,8 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
@@ -212,7 +214,9 @@ function createTestSideEffects(
 		getInitialTitleGenerationStrategy: () => options.initialTitleGenerationStrategy ?? 'deferred',
 	}, logService));
 	services.set(IAgentHostSessionTitleController, titleController);
-	services.set(IAgentHostProviderService, createTestAgentHostProviderService(session => options.getAgent(typeof session === 'string' ? session : session.toString())));
+	const providerService = createTestAgentHostProviderService(session => options.getAgent(typeof session === 'string' ? session : session.toString()));
+	services.set(IAgentHostProviderService, providerService);
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
@@ -5354,6 +5358,9 @@ suite('AgentSideEffects', () => {
 
 		test('tool_ready for an additional chat is emitted on that chat channel', async () => {
 			setupSession();
+			const responses: Parameters<IAgent['respondToPermissionRequest']>[] = [];
+			const provider: IAgent = agent;
+			provider.respondToPermissionRequest = (...args) => { responses.push(args); };
 			const chatUri = buildChatUri(sessionUri.toString(), 'peer');
 			stateManager.addChat(sessionUri.toString(), chatUri);
 			stateManager.setSessionConfig(sessionUri.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Permissions]: { allow: [], deny: [] } } });
@@ -5412,10 +5419,10 @@ suite('AgentSideEffects', () => {
 				approved: true,
 				confirmed: 'user-action' as const,
 				selectedOptionId: 'allow-session',
-			} as ChatAction);
+			} as ChatAction, 'test-client', undefined, undefined, false, 7);
 
-			assert.deepStrictEqual(agent.respondToPermissionCalls, [
-				{ requestId: 'tc-peer-perm', approved: true },
+			assert.deepStrictEqual(responses, [
+				['tc-peer-perm', true, { selectedOptionId: 'allow-session', origin: { clientId: 'test-client', clientSeq: 7 } }],
 			]);
 			assert.deepStrictEqual(stateManager.getSessionState(sessionUri.toString())?.config?.values[SessionConfigKey.Permissions], { allow: ['write'], deny: [] });
 		});

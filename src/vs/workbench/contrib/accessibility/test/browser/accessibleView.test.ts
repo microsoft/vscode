@@ -185,6 +185,48 @@ suite('AccessibleView', () => {
 		assert.deepStrictEqual({ showsBeforeClear, showsAfterClear: showCount }, { showsBeforeClear: 2, showsAfterClear: 2 });
 	});
 
+	test('recreates onOpen resources for re-shown providers and providers restored from help', async () => {
+		const contextViewService = new RenderingContextViewService();
+		const instantiationService = workbenchInstantiationService({}, disposables);
+		instantiationService.stub(IContextViewService, contextViewService);
+		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+		const accessibleView = disposables.add(instantiationService.createInstance(AccessibleView));
+		const modelService = instantiationService.get(IModelService);
+		disposables.add(toDisposable(() => modelService.getModels().forEach(model => model.dispose())));
+
+		const closeEvent = disposables.add(new Emitter<void>());
+		let calls = 0;
+		const provider = disposables.add(new AccessibleContentProvider(
+			AccessibleViewProviderId.Notification,
+			{ type: AccessibleViewType.View },
+			() => 'Synthetic notification',
+			() => { },
+			'test.verbosity',
+			() => closeEvent.event(() => calls++)
+		));
+		const counts: number[] = [];
+		accessibleView.show(provider);
+		closeEvent.fire();
+		counts.push(calls);
+		accessibleView.show(provider);
+		closeEvent.fire();
+		counts.push(calls);
+		accessibleView.showAccessibleViewHelp();
+		await timeout(0);
+		closeEvent.fire();
+		counts.push(calls);
+		const helpProvider = disposables.add((accessibleView as unknown as { _currentProvider: AccesibleViewContentProvider })._currentProvider);
+		helpProvider.onClose();
+		await timeout(0);
+		closeEvent.fire();
+		counts.push(calls);
+		contextViewService.hideContextView();
+		closeEvent.fire();
+		counts.push(calls);
+
+		assert.deepStrictEqual(counts, [1, 2, 2, 3, 3]);
+	});
+
 	test('releases the listeners of every render when the view hides', async () => {
 		const contextViewService = new RenderingContextViewService();
 		const instantiationService = workbenchInstantiationService({}, disposables);

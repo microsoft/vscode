@@ -102,6 +102,7 @@ export const EditSources = {
 
 	chatApplyEdits(data: {
 		modelId: string | undefined;
+		autoTier?: string;
 		sessionId: string | undefined;
 		requestId: string | undefined;
 		languageId: string;
@@ -115,6 +116,7 @@ export const EditSources = {
 		return createEditSource({
 			source: 'Chat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$autoTier: data.autoTier,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
 			$harness: data.harness,
@@ -175,10 +177,11 @@ export const EditSources = {
 		} as const);
 	},
 
-	inlineChatApplyEdit(data: { modelId: string | undefined; requestId: string | undefined; sessionId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
+	inlineChatApplyEdit(data: { modelId: string | undefined; autoTier?: string; requestId: string | undefined; sessionId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
 		return createEditSource({
 			source: 'inlineChat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$autoTier: data.autoTier,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
 			$$sessionId: data.sessionId,

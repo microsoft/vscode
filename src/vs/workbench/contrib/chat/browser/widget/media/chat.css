@@ -774,8 +774,8 @@
 	margin: 1.5em 0 0.875em 0;
 }
 
-/* Codicons next to text need to be aligned with the text */
-.interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) .codicon {
+/* Inline text icons align to the baseline; activity-gutter icons own their positioning. */
+.interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) .codicon:where(:not(.chat-tool-call-icon)) {
 	position: relative;
 	top: 2px;
 }

@@ -28,7 +28,7 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/work
 import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SessionItemCanImportContext, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext, SessionShowsArchivedChatsContext } from './sessionsList.js';
 import { getChatCapabilities, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -49,6 +49,58 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
+import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { SessionsListNotificationFocused } from './sessionsListNotification.js';
+
+AccessibleViewRegistry.register({
+	name: 'sessions-list-notification',
+	type: AccessibleViewType.Help,
+	priority: 110,
+	when: SessionsListNotificationFocused,
+	getProvider: accessor => accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.archiveNotification?.getAccessibilityHelp(),
+});
+
+async function archiveSessionsWithUndo(
+	sessions: readonly ISession[],
+	wording: ChatSessionArchiveActionWording,
+	sessionsManagementService: ISessionsManagementService,
+	groupsService: ISessionGroupsService,
+	viewsService: IViewsService,
+): Promise<void> {
+	const archived: { session: ISession; groupId: string | undefined }[] = [];
+	const candidates = sessions.filter(session => !session.isArchived.get()).map(session => ({
+		session,
+		groupId: groupsService.getGroupOfSession(session.sessionId),
+	}));
+	try {
+		for (const entry of candidates) {
+			await sessionsManagementService.archiveSession(entry.session);
+			archived.push(entry);
+		}
+	} finally {
+		// A partially completed batch must remain undoable even when a later archive fails.
+		if (archived.length > 0) {
+			const message = wording === ChatSessionArchiveActionWording.MarkAsDone
+				? localize('sessionsMarkedDone', "{0} marked done", archived.length)
+				: localize('sessionsArchived', "{0} archived", archived.length);
+			viewsService.getViewWithId<SessionsView>(SessionsViewId)?.archiveNotification?.show(message, async () => {
+				while (archived.length > 0) {
+					const { session, groupId } = archived[0];
+					const current = sessionsManagementService.getSession(session.resource);
+					if (current?.isArchived.get()) {
+						await sessionsManagementService.unarchiveSession(current);
+						if (groupId && groupsService.getGroup(groupId) && !groupsService.getGroupOfSession(current.sessionId)) {
+							groupsService.addToGroup(current.sessionId, groupId);
+						}
+					}
+					archived.shift();
+				}
+				status(localize('sessionsRestored', "Sessions restored."));
+			});
+		}
+	}
+}
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -650,9 +702,11 @@ abstract class BaseArchiveSectionAction extends Action2 {
 			return;
 		}
 
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const dialogService = accessor.get(IDialogService);
 		const storageService = accessor.get(IStorageService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const groupsService = accessor.get(ISessionGroupsService);
+		const viewsService = accessor.get(IViewsService);
 
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
@@ -676,9 +730,7 @@ abstract class BaseArchiveSectionAction extends Action2 {
 			}
 		}
 
-		for (const session of context.sessions) {
-			await sessionsManagementService.archiveSession(session);
-		}
+		await archiveSessionsWithUndo(context.sessions, this.wording, sessionsManagementService, groupsService, viewsService);
 	}
 }
 
@@ -728,9 +780,11 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 			return;
 		}
 
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const dialogService = accessor.get(IDialogService);
 		const storageService = accessor.get(IStorageService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const groupsService = accessor.get(ISessionGroupsService);
+		const viewsService = accessor.get(IViewsService);
 
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
@@ -754,9 +808,7 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 			}
 		}
 
-		for (const session of context.sessions) {
-			await sessionsManagementService.archiveSession(session);
-		}
+		await archiveSessionsWithUndo(context.sessions, this.wording, sessionsManagementService, groupsService, viewsService);
 	}
 }
 
@@ -1228,6 +1280,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 			id: RENAME_SESSION_COMMAND_ID,
 			title: localize2('renameSession', "Rename..."),
 			icon: Codicon.edit,
+			precondition: SessionItemIsMultiSelectionContext.negate(),
 			keybinding: {
 				primary: KeyCode.F2,
 				weight: KeybindingWeight.SessionsContrib,
@@ -1427,7 +1480,7 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 		}
 
 		const lastRequested = sessions[sessions.length - 1];
-		await sessionsService.openSessionToSide(lastRequested, { source: 'sessionsList' });
+		await sessionsService.openSessionToSide(lastRequested, { source: 'sessionsList', forceMainChat: true });
 
 		const visibleAfterOpen = sessionsService.visibleSessions.get();
 		const opened = visibleAfterOpen.find(s => s?.sessionId === lastRequested.sessionId);

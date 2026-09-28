@@ -864,6 +864,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		await picker.selectSubmenu('agent-host/project', 'Use Local');
 
 		assert.deepStrictEqual({
+			stableItemIds: [initialFolderItem?.item?.id, devContainerFolderItem?.item?.id],
 			initialSubmenu: initialSubmenu instanceof SubmenuAction ? initialSubmenu.actions.map(action => ({
 				label: action.label,
 				tooltip: action.tooltip,
@@ -880,6 +881,10 @@ suite('WorkspacePicker - Connection Status', () => {
 			triggerLabel: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
 			triggerAriaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
 		}, {
+			stableItemIds: [
+				'workspacePicker.workspace.file:///agent-host/project',
+				'workspacePicker.workspace.file:///agent-host/project',
+			],
 			initialSubmenu: [
 				{ label: 'Use Local', tooltip: '', checked: true },
 				{ label: 'Use Dev Container', tooltip: '', checked: false },
