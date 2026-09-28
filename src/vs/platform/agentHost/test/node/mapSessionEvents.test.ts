@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { AgentSession } from '../../common/agent.js';
+import { AgentSession, subagentChatTitle } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
@@ -491,6 +491,54 @@ suite('mapSessionEvents — history replay', () => {
 					invocation: { markdown: 'Read agent `catalog-perf`' },
 					completed: { markdown: 'Read agent `catalog-perf`' },
 				}]);
+		});
+	}
+
+	for (const hasExecutionEvents of [true, false]) {
+		test(`restores matching subagent chat titles in tools and notifications (${hasExecutionEvents ? 'execution events' : 'tool request fallback'})`, async () => {
+			const agentId = 'take-all-agent';
+			const parameters = { agent_type: 'general-purpose', name: 'take-all', description: 'Fix Take-all ground pickup' };
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { content: 'Review the result.' } },
+				{ type: 'assistant.message', data: { messageId: 'coordination', content: '', toolRequests: ['read_agent', 'write_agent'].map(name => ({ name, toolCallId: name, arguments: { agent_id: agentId } })) } },
+			];
+			if (hasExecutionEvents) {
+				for (const toolName of ['read_agent', 'write_agent']) {
+					events.push(
+						{ type: 'tool.execution_start', data: { toolCallId: toolName, toolName, arguments: { agent_id: agentId } } },
+						{ type: 'tool.execution_complete', data: { toolCallId: toolName, success: true } },
+					);
+				}
+			}
+			events.push(
+				{ type: 'subagent.started', agentId, data: { toolCallId: 'task', agentName: 'general-purpose', agentDisplayName: 'take-all', agentDescription: 'General purpose agent' } },
+				{ type: 'assistant.message', data: { messageId: 'launch', content: '', toolRequests: [{ toolCallId: 'task', name: 'task', arguments: parameters }] } },
+			);
+			if (hasExecutionEvents) {
+				events.push({ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: parameters } });
+			}
+			events.push(
+				{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true } },
+				{ type: 'system.notification', data: { content: 'Agent finished', kind: { type: 'agent_idle', agentId, agentType: 'general-purpose', displayName: 'take-all', description: 'A different SDK description' } } },
+			);
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+			const parts = turns.flatMap(turn => turn.responseParts);
+			assert.deepStrictEqual({
+				toolMessages: parts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed && part.toolCall.toolCallId !== 'task'
+					? [part.toolCall.invocationMessage, part.toolCall.pastTenseMessage] : []),
+				chatTitles: parts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed && part.toolCall.toolCallId === 'task'
+					? part.toolCall.content?.flatMap(content => content.type === ToolResultContentType.Subagent ? [subagentChatTitle(readToolCallMeta(part.toolCall).subagentDescription, content.title)] : []) ?? [] : []),
+				notifications: parts.flatMap(part => part.kind === ResponsePartKind.SystemNotification ? [part.content] : []),
+			}, {
+				toolMessages: [
+					{ markdown: 'Read agent `Fix Take-all ground pickup`' },
+					{ markdown: 'Read agent `Fix Take-all ground pickup`' },
+					{ markdown: 'Write to agent `Fix Take-all ground pickup`' },
+					{ markdown: 'Write to agent `Fix Take-all ground pickup`' },
+				],
+				chatTitles: ['Fix Take-all ground pickup'],
+				notifications: ['Background agent `Fix Take-all ground pickup` is complete'],
+			});
 		});
 	}
 
@@ -1400,7 +1448,7 @@ suite('mapSessionEvents — history replay', () => {
 			state: TurnState.Complete,
 			parts: [
 				{ kind: ResponsePartKind.Markdown, content: 'The background agent is running.' },
-				{ kind: ResponsePartKind.SystemNotification, content: 'Background agent `Renderer reviewer` is complete' },
+				{ kind: ResponsePartKind.SystemNotification, content: 'Background agent `Review the renderer` is complete' },
 				{ kind: ResponsePartKind.Markdown, content: 'Reading the background agent result.' },
 			],
 		}]);
