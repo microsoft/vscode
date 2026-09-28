@@ -279,7 +279,7 @@ export class WorkspacePicker extends Disposable {
 		} else if (this._tabbedWidget.isVisible) {
 			this._tabbedWidget.refreshActiveList();
 		} else {
-			this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
+			this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
 		}
 	}, 50));
 	private _attachedContext: readonly IChatRequestVariableEntry[] = [];
@@ -510,7 +510,7 @@ export class WorkspacePicker extends Disposable {
 				} else if (this._tabbedWidget.isVisible) {
 					this._tabbedWidget.refreshActiveList();
 				} else {
-					this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
+					this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
 				}
 			}
 		}));
@@ -1082,7 +1082,7 @@ export class WorkspacePicker extends Disposable {
 					} else if (this._tabbedWidget.isVisible) {
 						this._tabbedWidget.refreshActiveList();
 					} else {
-						this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
+						this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
 					}
 				}
 			}));
@@ -1607,7 +1607,12 @@ export class WorkspacePicker extends Disposable {
 				|| (repositoryId !== undefined && repositoryId === this._getCurrentRepositoryId());
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
 				|| (repositoryId !== undefined && this._additionalRepositorySelections.has(repositoryId));
-			const item: IWorkspacePickerItem = { folderUri, providerId, checked: selected || attached || undefined };
+			const item: IWorkspacePickerItem = {
+				id: `workspacePicker.workspace.${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`,
+				folderUri,
+				providerId,
+				checked: selected || attached || undefined,
+			};
 			const modeActions = createWorkspaceModeActions(workspace, folderUri, providerId, item);
 			const recentWorkspaceIsRepository = ThemeIcon.isEqual(icon, Codicon.repo);
 			if (previousRecentWorkspaceIsRepository !== undefined && previousRecentWorkspaceIsRepository !== recentWorkspaceIsRepository) {

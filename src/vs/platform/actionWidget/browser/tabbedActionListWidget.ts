@@ -444,6 +444,7 @@ export class TabbedActionListWidget extends Disposable {
 					}
 					list.updateItems(refreshed.items, refreshOptions?.focusItemId, {
 						preserveHover: refreshOptions?.preserveHover,
+						preserveScrollPosition: refreshOptions?.preserveScrollPosition,
 						animateItemMove: refreshOptions?.animateItemMove && !this._accessibilityService.isMotionReduced(),
 					});
 					if (sizingChanged) {

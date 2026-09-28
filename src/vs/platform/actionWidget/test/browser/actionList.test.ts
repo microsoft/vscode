@@ -2346,6 +2346,57 @@ suite('ActionListWidget', () => {
 		);
 	});
 
+	test('rebuilding the items in place can preserve the scroll position', () => {
+		const items = Array.from({ length: 20 }, (_, index) => action(`item-${index}`));
+		const widget = createActionListWidget(disposables, {
+			items: items.map((item, index) => index === 0 ? { ...item, item: { id: 'item-0', checked: true } } : item),
+			listOptions: { showFilter: true, focusFilterOnOpen: true },
+		});
+		widget.layout(120, 200);
+		widget.focus();
+		const list = (widget as unknown as { _list: { scrollTop: number } })._list;
+		list.scrollTop = 120;
+
+		widget.updateItems(items.map(item => ({ ...item })), undefined, { preserveScrollPosition: true });
+
+		assert.strictEqual(list.scrollTop, 120);
+	});
+
+	test('refreshing an open submenu keeps its row focused while the filter has focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const submenuAction = toAction({ id: 'child', label: 'Child', run: () => { } });
+		const item = (id: string, checked = false): IActionListItem<ITestActionItem> => ({
+			...action(id),
+			item: { id, checked },
+			...id === 'other' ? { submenuActions: [submenuAction] } : undefined,
+		});
+		const widget = createActionListWidget(disposables, {
+			items: [item('selected', true), item('other')],
+			listOptions: { showFilter: true, focusFilterOnOpen: true, filterAsCombobox: true },
+		});
+		widget.focus();
+		const otherRow = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		otherRow.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		otherRow.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		await timeout(600);
+
+		widget.updateItems([item('selected', true), item('other')], undefined, { preserveHover: true });
+		const focusedRow = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.focused')!;
+
+		assert.deepStrictEqual({
+			filterFocused: document.activeElement === widget.filterInput,
+			focusedItem: widget.getFocusedElement()?.item?.id,
+			submenuVisible: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display !== 'none',
+			activeDescendant: widget.filterInput?.getAttribute('aria-activedescendant'),
+			focusedRowId: focusedRow.id,
+		}, {
+			filterFocused: true,
+			focusedItem: 'other',
+			submenuVisible: true,
+			activeDescendant: focusedRow.id,
+			focusedRowId: focusedRow.id,
+		});
+	}));
+
 	test('removing the focused row toolbar restores focus inside the remaining list', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
