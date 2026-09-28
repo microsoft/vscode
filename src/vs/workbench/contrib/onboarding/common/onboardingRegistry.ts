@@ -7,6 +7,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IOnboardingScenario } from './onboardingScenario.js';
 
+export type IOnboardingScenarioDescriptor = Pick<IOnboardingScenario, 'id' | 'developerModeVariations' | 'tryout'>;
+
 /**
  * Registry of onboarding scenarios. Feature areas register their scenarios here
  * (pure data); the engine reads from it to decide what to run.
@@ -14,17 +16,22 @@ import { IOnboardingScenario } from './onboardingScenario.js';
 export interface IOnboardingScenarioRegistry {
 	/** Register a scenario. Throws if a scenario with the same id already exists. */
 	register(scenario: IOnboardingScenario): IDisposable;
+	/** Register persistent metadata for a scenario whose active instance may be created on demand. */
+	registerDescriptor(descriptor: IOnboardingScenarioDescriptor): void;
 	/** All currently registered scenarios. */
 	getScenarios(): readonly IOnboardingScenario[];
+	/** All known scenario descriptors, including currently registered scenarios. */
+	getScenarioDescriptors(): readonly IOnboardingScenarioDescriptor[];
 	/** Look up a single scenario by id. */
 	getScenario(id: string): IOnboardingScenario | undefined;
-	/** Fires when scenarios are added or removed. */
+	/** Fires when scenarios are added or removed, or descriptors are added or updated. */
 	readonly onDidChange: Event<void>;
 }
 
-class OnboardingScenarioRegistry implements IOnboardingScenarioRegistry {
+export class OnboardingScenarioRegistry implements IOnboardingScenarioRegistry {
 
 	private readonly _scenarios = new Map<string, IOnboardingScenario>();
+	private readonly _descriptors = new Map<string, IOnboardingScenarioDescriptor>();
 
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -46,8 +53,25 @@ class OnboardingScenarioRegistry implements IOnboardingScenarioRegistry {
 		};
 	}
 
+	registerDescriptor(descriptor: IOnboardingScenarioDescriptor): void {
+		const previous = this._descriptors.get(descriptor.id);
+		if (previous?.developerModeVariations === descriptor.developerModeVariations && previous?.tryout === descriptor.tryout) {
+			return;
+		}
+		this._descriptors.set(descriptor.id, descriptor);
+		this._onDidChange.fire();
+	}
+
 	getScenarios(): readonly IOnboardingScenario[] {
 		return Array.from(this._scenarios.values());
+	}
+
+	getScenarioDescriptors(): readonly IOnboardingScenarioDescriptor[] {
+		const descriptors = new Map(this._descriptors);
+		for (const scenario of this._scenarios.values()) {
+			descriptors.set(scenario.id, scenario);
+		}
+		return Array.from(descriptors.values());
 	}
 
 	getScenario(id: string): IOnboardingScenario | undefined {
