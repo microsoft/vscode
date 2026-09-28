@@ -20,9 +20,12 @@ parameters:
 #   1. Compile: compiles the client, server and web server builds and
 #      publishes them as the compilation_win32_<arch> artifact.
 #   2. Test: tests the builds of the compilation artifact (only when tests run).
-#   3. Sign: code signs the builds of the compilation artifact, packages them
-#      and publishes the product artifacts.
-# The test and sign jobs both depend on the compile job and run in parallel.
+#   3. Sign: code signs the builds of the compilation artifact together with
+#      the CLI, packages them and publishes the product artifacts, including
+#      the standalone CLI.
+# The test job depends on the compile job. The sign job also depends on the
+# CLI job (see product-build-win32-cli.yml), which builds the unsigned CLI in
+# parallel with the compile job, so the CLI job must be part of the same stage.
 jobs:
   - job: Windows_${{ parameters.VSCODE_ARCH }}_Compile
     displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }}) - Compile
@@ -134,7 +137,9 @@ jobs:
 
   - job: Windows_${{ parameters.VSCODE_ARCH }}_Sign
     displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
-    dependsOn: Windows_${{ parameters.VSCODE_ARCH }}_Compile
+    dependsOn:
+      - Windows_${{ parameters.VSCODE_ARCH }}_Compile
+      - WindowsCLI_${{ upper(parameters.VSCODE_ARCH) }}
     timeoutInMinutes: 90
     cancelTimeoutInMinutes: 10
     variables:
@@ -178,6 +183,13 @@ jobs:
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
           sbomPackageVersion: $(Build.SourceVersion)
+        - output: pipelineArtifact
+          targetPath: $(Build.ArtifactStagingDirectory)/out/cli/vscode_cli_win32_$(VSCODE_ARCH)_cli.zip
+          artifactName: vscode_cli_win32_$(VSCODE_ARCH)_cli
+          displayName: Publish CLI
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli-standalone
+          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) CLI"
+          sbomPackageVersion: $(Build.SourceVersion)
       sdl:
         suppression:
           suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
@@ -190,5 +202,3 @@ jobs:
       - template: ./steps/product-build-win32-download-compilation.yml@self
 
       - template: ./steps/product-build-win32-sign.yml@self
-        parameters:
-          VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}

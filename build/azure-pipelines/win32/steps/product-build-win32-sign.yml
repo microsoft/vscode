@@ -1,15 +1,7 @@
-parameters:
-  - name: VSCODE_ARCH
-    type: string
-
 # Adds the CLI to the client build, code signs the client, server and web
-# server builds, and packages them together with the signed setup packages.
+# server builds, and packages them together with the signed setup packages
+# and the standalone CLI.
 steps:
-  - pwsh: node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli=WindowsCLI_${{ upper(parameters.VSCODE_ARCH) }}" unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Wait for CLI artifact
-
   - task: DownloadPipelineArtifact@2
     inputs:
       artifact: unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
@@ -65,6 +57,27 @@ steps:
       BUILT_WEB: "true"
       CodeSigningFolderPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH),$(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH),$(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
     displayName: ✍️ Codesign
+
+  # The standalone CLI is the CLI of the client build, which Codesign already
+  # signed, under its standalone name.
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      $ProductJsonPath = (Get-ChildItem -Path "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)" -Name "product.json" -Recurse | Select-Object -First 1)
+      $AppProductJson = Get-Content -Raw -Path "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\$ProductJsonPath" | ConvertFrom-Json
+      $CliAppName = $AppProductJson.tunnelApplicationName
+      $AppName = $AppProductJson.applicationName
+      New-Item -ItemType Directory -Path "$(Build.ArtifactStagingDirectory)/cli-standalone" -Force | Out-Null
+      Copy-Item -Path "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe" -Destination "$(Build.ArtifactStagingDirectory)/cli-standalone/$AppName.exe"
+    displayName: Stage standalone CLI
+
+  - task: ArchiveFiles@2
+    displayName: Archive standalone CLI
+    inputs:
+      rootFolderOrFile: $(Build.ArtifactStagingDirectory)/cli-standalone
+      includeRootFolder: false
+      archiveType: zip
+      archiveFile: $(Build.ArtifactStagingDirectory)/out/cli/vscode_cli_win32_$(VSCODE_ARCH)_cli.zip
 
   - powershell: |
       $ErrorActionPreference = "Stop"
