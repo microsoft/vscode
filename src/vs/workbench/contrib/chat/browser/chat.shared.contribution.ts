@@ -110,6 +110,7 @@ import { ChatContextContributions } from './actions/chatContext.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
 import { ChatCopyActionRendering, registerChatCopyActions } from './actions/chatCopyActions.js';
 import { ChatModelFeedbackSurveyActionRendering, registerChatModelFeedbackSurveyActions } from './actions/chatModelFeedbackSurveyActions.js';
+import { ChatHarnessSwitchFeedbackSurveyService, IChatHarnessSwitchFeedbackSurveyService } from './feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
 import { ChatModelFeedbackSurveyService, IChatModelFeedbackSurveyService } from './feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { ChatModelFeedbackSurveyPromptContribution } from './feedbackSurvey/chatModelFeedbackSurveyPromptContribution.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
@@ -2365,6 +2366,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.tools.terminal.simpleCollapsible', "When enabled, terminal tool calls are always displayed in a collapsible container with a simplified view."),
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.TerminalOutputReflow]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.tools.terminal.outputReflow', "Controls whether terminal output in chat reflows to fit the available width. When disabled, previews use the terminal's column count, or 80 columns when no terminal is available, and scroll horizontally when needed. This does not resize the terminal running the command."),
+		},
 		[ChatConfiguration.CompressOutputEnabled]: {
 			type: 'boolean',
 			default: false,
@@ -3425,6 +3431,7 @@ registerSingleton(ISessionChatPillVisibilityService, SessionChatPillVisibility, 
 registerSingleton(IChatPasteTargetService, ChatPasteTargetService, InstantiationType.Delayed);
 registerSingleton(IChatSideChatService, ChatSideChatService, InstantiationType.Delayed);
 registerSingleton(IChatRequestOriginService, ChatRequestOriginService, InstantiationType.Delayed);
+registerSingleton(IChatHarnessSwitchFeedbackSurveyService, ChatHarnessSwitchFeedbackSurveyService, InstantiationType.Delayed);
 registerSingleton(IChatModelFeedbackSurveyService, ChatModelFeedbackSurveyService, InstantiationType.Delayed);
 registerSingleton(IChatPetService, ChatPetService, InstantiationType.Delayed);
 registerSingleton(IChatPetWidgetService, ChatPetWidgetService, InstantiationType.Delayed);

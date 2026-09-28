@@ -1152,7 +1152,7 @@ suite('ChatSubagentContentPart', () => {
 				isActive: true,
 			};
 			const snapshots = [false, true].map(enabled => {
-				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Draw : ChatProgressAnimation.Off);
 				const action = store.add(new Action('openSubagent', 'Open Subagent'));
 				const viewItem = store.add(instantiationService.createInstance(OpenSubagentChatActionViewItem, context, action, {}, false));
 				const container = mainWindow.document.createElement('div');

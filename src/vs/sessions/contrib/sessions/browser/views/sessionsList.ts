@@ -371,7 +371,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly SECTION_HEIGHT = 26;
 	private static readonly SESSIONS_HEADER_HEIGHT = SESSIONS_HEADER_DEFAULT_HEIGHT + SESSIONS_HEADER_VERTICAL_SPACING;
 	private static readonly SHOW_MORE_HEIGHT = 26;
-	private static readonly PLACEHOLDER_HEIGHT = 26;
+	private static readonly PLACEHOLDER_HEIGHT = SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT;
 
 	constructor(
 		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
@@ -1146,6 +1146,11 @@ function renderInlineRenameInput(
 	return input;
 }
 
+interface ISessionOnboardingTarget {
+	readonly session: ISession;
+	readonly archiveAction: boolean;
+}
+
 interface ISessionItemTemplate {
 	readonly container: HTMLElement;
 	readonly statusIcon: SessionStatusIcon;
@@ -1245,7 +1250,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			activeSession?: IObservable<IActiveSession | undefined>;
 			/** Sessions whose hidden child rows should contribute in-progress status to the parent row. */
 			collapsedSessionIds?: IObservable<ReadonlySet<string>>;
-			archiveOnboardingSession?: IObservable<ISession | undefined>;
+			onboardingTarget?: IObservable<ISessionOnboardingTarget | undefined>;
 			isRenderedInExternalSection?: (session: ISession) => boolean;
 		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
@@ -1356,7 +1361,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				menuOptions: { shouldForwardArgs: true },
 				actionRunner,
 				actionViewItemProvider: (action, options) => {
-					if (action.id !== ARCHIVE_SESSION_COMMAND_ID || !(action instanceof MenuItemAction) || !this.options.archiveOnboardingSession) {
+					if (action.id !== ARCHIVE_SESSION_COMMAND_ID || !(action instanceof MenuItemAction) || !this.options.onboardingTarget) {
 						return actionViewItemProvider(action, options);
 					}
 					return scopedInstantiationService.createInstance(class extends SessionArchiveActionViewItem {
@@ -1392,9 +1397,14 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.renderedSession.set(undefined, undefined);
 			template.container.classList.remove('archive-onboarding', 'renaming');
 		}));
-		if (this.options.archiveOnboardingSession) {
+		if (this.options.onboardingTarget) {
 			template.elementDisposables.add(autorun(reader => {
-				template.container.classList.toggle('archive-onboarding', this.options.archiveOnboardingSession?.read(reader)?.sessionId === element.sessionId);
+				const target = this.options.onboardingTarget?.read(reader);
+				const isTarget = target?.session.sessionId === element.sessionId;
+				template.container.classList.toggle('archive-onboarding', isTarget && target.archiveAction);
+				if (isTarget && !target.archiveAction) {
+					reader.store.add(markOnboardingTarget(template.container, getSessionOnboardingTargetId(element)));
+				}
 			}));
 		}
 
@@ -1879,6 +1889,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 export function getSessionArchiveOnboardingTargetId(session: ISession): string {
 	return `sessions.archiveAction.${session.sessionId}`;
+}
+
+export function getSessionOnboardingTargetId(session: ISession): string {
+	return `sessions.session.${session.sessionId}`;
 }
 
 /**
@@ -3305,7 +3319,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return ids;
 	});
 	private visible = true;
-	private readonly archiveOnboardingSession = observableValue<ISession | undefined>(this, undefined);
+	private readonly onboardingTarget = observableValue<ISessionOnboardingTarget | undefined>(this, undefined);
 	private readonly excludedSessionTypes: Set<string>;
 	private readonly excludedStatuses: Set<SessionStatus>;
 	private readonly sessionArchivedChatVisibilityOverrides = new Map<string, boolean>();
@@ -3485,7 +3499,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				deriveStatusFromMainChat: true,
 				activeSession: this._sessionsService.activeSession,
 				collapsedSessionIds: this.collapsedSessionIds,
-				archiveOnboardingSession: this.archiveOnboardingSession,
+				onboardingTarget: this.onboardingTarget,
 			},
 			approvalModel,
 			undefined,
@@ -4058,7 +4072,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 		const activeSession = this._sessionsService.activeSession.get();
-		const archiveOnboardingSession = this.archiveOnboardingSession.get();
+		const onboardingSession = this.onboardingTarget.get()?.session;
 		const nextNestedSessionResources = new Set(
 			this.sessions
 				.filter(session => getSessionListChats(session).length > 0)
@@ -4091,7 +4105,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		// Keep the active user-facing session visible even when another filter excludes it.
-		for (const revealedSession of [activeSession, archiveOnboardingSession]) {
+		for (const revealedSession of [activeSession, onboardingSession]) {
 			if (revealedSession && !filtered.some(s => s.sessionId === revealedSession.sessionId)) {
 				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && !isAutomationSession(s));
 				if (match) {
@@ -4205,7 +4219,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 
 				for (const section of workspaceSections) {
-					if (!meetsCriteria(section) && section.id !== fallbackId && !this._sessionSectionOrderService.isPromoted(section.id) && !section.sessions.some(session => session.sessionId === archiveOnboardingSession?.sessionId)) {
+					if (!meetsCriteria(section) && section.id !== fallbackId && !this._sessionSectionOrderService.isPromoted(section.id) && !section.sessions.some(session => session.sessionId === onboardingSession?.sessionId)) {
 						moreFolderSectionIds.add(section.id);
 					}
 				}
@@ -4244,7 +4258,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				expanded: this.expandedSessionGroups.has(sectionId),
 				sectionId,
 				sectionLabel,
-				revealSessionId: archiveOnboardingSession?.sessionId,
+				revealSessionId: onboardingSession?.sessionId,
 			});
 			const children = toSessionChildren(limited.sessions);
 			if (limited.showMore) {
@@ -4572,11 +4586,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** Reveals a session and keeps its archive action visible until the caller releases it. */
 	revealArchiveAction(session: ISession): IDisposable & { readonly targetId: string } {
+		return this.revealOnboardingTarget(session, true);
+	}
+
+	/** Keeps a session visible for a spotlight without changing the user's filters. */
+	revealSessionForOnboarding(session: ISession): IDisposable & { readonly targetId: string } {
+		return this.revealOnboardingTarget(session, false);
+	}
+
+	private revealOnboardingTarget(session: ISession, archiveAction: boolean): IDisposable & { readonly targetId: string } {
 		this.customViewService.hideCustomView();
 		this.closeFind();
-		this.archiveOnboardingSession.set(session, undefined);
+		const target = { session, archiveAction };
+		this.onboardingTarget.set(target, undefined);
 		const release = toDisposable(() => {
-			this.archiveOnboardingSession.set(undefined, undefined);
+			if (this.onboardingTarget.get() !== target) {
+				return;
+			}
+			this.onboardingTarget.set(undefined, undefined);
 			if (!this._store.isDisposed) {
 				this.update();
 			}
@@ -4590,7 +4617,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			release.dispose();
 			throw error;
 		}
-		return { targetId: getSessionArchiveOnboardingTargetId(session), dispose: () => release.dispose() };
+		return { targetId: archiveAction ? getSessionArchiveOnboardingTargetId(session) : getSessionOnboardingTargetId(session), dispose: () => release.dispose() };
 	}
 
 	clearFocus(): void {

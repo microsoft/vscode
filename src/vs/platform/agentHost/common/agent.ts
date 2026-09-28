@@ -17,8 +17,14 @@ import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostClientTelemetryContext, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
-import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
+import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+
+/** User-selected permission action and its originating client. */
+export interface IAgentPermissionResponseContext {
+	readonly selectedOptionId?: string;
+	readonly origin?: ActionOrigin;
+}
 
 /** Error returned when the Agent Host process cannot be started. */
 export class AgentHostStartError extends Error {
@@ -775,6 +781,11 @@ export namespace SubagentChatSignal {
 
 // ---- Chat surface --------------------------------------------------
 
+/** A provider's preparation can block input without adding a conversation turn. */
+export interface IAgentPrepareChatResult {
+	readonly error?: ErrorInfo;
+}
+
 /**
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
@@ -785,6 +796,9 @@ export namespace SubagentChatSignal {
  * the provider needs the owning session or storage scope.
  */
 export interface IAgentChats {
+	/** Prepare an existing chat for input without sending a turn. May acquire its native writer lock. */
+	prepareChat?(chat: URI, context: AgentChatOperationContext): Promise<IAgentPrepareChatResult>;
+
 	/**
 	 * Create a fresh additional chat within an already-provisioned `session`,
 	 * using the complete working directory and config supplied in
@@ -954,6 +968,8 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly kind: 'pending_confirmation';
 	/** Target chat channel URI containing the tool call. */
 	readonly chat: URI;
+	/** Whether this request supports a runtime-authorized session sandbox opt-out. */
+	readonly canAllowSessionSandboxBypass?: boolean;
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
@@ -1286,7 +1302,7 @@ export interface IAgent {
 	onClientToolCallComplete(chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void;
 
 	/** Respond to a pending permission request from the SDK. */
-	respondToPermissionRequest(requestId: string, approved: boolean): void;
+	respondToPermissionRequest(requestId: string, approved: boolean, context?: IAgentPermissionResponseContext): void;
 
 	/** Respond to a pending user input request from the SDK's ask_user tool. */
 	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void;

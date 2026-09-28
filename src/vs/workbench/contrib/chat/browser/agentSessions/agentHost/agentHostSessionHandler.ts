@@ -111,6 +111,9 @@ import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
 import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
+import { AgentHostChatInputState, codexWriterLockMessage } from './agentHostChatInputState.js';
+import { readChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
+import { AgentHostSandboxNotification } from './agentHostSandboxNotification.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
@@ -710,9 +713,13 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly progressObs = observableValue<IChatProgress[]>('agentHostProgress', []);
 	readonly isCompleteObs = observableValue<boolean>('agentHostComplete', true);
 	readonly isReadOnly: IObservable<boolean>;
+	readonly isInputBlocked: IObservable<boolean>;
+	readonly retryInput: (() => Promise<void>) | undefined;
+	private readonly _inputState: AgentHostChatInputState | undefined;
 	private readonly _sessionState = observableValue<IObservable<SessionState | undefined>>(this, constObservable(undefined));
 	private readonly _chatState = observableValue<IObservable<ChatState | undefined>>(this, constObservable(undefined));
 	private readonly _promptCacheTracking = this._register(new MutableDisposable<IDisposable>());
+	private readonly _sandboxNotification = this._register(new MutableDisposable<AgentHostSandboxNotification>());
 	private readonly _subagentTurnStores = this._register(new DisposableMap<string, DisposableStore>());
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
@@ -742,6 +749,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		sessionSubscription: IAgentSubscription<SessionState> | undefined,
 		chatSubscription: IAgentSubscription<ChatState> | undefined,
 		private readonly _promptCacheNotification: AgentHostPromptCacheNotification | undefined,
+		refreshChat: (() => Promise<void>) | undefined,
 		private readonly _forkSession: ((request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>),
 		private readonly _renameSession: ((title: string, token: CancellationToken) => Promise<void>),
 		inputState: ISerializableChatModelInputState | undefined,
@@ -750,16 +758,25 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		onDispose: () => void,
 		interruptActiveResponse: () => boolean,
 		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this.setStateSubscriptions(sessionSubscription, chatSubscription);
+		const providerInputState = derived(this, reader => {
+			const session = this._sessionState.read(reader).read(reader);
+			const chat = this._chatState.read(reader).read(reader);
+			return session && chat && !((session.status | chat.status) & SessionStatus.IsArchived) ? readChatInputState(session, chat.resource) : undefined;
+		});
+		this._inputState = refreshChat ? this._register(this._instantiationService.createInstance(AgentHostChatInputState, sessionResource, providerInputState, refreshChat)) : undefined;
+		this.isInputBlocked = this._inputState?.isInputBlocked ?? constObservable(false);
+		this.retryInput = this._inputState ? () => this._inputState!.retry() : undefined;
 		this.isReadOnly = derived(this, reader => {
 			const sessionArchived = Boolean((this._sessionState.read(reader).read(reader)?.status ?? 0) & SessionStatus.IsArchived);
 			const chat = this._chatState.read(reader).read(reader);
 			return (!chat && new URLSearchParams(this.sessionResource.query).has(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM))
 				|| isChatReadOnly(chat?.interactivity, sessionArchived);
 		});
+		this.setStateSubscriptions(sessionSubscription, chatSubscription);
 
 		const hasActiveTurn = initialProgress !== undefined;
 		this.transferredState = inputState ? { editingSession: undefined, inputState } : undefined;
@@ -783,6 +800,10 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	setStateSubscriptions(sessionSubscription: IAgentSubscription<SessionState> | undefined, chatSubscription: IAgentSubscription<ChatState> | undefined): void {
 		this._promptCacheTracking.clear();
 		this._promptCacheTracking.value = sessionSubscription ? this._promptCacheNotification?.trackSession(this.sessionResource, sessionSubscription) : undefined;
+		this._sandboxNotification.clear();
+		if (sessionSubscription) {
+			this._sandboxNotification.value = this._instantiationService.createInstance(AgentHostSandboxNotification, this.sessionResource, sessionSubscription);
+		}
 		transaction(tx => {
 			this._sessionState.set(sessionSubscription ? observableFromSubscription(this, sessionSubscription) : constObservable(undefined), tx);
 			this._chatState.set(chatSubscription ? observableFromSubscription(this, chatSubscription) : constObservable(undefined), tx);
@@ -1676,6 +1697,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				sessionSubscription,
 				chatSubscription,
 				this._config.promptCacheNotification,
+				this._config.connection.refreshSubscription
+					? () => this._config.connection.refreshSubscription!(URI.parse(this._getChatURIOrDefault(sessionResource, resolvedSession)))
+					: undefined,
 				(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => {
 					if (!this._getSessionState(resolvedSession.toString())) {
 						throw new Error('Cannot fork session before the initial request');
@@ -2069,6 +2093,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const error = getTurnError(turn);
 		if (!error) {
 			return undefined;
+		}
+		if (error.errorType === 'CodexThreadInUse') {
+			return {
+				message: localize('agentHost.codexThreadInUse', "{0} Then send your message again in VS Code. Your message has not been sent.", codexWriterLockMessage()),
+				isExpectedError: true,
+			};
 		}
 		const isExecutionInterrupted = error.errorType === 'executionInterrupted';
 		const forwardedDetails = getChatErrorDetailsFromMeta(error, this._chatErrorContext());
@@ -3839,13 +3869,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!seenActive) {
 				return;
 			}
-			const turnError = getTurnError(lastTurn);
-			if (!opts.suppressErrorMarkdown && turnError) {
-				const forwarded = getChatErrorDetailsFromMeta(turnError, this._chatErrorContext());
-				const content = forwarded
-					? new MarkdownString(`\n\n${forwarded.message}`)
-					: new MarkdownString(`\n\nError: (${turnError.errorType}) ${turnError.message}`);
-				opts.sink([{ kind: 'markdownContent', content }]);
+			if (!opts.suppressErrorMarkdown) {
+				const errorDetails = this._getTurnErrorDetails(lastTurn, false);
+				if (errorDetails) {
+					opts.sink([{ kind: 'markdownContent', content: new MarkdownString(`\n\n${errorDetails.message}`) }]);
+				}
 			}
 			finish(lastTurn);
 		}));

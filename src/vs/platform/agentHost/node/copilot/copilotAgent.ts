@@ -31,6 +31,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
@@ -45,7 +46,7 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { isAutoModel } from './modelIdentifiers.js';
@@ -1037,6 +1038,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
+		@IAgentHostStartupPerformance private readonly _startupPerformance: IAgentHostStartupPerformance,
 	) {
 		super();
 		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired(false)));
@@ -3184,17 +3186,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return true;
 	}
 
-	private async _listSdkSessions<T>(reason: string, listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
+	private async _listSdkSessions<T>(reason: 'chats to migrate' | 'discoverable chats' | 'prewarm session metadata', listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
+		this._startupPerformance.mark('providerContext', { provider: this.id, activationState: 'notRequired', sdkAvailability: 'available' });
+		const phase = reason === 'chats to migrate' ? 'sessionMigrationScan' : reason === 'discoverable chats' ? 'sessionDiscoveryScan' : 'sessionMetadataScan';
+		const timing = this._startupPerformance.start(phase, this.id);
 		this._logService.info(`[Copilot] Listing ${reason}...`);
 		try {
 			const sessions = await this._retryAfterClosedConnection('listSessions', listSessions);
+			timing?.complete('success', { scannedSessionCount: sessions.length });
 			this._logService.info(`[Copilot] Listed ${sessions.length} SDK session(s) for ${reason}`);
 			return sessions;
 		} catch (err) {
 			if (err instanceof CancellationError || isRecognizedCopilotClientStartupFailure(err) || classifyCopilotClientOperationFailure(err) !== undefined) {
+				timing?.complete('unavailable');
 				this._logService.info(`[Copilot] Client unavailable while listing ${reason}: ${err instanceof Error ? err.message : String(err)}`);
 				return undefined;
 			}
+			timing?.complete('error');
 			throw err;
 		}
 	}
@@ -5600,9 +5608,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._shutdownPromise;
 	}
 
-	respondToPermissionRequest(requestId: string, approved: boolean): void {
+	respondToPermissionRequest(requestId: string, approved: boolean, context?: IAgentPermissionResponseContext): void {
 		for (const chat of this._allLiveSessions()) {
-			if (chat.respondToPermissionRequest(requestId, approved)) {
+			if (chat.respondToPermissionRequest(requestId, approved, context)) {
 				return;
 			}
 		}

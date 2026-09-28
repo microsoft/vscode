@@ -982,6 +982,7 @@ suite('ChatWidget', () => {
 
 	test('passes read-only transitions to the renderer independently of request editing', () => {
 		const rendererOptions: IChatListItemRendererOptions[] = [];
+		const inputVisibility: boolean[] = [];
 		let rerenders = 0;
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false,
@@ -989,7 +990,7 @@ suite('ChatWidget', () => {
 			_readOnlyContextKey: { set: () => { } },
 			chatSuggestNextWidget: { hide: () => { } },
 			hasInputFocus: () => false,
-			setInputVisible: () => { },
+			setInputVisible: (visible: boolean) => inputVisibility.push(visible),
 			renderChatSuggestNextWidget: () => { },
 			listWidget: {
 				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
@@ -998,11 +999,13 @@ suite('ChatWidget', () => {
 		});
 
 		widget.setReadOnly(true);
+		widget.setReadOnly(true, true);
 		widget.setReadOnly(false);
 
-		assert.deepStrictEqual({ rendererOptions, rerenders }, {
-			rendererOptions: [{ editable: false, readOnly: true }, { editable: true, readOnly: false }],
-			rerenders: 2,
+		assert.deepStrictEqual({ rendererOptions, rerenders, inputVisibility }, {
+			rendererOptions: [{ editable: false, readOnly: true }, { editable: false, readOnly: true }, { editable: true, readOnly: false }],
+			rerenders: 3,
+			inputVisibility: [false, true, true],
 		});
 	});
 
@@ -1082,19 +1085,21 @@ suite('ChatWidget - acceptInput submission', () => {
 		const hasActiveRequest = observableValue('hasActiveRequest', false);
 		const requestInProgress = observableValue('requestInProgress', false);
 		const requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
+		const isInputBlocked = observableValue('isInputBlocked', false);
 		const model = upcastPartial<IChatModel>({
 			sessionResource: resource,
 			onDidDispose: store.add(new Emitter<void>()).event,
 			hasActiveRequest,
 			requestInProgress,
 			requestNeedsInput,
+			isInputBlocked,
 			inputModel: upcastPartial<IChatModel['inputModel']>({}),
 			getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'existing-request' })],
 			getPendingRequests: () => [],
 		});
 		const viewModel = upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] });
 		store.add(toDisposable(() => clearChatMarks(resource)));
-		return { model, viewModel };
+		return { model, viewModel, isInputBlocked };
 	}
 
 	function createSubmissionWidget(createInteraction?: (options: IChatUserInteractionOptions) => ChatUserInteraction) {
@@ -1183,8 +1188,25 @@ suite('ChatWidget - acceptInput submission', () => {
 			updateChatViewVisibility: { value: () => { } },
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
-		return { widget, options, original, chatService, response, sent };
+		return { widget, options, original, input, editorService, chatService, response, sent };
 	}
+
+	test('blocks submission without accepting input and allows sending after the lock clears', async () => {
+		const fixture = createSubmissionWidget();
+		fixture.original.isInputBlocked.set(true, undefined);
+
+		const blocked = await fixture.widget.acceptInput('Test request', fixture.options);
+		assert.deepStrictEqual({
+			response: blocked,
+			saves: fixture.editorService.saveAll.callCount,
+			requests: fixture.chatService.sendRequest.callCount,
+			inputAccepted: fixture.input.acceptInput.callCount,
+		}, { response: undefined, saves: 0, requests: 0, inputAccepted: 0 });
+
+		fixture.original.isInputBlocked.set(false, undefined);
+		const response = await fixture.widget.acceptInput('Test request', fixture.options);
+		assert.deepStrictEqual({ response, requests: fixture.chatService.sendRequest.callCount }, { response: fixture.response, requests: 1 });
+	});
 
 	for (const explicit of [false, true]) {
 		test(`excludes ${explicit ? 'explicitly' : 'implicitly'} queued submissions without cancelling the request`, async () => {

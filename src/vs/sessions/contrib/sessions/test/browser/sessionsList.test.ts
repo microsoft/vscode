@@ -3280,6 +3280,69 @@ suite('Sessions - SessionsList', () => {
 			}, { before: false, during: true, after: false, filterPreserved: true });
 		});
 
+		test('spotlights a filtered session row without revealing its archive action or retaining recycled targets', () => {
+			const session = createTestSession('Running session', { status: SessionStatus.InProgress }).session;
+			const replacement = createTestSession('Replacement').session;
+			const harness = createListHarness(disposables, [session, replacement]);
+			harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => assert.fail('Revealing onboarding must not open the session'),
+			}));
+			list.layout(300, 400);
+			list.setStatusExcluded(SessionStatus.InProgress, true);
+			list.collapseAllSections();
+			const before = list.reveal(session.resource);
+			const target = harness.store.add(list.revealSessionForOnboarding(session));
+			const row = findOnboardingTarget(mainWindow, target.targetId);
+			const during = {
+				visible: row?.checkVisibility(),
+				title: row?.querySelector('.session-title')?.textContent,
+				archiveActionForced: container.querySelectorAll('.archive-onboarding').length,
+			};
+			list.update();
+			const afterUpdate = !!findOnboardingTarget(mainWindow, target.targetId);
+			harness.managementService.sessions = [replacement];
+			list.refresh();
+			const afterRecycle = !!findOnboardingTarget(mainWindow, target.targetId);
+			harness.managementService.sessions = [session, replacement];
+			list.refresh();
+			target.dispose();
+			assert.deepStrictEqual({
+				before, during, afterUpdate, afterRecycle,
+				afterRelease: !!findOnboardingTarget(mainWindow, target.targetId),
+				filterPreserved: list.isStatusExcluded(SessionStatus.InProgress),
+			}, {
+				before: false,
+				during: { visible: true, title: 'Running session', archiveActionForced: 0 },
+				afterUpdate: true,
+				afterRecycle: false,
+				afterRelease: false,
+				filterPreserved: true,
+			});
+		});
+
+		test('releasing an older onboarding reveal does not clear its replacement', () => {
+			const sessions = [createTestSession('First').session, createTestSession('Second').session];
+			const harness = createListHarness(disposables, sessions);
+			harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const first = harness.store.add(list.revealSessionForOnboarding(sessions[0]));
+			const second = harness.store.add(list.revealSessionForOnboarding(sessions[1]));
+			first.dispose();
+			assert.deepStrictEqual({
+				first: !!findOnboardingTarget(mainWindow, first.targetId),
+				second: !!findOnboardingTarget(mainWindow, second.targetId),
+			}, { first: false, second: true });
+		});
+
 		for (const customGroup of [false, true]) {
 			test(`reveals only the onboarding target beyond the ${customGroup ? 'custom group' : 'workspace'} cap`, () => {
 				const sessions = Array.from({ length: 12 }, (_, index) => ({
@@ -3304,7 +3367,7 @@ suite('Sessions - SessionsList', () => {
 					showMore: [...container.querySelectorAll('.session-show-more-label')].map(label => label.textContent),
 				});
 				const before = snapshot();
-				const target = harness.store.add(list.revealArchiveAction(sessions[9]));
+				const target = harness.store.add(list.revealSessionForOnboarding(sessions[9]));
 				const during = snapshot();
 				target.dispose();
 

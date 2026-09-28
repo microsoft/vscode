@@ -48,6 +48,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
@@ -725,6 +726,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 
 		const services = new ServiceCollection(
 			[ILogService, logService],
+			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 			[ICopilotApiService, capi],
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
@@ -865,6 +867,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 
 		const services = new ServiceCollection(
 			[ILogService, logService],
+			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 			[ICopilotApiService, capi],
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
@@ -947,6 +950,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 
 		const services = new ServiceCollection(
 			[ILogService, logService],
+			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 			[ICopilotApiService, capi],
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],

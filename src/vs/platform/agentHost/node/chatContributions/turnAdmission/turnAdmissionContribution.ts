@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IIncomingRequest, type IncomingRequestDisposition } from '../../../common/agentHostChatContributionsService.js';
 import { isChatReadOnly, SessionStatus } from '../../../common/state/sessionState.js';
+import { readChatInputState } from '../../../common/meta/agentHostChatInputState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
 /** Rejects requests to read-only chats, including chats made read-only by chat or session archival. */
@@ -29,9 +30,10 @@ export class TurnAdmissionContribution extends Disposable implements IAgentHostC
 		const sessionArchived = (sessionStatus & SessionStatus.IsArchived) === SessionStatus.IsArchived;
 		const chatArchived = ((chatState?.status ?? 0) & SessionStatus.IsArchived) === SessionStatus.IsArchived;
 		if (isChatReadOnly(chatState?.interactivity, sessionArchived || chatArchived)) {
+			const inputState = readChatInputState(this._stateManager.getSessionState(request.session), request.chat);
 			const error = sessionArchived || chatArchived
 				? { errorType: 'archived', message: sessionArchived ? 'This session is archived and read-only. Restore the session to continue the conversation.' : 'This chat is archived and read-only. Restore the chat to continue the conversation.' }
-				: { errorType: 'readOnly', message: 'This chat is read-only.' };
+				: inputState?.kind === 'blocked' ? inputState.error : { errorType: 'readOnly', message: 'This chat is read-only.' };
 			this._logService.warn(`[TurnAdmissionContribution] Rejecting turn on read-only chat=${request.chat} (archived=${sessionArchived || chatArchived}), turnId=${request.turnId}`);
 			return { kind: 'reject', error, stage: 'validation' };
 		}
