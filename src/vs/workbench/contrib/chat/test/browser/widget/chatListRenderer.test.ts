@@ -1536,7 +1536,7 @@ suite('ChatListRenderer', () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, options.progressVerbosity ?? ChatProgressVerbosity.Verbose);
 		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
 		configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, options.thinkingStyle ?? ThinkingDisplayMode.Collapsed);
@@ -1703,7 +1703,7 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	test('persistent progress defaults off and owns the only shimmer when an experiment enables it', async () => {
+	test('persistent progress owns the only shimmer when enabled from Off', async () => {
 		const { disposables, configurationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, undefined);
 		const streamingTool = ChatToolInvocation.createStreaming({
@@ -1751,11 +1751,65 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
+	test('persistent progress switches Draw styles in place and keeps text visible without an icon', async () => {
+		const { configurationService, request, container, renderer, template, node } = createPersistentProgressRenderer();
+		configurePersistentProgressTypography(container, 13);
+		container.classList.remove('monaco-reduce-motion');
+		container.classList.add('monaco-enable-motion');
+		renderer.renderElement(node, 0, template);
+		const footer = template.value.querySelector<HTMLElement>('.chat-working-progress');
+		const logo = footer?.querySelector<HTMLElement>('.chat-working-logo');
+		const text = footer?.querySelector<HTMLElement>('.rendered-markdown > p');
+		assert.ok(footer && logo && text);
+		const textLeft = text.getBoundingClientRect().left;
+		const snapshots = [];
+		for (const animation of [ChatProgressAnimation.Draw, ChatProgressAnimation.DrawMonochrome, ChatProgressAnimation.DrawMonochromeNoIcon, ChatProgressAnimation.Draw]) {
+			await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([ChatConfiguration.PersistentProgress]),
+				change: { keys: [ChatConfiguration.PersistentProgress], overrides: [] },
+				affectsConfiguration: section => section === ChatConfiguration.PersistentProgress,
+			});
+			const targetWindow = dom.getWindow(container);
+			snapshots.push({
+				animation: logo.dataset.animation,
+				sameFooter: template.value.lastElementChild === footer,
+				sameLogo: footer.querySelector('.chat-working-logo') === logo,
+				iconVisibility: targetWindow.getComputedStyle(logo).visibility,
+				iconAnimations: logo.getAnimations({ subtree: true }).length,
+				text: text.textContent,
+				textVisibility: targetWindow.getComputedStyle(text).visibility,
+				textAligned: Math.abs(text.getBoundingClientRect().left - textLeft) < 0.1,
+				textShimmer: targetWindow.getComputedStyle(text).animationName,
+			});
+		}
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+		assert.deepStrictEqual({
+			snapshots,
+			completedFooters: template.value.querySelectorAll('.chat-working-progress').length,
+		}, {
+			snapshots: ['draw', 'drawMonochrome', 'drawMonochromeNoIcon', 'draw'].map(animation => ({
+				animation,
+				sameFooter: true,
+				sameLogo: true,
+				iconVisibility: animation === 'drawMonochromeNoIcon' ? 'hidden' : 'visible',
+				iconAnimations: animation === 'drawMonochromeNoIcon' ? 0 : 3,
+				text: 'Working',
+				textVisibility: 'visible',
+				textAligned: true,
+				textShimmer: 'chat-thinking-shimmer',
+			})),
+			completedFooters: 0,
+		});
+	});
+
 	test('persistent progress off restores the legacy row after an animation is selected', () => {
 		const { configurationService, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 		const snapshots = [];
 		for (const enabled of [false, true, false]) {
-			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Draw : ChatProgressAnimation.Off);
 			renderer.renderElement(node, 0, template);
 			snapshots.push({
 				persistentRows: template.value.querySelectorAll('.chat-working-progress').length,
@@ -2054,7 +2108,7 @@ suite('ChatListRenderer', () => {
 				};
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 				const legacy = snapshot();
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				const waiting = snapshot();
 				await tool.didExecuteTool(undefined);
 				const answered = snapshot();
@@ -2361,7 +2415,7 @@ suite('ChatListRenderer', () => {
 			for (const restored of [false, true]) {
 				test(`failed tools remain visible after empty progress (${errorCase.name}, grouped=${grouped}, restored=${restored})`, async () => {
 					const snapshots = [];
-					for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {
+					for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
 						for (const toolId of ['read_file', 'mcp__files__read']) {
 							const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
 								collapsedTools: grouped ? CollapsedToolsDisplayMode.Always : CollapsedToolsDisplayMode.Off,
@@ -2407,7 +2461,7 @@ suite('ChatListRenderer', () => {
 							});
 						}
 					}
-					assert.deepStrictEqual(snapshots, [ChatProgressAnimation.Off, ChatProgressAnimation.Weave].flatMap(progress =>
+					assert.deepStrictEqual(snapshots, [ChatProgressAnimation.Off, ChatProgressAnimation.Draw].flatMap(progress =>
 						['read_file', 'mcp__files__read'].map(toolId => ({ progress, toolId, errorVisible: true, activityIcons: 1, working: false }))));
 				});
 			}
@@ -2737,10 +2791,10 @@ suite('ChatListRenderer', () => {
 				visibleRows: [...template.value.querySelectorAll('.progress-container')].filter(row => row !== footer && row.getBoundingClientRect().height > 0).map(row => row.textContent?.replace(/\u00a0/g, ' ').trim()),
 			};
 		};
-		const persistent = snapshot(ChatProgressAnimation.Weave);
+		const persistent = snapshot(ChatProgressAnimation.Draw);
 		const legacy = snapshot(ChatProgressAnimation.Off);
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Here is what I found.') });
-		const afterContent = snapshot(ChatProgressAnimation.Weave);
+		const afterContent = snapshot(ChatProgressAnimation.Draw);
 		assert.deepStrictEqual({ persistent, legacy, footerStillQuotesProgress: afterContent.footer === 'Collecting workspace information' }, {
 			persistent: { footer: 'Collecting workspace information', visibleRows: [] },
 			legacy: { footer: undefined, visibleRows: ['Collecting workspace information'] },
@@ -2748,7 +2802,7 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
-	for (const animation of [ChatProgressAnimation.Weave, ChatProgressAnimation.Off]) {
+	for (const animation of [ChatProgressAnimation.Draw, ChatProgressAnimation.Off]) {
 		test(`progress action stays inline and keyboard-focused as progress updates (${animation})`, () => {
 			const calls: string[] = [];
 			const action = observableValue<{ readonly label: string; readonly run: () => void } | undefined>('progressAction', undefined);
@@ -3116,7 +3170,7 @@ suite('ChatListRenderer', () => {
 		const review = new ChatPlanReviewData('Review plan', 'Use one progress indicator.', [{ label: 'Implement' }], false);
 		model.acceptResponseProgress(request, review);
 		const snapshots = [false, true, false, true].map(enabled => {
-			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Draw : ChatProgressAnimation.Off);
 			renderer.renderElement(node, 0, template);
 			return {
 				pendingMessages: [...template.value.querySelectorAll('p')].filter(element => element.textContent?.replace(/\u00a0/g, ' ').trim() === 'Plan review required').length,
@@ -3167,7 +3221,7 @@ suite('ChatListRenderer', () => {
 			}).length ?? 0;
 			const snapshots = [];
 			for (const enabled of [false, true, false]) {
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Draw : ChatProgressAnimation.Off);
 				renderer.renderElement(node, 0, template);
 				await timeout(0);
 				snapshots.push({
@@ -3188,7 +3242,7 @@ suite('ChatListRenderer', () => {
 				failed: false,
 			})));
 			if (content.kind === 'toolInvocation') {
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				renderer.renderElement(node, 0, template);
 				await content.didExecuteTool(undefined);
 				renderer.renderElement(node, 0, template);
@@ -3209,7 +3263,7 @@ suite('ChatListRenderer', () => {
 			configureTerminalProgressRenderer(setup);
 			const { container, configurationService, model, request, renderer, template, node } = setup;
 			configurePersistentProgressTypography(container, 13);
-			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, persistentProgress ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, persistentProgress ? ChatProgressAnimation.Draw : ChatProgressAnimation.Off);
 			configurationService.setUserConfiguration(ChatConfiguration.TerminalToolsInThinking, true);
 			configurationService.setUserConfiguration(ChatConfiguration.AutoExpandToolFailures, true);
 			const previousTool = new ChatToolInvocation(
@@ -3330,7 +3384,7 @@ suite('ChatListRenderer', () => {
 						};
 						await render(ChatProgressAnimation.Off);
 						const before = legacySnapshot();
-						await render(ChatProgressAnimation.Weave);
+						await render(ChatProgressAnimation.Draw);
 						const { wrapper, button, label } = getTerminalHeader();
 						const snapshots = [];
 						for (const expanded of [false, true, false]) {
@@ -3446,7 +3500,7 @@ suite('ChatListRenderer', () => {
 						};
 						await render(ChatProgressAnimation.Off);
 						const before = legacySnapshot();
-						await render(ChatProgressAnimation.Weave);
+						await render(ChatProgressAnimation.Draw);
 						const { button, label, part } = getHeader();
 						const row = part.closest('.chat-thinking-tool-wrapper') ?? part;
 						const icon = row.querySelector(':scope > .chat-thinking-icon, :scope > .chat-tool-call-icon');
@@ -3551,7 +3605,7 @@ suite('ChatListRenderer', () => {
 				});
 				await render(ChatProgressAnimation.Off);
 				const before = legacySnapshot();
-				await render(ChatProgressAnimation.Weave);
+				await render(ChatProgressAnimation.Draw);
 				const reasoning = template.value.querySelector('.chat-persistent-reasoning');
 				const header = reasoning?.querySelector<HTMLElement>('.chat-used-context-label');
 				const button = header?.querySelector<HTMLElement>('.monaco-button');
@@ -4208,7 +4262,7 @@ suite('ChatListRenderer', () => {
 					};
 					await render(ChatProgressAnimation.Off);
 					const before = legacySnapshot();
-					await render(ChatProgressAnimation.Weave);
+					await render(ChatProgressAnimation.Draw);
 					const { pill, row, label, file, icon } = getEdit();
 					const labelBounds = label.getBoundingClientRect();
 					const iconBounds = icon.getBoundingClientRect();
@@ -4312,7 +4366,7 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
-	for (const animation of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {
+	for (const animation of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
 		for (const initiallyComplete of [false, true]) {
 			test(`completed edit totals reuse thinking diffs (${animation}, restored=${initiallyComplete})`, async () => {
 				const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
@@ -4615,7 +4669,7 @@ suite('ChatListRenderer', () => {
 	test('completed edit totals include subagent edits', async () => {
 		const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 		const { configurationService, model, request, renderer, template, node } = setup;
-		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		const edit = (file: string, added: number, removed: number) => ({
 			kind: 'externalEdit' as const, uri: URI.file(`/workspace/${file}`), editKind: 'edit' as const, undoStopId: file, diff: { added, removed },
@@ -5384,7 +5438,7 @@ suite('ChatListRenderer', () => {
 		for (const restored of [false, true]) {
 			test(`standalone and chained tools share the ${iconCase.toolId} icon (restored=${restored})`, async () => {
 				const snapshots = [];
-				for (const animation of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {
+				for (const animation of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
 					for (const grouped of [false, true]) {
 						const setup = createPersistentProgressRenderer({
 							chatMode: ChatModeKind.Agent,
@@ -5440,7 +5494,7 @@ suite('ChatListRenderer', () => {
 						}
 					}
 				}
-				assert.deepStrictEqual(snapshots, [ChatProgressAnimation.Off, ChatProgressAnimation.Weave].flatMap(animation => [false, true].map(grouped => ({
+				assert.deepStrictEqual(snapshots, [ChatProgressAnimation.Off, ChatProgressAnimation.Draw].flatMap(animation => [false, true].map(grouped => ({
 					animation,
 					grouped: grouped && iconCase.expectedIcon !== Codicon.mcp,
 					icons: [ThemeIcon.asClassNameArray(getCompactCodicon(iconCase.expectedIcon)).filter(className => className.startsWith('codicon-'))],
@@ -5972,7 +6026,7 @@ suite('ChatListRenderer', () => {
 				configurationService.setUserConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, checkmarks);
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 				renderer.renderElement(node, 0, template);
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				renderer.renderElement(node, 0, template);
 				const reasoning = template.value.querySelector<HTMLElement>('.chat-persistent-reasoning');
 				const button = reasoning?.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
@@ -6247,7 +6301,7 @@ suite('ChatListRenderer', () => {
 						includesDetail: target.textContent?.includes('Reviewing'),
 					}];
 				}),
-				logoFaces: template.value.getAnimations({ subtree: true }).filter(animation => animation instanceof CSSAnimation && animation.animationName.startsWith('chat-logo-weave-')).length,
+				logoFaces: template.value.getAnimations({ subtree: true }).filter(animation => animation instanceof CSSAnimation && animation.animationName.startsWith('chat-logo-draw-')).length,
 				innerRows: thinking.querySelectorAll('.chat-thinking-spinner-item').length,
 				headerLogos: thinking.querySelectorAll('.chat-working-logo').length,
 				footerIsLast: template.value.lastElementChild === footer,
@@ -6313,7 +6367,7 @@ suite('ChatListRenderer', () => {
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 				renderer.renderElement(node, 0, template);
 				const disabled = snapshot();
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				renderer.renderElement(node, 0, template);
 				const reenabled = snapshot();
 
@@ -7433,7 +7487,7 @@ suite('ChatListRenderer', () => {
 	for (const thinkingStyle of [ThinkingDisplayMode.Collapsed, ThinkingDisplayMode.CollapsedPreview, ThinkingDisplayMode.FixedScrolling]) {
 		test(`persistent ${thinkingStyle} footer survives rebuilding a late subagent's thinking group`, async () => {
 			const { disposables, configurationService, model, request, container, template, render } = createBackgroundSubagentRenderer();
-			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 			configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, thinkingStyle);
 			container.classList.add('interactive-session', 'monaco-enable-motion');
 			const tools = ['before', 'launch', 'after'].map(id => new ChatToolInvocation(
@@ -7469,7 +7523,7 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
-	for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {
+	for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
 		test(`keeps parent reasoning in one part while a background subagent runs tools (${progress} progress)`, async () => {
 			const context = createBackgroundSubagentRenderer();
 			installSubagentPillRenderer(context.instantiationService);
@@ -7527,7 +7581,7 @@ suite('ChatListRenderer', () => {
 		installSubagentPillRenderer(context.instantiationService);
 		context.instantiationService.stub(ILanguageModelToolsService, context.disposables.add(new MockLanguageModelToolsService()));
 		context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
-		context.configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+		context.configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 		context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
 		context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 		const footer = () => {
@@ -8260,7 +8314,7 @@ suite('ChatListRenderer', () => {
 			});
 		});
 
-		for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {
+		for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
 			test(`keeps a transcript confirmation hidden through tool data changes while the carousel hosts it (${progress} progress)`, async () => {
 				const context = createConfirmationRenderer();
 				context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });

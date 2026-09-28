@@ -7,6 +7,9 @@ import { expect, Page, test } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { getBaseURL } from './utils.js';
 
+// DOM trace snapshots can exhaust native-time fixture deadlines; exact PNG checks below cover visuals.
+test.use({ trace: { mode: 'retain-on-failure', snapshots: false } });
+
 // Supplied by the Component Explorer headless page.
 declare const __componentExplorer__: {
 	renderFixture(fixtureId: string): Promise<{ hasError: boolean; previousDispose?: { hasError: boolean } }>;
