@@ -123,16 +123,102 @@ type ReadAdjustment = {
 	adjustedEndLine: number;
 };
 
-type EndLineInfo = {
-	adjustedEndLine: number;
-	startLines: Map<number, ReadAdjustment>;
+type ReadAdjustmentsByStartLine = Map<number, ReadAdjustment>;
+
+type ReadAdjustmentsForEndLine = {
+	earliestAdjustedEndLine: number;
+	adjustmentsByStartLine: ReadAdjustmentsByStartLine;
 };
+
+type ReadAdjustmentsByEndLine = Map<number, ReadAdjustmentsForEndLine>;
+type ReadAdjustmentsByFile = Map<string, ReadAdjustmentsByEndLine>;
+type ReadAdjustmentsBySession = Map<string, ReadAdjustmentsByFile>;
+
+class ReadAdjustmentCache {
+	private readonly adjustmentsBySession: ReadAdjustmentsBySession = new Map();
+
+	reserve(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number): ReadAdjustment | undefined {
+		const sessionKey = sessionResource.toString();
+		let adjustmentsByFile = this.adjustmentsBySession.get(sessionKey);
+		if (adjustmentsByFile === undefined) {
+			adjustmentsByFile = new Map();
+			this.adjustmentsBySession.set(sessionKey, adjustmentsByFile);
+		}
+
+		const fileKey = uri.toString();
+		let adjustmentsByEndLine = adjustmentsByFile.get(fileKey);
+		if (adjustmentsByEndLine === undefined) {
+			adjustmentsByEndLine = new Map();
+			adjustmentsByFile.set(fileKey, adjustmentsByEndLine);
+		}
+
+		let adjustmentsForEndLine = adjustmentsByEndLine.get(endLine);
+		if (adjustmentsForEndLine === undefined) {
+			adjustmentsForEndLine = { earliestAdjustedEndLine: endLine, adjustmentsByStartLine: new Map() };
+			adjustmentsByEndLine.set(endLine, adjustmentsForEndLine);
+		}
+
+		if (adjustmentsForEndLine.adjustmentsByStartLine.has(startLine)) {
+			return undefined;
+		}
+
+		// The entry identity prevents an evicted invocation from modifying a replacement reservation.
+		const reservation = { adjustedStartLine: startLine, adjustedEndLine: endLine };
+		adjustmentsForEndLine.adjustmentsByStartLine.set(startLine, reservation);
+		return reservation;
+	}
+
+	complete(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number, reservation: ReadAdjustment, adjustedStartLine: number, adjustedEndLine: number): void {
+		const adjustmentsForEndLine = this.adjustmentsBySession
+			.get(sessionResource.toString())
+			?.get(uri.toString())
+			?.get(endLine);
+		if (adjustmentsForEndLine?.adjustmentsByStartLine.get(startLine) === reservation) {
+			adjustmentsForEndLine.earliestAdjustedEndLine = Math.min(adjustmentsForEndLine.earliestAdjustedEndLine, adjustedEndLine);
+			adjustmentsForEndLine.adjustmentsByStartLine.set(startLine, { adjustedStartLine, adjustedEndLine });
+		}
+	}
+
+	cancel(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number, reservation: ReadAdjustment): void {
+		const sessionKey = sessionResource.toString();
+		const adjustmentsByFile = this.adjustmentsBySession.get(sessionKey);
+		const fileKey = uri.toString();
+		const adjustmentsByEndLine = adjustmentsByFile?.get(fileKey);
+		const adjustmentsForEndLine = adjustmentsByEndLine?.get(endLine);
+		if (adjustmentsForEndLine === undefined || adjustmentsForEndLine.adjustmentsByStartLine.get(startLine) !== reservation) {
+			return;
+		}
+
+		adjustmentsForEndLine.adjustmentsByStartLine.delete(startLine);
+		if (adjustmentsForEndLine.adjustmentsByStartLine.size === 0) {
+			adjustmentsByEndLine?.delete(endLine);
+		}
+		if (adjustmentsByEndLine?.size === 0) {
+			adjustmentsByFile?.delete(fileKey);
+		}
+		if (adjustmentsByFile?.size === 0) {
+			this.adjustmentsBySession.delete(sessionKey);
+		}
+	}
+
+	getContinuousStart(sessionResource: vscode.Uri, uri: URI, startLine: number): number | undefined {
+		const adjustmentsForEndLine = this.adjustmentsBySession
+			.get(sessionResource.toString())
+			?.get(uri.toString())
+			?.get(startLine - 1);
+		return adjustmentsForEndLine === undefined ? undefined : adjustmentsForEndLine.earliestAdjustedEndLine + 1;
+	}
+
+	clearSession(sessionResource: vscode.Uri): void {
+		this.adjustmentsBySession.delete(sessionResource.toString());
+	}
+}
 
 export class ReadFileTool extends Disposable implements ICopilotTool<ReadFileParams> {
 	public static toolName = ToolName.ReadFile;
 	public static readonly nonDeferred = true;
 	private _promptContext: IBuildPromptContext | undefined;
-	private readonly adjustedReadRequests = new Map<string, Map<string, Map<number, EndLineInfo>>>();
+	private readonly readAdjustmentCache = new ReadAdjustmentCache();
 
 	constructor(
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
@@ -152,7 +238,7 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 	) {
 		super();
 		this._register(grepResultService.onDidRemoveSession(sessionUri => {
-			this.adjustedReadRequests.delete(sessionUri.toString());
+			this.readAdjustmentCache.clearSession(sessionUri);
 		}));
 	}
 
@@ -211,14 +297,14 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 				let adjustedEndLine: number | undefined = undefined;
 				let adjustmentReservation: ReadAdjustment | undefined;
 				try {
-					continuousReadStartLine = this.isContinuousRead(options.chatSessionResource, uri, startLine);
+					continuousReadStartLine = this.readAdjustmentCache.getContinuousStart(options.chatSessionResource, uri, startLine);
 					if (continuousReadStartLine !== undefined && continuousReadStartLine >= 0 && continuousReadStartLine < startLine) {
 						adjustedStartLine = continuousReadStartLine;
 						this.sendContinuousRegionTelemetry(options, startLine - continuousReadStartLine, documentSnapshot);
 					} else {
 						const grepResultMatches = this.grepResultService.getGrepResult(options.chatSessionResource, uri, startLine, endLine);
 						if (grepResultMatches !== undefined && grepResultMatches.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
-							adjustmentReservation = this.beginReadAdjustment(options.chatSessionResource, uri, startLine, endLine);
+							adjustmentReservation = this.readAdjustmentCache.reserve(options.chatSessionResource, uri, startLine, endLine);
 							if (adjustmentReservation !== undefined) {
 								const regionResult: RegionResult | undefined = await this.regionContextProvider.getRegions(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatches, { start: startLine, end: endLine });
 								const adjustedRange = regionResult?.regions[0]?.range;
@@ -256,9 +342,9 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 				} finally {
 					if (adjustmentReservation !== undefined) {
 						if (adjustedStartLine !== undefined || adjustedEndLine !== undefined) {
-							this.completeReadAdjustment(options.chatSessionResource, uri, startLine, endLine, adjustmentReservation, adjustedStartLine ?? startLine, adjustedEndLine ?? endLine);
+							this.readAdjustmentCache.complete(options.chatSessionResource, uri, startLine, endLine, adjustmentReservation, adjustedStartLine ?? startLine, adjustedEndLine ?? endLine);
 						} else {
-							this.cancelReadAdjustment(options.chatSessionResource, uri, startLine, endLine, adjustmentReservation);
+							this.readAdjustmentCache.cancel(options.chatSessionResource, uri, startLine, endLine, adjustmentReservation);
 						}
 					}
 					if (doRealLineAdjustment) {
@@ -433,79 +519,6 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 		return TextDocumentSnapshot.create(await this.workspaceService.openTextDocument(uri));
 	}
 
-	private beginReadAdjustment(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number): ReadAdjustment | undefined {
-		const sessionKey = sessionResource.toString();
-		let files = this.adjustedReadRequests.get(sessionKey);
-		if (files === undefined) {
-			files = new Map();
-			this.adjustedReadRequests.set(sessionKey, files);
-		}
-
-		const filePath = uri.toString();
-		let endLines = files.get(filePath);
-		if (endLines === undefined) {
-			endLines = new Map();
-			files.set(filePath, endLines);
-		}
-
-		let endLineInfo = endLines.get(endLine);
-		if (endLineInfo === undefined) {
-			endLineInfo = { adjustedEndLine: endLine, startLines: new Map() };
-			endLines.set(endLine, endLineInfo);
-		}
-
-		const startLines = endLineInfo.startLines;
-		if (startLines.has(startLine)) {
-			return undefined;
-		}
-
-		// The entry identity prevents an evicted invocation from modifying a replacement reservation.
-		const reservation = { adjustedStartLine: startLine, adjustedEndLine: endLine };
-		startLines.set(startLine, reservation);
-		return reservation;
-	}
-
-	private isContinuousRead(sessionResource: vscode.Uri, uri: URI, startLine: number): number | undefined {
-		const sessionKey = sessionResource.toString();
-		const files = this.adjustedReadRequests.get(sessionKey);
-		const filePath = uri.toString();
-		const endLines = files?.get(filePath);
-		const endLineInfo = endLines?.get(startLine - 1);
-		return endLineInfo === undefined ? undefined : endLineInfo.adjustedEndLine + 1;
-	}
-
-	private completeReadAdjustment(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number, reservation: ReadAdjustment, adjustedStartLine: number, adjustedEndLine: number): void {
-		const endLineInfo = this.adjustedReadRequests
-			.get(sessionResource.toString())
-			?.get(uri.toString())
-			?.get(endLine);
-		if (endLineInfo && endLineInfo.startLines.get(startLine) === reservation) {
-			endLineInfo.adjustedEndLine = Math.min(endLineInfo.adjustedEndLine, adjustedEndLine);
-			endLineInfo.startLines.set(startLine, { adjustedStartLine, adjustedEndLine });
-		}
-	}
-
-	private cancelReadAdjustment(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number, reservation: ReadAdjustment): void {
-		const sessionKey = sessionResource.toString();
-		const files = this.adjustedReadRequests.get(sessionKey);
-		const filePath = uri.toString();
-		const endLines = files?.get(filePath);
-		const endLineInfo = endLines?.get(endLine);
-		if (endLineInfo === undefined || endLineInfo.startLines.get(startLine) !== reservation) {
-			return;
-		}
-		endLineInfo.startLines.delete(startLine);
-		if (endLineInfo.startLines.size === 0) {
-			endLines?.delete(endLine);
-		}
-		if (endLines?.size === 0) {
-			files?.delete(filePath);
-		}
-		if (files?.size === 0) {
-			this.adjustedReadRequests.delete(sessionKey);
-		}
-	}
-
 	private async sendReadFileTelemetry(outcome: string, options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, { start, end, truncated }: IParamRanges, uri: URI | undefined, documentSnapshot?: TextDocumentSnapshot | NotebookDocumentSnapshot) {
 		const model = options.model && (await this.endpointProvider.getChatEndpoint(options.model)).model;
 		const extensionSkillInfo = uri && this.customInstructionsService.getExtensionSkillInfo(uri);
@@ -557,7 +570,7 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 		}
 	}
 
-	private async sendAdjustedRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, originalStart: number, originalEnd: number, adjustedStart: number, adjustedEnd: number, pathInfo: PathInfo, continuousLines: number, documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
+	private sendAdjustedRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, originalStart: number, originalEnd: number, adjustedStart: number, adjustedEnd: number, pathInfo: PathInfo, continuousLines: number, documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
 		const languageId = documentSnapshot.languageId;
 		const smallestPath: string = JSON.stringify(pathInfo.smallest);
 		const largestPath: string | undefined = pathInfo?.largest ? JSON.stringify(pathInfo.largest) : undefined;
@@ -594,7 +607,7 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 		);
 	}
 
-	private async sendContinuousRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, deltaStart: number, documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
+	private sendContinuousRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, deltaStart: number, documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
 		const languageId = documentSnapshot.languageId;
 
 		/* __GDPR__
@@ -617,7 +630,7 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 		);
 	}
 
-	private async sendAdjustingFailedTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, startLine: number, endLine: number, reason: 'noGrep' | 'noGrepRegions' | 'documentVersionChanged' | 'reReadSameRange' | 'exception', documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
+	private sendAdjustingFailedTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, startLine: number, endLine: number, reason: 'noGrep' | 'noGrepRegions' | 'documentVersionChanged' | 'reReadSameRange' | 'exception', documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
 		/* __GDPR__
 			"readFileRegionAdjustingFailed" : {
 				"owner": "dbaeumer",
