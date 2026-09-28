@@ -2595,6 +2595,31 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('admits an unarchived session default chat with a stale archive flag', () => {
+		const contributions = createBuiltInContributions(disposables, undefined, false, SessionStatus.IsRead | SessionStatus.IsArchived);
+		const defaultChat = buildDefaultChatUri(contributions.session);
+		const archivedPeerChat = buildChatUri(contributions.session, 'archived');
+		contributions.stateManager.addChat(contributions.session, archivedPeerChat, { title: 'Archived' });
+		contributions.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		contributions.stateManager.dispatchServerAction(archivedPeerChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		contributions.stateManager.dispatchServerAction(contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: false });
+
+		assert.deepStrictEqual({
+			defaultChat: contributions.service.incomingRequest(incomingRequest(contributions.session, defaultChat)),
+			peerChat: contributions.service.incomingRequest(incomingRequest(contributions.session, archivedPeerChat)),
+		}, {
+			defaultChat: { kind: 'accept' },
+			peerChat: {
+				kind: 'reject',
+				error: {
+					errorType: 'archived',
+					message: 'This chat is archived and read-only. Restore the chat to continue the conversation.',
+				},
+				stage: 'validation',
+			},
+		});
+	});
+
 	test('handles local commands before rejecting archived and read-only chats', () => {
 		const archived = createBuiltInContributions(disposables, undefined, false, SessionStatus.IsRead | SessionStatus.IsArchived);
 		const readOnly = createBuiltInContributions(disposables);
