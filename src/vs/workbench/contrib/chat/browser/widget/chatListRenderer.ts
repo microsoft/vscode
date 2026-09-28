@@ -778,7 +778,10 @@ class PersistentBackgroundActivityTracker extends Disposable {
 	private activeSubagentCount = 0;
 	private activeBackgroundTerminalCount = 0;
 
-	constructor(private readonly viewModel: IChatViewModel) {
+	constructor(
+		private readonly viewModel: IChatViewModel,
+		private readonly onDidChange: () => void,
+	) {
 		super();
 		this.reconcileResponses();
 		this._register(viewModel.model.onDidChange(event => {
@@ -828,8 +831,13 @@ class PersistentBackgroundActivityTracker extends Disposable {
 	}
 
 	private updateTotals(previous: IPersistentBackgroundActivity, current: IPersistentBackgroundActivity): void {
+		if (previous.activeSubagentCount === current.activeSubagentCount
+			&& previous.activeBackgroundTerminalCount === current.activeBackgroundTerminalCount) {
+			return;
+		}
 		this.activeSubagentCount += current.activeSubagentCount - previous.activeSubagentCount;
 		this.activeBackgroundTerminalCount += current.activeBackgroundTerminalCount - previous.activeBackgroundTerminalCount;
+		this.onDidChange();
 	}
 }
 
@@ -938,7 +946,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
-		this.persistentBackgroundActivityTracker.value = viewModel ? new PersistentBackgroundActivityTracker(viewModel) : undefined;
+		this.persistentBackgroundActivityTracker.value = viewModel ? new PersistentBackgroundActivityTracker(viewModel, () => this.updateWorkingProgressForBackgroundActivity()) : undefined;
 
 		this.chatContentMarkdownRenderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
 		this.markdownDecorationsRenderer = this._register(this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
@@ -1134,7 +1142,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
 		this.toolConfirmationObservation.clear();
 		this.viewModel = viewModel;
-		this.persistentBackgroundActivityTracker.value = viewModel ? new PersistentBackgroundActivityTracker(viewModel) : undefined;
+		this.persistentBackgroundActivityTracker.value = viewModel ? new PersistentBackgroundActivityTracker(viewModel, () => this.updateWorkingProgressForBackgroundActivity()) : undefined;
 		this._announcedToolProgressKeys.clear();
 		this._notifiedQuestionCarousels.clear();
 		this.codeBlocksByEditorUri.clear();
@@ -1235,7 +1243,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const inputPart = widget.inputPart;
 		inputPart.addToolToConfirmationCarousel(tool, factory, tool.subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel);
 		for (const template of this.templateDataByRequestId.values()) {
-			this.updateWorkingProgressForPendingConfirmations(template);
+			this.updateWorkingProgress(template);
 		}
 		return toDisposable(() => inputPart.removeToolFromConfirmationCarousel(tool, response.sessionResource));
 	}
@@ -2270,16 +2278,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const currentBackgroundActivity = this.persistentBackgroundActivityTracker.value?.getActivity(element) ?? getPersistentBackgroundActivity(partsToRender);
 				const inheritedBackgroundActivity = this.persistentBackgroundActivityTracker.value?.getInheritedActivity(element)
 					?? { activeSubagentCount: 0, activeBackgroundTerminalCount: 0 };
-				const waitingLabel = getPersistentWaitingLabel(partsToRender, inheritedBackgroundActivity, currentBackgroundActivity);
-				const progressLabel = getTrailingProgressLabel(partsToRender) ?? waitingLabel;
-				const hasKnownBackgroundActivity = currentBackgroundActivity.activeSubagentCount + currentBackgroundActivity.activeBackgroundTerminalCount
-					+ inheritedBackgroundActivity.activeSubagentCount + inheritedBackgroundActivity.activeBackgroundTerminalCount > 0;
+				const activityLabel = getPersistentActivityLabel(partsToRender, inheritedBackgroundActivity, currentBackgroundActivity);
+				const progressLabel = activityLabel ?? getTrailingProgressLabel(partsToRender);
 				return {
 					kind: 'working',
 					content: progressLabel,
 					isActive: true,
 					progressStep: element.response.value.length,
-					showDelayedProgressMessage: !waitingLabel && !hasKnownBackgroundActivity,
+					showDelayedProgressMessage: !activityLabel,
 				};
 			}
 		}
@@ -2313,7 +2319,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private updateWorkingProgressForPendingConfirmations(templateData: IChatListItemTemplate): void {
+	private updateWorkingProgressForBackgroundActivity(): void {
+		if (!this.isPersistentProgressEnabled()) {
+			return;
+		}
+		for (const templateData of this.responseTemplateDataByRequestId.values()) {
+			this.updateWorkingProgress(templateData);
+		}
+	}
+
+	private updateWorkingProgress(templateData: IChatListItemTemplate): void {
 		// Defer mutation of `templateData.renderedParts` (via `removeWorkingProgressContentPart`)
 		// to a microtask. This method is invoked from tool autoruns, which fire synchronously inside
 		// `renderChatContentDiff` while the array is being iterated — splicing it mid-render would
@@ -2324,11 +2339,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (this._store.isDisposed || templateData.currentElement !== originalElement) {
 				return;
 			}
-			this.doUpdateWorkingProgressForPendingConfirmations(templateData);
+			this.doUpdateWorkingProgress(templateData);
 		});
 	}
 
-	private doUpdateWorkingProgressForPendingConfirmations(templateData: IChatListItemTemplate): void {
+	private doUpdateWorkingProgress(templateData: IChatListItemTemplate): void {
 		const element = templateData.currentElement;
 		if (!isResponseVM(element)) {
 			return;
@@ -2424,7 +2439,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const currentState = toolInvocation.state.read(reader);
 			const isWaitingForConfirmation = currentState.type === IChatToolInvocation.StateKind.WaitingForConfirmation;
 			if (wasWaitingForConfirmation && !isWaitingForConfirmation) {
-				this.updateWorkingProgressForPendingConfirmations(templateData);
+				this.updateWorkingProgress(templateData);
 				this.workingProgressConfirmationEndListeners.delete(toolInvocation);
 				disposable.dispose();
 			}
@@ -4733,7 +4748,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						const isPending = isBlockingToolState(toolInvocation.state.read(reader).type);
 						if (isPending !== wasPending) {
 							wasPending = isPending;
-							this.updateWorkingProgressForPendingConfirmations(templateData);
+							this.updateWorkingProgress(templateData);
 						}
 					}));
 				}
@@ -4801,7 +4816,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					if (this.shouldRouteConfirmationToCarousel(toolInvocation, state)) {
 						widget.inputPart.addToolToConfirmationCarousel(toolInvocation, factory);
 					} else {
-						this.updateWorkingProgressForPendingConfirmations(templateData);
+						this.updateWorkingProgress(templateData);
 					}
 				}));
 			}
@@ -4882,7 +4897,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (this.shouldRouteConfirmationToCarousel(toolInvocation, currentState)) {
 					widget.inputPart.addToolToConfirmationCarousel(toolInvocation, factory);
 				} else {
-					this.updateWorkingProgressForPendingConfirmations(templateData);
+					this.updateWorkingProgress(templateData);
 				}
 			}));
 
@@ -5879,7 +5894,7 @@ export function getPersistentBackgroundActivity(parts: readonly IChatRendererCon
 		if (part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') {
 			continue;
 		}
-		if (!part.subAgentInvocationId && isActiveSubagentToolInvocation(part)) {
+		if (isActiveSubagentToolInvocation(part)) {
 			activeSubagents.add(part.toolCallId);
 		}
 		if (isActiveBackgroundTerminalToolInvocation(part)) {
@@ -5930,39 +5945,31 @@ function isParentFlowContent(part: IChatRendererContent): boolean {
 	}
 }
 
-/**
- * The persistent footer text while the parent waits on background work rather than working itself:
- * its own flow ends with a subagent launch while agents are still running, with a `read_agent` call
- * blocking on a background agent, with the end of a response round while background agents are still
- * active, or with a read that blocks on a background terminal. Reasoning, tools, or text arriving
- * after those mean the parent is working alongside them, so the regular working phrases apply instead.
- */
-export function getPersistentWaitingLabel(
+/** Reports known background work independently of the parent's flow, falling back to explicit blocking reads. */
+export function getPersistentActivityLabel(
 	parts: readonly IChatRendererContent[],
 	inheritedActivity: IPersistentBackgroundActivity = { activeSubagentCount: 0, activeBackgroundTerminalCount: 0 },
 	currentActivity = getPersistentBackgroundActivity(parts),
 ): IMarkdownString | undefined {
+	const activityLabel = formatPersistentBackgroundActivityLabel({
+		activeSubagentCount: inheritedActivity.activeSubagentCount + currentActivity.activeSubagentCount,
+		activeBackgroundTerminalCount: inheritedActivity.activeBackgroundTerminalCount + currentActivity.activeBackgroundTerminalCount,
+	});
+	if (activityLabel) {
+		return activityLabel;
+	}
 	const lastPart = findLast(parts, isParentFlowContent);
 	if (!lastPart) {
-		return formatPersistentBackgroundActivityLabel(inheritedActivity);
+		return undefined;
 	}
 	const pendingTool = (lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && !IChatToolInvocation.isComplete(lastPart) ? lastPart : undefined;
 	if (pendingTool && isReadTerminalToolInvocation(pendingTool)) {
 		return new MarkdownString().appendText(localize('persistentProgress.waitingForTerminal', "Waiting for terminal output"));
 	}
-	// A trailing launch counts even once it has finished: agents can complete out of launch order,
-	// and the count already excludes the completed ones.
-	const isWaitingForAgents = ((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && isParentSubagentTool(lastPart) && currentActivity.activeSubagentCount > 0)
-		|| (!!pendingTool && isReadAgentToolInvocation(pendingTool))
-		|| (isEmptyThinkingPart(lastPart) && currentActivity.activeSubagentCount > 0);
-	const isWaitingForBackgroundTerminals = currentActivity.activeBackgroundTerminalCount > 0
-		&& (isEmptyThinkingPart(lastPart)
-			|| ((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && isActiveBackgroundTerminalToolInvocation(lastPart)));
-	return formatPersistentBackgroundActivityLabel({
-		// A read targets one agent even when none of the launches is visible to this response.
-		activeSubagentCount: inheritedActivity.activeSubagentCount + (isWaitingForAgents ? Math.max(1, currentActivity.activeSubagentCount) : 0),
-		activeBackgroundTerminalCount: inheritedActivity.activeBackgroundTerminalCount + (isWaitingForBackgroundTerminals ? currentActivity.activeBackgroundTerminalCount : 0),
-	});
+	if (pendingTool && isReadAgentToolInvocation(pendingTool)) {
+		return new MarkdownString().appendText(localize('persistentProgress.waitingForSubagent', "Waiting for 1 subagent"));
+	}
+	return undefined;
 }
 
 function formatPersistentBackgroundActivityLabel(activity: IPersistentBackgroundActivity): IMarkdownString | undefined {
@@ -5977,17 +5984,17 @@ function formatPersistentBackgroundActivityLabel(activity: IPersistentBackground
 			? localize('persistentProgress.backgroundCommands', "{0} background commands", activity.activeBackgroundTerminalCount)
 			: undefined;
 	if (subagentDescription && backgroundCommandDescription) {
-		return new MarkdownString().appendText(localize('persistentProgress.waitingForBackgroundWork', "Waiting for {0} and {1}", subagentDescription, backgroundCommandDescription));
+		return new MarkdownString().appendText(localize('persistentProgress.runningBackgroundWork', "{0} and {1} running", subagentDescription, backgroundCommandDescription));
 	}
 	if (subagentDescription) {
 		return new MarkdownString().appendText(activity.activeSubagentCount === 1
-			? localize('persistentProgress.waitingForSubagent', "Waiting for 1 subagent")
-			: localize('persistentProgress.waitingForSubagents', "Waiting for {0} subagents", activity.activeSubagentCount));
+			? localize('persistentProgress.oneSubagentRunning', "1 subagent running")
+			: localize('persistentProgress.subagentsRunning', "{0} subagents running", activity.activeSubagentCount));
 	}
 	if (backgroundCommandDescription) {
 		return new MarkdownString().appendText(activity.activeBackgroundTerminalCount === 1
-			? localize('persistentProgress.waitingForBackgroundCommand', "Waiting for 1 background command")
-			: localize('persistentProgress.waitingForBackgroundCommands', "Waiting for {0} background commands", activity.activeBackgroundTerminalCount));
+			? localize('persistentProgress.oneBackgroundCommandRunning', "1 background command running")
+			: localize('persistentProgress.backgroundCommandsRunning', "{0} background commands running", activity.activeBackgroundTerminalCount));
 	}
 	return undefined;
 }

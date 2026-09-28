@@ -476,7 +476,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		}
 
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
-			if (isEqual(context.element.sessionResource, e.sessionResource)) {
+			if (isEqual(context.element.sessionResource, e.sessionResource) && (!this.workingLogo || !this.explicitContent)) {
 				this.updateWorkingContent(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)), true, false, this.progressStep, false);
 			}
 		}));
