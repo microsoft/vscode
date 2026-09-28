@@ -308,6 +308,24 @@ suite('SessionsChatAccessibilityHelp', () => {
 		);
 	});
 
+	test('describes opening GitHub issue and pull request links externally', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+
+		assert.strictEqual(
+			provider.provideContent().split('\n').find(line => line.startsWith('Pull request and issue links in the chat transcript')),
+			'Pull request and issue links in the chat transcript open in the GitHub Pull Requests extension when it is available. Ctrl-click, or Command-click on macOS, opens the link in the external browser instead. With the keyboard, focus the link and press Ctrl+Enter, or Command+Enter on macOS.',
+		);
+	});
+
 	test('describes forking to the side and the keyboard-only alternative', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
