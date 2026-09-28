@@ -81,17 +81,20 @@ for (const theme of ['Dark', 'Light']) {
 		await renderFixture(page, `SessionsList_CompactNestedChatsCollapsed/${theme}`);
 
 		const parent = page.getByRole('treeitem', { name: /^Investigate session persistence,/ });
+		const tree = page.getByRole('tree', { name: 'Sessions', exact: true });
 		await expect(parent).toHaveAttribute('aria-expanded', 'false');
 		await expect(page.locator('.session-chat-item')).toHaveCount(0);
-		await expect(page.getByRole('tree', { name: 'Sessions', exact: true })).toBeFocused();
+		await expect(tree).toBeFocused();
 
 		await parent.hover();
 		const twistie = parent.locator('.session-chat-twistie');
 		await twistie.click();
+		await expect(tree).toBeFocused();
 		await expect(parent).toHaveAttribute('aria-expanded', 'true');
 		await expect(page.locator('.session-chat-title')).toHaveText(['Compare provider state', 'Previous persistence approach']);
 
 		await twistie.click();
+		await expect(tree).toBeFocused();
 		await expect(parent).toHaveAttribute('aria-expanded', 'false');
 		await expect(page.locator('.session-chat-item')).toHaveCount(0);
 	});
