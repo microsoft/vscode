@@ -24,6 +24,7 @@ Starting two Codex chats in the same empty workspace can fail before the first p
 - Observed: `CodexMaterializeFailed` with `bwrap: Can't find source path <workspace>/.agents: No such file or directory` while loading workspace instructions.
 - Fixture mitigation: create `.git`, `.agents`, and `.codex` in the disposable workspace before starting any Codex chat on Linux. The directories then belong to the fixture and survive sandbox cleanup. All scenarios, assertions, replay checks, and provider permissions remain enabled and unchanged.
 - Runtime status: the bundled Codex defect remains; this only stabilizes test setup. After an SDK update, remove the setup workaround and repeatedly run the shared-workspace scenarios before considering the gap closed.
+- Platform scope: the [0.153.0 Linux sandbox entry point](https://github.com/openai/codex/blob/rust-v0.153.0/codex-rs/linux-sandbox/src/lib.rs) compiles bubblewrap and its temporary-mount cleanup only on Linux. [Sandbox selection](https://github.com/openai/codex/blob/rust-v0.153.0/codex-rs/sandboxing/src/manager.rs) routes native macOS to Seatbelt and native Windows to its Windows sandbox; neither uses this cleanup path. Linux execution environments, including remote Linux and WSL2, remain affected regardless of the client's OS. This does not rule out unrelated startup races on other platforms.
 - Reproduce: remove the protected-directory setup in [serverToolsSuite.ts](./suites/serverToolsSuite.ts), then repeatedly run on Linux:
 
   ```bash
