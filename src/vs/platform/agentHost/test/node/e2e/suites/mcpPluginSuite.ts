@@ -223,6 +223,12 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 		return server;
 	}
 
+	async function materializeDefaultChatWithReadyMcpServer(sessionUri: string, pluginUri: string, turnId: string): Promise<void> {
+		const initialized = await driveTurnToCompletion(context.client, sessionUri, turnId, 'Reply exactly "MCP_READY". Do not call tools.', 2);
+		assert.strictEqual(initialized.responseText.trim(), 'MCP_READY');
+		await retry(async () => assert.strictEqual((await mcpServerState(sessionUri, pluginUri)).state.kind, McpServerStatus.Ready), 100, 300);
+	}
+
 	function toolResultTexts(sessionUri: string, turnId: string): readonly string[] {
 		return context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
@@ -468,20 +474,36 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-pre-tool', { hookType: 'PreToolUse' });
 			await pluginState(sessionUri, pluginUri);
-			await driveTurnToCompletion(context.client, sessionUri, 'turn-hook-pre-tool', 'Call customization_probe exactly once, then reply with only its exact result.', 2);
+			await materializeDefaultChatWithReadyMcpServer(sessionUri, pluginUri, 'turn-hook-pre-tool-ready');
+			const turnId = 'turn-hook-pre-tool';
+			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply with only its exact result.', 2);
 			const hookContent = await waitForHook(hookLog, 'PreToolUse');
 
-			assert.ok(hookContent.includes('customization_probe'));
+			assert.deepStrictEqual({
+				hookSawTool: hookContent.includes('customization_probe'),
+				toolSucceeded: toolResultTexts(sessionUri, turnId).includes('MCP_PLUGIN_RESULT'),
+			}, {
+				hookSawTool: true,
+				toolSucceeded: true,
+			});
 		});
 
 		pluginHookTest('plugin PostToolUse hook runs after an MCP tool result', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-post-tool', { hookType: 'PostToolUse' });
 			await pluginState(sessionUri, pluginUri);
-			await driveTurnToCompletion(context.client, sessionUri, 'turn-hook-post-tool', 'Call customization_probe exactly once, then reply with only its exact result.', 2);
+			await materializeDefaultChatWithReadyMcpServer(sessionUri, pluginUri, 'turn-hook-post-tool-ready');
+			const turnId = 'turn-hook-post-tool';
+			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply with only its exact result.', 2);
 			const hookContent = await waitForHook(hookLog, 'PostToolUse');
 
-			assert.ok(hookContent.includes('MCP_PLUGIN_RESULT'));
+			assert.deepStrictEqual({
+				hookSawResult: hookContent.includes('MCP_PLUGIN_RESULT'),
+				toolSucceeded: toolResultTexts(sessionUri, turnId).includes('MCP_PLUGIN_RESULT'),
+			}, {
+				hookSawResult: true,
+				toolSucceeded: true,
+			});
 		});
 
 		pluginHookTest('plugin SessionEnd hook runs when the session is disposed', async function () {
@@ -509,11 +531,18 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-non-json', { hookType: 'PostToolUse', hookStdout: 'not-json' });
 			await pluginState(sessionUri, pluginUri);
+			await materializeDefaultChatWithReadyMcpServer(sessionUri, pluginUri, 'turn-hook-non-json-ready');
 			const turnId = 'turn-hook-non-json';
 			const result = await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply with only its exact result.', 2);
 
 			await waitForHook(hookLog, 'PostToolUse');
-			assert.ok(result.responseText.includes('MCP_PLUGIN_RESULT'));
+			assert.deepStrictEqual({
+				responseIncludesResult: result.responseText.includes('MCP_PLUGIN_RESULT'),
+				toolSucceeded: toolResultTexts(sessionUri, turnId).includes('MCP_PLUGIN_RESULT'),
+			}, {
+				responseIncludesResult: true,
+				toolSucceeded: true,
+			});
 		});
 
 		test('plugin MCP tool executes and returns its result to the model', async function () {

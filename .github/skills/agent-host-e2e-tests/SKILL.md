@@ -20,6 +20,7 @@ It documents the mental model, the fixture format, every config flag, and a symp
 5. **Gate, don't fight.** If a behavior can't replay deterministically, gate the test (see Workflow C) instead of loosening timeouts or the strict check.
 6. **Track every disabled variant.** Keep `e2e/KNOWN_ISSUES.md` current with the test title, scope, expected and observed behavior, and a focused reproduction command. For suspected product bugs, begin with a self-contained explanation in complete sentences of what the user is trying to do, what fails, and the likely user impact; define feature-specific terms instead of relying on test names or implementation details. Record symptoms, not speculative root causes.
 7. **Always verify new end-to-end tests in Azure DevOps.** Every new Agent Host E2E or real-provider integration test must pass a focused build from VS Code pipeline definition `111` before merge. Local runs and GitHub pull-request CI are useful signals, but neither substitutes for the Azure build because its packaged Electron path and runner environments differ.
+8. **Replay proves model traffic, not local execution.** A recorded assistant response can report success even when the live tool, MCP server, hook, shell command, or filesystem operation failed. Assert the primary real result or side effect before relying on the assistant response or a secondary effect.
 
 ## Workflow A — Add a cross-provider test
 
@@ -31,6 +32,14 @@ It documents the mental model, the fixture format, every config flag, and a symp
 6. Open or update a draft PR, then complete the cross-platform Azure validation in Workflow D before considering the tests ready to merge.
 
 Provider-specific assertions go in that provider's `*.integrationTest.ts` after the `defineAgentHostE2ETests(config)` call.
+
+### Tool-backed replay tests
+
+- **Discovery is not readiness.** A plugin or MCP child appearing in session state is a valid intermediate state; do not dispatch a recorded tool call until the exact server used by the target chat reports `McpServerStatus.Ready`.
+- **Materialize the target chat before waiting for readiness.** For the default chat, run a recorded no-tool warm-up turn, wait for its MCP server to become ready, and re-record the fixture. A server ready on another chat does not establish readiness for the default chat.
+- **Assert the primary tool outcome.** Inspect the real `chat/toolCallComplete` result or the external side effect. A `PreToolUse` hook may run even when execution later fails, and replayed assistant text may still contain the recorded success.
+- **Diagnose missing secondary effects from the tool result first.** If `PostToolUse`, persistence, or another downstream effect is absent, check whether the tool completed successfully before changing polling or timeouts. A longer wait cannot turn `PostToolUseFailure` into `PostToolUse`.
+- **Prefer a shared readiness helper.** Encode `materialize chat → wait for Ready → dispatch tool turn` once instead of letting each test choose an incomplete lifecycle proxy.
 
 ## Workflow B — Record / re-record fixtures
 
