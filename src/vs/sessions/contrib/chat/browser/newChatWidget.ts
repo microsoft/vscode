@@ -61,7 +61,7 @@ import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chat
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -81,6 +81,8 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
+/** Persists whether the new-session options tray is expanded, so the choice is remembered across composers. */
+const SESSION_OPTIONS_EXPANDED_STORAGE_KEY = 'agentSessions.newSession.sessionOptionsExpanded';
 let sessionOptionsIdPool = 0;
 const NEW_SESSION_WELCOME_PHRASE_COUNT = 5;
 let nextNewSessionWelcomePhraseIndex = 0;
@@ -184,6 +186,8 @@ export class NewChatWidget extends Disposable {
 		super();
 		this._register(this._pendingPreferredUpgrade);
 		this._register(this._newSessionCreation);
+
+		this._restoreAndPersistSessionOptionsExpanded();
 
 		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsService.activeSession read in the widget.
 		this._session = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
@@ -1343,6 +1347,18 @@ export class NewChatWidget extends Disposable {
 	focusHarnessPicker(): void {
 		this._sessionOptionsExpanded.set(true, undefined);
 		this._newChatInput.sessionTypePicker.showPicker();
+	}
+
+	/**
+	 * Restores the remembered expanded/collapsed state of the session options tray and persists
+	 * later changes, so a user who trusts their defaults can keep the composer calm and collapsed
+	 * across sessions.
+	 */
+	private _restoreAndPersistSessionOptionsExpanded(): void {
+		this._sessionOptionsExpanded.set(this.storageService.getBoolean(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE, true), undefined);
+		this._register(autorun(reader => {
+			this.storageService.store(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, this._sessionOptionsExpanded.read(reader), StorageScope.PROFILE, StorageTarget.USER);
+		}));
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {

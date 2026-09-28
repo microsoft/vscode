@@ -21,6 +21,7 @@ import { ISendRequestOptions, ISessionsProvider } from '../../../../services/ses
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
+import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -151,6 +152,7 @@ const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreate
 const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
 const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
+const restoreAndPersistSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreAndPersistSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => string | undefined;
 const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
@@ -200,6 +202,12 @@ interface ISyncWorkspacePickerHarness {
 
 interface ISessionCountHarness {
 	readonly storageService: { getNumber(key: string, scope: unknown, defaultValue: number): number };
+}
+
+interface ISessionOptionsPersistenceHarness {
+	readonly storageService: IStorageService;
+	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
+	_register<T extends IDisposable>(disposable: T): T;
 }
 
 interface ISendHarness {
@@ -319,6 +327,28 @@ function createHarness(
 
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('remembers the session options expanded state across composers', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const restore = (initial: boolean) => {
+			const expanded = observableValue('sessionOptionsExpanded', initial);
+			restoreAndPersistSessionOptionsExpanded.call({
+				storageService,
+				_sessionOptionsExpanded: expanded,
+				_register: disposable => disposables.add(disposable),
+			});
+			return expanded;
+		};
+
+		// No stored preference restores the expanded default, then collapsing is persisted and
+		// restored by the next composer.
+		const first = restore(false);
+		const defaultExpanded = first.get();
+		first.set(false, undefined);
+		const restoredCollapsed = restore(true).get();
+
+		assert.deepStrictEqual({ defaultExpanded, restoredCollapsed }, { defaultExpanded: true, restoredCollapsed: false });
+	});
 
 	test('workspace remains visible while repository and harness controls expand without being recreated', () => {
 		const container = document.createElement('div');
