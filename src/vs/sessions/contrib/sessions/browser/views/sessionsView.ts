@@ -55,6 +55,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
+import { SessionsListNotification } from './sessionsListNotification.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -156,6 +157,7 @@ export class SessionsView extends ViewPane {
 	private readonly sessionsHeaders = new Set<IRegisteredSessionsHeader>();
 	private isFindWidgetOpen = false;
 	sessionsControl: SessionsList | undefined;
+	archiveNotification: SessionsListNotification | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private readonly sessionsListRearrangeExperimentState: SessionsListRearrangeExperimentState;
 	private readonly customizationsNavigationVisible = observableValue(this, false);
@@ -320,6 +322,7 @@ export class SessionsView extends ViewPane {
 		const storageCleanupNotice = this._register(this.instantiationService.createInstance(SessionStorageCleanupNotice, () => sessionsControl.focus(), status));
 		sessionsContent.appendChild(storageCleanupNotice.domNode);
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
+		this.archiveNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
 
 		// Toggle header label/actions visibility when find widget opens/closes
 		this._register(sessionsControl.onDidChangeFindOpenState(open => {

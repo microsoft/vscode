@@ -308,9 +308,12 @@ export class AccessibleView extends Disposable {
 		if (!provider) {
 			return;
 		}
-		provider.onOpen?.();
 		const showDisposables = new DisposableStore();
 		this._showDisposables.value = showDisposables;
+		const onOpenDisposable = provider.onOpen?.();
+		if (onOpenDisposable) {
+			showDisposables.add(onOpenDisposable);
+		}
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * DIMENSIONS.WIDTH_RATIO, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
