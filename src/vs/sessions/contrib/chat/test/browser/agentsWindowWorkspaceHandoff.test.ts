@@ -47,6 +47,7 @@ suite('Agents Window workspace handoff', () => {
 		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>('navigationRequest', undefined);
 		const onWillSend = disposables.add(new Emitter<ISession>());
 		const inputChanged = disposables.add(new Emitter<void>());
+		const composerSessionResource = observableValue<URI | undefined>('composerSessionResource', undefined);
 		const storage = disposables.add(new InMemoryStorageService());
 		const drafts: IChatDraft[] = [];
 		const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
@@ -73,6 +74,7 @@ suite('Agents Window workspace handoff', () => {
 				}
 				openingOptions.push(!!options?.cancelRestore);
 				activeSession.set(undefined, undefined);
+				composerSessionResource.set(URI.parse('test:/new-draft'), undefined);
 				return { session: undefined, trustDeclined: false };
 			},
 		});
@@ -117,6 +119,7 @@ suite('Agents Window workspace handoff', () => {
 		instantiationService.stub(INewSessionComposerService, composerService);
 		instantiationService.stub(IStorageService, storage);
 		disposables.add(composerService.registerComposer({
+			sessionResource: composerSessionResource,
 			get canApplyWorkspaceDefault() { return defaultAllowed; },
 			get isInputReady() { return inputReady; },
 			get hasInput() { return !!input.inputText || input.attachments.length > 0; },
@@ -225,6 +228,30 @@ suite('Agents Window workspace handoff', () => {
 			assert.deepStrictEqual({
 				state: harness.states.at(-1), drafts: harness.drafts, folder: harness.selections[0].folder, sends,
 			}, { state: 'applied', drafts: [draft], folder: folderUri, sends: 0 });
+		});
+	});
+
+	test('ignores draft input from the previously active created session', async () => {
+		const harness = createHarness();
+		const previousSession = upcastPartial<IActiveSession>({
+			resource: URI.parse('test:/previous'),
+			isCreated: observableValue('created', true),
+		});
+		harness.activeSession.set(previousSession, undefined);
+		disposables.add(harness.composerService.registerComposer({
+			sessionResource: observableValue('sessionResource', previousSession.resource),
+			isInputReady: true,
+			hasInput: true,
+			animatePrompt: async () => false,
+			showPromptOptions: () => false,
+		}));
+
+		await harness.openDraft({ inputText: 'Incoming', attachments: [] });
+
+		assert.deepStrictEqual({
+			state: harness.states.at(-1), openings: harness.openingOptions, drafts: harness.drafts,
+		}, {
+			state: 'applied', openings: [true], drafts: [{ inputText: 'Incoming', attachments: [] }],
 		});
 	});
 

@@ -1581,7 +1581,11 @@ export class NewChatWidget extends Disposable {
 		const store = new DisposableStore();
 		const cancellation = new CancellationTokenSource(token);
 		store.add(toDisposable(() => cancellation.dispose(true)));
-		store.add(this._newChatInput.onDidChangeInput(() => cancellation.cancel()));
+		store.add(this._newChatInput.onDidChangeInput(() => {
+			if (this._newChatInput.hasInput) {
+				cancellation.cancel();
+			}
+		}));
 		try {
 			if (folderUri) {
 				const result = await this._createNewSession(folderUri, this._newChatInput.sessionTypePicker.getUserPickedSessionType(), {

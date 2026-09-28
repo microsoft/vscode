@@ -1803,7 +1803,7 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	for (const existing of ['empty', 'text', 'attachments', 'lateEdit', 'cancelled'] as const) {
+	for (const existing of ['empty', 'emptyChange', 'text', 'attachments', 'lateEdit', 'cancelled'] as const) {
 		test(`draft handoff preserves ownership for ${existing} destination input`, async () => {
 			const changed = disposables.add(new Emitter<void>());
 			const cancellation = disposables.add(new CancellationTokenSource());
@@ -1846,18 +1846,21 @@ suite('NewChatWidget', () => {
 			if (existing === 'lateEdit') {
 				content = { inputText: 'Typed while workspace trust was pending', attachments: [] };
 				changed.fire();
+			} else if (existing === 'emptyChange') {
+				changed.fire();
 			} else if (existing === 'cancelled') {
 				cancellation.cancel();
 			}
 			await ready.complete();
 			const result = await opening;
+			const expectedApplied = existing === 'empty' || existing === 'emptyChange';
 			assert.deepStrictEqual({
 				result, selectedFolder, creations, content,
 			}, {
-				result: existing === 'empty' ? 'applied' : 'preserved',
-				selectedFolder: existing === 'empty' ? sourceFolder : originalFolder,
-				creations: existing === 'empty' ? 1 : 0,
-				content: existing === 'empty' ? incoming : {
+				result: expectedApplied ? 'applied' : 'preserved',
+				selectedFolder: expectedApplied ? sourceFolder : originalFolder,
+				creations: expectedApplied ? 1 : 0,
+				content: expectedApplied ? incoming : {
 					inputText: existing === 'text' ? 'Keep destination' : existing === 'lateEdit' ? 'Typed while workspace trust was pending' : '',
 					attachments: existing === 'attachments' ? [toFileVariableEntry(URI.file('/destination/context'))] : [],
 				},
