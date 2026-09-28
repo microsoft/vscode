@@ -25,7 +25,7 @@ export const agentsWindowHandoffConfigurationProperties = {
 	[ChatConfiguration.AgentsParallelWorkBannerEnabled]: {
 		type: 'boolean',
 		description: nls.localize('chat.agentsParallelWorkBanner.enabled', "Show an invitation to work in parallel in the Agents Window when starting a new Agent Host chat while another Agent Host session is running."),
-		default: product.quality === 'insider',
+		default: false,
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},
