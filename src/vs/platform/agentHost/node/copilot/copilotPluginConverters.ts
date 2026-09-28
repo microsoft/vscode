@@ -21,10 +21,28 @@ type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 type PostToolUseHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>, void>;
+type PostToolUseFailureHookInput = Parameters<NonNullable<SessionHooks['onPostToolUseFailure']>>[0];
+type PostToolUseFailureHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUseFailure']>>>, void>;
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
+type UserPromptTransformedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptTransformed']>>[0];
+type UserPromptTransformedHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onUserPromptTransformed']>>>, void>;
 type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
+type SessionStartHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onSessionStart']>>>, void>;
 type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
 type ErrorOccurredHookInput = Parameters<NonNullable<SessionHooks['onErrorOccurred']>>[0];
+type AgentStopHookInput = Parameters<NonNullable<SessionHooks['onAgentStop']>>[0];
+type AgentStopHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onAgentStop']>>>, void>;
+
+type SupportedHookInput =
+	| PreToolUseHookInput
+	| PostToolUseHookInput
+	| PostToolUseFailureHookInput
+	| UserPromptSubmittedHookInput
+	| UserPromptTransformedHookInput
+	| SessionStartHookInput
+	| SessionEndHookInput
+	| ErrorOccurredHookInput
+	| AgentStopHookInput;
 
 // ---------------------------------------------------------------------------
 // MCP servers
@@ -300,14 +318,31 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 			cwd,
 			env: { ...process.env, ...hook.env },
 			stdio: ['pipe', 'pipe', 'pipe'],
-			timeout,
 		});
 
-		let stdout = '';
-		let stderr = '';
+		const stdoutChunks: Buffer[] = [];
+		const stderrChunks: Buffer[] = [];
+		let stdoutSize = 0;
+		let stderrSize = 0;
+		let timedOut = false;
+		let settled = false;
+		const append = (chunks: Buffer[], size: number, data: Buffer): number => {
+			const remaining = MAX_HOOK_OUTPUT_BYTES - size;
+			if (remaining > 0) {
+				const chunk = data.byteLength > remaining ? data.subarray(0, remaining) : data;
+				chunks.push(chunk);
+				return size + chunk.byteLength;
+			}
+			return size;
+		};
+		const read = (chunks: Buffer[], size: number) => Buffer.concat(chunks, size).toString();
+		const timer = setTimeout(() => {
+			timedOut = true;
+			child.kill();
+		}, timeout);
 
-		child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
-		child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+		child.stdout.on('data', (data: Buffer) => { stdoutSize = append(stdoutChunks, stdoutSize, data); });
+		child.stderr.on('data', (data: Buffer) => { stderrSize = append(stderrChunks, stderrSize, data); });
 
 		if (stdin) {
 			child.stdin.write(stdin);
@@ -316,15 +351,227 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 			child.stdin.end();
 		}
 
-		child.on('error', reject);
+		child.on('error', error => {
+			if (!settled) {
+				settled = true;
+				clearTimeout(timer);
+				reject(new HookCommandExecutionError('error', error.message, read(stdoutChunks, stdoutSize), read(stderrChunks, stderrSize)));
+			}
+		});
 		child.on('close', (code) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timer);
+			const stdout = read(stdoutChunks, stdoutSize);
+			const stderr = read(stderrChunks, stderrSize);
+			if (timedOut) {
+				reject(new HookCommandExecutionError('timeout', `Hook command timed out after ${hook.timeout ?? 30} seconds: ${command.slice(0, 80)}`, stdout, stderr, code));
+				return;
+			}
 			if (code === 0) {
 				resolve(stdout);
 			} else {
-				reject(new Error(`Hook command exited with code ${code}: ${stderr || stdout}`));
+				reject(new HookCommandExecutionError('error', `Hook command exited with code ${code}: ${stderr || stdout}`, stdout, stderr, code));
 			}
 		});
 	});
+}
+
+const MAX_HOOK_OUTPUT_BYTES = 10 * 1024 * 1024;
+const MAX_POST_TOOL_CONTEXT_BYTES = 10 * 1024;
+
+/**
+ * Describes a hook process failure while retaining its bounded output.
+ */
+class HookCommandExecutionError extends Error {
+	constructor(
+		readonly kind: 'error' | 'timeout',
+		message: string,
+		readonly stdout: string,
+		readonly stderr: string,
+		readonly exitCode?: number | null,
+	) {
+		super(message);
+	}
+}
+
+interface IPluginHookCommand {
+	readonly type: string;
+	readonly originalId: string;
+	readonly command: IParsedHookCommand;
+}
+
+function parseHookCommandOutput(stdout: string): object | undefined {
+	const output = stdout
+		.split(/\r?\n/)
+		.filter(line => {
+			const trimmed = line.trim();
+			if (!trimmed) {
+				return true;
+			}
+			try {
+				const value = JSON.parse(trimmed);
+				return !value || typeof value !== 'object' || (value as { type?: unknown }).type !== 'progress';
+			} catch {
+				return true;
+			}
+		})
+		.join('\n')
+		.trim();
+	if (!output) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(output);
+		return parsed && typeof parsed === 'object' ? parsed : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function toClaudeToolName(toolName: string): string {
+	switch (toolName) {
+		case 'bash':
+		case 'powershell':
+			return 'Bash';
+		case 'view':
+			return 'Read';
+		case 'create':
+			return 'Write';
+		case 'edit':
+		case 'str_replace_editor':
+		case 'apply_patch':
+			return 'Edit';
+		case 'grep':
+		case 'rg':
+			return 'Grep';
+		case 'glob':
+			return 'Glob';
+		case 'web_fetch':
+			return 'WebFetch';
+		case 'web_search':
+			return 'WebSearch';
+		case 'ask_user':
+			return 'AskUserQuestion';
+		case 'update_todo':
+			return 'TodoWrite';
+		case 'task':
+			return 'Agent';
+		default:
+			return toolName;
+	}
+}
+
+function matchesHookCommand(hook: IPluginHookCommand, input: SupportedHookInput): boolean {
+	const matcher = hook.command.matcher;
+	const toolName = (input as { toolName?: string }).toolName;
+	if (matcher === undefined || toolName === undefined) {
+		return true;
+	}
+
+	const isCompatiblePreToolUse = hook.type === 'PreToolUse' && hook.originalId === 'PreToolUse';
+	const matcherToolName = isCompatiblePreToolUse ? toClaudeToolName(toolName) : toolName;
+	if (isCompatiblePreToolUse) {
+		if (matcher === '' || matcher === '*' || matcher === '**') {
+			return true;
+		}
+		if (/^[\w.:-]+(?:\|[\w.:-]+)*$/.test(matcher)) {
+			return matcher.split('|').some(candidate => candidate === matcherToolName || candidate === toolName || (candidate === 'Task' && matcherToolName === 'Agent'));
+		}
+	}
+
+	try {
+		return new RegExp(`^(?:${matcher})$`).test(matcherToolName);
+	} catch {
+		return false;
+	}
+}
+
+function toCompatibleToolResult(input: PostToolUseHookInput): object {
+	return {
+		result_type: input.toolResult.resultType,
+		...(input.toolResult.textResultForLlm !== undefined ? { text_result_for_llm: input.toolResult.textResultForLlm } : undefined),
+	};
+}
+
+function toHookCommandInput(hook: IPluginHookCommand, input: SupportedHookInput): object {
+	const compatible = /^[A-Z]/.test(hook.originalId);
+	const cwd = hook.command.cwd?.fsPath ?? input.workingDirectory;
+	const common = compatible
+		? {
+			hook_event_name: hook.originalId,
+			session_id: input.sessionId,
+			timestamp: input.timestamp.toISOString(),
+			cwd,
+		}
+		: {
+			sessionId: input.sessionId,
+			timestamp: input.timestamp.getTime(),
+			cwd,
+		};
+
+	switch (hook.type) {
+		case 'SessionStart': {
+			const event = input as SessionStartHookInput;
+			return compatible
+				? { ...common, source: event.source, ...(event.initialPrompt !== undefined ? { initial_prompt: event.initialPrompt } : undefined) }
+				: { ...common, source: event.source, ...(event.initialPrompt !== undefined ? { initialPrompt: event.initialPrompt } : undefined) };
+		}
+		case 'SessionEnd':
+			return { ...common, reason: (input as SessionEndHookInput).reason };
+		case 'UserPromptSubmit':
+			return { ...common, prompt: (input as UserPromptSubmittedHookInput).prompt };
+		case 'UserPromptTransformed': {
+			const event = input as UserPromptTransformedHookInput;
+			return { ...common, prompt: event.prompt, transformedPrompt: event.transformedPrompt };
+		}
+		case 'PreToolUse': {
+			const event = input as PreToolUseHookInput;
+			const toolName = compatible ? toClaudeToolName(event.toolName) : event.toolName;
+			return compatible
+				? { ...common, tool_name: toolName, tool_input: event.toolArgs }
+				: { ...common, toolName, toolArgs: event.toolArgs };
+		}
+		case 'PostToolUse': {
+			const event = input as PostToolUseHookInput;
+			return compatible
+				? { ...common, tool_name: event.toolName, tool_input: event.toolArgs, tool_result: toCompatibleToolResult(event) }
+				: { ...common, toolName: event.toolName, toolArgs: event.toolArgs, toolResult: event.toolResult };
+		}
+		case 'PostToolUseFailure': {
+			const event = input as PostToolUseFailureHookInput;
+			return compatible
+				? { ...common, tool_name: event.toolName, tool_input: event.toolArgs, error: event.error }
+				: { ...common, toolName: event.toolName, toolArgs: event.toolArgs, error: event.error };
+		}
+		case 'Stop': {
+			const event = input as AgentStopHookInput;
+			const fields = {
+				...(event.transcriptPath !== undefined ? { transcriptPath: event.transcriptPath } : undefined),
+				...(event.stopReason !== undefined ? { stopReason: event.stopReason } : undefined),
+				stop_hook_active: event.stopHookActive ?? false,
+			};
+			return compatible
+				? {
+					...common,
+					...(event.transcriptPath !== undefined ? { transcript_path: event.transcriptPath } : undefined),
+					...(event.stopReason !== undefined ? { stop_reason: event.stopReason } : undefined),
+					stop_hook_active: event.stopHookActive ?? false,
+				}
+				: { ...common, ...fields };
+		}
+		case 'ErrorOccurred': {
+			const event = input as ErrorOccurredHookInput;
+			const error = { message: event.error, name: 'Error' };
+			return compatible
+				? { ...common, error, error_context: event.errorContext, recoverable: event.recoverable }
+				: { ...common, error, errorContext: event.errorContext, recoverable: event.recoverable };
+		}
+		default:
+			return common;
+	}
 }
 
 /**
@@ -332,48 +579,78 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
  * Returns every valid JSON object so callers can combine all hook results.
  * Command failures are swallowed — hooks are non-fatal.
  */
-async function runHookCommands(commands: readonly IParsedHookCommand[] | undefined, input: unknown): Promise<object[]> {
+async function runHookCommands(commands: readonly IPluginHookCommand[] | undefined, input: SupportedHookInput): Promise<object[]> {
 	if (!commands) {
 		return [];
 	}
 	const results: object[] = [];
-	const stdin = JSON.stringify(input);
-	for (const cmd of commands) {
+	for (const hook of commands) {
+		if (!matchesHookCommand(hook, input)) {
+			continue;
+		}
+		const stdin = JSON.stringify(toHookCommandInput(hook, input));
 		try {
-			const output = await executeHookCommand(cmd, stdin);
-			if (output.trim()) {
-				try {
-					const parsed = JSON.parse(output);
-					if (parsed && typeof parsed === 'object') {
-						results.push(parsed);
-					}
-				} catch {
-					// Non-JSON output is fine — no modification
+			const output = parseHookCommandOutput(await executeHookCommand(hook.command, stdin));
+			if (output) {
+				results.push(output);
+			}
+		} catch (error) {
+			if (!(error instanceof HookCommandExecutionError) || error.kind === 'timeout') {
+				continue;
+			}
+			const output = parseHookCommandOutput(error.stdout);
+			if (output) {
+				results.push(output);
+			}
+			if (hook.type === 'PreToolUse') {
+				results.push({
+					permissionDecision: 'deny',
+					permissionDecisionReason: error.stderr.trim() || (error.exitCode !== undefined ? `Hook command exited with code ${error.exitCode}` : error.message),
+				});
+			} else if (hook.type === 'PostToolUseFailure' && error.exitCode === 2 && !output) {
+				const additionalContext = error.stdout.trim() || error.stderr.trim();
+				if (additionalContext) {
+					results.push({ additionalContext });
 				}
 			}
-		} catch {
-			// Hook failures are non-fatal
 		}
 	}
 	return results;
 }
 
-function mergeHookCommandOutputs(outputs: readonly object[]): Record<string, unknown> | undefined {
+function mergeAdditionalContext(outputs: readonly object[], maxBytes: number): string | undefined {
+	const contexts = outputs
+		.map(output => (output as { additionalContext?: unknown }).additionalContext)
+		.filter((context): context is string => typeof context === 'string');
+	if (contexts.length === 0) {
+		return undefined;
+	}
+	const meaningful = contexts.filter(context => context.trim().length > 0);
+	const contributions = meaningful.length > 0 ? meaningful : [contexts.at(-1)!];
+	let merged = '';
+	for (const context of contributions) {
+		const candidate = merged ? `${merged}\n\n${context}` : context;
+		if (Buffer.byteLength(candidate) <= maxBytes) {
+			merged = candidate;
+		}
+	}
+	return merged;
+}
+
+function mergeHookCommandOutputs(outputs: readonly object[], maxContextBytes = MAX_HOOK_OUTPUT_BYTES): Record<string, unknown> | undefined {
 	if (outputs.length === 0) {
 		return undefined;
 	}
 
 	const merged: Record<string, unknown> = {};
-	const additionalContext: string[] = [];
 	for (const output of outputs) {
 		Object.assign(merged, output);
-		const context = (output as { additionalContext?: unknown }).additionalContext;
-		if (typeof context === 'string' && context.length > 0) {
-			additionalContext.push(context);
-		}
 	}
-	if (additionalContext.length > 0) {
-		merged.additionalContext = additionalContext.join('\n\n');
+	const additionalContext = mergeAdditionalContext(outputs, maxContextBytes);
+	if (additionalContext !== undefined) {
+		merged.additionalContext = additionalContext;
+	} else {
+		delete merged.additionalContext;
 	}
 	return merged;
 }
@@ -422,16 +699,58 @@ function mergePreToolUseHookOutputs(outputs: readonly object[]): Exclude<PreTool
 	return merged;
 }
 
+function mergeAdditionalContextOutput<T extends object>(outputs: readonly object[], maxBytes = MAX_HOOK_OUTPUT_BYTES): T | undefined {
+	if (outputs.length === 0) {
+		return undefined;
+	}
+	const additionalContext = mergeAdditionalContext(outputs, maxBytes);
+	return (additionalContext !== undefined ? { additionalContext } : {}) as T;
+}
+
+function mergeUserPromptTransformedOutputs(outputs: readonly object[]): UserPromptTransformedHookOutput | undefined {
+	for (let index = outputs.length - 1; index >= 0; index--) {
+		const modifiedTransformedPrompt = (outputs[index] as { modifiedTransformedPrompt?: unknown }).modifiedTransformedPrompt;
+		if (typeof modifiedTransformedPrompt === 'string' && modifiedTransformedPrompt.length > 0) {
+			return { modifiedTransformedPrompt };
+		}
+	}
+	return outputs.length > 0 ? {} : undefined;
+}
+
+function mergeAgentStopOutputs(outputs: readonly object[]): AgentStopHookOutput | undefined {
+	const reasons: string[] = [];
+	let blocked = false;
+	for (const output of outputs) {
+		const candidate = output as { decision?: unknown; reason?: unknown };
+		if (candidate.decision === 'block') {
+			blocked = true;
+			if (typeof candidate.reason === 'string' && candidate.reason.length > 0) {
+				reasons.push(candidate.reason);
+			}
+		}
+	}
+	if (!blocked) {
+		return outputs.length > 0 ? {} : undefined;
+	}
+	return {
+		decision: 'block',
+		...(reasons.length > 0 ? { reason: reasons.join('\n\n') } : undefined),
+	};
+}
+
 /**
  * Mapping from canonical hook type identifiers to SDK SessionHooks handler keys.
  */
 const HOOK_TYPE_TO_SDK_KEY: Record<string, keyof SessionHooks> = {
 	'PreToolUse': 'onPreToolUse',
 	'PostToolUse': 'onPostToolUse',
+	'PostToolUseFailure': 'onPostToolUseFailure',
 	'UserPromptSubmit': 'onUserPromptSubmitted',
+	'UserPromptTransformed': 'onUserPromptTransformed',
 	'SessionStart': 'onSessionStart',
 	'SessionEnd': 'onSessionEnd',
 	'ErrorOccurred': 'onErrorOccurred',
+	'Stop': 'onAgentStop',
 };
 
 /**
@@ -448,18 +767,19 @@ export function toSdkHooks(
 	editTrackingHooks?: {
 		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<PreToolUseHookOutput>;
 		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
+		readonly onPostToolUseFailure?: (input: PostToolUseFailureHookInput) => Promise<void>;
 		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
 ): SessionHooks {
 	// Group all commands by SDK handler key
-	const commandsByKey = new Map<keyof SessionHooks, IParsedHookCommand[]>();
+	const commandsByKey = new Map<keyof SessionHooks, IPluginHookCommand[]>();
 	for (const group of hookGroups) {
 		const sdkKey = HOOK_TYPE_TO_SDK_KEY[group.type];
 		if (!sdkKey) {
 			continue;
 		}
 		const existing = commandsByKey.get(sdkKey) ?? [];
-		existing.push(...group.commands);
+		existing.push(...group.commands.map(command => ({ type: group.type, originalId: group.originalId, command })));
 		commandsByKey.set(sdkKey, existing);
 	}
 
@@ -470,10 +790,8 @@ export function toSdkHooks(
 	if (preToolCommands?.length || editTrackingHooks) {
 		hooks.onPreToolUse = async (input: PreToolUseHookInput) => {
 			const internalResult = await editTrackingHooks?.onPreToolUse(input);
-			if (internalResult !== undefined) {
-				return internalResult;
-			}
-			return mergePreToolUseHookOutputs(await runHookCommands(preToolCommands, input));
+			const outputs = await runHookCommands(preToolCommands, input);
+			return mergePreToolUseHookOutputs(internalResult === undefined ? outputs : [internalResult, ...outputs]);
 		};
 	}
 
@@ -482,7 +800,15 @@ export function toSdkHooks(
 	if (postToolCommands?.length || editTrackingHooks) {
 		hooks.onPostToolUse = async (input: PostToolUseHookInput) => {
 			await editTrackingHooks?.onPostToolUse(input);
-			return mergeHookCommandOutputs(await runHookCommands(postToolCommands, input)) as PostToolUseHookOutput | undefined;
+			return mergeHookCommandOutputs(await runHookCommands(postToolCommands, input), MAX_POST_TOOL_CONTEXT_BYTES) as PostToolUseHookOutput | undefined;
+		};
+	}
+
+	const postToolFailureCommands = commandsByKey.get('onPostToolUseFailure');
+	if (postToolFailureCommands?.length || editTrackingHooks?.onPostToolUseFailure) {
+		hooks.onPostToolUseFailure = async (input: PostToolUseFailureHookInput) => {
+			await editTrackingHooks?.onPostToolUseFailure?.(input);
+			return mergeAdditionalContextOutput<PostToolUseFailureHookOutput>(await runHookCommands(postToolFailureCommands, input));
 		};
 	}
 
@@ -490,15 +816,15 @@ export function toSdkHooks(
 	const promptCommands = commandsByKey.get('onUserPromptSubmitted');
 	if (promptCommands?.length || editTrackingHooks?.onUserPromptSubmitted) {
 		hooks.onUserPromptSubmitted = async (input: UserPromptSubmittedHookInput) => {
-			const stdin = JSON.stringify(input);
-			for (const cmd of promptCommands ?? []) {
-				try {
-					await executeHookCommand(cmd, stdin);
-				} catch {
-					// Hook failures are non-fatal
-				}
-			}
+			await runHookCommands(promptCommands, input);
 			return editTrackingHooks?.onUserPromptSubmitted?.();
+		};
+	}
+
+	const transformedPromptCommands = commandsByKey.get('onUserPromptTransformed');
+	if (transformedPromptCommands?.length) {
+		hooks.onUserPromptTransformed = async (input: UserPromptTransformedHookInput) => {
+			return mergeUserPromptTransformedOutputs(await runHookCommands(transformedPromptCommands, input));
 		};
 	}
 
@@ -506,14 +832,7 @@ export function toSdkHooks(
 	const startCommands = commandsByKey.get('onSessionStart');
 	if (startCommands?.length) {
 		hooks.onSessionStart = async (input: SessionStartHookInput) => {
-			const stdin = JSON.stringify(input);
-			for (const cmd of startCommands) {
-				try {
-					await executeHookCommand(cmd, stdin);
-				} catch {
-					// Hook failures are non-fatal
-				}
-			}
+			return mergeAdditionalContextOutput<SessionStartHookOutput>(await runHookCommands(startCommands, input));
 		};
 	}
 
@@ -521,14 +840,7 @@ export function toSdkHooks(
 	const endCommands = commandsByKey.get('onSessionEnd');
 	if (endCommands?.length) {
 		hooks.onSessionEnd = async (input: SessionEndHookInput) => {
-			const stdin = JSON.stringify(input);
-			for (const cmd of endCommands) {
-				try {
-					await executeHookCommand(cmd, stdin);
-				} catch {
-					// Hook failures are non-fatal
-				}
-			}
+			await runHookCommands(endCommands, input);
 		};
 	}
 
@@ -536,14 +848,14 @@ export function toSdkHooks(
 	const errorCommands = commandsByKey.get('onErrorOccurred');
 	if (errorCommands?.length) {
 		hooks.onErrorOccurred = async (input: ErrorOccurredHookInput) => {
-			const stdin = JSON.stringify(input);
-			for (const cmd of errorCommands) {
-				try {
-					await executeHookCommand(cmd, stdin);
-				} catch {
-					// Hook failures are non-fatal
-				}
-			}
+			await runHookCommands(errorCommands, input);
+		};
+	}
+
+	const stopCommands = commandsByKey.get('onAgentStop');
+	if (stopCommands?.length) {
+		hooks.onAgentStop = async (input: AgentStopHookInput) => {
+			return mergeAgentStopOutputs(await runHookCommands(stopCommands, input));
 		};
 	}
 
@@ -560,7 +872,7 @@ export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IPar
 	const serialize = (plugins: readonly IParsedPlugin[]) => {
 		return JSON.stringify(plugins.map(p => ({
 			format: p.format,
-			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
+			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout, matcher: c.matcher })) })),
 			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
 			skills: p.skills.map(s => ({
 				uri: s.uri.toString(),

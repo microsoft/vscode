@@ -17,7 +17,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
-import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
+import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookCommand, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
 function stubMcpCustomization(name = 'test'): McpServerCustomization {
@@ -568,14 +568,18 @@ suite('copilotPluginConverters', () => {
 
 	suite('toSdkHooks', () => {
 
-		function makeHookGroup(type: string, ...commands: string[]): IParsedHookGroup {
+		function makeHookGroup(type: string, ...commands: Array<string | IParsedHookCommand>): IParsedHookGroup {
 			return {
 				type,
-				commands: commands.map(command => ({ command })),
+				commands: commands.map(command => typeof command === 'string' ? { command } : command),
 				uri: URI.file('/plugin/hooks.json'),
 				originalId: type,
 				customization: stubHookCustomization(type),
 			};
+		}
+
+		function withOriginalId(group: IParsedHookGroup, originalId: string): IParsedHookGroup {
+			return { ...group, originalId };
 		}
 
 		let hookScriptId = 0;
@@ -597,6 +601,16 @@ suite('copilotPluginConverters', () => {
 		function echoJsonCmd(value: object): { command: string; cleanup: () => void } {
 			const json = JSON.stringify(value);
 			return hookScriptCmd(`process.stdout.write(${JSON.stringify(json)});\n`);
+		}
+
+		function captureInputCmd(logPath: string, output: object = {}): { command: string; cleanup: () => void } {
+			return hookScriptCmd([
+				'import { appendFileSync } from \'fs\';',
+				'let input = \'\';',
+				'process.stdin.setEncoding(\'utf8\');',
+				'process.stdin.on(\'data\', chunk => input += chunk);',
+				`process.stdin.on('end', () => { appendFileSync(${JSON.stringify(logPath)}, JSON.stringify(JSON.parse(input)) + '\\n'); process.stdout.write(${JSON.stringify(JSON.stringify(output))}); });`,
+			].join('\n'));
 		}
 
 		test('onPreToolUse runs commands after an empty object and returns the deny', async () => {
@@ -652,6 +666,100 @@ suite('copilotPluginConverters', () => {
 			} finally {
 				first.cleanup();
 				second.cleanup();
+			}
+		});
+
+		test('onPreToolUse applies matchers and sends the documented payload for each event spelling', async () => {
+			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
+			const logPath = `${dir}/vscode-test-hook-input-${Date.now()}.log`;
+			const command = captureInputCmd(logPath);
+			try {
+				const hooks = toSdkHooks([
+					withOriginalId(makeHookGroup('PreToolUse',
+						{ command: command.command, matcher: 'bash' },
+						{ command: command.command, matcher: 'apply_patch' },
+					), 'preToolUse'),
+					makeHookGroup('PreToolUse', { command: command.command, matcher: 'Bash' }),
+				]);
+				await hooks.onPreToolUse!({ toolName: 'bash', toolArgs: { command: 'echo test' }, timestamp: new Date(0), workingDirectory: '/repo', sessionId: 'test' }, { sessionId: 'test' });
+
+				assert.deepStrictEqual(readFileSync(logPath, 'utf8').trim().split('\n').map(line => JSON.parse(line)), [
+					{
+						sessionId: 'test',
+						timestamp: 0,
+						cwd: '/repo',
+						toolName: 'bash',
+						toolArgs: { command: 'echo test' },
+					},
+					{
+						hook_event_name: 'PreToolUse',
+						session_id: 'test',
+						timestamp: '1970-01-01T00:00:00.000Z',
+						cwd: '/repo',
+						tool_name: 'Bash',
+						tool_input: { command: 'echo test' },
+					},
+				]);
+			} finally {
+				command.cleanup();
+				try { unlinkSync(logPath); } catch { /* ignore */ }
+			}
+		});
+
+		test('onPreToolUse fails closed for command errors and open for timeouts', async () => {
+			const failed = hookScriptCmd(`process.stdout.write(JSON.stringify({ permissionDecision: 'allow' })); process.stderr.write('blocked'); process.exit(2);\n`);
+			const timedOut = hookScriptCmd(`setTimeout(() => process.stdout.write(JSON.stringify({ permissionDecision: 'deny' })), 1000);\n`);
+			try {
+				const input = { toolName: 'bash', toolArgs: { command: 'echo test' }, timestamp: new Date(0), workingDirectory: '/repo', sessionId: 'test' };
+				const failedResult = await toSdkHooks([makeHookGroup('PreToolUse', failed.command)]).onPreToolUse!(input, { sessionId: 'test' });
+				const timedOutResult = await toSdkHooks([makeHookGroup('PreToolUse', { command: timedOut.command, timeout: 0.05 })]).onPreToolUse!(input, { sessionId: 'test' });
+
+				assert.deepStrictEqual({ failedResult, timedOutResult }, {
+					failedResult: { permissionDecision: 'deny', permissionDecisionReason: 'blocked' },
+					timedOutResult: undefined,
+				});
+			} finally {
+				failed.cleanup();
+				timedOut.cleanup();
+			}
+		});
+
+		test('onPreToolUse keeps internal denies while still running plugin hooks', async () => {
+			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
+			const logPath = `${dir}/vscode-test-hook-internal-${Date.now()}.log`;
+			const plugin = captureInputCmd(logPath, { permissionDecision: 'allow' });
+			try {
+				const hooks = toSdkHooks([makeHookGroup('PreToolUse', plugin.command)], {
+					onPreToolUse: async () => ({ permissionDecision: 'deny', permissionDecisionReason: 'internal deny' }),
+					onPostToolUse: async () => { },
+				});
+				const result = await hooks.onPreToolUse!({ toolName: 'bash', toolArgs: {}, timestamp: new Date(0), workingDirectory: '/repo', sessionId: 'test' }, { sessionId: 'test' });
+
+				assert.deepStrictEqual({
+					pluginRan: readFileSync(logPath, 'utf8').trim().length > 0,
+					result,
+				}, {
+					pluginRan: true,
+					result: { permissionDecision: 'deny', permissionDecisionReason: 'internal deny' },
+				});
+			} finally {
+				plugin.cleanup();
+				try { unlinkSync(logPath); } catch { /* ignore */ }
+			}
+		});
+
+		test('onPreToolUse ignores progress messages before the final output', async () => {
+			const hook = hookScriptCmd([
+				`process.stdout.write(JSON.stringify({ type: 'progress', message: 'Checking policy' }) + '\\n');`,
+				`process.stdout.write(JSON.stringify({ permissionDecision: 'deny', permissionDecisionReason: 'policy denied' }));`,
+			].join('\n'));
+			try {
+				const hooks = toSdkHooks([makeHookGroup('PreToolUse', hook.command)]);
+				const result = await hooks.onPreToolUse!({ toolName: 'bash', toolArgs: {}, timestamp: new Date(0), workingDirectory: '/repo', sessionId: 'test' }, { sessionId: 'test' });
+
+				assert.deepStrictEqual(result, { permissionDecision: 'deny', permissionDecisionReason: 'policy denied' });
+			} finally {
+				hook.cleanup();
 			}
 		});
 
@@ -738,6 +846,79 @@ suite('copilotPluginConverters', () => {
 				assert.deepStrictEqual(trackingInput, callInput);
 			} finally {
 				cleanup();
+			}
+		});
+
+		test('onPostToolUseFailure merges context and completes internal edit tracking', async () => {
+			const first = echoJsonCmd({ additionalContext: 'first recovery' });
+			const second = echoJsonCmd({ additionalContext: 'second recovery' });
+			let trackingInput: object | undefined;
+			try {
+				const hooks = toSdkHooks([
+					makeHookGroup('PostToolUseFailure',
+						{ command: first.command, matcher: 'bash' },
+						{ command: second.command, matcher: 'bash' },
+						{ command: second.command, matcher: 'apply_patch' },
+					),
+				], {
+					onPreToolUse: async () => { },
+					onPostToolUse: async () => { },
+					onPostToolUseFailure: async input => { trackingInput = input; },
+				});
+				const input = { toolName: 'bash', toolArgs: { command: 'false' }, error: 'exit 1', timestamp: new Date(0), workingDirectory: '/repo', sessionId: 'test' };
+				const result = await hooks.onPostToolUseFailure!(input, { sessionId: 'test' });
+
+				assert.deepStrictEqual({ result, trackingInput }, {
+					result: { additionalContext: 'first recovery\n\nsecond recovery' },
+					trackingInput: input,
+				});
+			} finally {
+				first.cleanup();
+				second.cleanup();
+			}
+		});
+
+		test('onSessionStart merges additional context and ignores other command output fields', async () => {
+			const first = echoJsonCmd({ additionalContext: 'first context', modifiedConfig: { unsafe: true } });
+			const second = echoJsonCmd({ additionalContext: 'second context' });
+			try {
+				const hooks = toSdkHooks([withOriginalId(makeHookGroup('SessionStart', first.command, second.command), 'sessionStart')]);
+				const result = await hooks.onSessionStart!({ source: 'new', initialPrompt: 'hello', timestamp: new Date(0), workingDirectory: '/repo', sessionId: 'test' }, { sessionId: 'test' });
+
+				assert.deepStrictEqual(result, { additionalContext: 'first context\n\nsecond context' });
+			} finally {
+				first.cleanup();
+				second.cleanup();
+			}
+		});
+
+		test('onUserPromptTransformed uses the last valid transformed prompt', async () => {
+			const first = echoJsonCmd({ modifiedTransformedPrompt: 'first' });
+			const second = echoJsonCmd({ modifiedTransformedPrompt: 'second' });
+			try {
+				const hooks = toSdkHooks([withOriginalId(makeHookGroup('UserPromptTransformed', first.command, second.command), 'userPromptTransformed')]);
+				const result = await hooks.onUserPromptTransformed!({ prompt: 'original', transformedPrompt: 'transformed', timestamp: new Date(0), workingDirectory: '/repo', sessionId: 'test' }, { sessionId: 'test' });
+
+				assert.deepStrictEqual(result, { modifiedTransformedPrompt: 'second' });
+			} finally {
+				first.cleanup();
+				second.cleanup();
+			}
+		});
+
+		test('onAgentStop runs every hook and combines block reasons', async () => {
+			const first = echoJsonCmd({});
+			const second = echoJsonCmd({ decision: 'block', reason: 'run tests' });
+			const third = echoJsonCmd({ decision: 'block', reason: 'fix lint' });
+			try {
+				const hooks = toSdkHooks([withOriginalId(makeHookGroup('Stop', first.command, second.command, third.command), 'agentStop')]);
+				const result = await hooks.onAgentStop!({ stopReason: 'end_turn', stopHookActive: false, timestamp: new Date(0), workingDirectory: '/repo', sessionId: 'test' }, { sessionId: 'test' });
+
+				assert.deepStrictEqual(result, { decision: 'block', reason: 'run tests\n\nfix lint' });
+			} finally {
+				first.cleanup();
+				second.cleanup();
+				third.cleanup();
 			}
 		});
 

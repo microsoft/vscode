@@ -14995,6 +14995,26 @@ Use the attached image as context.
 			assert.strictEqual((entry.first as Error).message, 'post tool boom');
 			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in onPostToolUse: tool=edit');
 		});
+
+		test('completes edit tracking when an edit tool fails', async () => {
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const { session } = await createAgentSession(disposables, { captureRuntime: capturedRuntime });
+			const completed: string[] = [];
+			(session as unknown as ISessionInternalsForTest)._editTracker.completeEdit = async path => {
+				completed.push(path);
+			};
+
+			await capturedRuntime.current!.handlePostToolUseFailure({
+				sessionId: 'test-session-1',
+				timestamp: new Date(0),
+				workingDirectory: '/tmp',
+				toolName: 'edit',
+				toolArgs: { path: '/tmp/file.ts' },
+				error: 'edit failed',
+			});
+
+			assert.deepStrictEqual(completed, ['/tmp/file.ts']);
+		});
 	});
 
 	// ---- client tool calls ----

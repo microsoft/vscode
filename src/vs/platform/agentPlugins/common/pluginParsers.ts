@@ -38,6 +38,8 @@ export interface IParsedHookCommand {
 	readonly env?: Record<string, string>;
 	/** Timeout in seconds. */
 	readonly timeout?: number;
+	/** Event-specific matcher from the hook configuration. */
+	readonly matcher?: string;
 	/** URI of the file this hook was defined in. */
 	readonly sourceUri?: URI;
 }
@@ -57,6 +59,7 @@ export namespace IParsedHookCommand {
 			&& isURLEquals(a.cwd, b.cwd)
 			&& objectEquals(a.env, b.env)
 			&& a.timeout === b.timeout
+			&& a.matcher === b.matcher
 			&& isURLEquals(a.sourceUri, b.sourceUri);
 	}
 }
@@ -696,6 +699,7 @@ const HOOK_TYPE_MAP: Record<string, string> = {
 	'SessionStart': 'SessionStart',
 	'SessionEnd': 'SessionEnd',
 	'UserPromptSubmit': 'UserPromptSubmit',
+	'PostToolUseFailure': 'PostToolUseFailure',
 	'PreToolUse': 'PreToolUse',
 	'PostToolUse': 'PostToolUse',
 	'PreCompact': 'PreCompact',
@@ -707,8 +711,10 @@ const HOOK_TYPE_MAP: Record<string, string> = {
 	'sessionStart': 'SessionStart',
 	'sessionEnd': 'SessionEnd',
 	'userPromptSubmitted': 'UserPromptSubmit',
+	'userPromptTransformed': 'UserPromptTransformed',
 	'preToolUse': 'PreToolUse',
 	'postToolUse': 'PostToolUse',
+	'postToolUseFailure': 'PostToolUseFailure',
 	'agentStop': 'Stop',
 	'subagentStop': 'SubagentStop',
 	'errorOccurred': 'ErrorOccurred',
@@ -757,7 +763,7 @@ function normalizeHookCommand(raw: Record<string, unknown>): IParsedHookCommand 
  * Resolves a raw hook command JSON object into a {@link IParsedHookCommand},
  * normalizing fields and resolving the working directory.
  */
-function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | undefined, userHome: URI): IParsedHookCommand | undefined {
+function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | undefined, userHome: URI, matcher?: string): IParsedHookCommand | undefined {
 	const normalized = normalizeHookCommand(raw);
 	if (!normalized) {
 		return undefined;
@@ -777,7 +783,7 @@ function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | u
 		cwdUri = workspaceRoot;
 	}
 
-	return { ...normalized, cwd: cwdUri };
+	return { ...normalized, cwd: cwdUri, ...(matcher !== undefined ? { matcher } : undefined) };
 }
 
 /**
@@ -794,18 +800,19 @@ function extractHookCommands(item: unknown, workspaceRoot: URI | undefined, user
 
 	// Nested hooks with matcher (Claude style): { matcher: "...", hooks: [...] }
 	const nestedHooks = itemObj.hooks;
+	const matcher = typeof itemObj.matcher === 'string' ? itemObj.matcher : undefined;
 	if (nestedHooks !== undefined && Array.isArray(nestedHooks)) {
 		for (const nested of nestedHooks) {
 			if (!nested || typeof nested !== 'object') {
 				continue;
 			}
-			const resolved = resolveHookCommand(nested as Record<string, unknown>, workspaceRoot, userHome);
+			const resolved = resolveHookCommand(nested as Record<string, unknown>, workspaceRoot, userHome, matcher);
 			if (resolved) {
 				commands.push(resolved);
 			}
 		}
 	} else {
-		const resolved = resolveHookCommand(itemObj, workspaceRoot, userHome);
+		const resolved = resolveHookCommand(itemObj, workspaceRoot, userHome, matcher);
 		if (resolved) {
 			commands.push(resolved);
 		}
