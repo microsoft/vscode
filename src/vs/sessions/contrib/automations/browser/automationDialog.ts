@@ -1355,54 +1355,48 @@ export function renderForm(
 		usesCombinedConfigPicker.set(!!session && sessionsManagementService.usesCombinedNewSessionConfigPicker(session));
 	}));
 
-	if (targetChangeDisabledReason && initialProviderConfiguration && initialTarget?.kind === 'workspace') {
-		targetContainer.classList.add('automation-target-readonly');
-		const icon = DOM.append(targetContainer, renderIcon(Codicon.cloud));
-		icon.setAttribute('aria-hidden', 'true');
-		const workspace = sessionsManagementService.resolveWorkspace(initialTarget.folderUri)?.workspace;
-		DOM.append(targetContainer, $('span', undefined, localize('automation.form.savedTarget', "{0} · {1}", workspace?.label ?? initialTarget.folderUri.toString(), initialProviderConfiguration.label)));
+	if (targetChangeDisabledReason) {
 		DOM.append(targetRow, $('span.automation-form-hint', undefined, targetChangeDisabledReason));
-	} else {
-		const targetToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, targetContainer, Menus.AutomationsDialogTargetToolbar, {
-			ariaLabel: localize('automation.form.targetOptions', "Automation target options"),
-			telemetrySource: 'automations.dialog',
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			responsiveBehavior: {
-				enabled: true,
-				kind: 'all',
-				actionMinWidth: 22,
-				allowOverflow: false,
-			},
-			actionViewItemProvider: (action, itemOptions) => {
-				if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
-					return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), undefined, itemOptions);
-				}
-				if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
-					return new AutomationPickerActionViewItem(action, container => workspacePicker.render(container), undefined, itemOptions);
-				}
-				if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
-					return instantiationService.createInstance(
-						AutomationIsolationGroupActionViewItem,
-						action,
-						state,
-						isolationModel,
-						isolationModel.folderUriObs,
-						onDidChangeSessionTarget.event,
-						revalidate,
-						itemOptions,
-						workspaceControlsVisible,
-					);
-				}
-				return undefined;
-			},
-		}));
-		const targetLayout = disposables.add(new ChatInputPickerResponsiveLayout('AutomationDialog.target', targetContainer, {
-			getItems: () => getAutomationToolbarResponsiveItems(targetToolbar, { canShrink: false }),
-			hasOverflow: () => targetToolbar.hasOverflow(),
-			relayout: () => targetToolbar.relayout(),
-		}));
-		targetLayout.layout();
 	}
+	const targetToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, targetContainer, Menus.AutomationsDialogTargetToolbar, {
+		ariaLabel: localize('automation.form.targetOptions', "Automation target options"),
+		telemetrySource: 'automations.dialog',
+		hiddenItemStrategy: HiddenItemStrategy.NoHide,
+		responsiveBehavior: {
+			enabled: true,
+			kind: 'all',
+			actionMinWidth: 22,
+			allowOverflow: false,
+		},
+		actionViewItemProvider: (action, itemOptions) => {
+			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
+				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), undefined, itemOptions);
+			}
+			if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
+				return new AutomationPickerActionViewItem(action, container => workspacePicker.render(container), undefined, itemOptions);
+			}
+			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
+				return instantiationService.createInstance(
+					AutomationIsolationGroupActionViewItem,
+					action,
+					state,
+					isolationModel,
+					isolationModel.folderUriObs,
+					onDidChangeSessionTarget.event,
+					revalidate,
+					itemOptions,
+					workspaceControlsVisible,
+				);
+			}
+			return undefined;
+		},
+	}));
+	const targetLayout = disposables.add(new ChatInputPickerResponsiveLayout('AutomationDialog.target', targetContainer, {
+		getItems: () => getAutomationToolbarResponsiveItems(targetToolbar, { canShrink: false }),
+		hasOverflow: () => targetToolbar.hasOverflow(),
+		relayout: () => targetToolbar.relayout(),
+	}));
+	targetLayout.layout();
 
 	const chatInputStyles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-input-background)',

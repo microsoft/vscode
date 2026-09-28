@@ -125,12 +125,13 @@ suite('Automation dialog creation', () => {
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		let targetModel: AutomationIsolationModel | undefined;
 		let selectedWorkspace: URI | undefined;
+		const workspaceButton = DOM.$('button', { type: 'button' }, 'Select workspace');
 		instantiationService.stubInstance(MobileAutomationsWorkspacePicker, {
 			setTargetModel: model => { targetModel = model; },
 			setLayoutService: () => { },
 			setSelectedWorkspace: uri => { selectedWorkspace = uri; },
 			onDidSelectWorkspace: Event.None,
-			render: container => container,
+			render: container => container.appendChild(workspaceButton),
 			dispose: () => { },
 		});
 		instantiationService.stubInstance(SessionModelSelection, { dispose: () => { } });
@@ -223,12 +224,14 @@ suite('Automation dialog creation', () => {
 			assert.deepStrictEqual({
 				enabled: enabled.getAttribute('aria-checked'),
 				readonly: target.classList.contains('automation-target-readonly'),
-				targetButtons: target.querySelectorAll('button, [role="button"]').length > 0,
+				workspacePicker: target.contains(dialog.container.querySelector('.automation-target-toolbar button')),
+				sessionPicker: !!target.querySelector('[aria-label="Session Type, Cloud"]'),
+				targetButtons: target.querySelectorAll('button, [role="button"]').length,
 				hint: dialog.container.querySelector('.automation-target-row .automation-form-hint')?.textContent,
 				controlsHidden: controls.style.display === 'none',
 				cloudForm: !!dialog.container.querySelector('.automation-provider-configured'),
 			}, {
-				enabled: 'false', readonly: editing, targetButtons: !editing,
+				enabled: 'false', readonly: false, workspacePicker: true, sessionPicker: true, targetButtons: 2,
 				hint: editing ? cloudConfiguration.targetChangeDisabledReason : undefined,
 				controlsHidden: true, cloudForm: true,
 			});
