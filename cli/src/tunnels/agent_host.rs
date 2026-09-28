@@ -106,15 +106,17 @@ pub struct AgentHostConfig {
 
 /// State of the running VS Code server process. The process itself is
 /// owned by the task that waits for it to exit (see
-/// `AgentHostManager::run_server`).
+/// `AgentHostManager::run_server`), which also performs kills: only that
+/// task reaps the process, so it can kill it before its PID is released
+/// and possibly reused.
 struct RunningServer {
-	/// OS process ID of the server launcher, used to kill its process tree.
-	pid: Option<u32>,
 	commit: String,
 	/// Opens once the server process has exited.
 	exited: Barrier<()>,
-	/// Asks the task that owns the process to kill it outright.
-	force_kill: Option<oneshot::Sender<()>>,
+	/// Asks the task that owns the process to kill its process tree,
+	/// escalating to a forced kill if it hasn't exited within the given
+	/// duration.
+	kill: oneshot::Sender<Duration>,
 }
 
 /// Manages the VS Code server lifecycle: on-demand start, auto-restart
@@ -358,14 +360,13 @@ impl AgentHostManager {
 
 		// Store the running server state
 		let (exited, exited_opener) = new_barrier::<()>();
-		let (force_kill, mut force_kill_rx) = oneshot::channel::<()>();
+		let (kill, mut kill_rx) = oneshot::channel::<Duration>();
 		{
 			let mut running = self.running.lock().await;
 			*running = Some(RunningServer {
-				pid: child.id(),
 				commit: release.commit.clone(),
 				exited,
-				force_kill: Some(force_kill),
+				kill,
 			});
 		}
 
@@ -394,11 +395,29 @@ impl AgentHostManager {
 		let commit_prefix = commit_prefix.to_string();
 		let self_clone = self.clone();
 		tokio::spawn(async move {
+			// Either the process exits on its own and is reaped here, or a kill
+			// request arrives first and is carried out before the process is
+			// reaped, so `kill_tree` never signals a PID the OS could reuse.
 			let status = tokio::select! {
 				status = child.wait() => status,
-				Ok(()) = &mut force_kill_rx => {
-					let _ = child.start_kill();
-					child.wait().await
+				Ok(reap_timeout) = &mut kill_rx => {
+					if let Some(pid) = child.id() {
+						let _ = kill_tree(pid).await;
+					}
+					// Bound the wait so a process that ignores SIGTERM can't
+					// wedge the supervisor's shutdown or upgrade path.
+					match tokio::time::timeout(reap_timeout, child.wait()).await {
+						Ok(status) => status,
+						Err(_) => {
+							warning!(
+								log,
+								"Server did not exit within {:?} after kill_tree; escalating to SIGKILL",
+								reap_timeout
+							);
+							let _ = child.start_kill();
+							child.wait().await
+						}
+					}
 				}
 			};
 
@@ -628,6 +647,8 @@ impl AgentHostManager {
 	/// `child.kill()` only terminates the shim and reparents the node child to
 	/// PID 1, leaking it. `kill_tree` signals the shim and its descendants so
 	/// the node process is reaped along with the launcher. See issue #319516.
+	/// The kill is carried out by the task that owns the process, before it
+	/// is reaped, so it can't target a PID the OS has already reused.
 	pub async fn kill_running_server(&self) {
 		self.kill_running_server_within(Duration::from_secs(5))
 			.await
@@ -638,28 +659,14 @@ impl AgentHostManager {
 	/// so they don't have to wait out the default.
 	async fn kill_running_server_within(&self, reap_timeout: Duration) {
 		let mut running = self.running.lock().await;
-		if let Some(mut server) = running.take() {
-			if let Some(pid) = server.pid {
-				let _ = kill_tree(pid).await;
-			}
-			// The task that owns the process reaps it, so no zombie is left
-			// behind. Bound the wait so a process that ignores SIGTERM can't
-			// wedge the supervisor's shutdown or upgrade path; escalate to
-			// SIGKILL if the graceful shutdown doesn't land in time.
-			if tokio::time::timeout(reap_timeout, server.exited.wait())
-				.await
-				.is_err()
-			{
-				warning!(
-					self.log,
-					"Server did not exit within {:?} after kill_tree; escalating to SIGKILL",
-					reap_timeout
-				);
-				if let Some(force_kill) = server.force_kill.take() {
-					let _ = force_kill.send(());
-				}
-				let _ = server.exited.wait().await;
-			}
+		if let Some(RunningServer {
+			kill, mut exited, ..
+		}) = running.take()
+		{
+			// Ignored if the process already exited on its own; either way
+			// `exited` opens once the owning task has reaped it.
+			let _ = kill.send(reap_timeout);
+			let _ = exited.wait().await;
 		}
 	}
 
