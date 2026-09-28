@@ -16,14 +16,11 @@ import { SessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { Menus } from '../../../../browser/menus.js';
+import { isAgentHostProviderId } from '../../../../common/agentHostSessionsProvider.js';
 
 interface ISessionChatLinkContext {
 	readonly session: ISession;
 	readonly chat: IChat;
-}
-
-function getSession(context: ISession | ISession[] | undefined): ISession | undefined {
-	return Array.isArray(context) ? context[0] : context;
 }
 
 function buildExternalLink(accessor: ServicesAccessor, session: ISession, chatId?: string): string {
@@ -54,11 +51,12 @@ registerAction2(class CopyAgentHostSessionLinkAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
-		const session = getSession(context);
-		if (!session) {
+		const sessions = (Array.isArray(context) ? context : context ? [context] : [])
+			.filter(session => isAgentHostProviderId(session.providerId));
+		if (sessions.length === 0) {
 			return;
 		}
-		await accessor.get(IClipboardService).writeText(buildExternalLink(accessor, session));
+		await accessor.get(IClipboardService).writeText(sessions.map(session => buildExternalLink(accessor, session)).join('\n'));
 	}
 });
 
