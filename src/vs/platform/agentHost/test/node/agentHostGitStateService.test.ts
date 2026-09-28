@@ -15,7 +15,8 @@ import { AgentHostAutoAttachPullRequestsConfigKey } from '../../common/agentHost
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
-import { SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { ArtifactServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, getAllSessionRelatedPullRequestUrls, getSessionRelatedPullRequestUrls, readFolderScopeGitState, readSessionGitHubData, readSessionGitHubState, readSessionGitHubStateInput, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withFolderScopeGitState, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMigratedSessionGitHubState, withMostRecentSessionPullRequest, withReplacedFolderGitHubState, withSessionGitHubState, withSessionGitState, SESSION_META_GITHUB_DATA_KEY, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
@@ -23,6 +24,7 @@ import { AgentConfigurationService } from '../../node/agentConfigurationService.
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
 import type { CreatedPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
@@ -714,6 +716,114 @@ suite('AgentHostGitStateService', () => {
 		assert.deepStrictEqual(JSON.parse(await h.db.getMetadata(META_GITHUB_DATA_STATE) ?? 'null'), {
 			[getWorkingDirectoryKey('file:///first')]: { owner: 'contoso', repo: 'first' },
 			[getWorkingDirectoryKey('file:///second')]: { owner: 'contoso', repo: 'second' },
+		});
+	}));
+
+	test('associates a recorded PR only with the invoking chat folder when its head branch matches', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness({ autoAttachPullRequests: false });
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitHubState: { owner: 'contoso', repo: 'main' } });
+		const peer = buildChatUri(SESSION, 'peer');
+		const peerDirectory = 'file:///peer';
+		const pullRequestUrl = 'https://github.com/microsoft/vscode/pull/1';
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerDirectory] });
+		await h.service.setSessionGitHubState(peer, { owner: 'microsoft', repo: 'vscode' });
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
+		h.setPullRequest('feature', { url: pullRequestUrl, number: 1 });
+
+		const wrongPullRequest = await h.service.associateRecordedPullRequest(peer, 'https://github.com/microsoft/vscode/pull/2');
+		const wrongSession = await h.service.associateRecordedPullRequest(buildChatUri('mock:/other', 'peer'), pullRequestUrl);
+		h.setGitResult({ branchName: 'other', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
+		const wrongBranch = await h.service.associateRecordedPullRequest(peer, pullRequestUrl);
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'contoso', githubRepo: 'tools' });
+		const wrongRepository = await h.service.associateRecordedPullRequest(peer, pullRequestUrl);
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
+		const associated = await h.service.associateRecordedPullRequest(peer, pullRequestUrl);
+		const persisted = JSON.parse(await h.db.getMetadata(META_GITHUB_DATA_STATE) ?? '{}');
+
+		assert.deepStrictEqual({
+			wrongPullRequest,
+			wrongSession,
+			wrongBranch,
+			wrongRepository,
+			associated,
+			lookups: h.pullRequestCandidateCalls,
+			mainFolder: h.service.getGitHubState(SESSION),
+			peerFolder: h.service.getGitHubState(peer),
+			persistedPeer: persisted[getWorkingDirectoryKey(peerDirectory)],
+		}, {
+			wrongPullRequest: false,
+			wrongSession: false,
+			wrongBranch: false,
+			wrongRepository: false,
+			associated: true,
+			lookups: [['https://github.com/microsoft/vscode/pull/2'], [pullRequestUrl], [pullRequestUrl]],
+			mainFolder: { owner: 'contoso', repo: 'main' },
+			peerFolder: {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrls: [pullRequestUrl],
+				pullRequestBranchName: 'feature',
+				associatedPullRequestUrls: [pullRequestUrl],
+			},
+			persistedPeer: {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrls: [pullRequestUrl],
+				pullRequestBranchName: 'feature',
+				associatedPullRequestUrls: [pullRequestUrl],
+			},
+		});
+	}));
+
+	test('recording a PR from a peer chat updates only its folder when automatic attachment is off', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness({ autoAttachPullRequests: false });
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitHubState: { owner: 'contoso', repo: 'main' } });
+		const peer = buildChatUri(SESSION, 'peer');
+		const peerDirectory = 'file:///peer';
+		const url = 'https://github.com/microsoft/vscode/pull/1';
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerDirectory] });
+		await h.service.setSessionGitHubState(peer, { owner: 'microsoft', repo: 'vscode' });
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
+		h.setPullRequest('feature', { url, number: 1 });
+		const group = createArtifactServerToolGroup({
+			isEnabled: () => true,
+			persist: () => { },
+			associatePullRequest: (chat, pullRequestUrl) => h.service.associateRecordedPullRequest(chat, pullRequestUrl),
+		});
+
+		await group.execute(h.stateManager, { sessionUri: SESSION, chatUri: peer }, ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'pullRequest', label: 'Feature PR', isArtifact: true, link: url }],
+		});
+
+		assert.deepStrictEqual({
+			artifacts: readSessionArtifacts(h.stateManager.getSessionState(SESSION)?._meta).map(({ id: _id, ...artifact }) => artifact),
+			mainFolder: h.service.getGitHubState(SESSION),
+			peerFolder: h.service.getGitHubState(peer),
+		}, {
+			artifacts: [{ type: SessionArtifactType.PullRequest, label: 'Feature PR', isArtifact: true, link: url, isGitHub: true }],
+			mainFolder: { owner: 'contoso', repo: 'main' },
+			peerFolder: {
+				owner: 'microsoft', repo: 'vscode',
+				pullRequestUrls: [url], pullRequestBranchName: 'feature', associatedPullRequestUrls: [url],
+			},
+		});
+	}));
+
+	test('does not associate a recorded PR after the chat switches branches during verification', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness({ autoAttachPullRequests: false });
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		const peer = buildChatUri(SESSION, 'peer');
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: ['file:///peer'] });
+		await h.service.setSessionGitHubState(peer, { owner: 'microsoft', repo: 'vscode' });
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
+		h.setPullRequest('feature', { url: 'https://github.com/microsoft/vscode/pull/1', number: 1 });
+		h.setOnPullRequestLookup(async () => h.setGitResult({ branchName: 'other', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' }));
+
+		const associated = await h.service.associateRecordedPullRequest(peer, 'https://github.com/microsoft/vscode/pull/1');
+
+		assert.deepStrictEqual({ associated, peerFolder: h.service.getGitHubState(peer) }, {
+			associated: false,
+			peerFolder: { owner: 'microsoft', repo: 'vscode' },
 		});
 	}));
 

@@ -115,6 +115,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		authToken: string,
 		allowedPullRequestUrls?: readonly string[],
 		workingDirectory: string | undefined = state.workingDirectories?.[0],
+		requireHeadBranch = false,
 	): Promise<CreatedPullRequest | undefined> {
 		const githubHeadOwner = gitState?.githubHeadOwner;
 		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
@@ -123,7 +124,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		const signal = this._abortController.signal;
 
 		const pullRequestByBranch = await this._octoKitService.findPullRequestByHeadBranch(owner, repo, headBranch, authToken, signal, headOwner, allowedPullRequestUrls);
-		if (pullRequestByBranch) {
+		if (pullRequestByBranch || requireHeadBranch) {
 			return pullRequestByBranch;
 		}
 

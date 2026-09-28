@@ -50,6 +50,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
 		isEnabled: () => this.value.artifactServerToolAccessor.isEnabled(),
 		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
+		associatePullRequest: (chat, url) => this.value.artifactServerToolAccessor.associatePullRequest?.(chat, url) ?? Promise.resolve(false),
 	};
 
 	bind(callbacks: IAgentServiceCallbacks): void {

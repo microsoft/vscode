@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
 import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
-import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { ARTIFACT_TOOLS_INSTRUCTION, artifactServerToolDefinitions, createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
@@ -103,6 +103,7 @@ suite('Artifact Server Tools', () => {
 			'batch related entries in one call',
 			'routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables',
 			'persistence or location outside the workspace is not an eligibility signal',
+			'A pull request artifact whose head branch matches this chat\'s working folder is also associated with that folder\'s PR status',
 			'incidental resources, commits you create unless the user asks',
 			'sessions and chats created with session-management tools',
 			'Never create, copy, or relocate a file solely to have an artifact to register',
@@ -229,6 +230,74 @@ suite('Artifact Server Tools', () => {
 				{ type: 'file', label: 'Report', isArtifact: true, uri: 'file:///repo/report.md' },
 			],
 		});
+	});
+
+	test('records PR artifacts for the session and associates only matching PRs with the invoking chat folder', async () => {
+		const attempts: Array<{ chat: string; url: string }> = [];
+		const { host, stateManager, sessionUri, artifacts } = createHarness({
+			associatePullRequest: async (chat, url) => {
+				attempts.push({ chat, url });
+				return url.endsWith('/1');
+			},
+		});
+		const peer = buildChatUri(sessionUri, 'peer');
+		stateManager.addChat(sessionUri, peer, { workingDirectories: ['file:///peer'] });
+		const result = await host.executeTool(peer, ArtifactServerToolName.AddArtifactOrReference, {
+			items: [
+				{ type: 'pullRequest', label: 'Peer PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1' },
+				{ type: 'pullRequest', label: 'Other PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+				{ type: 'pullRequest', label: 'Referenced PR', isArtifact: false, link: 'https://github.com/microsoft/vscode/pull/3' },
+			],
+		});
+		const repeated = await host.executeTool(peer, ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'pullRequest', label: 'Peer PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1' }],
+		});
+		await host.executeTool(peer, ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'pullRequest', label: 'Peer PR', isArtifact: false, link: 'https://github.com/microsoft/vscode/pull/1' }],
+		});
+
+		assert.deepStrictEqual({
+			artifactLinks: artifacts().map(artifact => artifact.link),
+			attempts,
+			messages: result.split('\n').map(message => message.replace(/: [0-9a-f-]{36}$/, ': <id>')),
+			repeated: repeated.replace(/: [0-9a-f-]{36}$/, ': <id>'),
+		}, {
+			artifactLinks: [
+				'https://github.com/microsoft/vscode/pull/1',
+				'https://github.com/microsoft/vscode/pull/2',
+				'https://github.com/microsoft/vscode/pull/3',
+			],
+			attempts: [
+				{ chat: peer, url: 'https://github.com/microsoft/vscode/pull/1' },
+				{ chat: peer, url: 'https://github.com/microsoft/vscode/pull/2' },
+				{ chat: peer, url: 'https://github.com/microsoft/vscode/pull/1' },
+			],
+			messages: [
+				'Added artifact: <id>',
+				'Added artifact: <id>',
+				'Added reference: <id>',
+				'Pull request https://github.com/microsoft/vscode/pull/2 was recorded but not associated with this chat\'s working folder.',
+			],
+			repeated: 'Already recorded: <id>',
+		});
+	});
+
+	test('reports an association failure without losing the recorded PR artifact', async () => {
+		const { host, sessionUri, artifacts } = createHarness({
+			associatePullRequest: async () => { throw new Error('GitHub lookup unavailable'); },
+		});
+		const url = 'https://github.com/microsoft/vscode/pull/1';
+
+		await assert.rejects(
+			() => host.executeTool(buildDefaultChatUri(sessionUri), ArtifactServerToolName.AddArtifactOrReference, {
+				items: [{ type: 'pullRequest', label: 'Feature PR', isArtifact: true, link: url }],
+			}),
+			/The pull request artifact was recorded, but association with this chat's working folder failed/,
+		);
+
+		assert.deepStrictEqual(artifacts().map(({ id: _id, ...artifact }) => artifact), [
+			{ type: SessionArtifactType.PullRequest, label: 'Feature PR', isArtifact: true, link: url, isGitHub: true },
+		]);
 	});
 
 	test('promotes an existing reference in one batch without changing its id or downgrading it', async () => {

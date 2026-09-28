@@ -64,6 +64,9 @@ export interface IAgentHostGitStateService {
 	 */
 	readonly getGitHubState?: (key: string) => ISessionGitHubState | undefined;
 
+	/** Associates a recorded pull request with the invoking chat's folder only when it matches that checkout's branch. */
+	readonly associateRecordedPullRequest?: (chat: string, pullRequestUrl: string) => Promise<boolean>;
+
 	/**
 	 * Merges into the GitHub state of the folder a session, chat channel or
 	 * folder changeset owner URI resolves to.
