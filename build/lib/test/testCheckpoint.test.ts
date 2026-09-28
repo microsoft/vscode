@@ -235,10 +235,14 @@ suite('Product test checkpoints', () => {
 		]);
 	});
 
-	test('publisher uses the condition of its test step', () => {
+	test('publisher records and publishes the checkpoint on the condition of its test step', () => {
 		const publisher = load(readFileSync(path.join(repositoryRoot, 'build/azure-pipelines/common/publish-test-checkpoint.yml'), 'utf8')) as { steps: object[] };
 		const prefix = 'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}';
 		assert.deepStrictEqual(publisher.steps, [{
+			script: 'node "$(Build.SourcesDirectory)/build/azure-pipelines/common/testCheckpoint.ts" record ${{ parameters.testId }}',
+			condition: '${{ parameters.condition }}',
+			displayName: 'Record ${{ parameters.testId }} checkpoint',
+		}, {
 			task: '1ES.PublishPipelineArtifact@1',
 			inputs: {
 				targetPath: `$(${prefix}_FILE)`,

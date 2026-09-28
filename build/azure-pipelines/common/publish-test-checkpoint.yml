@@ -18,6 +18,10 @@ parameters:
     type: string
 
 steps:
+  - script: node "$(Build.SourcesDirectory)/build/azure-pipelines/common/testCheckpoint.ts" record ${{ parameters.testId }}
+    condition: ${{ parameters.condition }}
+    displayName: Record ${{ parameters.testId }} checkpoint
+
   - task: 1ES.PublishPipelineArtifact@1
     inputs:
       targetPath: $(TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_FILE)

@@ -5,26 +5,15 @@ parameters:
     type: step
 
 steps:
+  # Step parameters arrive normalized (e.g. `powershell:` as `task: PowerShell@2`),
+  # so the test step is copied as is and the checkpoint is recorded by its own step
   - ${{ each pair in parameters.testStep }}:
-      ${{ if eq(pair.key, 'script') }}:
-        script: |
-          set -e
-          ${{ pair.value }}
-          node "$(Build.SourcesDirectory)/build/azure-pipelines/common/testCheckpoint.ts" record ${{ parameters.testId }}
-      ${{ elseif eq(pair.key, 'powershell') }}:
-        powershell: |
-          . "$(Build.SourcesDirectory)/build/azure-pipelines/win32/exec.ps1"
-          $ErrorActionPreference = "Stop"
-          exec {
-            ${{ pair.value }}
-          }
-          exec { node "$(Build.SourcesDirectory)/build/azure-pipelines/common/testCheckpoint.ts" record ${{ parameters.testId }} }
-      ${{ elseif ne(pair.key, 'condition') }}:
+      ${{ if ne(pair.key, 'condition') }}:
         ${{ pair.key }}: ${{ pair.value }}
     condition: and(${{ coalesce(parameters.testStep.condition, 'succeeded()') }}, ne(variables['TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_HIT'], 'true'))
 
   - template: ./publish-test-checkpoint.yml@self
     parameters:
       testId: ${{ parameters.testId }}
-      # Same condition as the test step, so that the checkpoint is published whenever the test runs
+      # Same condition as the test step, so that the checkpoint is recorded and published whenever the test runs
       condition: and(${{ coalesce(parameters.testStep.condition, 'succeeded()') }}, ne(variables['TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_HIT'], 'true'))

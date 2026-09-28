@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { globSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { suite, test } from 'node:test';
@@ -15,9 +14,6 @@ import { testCheckpoint, testIds } from '../../azure-pipelines/common/testCheckp
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const pipelineRoot = path.join(repositoryRoot, 'build/azure-pipelines');
 const testFile = 'win32/steps/product-build-win32-test.yml';
-const powershell = process.platform === 'win32' ? 'powershell' : 'pwsh';
-const hasPowerShell = spawnSync(powershell, ['-NoLogo', '-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()']).status === 0;
-const skipPowerShell = !hasPowerShell && 'PowerShell is not available';
 
 interface ScriptStep {
 	[key: string]: unknown;
@@ -67,15 +63,6 @@ function allCalls(): CheckpointParameters[] {
 }
 
 const wrapper = readTemplate('common/run-test-with-checkpoint.yml');
-const pairs = wrapper.steps[0]['${{ each pair in parameters.testStep }}'] as Record<string, ScriptStep>;
-
-function wrapScript(step: ScriptStep, testId: string): string {
-	const script = pairs['${{ elseif eq(pair.key, \'powershell\') }}'].powershell;
-	assert.ok(script && step.powershell);
-	return script.replace('${{ pair.value }}', () => step.powershell!)
-		.replaceAll('${{ parameters.testId }}', testId)
-		.replaceAll('$(Build.SourcesDirectory)', repositoryRoot);
-}
 
 suite('Product test checkpoint templates', () => {
 	test('only the Windows test steps use checkpoints', () => {
@@ -103,18 +90,18 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
-	test('wrapper preserves the test step and gates it and its checkpoint on the same condition', () => {
+	test('wrapper copies the test step and records and publishes its checkpoint on the same condition', () => {
+		// Step parameters arrive normalized (e.g. `powershell:` as `task: PowerShell@2`), so the test step must be copied as is
 		const condition = 'and(${{ coalesce(parameters.testStep.condition, \'succeeded()\') }}, ne(variables[\'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}_HIT\'], \'true\'))';
-		assert.deepStrictEqual({
-			parameters: wrapper.parameters,
-			copiedMetadata: pairs['${{ elseif ne(pair.key, \'condition\') }}'],
-			condition: wrapper.steps[0].condition,
-			publisher: wrapper.steps[1],
-		}, {
+		assert.deepStrictEqual({ parameters: wrapper.parameters, steps: wrapper.steps }, {
 			parameters: [{ name: 'testId', type: 'string' }, { name: 'testStep', type: 'step' }],
-			copiedMetadata: { '${{ pair.key }}': '${{ pair.value }}' },
-			condition,
-			publisher: { template: './publish-test-checkpoint.yml@self', parameters: { testId: '${{ parameters.testId }}', condition } },
+			steps: [
+				{
+					'${{ each pair in parameters.testStep }}': { '${{ if ne(pair.key, \'condition\') }}': { '${{ pair.key }}': '${{ pair.value }}' } },
+					condition,
+				},
+				{ template: './publish-test-checkpoint.yml@self', parameters: { testId: '${{ parameters.testId }}', condition } },
+			],
 		});
 	});
 
@@ -207,51 +194,6 @@ suite('Product test checkpoint templates', () => {
 			{ displayName: 'Restore WSL kernel installer cache', condition: gated },
 			{ displayName: 'Prepare WSL Dev Container smoke tests', condition: gated },
 			{ displayName: 'Clean up WSL Dev Container smoke tests', condition: 'and(always(), ne(variables[\'WSL_SMOKE_ROOT\'], \'\'))' },
-		]);
-	});
-
-	test('all wrapped test scripts retain valid PowerShell syntax', { skip: skipPowerShell }, () => {
-		const scripts = allCalls().map(call => ({ id: call.testId, script: wrapScript(call.testStep, call.testId) }));
-		const result = spawnSync(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', `
-			$ErrorActionPreference = 'Stop'
-			foreach ($script in (ConvertFrom-Json $env:CHECKPOINT_SCRIPTS)) {
-				$tokens = $null
-				$parseErrors = $null
-				[System.Management.Automation.Language.Parser]::ParseInput($script.script, [ref]$tokens, [ref]$parseErrors) | Out-Null
-				if ($parseErrors.Count) { throw "$($script.id): $parseErrors" }
-			}
-		`], { env: { ...process.env, CHECKPOINT_SCRIPTS: JSON.stringify(scripts) }, encoding: 'utf8' });
-		assert.deepStrictEqual({ status: result.status, stderr: result.stderr }, { status: 0, stderr: '' });
-	});
-
-	test('wrapper records success only after a successful test, including nested working directories', { skip: skipPowerShell }, t => {
-		const directory = mkdtempSync(path.join(os.tmpdir(), 'checkpoint-wrapper-'));
-		t.after(() => rmSync(directory, { recursive: true, force: true }));
-		const workingDirectory = path.join(directory, 'nested working directory');
-		mkdirSync(workingDirectory);
-		const quotePowerShell = (value: string) => `'${value.replaceAll('\'', '\'\'')}'`;
-		const results = [17, 0].map(exitCode => {
-			const script = wrapScript({ powershell: `& ${quotePowerShell(process.execPath)} -e "process.exit(${exitCode})"` }, 'copilot-extension');
-			const result = spawnSync(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script], {
-				cwd: workingDirectory,
-				env: {
-					...process.env, AGENT_OS: 'Windows_NT', VSCODE_ARCH: 'x64', BUILD_BUILDID: '123',
-					SYSTEM_STAGENAME: 'Windows', SYSTEM_JOBNAME: 'Windows_x64_Test', SYSTEM_JOBATTEMPT: '1', SYSTEM_STAGEATTEMPT: '1',
-					BUILD_SOURCEVERSION: 'source', AGENT_TEMPDIRECTORY: directory,
-				},
-				encoding: 'utf8',
-			});
-			assert.ifError(result.error);
-			return {
-				status: result.status,
-				stderr: exitCode !== 0 ? result.stderr.includes('exit code 17') : result.stderr,
-				ready: result.stdout.includes('_READY]true'),
-				present: existsSync(path.join(directory, 'test-checkpoints/123/Windows/Windows_x64_Test/1/1/copilot-extension/test-checkpoint.json')),
-			};
-		});
-		assert.deepStrictEqual(results, [
-			{ status: 1, stderr: true, ready: false, present: false },
-			{ status: 0, stderr: '', ready: true, present: true },
 		]);
 	});
 });
