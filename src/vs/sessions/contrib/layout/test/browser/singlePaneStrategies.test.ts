@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -20,6 +21,7 @@ import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInp
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { SinglePaneDetailPanelCoordinator } from '../../browser/singlePane/singlePaneDetailPanelCoordinator.js';
 import { SinglePaneDraftSessionStrategy } from '../../browser/singlePane/singlePaneDraftSessionStrategy.js';
+import { SinglePaneDockedTabsCoordinator } from '../../browser/singlePane/singlePaneDockedTabsCoordinator.js';
 import { SinglePaneExistingSessionStrategy } from '../../browser/singlePane/singlePaneExistingSessionStrategy.js';
 import { ISinglePaneLayoutContext } from '../../browser/singlePane/singlePaneLayoutStrategy.js';
 import { isFileEditorInput } from '../../browser/singlePane/singlePaneSharedHelpers.js';
@@ -115,6 +117,23 @@ suite('SinglePane layout strategies', () => {
 	function createDraftStrategy(ctx: ISinglePaneLayoutContext, visibilityStore = createVisibilityStore()): SinglePaneDraftSessionStrategy {
 		return store.add(harness.instaService.createInstance(SinglePaneDraftSessionStrategy, ctx, createDetailPanel(), visibilityStore));
 	}
+
+	test('modal editor changes do not suppress revealing a file in the hidden main editor', async () => {
+		const ctx = setup();
+		activate(makeSession(URI.parse('session:test')));
+		store.add(harness.instaService.createInstance(SinglePaneDockedTabsCoordinator, ctx));
+		await timeout(0);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+
+		const suppression = spy(harness.layoutService, 'suppressEditorPartAutoVisibility');
+		store.add(toDisposable(() => suppression.restore()));
+		harness.onDidEditorsChange.fire({ groupId: 2, event: { kind: GroupModelChangeKind.EDITOR_CLOSE } });
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		assert.strictEqual(suppression.callCount, 0);
+	});
 
 	test('Existing Session toggles only the detail panel', () => {
 		const ctx = setup();
