@@ -186,6 +186,32 @@
 	color: var(--vscode-disabledForeground);
 }
 
+.session-worktree-cleanup-configure {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 20px;
+	height: 20px;
+	margin-left: auto;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	outline: none;
+}
+
+.session-worktree-cleanup-configure:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.session-worktree-cleanup-configure:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .session-worktree-cleanup-setting-description {
 	margin: calc(-1 * var(--vscode-spacing-size40)) 0 var(--vscode-spacing-size80) 28px;
 	color: var(--vscode-descriptionForeground);

@@ -30,6 +30,7 @@ import { localize } from '../../../../nls.js';
 import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { SessionWorktreeCleanupEditorFocusedContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -67,6 +68,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super(SessionWorktreeCleanupEditor.ID, group, telemetryService, themeService, storageService);
@@ -303,6 +305,22 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	}
 
 	/**
+	 * Appends a gear button that opens the Settings editor filtered to the given setting, for users
+	 * who prefer to configure it there directly. The label names the setting for the hover and for
+	 * screen readers.
+	 */
+	private renderConfigureInSettings(row: HTMLElement, settingId: string): void {
+		const configure = dom.append(row, dom.$('button.session-worktree-cleanup-configure', { type: 'button' }));
+		configure.appendChild(renderIcon(Codicon.settingsGear));
+		const label = localize('sessionWorktreeCleanup.configureInSettings', "Configure {0} in Settings", settingId);
+		configure.setAttribute('aria-label', label);
+		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), configure, label));
+		this.editorDisposables.add(dom.addDisposableListener(configure, dom.EventType.CLICK, () => {
+			void this.preferencesService.openSettings({ query: `@id:${settingId}` }).catch(error => this.notificationService.error(error));
+		}));
+	}
+
+	/**
 	 * Renders the toggle that controls whether the storage cleanup suggestion is surfaced. This is
 	 * the durable, keyboard reachable equivalent of the suggestion's own "Don't Show Again" button,
 	 * so users who only hear the suggestion announced can still turn it off.
@@ -313,6 +331,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const checkbox = this.editorDisposables.add(new Checkbox(label, false, defaultCheckboxStyles));
 		row.appendChild(checkbox.domNode);
 		dom.append(row, dom.$('span', undefined, label));
+		this.renderConfigureInSettings(row, AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING);
 		const descriptionId = 'session-worktree-cleanup-suggestion-description';
 		checkbox.domNode.setAttribute('aria-describedby', descriptionId);
 		dom.append(container, dom.$('.session-worktree-cleanup-setting-description', { id: descriptionId }, localize(
@@ -347,6 +366,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		days.step = '1';
 		days.setAttribute('aria-label', localize('sessionWorktreeCleanup.settingDays', "{0} days", label));
 		dom.append(row, dom.$('span', undefined, localize('sessionWorktreeCleanup.daysSuffix', "days")));
+		this.renderConfigureInSettings(row, setting);
 		const update = () => {
 			const value = this.configurationService.getValue<number>(setting) ?? 0;
 			checkbox.checked = value > 0;
