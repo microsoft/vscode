@@ -109,6 +109,7 @@ suite('ModelPickerTelemetry', () => {
 		const onDidChangeTab = store.add(new Emitter<string>());
 		let visible = false;
 		let listOptions: IActionListOptions | undefined;
+		let contextViewLayer: number | undefined;
 		let selectItem: (label: string) => void = () => assert.fail('Picker has not opened');
 		let selectTab: (label: string) => void = () => assert.fail('Tabbed picker has not opened');
 		let pinItem: (label: string) => void = () => assert.fail('Picker has not opened');
@@ -173,9 +174,10 @@ suite('ModelPickerTelemetry', () => {
 		}
 
 		const actionWidgetService = instantiationService.stub(IActionWidgetService, {
-			show: (_user, _supportsPreview, items, delegate, _anchor, _container, _actions, _accessibilityProvider, options) => {
+			show: (_user, _supportsPreview, items, delegate, _anchor, _container, _actions, _accessibilityProvider, options, layer) => {
 				setItems(items, item => delegate.onSelect(item));
 				listOptions = options;
+				contextViewLayer = layer;
 				hideFlatPicker = () => delegate.onHide();
 			},
 			hide: () => hideFlatPicker(),
@@ -191,6 +193,7 @@ suite('ModelPickerTelemetry', () => {
 			show: options => {
 				tabbedShows++;
 				visible = true;
+				contextViewLayer = options.contextViewLayer;
 				let activeTab = options.initialTab;
 				toggleAuto = () => {
 					const toggle = options.tabs.find(tab => tab.id === activeTab)?.toggle;
@@ -304,6 +307,7 @@ suite('ModelPickerTelemetry', () => {
 			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, pinnedModelIds,
 			get visible() { return visible; },
 			get tabbedShows() { return tabbedShows; },
+			get contextViewLayer() { return contextViewLayer; },
 			selectItem: (label: string) => selectItem(label),
 			selectTab: (label: string) => selectTab(label),
 			pinItem: (label: string) => pinItem(label),
@@ -328,6 +332,18 @@ suite('ModelPickerTelemetry', () => {
 				}).show(container, undefined, { entryPoint: 'configuration', inputMethod: 'mouse' });
 			},
 		};
+	}
+
+	for (const tabbed of [false, true]) {
+		test(`forwards the requested context view layer to the ${tabbed ? 'tabbed' : 'flat'} picker`, () => {
+			const result = createPicker(tabbed);
+			result.hide();
+			result.picker.setContextViewLayer(1);
+			result.picker.show(result.container);
+
+			assert.strictEqual(result.contextViewLayer, 1);
+			result.hide();
+		});
 	}
 
 	test('the input readout opens details directly and restores the invoking control', () => {

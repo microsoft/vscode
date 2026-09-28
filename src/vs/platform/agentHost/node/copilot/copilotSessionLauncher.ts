@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
-import { Sequencer } from '../../../../base/common/async.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -117,25 +115,6 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 
 const ContextTiers = ['default', 'long_context'] as const;
 const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
-
-function toSdkInstalledPlugins(plugins: readonly ICopilotPluginInfo[]): SdkInstalledPlugin[] {
-	const result = new Map<string, SdkInstalledPlugin>();
-	for (const plugin of plugins) {
-		if (plugin.pluginDir?.scheme !== Schemas.file) {
-			continue;
-		}
-		const path = plugin.pluginDir.fsPath;
-		result.set(path, {
-			name: basename(plugin.pluginDir),
-			marketplace: '',
-			installed_at: '1970-01-01T00:00:00.000Z',
-			enabled: true,
-			cache_path: path,
-			source: { source: 'local', path },
-		});
-	}
-	return [...result.values()];
-}
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
@@ -254,12 +233,8 @@ export interface ICopilotSessionLauncher {
 }
 
 type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'> & {
-	readonly rpc: Pick<CopilotClient['rpc'], 'account' | 'sandbox'> & {
-		readonly sessions: Pick<CopilotClient['rpc']['sessions'], 'setAdditionalPlugins'>;
-	};
+	readonly rpc: Pick<CopilotClient['rpc'], 'account' | 'sandbox'>;
 };
-
-type SdkInstalledPlugin = Parameters<CopilotClient['rpc']['sessions']['setAdditionalPlugins']>[0]['plugins'][number];
 
 interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
@@ -652,8 +627,6 @@ export async function applySandboxConfig(session: CopilotSessionWrapper['session
 }
 
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
-	private readonly _launchSequencer = new Sequencer();
-
 	/**
 	 * Memoized handle for the single shared BYOK loopback proxy, started lazily
 	 * on the first session launch that surfaces BYOK models (see
@@ -676,13 +649,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 	) { }
 
-	launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
-		return this._launchSequencer.queue(() => this._launch(plan, runtime));
-	}
-
-	private async _launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
+	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.configurationResource.toString()}, chat=${runtime.chatUri.toString()}`);
-		await plan.client.rpc.sessions.setAdditionalPlugins({ plugins: toSdkInstalledPlugins(plan.snapshot.plugins) });
 		let managedSettingsResolved = false;
 		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
 		const sandboxConfig = async (session: CopilotSessionWrapper['session']) => {
