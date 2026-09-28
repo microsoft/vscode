@@ -5,13 +5,37 @@
 
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import type { IAgentTelemetryContext } from '../../common/agent.js';
+import type { ModelCallTurnCorrelationOutcome, ModelCallTurnCorrelationRecordStatus } from './modelCallTurnCorrelation.js';
+
+export interface ICopilotModelCallCorrelationTelemetry {
+	readonly ahCorrelationOutcome: ModelCallTurnCorrelationOutcome | 'sessionNotFound' | 'activeTurnFallback' | 'noActiveTurn';
+	readonly ahCorrelationWaitMs?: number;
+	readonly ahActiveRootTurnIdAtResponse?: string;
+	readonly ahSessionDisposedDuringWait?: boolean;
+}
+
+type ModelCallTurnCorrelatedEvent = {
+	sdkSessionId: string;
+	modelCallId: string;
+	turnId: string;
+	mappingStatus: Exclude<ModelCallTurnCorrelationRecordStatus, 'duplicate'>;
+};
+
+type ModelCallTurnCorrelatedClassification = {
+	owner: 'amunger';
+	comment: 'Records exact model-call ownership independently of response telemetry arrival. Deduplicated by SDK session and call ID; the first owner is retained and a later conflicting owner is emitted with mappingStatus conflict so consumers can exclude it, not dropped here.';
+	sdkSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SDK session ID matching sdk_session_id on forwarded response events.' };
+	modelCallId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Call identifier from model completion; join only by exact ID, never by time. Message fallback IDs may have no corresponding SDK response.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Host-remapped turn owning the completed model call.' };
+	mappingStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether ownership was recorded, arrived after forwarding, or conflicts with an owner retained in the bounded cache.' };
+};
 
 /* __GDPR__FRAGMENT__
 	"CopilotSdkForwardedTelemetry": {
 		"created_at": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Timestamp when the SDK created the event." },
 		"model_call_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "SDK identifier for the model call." },
 		"exp_assignment_context": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Experiment assignment context from the Copilot CLI runtime." },
-		"secondary_assignment_context": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Secondary experiment assignment context assigned by CAPI during model calls." },
 		"session_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for the Copilot CLI session." },
 		"sdk_session_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for the SDK session that forwarded the event." },
 		"copilot_tracking_id": { "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "Pseudonymous Copilot user identifier supplied by the runtime." },
@@ -22,6 +46,7 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"os_arch": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Operating system architecture of the Copilot CLI runtime." },
 		"node_version": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Node.js version of the Copilot CLI runtime." },
 		"copilot_plan": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Copilot subscription plan reported by the runtime." },
+		"copilotSku": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The raw Copilot entitlement SKU for the authenticated GitHub account." },
 		"client_type": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Type of client that produced the event." },
 		"client_name": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Name of the client that produced the event." },
 		"dev_device_id": { "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "Pseudonymous device identifier supplied by the runtime." },
@@ -34,16 +59,26 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 	}
 */
 
+/* __GDPR__FRAGMENT__
+	"CopilotModelCallCorrelation": {
+		"ahCorrelationOutcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Host correlation decision: mappingAvailable, mappingWaited, waitExpired, responseAlreadyForwarded, sessionNotFound, activeTurnFallback, or noActiveTurn. A wait expiry does not establish that a completion was produced." },
+		"ahCorrelationWaitMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Actual elapsed correlation wait in milliseconds; absent when no wait occurred." },
+		"ahActiveRootTurnIdAtResponse": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Active root turn identifier captured at response callback entry before any wait, only when no authoritative turnId was resolved. A contextual root candidate, not an attribution repair; it may not own this model call." },
+		"ahSessionDisposedDuringWait": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Whether the session was disposed by the end of the correlation wait, encoded as 1 or 0. Present only when a wait occurred and no authoritative turnId was resolved." }
+	}
+*/
+
 /* __GDPR__
 	"copilotSdk/response.success": {
 		"owner": "amunger",
 		"comment": "Reports performance and usage details for successful Copilot CLI model responses forwarded by the Copilot SDK.",
-		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"${include}": [ "${CopilotSdkForwardedTelemetry}", "${CopilotModelCallCorrelation}" ],
 		"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reason the response completed." },
 		"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selected for the response." },
 		"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type used for the response." },
 		"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the request." },
-		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host turn identifier active when the model response was forwarded." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Host-remapped turn identifier for the model response, or the active host turn on the fallback path." },
+		"usageStatus": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Availability of finite nonnegative input, output, and cache-read counters on this event: known, partial, or notReported. Not a guarantee of delivery completeness." },
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the model call." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
@@ -80,13 +115,18 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 	"copilotSdk/response.error": {
 		"owner": "amunger",
 		"comment": "Reports performance and usage details for failed Copilot CLI model responses forwarded by the Copilot SDK.",
-		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"${include}": [ "${CopilotSdkForwardedTelemetry}", "${CopilotModelCallCorrelation}" ],
 		"type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Type of response failure." },
 		"reason": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Sanitized model response failure message on restricted telemetry rows." },
 		"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selected for the response." },
 		"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type used for the response." },
 		"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the request." },
-		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host turn identifier active when the model failure was forwarded." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Host-remapped turn identifier for the model failure, or the active host turn on the fallback path." },
+		"usageStatus": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Availability of finite nonnegative input, output, and cache-read counters on this event: known, partial, or notReported. Missing usage on an error is not zero usage." },
+		"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the model call." },
+		"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reported input tokens, when available on a failed response.", "isMeasurement": true },
+		"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reported cache-read tokens, when available on a failed response.", "isMeasurement": true },
+		"completionTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reported output tokens, when available on a failed response.", "isMeasurement": true },
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
 		"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host interaction or call classification." },
@@ -190,6 +230,107 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 	}
 */
 
+/* __GDPR__
+	"copilotSdk/hydrafusion_route": {
+		"owner": "amunger",
+		"comment": "Reports the route selected for a HydraFusion turn, including versioned routing policy metadata, telemetry-safe constituent model attribution, routing scores, and latency. It does not contain prompts, generated content, or model rationale.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
+		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
+		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
+		"fusion_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier correlating HydraFusion route, phase, and turn events." },
+		"synthetic_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Synthetic HydraFusion model selected for the turn." },
+		"policy": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion routing policy selected for the turn." },
+		"route_source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Source that produced the HydraFusion route." },
+		"plan_version": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Version of the route plan supplied to HydraFusion." },
+		"policy_version": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Version of the HydraFusion routing policy." },
+		"model_universe_version": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Version of the constituent model universe used for routing." },
+		"pattern": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion execution pattern selected for the turn." },
+		"rule_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier of the routing rule that selected the route; emitted only in restricted telemetry." },
+		"primary_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Primary constituent model selected by the route; redacted in standard telemetry and verbatim only in restricted telemetry." },
+		"secondary_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Secondary constituent model selected by the route; redacted in standard telemetry and verbatim only in restricted telemetry." },
+		"fallback_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Fallback constituent model selected by the route; redacted in standard telemetry and verbatim only in restricted telemetry." },
+		"follow_up_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Constituent model recommended for follow-up turns; redacted in standard telemetry and verbatim only in restricted telemetry." },
+		"rule_index": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Ordinal index of the routing rule that selected the route.", "isMeasurement": true },
+		"routing_latency_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Wall-clock duration of HydraFusion routing in milliseconds.", "isMeasurement": true },
+		"reasoning_score": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion routing score for reasoning demand.", "isMeasurement": true },
+		"code_gen_score": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion routing score for code-generation demand.", "isMeasurement": true },
+		"debugging_score": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion routing score for debugging demand.", "isMeasurement": true },
+		"tool_use_score": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion routing score for tool-use demand.", "isMeasurement": true }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/hydrafusion_route_failed": {
+		"owner": "amunger",
+		"comment": "Reports a HydraFusion routing failure and its concrete fallback attribution. Free-form error details and the route attempt identifier are restricted telemetry only.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
+		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
+		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
+		"synthetic_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Synthetic HydraFusion model whose route failed." },
+		"policy": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion routing policy active when routing failed." },
+		"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded failure category reported by the HydraFusion router." },
+		"fallback_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Concrete fallback model selected after the route failure; redacted in standard telemetry and verbatim only in restricted telemetry." },
+		"attempt_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier of the failed routing attempt; emitted only in restricted telemetry." },
+		"error_message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Free-form HydraFusion routing error detail; emitted only in restricted telemetry." }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/hydrafusion_phase": {
+		"owner": "amunger",
+		"comment": "Reports the role, outcome, duration, and aggregate usage of one HydraFusion constituent phase. It does not contain phase prompts, generated content, critiques, or rationale.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
+		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
+		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
+		"fusion_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier correlating HydraFusion route, phase, and turn events." },
+		"phase_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier of the constituent phase within a HydraFusion turn." },
+		"phase_kind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Kind of constituent phase executed by HydraFusion." },
+		"role": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Logical role performed by the constituent phase." },
+		"conversation_scope": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Conversation projection scope used by the constituent phase." },
+		"status": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Completion status of the constituent phase." },
+		"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded failure or degradation category for the constituent phase." },
+		"projection_mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Projection mode used to construct the constituent phase context." },
+		"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Constituent model used by the phase; redacted in standard telemetry and verbatim only in restricted telemetry." },
+		"staged_terminal": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the phase recorded a staged terminal result, encoded as a string boolean." },
+		"duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Wall-clock duration of the constituent phase in milliseconds.", "isMeasurement": true },
+		"request_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of model requests issued by the constituent phase.", "isMeasurement": true },
+		"input_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input tokens consumed by the constituent phase.", "isMeasurement": true },
+		"output_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of output tokens produced by the constituent phase.", "isMeasurement": true },
+		"cached_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input tokens read from cache by the constituent phase.", "isMeasurement": true },
+		"cache_write_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input tokens written to cache by the constituent phase.", "isMeasurement": true },
+		"total_nano_aiu": { "classification": "SystemMetaData", "purpose": "BusinessInsight", "comment": "Aggregate model cost for the constituent phase in nano AI units.", "isMeasurement": true }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/hydrafusion_turn": {
+		"owner": "amunger",
+		"comment": "Reports the aggregate outcome, committed constituent attribution, duration, and usage of a completed HydraFusion turn. It does not contain prompts or generated content.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
+		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
+		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
+		"fusion_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier correlating HydraFusion route, phase, and turn events." },
+		"synthetic_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Synthetic HydraFusion model used for the turn." },
+		"pattern": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion execution pattern used for the turn." },
+		"outcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Aggregate completion outcome of the HydraFusion turn." },
+		"degraded_reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded reason that the HydraFusion turn completed in a degraded mode." },
+		"final_source_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Constituent model whose output was committed; redacted in standard telemetry and verbatim only in restricted telemetry." },
+		"follow_up_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Constituent model recommended for follow-up turns; redacted in standard telemetry and verbatim only in restricted telemetry." },
+		"phase_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of constituent phases executed by the HydraFusion turn.", "isMeasurement": true },
+		"request_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of model requests issued by the HydraFusion turn.", "isMeasurement": true },
+		"input_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Aggregate number of input tokens consumed by the HydraFusion turn.", "isMeasurement": true },
+		"output_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Aggregate number of output tokens produced by the HydraFusion turn.", "isMeasurement": true },
+		"cached_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Aggregate number of input tokens read from cache by the HydraFusion turn.", "isMeasurement": true },
+		"cache_write_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Aggregate number of input tokens written to cache by the HydraFusion turn.", "isMeasurement": true },
+		"total_nano_aiu": { "classification": "SystemMetaData", "purpose": "BusinessInsight", "comment": "Aggregate model cost for the HydraFusion turn in nano AI units.", "isMeasurement": true },
+		"duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Aggregate wall-clock duration of the HydraFusion turn in milliseconds.", "isMeasurement": true }
+	}
+*/
+
 /**
  * Re-emits GitHub-shaped telemetry events forwarded by the Copilot CLI runtime
  * (via the SDK's `onGitHubTelemetry` connection-global callback) through VS
@@ -204,11 +345,16 @@ export class CopilotGitHubTelemetryForwarder {
 
 	constructor(
 		private readonly _isRestrictedTelemetryEnabled: () => boolean,
-		private readonly _getVSCodeAssignmentContext: () => string | undefined,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
-	forward(notification: GitHubTelemetryNotification, agentHostTurnId?: string): void {
+	recordModelCallTurnCorrelation(sdkSessionId: string, modelCallId: string, turnId: string, mappingStatus: Exclude<ModelCallTurnCorrelationRecordStatus, 'duplicate'>): void {
+		this._telemetryService.publicLog2<ModelCallTurnCorrelatedEvent, ModelCallTurnCorrelatedClassification>('agentHost.modelCallTurnCorrelated', {
+			sdkSessionId, modelCallId, turnId, mappingStatus,
+		});
+	}
+
+	forward(notification: GitHubTelemetryNotification, agentHostTurnId?: string, correlation?: ICopilotModelCallCorrelationTelemetry, telemetryContext?: IAgentTelemetryContext): void {
 		if (notification.restricted && !this._isRestrictedTelemetryEnabled()) {
 			return;
 		}
@@ -226,21 +372,36 @@ export class CopilotGitHubTelemetryForwarder {
 			copilot_tracking_id: event.copilot_tracking_id,
 			kind: event.kind,
 			restricted: notification.restricted,
+			...telemetryContext,
 		};
+		delete data.secondary_assignment_context;
+		delete data.ahCorrelationOutcome;
+		delete data.ahCorrelationWaitMs;
+		delete data.ahActiveRootTurnIdAtResponse;
+		delete data.ahSessionDisposedDuringWait;
 		if (event.kind === 'response.success' || event.kind === 'response.error') {
+			if (correlation) {
+				data.ahCorrelationOutcome = correlation.ahCorrelationOutcome;
+				if (correlation.ahCorrelationWaitMs !== undefined) {
+					data.ahCorrelationWaitMs = correlation.ahCorrelationWaitMs;
+				}
+				if (!agentHostTurnId) {
+					if (correlation.ahActiveRootTurnIdAtResponse !== undefined) {
+						data.ahActiveRootTurnIdAtResponse = correlation.ahActiveRootTurnIdAtResponse;
+					}
+					if (correlation.ahCorrelationWaitMs !== undefined && correlation.ahSessionDisposedDuringWait !== undefined) {
+						data.ahSessionDisposedDuringWait = correlation.ahSessionDisposedDuringWait;
+					}
+				}
+			}
+			const knownCounters = [data.promptTokenCount, data.completionTokens, data.promptCacheTokenCount]
+				.filter(value => typeof value === 'number' && Number.isFinite(value) && value >= 0).length;
+			data.usageStatus = knownCounters === 3 ? 'known' : knownCounters > 0 ? 'partial' : 'notReported';
 			if (agentHostTurnId) {
 				data.turnId = agentHostTurnId;
 			} else {
 				delete data.turnId;
 			}
-		}
-
-		// VS Code's TAS assignment context, scoped to forwarded Copilot CLI
-		// events only — deliberately not a telemetry-service-wide experiment
-		// property, so Claude/Codex/host events stay unstamped.
-		const assignmentContext = this._getVSCodeAssignmentContext();
-		if (assignmentContext) {
-			data['abexp.assignmentcontext'] = assignmentContext;
 		}
 
 		if (event.features) {

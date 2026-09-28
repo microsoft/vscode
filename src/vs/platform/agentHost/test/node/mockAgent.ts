@@ -11,12 +11,12 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
+import { AgentSession, type AgentChatMigrationResult, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCapabilities, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentPendingMessageSender, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, createErrorResponsePart, isAhpChatChannel, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -60,6 +60,11 @@ export class MockAgent implements IAgent {
 	readonly onDidChangeChatData = Event.None;
 	readonly onDidSpawnChat = Event.None;
 	getTurnDiagnosticSnapshot?: IAgent['getTurnDiagnosticSnapshot'];
+	captureTurnTelemetryContext?: IAgent['captureTurnTelemetryContext'];
+
+	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
+		this.modelCallTurnCorrelationCalls.push({ chat, modelCallId, turnId });
+	}
 	private readonly _onDidSendMessage = new Emitter<IMockSendMessageCall>();
 	readonly onDidSendMessage = this._onDidSendMessage.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
@@ -74,17 +79,18 @@ export class MockAgent implements IAgent {
 
 
 	readonly sendMessageCalls: IMockSendMessageCall[] = [];
-	readonly setPendingMessagesCalls: { chat: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
+	readonly setPendingMessagesCalls: { chat: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[]; steeringSender: IAgentPendingMessageSender | undefined }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly releaseSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: ModelSelection; chat?: URI }[] = [];
 	readonly changeAgentCalls: { session: URI; agent: AgentSelection | undefined; chat?: URI }[] = [];
-	readonly authenticateCalls: { resource: string; token: string }[] = [];
+	readonly authenticateCalls: { resource: string; token: string; expiresIn?: number }[] = [];
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
 	readonly removeActiveClientCalls: { chat: URI; clientId: string }[] = [];
+	readonly modelCallTurnCorrelationCalls: { chat: URI; modelCallId: string; turnId: string }[] = [];
 	/**
 	 * Every host-supplied {@link IAgentChatContext} this agent was handed,
 	 * keyed by the boundary it arrived at. Lets shared tests assert that Agent
@@ -123,7 +129,11 @@ export class MockAgent implements IAgent {
 	/** Optional overrides applied to session metadata from listSessions. */
 	sessionMetadataOverrides: Partial<Omit<IAgentSessionMetadata, 'session'>> = {};
 
-	constructor(readonly id: AgentProvider = 'mock') {
+	constructor(
+		readonly id: AgentProvider = 'mock',
+		private readonly _capabilities: IAgentCapabilities = { multipleChats: { fork: true } },
+		readonly agentHostCapabilities: IAgent['agentHostCapabilities'] = { workspaceConversion: false },
+	) {
 		queueMicrotask(() => {
 			void this.listExternalChats().then(chats => {
 				if (chats) {
@@ -138,7 +148,11 @@ export class MockAgent implements IAgent {
 	}
 
 	getDescriptor(): IAgentDescriptor {
-		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent`, capabilities: { multipleChats: { fork: true } } };
+		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent`, capabilities: this._capabilities };
+	}
+
+	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
+		throw new Error(`Agent '${this.id}' does not support changing the working directory of an existing session.`);
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
@@ -160,7 +174,7 @@ export class MockAgent implements IAgent {
 		this._discoveredChatsEmitter.fire(chats);
 	}
 
-	async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
+	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
 		return [];
 	}
 
@@ -237,8 +251,8 @@ export class MockAgent implements IAgent {
 		}
 	}
 
-	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void {
-		this.setPendingMessagesCalls.push({ chat, steeringMessage, queuedMessages });
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): void {
+		this.setPendingMessagesCalls.push({ chat, steeringMessage, queuedMessages, steeringSender });
 	}
 
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
@@ -388,8 +402,8 @@ export class MockAgent implements IAgent {
 
 	async materializeChat(_chat: URI, _context: URI | IAgentChatContext, _providerData: string | undefined): Promise<IAgentCreateChatResult | void> { }
 
-	async authenticate(resource: string, token: string): Promise<boolean> {
-		this.authenticateCalls.push({ resource, token });
+	async authenticate(resource: string, token: string, expiresIn?: number): Promise<boolean> {
+		this.authenticateCalls.push({ resource, token, ...(expiresIn === undefined ? {} : { expiresIn }) });
 		return true;
 	}
 
@@ -489,6 +503,7 @@ export class ScriptedMockAgent implements IAgent {
 	private readonly _discoveredChatsEmitter = new Emitter<readonly IAgentDiscoveredChat[]>();
 	readonly onDidDiscoverChats = this._discoveredChatsEmitter.event;
 	readonly id: AgentProvider = 'mock';
+	readonly agentHostCapabilities = { workspaceConversion: false } as const;
 
 	private readonly _onDidChatProgress = new Emitter<AgentSignal>();
 	readonly onDidChatProgress = this._onDidChatProgress.event;
@@ -499,6 +514,7 @@ export class ScriptedMockAgent implements IAgent {
 	readonly models = this._models;
 
 	private readonly _sessions = new Map<string, URI>();
+	private readonly _supportsMultipleChats = process.env['VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS'] === '1';
 
 	/**
 	 * Message history for the pre-existing session: a single user→assistant
@@ -546,7 +562,16 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	getDescriptor(): IAgentDescriptor {
-		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent' };
+		return {
+			provider: 'mock',
+			displayName: 'Mock Agent',
+			description: 'Scripted test agent',
+			capabilities: this._supportsMultipleChats ? { multipleChats: { fork: true } } : undefined,
+		};
+	}
+
+	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
+		throw new Error('The scripted mock agent does not support changing the working directory of an existing session.');
 	}
 
 	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {
@@ -567,7 +592,7 @@ export class ScriptedMockAgent implements IAgent {
 		this._discoveredChatsEmitter.fire(chats);
 	}
 
-	async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
+	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
 		return [];
 	}
 
@@ -676,6 +701,20 @@ export class ScriptedMockAgent implements IAgent {
 					..._toolStart(chat, sessionStr, tid, 'tc-1', 'echo_tool', 'Echo Tool', 'Running echo tool...'),
 					_toolComplete(chat, sessionStr, tid, 'tc-1', { pastTenseMessage: 'Ran echo tool', content: [{ type: ToolResultContentType.Text, text: 'echoed' }], success: true }),
 					_markdown(chat, sessionStr, tid, 'Tool done.'),
+					_idle(chat, sessionStr, tid),
+				]);
+				break;
+
+			case 'question-tool-error':
+				this._fireSequence([
+					..._toolStart(chat, sessionStr, tid, 'tc-question-error', 'ask_user', 'Ask question', 'Waiting for answer...'),
+					_toolComplete(chat, sessionStr, tid, 'tc-question-error', {
+						success: false,
+						pastTenseMessage: 'Failed to ask the question',
+						error: { message: 'Could not read question input' },
+						content: [],
+					}),
+					_markdown(chat, sessionStr, tid, 'The failed question has no input/output details.'),
 					_idle(chat, sessionStr, tid),
 				]);
 				break;
@@ -1088,11 +1127,16 @@ export class ScriptedMockAgent implements IAgent {
 			if (!this._sessions.has(AgentSession.id(session))) {
 				return Promise.resolve(this._createSessionRecord(session));
 			}
+			if (this._supportsMultipleChats) {
+				return Promise.resolve({ project: mockProject(this.id) });
+			}
 			throw new Error('Scripted mock agent does not support multiple chats');
 		},
 		disposeChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
 			const { session } = this._resolveChatTarget(chat, context);
-			this._sessions.delete(AgentSession.id(session));
+			if (isDefaultChatUri(chat)) {
+				this._sessions.delete(AgentSession.id(session));
+			}
 			return Promise.resolve();
 		},
 		releaseChat: async (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
@@ -1219,7 +1263,7 @@ function _idle(session: URI, sessionStr: string, turnId: string): IAgentActionSi
 
 /** Creates a {@link ActionType.ChatError} signal. */
 function _error(session: URI, sessionStr: string, turnId: string, errorType: string, message: string, stack?: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.ChatError, turnId, duration: 1, error: { errorType, message, stack } });
+	return _action(session, { type: ActionType.ChatError, turnId, duration: 1, part: createErrorResponsePart({ errorType, message, stack }) });
 }
 
 /** Creates a {@link ActionType.SessionTitleChanged} signal. */

@@ -19,6 +19,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly timestamp = 0;
 	readonly timing: IChatSessionTiming = { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
 	readonly initialLocation = ChatAgentLocation.Chat;
+	readonly sessionTypeSelectionReason = undefined;
 	readonly title = '';
 	readonly hasCustomTitle = false;
 	customTitle: string | undefined;
@@ -29,6 +30,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly hasActiveRequest = observableValue('hasActiveRequest', false);
 	readonly requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
 	readonly isReadOnly = observableValue(this, false);
+	readonly isInputBlocked = observableValue(this, false);
 	readonly inputPlaceholder = undefined;
 	readonly editingSession = undefined;
 	readonly checkpoint = undefined;

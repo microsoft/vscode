@@ -11,8 +11,8 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { createCodeEditorServices } from '../../../../editor/test/browser/testCodeEditor.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -223,7 +223,7 @@ suite('MainThreadEditorTabs', () => {
 			false,
 			new class extends mock<ITextModelService>() { }(),
 			new class extends mock<ITextResourceConfigurationService>() { }(),
-			new class extends mock<IInstantiationService>() { }(),
+			createCodeEditorServices(disposables),
 			sourceResolverService,
 			textFileService,
 		));

@@ -24,10 +24,12 @@ import { WorkspaceFolderManagementContribution } from '../../browser/workspaceFo
 const stubChat = {
 	resource: URI.parse('test:///chat'),
 	createdAt: new Date(),
+	workspace: constObservable(undefined),
 	title: constObservable('Chat'),
 	updatedAt: constObservable(new Date()),
 	status: constObservable(0),
 	changes: constObservable([]),
+	changesets: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
 	modelSource: constObservable(undefined),
@@ -61,18 +63,21 @@ function worktreeFolder(repoPath: string, worktreePath: string): ISessionFolder 
 	return { root, workingDirectory, name: worktreePath, description: undefined, gitRepository };
 }
 
-function makeWorkspace(folder: ISessionFolder, requiresWorkspaceTrust: boolean): ISessionWorkspace {
+function makeWorkspace(folderOrFolders: ISessionFolder | readonly ISessionFolder[], requiresWorkspaceTrust: boolean): ISessionWorkspace {
+	const folders = Array.isArray(folderOrFolders) ? folderOrFolders : [folderOrFolders];
+	const folder = folders[0];
 	return {
 		uri: folder.root,
 		label: folder.name,
 		icon: Codicon.folder,
-		folders: [folder],
+		folders,
 		requiresWorkspaceTrust,
 		isVirtualWorkspace: false,
 	};
 }
 
-function makeActiveSession(sessionId: string, workspace: ISessionWorkspace | undefined): IActiveSession {
+function makeActiveSession(sessionId: string, workspace: ISessionWorkspace | undefined, chatWorkspace = workspace): IActiveSession {
+	const activeChat: IChat = { ...stubChat, workspace: constObservable(chatWorkspace) };
 	return {
 		resource: URI.parse(`test:///${sessionId}`),
 		sessionId,
@@ -84,8 +89,6 @@ function makeActiveSession(sessionId: string, workspace: ISessionWorkspace | und
 		title: constObservable('Test'),
 		updatedAt: constObservable(new Date()),
 		status: constObservable(0),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
@@ -94,9 +97,9 @@ function makeActiveSession(sessionId: string, workspace: ISessionWorkspace | und
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable([]),
-		mainChat: constObservable(stubChat),
+		mainChat: constObservable(activeChat),
 		capabilities: constObservable({ supportsMultipleChats: false }),
-		activeChat: constObservable(stubChat),
+		activeChat: constObservable(activeChat),
 		isCreated: constObservable(true),
 		sticky: constObservable(false),
 		openChats: constObservable([]),
@@ -211,6 +214,107 @@ suite('WorkspaceFolderManagementContribution', () => {
 		});
 	});
 
+	test('mounts every folder from a multi-folder session workspace', async () => {
+		const { activeSession, workspaceEditing } = createContribution();
+		const primary = localFolder('/repo-primary');
+		const secondary = localFolder('/repo-secondary');
+
+		activeSession.set(makeActiveSession('a', makeWorkspace([primary, secondary], false)), undefined);
+		await settle();
+
+		assert.deepStrictEqual(
+			workspaceEditing.addFoldersCalls.map(call => call.map(entry => entry.uri.toString())),
+			[[primary.workingDirectory.toString(), secondary.workingDirectory.toString()]],
+		);
+	});
+
+	test('mounts only the active chat workspace subset', async () => {
+		const { activeSession, workspaceEditing } = createContribution();
+		const primary = localFolder('/repo-primary');
+		const secondary = localFolder('/repo-secondary');
+
+		activeSession.set(makeActiveSession(
+			'a',
+			makeWorkspace([primary, secondary], false),
+			makeWorkspace(secondary, false),
+		), undefined);
+		await settle();
+
+		assert.deepStrictEqual(
+			workspaceEditing.addFoldersCalls.map(call => call.map(entry => entry.uri.toString())),
+			[[secondary.workingDirectory.toString()]],
+		);
+	});
+
+	test('replaces workspace folders when the active chat changes', async () => {
+		const { activeSession, workspaceEditing } = createContribution();
+		const primary = localFolder('/repo-primary');
+		const secondary = localFolder('/repo-secondary');
+		const firstChat: IChat = { ...stubChat, resource: URI.parse('test:///chat-first'), workspace: constObservable(makeWorkspace(primary, false)) };
+		const secondChat: IChat = { ...stubChat, resource: URI.parse('test:///chat-second'), workspace: constObservable(makeWorkspace(secondary, false)) };
+		const activeChat = observableValue<IChat>('activeChat', firstChat);
+
+		activeSession.set({ ...makeActiveSession('a', makeWorkspace([primary, secondary], false)), activeChat }, undefined);
+		await settle();
+		activeChat.set(secondChat, undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			added: workspaceEditing.addFoldersCalls.map(call => call.map(entry => entry.uri.toString())),
+			updated: workspaceEditing.updateFoldersCalls.map(call => call.map(entry => entry.uri.toString())),
+		}, {
+			added: [[primary.workingDirectory.toString()]],
+			updated: [[secondary.workingDirectory.toString()]],
+		});
+	});
+
+	test('trusts and mounts an added worktree when the active chat changes', async () => {
+		const { activeSession, workspaceEditing, workspaceTrust } = createContribution();
+		const primary = localFolder('/repo-primary');
+		const secondary = worktreeFolder('/repo-secondary', '/repo-secondary.worktrees/feature');
+		const firstChat: IChat = { ...stubChat, resource: URI.parse('test:///chat-first'), workspace: constObservable(makeWorkspace(primary, true)) };
+		const secondChat: IChat = { ...stubChat, resource: URI.parse('test:///chat-second'), workspace: constObservable(makeWorkspace(secondary, true)) };
+		const activeChat = observableValue<IChat>('activeChat', firstChat);
+		workspaceTrust.trust(primary.workingDirectory);
+		workspaceTrust.trust(secondary.root);
+
+		activeSession.set({ ...makeActiveSession('a', makeWorkspace([primary, secondary], true)), activeChat }, undefined);
+		await settle();
+		activeChat.set(secondChat, undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			granted: workspaceTrust.setUrisTrustCalls,
+			added: workspaceEditing.addFoldersCalls.map(call => call.map(entry => entry.uri.toString())),
+			updated: workspaceEditing.updateFoldersCalls.map(call => call.map(entry => entry.uri.toString())),
+		}, {
+			granted: [[secondary.workingDirectory.toString()]],
+			added: [[primary.workingDirectory.toString()]],
+			updated: [[secondary.workingDirectory.toString()]],
+		});
+	});
+
+	test('replaces the complete workspace folder set when switching sessions', async () => {
+		const { activeSession, workspaceEditing } = createContribution();
+		const firstPrimary = localFolder('/repo-a');
+		const firstSecondary = localFolder('/repo-b');
+		const secondPrimary = localFolder('/repo-c');
+		const secondSecondary = localFolder('/repo-d');
+
+		activeSession.set(makeActiveSession('a', makeWorkspace([firstPrimary, firstSecondary], false)), undefined);
+		await settle();
+		activeSession.set(makeActiveSession('b', makeWorkspace([secondPrimary, secondSecondary], false)), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			added: workspaceEditing.addFoldersCalls.map(call => call.map(entry => entry.uri.toString())),
+			updated: workspaceEditing.updateFoldersCalls.map(call => call.map(entry => entry.uri.toString())),
+		}, {
+			added: [[firstPrimary.workingDirectory.toString(), firstSecondary.workingDirectory.toString()]],
+			updated: [[secondPrimary.workingDirectory.toString(), secondSecondary.workingDirectory.toString()]],
+		});
+	});
+
 	test('mounts an already-trusted folder without granting trust', async () => {
 		const { activeSession, workspaceEditing, workspaceTrust } = createContribution();
 		const folder = localFolder('/repo-trusted');
@@ -224,6 +328,26 @@ suite('WorkspaceFolderManagementContribution', () => {
 			granted: workspaceTrust.setUrisTrustCalls,
 		}, {
 			added: [[folder.workingDirectory.toString()]],
+			granted: [],
+		});
+	});
+
+	test('does not partially mount a multi-folder session when one folder is untrusted', async () => {
+		const { activeSession, workspaceEditing, workspaceTrust } = createContribution();
+		const primary = localFolder('/repo-trusted');
+		const secondary = localFolder('/repo-untrusted');
+		workspaceTrust.trust(primary.workingDirectory);
+
+		activeSession.set(makeActiveSession('a', makeWorkspace([primary, secondary], true)), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			added: workspaceEditing.addFoldersCalls.length,
+			updated: workspaceEditing.updateFoldersCalls.length,
+			granted: workspaceTrust.setUrisTrustCalls,
+		}, {
+			added: 0,
+			updated: 0,
 			granted: [],
 		});
 	});
@@ -267,6 +391,47 @@ suite('WorkspaceFolderManagementContribution', () => {
 	test('does not auto-trust or mount a worktree cut from an untrusted repository', async () => {
 		const { activeSession, workspaceEditing, workspaceTrust } = createContribution();
 		const folder = worktreeFolder('/repo-untrusted', '/repo-untrusted.worktrees/feature');
+
+		activeSession.set(makeActiveSession('a', makeWorkspace(folder, true)), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			granted: workspaceTrust.setUrisTrustCalls,
+			added: workspaceEditing.addFoldersCalls.length,
+		}, {
+			granted: [],
+			added: 0,
+		});
+	});
+
+	test('does not auto-trust a workTree folder outside the repository .worktrees sibling', async () => {
+		const { activeSession, workspaceEditing, workspaceTrust } = createContribution();
+		// `workTreeUri` is set but the working directory is not under `<repo>.worktrees`,
+		// so VS Code did not create it; a trusted base repo must not grant it trust
+		// (structural provenance guard).
+		const folder = worktreeFolder('/repo', '/elsewhere/checkout');
+		workspaceTrust.trust(folder.root);
+
+		activeSession.set(makeActiveSession('a', makeWorkspace(folder, true)), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			granted: workspaceTrust.setUrisTrustCalls,
+			added: workspaceEditing.addFoldersCalls.length,
+		}, {
+			granted: [],
+			added: 0,
+		});
+	});
+
+	test('does not auto-trust the shared .worktrees container itself', async () => {
+		const { activeSession, workspaceEditing, workspaceTrust } = createContribution();
+		// A malformed session whose working directory is exactly `<repo>.worktrees`
+		// must not be trusted: workspace trust applies to all descendants, so
+		// trusting the container would silently trust every worktree under it. Only
+		// a strict descendant (`<repo>.worktrees/<name>`) may inherit trust.
+		const folder = worktreeFolder('/repo', '/repo.worktrees');
+		workspaceTrust.trust(folder.root);
 
 		activeSession.set(makeActiveSession('a', makeWorkspace(folder, true)), undefined);
 		await settle();

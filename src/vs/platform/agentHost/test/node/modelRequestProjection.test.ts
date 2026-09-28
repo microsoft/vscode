@@ -105,6 +105,22 @@ suite('modelRequestProjection', () => {
 		assert.ok(modelRequestsMatch(projectModelRequest(recorded), projectModelRequest(live)));
 	});
 
+	test('a lone text block matches replayed text after reasoning is removed', () => {
+		const recorded = projectModelRequest(request([{
+			role: 'assistant',
+			content: [{ type: 'thinking' }, { type: 'text', text: 'DONE' }],
+		}]));
+		const live = (content: IReadableAnthropicRequest['messages'][number]['content']) =>
+			projectModelRequest(request([{ role: 'assistant', content }]));
+
+		assert.deepStrictEqual({
+			sameText: modelRequestsMatch(recorded, live('DONE')),
+			differentText: modelRequestsMatch(recorded, live('NOT_DONE')),
+			extraTextBlock: modelRequestsMatch(recorded, live([{ type: 'text', text: 'DONE' }, { type: 'text', text: '' }])),
+			extraTool: modelRequestsMatch(recorded, live([{ type: 'text', text: 'DONE' }, { type: 'tool_use', name: 'view', input: {} }])),
+		}, { sameText: true, differentText: false, extraTextBlock: false, extraTool: false });
+	});
+
 	test('a path matches however it is spelled', () => {
 		// Windows CI recorded all of these against captures made on macOS. Each
 		// pair is the same location addressed differently: an unsubstituted
@@ -141,6 +157,33 @@ suite('modelRequestProjection', () => {
 			prose.map(text => (projectModelRequest(request([{ role: 'user', content: text }])).messages[0].content)),
 			prose,
 		);
+	});
+
+	test('a runtime-authored change-notice preamble does not desync a capture on a CLI bump', () => {
+		// A newer CLI began prepending a `<tools_changed_notice>` block to the
+		// user turn when a plan-mode turn drops `exit_plan_mode`. The host
+		// composed the same question, so eliding the runtime's preamble on the
+		// live side matches it against a capture recorded before the change.
+		const recorded = request([{ role: 'user', content: 'What did the plan say to print? Reply with exactly "hello world".' }]);
+		const live = request([{
+			role: 'user', content: [
+				'<tools_changed_notice>',
+				'Tools no longer available: exit_plan_mode',
+				'</tools_changed_notice>',
+				'',
+				'What did the plan say to print? Reply with exactly "hello world".',
+			].join('\n'),
+		}]);
+		assert.ok(modelRequestsMatch(projectModelRequest(recorded), projectModelRequest(live)));
+	});
+
+	test('the question wrapped around a change-notice preamble still has to match', () => {
+		// Eliding the runtime preamble must not elide the user's own question.
+		const notice = '<mode_changed_notice>\nSwitched to default mode.\n</mode_changed_notice>\n\n';
+		assert.strictEqual(modelRequestsMatch(
+			projectModelRequest(request([{ role: 'user', content: notice + 'print the plan' }])),
+			projectModelRequest(request([{ role: 'user', content: notice + 'delete the plan' }])),
+		), false);
 	});
 
 	test('a tool input matches regardless of key order', () => {

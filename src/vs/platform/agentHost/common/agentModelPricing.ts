@@ -46,6 +46,7 @@ export interface IAgentModelPricingMeta {
 		/** ISO 8601 end date; absent for open-ended promotions. */
 		readonly endsAt?: string;
 		readonly message: string;
+		readonly showBanner?: boolean;
 	};
 }
 
@@ -61,6 +62,19 @@ const NUMBER_KEYS = [
 	'longContextOutputCost',
 	'discountPercent',
 ] as const satisfies readonly (keyof IAgentModelPricingMeta)[];
+
+/**
+ * Flat-dotted `_meta` key the Copilot agent host publishes a model's capability category under.
+ *
+ * A host that derives its model list from the Copilot SDK namespaces its metadata by producer
+ * rather than using the flat {@link IAgentModelPricingMeta} key names, so the category arrives
+ * under this key instead of `category`. Read as a fallback so sandbox models still show a
+ * capability category in the picker hover; the flat key wins when both are present.
+ *
+ * Only the category is mapped: such a host surfaces no billing information at all, so there is no
+ * multiplier or cost to recover.
+ */
+const COPILOT_MODEL_PICKER_CATEGORY_META_KEY = 'copilot.modelPickerCategory';
 
 /**
  * Reads the well-known {@link IAgentModelPricingMeta} keys from a model's open `_meta` bag, ignoring any unrelated
@@ -84,6 +98,8 @@ export function readAgentModelPricingMeta(model: IAgentModelInfo | SessionModelI
 	}
 	if (typeof meta.category === 'string') {
 		result.category = meta.category;
+	} else if (typeof meta[COPILOT_MODEL_PICKER_CATEGORY_META_KEY] === 'string') {
+		result.category = meta[COPILOT_MODEL_PICKER_CATEGORY_META_KEY];
 	}
 	const rawPromo = meta.promo;
 	if (rawPromo && typeof rawPromo === 'object' && !Array.isArray(rawPromo)) {
@@ -94,6 +110,7 @@ export function readAgentModelPricingMeta(model: IAgentModelInfo | SessionModelI
 				discountPercent: p.discountPercent,
 				message: p.message,
 				...(typeof p.endsAt === 'string' ? { endsAt: p.endsAt } : {}),
+				...(typeof p.showBanner === 'boolean' ? { showBanner: p.showBanner } : {}),
 			};
 		}
 	}
@@ -181,8 +198,11 @@ function normalizePromo(billing: Record<string, unknown>): ICAPIModelBilling['pr
 		: typeof raw.ends_at === 'string' ? raw.ends_at
 			: undefined;
 	const message = typeof raw.message === 'string' ? raw.message : undefined;
+	const showBanner = typeof raw.showBanner === 'boolean' ? raw.showBanner
+		: typeof raw.show_banner === 'boolean' ? raw.show_banner
+			: undefined;
 	if (id && typeof discountPercent === 'number' && message) {
-		return { id, discountPercent, message, ...(endsAt ? { endsAt } : {}) };
+		return { id, discountPercent, message, ...(endsAt ? { endsAt } : {}), ...(showBanner !== undefined ? { showBanner } : {}) };
 	}
 	return undefined;
 }
@@ -204,6 +224,8 @@ export interface ICAPIModelBilling {
 		/** ISO 8601 end date; absent for open-ended promotions. */
 		readonly endsAt?: string;
 		readonly message: string;
+		/** Whether the promo may be surfaced as a chat input banner. Absent means eligible; only `false` suppresses it. */
+		readonly showBanner?: boolean;
 	};
 	readonly tokenPrices?: {
 		readonly contextMax?: number;

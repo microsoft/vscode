@@ -9,6 +9,7 @@ import * as os from 'os';
 import * as child_process from 'child_process';
 import { dirs } from './dirs.ts';
 import { root, stateFile, stateContentsFile, computeState, computeContents, isUpToDate } from './installStateHash.ts';
+import { ensureElectronTypes } from './electronTypes.ts';
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const rootNpmrcConfigKeys = getNpmrcConfigKeys(path.join(root, '.npmrc'));
@@ -238,6 +239,8 @@ async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: n
 }
 
 async function main() {
+	await ensureElectronTypes();
+
 	if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
 		log('.', 'All dependencies up to date, skipping postinstall.');
 		child_process.execSync('git config pull.rebase merges');
@@ -333,21 +336,6 @@ async function main() {
 	const claudeSkillsLinkType = ensureAgentHarnessLink(path.join('..', '.agents', 'skills'), claudeSkillsLink);
 	if (claudeSkillsLinkType !== 'existing') {
 		log('.', `Created ${claudeSkillsLinkType} .claude/skills -> .agents/skills`);
-	}
-
-	// Temporary: patch @github/copilot-sdk session.js to fix ESM import
-	// (missing .js extension on vscode-jsonrpc/node). Fixed upstream in v0.1.32.
-	// TODO: Remove once @github/copilot-sdk is updated to >=0.1.32
-	for (const dir of ['', 'remote']) {
-		const sessionFile = path.join(root, dir, 'node_modules', '@github', 'copilot-sdk', 'dist', 'session.js');
-		if (fs.existsSync(sessionFile)) {
-			const content = fs.readFileSync(sessionFile, 'utf8');
-			const patched = content.replace(/from "vscode-jsonrpc\/node"/g, 'from "vscode-jsonrpc/node.js"');
-			if (content !== patched) {
-				fs.writeFileSync(sessionFile, patched);
-				log(dir || '.', 'Patched @github/copilot-sdk session.js (vscode-jsonrpc ESM import fix)');
-			}
-		}
 	}
 
 	// foundry-local-sdk (on-device chat dictation) resolves its prebuilt N-API

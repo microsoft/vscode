@@ -516,7 +516,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			onHide: () => {
 				this.selectDropDownContainer.classList.remove('visible');
 			},
-			anchorPosition: this._dropDownPosition
+			anchorPosition: this._dropDownPosition,
+			layer: this.selectBoxOptions.contextViewLayer,
 		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
 
 		// Hide so we can relay out
@@ -530,7 +531,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			onHide: () => {
 				this.selectDropDownContainer.classList.remove('visible');
 			},
-			anchorPosition: this._dropDownPosition
+			anchorPosition: this._dropDownPosition,
+			layer: this.selectBoxOptions.contextViewLayer,
 		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
 
 		this._isVisible = true;

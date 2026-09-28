@@ -24,6 +24,7 @@ interface IFileEditAttributionMarkerBase {
 export interface IFileEditAttributionSource {
 	readonly modelId?: string;
 	readonly conversationId: string;
+	readonly chatSessionId?: string;
 	readonly requestId: string;
 	readonly harness: string;
 }
@@ -50,6 +51,8 @@ export type AttributedToolResultFileEditContent = ToolResultFileEditContent & {
 
 export interface IAgentEditAttribution {
 	readonly sessionUri: string;
+	/** Originating chat channel, when known; separate from the owning session. */
+	readonly chatUri?: string;
 	readonly turnId: string;
 	readonly toolCallId: string;
 	readonly filePath: string;
@@ -169,6 +172,7 @@ function isFileEditAttributionSource(source: unknown): source is IFileEditAttrib
 	const candidate = source as Partial<IFileEditAttributionSource>;
 	return (candidate.modelId === undefined || typeof candidate.modelId === 'string') &&
 		typeof candidate.conversationId === 'string' &&
+		(candidate.chatSessionId === undefined || typeof candidate.chatSessionId === 'string') &&
 		typeof candidate.requestId === 'string' &&
 		typeof candidate.harness === 'string';
 }

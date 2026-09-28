@@ -1115,13 +1115,17 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		return kbd;
 	}
 
-	private _createInlineLink(parent: HTMLElement, label: string, href: string): HTMLAnchorElement {
+	private _createInlineLink(parent: HTMLElement, label: string, href: string | undefined): void {
+		if (!href) {
+			parent.append(label);
+			return;
+		}
+
 		const link = this._registerStepFocusable(append(parent, $<HTMLAnchorElement>('a.onboarding-a-inline-link')));
 		link.textContent = label;
 		link.href = href;
 		link.target = '_blank';
 		link.rel = 'noopener';
-		return link;
 	}
 
 	// =====================================================================

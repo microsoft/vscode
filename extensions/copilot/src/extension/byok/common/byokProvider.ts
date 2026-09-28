@@ -199,6 +199,7 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 		version: '1.0.0',
 		maxOutputTokens: limits.maxOutputTokens,
 		maxInputTokens: limits.maxInputTokens,
+		maxContextWindowTokens: limits.contextWindow,
 		// `detail` is intentionally omitted: when this model is resolved
 		// via a configured provider group, `LanguageModelsService` will
 		// fall back to the group name so multiple instances of the same

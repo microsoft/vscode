@@ -25,7 +25,7 @@
 # Stderr: diagnostic noise from @playwright/cli (suppressed unless caller wants it).
 # Exit code:
 #   0  success
-#   1  paste verify failed, eval failed, or the page had no native-edit-context
+#   1  paste verify failed, eval failed, or the page had no chat input editing surface
 #   2  argument/usage error (empty input, missing tools)
 #
 # Required tools on PATH: npx (with @playwright/cli reachable), node, jq.
@@ -33,10 +33,9 @@
 # Assumes:
 #   - You have already run `npx @playwright/cli [-s=NAME] attach --cdp=http://127.0.0.1:$CDP`
 #     in the same session this script reads (--session arg, $PW_SESSION env, or "default").
-#   - The Agents window is open and a new-chat / chat view with a Monaco
-#     editor is on screen. The script auto-focuses the first
-#     `.new-chat-input-area .native-edit-context`, falling back to any
-#     `.native-edit-context`.
+#   - A chat view with a Monaco editor is on screen. The script preserves the
+#     focused chat input, then falls back to the active Agents session or a
+#     regular-workbench chat input.
 
 set -u
 umask 077
@@ -64,6 +63,8 @@ done
 SESSION="${PW_SESSION_OVERRIDE:-${PW_SESSION:-}}"
 PW_ARGS=()
 [[ -n "$SESSION" ]] && PW_ARGS=("-s=$SESSION")
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+FOCUS_CHAT="$SCRIPT_DIR/../playwrightScripts/focus-chat-input.ts"
 
 # Text: prefer the positional arg; otherwise read all of stdin.
 # Stdin is preferred for arbitrary text because it avoids any shell
@@ -97,7 +98,13 @@ case "${OSTYPE:-$(uname -s)}" in
 	*)               SELECT_ALL_MOD="Control" ;;
 esac
 
-# Step 1 (optional): clear the focused Monaco editor by select-all + delete.
+# Step 1: ensure the intended Chat input has focus before sending any keys.
+if ! npx @playwright/cli ${PW_ARGS[@]+"${PW_ARGS[@]}"} run-code --filename="$FOCUS_CHAT" >/dev/null 2>&1; then
+	echo '{"ok":false,"error":"failed to focus a visible chat input"}'
+	exit 1
+fi
+
+# Step 2 (optional): clear the focused Monaco editor by select-all + delete.
 # Done via the CLI's `press` so the keys flow through Monaco's real key
 # handler. Stays inside the CDP connection — no system clipboard.
 if [[ "$APPEND" != "1" ]]; then
@@ -105,40 +112,62 @@ if [[ "$APPEND" != "1" ]]; then
 	npx @playwright/cli ${PW_ARGS[@]+"${PW_ARGS[@]}"} press Backspace >/dev/null 2>&1 || true
 fi
 
-# Step 2: build the eval payload via node so JSON escaping is automatic.
-# The async IIFE waits two requestAnimationFrames after dispatch — Monaco
-# updates its view-line DOM asynchronously, so a same-tick read-back
-# returns stale state. Two rAFs = full paint cycle.
+# Step 3: build the eval payload via node so JSON escaping is automatic.
+# The async IIFE polls the rendered view lines after dispatch because Monaco
+# updates them asynchronously and Agents inputs can take longer than one paint.
 JS=$(node -e '
 	const text = process.argv[1];
 	const verify = process.argv[2] === "1";
 	console.log(`(async () => {
-		const root = document.querySelector(".new-chat-input-area .native-edit-context")
-				  || document.querySelector(".sessions-chat-editor .native-edit-context")
-				  || document.querySelector(".native-edit-context");
-		if (!root) return JSON.stringify({ ok: false, error: "no native-edit-context found on page" });
+		const selectors = [
+			".session-view.is-active .new-chat-input-area :is(.native-edit-context, textarea.inputarea)",
+			".session-view.is-active .sessions-chat-editor :is(.native-edit-context, textarea.inputarea)",
+			".session-view.is-active .interactive-session .chat-input-container :is(.native-edit-context, textarea.inputarea)",
+			".monaco-workbench .interactive-session .chat-input-container :is(.native-edit-context, textarea.inputarea)"
+		];
+		const isEligible = element => {
+			if (!element?.matches?.(".native-edit-context, textarea.inputarea")) return false;
+			if (!element.closest(".new-chat-input-area, .sessions-chat-editor, .interactive-session .chat-input-container")) return false;
+			if (element.closest(".inline-chat-widget, .automation-form-prompt-host")) return false;
+			const style = getComputedStyle(element);
+			return element.isConnected
+				&& element.getClientRects().length > 0
+				&& style.display !== "none"
+				&& style.visibility !== "hidden";
+		};
+		let root = isEligible(document.activeElement) ? document.activeElement : undefined;
+		for (const selector of selectors) {
+			root ||= Array.from(document.querySelectorAll(selector)).find(isEligible);
+		}
+		if (!root) return JSON.stringify({ ok: false, error: "no visible chat input editing surface found on page" });
 		root.focus();
 		const dt = new DataTransfer();
 		dt.setData("text/plain", ${JSON.stringify(text)});
 		root.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
-		await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 		const editor = root.closest(".monaco-editor");
-		const viewLines = Array.from(editor.querySelectorAll(".view-line")).map(l => l.textContent);
 		// Monaco renders regular ASCII spaces as U+00A0 (NBSP) in view-lines for
 		// visual fidelity. Also, joining view-lines drops the logical newlines
 		// between them. Normalize both sides before comparing.
 		// (Note: \\u00A0 and \\r\\n are double-escaped because this string lives
 		// inside a node template literal that would otherwise resolve them.)
 		const norm = s => s.replace(/\\u00A0/g, " ").replace(/\\r?\\n/g, "");
-		const joined = norm(viewLines.join(""));
-		const actualLength = joined.length;
 		const expectedFull = norm(${JSON.stringify(text)});
 		const expectedPrefix = expectedFull.slice(0, Math.min(40, expectedFull.length));
-		const prefixMatched = joined.startsWith(expectedPrefix) || joined.includes(expectedPrefix.slice(0, 20));
 		const verifyEnabled = ${verify ? "true" : "false"};
+		let viewLines = [];
+		let joined = "";
+		let prefixMatched = false;
+		for (let attempt = 0; attempt < 20; attempt++) {
+			await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+			viewLines = Array.from(editor.querySelectorAll(".view-line")).map(l => l.textContent);
+			joined = norm(viewLines.join(""));
+			prefixMatched = joined.startsWith(expectedPrefix) || joined.includes(expectedPrefix.slice(0, 20));
+			if (!verifyEnabled || prefixMatched) break;
+			await new Promise(r => setTimeout(r, 100));
+		}
 		return JSON.stringify({
 			ok: !verifyEnabled || prefixMatched,
-			actualLength,
+			actualLength: joined.length,
 			expectedLength: ${JSON.stringify(text)}.length,
 			viewLineCount: viewLines.length,
 			firstViewLine: (viewLines[0] || "").slice(0, 80),
@@ -147,7 +176,7 @@ JS=$(node -e '
 	})()`);
 ' "$TEXT" "$VERIFY")
 
-# Step 3: run the eval. The CLI prints "### Result" then a JSON-encoded
+# Step 4: run the eval. The CLI prints "### Result" then a JSON-encoded
 # string on the next line, followed by "### Ran Playwright code" noise.
 RAW=$(npx @playwright/cli ${PW_ARGS[@]+"${PW_ARGS[@]}"} eval "$JS" 2>&1) || {
 	echo "{\"ok\":false,\"error\":\"@playwright/cli eval failed\"}"
