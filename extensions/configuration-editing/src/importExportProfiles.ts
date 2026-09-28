@@ -75,8 +75,9 @@ class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 			const gist = await octokit.gists.get({ gist_id });
 			if (gist.data.files) {
 				const files = Object.values(gist.data.files);
-				if (files.length > 0 && files[0]?.content) {
-					return files[0].content;
+				if (files.length > 0) {
+					const content = files[0]?.content;
+					return content !== undefined && content !== null ? content : null;
 				}
 			}
 		} catch (error) {
