@@ -872,7 +872,7 @@ export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IPar
 	const serialize = (plugins: readonly IParsedPlugin[]) => {
 		return JSON.stringify(plugins.map(p => ({
 			format: p.format,
-			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout, matcher: c.matcher })) })),
+			hooks: p.hooks.map(h => ({ type: h.type, originalId: h.originalId, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout, matcher: c.matcher })) })),
 			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
 			skills: p.skills.map(s => ({
 				uri: s.uri.toString(),

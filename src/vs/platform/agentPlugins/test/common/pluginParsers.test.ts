@@ -416,6 +416,7 @@ suite('pluginParsers', () => {
 				cwd: URI.file('/workspace'),
 				env: { A: '1' },
 				timeout: 10,
+				matcher: 'bash',
 				sourceUri: URI.file('/workspace/.github/hooks.yml')
 			};
 			const right: IParsedHookCommand = {
@@ -426,6 +427,7 @@ suite('pluginParsers', () => {
 				cwd: URI.file('/workspace'),
 				env: { A: '1' },
 				timeout: 10,
+				matcher: 'bash',
 				sourceUri: URI.file('/workspace/.github/hooks.yml')
 			};
 
@@ -449,6 +451,13 @@ suite('pluginParsers', () => {
 			};
 
 			assert.strictEqual(IParsedHookCommand.isEquals(left, right), false);
+		});
+
+		test('returns false when only the matcher differs', () => {
+			assert.strictEqual(IParsedHookCommand.isEquals(
+				{ command: 'echo hi', matcher: 'bash' },
+				{ command: 'echo hi', matcher: 'apply_patch' },
+			), false);
 		});
 	});
 

@@ -1021,6 +1021,26 @@ suite('copilotPluginConverters', () => {
 			), false);
 		});
 
+		test('returns false for different hook spellings or matchers', () => {
+			const hook = (originalId: string, matcher: string): IParsedHookGroup => ({
+				type: 'PreToolUse',
+				originalId,
+				commands: [{ command: 'echo hook', matcher }],
+				uri: URI.file('/plugin/hooks.json'),
+				customization: stubHookCustomization('PreToolUse'),
+			});
+			assert.deepStrictEqual({
+				spelling: parsedPluginsEqual(
+					[makePlugin({ hooks: [hook('preToolUse', 'bash')] })],
+					[makePlugin({ hooks: [hook('PreToolUse', 'bash')] })],
+				),
+				matcher: parsedPluginsEqual(
+					[makePlugin({ hooks: [hook('preToolUse', 'bash')] })],
+					[makePlugin({ hooks: [hook('preToolUse', 'apply_patch')] })],
+				),
+			}, { spelling: false, matcher: false });
+		});
+
 		test('returns false for different lengths', () => {
 			assert.strictEqual(parsedPluginsEqual([makePlugin()], [makePlugin(), makePlugin()]), false);
 		});
