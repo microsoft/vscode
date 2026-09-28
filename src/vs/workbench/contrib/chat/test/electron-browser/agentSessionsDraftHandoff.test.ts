@@ -318,7 +318,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			keys: [ChatConfiguration.OpenInAgentsWindowTransferDraft, ChatConfiguration.AgentsParallelWorkBannerEnabled, ChatConfiguration.CopilotHarnessIntroductionMode, ChatConfiguration.HarnessSwitchFeedbackSurveyEnabled, ChatConfiguration.AgentsHandoffTipDelaySeconds],
 			settings: [
 				{ type: 'boolean', default: product.quality === 'insider', experiment: { mode: 'auto' } },
-				{ type: 'boolean', default: product.quality === 'insider', experiment: { mode: 'auto' } },
+				{ type: 'boolean', default: false, experiment: { mode: 'auto' } },
 				{ type: 'string', default: product.quality === 'insider' ? CopilotHarnessIntroductionMode.NewSession : CopilotHarnessIntroductionMode.Off, experiment: { mode: 'auto' } },
 				{ type: 'boolean', default: false, experiment: { mode: 'auto' } },
 				{ type: 'number', default: 5, experiment: { mode: 'auto' } },
