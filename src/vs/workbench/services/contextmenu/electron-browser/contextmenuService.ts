@@ -9,7 +9,7 @@ import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } fr
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { getZoomFactor } from '../../../../base/browser/browser.js';
-import { unmnemonicLabel } from '../../../../base/common/labels.js';
+import { mnemonicMenuLabel, unmnemonicLabel } from '../../../../base/common/labels.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IContextMenuDelegate, IContextMenuEvent } from '../../../../base/browser/contextmenu.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
@@ -24,7 +24,7 @@ import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { AnchorAlignment, AnchorAxisAlignment, isAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
-import { IMenuService } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IHostService } from '../../host/browser/host.js';
@@ -253,8 +253,11 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 				}
 			}
 
+			const title = entry instanceof MenuItemAction ? entry.item.title : undefined;
+			// Only use the mnemonic when the original title is displayed, not a short or toggled title.
+			const mnemonicTitle = typeof title === 'object' && title.value === entry.label ? title.mnemonicTitle : undefined;
 			const item: IContextMenuItem = {
-				label: unmnemonicLabel(stripIcons(entry.label)).trim(),
+				label: (mnemonicTitle ? mnemonicMenuLabel(stripIcons(mnemonicTitle)) : unmnemonicLabel(stripIcons(entry.label))).trim(),
 				checked: !!entry.checked,
 				type,
 				enabled: !!entry.enabled,

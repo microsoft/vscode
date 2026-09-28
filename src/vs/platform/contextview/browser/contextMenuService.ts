@@ -55,7 +55,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
 	showContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
 
-		delegate = ContextMenuMenuDelegate.transform(delegate, this.menuService, this.contextKeyService);
+		delegate = ContextMenuMenuDelegate.transform(delegate, this.menuService, this.contextKeyService, true);
 
 		this.contextMenuHandler.showContextMenu({
 			...delegate,
@@ -76,7 +76,7 @@ export namespace ContextMenuMenuDelegate {
 		return thing && (<IContextMenuMenuDelegate>thing).menuId instanceof MenuId;
 	}
 
-	export function transform(delegate: IContextMenuDelegate | IContextMenuMenuDelegate, menuService: IMenuService, globalContextKeyService: IContextKeyService): IContextMenuDelegate {
+	export function transform(delegate: IContextMenuDelegate | IContextMenuMenuDelegate, menuService: IMenuService, globalContextKeyService: IContextKeyService, renderMnemonicTitle = false): IContextMenuDelegate {
 		if (!is(delegate)) {
 			return delegate;
 		}
@@ -86,7 +86,7 @@ export namespace ContextMenuMenuDelegate {
 			getActions: () => {
 				let target: IAction[] = [];
 				if (menuId) {
-					const menu = menuService.getMenuActions(menuId, contextKeyService ?? globalContextKeyService, menuActionOptions);
+					const menu = menuService.getMenuActions(menuId, contextKeyService ?? globalContextKeyService, { ...menuActionOptions, renderMnemonicTitle });
 					target = getFlatContextMenuActions(menu);
 				}
 				if (!delegate.getActions) {

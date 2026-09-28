@@ -6,6 +6,7 @@
 import { IAction, SubmenuAction } from '../../../base/common/actions.js';
 import { Event, MicrotaskEmitter } from '../../../base/common/event.js';
 import { DisposableStore, dispose, IDisposable, markAsSingleton, toDisposable } from '../../../base/common/lifecycle.js';
+import { mnemonicMenuLabel, unmnemonicLabel } from '../../../base/common/labels.js';
 import { LinkedList } from '../../../base/common/linkedList.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from '../../action/common/action.js';
@@ -364,6 +365,8 @@ export interface IMenuActionOptions {
 	args?: unknown[];
 	shouldForwardArgs?: boolean;
 	renderShortTitle?: boolean;
+	/** Render the explicit mnemonic title for menus that enable access keys. */
+	renderMnemonicTitle?: boolean;
 }
 
 export interface IMenuChangeEvent {
@@ -585,9 +588,12 @@ export interface IMenuItemHide {
 export class MenuItemAction implements IAction {
 
 	static label(action: ICommandAction, options?: IMenuActionOptions): string {
-		return options?.renderShortTitle && action.shortTitle
-			? (typeof action.shortTitle === 'string' ? action.shortTitle : action.shortTitle.value)
-			: (typeof action.title === 'string' ? action.title : action.title.value);
+		const title = options?.renderShortTitle && action.shortTitle ? action.shortTitle : action.title;
+		if (options?.renderMnemonicTitle && title === action.title && typeof title !== 'string' && title.mnemonicTitle) {
+			return mnemonicMenuLabel(title.mnemonicTitle);
+		}
+		const label = typeof title === 'string' ? title : title.value;
+		return options?.renderMnemonicTitle ? unmnemonicLabel(label) : label;
 	}
 
 	readonly item: ICommandAction;
@@ -633,7 +639,8 @@ export class MenuItemAction implements IAction {
 			}
 
 			if (this.checked && toggled.title) {
-				this.label = typeof toggled.title === 'string' ? toggled.title : toggled.title.value;
+				const label = typeof toggled.title === 'string' ? toggled.title : toggled.title.value;
+				this.label = options?.renderMnemonicTitle ? unmnemonicLabel(label) : label;
 			}
 		}
 

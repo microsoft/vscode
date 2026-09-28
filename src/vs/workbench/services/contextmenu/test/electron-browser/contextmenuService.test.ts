@@ -13,6 +13,8 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../../base/common/platform.js';
 import { IContextMenuItem } from '../../../../../base/parts/contextmenu/common/contextmenu.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IHostService } from '../../../host/browser/host.js';
@@ -91,6 +93,39 @@ suite('Native ContextMenuService', () => {
 			});
 		}
 	}
+
+	test('honors explicit menu mnemonics and escapes ordinary ampersands', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const action = instantiationService.createInstance(MenuItemAction, {
+			id: 'test.duplicate',
+			title: { value: 'Duplicate tab (D)', original: 'Duplicate tab (D)', mnemonicTitle: '&&Duplicate tab (D)' },
+		}, undefined, undefined, undefined, undefined);
+		const ordinary = store.add(new Action('test.ordinary', 'Keep & Close'));
+		service.showContextMenu({
+			getAnchor: () => mainWindow.document.body,
+			getActions: () => [action, ordinary],
+		});
+		assert.deepStrictEqual(menu.map(item => ({ label: item.label, accelerator: item.accelerator })), [
+			{ label: isMacintosh ? 'Duplicate tab (D)' : '&Duplicate tab (D)', accelerator: undefined },
+			{ label: 'Keep && Close', accelerator: undefined },
+		]);
+		closeMenu!();
+	});
+
+	test('does not apply the original mnemonic to a short title', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const action = instantiationService.createInstance(MenuItemAction, {
+			id: 'test.short',
+			title: { value: 'Duplicate tab (D)', original: 'Duplicate tab (D)', mnemonicTitle: '&&Duplicate tab (D)' },
+			shortTitle: 'Copy',
+		}, undefined, { renderShortTitle: true }, undefined, undefined);
+		service.showContextMenu({
+			getAnchor: () => mainWindow.document.body,
+			getActions: () => [action],
+		});
+		assert.strictEqual(menu[0].label, 'Copy');
+		closeMenu!();
+	});
 
 	test('does not activate the window when dismissing the menu', () => {
 		const action = store.add(new Action('test', 'Test'));
