@@ -38,8 +38,8 @@ import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { type IResolvedFolderWorkspace, IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { WebWorkspacePicker } from '../../browser/webWorkspacePicker.js';
 import { NewSessionWorkspacePreselectionSource } from '../../browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
@@ -864,6 +864,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		await picker.selectSubmenu('agent-host/project', 'Use Local');
 
 		assert.deepStrictEqual({
+			stableItemIds: [initialFolderItem?.item?.id, devContainerFolderItem?.item?.id],
 			initialSubmenu: initialSubmenu instanceof SubmenuAction ? initialSubmenu.actions.map(action => ({
 				label: action.label,
 				tooltip: action.tooltip,
@@ -880,6 +881,10 @@ suite('WorkspacePicker - Connection Status', () => {
 			triggerLabel: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
 			triggerAriaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
 		}, {
+			stableItemIds: [
+				'workspacePicker.workspace.file:///agent-host/project',
+				'workspacePicker.workspace.file:///agent-host/project',
+			],
 			initialSubmenu: [
 				{ label: 'Use Local', tooltip: '', checked: true },
 				{ label: 'Use Dev Container', tooltip: '', checked: false },
@@ -4343,6 +4348,16 @@ suite('AutomationsWorkspacePicker', () => {
 
 /** Minimal subclass that exposes the protected `_getAvailableTabs` for testing. */
 class TestablePicker extends WorkspacePicker {
+	private recentWorkspacesOverride: IResolvedFolderWorkspace[] | undefined;
+
+	setRecentWorkspaces(recentWorkspaces: IResolvedFolderWorkspace[]): void {
+		this.recentWorkspacesOverride = recentWorkspaces;
+	}
+
+	protected override _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
+		return this.recentWorkspacesOverride ?? super._getRecentWorkspaces();
+	}
+
 	usesTabs(): boolean {
 		return this._showTabs();
 	}
@@ -4430,6 +4445,7 @@ function createTestablePicker(
 	storageService: IStorageService = disposables.add(new TestStorageService()),
 	consolidatedRemoteWorkspaces = false,
 	actionWidgetService: Partial<IActionWidgetService> = { isVisible: false, hide: () => { }, show: () => { }, updateItems: () => { } },
+	experimentalNewSessionComposerLayout = false,
 ): TestablePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IActionWidgetService, actionWidgetService);
@@ -4445,6 +4461,7 @@ function createTestablePicker(
 	instantiationService.stub(IConfigurationService, new TestConfigurationService({
 		[RemoteAgentHostsEnabledSettingId]: remoteAgentHostsEnabled,
 		[UNIFIED_WORKSPACE_PICKER_SETTING]: consolidatedRemoteWorkspaces,
+		[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalNewSessionComposerLayout,
 	}));
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(IFileDialogService, {});
@@ -4825,6 +4842,42 @@ suite('WorkspacePicker - Tab discovery', () => {
 		}, {
 			sameRepository: true,
 			otherRepository: false,
+		});
+	});
+
+	test('caps recent workspaces at ten for either new picker setting', () => {
+		const provider = createMockProvider('local');
+		providersService.setProviders([provider]);
+		const recentWorkspaces = Array.from({ length: 12 }, (_, index) => ({
+			providerId: provider.id,
+			workspace: provider.resolveWorkspace(URI.file(`/recent-${index}`))!,
+			isSessionWorkspace: index >= 8,
+		}));
+		const getRecentPaths = (unifiedWorkspacePicker: boolean, experimentalComposerLayout: boolean) => {
+			const picker = createTestablePicker(
+				disposables,
+				providersService,
+				true,
+				{},
+				undefined,
+				undefined,
+				unifiedWorkspacePicker,
+				undefined,
+				experimentalComposerLayout,
+			);
+			picker.setRecentWorkspaces(recentWorkspaces);
+			return picker.getItems().flatMap(entry => entry.item?.folderUri?.path ?? []);
+		};
+		const allRecentPaths = recentWorkspaces.map(({ workspace }) => workspace.uri.path);
+
+		assert.deepStrictEqual({
+			legacy: getRecentPaths(false, false),
+			unifiedWorkspacePicker: getRecentPaths(true, false),
+			experimentalComposerLayout: getRecentPaths(false, true),
+		}, {
+			legacy: allRecentPaths,
+			unifiedWorkspacePicker: allRecentPaths.slice(0, 10),
+			experimentalComposerLayout: allRecentPaths.slice(0, 10),
 		});
 	});
 

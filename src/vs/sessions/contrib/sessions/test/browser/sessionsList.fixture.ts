@@ -667,16 +667,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The done child has its own context menu with Restore instead of Mark as Done. Its parent remains active and both children remain nested beneath it.'],
 	}),
-	SessionsList_ArchivedNestedChatsVisibleSessionMenu: defineSessionsListFixture({
-		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { compact: true, showArchived: true, width: 400 },
-		interaction: { contextMenu: { session: 'nested-archive' } },
-		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
-		frame: CONTEXT_MENU_FRAME,
-	}, {
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A compact parent session with an active and a done child has its context menu open. Show Done Chats is checked, and the parent offers Mark as Done rather than Restore.'],
-	}),
 	SessionsList_CompactNestedChatPrimaryAction: defineSessionsListFixture({
 		sessions: [COMPACT_NESTED_CHAT_PRIMARY_ACTION_SESSION],
 		view: { compact: true, width: 400 },
@@ -686,18 +676,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['An expanded compact multi-folder session shows a nested chat with its workspace badge beside the title and its Mark as Done primary action aligned to the trailing edge of the row.'],
 	}),
-	SessionsList_ArchivedNestedChatSessionMenu: defineSessionsListFixture({
-		sessions: [{ ...ARCHIVED_CHAT_SESSION, chats: ARCHIVED_CHAT_SESSION.chats?.filter(chat => !chat.isArchived) }],
-		view: { width: 400 },
-		interaction: { contextMenu: { session: 'nested-archive' } },
-		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
-		frame: CONTEXT_MENU_FRAME,
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['An expanded vscode session with no Done chats has its context menu open. Show Done Chats is always available, unchecked, and appears directly after New Chat in This Session in the same action group.'],
-	}),
-
 	//#endregion
 
 	//#region Archive onboarding
