@@ -811,6 +811,61 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		});
 	}
 
+	async canAutomaticallyDeleteArchivedSession(sessionUri: URI): Promise<boolean> {
+		let meta: IWorktreeMetadata | undefined;
+		try {
+			meta = await this._readWorktreeMetadata(sessionUri);
+		} catch (error) {
+			this._logService.warn(`[${this._logLabel}:${AgentSession.id(sessionUri)}] Failed to read worktree metadata before automatic session deletion: ${errorMessage(error)}`);
+			return false;
+		}
+		if (!meta?.worktreePath) {
+			return true;
+		}
+		try {
+			await fs.access(meta.worktreePath.fsPath);
+			return false;
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				return true;
+			}
+			this._logService.warn(`[${this._logLabel}:${AgentSession.id(sessionUri)}] Failed to inspect worktree before automatic session deletion: ${errorMessage(error)}`);
+			return false;
+		}
+	}
+
+	async cleanupWorktreeForAutomaticDeletion(sessionUri: URI, sessionId: string): Promise<void> {
+		return this._sequencer.queue(sessionId, async () => {
+			const meta = await this._readWorktreeMetadata(sessionUri).catch(() => undefined);
+			if (!meta?.worktreePath || !meta.repositoryRoot) {
+				return;
+			}
+			const { branchName, worktreePath, repositoryRoot } = meta;
+			try {
+				await fs.access(worktreePath.fsPath);
+			} catch {
+				this._materializedWorktrees.delete(sessionId);
+				return;
+			}
+			if (!await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false)) {
+				return;
+			}
+			const gitState = await this._gitService.getSessionGitState(worktreePath).catch(() => undefined);
+			if (!gitState?.upstreamBranchName
+				|| gitState.outgoingChanges !== 0
+				|| gitState.uncommittedChanges !== 0) {
+				this._logService.info(`[${this._logLabel}:${sessionId}] Skipping automatic worktree cleanup because branch '${branchName}' is not fully synced with its remote`);
+				return;
+			}
+			try {
+				await this._gitService.removeWorktree(repositoryRoot, worktreePath);
+				this._materializedWorktrees.delete(sessionId);
+			} catch (error) {
+				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to remove worktree '${worktreePath.fsPath}' before automatic session deletion: ${errorMessage(error)}`);
+			}
+		});
+	}
+
 	/** Force-removes the resolved worktree after the user confirms session deletion. */
 	async removeSessionWorktree(sessionId: string, worktree: ISessionWorktree | undefined): Promise<void> {
 		return this._sequencer.queue(sessionId, () => this._removeSessionWorktree(sessionId, worktree));

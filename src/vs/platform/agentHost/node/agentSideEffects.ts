@@ -40,6 +40,7 @@ import {
 	buildDefaultChatUri,
 	isSubagentChatUri,
 	isChatReadOnly,
+	AH_META_AUTO_ARCHIVED_AT_DB_KEY,
 	AH_META_IS_ARCHIVED_DB_KEY,
 	AH_META_IS_READ_DB_KEY,
 	MessageAttachmentKind,
@@ -372,6 +373,9 @@ export class AgentSideEffects extends Disposable {
 					this._persistSessionFlag(envelope.channel, AH_META_IS_READ_DB_KEY, envelope.action.isRead ? 'true' : '');
 				} else if (envelope.action.type === ActionType.SessionIsArchivedChanged) {
 					this._persistSessionFlag(envelope.channel, AH_META_IS_ARCHIVED_DB_KEY, envelope.action.isArchived ? 'true' : '');
+					if (!envelope.action.isArchived) {
+						this._persistSessionFlag(envelope.channel, AH_META_AUTO_ARCHIVED_AT_DB_KEY, '');
+					}
 				}
 			}
 		}));

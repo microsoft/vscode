@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from '../../../base/common/event.js';
-import { DisposableStore, type IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { dirname, joinPath } from '../../../base/common/resources.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
@@ -15,6 +15,7 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY } from '../common/state/sessionState.js';
 import type { IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -27,7 +28,7 @@ import { AgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
-import { AgentMergeController } from './agentMergeController.js';
+import { AgentMergeController, parsePullRequestUrl } from './agentMergeController.js';
 import { AgentMergeTools } from './agentMergeTools.js';
 import { AgentService, type IAgentServiceCollaborators, type IAgentServiceCore, type IAgentServiceOptions } from './agentService.js';
 import { AgentSessionRegistry } from './agentSessionRegistry.js';
@@ -35,7 +36,10 @@ import { AgentSideEffects } from './agentSideEffects.js';
 import { SessionCoordinationService } from './sessionCoordination.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
+import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
+import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
+import { IGitHubService } from '../../github/common/githubService.js';
 
 export interface IAgentServiceComposition {
 	readonly agentService: AgentService;
@@ -167,6 +171,66 @@ export function createAgentServiceComposition(
 			serverToolHost,
 		};
 		agentService = instantiationService.createInstance(AgentService, core, collaborators);
+		const lifecycleAbortController = new AbortController();
+		owned.add(toDisposable(() => lifecycleAbortController.abort()));
+		const gitHubService = accessor.get(IGitHubService);
+		owned.add(new AgentHostSessionLifecycle(
+			{
+				listCandidates: (archiveCutoff, deleteCutoff) => agentService!.listSessionLifecycleCandidates(archiveCutoff, deleteCutoff),
+				restoreSession: session => agentService!.restoreSession(session),
+				getAutoArchivedAt: async session => {
+					const ref = await sessionDataService.tryOpenDatabase(session);
+					if (!ref) {
+						return undefined;
+					}
+					try {
+						const value = await ref.object.getMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY);
+						const timestamp = value ? Number(value) : Number.NaN;
+						return Number.isFinite(timestamp) ? timestamp : undefined;
+					} finally {
+						ref.dispose();
+					}
+				},
+				setAutoArchivedAt: (session, timestamp) => persistSessionMetadataValues(sessionDataService, session.toString(), {
+					[AH_META_AUTO_ARCHIVED_AT_DB_KEY]: String(timestamp),
+				}),
+				archiveSession: session => agentService!.archiveSession(session),
+				canDeleteSession: session => agentService!.canAutomaticallyDeleteArchivedSession(session),
+				cleanupWorktree: (session, sessionId) => agentService!.cleanupWorktreeForAutomaticDeletion(session, sessionId),
+				deleteSession: (session, validate, canCommit) => agentService!.disposeSessionIf(session, validate, canCommit),
+			},
+			configurationService,
+			stateManager,
+			{
+				resolveForLifecycle: async (_sessionKey, pullRequestUrl) => {
+					const parsed = parsePullRequestUrl(pullRequestUrl);
+					if (!parsed) {
+						return undefined;
+					}
+					const credential = await gitHubService.credentials.getCredential(lifecycleAbortController.signal);
+					if (lifecycleAbortController.signal.aborted || credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
+						return undefined;
+					}
+					const subscription = gitHubService.pullRequests.subscribePullRequest({
+						...credential.account,
+						owner: parsed.owner,
+						repo: parsed.repo,
+						number: parsed.number,
+					}, {
+						priority: 'background',
+						core: true,
+					});
+					try {
+						await subscription.refresh('core', undefined, { authoritative: true });
+						const pullRequest = subscription.resource.snapshot.get().core.value;
+						return pullRequest ? { url: pullRequest.url, state: pullRequest.state } : undefined;
+					} finally {
+						subscription.dispose();
+					}
+				},
+			},
+			logService,
+		));
 		for (const disposable of additionalDisposables) {
 			owned.add(disposable);
 		}

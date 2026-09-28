@@ -161,6 +161,7 @@ import { registerChatInputOnboardingHosts } from './chatInputOnboardingHosts.js'
 import { IChatInputNoticeHubService } from './chatInputNoticeHub.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackInputFocused, setChatInputStackSlot } from './chatInputStack.js';
+import { ChatInputNudge, IChatInputNudgeOptions } from './chatInputNudge.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../chatPetAchievements.js';
 import { IChatPetService } from '../../chatPetService.js';
@@ -452,6 +453,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatInputNotificationContainer!: HTMLElement;
 	private chatGoalBannerContainer!: HTMLElement;
 	private persistentContentContainer!: HTMLElement;
+	private chatInputNudgeContainer: HTMLElement | undefined;
+	private chatInputNudgeOptions: IChatInputNudgeOptions | undefined;
+	private readonly chatInputNudgeWidget = this._register(new MutableDisposable<ChatInputNudge>());
 	private readonly _chatPetHorizontalPlatformProviders = new Set<IChatPetHorizontalPlatformProvider>();
 	private readonly _onDidChangeChatPetHorizontalPlatforms = this._register(new Emitter<void>());
 	readonly onDidChangeChatPetHorizontalPlatforms = this._onDidChangeChatPetHorizontalPlatforms.event;
@@ -477,6 +481,37 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get persistentContentContainerElement(): HTMLElement {
 		return this.persistentContentContainer;
+	}
+
+	setChatInputNudge(options: IChatInputNudgeOptions | undefined): void {
+		this.chatInputNudgeOptions = options;
+		if (!this.chatInputNudgeContainer) {
+			return;
+		}
+
+		if (!options) {
+			const restoreFocus = this.chatInputNudgeWidget.value && dom.isAncestorOfActiveElement(this.chatInputNudgeWidget.value.domNode);
+			this.chatInputNudgeWidget.clear();
+			if (restoreFocus) {
+				this.focus();
+			}
+			return;
+		}
+
+		const widgetOptions: IChatInputNudgeOptions = {
+			...options,
+			onDismiss: () => {
+				this.focus();
+				this.setChatInputNudge(undefined);
+				options.onDismiss();
+			},
+		};
+		if (this.chatInputNudgeWidget.value) {
+			this.chatInputNudgeWidget.value.setOptions(widgetOptions);
+		} else {
+			const widget = this.chatInputNudgeWidget.value = this.instantiationService.createInstance(ChatInputNudge, widgetOptions);
+			this.chatInputNudgeContainer.appendChild(widget.domNode);
+		}
 	}
 
 	get gettingStartedTipContainerElement(): HTMLElement {
@@ -3056,6 +3091,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
+				dom.h('.chat-input-nudge-container@chatInputNudgeContainer'),
 				dom.h('.interactive-input-and-edit-session', [
 					dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
 					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
@@ -3089,6 +3125,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			elements = dom.h('.interactive-input-part', [
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
+				dom.h('.chat-input-nudge-container@chatInputNudgeContainer'),
 				dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
 				dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
 				dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
@@ -3120,6 +3157,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		this.container = elements.root;
 		this.persistentContentContainer = elements.persistentContentContainer;
+		this.chatInputNudgeContainer = elements.chatInputNudgeContainer;
+		this.setChatInputNudge(this.chatInputNudgeOptions);
 		this.chatInputOverlay = dom.$('.chat-input-overlay');
 		container.append(this.container);
 		this.container.append(this.chatInputOverlay);

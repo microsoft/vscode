@@ -8,25 +8,227 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ByteSize } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IProgress, IProgressOptions, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { DEFAULT_CHAT_CAPABILITIES, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionWorktreeCleanupService } from '../../browser/sessionWorktreeCleanupService.js';
+import { AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING, SessionWorktreeCleanupService } from '../../browser/sessionWorktreeCleanupService.js';
 
 suite('SessionWorktreeCleanupService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('only includes old, completed, unpinned, inactive worktree sessions above the threshold', async () => {
-		const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-		const recent = new Date();
+	test('shows an inline nudge above the reclaimable-size threshold', async () => {
+		const service = disposables.add(createService(
+			[createSession('eligible', oldDate())],
+			true,
+			() => 6 * ByteSize.GB,
+		));
+
+		await service.activate();
+
+		assert.deepStrictEqual(service.nudge.get() && {
+			title: service.nudge.get()?.title,
+			description: service.nudge.get()?.description,
+			primaryAction: service.nudge.get()?.primaryAction.label,
+			secondaryAction: service.nudge.get()?.secondaryAction?.label,
+			dismissLabel: service.nudge.get()?.dismissLabel,
+		}, {
+			title: 'Clean up agent session worktrees',
+			description: '1 agent session worktree has been inactive for at least 14 days and can be cleaned up, reclaiming about 6.00GB. Active, running, needs-input, and pinned sessions are excluded.',
+			primaryAction: 'Manage Session Storage',
+			secondaryAction: 'Don\'t Show Again',
+			dismissLabel: 'Dismiss Worktree Cleanup Suggestion',
+		});
+	});
+
+	test('shows an inline nudge at 20 existing worktrees below the size threshold', async () => {
+		const sessions = Array.from({ length: 20 }, (_, index) => createSession(`session-${index}`, oldDate()));
+		const service = disposables.add(createService(sessions, true, () => 1));
+
+		await service.activate();
+
+		assert.strictEqual(service.nudge.get()?.description, '20 agent session worktrees have been inactive for at least 14 days and can be cleaned up, reclaiming about 20B. Active, running, needs-input, and pinned sessions are excluded.');
+	});
+
+	test('counts archived worktrees that still exist toward the worktree threshold', async () => {
+		const sessions = [
+			createSession('eligible', oldDate()),
+			...Array.from({ length: 19 }, (_, index) => createSession(`archived-${index}`, oldDate(), SessionStatus.Completed, true)),
+		];
+		const service = disposables.add(createService(sessions, true, () => 1));
+
+		await service.activate();
+
+		assert.strictEqual(service.nudge.get()?.description, '1 agent session worktree has been inactive for at least 14 days and can be cleaned up, reclaiming about 1B. Active, running, needs-input, and pinned sessions are excluded.');
+	});
+
+	test('requires at least one eligible candidate', async () => {
+		const sessions = Array.from({ length: 20 }, (_, index) => createSession(`session-${index}`, oldDate(), SessionStatus.InProgress));
+		const service = disposables.add(createService(sessions, true, () => ByteSize.GB));
+
+		await service.activate();
+
+		assert.strictEqual(service.nudge.get(), undefined);
+	});
+
+	test('does not scan when automatic prompting is disabled', async () => {
+		let scanCount = 0;
+		const sessions = Array.from({ length: 20 }, (_, index) => createSession(`session-${index}`, oldDate()));
+		const service = disposables.add(createService(sessions, false, () => {
+			scanCount++;
+			return ByteSize.GB;
+		}));
+
+		await service.activate();
+
+		assert.deepStrictEqual({ scanCount, nudge: service.nudge.get() }, { scanCount: 0, nudge: undefined });
+	});
+
+	test('dismisses the automatic suggestion for the service lifetime', async () => {
+		const service = disposables.add(createService(
+			[createSession('eligible', oldDate())],
+			true,
+			() => 6 * ByteSize.GB,
+		));
+		await service.activate();
+
+		service.nudge.get()?.onDismiss();
+		await service.activate();
+
+		assert.strictEqual(service.nudge.get(), undefined);
+	});
+
+	test('does not show again after disabling cleanup suggestions', async () => {
+		const configurationService = new TrackingConfigurationService({ [AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING]: true });
+		const service = disposables.add(createService(
+			[createSession('eligible', oldDate())],
+			true,
+			() => 6 * ByteSize.GB,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			configurationService,
+		));
+		await service.activate();
+
+		await service.nudge.get()?.secondaryAction?.run();
+
+		assert.deepStrictEqual({
+			enabled: configurationService.getValue(AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING),
+			updates: configurationService.updates,
+			nudge: service.nudge.get(),
+		}, {
+			enabled: false,
+			updates: [{ key: AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING, value: false }],
+			nudge: undefined,
+		});
+	});
+
+	test('opens the storage manager once per window from the inline nudge', async () => {
+		const commands: { id: string; args: readonly unknown[] }[] = [];
+		const service = disposables.add(createService(
+			[createSession('eligible', oldDate())],
+			true,
+			() => 6 * ByteSize.GB,
+			undefined,
+			undefined,
+			undefined,
+			(id, args) => commands.push({ id, args }),
+		));
+		await service.activate();
+
+		await service.nudge.get()?.primaryAction.run();
+		await service.activate();
+
+		assert.deepStrictEqual({
+			commands,
+			nudge: service.nudge.get(),
+		}, {
+			commands: [{
+				id: 'sessions.chat.manageAgentSessionWorktrees',
+				args: [],
+			}],
+			nudge: undefined,
+		});
+	});
+
+	test('reuses the qualifying scan when opening the storage manager', async () => {
+		let scanCount = 0;
+		const progressTitles: (string | undefined)[] = [];
+		const service = disposables.add(createService(
+			[createSession('eligible', oldDate())],
+			true,
+			() => {
+				scanCount++;
+				return 6 * ByteSize.GB;
+			},
+			undefined,
+			title => progressTitles.push(title),
+		));
+
+		await service.activate();
+		const worktrees = await service.getWorktrees(14);
+
+		assert.deepStrictEqual({
+			scanCount,
+			progressTitles,
+			items: worktrees.map(worktree => worktree.session.sessionId),
+		}, {
+			scanCount: 1,
+			progressTitles: [],
+			items: ['eligible'],
+		});
+	});
+
+	test('worktree manager data distinguishes missing worktrees from existing worktrees', async () => {
+		const eligible = createSession('eligible', oldDate());
+		const running = createSession('running', oldDate(), SessionStatus.InProgress);
+		const recent = createSession('recent', new Date());
+		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+		const unavailable = createSession('unavailable', oldDate());
+		const sessions = [eligible, running, recent, archived, unavailable];
+		const progressTitles: (string | undefined)[] = [];
+		const service = disposables.add(createService(
+			sessions,
+			true,
+			session => session === unavailable ? undefined : session === eligible ? 4 * ByteSize.GB : ByteSize.GB,
+			undefined,
+			title => progressTitles.push(title),
+		));
+
+		const worktrees = await service.getWorktrees(14);
+
+		assert.deepStrictEqual({
+			progressTitles,
+			items: worktrees.map(worktree => ({
+				label: worktree.session.title.get(),
+				sizeBytes: worktree.sizeBytes,
+				state: worktree.cleanupState,
+			})),
+		}, {
+			progressTitles: ['Measuring agent session worktrees...'],
+			items: [
+				{ label: 'eligible', sizeBytes: 4 * ByteSize.GB, state: 'eligible' },
+				{ label: 'running', sizeBytes: ByteSize.GB, state: 'running' },
+				{ label: 'recent', sizeBytes: ByteSize.GB, state: 'recent' },
+				{ label: 'archived', sizeBytes: ByteSize.GB, state: 'archived' },
+			],
+		});
+	});
+
+	test('active, pinned, running, and recent sessions are not eligible', async () => {
+		const old = oldDate();
 		const eligible = createSession('eligible', old);
 		const activeSession = createSession('active', old);
 		const active = upcastPartial<IActiveSession>({
@@ -41,38 +243,130 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 		const pinned = createSession('pinned', old);
 		const running = createSession('running', old, SessionStatus.InProgress);
-		const archived = createSession('archived', old, SessionStatus.Completed, true);
-		const newSession = createSession('recent', recent);
-		const sessions = [eligible, active, pinned, running, archived, newSession];
-		const managementService = upcastPartial<ISessionsManagementService>({
-			getSessions: () => sessions,
-			getSessionWorktreeDiskUsage: async session => session === eligible ? 6 * ByteSize.GB : ByteSize.GB,
-			archiveSession: async () => { },
-			onDidArchiveSession: Event.None,
-			onDidChangeSessions: Event.None,
-		});
-		const sessionsService = upcastPartial<ISessionsService>({ activeSession: constObservable(active) });
-		const listModelService = upcastPartial<ISessionsListModelService>({ isSessionPinned: session => session === pinned });
-		const service = disposables.add(new SessionWorktreeCleanupService(
-			managementService,
-			sessionsService,
-			listModelService,
-			upcastPartial<IQuickInputService>({}),
-			upcastPartial<IDialogService>({}),
-			upcastPartial<IStorageService>({ getNumber: () => 0, onDidChangeValue: () => Event.None }),
-			upcastPartial<ILogService>({ warn: () => { } }),
+		const recent = createSession('recent', new Date());
+		const service = disposables.add(createService(
+			[eligible, active, pinned, running, recent],
+			true,
+			session => session === eligible ? 6 * ByteSize.GB : ByteSize.GB,
+			undefined,
+			undefined,
+			active,
+			undefined,
+			pinned,
 		));
 
-		await service.refresh();
+		await service.activate();
 
-		assert.deepStrictEqual(service.summary.get(), {
-			candidates: [{ session: eligible, sizeBytes: 6 * ByteSize.GB }],
-			totalBytes: 6 * ByteSize.GB,
+		assert.strictEqual(service.nudge.get()?.description, '1 agent session worktree has been inactive for at least 14 days and can be cleaned up, reclaiming about 6.00GB. Active, running, needs-input, and pinned sessions are excluded.');
+	});
+
+	test('adjusting the untouched period loads additional eligible sessions', async () => {
+		const tenDaysOld = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+		const service = disposables.add(createService(
+			[createSession('ten-days-old', tenDaysOld)],
+			true,
+			() => ByteSize.GB,
+		));
+
+		const [fourteenDays, sevenDays] = await Promise.all([
+			service.getWorktrees(14),
+			service.getWorktrees(7),
+		]);
+
+		assert.deepStrictEqual({
+			fourteenDays: fourteenDays[0].cleanupState,
+			sevenDays: sevenDays[0].cleanupState,
+		}, {
+			fourteenDays: 'recent',
+			sevenDays: 'eligible',
+		});
+	});
+
+	test('optionally includes old sessions without worktrees', async () => {
+		const withWorktree = createSession('with-worktree', oldDate());
+		const withoutWorktree = createSession('without-worktree', oldDate(), SessionStatus.Completed, false, false);
+		const service = disposables.add(createService(
+			[withWorktree, withoutWorktree],
+			true,
+			() => ByteSize.GB,
+		));
+
+		const [worktreesOnly, allOldSessions] = await Promise.all([
+			service.getWorktrees(14),
+			service.getWorktrees(14, true),
+		]);
+
+		assert.deepStrictEqual({
+			worktreesOnly: worktreesOnly.map(item => item.session.sessionId),
+			allOldSessions: allOldSessions.map(item => ({ id: item.session.sessionId, hasWorktree: item.hasWorktree, state: item.cleanupState })),
+		}, {
+			worktreesOnly: ['with-worktree'],
+			allOldSessions: [
+				{ id: 'with-worktree', hasWorktree: true, state: 'eligible' },
+				{ id: 'without-worktree', hasWorktree: false, state: 'eligible' },
+			],
 		});
 	});
 });
 
-function createSession(id: string, updatedAt: Date, status = SessionStatus.Completed, archived = false): ISession {
+function createService(
+	sessions: ISession[],
+	enabled: boolean,
+	sizeForSession: (session: ISession) => number | undefined,
+	_quickInputService: IQuickInputService = upcastPartial<IQuickInputService>({}),
+	onProgress?: (title: string | undefined) => void,
+	activeSession?: IActiveSession,
+	onCommand?: (id: string, args: readonly unknown[]) => void,
+	pinnedSession?: ISession,
+	configurationService = new TestConfigurationService({ [AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING]: enabled }),
+): SessionWorktreeCleanupService {
+	return new SessionWorktreeCleanupService(
+		upcastPartial<ISessionsManagementService>({
+			getSessions: () => sessions,
+			getSessionWorktreeDiskUsage: async session => sizeForSession(session),
+			archiveSession: async () => { },
+			onDidArchiveSession: Event.None,
+			onDidChangeSessions: Event.None,
+		}),
+		upcastPartial<ISessionsService>({ activeSession: constObservable(activeSession) }),
+		upcastPartial<ISessionsListModelService>({ isSessionPinned: session => session === pinnedSession }),
+		upcastPartial<IDialogService>({}),
+		upcastPartial<ILogService>({ warn: () => { }, error: () => { } }),
+		configurationService,
+		new TestProgressService(onProgress),
+		upcastPartial<ICommandService>({
+			executeCommand: async (id, ...args) => {
+				onCommand?.(id, args);
+			},
+		}),
+	);
+}
+
+class TestProgressService extends mock<IProgressService>() {
+	constructor(private readonly onProgress?: (title: string | undefined) => void) {
+		super();
+	}
+
+	override async withProgress<R>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
+		this.onProgress?.(typeof options.title === 'string' ? options.title : undefined);
+		return task({ report() { } });
+	}
+}
+
+class TrackingConfigurationService extends TestConfigurationService {
+	readonly updates: { key: string; value: unknown }[] = [];
+
+	override async updateValue(key: string, value: unknown): Promise<void> {
+		this.updates.push({ key, value });
+		await this.setUserConfiguration(key, value);
+	}
+}
+
+function oldDate(): Date {
+	return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+}
+
+function createSession(id: string, updatedAt: Date, status = SessionStatus.Completed, archived = false, hasWorktree = true): ISession {
 	const resource = URI.parse(`test:/${id}`);
 	const chat = upcastPartial<IChat>({
 		resource,
@@ -100,7 +394,7 @@ function createSession(id: string, updatedAt: Date, status = SessionStatus.Compl
 				description: undefined,
 				gitRepository: {
 					uri: URI.file(`/repo/${id}`),
-					workTreeUri: URI.file(`/repo.worktrees/${id}`),
+					workTreeUri: hasWorktree ? URI.file(`/repo.worktrees/${id}`) : undefined,
 					baseBranchName: 'main',
 					gitHubInfo: constObservable(undefined),
 				},

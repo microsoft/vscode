@@ -1,0 +1,78 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.interactive-session .interactive-input-part > .chat-input-nudge-container:empty {
+	display: none;
+}
+
+.interactive-session .interactive-input-part > .chat-input-nudge-container {
+	width: 100%;
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.chat-input-nudge {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-foreground);
+}
+
+.chat-input-nudge-header {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.chat-input-nudge-icon {
+	flex-shrink: 0;
+	width: var(--vscode-codiconFontSize);
+	margin-top: var(--vscode-spacing-size20);
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.chat-input-nudge-title {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.4;
+	overflow-wrap: break-word;
+}
+
+.chat-input-nudge-actions {
+	flex-shrink: 0;
+}
+
+.chat-input-nudge-description,
+.chat-input-nudge-footer {
+	margin-inline-start: calc(var(--vscode-codiconFontSize) + var(--vscode-spacing-size80));
+}
+
+.chat-input-nudge-description {
+	min-width: 0;
+	margin-top: 0;
+	margin-bottom: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.5;
+	overflow-wrap: break-word;
+}
+
+.chat-input-nudge-footer {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.chat-input-nudge-footer > .monaco-button {
+	width: auto;
+}

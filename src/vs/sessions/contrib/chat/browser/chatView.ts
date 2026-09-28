@@ -48,6 +48,7 @@ import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
+import { ISessionWorktreeCleanupService } from '../../sessionInputBanners/browser/sessionWorktreeCleanupService.js';
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
@@ -198,6 +199,7 @@ export class ChatView extends AbstractChatView {
 		@ISessionChatPillsDebugService private readonly chatPillsDebugService: ISessionChatPillsDebugService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
+		@ISessionWorktreeCleanupService private readonly worktreeCleanupService: ISessionWorktreeCleanupService,
 	) {
 		super();
 
@@ -270,6 +272,12 @@ export class ChatView extends AbstractChatView {
 		}));
 		this._register(chatPillsDebugService.register(this._chatPills, this._banners, this._isActiveObs));
 		this._ensureBannersMounted();
+		this._register(autorun(reader => {
+			const options = this._isActiveObs.read(reader) && this._currentSessionObs.read(reader)
+				? this.worktreeCleanupService.nudge.read(reader)
+				: undefined;
+			this._widget.inputPart.setChatInputNudge(options);
+		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
@@ -362,6 +370,9 @@ export class ChatView extends AbstractChatView {
 	override setChat(chat: IChat, historyKey?: string, session?: ISession): void {
 		this.chatPillsDebugService.clear(this._chatPills);
 		this._currentSessionObs.set(session, undefined);
+		if (session && this._isActive) {
+			void this.worktreeCleanupService.activate().catch(error => this.logService.warn('[ChatView] Failed to scan agent session worktrees', error));
+		}
 		this._externalSessionBanner.setSession(session);
 		const resource = chat.resource;
 		const previousChatResource = this._currentChatResource;
@@ -574,6 +585,9 @@ export class ChatView extends AbstractChatView {
 		}
 		this._isActive = active;
 		this._isActiveObs.set(active, undefined);
+		if (active && this._currentSessionObs.get()) {
+			void this.worktreeCleanupService.activate().catch(error => this.logService.warn('[ChatView] Failed to scan agent session worktrees', error));
+		}
 		this._banners.setActive(active);
 		this._widget.setStyles(this._buildStyles(active));
 	}

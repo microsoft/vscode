@@ -40,14 +40,20 @@ import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SE
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorExtensions } from '../../../../workbench/common/editor.js';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../../workbench/browser/editor.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
 import { SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
-import { ISessionWorktreeCleanupService, SessionWorktreeCleanupService } from '../../sessionInputBanners/browser/sessionWorktreeCleanupService.js';
+import { AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING, ISessionWorktreeCleanupService, MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID, SessionWorktreeCleanupService } from '../../sessionInputBanners/browser/sessionWorktreeCleanupService.js';
+import { SessionWorktreeCleanupEditorInput } from '../../sessionInputBanners/browser/sessionWorktreeCleanupEditorInput.js';
+import { SessionWorktreeCleanupEditor } from '../../sessionInputBanners/browser/sessionWorktreeCleanupEditor.js';
 import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js';
 
 
@@ -112,6 +118,33 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 registerAction2(NewChatInSessionsWindowAction);
 
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		SessionWorktreeCleanupEditor,
+		SessionWorktreeCleanupEditor.ID,
+		localize('sessionWorktreeCleanupEditor', "Agent Session Storage Management Editor"),
+	),
+	[new SyncDescriptor(SessionWorktreeCleanupEditorInput)],
+);
+
+registerAction2(class ManageAgentSessionWorktreesAction extends Action2 {
+	constructor() {
+		super({
+			id: MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID,
+			title: localize2('sessions.chat.manageAgentSessionWorktrees', "Manage Agent Session Worktrees"),
+			category: CHAT_CATEGORY,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, section?: 'automatic'): Promise<void> {
+		const pane = await accessor.get(IEditorService).openEditor(new SessionWorktreeCleanupEditorInput(), { pinned: true });
+		if (section === 'automatic' && pane instanceof SessionWorktreeCleanupEditor) {
+			pane.focusAutomaticCleanup();
+		}
+	}
+});
+
 
 // register actions
 registerAction2(BranchChatSessionAction);
@@ -152,6 +185,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentSessions.scopedInputHistory', "Controls whether chat input history in the Agents Window is scoped to the current session. Disable this to use shared input history across sessions."),
+		},
+		[AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			description: localize('chat.agentSessions.worktreeLimitPrompt', "Controls whether the Agents Window shows an inline suggestion to clean up eligible session worktrees when they use significant disk space or reach the worktree count limit."),
 		},
 	},
 });

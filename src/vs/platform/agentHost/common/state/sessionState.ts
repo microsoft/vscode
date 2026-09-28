@@ -1838,6 +1838,9 @@ export const AH_META_WORKSPACELESS_DB_KEY = 'agentHost.workspaceless';
  */
 export const AH_META_IS_ARCHIVED_DB_KEY = 'isArchived';
 
+/** Timestamp written only when merged-session cleanup automatically archives a session. */
+export const AH_META_AUTO_ARCHIVED_AT_DB_KEY = 'agentHost.autoArchivedAt';
+
 /** Legacy metadata key for the archived flag; see {@link AH_META_IS_ARCHIVED_DB_KEY}. */
 export const AH_META_IS_DONE_DB_KEY = 'isDone';
 
