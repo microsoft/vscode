@@ -305,7 +305,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		// bag on their `_meta` that the workbench interprets on accept. Only
 		// offered for leading `/command` tokens (not the whitespace-delimited
 		// skill form).
-		if (!returnJustSkills) {
+		if (!returnJustSkills && argumentTyped === undefined) {
 			const configState = this._sessionInfo.getSessionConfigState?.(sessionId);
 			for (const item of getCopilotConfigSlashCommandItems(typed, configState)) {
 				completionItems.push({

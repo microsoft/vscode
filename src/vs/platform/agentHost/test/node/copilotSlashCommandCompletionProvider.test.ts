@@ -171,7 +171,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				rangeEnd: 5,
 				attachment: {
 					type: MessageAttachmentKind.Simple,
-					label: '/sandbox-policy ',
+					label: 'sandbox-policy',
 					_meta: {
 						command: 'sandbox-policy',
 						description: 'Show the effective sandbox policy for this session',
