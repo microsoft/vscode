@@ -321,6 +321,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			if (attempt > 0) {
 				await timeout(Math.min(WORKTREE_REMOVAL_RETRY_MAX_DELAY_MS, WORKTREE_REMOVAL_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1)));
 			}
+			let gitCommandSucceeded = false;
 			try {
 				if (await this._pathExists(worktree.fsPath)) {
 					await this._runGit(repositoryRoot, removeArgs, { timeout: 60_000, throwOnError: true });
@@ -328,6 +329,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 					// Working tree already gone (a prior attempt removed it): prune clears the stale admin entry.
 					await this._runGit(repositoryRoot, ['worktree', 'prune'], { timeout: 60_000, throwOnError: true });
 				}
+				gitCommandSucceeded = true;
 			} catch (error) {
 				lastError = error;
 				if (!isRetryableWorktreeRemovalError(error)) {
@@ -343,7 +345,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 				await this._removeResidualWorktreeDirectory(worktree, options?.force === true);
 				return;
 			}
-			lastError = new Error(`git worktree removal left '${worktree.fsPath}' registered (admin directory not deleted)`);
+			if (gitCommandSucceeded) {
+				lastError = new Error(`git worktree removal left '${worktree.fsPath}' registered (admin directory not deleted)`);
+			}
 			if (attempt < WORKTREE_REMOVAL_MAX_ATTEMPTS - 1) {
 				this._logService.warn(`[agentHostGitService] worktree removal attempt ${attempt + 1}/${WORKTREE_REMOVAL_MAX_ATTEMPTS} did not complete for '${worktree.fsPath}', retrying: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 			}
