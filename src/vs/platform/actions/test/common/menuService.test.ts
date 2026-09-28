@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { Event } from '../../../../base/common/event.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -40,6 +41,24 @@ suite('MenuService', function () {
 
 	teardown(function () {
 		sinon.restore();
+	});
+
+	test('renders explicit mnemonics while preserving plain, short and toggled labels', () => {
+		const title = { value: 'Duplicate tab (D)', original: 'Duplicate tab (D)', mnemonicTitle: '&&Duplicate tab (D)' };
+		for (const command of [
+			{ id: 'explicit', title },
+			{ id: 'plain', title: 'Keep & Close' },
+			{ id: 'short', title, shortTitle: 'Copy & Keep' },
+			{ id: 'toggled', title, toggled: { condition: ContextKeyExpr.true(), title: 'Stop & Keep' } },
+		]) {
+			disposables.add(MenuRegistry.appendMenuItem(testMenuId, { command }));
+		}
+		assert.deepStrictEqual([undefined, { renderMnemonicTitle: true, renderShortTitle: true }].map(options =>
+			Object.fromEntries(menuService.getMenuActions(testMenuId, contextKeyService, options).flatMap(([, actions]) => actions.map(action => [action.id, action.label])))
+		), [
+			{ explicit: 'Duplicate tab (D)', plain: 'Keep & Close', short: 'Duplicate tab (D)', toggled: 'Stop & Keep' },
+			{ explicit: isMacintosh ? 'Duplicate tab (D)' : '&Duplicate tab (D)', plain: 'Keep && Close', short: 'Copy && Keep', toggled: 'Stop && Keep' },
+		]);
 	});
 
 	test('createMenu collects menu items only once', () => {
