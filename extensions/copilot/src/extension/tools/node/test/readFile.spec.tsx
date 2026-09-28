@@ -806,7 +806,7 @@ suite('ReadFile', () => {
 						smallestPath: '[0]',
 						largestPath: undefined,
 					},
-					measurements: { originalLines: 10, adjustedLines: 3, deltaStart: 3, deltaEnd: 4 },
+					measurements: { originalLines: 10, adjustedLines: 3, deltaStart: 3, deltaEnd: 4, continuousLines: 0 },
 				},
 				{
 					eventName: 'readFileRegionAdjustingFailed',
