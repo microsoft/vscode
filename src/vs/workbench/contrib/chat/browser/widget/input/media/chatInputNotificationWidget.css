@@ -170,6 +170,10 @@
 	margin-right: auto;
 }
 
+.chat-input-notification-widget .chat-input-notification-action-button.secondary.outlined {
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
+}
+
 .chat-input-notification-widget .chat-input-notification-action-button.icon-only {
 	width: var(--vscode-spacing-size240);
 	min-width: var(--vscode-spacing-size240);

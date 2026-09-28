@@ -371,6 +371,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 					button.element.classList.toggle('icon-only', action.iconOnly === true);
 					button.element.classList.toggle('leading', action.leading === true);
 					button.element.classList.toggle('filled', action.filled === true);
+					button.element.classList.toggle('outlined', action.outlined === true);
 					button.label = action.label;
 					const actionAriaLabel = action.ariaLabel ?? action.label;
 					button.element.ariaLabel = `${ariaTitle} ${actionAriaLabel}`;

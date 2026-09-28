@@ -17,7 +17,8 @@ import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListSer
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatAgentLocation } from '../../../../contrib/chat/common/constants.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationSeverity, IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { CopilotHarnessIntroductionButtonVariant, copilotHarnessIntroductionButtonVariants, CopilotHarnessIntroductionCopyVariant, copilotHarnessIntroductionCopyVariants, getCopilotHarnessIntroductionContent } from '../../../../contrib/chat/browser/agentSessions/copilotHarnessIntroduction.js';
 import { defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { ChatInputFixtureOptions, renderChatInput } from './renderChatInput.js';
 
@@ -93,29 +94,18 @@ const sampleNotification: IChatInputNotification = {
 	autoDismissOnMessage: false,
 };
 
-const copilotIntroductionNotification: IChatInputNotification = {
-	id: 'chat.agentsParallelWork',
-	severity: ChatInputNotificationSeverity.Info,
-	message: 'You\'re using a new Copilot experience',
-	description: new MarkdownString('This agent harness opens up new ways to work across windows and apps. Continue as usual, and [let us know](https://github.com/microsoft/vscode/issues) how it goes.'),
-	actions: [{
-		kind: ChatInputNotificationActionKind.Command,
-		label: 'Learn More',
-		commandId: 'workbench.action.chat.agentsParallelWork.learnMore',
-		primary: false,
-		filled: true,
-		keepOpen: true,
-	}, {
-		kind: ChatInputNotificationActionKind.Command,
-		label: '$(thumbsup) Got it!',
-		ariaLabel: 'Got it!',
-		commandId: 'workbench.action.chat.agentsParallelWork.feedback',
-		primary: true,
-		keepOpen: true,
-	}],
-	dismissible: true,
-	autoDismissOnMessage: false,
-};
+function createCopilotIntroductionNotification(copy: CopilotHarnessIntroductionCopyVariant = 'current', buttons: CopilotHarnessIntroductionButtonVariant = 'dismiss'): IChatInputNotification {
+	const content = getCopilotHarnessIntroductionContent(copy, buttons);
+	return {
+		id: 'chat.agentsParallelWork',
+		severity: ChatInputNotificationSeverity.Info,
+		message: content.title,
+		description: new MarkdownString(content.description),
+		actions: content.actions,
+		dismissible: content.dismissible,
+		autoDismissOnMessage: false,
+	};
+}
 
 const copilotHarnessSessionConfig: ResolveSessionConfigResult = {
 	schema: {
@@ -154,7 +144,7 @@ const combinedPickerOptions: ChatInputFixtureOptions = {
 const copilotIntroductionOptions: ChatInputFixtureOptions = {
 	agentHostSessionConfig: copilotHarnessSessionConfig,
 	models: copilotHarnessModels,
-	notification: copilotIntroductionNotification,
+	notification: createCopilotIntroductionNotification(),
 };
 
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
@@ -197,6 +187,18 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderChatInput(context, { ...copilotIntroductionOptions, width: 320 })
 	}),
+	NarrowWithCopilotIntroductionFeedback: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { ...copilotIntroductionOptions, notification: createCopilotIntroductionNotification('current', 'feedback'), width: 320 })
+	}),
+	CopilotIntroductionExperiments: defineThemedFixtureGroup(Object.fromEntries(
+		copilotHarnessIntroductionCopyVariants.flatMap(copy => copilotHarnessIntroductionButtonVariants.map(buttons => [
+			`${copy}-${buttons}`,
+			defineComponentFixture({
+				render: context => renderChatInput(context, { ...copilotIntroductionOptions, notification: createCopilotIntroductionNotification(copy, buttons) })
+			}),
+		] as const))
+	)),
 	// A run of three: notice, todo list, then the input. Covers a notice docking
 	// to a widget rather than straight to the input.
 	WithNotificationAndTodos: defineComponentFixture({

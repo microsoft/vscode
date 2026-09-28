@@ -28,6 +28,7 @@ import { isByokModel } from '../../../../common/chatSelectedModel.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../common/languageModels.js';
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { getCopilotHarnessIntroductionContent } from '../../../../browser/agentSessions/copilotHarnessIntroduction.js';
 
 class TestCommandService implements ICommandService {
 	declare readonly _serviceBrand: undefined;
@@ -709,6 +710,41 @@ suite('ChatInputNotificationWidget', () => {
 			});
 		});
 	}
+
+	test('renders the original feedback layout with a leading outlined action and no header dismiss', () => {
+		const { notificationService, widget } = createWidget();
+		const content = getCopilotHarnessIntroductionContent('current', 'feedback');
+		showNotification(notificationService, {
+			id: 'feedback',
+			message: content.title,
+			actions: content.actions,
+			dismissible: content.dismissible,
+		});
+		const actions = widget.domNode.querySelector('.chat-input-notification-actions');
+		assert.deepStrictEqual({
+			split: actions?.classList.contains('split'),
+			compact: actions?.classList.contains('compact'),
+			dismiss: !!widget.domNode.querySelector('.chat-input-notification-dismiss'),
+			buttons: [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')].map(button => ({
+				label: button.textContent,
+				leading: button.classList.contains('leading'),
+				outlined: button.classList.contains('outlined'),
+				filled: button.classList.contains('filled'),
+				iconOnly: button.classList.contains('icon-only'),
+				ariaLabel: button.ariaLabel,
+				tabIndex: button.tabIndex,
+			})),
+		}, {
+			split: true,
+			compact: true,
+			dismiss: false,
+			buttons: [
+				{ label: 'Learn More', leading: true, outlined: true, filled: false, iconOnly: false, ariaLabel: 'You\'re using a new Copilot experience Learn More', tabIndex: 0 },
+				{ label: 'Got it!', leading: false, outlined: false, filled: false, iconOnly: false, ariaLabel: 'You\'re using a new Copilot experience Got it!', tabIndex: 0 },
+				{ label: '', leading: false, outlined: false, filled: false, iconOnly: true, ariaLabel: 'You\'re using a new Copilot experience Not Helpful', tabIndex: 0 },
+			],
+		});
+	});
 
 	test('actions without explicit commandArgs are executed with empty args', async () => {
 		const commandService = new TestCommandService();
