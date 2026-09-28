@@ -103,7 +103,6 @@ suite('Artifact Server Tools', () => {
 			'batch related entries in one call',
 			'routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables',
 			'persistence or location outside the workspace is not an eligibility signal',
-			'A pull request artifact whose head branch matches this chat\'s working folder is also associated with that folder\'s PR status',
 			'incidental resources, commits you create unless the user asks',
 			'sessions and chats created with session-management tools',
 			'Never create, copy, or relocate a file solely to have an artifact to register',
