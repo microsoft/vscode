@@ -517,6 +517,9 @@ export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 /** Root config key forwarded from the renderer for the GitHub MCP server. */
 export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled';
 
+/** Root config key forwarded from the renderer for Copilot connector discovery. */
+export const AgentHostMcpConnectorsEnabledConfigKey = 'mcpConnectorsEnabled';
+
 /**
  * Independently synchronized proxy settings retain their VS Code `http.*`
  * names, matching other flat namespaced root keys such as `agentMerge.*`.
@@ -872,6 +875,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.githubMcpServerEnabled.title', "GitHub MCP Server"),
 		description: localize('agentHost.config.githubMcpServerEnabled.description', "Whether agent sessions include a GitHub MCP server by default."),
 		default: true,
+	}),
+	[AgentHostMcpConnectorsEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.mcpConnectorsEnabled.title', "Copilot Connectors"),
+		description: localize('agentHost.config.mcpConnectorsEnabled.description', "Whether Copilot agent sessions expose MCP servers provided by connected Copilot Connectors."),
+		default: false,
 	}),
 	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

@@ -11,6 +11,26 @@ import { ChatProgressAnimation, ChatProgressVerbosity } from '../../../../contri
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from './chatWidget.fixture.js';
 
+async function waitForListToSettle(container: HTMLElement, listWidget: IChatWidgetFixtureHandle['listWidget'], waitForIdle = false): Promise<void> {
+	const targetWindow = dom.getWindow(container);
+	await targetWindow.document.fonts.ready;
+	let previousLayout: string | undefined;
+	let stableFrames = 0;
+	for (let frame = 0; frame < 120; frame++) {
+		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+		const layout = JSON.stringify([listWidget.contentHeight, listWidget.scrollHeight, listWidget.scrollTop, listWidget.renderHeight]);
+		const animating = container.getAnimations({ subtree: true }).some(animation =>
+			(animation.playState === 'running' || animation.pending) && animation.effect?.getComputedTiming().endTime !== Infinity);
+		const scrollbarWillHide = waitForIdle && !listWidget.domNode.matches(':hover') && listWidget.domNode.querySelector('.scrollbar.visible');
+		stableFrames = layout === previousLayout && !animating && !scrollbarWillHide ? stableFrames + 1 : 0;
+		previousLayout = layout;
+		if (stableFrames >= 3) {
+			return;
+		}
+	}
+	throw new Error(`The scroll anchoring fixture did not settle: ${previousLayout}`);
+}
+
 async function renderScrollAnchoring(context: ComponentFixtureContext, completed: boolean, offscreen: boolean, kind: 'tools' | 'thinking' = 'tools'): Promise<void> {
 	const { container, disposableStore } = context;
 	container.style.width = '720px';
@@ -31,6 +51,7 @@ async function renderScrollAnchoring(context: ComponentFixtureContext, completed
 		inputVisible: false,
 		persistentContentHeight: 32,
 		persistentProgress: ChatProgressAnimation.Draw,
+		thinkingPhrases: ['Working'],
 		persistentProgressVerbosity: completed ? ChatProgressVerbosity.Verbose : ChatProgressVerbosity.Compact,
 		collapseCompletedResponses: completed,
 		messages: [{
@@ -72,22 +93,7 @@ async function renderScrollAnchoring(context: ComponentFixtureContext, completed
 		}
 		return header;
 	};
-	const settle = async () => {
-		let previousHeight = -1;
-		let stableFrames = 0;
-		for (let frame = 0; frame < 120; frame++) {
-			await new Promise<void>(resolve => dom.getWindow(container).requestAnimationFrame(() => resolve()));
-			const height = listWidget.contentHeight;
-			const animating = preview.getAnimations({ subtree: true }).some(animation =>
-				(animation.playState === 'running' || animation.pending) && animation.effect?.getComputedTiming().endTime !== Infinity);
-			stableFrames = height === previousHeight && !animating ? stableFrames + 1 : 0;
-			previousHeight = height;
-			if (stableFrames >= 3) {
-				return;
-			}
-		}
-		throw new Error('The scroll anchoring fixture did not settle');
-	};
+	const settle = () => waitForListToSettle(preview, listWidget);
 	const measure = () => {
 		const header = preview.querySelector<HTMLElement>(headerSelector);
 		const sticky = listWidget.stickyScrollDomNode?.getBoundingClientRect();
@@ -141,12 +147,26 @@ async function renderScrollAnchoring(context: ComponentFixtureContext, completed
 	}
 	updateControls.forEach(update => update());
 	addControl('Scroll to Bottom', () => listWidget.scrollToEnd());
+	await settle();
+	listWidget.layout(listWidget.domNode.clientHeight, 720);
 	listWidget.scrollToEnd();
+	await settle();
 	if (completed) {
 		getHeader().click();
+		await settle();
 	}
-	listWidget.layout(480, 720);
-	listWidget.scrollTop += getHeader().getBoundingClientRect().top - listWidget.domNode.getBoundingClientRect().top - (offscreen ? -600 : 16);
+	const viewportTop = listWidget.domNode.getBoundingClientRect().top;
+	const stickyBottom = listWidget.stickyScrollDomNode?.getBoundingClientRect().bottom ?? viewportTop;
+	const headerOffset = offscreen ? -600 : Math.max(0, stickyBottom - viewportTop) + 16;
+	listWidget.scrollTop += getHeader().getBoundingClientRect().top - viewportTop - headerOffset;
+	await waitForListToSettle(preview, listWidget, true);
+	const viewport = listWidget.domNode.getBoundingClientRect();
+	const header = getHeader().getBoundingClientRect();
+	const visibleTop = Math.max(viewport.top, listWidget.stickyScrollDomNode?.getBoundingClientRect().bottom ?? viewport.top);
+	const positioned = offscreen ? header.bottom < viewport.top : header.top >= visibleTop && header.bottom <= viewport.bottom;
+	if (!positioned) {
+		throw new Error(`The scroll anchoring header did not become ${offscreen ? 'offscreen' : 'fully visible'}`);
+	}
 	measure();
 	measurements.dataset.step = '0';
 }
@@ -160,6 +180,7 @@ async function renderReasoningExpansion(context: ComponentFixtureContext): Promi
 		inputVisible: false,
 		stickyScroll: true,
 		persistentProgress: ChatProgressAnimation.Draw,
+		thinkingPhrases: ['Working'],
 		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
 		collapseCompletedResponses: false,
 		messages: [{
@@ -182,14 +203,17 @@ async function renderReasoningExpansion(context: ComponentFixtureContext): Promi
 	if (!handle) {
 		throw new Error('The reasoning expansion fixture did not initialize');
 	}
+	await waitForListToSettle(context.container, handle.listWidget);
+	handle.listWidget.layout(handle.listWidget.domNode.clientHeight, 720);
 	handle.listWidget.scrollToEnd();
+	await waitForListToSettle(context.container, handle.listWidget, true);
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/scrollAnchoring/' }, {
-	StreamingVisibleHeader: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, false, false) }),
-	StreamingOffscreenHeader: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, false, true) }),
-	CompletedVisibleHeader: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, true, false) }),
-	CompletedOffscreenHeader: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, true, true) }),
-	ReasoningExpansion: defineComponentFixture({ virtualTime: { enabled: false }, render: renderReasoningExpansion }),
-	StreamingReasoningHeader: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, false, false, 'thinking') }),
+	StreamingVisibleHeader: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, false, false) }),
+	StreamingOffscreenHeader: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, false, true) }),
+	CompletedVisibleHeader: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, true, false) }),
+	CompletedOffscreenHeader: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, true, true) }),
+	ReasoningExpansion: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: renderReasoningExpansion }),
+	StreamingReasoningHeader: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, false, false, 'thinking') }),
 });

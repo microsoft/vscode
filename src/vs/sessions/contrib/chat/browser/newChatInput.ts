@@ -88,7 +88,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { IChatInputNotificationContext, IChatInputNotificationService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
@@ -480,8 +480,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	get hasInput(): boolean {
-		return !!this._editor?.getValue() || this._contextAttachments.attachments.length > 0;
+		return !!this._editor?.getValue() || this._contextAttachments.attachments.length > 0 || !!this.options.hasAdditionalSendContent?.get();
 	}
+
+	readonly sessionResource = derived(this, reader => this.options.session.read(reader)?.resource);
 
 	get isInputReady(): boolean {
 		return !!this._editor?.getModel();
@@ -657,6 +659,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this.options.hasAdditionalSendContent?.read(reader);
 			this._updateSendButtonState();
 		}));
+		if (this.options.hasAdditionalSendContent) {
+			this._register(runOnChange(this.options.hasAdditionalSendContent, () => this._onDidChangeInput.fire()));
+		}
 	}
 
 	private _setHistoryKey(historyKey: string | undefined): void {

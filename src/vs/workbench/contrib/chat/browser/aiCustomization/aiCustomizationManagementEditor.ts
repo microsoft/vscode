@@ -104,6 +104,8 @@ import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IExtension } from '../../../extensions/common/extensions.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
+import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
+import { ICopilotConnector } from './copilotConnectorsService.js';
 import { getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections } from './customizationCardList.js';
 import { IMcpService, IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -565,7 +567,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private currentEditingReadOnly = false;
 	private editorReturnViewMode: 'list' | 'migration' = 'list';
 	private currentModelRef: IReference<IResolvedTextEditorModel> | undefined;
-	private viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail' = 'list';
+	private viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'connectorDetail' | 'pluginDetail' | 'toolsDetail' = 'list';
 	private migrationContentContainer: HTMLElement | undefined;
 	private migrationListContainer: HTMLElement | undefined;
 	private migrationListScrollable: DomScrollableElement | undefined;
@@ -609,6 +611,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private mcpDetailBackButton: HTMLButtonElement | undefined;
 	private mcpDetailReturnViewMode: 'list' | 'migration' = 'list';
 	private readonly mcpDetailDisposables = this._register(new DisposableStore());
+
+	// Embedded connector detail view
+	private connectorDetailContainer: HTMLElement | undefined;
+	private embeddedConnectorDetail: EmbeddedConnectorDetail | undefined;
+	private connectorDetailBackButton: HTMLButtonElement | undefined;
 
 	// Embedded plugin detail view
 	private pluginDetailContainer: HTMLElement | undefined;
@@ -1404,6 +1411,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorDisposables.add(this.mcpListWidget.onDidRequestShowPlugin(item => {
 				this.showPluginDetail(item);
 			}));
+
+			this.connectorDetailContainer = DOM.append(contentInner, $('.connector-detail-container'));
+			this.createEmbeddedConnectorDetail();
+			this.editorDisposables.add(this.mcpListWidget.onDidSelectConnector(connector => {
+				this.showEmbeddedConnectorDetail(connector);
+			}));
+
+			this.editorDisposables.add(this.mcpListWidget.onDidRequestOpenMigrations(() => {
+				void this.startCustomizationMigration(CustomizationMigrationCategoryId.McpServers);
+			}));
 		}
 
 		// Container for Plugins content
@@ -1809,7 +1826,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private getMigrationCandidateStorage(candidate: CustomizationMigrationCandidate): PromptsStorage {
-		return isMcpServerCustomizationMigrationCandidate(candidate) ? PromptsStorage.local : candidate.storage;
+		return candidate.storage;
+	}
+
+	private getMcpMigrationExclusions(storage?: PromptsStorage): readonly IMcpServerCustomizationMigrationExclusion[] {
+		return storage === undefined ? this.mcpServerMigrationExclusions : this.mcpServerMigrationExclusions.filter(exclusion => exclusion.storage === storage);
 	}
 
 	private getAllMigrationCandidates(): readonly CustomizationMigrationCandidate[] {
@@ -1974,7 +1995,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const context = this.getMigrationActivityContext(PromptsStorage.local);
+		const contexts = new Map(servers.map(server => [server.storage, this.getMigrationActivityContext(server.storage)]));
 		const confirmation = category.getConfirmation(servers, this.getActiveHarnessLabel());
 		const confirmResult = await this.dialogService.confirm({
 			type: 'question',
@@ -2005,13 +2026,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		);
 		const migratedServers = servers.filter(server => !result.failures.some(failure => failure.id === server.id && isEqual(failure.sourceUri, server.sourceUri)));
 		if (result.migratedCount > 0) {
-			this.recordMigrationActivity(category, context, migratedServers.map(server => ({
-				label: server.name,
-				sourceLabel: this.labelService.getUriLabel(server.sourceUri),
-				targetLabel: this.labelService.getUriLabel(server.targetUri),
-				operation: 'server',
-				migrationKey: this.getMigrationActivityCandidateKey(server),
-			})));
+			for (const [storage, context] of contexts) {
+				this.recordMigrationActivity(category, context, migratedServers.filter(server => server.storage === storage).map(server => ({
+					label: server.name,
+					sourceLabel: this.labelService.getUriLabel(server.sourceUri),
+					targetLabel: this.labelService.getUriLabel(server.targetUri),
+					operation: 'server',
+					migrationKey: this.getMigrationActivityCandidateKey(server),
+				})));
+			}
 		}
 		await this.refreshCustomizationMigrationInfo();
 
@@ -2172,7 +2195,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		const mcpServerExclusions = category.id === CustomizationMigrationCategoryId.McpServers
-			? this.mcpServerMigrationExclusions
+			? this.getMcpMigrationExclusions(this.activeMigrationStorage)
 			: [];
 		if (candidates.length === 0 && mcpServerExclusions.length === 0) {
 			this.renderCustomizationMigrationState(category.pageEmptyMessage, category.getPageDescription(candidates, this.getActiveHarnessLabel()));
@@ -2621,7 +2644,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return undefined;
 			}
 			const candidates = this.getMigrationCandidates(activeCategory, this.activeMigrationStorage);
-			const exclusions = activeCategory.id === CustomizationMigrationCategoryId.McpServers ? this.mcpServerMigrationExclusions : [];
+			const exclusions = activeCategory.id === CustomizationMigrationCategoryId.McpServers ? this.getMcpMigrationExclusions(this.activeMigrationStorage) : [];
 			return [
 				activeCategory.pageTitle,
 				...candidates.map(candidate => {
@@ -2664,9 +2687,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const categories = homepageMigrationCategories.flatMap(id => {
 				const candidates = this.getMigrationCandidates(getCustomizationMigrationCategory(id), storage);
 				const hasMcpServerExclusions = id === CustomizationMigrationCategoryId.McpServers
-					&& storage === PromptsStorage.local
-					&& this.mcpServerMigrationExclusions.length > 0;
-				return candidates.length || hasMcpServerExclusions ? [this.getHomepageMigrationCategory(id, candidates)] : [];
+					&& this.getMcpMigrationExclusions(storage).length > 0;
+				return candidates.length || hasMcpServerExclusions ? [this.getHomepageMigrationCategory(id, candidates, storage)] : [];
 			});
 			return {
 				storage,
@@ -2685,7 +2707,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		};
 	}
 
-	private getHomepageMigrationCategory(id: CustomizationMigrationCategoryId, candidates: readonly CustomizationMigrationCandidate[]): ICustomizationMigrationDashboardCategory {
+	private getHomepageMigrationCategory(id: CustomizationMigrationCategoryId, candidates: readonly CustomizationMigrationCandidate[], storage: PromptsStorage): ICustomizationMigrationDashboardCategory {
 		const count = candidates.length;
 		switch (id) {
 			case CustomizationMigrationCategoryId.PromptFiles:
@@ -2697,11 +2719,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 					highRisk: true,
 				};
 			case CustomizationMigrationCategoryId.McpServers: {
-				const unavailableCount = this.mcpServerMigrationExclusions.length;
+				const unavailableCount = this.getMcpMigrationExclusions(storage).length;
 				return {
 					id, count,
 					label: localize('migrationChecklistMcp', "MCP Servers"),
-					description: localize('migrationChecklistMcpDescription', "Move eligible workspace servers to the root .mcp.json and review servers that cannot be migrated."),
+					description: storage === PromptsStorage.user
+						? localize('migrationChecklistUserMcpDescription', "Move eligible user servers to mcp-config.json in Copilot home and review servers that cannot be migrated.")
+						: localize('migrationChecklistMcpDescription', "Move eligible workspace servers to the root .mcp.json and review servers that cannot be migrated."),
 					countLabel: localize('migrationChecklistMcpSupportCounts', "{0} migratable · {1} not migratable", count, unavailableCount),
 					hasDetails: unavailableCount > 0,
 				};
@@ -2773,7 +2797,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const state = this.storageService.getObject<IMigrationActivityState>(context.key, StorageScope.PROFILE, { activity: [], skipped: false });
 		const entry: ICustomizationMigrationDashboardActivity = {
 			id: `${Date.now()}-${generateUuid()}`,
-			categoryLabel: this.getHomepageMigrationCategory(category.id, []).label,
+			categoryLabel: this.getHomepageMigrationCategory(category.id, [], context.storage).label,
 			scopeLabel: context.label,
 			storage: context.storage,
 			items,
@@ -2825,7 +2849,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const sessionResource = this.harnessService.activeSessionResource.get();
 		const destinations = this.getCustomizationMigrationDashboardDestinations(this.getDashboardFileMigrationCandidates().filter(candidate => candidate.storage === storage));
 		if (destinations.length === 0) {
-			this.notificationService.info(localize('migrationNoEditableDestinations', "There are no file migration destinations to configure. MCP servers migrate to the workspace root .mcp.json."));
+			this.notificationService.info(localize('migrationNoEditableDestinations', "There are no file migration destinations to configure. Workspace MCP servers migrate to the root .mcp.json; user MCP servers migrate to mcp-config.json in Copilot home."));
 			return;
 		}
 		const selected = await this.quickInputService.pick(destinations.map(destination => ({
@@ -3319,6 +3343,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode === 'mcpDetail') {
 			this.goBackFromMcpDetail();
 		}
+		if (this.viewMode === 'connectorDetail') {
+			this.goBackFromConnectorDetail();
+		}
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
 		}
@@ -3361,6 +3388,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode === 'mcpDetail') {
 			this.goBackFromMcpDetail();
 		}
+		if (this.viewMode === 'connectorDetail') {
+			this.goBackFromConnectorDetail();
+		}
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
 		}
@@ -3394,9 +3424,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Activate marketplace browse mode if requested
 		if (options?.showMarketplace) {
-			if (section === AICustomizationManagementSection.McpServers) {
-				this.mcpListWidget?.showBrowseMarketplace();
-			} else if (section === AICustomizationManagementSection.Plugins) {
+			if (section === AICustomizationManagementSection.Plugins) {
 				this.pluginListWidget?.showBrowseMarketplace();
 			}
 		}
@@ -3451,9 +3479,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const isEditorMode = this.viewMode === 'editor';
 		const isMigrationMode = this.viewMode === 'migration';
 		const isMcpDetailMode = this.viewMode === 'mcpDetail';
+		const isConnectorDetailMode = this.viewMode === 'connectorDetail';
 		const isPluginDetailMode = this.viewMode === 'pluginDetail';
 		const isToolsDetailMode = this.viewMode === 'toolsDetail';
-		const isDetailMode = isMcpDetailMode || isPluginDetailMode || isToolsDetailMode;
+		const isDetailMode = isMcpDetailMode || isConnectorDetailMode || isPluginDetailMode || isToolsDetailMode;
 		const isWelcome = this.selectedSection === undefined;
 		const isPromptsSection = this.selectedSection !== undefined && this.isPromptsSection(this.selectedSection);
 		const isModelsSection = this.selectedSection === AICustomizationManagementSection.Models;
@@ -3489,6 +3518,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.mcpListWidget?.setVisible(!isEditorMode && !isMigrationMode && !isDetailMode && isMcpSection);
 		if (this.mcpDetailContainer) {
 			this.mcpDetailContainer.style.display = isMcpDetailMode ? '' : 'none';
+		}
+		if (this.connectorDetailContainer) {
+			this.connectorDetailContainer.style.display = isConnectorDetailMode ? '' : 'none';
 		}
 		if (this.pluginContentContainer) {
 			this.pluginContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection ? '' : 'none';
@@ -3728,6 +3760,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode === 'mcpDetail') {
 			this.goBackFromMcpDetail();
 		}
+		if (this.viewMode === 'connectorDetail') {
+			this.goBackFromConnectorDetail();
+		}
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
 		}
@@ -3792,6 +3827,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.focusCustomizationMigrationPage();
 			return;
 		}
+		if (this.viewMode === 'connectorDetail') {
+			this.connectorDetailBackButton?.focus();
+			return;
+		}
 		if (this.selectedSection === undefined) {
 			this.welcomePage?.focus();
 			return;
@@ -3832,6 +3871,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.viewMode === 'mcpDetail') {
 				this.goBackFromMcpDetail();
 			}
+			if (this.viewMode === 'connectorDetail') {
+				this.goBackFromConnectorDetail();
+			}
 			if (this.viewMode === 'pluginDetail') {
 				this.goBackFromPluginDetail();
 			}
@@ -3854,9 +3896,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 			// Activate marketplace browse mode if requested
 			if (options?.showMarketplace) {
-				if (sectionId === AICustomizationManagementSection.McpServers) {
-					this.mcpListWidget?.showBrowseMarketplace();
-				} else if (sectionId === AICustomizationManagementSection.Plugins) {
+				if (sectionId === AICustomizationManagementSection.Plugins) {
 					this.pluginListWidget?.showBrowseMarketplace();
 				}
 			}
@@ -3885,6 +3925,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		if (this.viewMode === 'mcpDetail') {
 			this.goBackFromMcpDetail();
+		}
+		if (this.viewMode === 'connectorDetail') {
+			this.goBackFromConnectorDetail();
 		}
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
@@ -4862,6 +4905,52 @@ export class AICustomizationManagementEditor extends EditorPane {
 			&& candidate.id === this.mcpDetailInput?.compatibilityId
 			&& (!this.mcpDetailInput.source || isEqual(candidate.sourceUri, this.mcpDetailInput.source.uri)));
 		this.embeddedMcpDetail.setMigratable(migratable);
+	}
+
+	//#endregion
+
+	//#region Embedded Connector Detail
+
+	private createEmbeddedConnectorDetail(): void {
+		if (!this.connectorDetailContainer) {
+			return;
+		}
+		this.embeddedConnectorDetail = this.editorDisposables.add(this.instantiationService.createInstance(
+			EmbeddedConnectorDetail,
+			this.connectorDetailContainer,
+			() => this.goBackFromConnectorDetail(),
+		));
+		const backButton = DOM.append(this.embeddedConnectorDetail.leadingSlot, $<HTMLButtonElement>('button.editor-back-button'));
+		this.connectorDetailBackButton = backButton;
+		backButton.type = 'button';
+		backButton.setAttribute('aria-label', localize('backToMcpServersList', "Back to MCP servers"));
+		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToMcpServersListTooltip', "Back to MCP servers")));
+		const backIcon = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
+		backIcon.setAttribute('aria-hidden', 'true');
+		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => this.goBackFromConnectorDetail()));
+	}
+
+	private showEmbeddedConnectorDetail(connector: ICopilotConnector): void {
+		if (!this.embeddedConnectorDetail) {
+			return;
+		}
+		this.viewMode = 'connectorDetail';
+		this.updateContentVisibility();
+		this.embeddedConnectorDetail.setInput(connector);
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+		this.connectorDetailBackButton?.focus();
+	}
+
+	private goBackFromConnectorDetail(): void {
+		this.embeddedConnectorDetail?.clearInput();
+		this.viewMode = 'list';
+		this.updateContentVisibility();
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+		this.mcpListWidget?.focusSearch();
 	}
 
 	//#endregion

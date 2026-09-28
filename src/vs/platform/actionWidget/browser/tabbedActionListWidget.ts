@@ -56,6 +56,11 @@ function readTabBox(element: HTMLElement): ITabBox {
 export interface ITabbedActionListBuildResult<T> {
 	readonly items: readonly IActionListItem<T>[];
 	readonly listOptions?: IActionListOptions;
+	/**
+	 * For a sizing build, other layouts the sizing tab can show at rest, such as a
+	 * mode it can be switched into. The popup is sized to the tallest of them.
+	 */
+	readonly alternateSizingItems?: readonly (readonly IActionListItem<T>[])[];
 }
 
 /**
@@ -403,6 +408,8 @@ export class TabbedActionListWidget extends Disposable {
 					options.anchor,
 				));
 				listRef = list;
+				const measureSizing = (sizing: ITabbedActionListBuildResult<T>) => Math.max(...[sizing.items, ...sizing.alternateSizingItems ?? []]
+					.map(sizingItems => list.computeHeightForItems(sizingItems, sizing.listOptions?.collapsedByDefault, sizing.listOptions))) || undefined;
 				this._focusItemAction = (itemId, actionId) => !body.inert && list.focusItemAction(itemId, actionId);
 				// Rebuilding has to ask the consumer again, since what the popup shows can
 				// depend on state that changed while it stayed open.
@@ -429,9 +436,7 @@ export class TabbedActionListWidget extends Disposable {
 					if (list.headerContainer) {
 						list.headerContainer.hidden = !refreshed.listOptions?.headerText;
 					}
-					const sizingHeight = sizing
-						? list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault, sizing.listOptions) || undefined
-						: undefined;
+					const sizingHeight = sizing ? measureSizing(sizing) : undefined;
 					const sizingChanged = sizingHeight !== this._fixedListHeight;
 					if (sizingChanged) {
 						this._fixedListHeight = sizingHeight;
@@ -489,7 +494,7 @@ export class TabbedActionListWidget extends Disposable {
 				// height however the popup opened.
 				if (needsSizing) {
 					const sizing = sizingBuild ?? { items, listOptions };
-					this._fixedListHeight = list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault, sizing.listOptions) || undefined;
+					this._fixedListHeight = measureSizing(sizing);
 					this._hasMeasuredSizingTab = true;
 				}
 

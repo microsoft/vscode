@@ -91,9 +91,9 @@ export interface SandboxSeatbeltPolicy {
  * opaque `sandboxConfig` shape the Copilot SDK forwards to the runtime
  * via `session.options.update`.
  *
- * Mirrors `buildSandboxConfigForCLI` in
+ * Path and network setting mappings mirror `buildSandboxConfigForCLI` in
  * `extensions/copilot/src/extension/chatSessions/copilotcli/node/copilotcliSessionService.ts`
- * so the two surfaces behave the same:
+ * while optional capabilities without a host setting are left to the runtime:
  *  - Path precedence: `denyRead` > `denyWrite` > `allowWrite` > `allowRead`.
  *    Each path appears in exactly one of `deniedPaths` / `readonlyPaths` /
  *    `readwritePaths`.
@@ -105,11 +105,8 @@ export interface SandboxSeatbeltPolicy {
  * does not fall back to the shared enablement setting so Windows rollout is
  * controlled independently.
  *
- * `extraReadonlyPaths` grants read access to host-generated files the shell
- * tool needs, such as the session's shell init scripts. The SDK treats init
- * script readability as a caller obligation and fails silently when a script
- * cannot be read. `CopilotAgentSession` therefore includes the directory when
- * it applies the effective sandbox immediately before each turn.
+ * `extraReadonlyPaths` grants read access to session attachments and generated
+ * shell init scripts when the effective sandbox is applied before each turn.
  */
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,
@@ -164,22 +161,14 @@ export function buildSandboxConfigForSdk(
 	const sandboxConfig: SandboxConfig = {
 		enabled: true,
 		allowBypass,
-		addCurrentWorkingDirectory: true,
-		allowDevToolAccess: true,
-		auth: {
-			git: true,
-			gh: true,
-		},
 		userPolicy: {
 			filesystem: {
 				...(denied.size ? { deniedPaths: [...denied] } : {}),
 				...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
 				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
-				clearPolicyOnExit: true,
 			},
 			network: {
 				allowOutbound: typeof allowNetwork === 'boolean' ? allowNetwork : false,
-				allowLocalNetwork: false,
 			},
 		},
 	};

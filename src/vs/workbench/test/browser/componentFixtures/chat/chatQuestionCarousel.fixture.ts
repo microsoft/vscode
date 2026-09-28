@@ -16,6 +16,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
+import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ITerminalChatService } from '../../../../contrib/terminal/browser/terminal.js';
 import '../../../../contrib/chat/browser/widget/chatContentParts/media/chatQuestionCarousel.css';
 
@@ -44,14 +45,15 @@ function createMockContext(): IChatContentPartRenderContext {
 	};
 }
 
-function createOptions(): IChatQuestionCarouselOptions {
+function createOptions(overrides: Partial<IChatQuestionCarouselOptions> = {}): IChatQuestionCarouselOptions {
 	return {
+		...overrides,
 		onSubmit: () => { },
 		shouldAutoFocus: false,
 	};
 }
 
-function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestionCarousel): void {
+function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestionCarousel, standalone: boolean = false, options: Partial<IChatQuestionCarouselOptions> = {}, afterRender?: (part: ChatQuestionCarouselPart) => void): void {
 	const { container, disposableStore } = context;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -71,8 +73,8 @@ function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestio
 		instantiationService.createInstance(
 			ChatQuestionCarouselPart,
 			carousel,
-			createMockContext(),
-			createOptions(),
+			standalone ? undefined : createMockContext(),
+			createOptions(options),
 		)
 	);
 
@@ -88,6 +90,7 @@ function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestio
 	container.appendChild(inputPart);
 
 	widgetContainer.appendChild(part.domNode);
+	afterRender?.(part);
 }
 
 // ============================================================================
@@ -145,6 +148,46 @@ const markdownLinksQuestion: IChatQuestion = {
 	].join('\n')),
 };
 
+const harnessSwitchQuestions: IChatQuestion[] = [{
+	id: 'reason',
+	type: 'singleSelect',
+	title: 'Why did you switch harnesses?',
+	options: [
+		{ id: 'preferLocal', label: 'I prefer the Local experience', value: 'preferLocal' },
+		{ id: 'missingFeature', label: 'A feature I need was unavailable', value: 'missingFeature' },
+		{ id: 'performance', label: 'Copilot was too slow', value: 'performance' },
+		{ id: 'reliability', label: 'Copilot did not work as expected', value: 'reliability' },
+		{ id: 'other', label: 'Something else', value: 'other' },
+	],
+	allowFreeformInput: false,
+	required: true,
+}, {
+	id: 'feedback',
+	type: 'text',
+	title: 'Any feedback?',
+	description: 'Share any additional feedback (optional).',
+	required: false,
+	validation: { maxLength: 1000 },
+}];
+
+function createHarnessSwitchCarousel(currentIndex: number): ChatQuestionCarouselData {
+	const carousel = new ChatQuestionCarouselData(harnessSwitchQuestions, true, 'fixture.harnessSwitchSurvey');
+	carousel.draftCurrentIndex = currentIndex;
+	if (currentIndex > 0) {
+		carousel.draftAnswers = { reason: { selectedValue: 'preferLocal' } };
+	}
+	return carousel;
+}
+
+const harnessSwitchCarouselOptions: Partial<IChatQuestionCarouselOptions> = {
+	dismissLabel: 'Dismiss Survey',
+	submissionAcknowledgement: {
+		message: 'Thanks, your feedback has been recorded.',
+		dismissLabel: 'Dismiss Feedback Acknowledgement',
+		onDidDismiss: () => { },
+	},
+};
+
 // ============================================================================
 // Fixtures
 // ============================================================================
@@ -172,6 +215,23 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			singleSelectQuestion,
 			multiSelectQuestion,
 		])),
+	}),
+
+	HarnessSwitchSurveyReason: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderCarousel(context, createHarnessSwitchCarousel(0), true, harnessSwitchCarouselOptions),
+	}),
+
+	HarnessSwitchSurveyFeedback: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderCarousel(context, createHarnessSwitchCarousel(1), true, harnessSwitchCarouselOptions),
+	}),
+
+	HarnessSwitchSurveySubmitted: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderCarousel(context, createHarnessSwitchCarousel(1), true, harnessSwitchCarouselOptions, part => {
+			part.domNode.querySelector<HTMLElement>('.chat-question-submit-button')?.click();
+		}),
 	}),
 
 	NoSkip: defineComponentFixture({

@@ -24,8 +24,9 @@ import { TestThemeService } from '../../../platform/theme/test/common/testThemeS
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../platform/chat/common/sessionArchiveActions.js';
+import { TestExperimentTriggerTelemetryService } from '../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { ARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions } from '../../browser/sessionActionViewItem.js';
+import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions, SessionArchiveActionViewItem } from '../../browser/sessionActionViewItem.js';
 
 suite('SessionActionViewItem', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -87,8 +88,8 @@ suite('SessionActionViewItem', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
-		const expected = Object.create(MenuEntryActionViewItem.prototype) as MenuEntryActionViewItem;
-		instantiationService.stubInstance<MenuEntryActionViewItem>(MenuEntryActionViewItem, expected);
+		const expected = Object.create(SessionArchiveActionViewItem.prototype) as SessionArchiveActionViewItem;
+		instantiationService.stubInstance<SessionArchiveActionViewItem>(SessionArchiveActionViewItem, expected);
 		const provider = createSessionActionViewItemProvider(instantiationService, configurationService, accessibilitySignalService);
 
 		assert.deepStrictEqual({
@@ -102,12 +103,41 @@ suite('SessionActionViewItem', () => {
 
 	test('uses an archive action view item when disabled', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
-		const expected = Object.create(MenuEntryActionViewItem.prototype) as MenuEntryActionViewItem;
-		instantiationService.stubInstance<MenuEntryActionViewItem>(MenuEntryActionViewItem, expected);
+		const expected = Object.create(SessionArchiveActionViewItem.prototype) as SessionArchiveActionViewItem;
+		instantiationService.stubInstance<SessionArchiveActionViewItem>(SessionArchiveActionViewItem, expected);
 		const provider = createSessionActionViewItemProvider(instantiationService, new TestConfigurationService(), accessibilitySignalService);
 
 		assert.strictEqual(provider(createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID), {}), expected);
 	});
+
+	for (const reducedMotion of [false, true]) {
+		test(`reports the confetti experiment trigger when Mark as Done is clicked without confetti${reducedMotion ? ', except with reduced motion' : ''}`, async () => {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			const viewItem = disposables.add(new SessionArchiveActionViewItem(
+				createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID),
+				getSessionArchiveActionViewItemOptions({}, new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: false }), accessibilitySignalService),
+				telemetryService,
+				new class extends mock<IKeybindingService>() { }(),
+				new TestNotificationService(),
+				new class extends mock<IContextKeyService>() { }(),
+				new TestThemeService(),
+				new class extends mock<IContextMenuService>() { }(),
+				new class extends TestAccessibilityService {
+					override isMotionReduced(): boolean { return reducedMotion; }
+				}(),
+			));
+			viewItem.actionRunner = disposables.add(new ActionRunner());
+			viewItem.element = dom.$('button');
+
+			const beforeClick = [...telemetryService.triggers];
+			await viewItem.onClick(new MouseEvent('click'));
+
+			assert.deepStrictEqual({ beforeClick, afterClick: telemetryService.triggers }, {
+				beforeClick: [],
+				afterClick: reducedMotion ? [] : [`config.${SESSIONS_MARK_AS_DONE_CONFETTI_SETTING}`],
+			});
+		});
+	}
 
 	test('resolves configured archive animation when clicked', async () => {
 		const configurationService = new TestConfigurationService();
