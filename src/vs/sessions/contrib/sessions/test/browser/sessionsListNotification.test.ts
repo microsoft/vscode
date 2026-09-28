@@ -20,6 +20,16 @@ import { SessionsListNotification } from '../../browser/views/sessionsListNotifi
 suite('Sessions - List notification', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function focus(element: HTMLElement): void {
+		const previous = DOM.getActiveElement();
+		element.focus();
+		// Hidden Electron windows update activeElement without emitting native focus events.
+		if (!mainWindow.document.hasFocus()) {
+			previous?.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: element }));
+			element.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: previous }));
+		}
+	}
+
 	function setup() {
 		const container = DOM.append(mainWindow.document.body, DOM.$('div'));
 		store.add(toDisposable(() => container.remove()));
@@ -108,7 +118,7 @@ suite('Sessions - List notification', () => {
 	test('keyboard focus pauses expiry and Escape dismisses and returns focus to the list', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const test = setup();
 		test.notification.show('3 marked done', async () => { });
-		test.undoButton().focus();
+		focus(test.undoButton());
 		await timeout(15000);
 		assert.ok(test.element());
 		test.undoButton().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
@@ -168,14 +178,51 @@ suite('Sessions - List notification', () => {
 		assert.strictEqual(test.element(), null);
 	}));
 
-	test('accessibility help pauses expiry until closed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	for (const action of ['Undo', 'Dismiss']) {
+		test(`accessibility help pauses expiry and returns focus to ${action}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const test = setup();
+			test.notification.show('3 marked done', async () => { });
+			const initiatingElement = action === 'Undo' ? test.undoButton() : test.container.querySelector<HTMLElement>('.action-label')!;
+			focus(initiatingElement);
+			const help = store.add(test.notification.getAccessibilityHelp()!);
+			focus(test.focusTarget);
+			await timeout(15000);
+			assert.ok(test.element());
+			help.onClose();
+			assert.strictEqual(DOM.getActiveElement(), initiatingElement);
+		}));
+	}
+
+	test('disposing accessibility help without closing resumes the remaining countdown without moving focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const test = setup();
+		test.notification.show('3 marked done', async () => { });
+		await timeout(4000);
+		focus(test.undoButton());
+		const help = store.add(test.notification.getAccessibilityHelp()!);
+		focus(test.focusTarget);
+		await timeout(15000);
+		help.dispose();
+		await timeout(5999);
+		const visibleBeforeExpiry = !!test.element();
+		await timeout(1);
+		assert.deepStrictEqual({
+			visibleBeforeExpiry,
+			dismissed: !test.element(),
+			focusUnchanged: DOM.getActiveElement() === test.focusTarget,
+		}, { visibleBeforeExpiry: true, dismissed: true, focusUnchanged: true });
+	}));
+
+	test('disposing help for a replaced notice does not change the new countdown', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const test = setup();
 		test.notification.show('3 marked done', async () => { });
 		const help = store.add(test.notification.getAccessibilityHelp()!);
-		await timeout(15000);
+		test.notification.show('2 marked done', async () => { });
+		await timeout(4000);
+		help.dispose();
+		await timeout(5999);
 		assert.ok(test.element());
-		help.onClose();
-		assert.strictEqual(DOM.getActiveElement(), test.undoButton());
+		await timeout(1);
+		assert.strictEqual(test.element(), null);
 	}));
 
 	test('disposal removes the notice and cancels expiry', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

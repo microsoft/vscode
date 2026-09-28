@@ -131,23 +131,35 @@ export class SessionsListNotification extends Disposable {
 		}));
 
 		this.accessibilityHelp = () => {
+			const activeElement = DOM.getActiveElement();
 			helpOpen = true;
 			updateTimer();
-			return new AccessibleContentProvider(
+			const closeHelp = () => {
+				helpOpen = false;
+				if (!store.isDisposed) {
+					updateTimer();
+				}
+			};
+			const provider = new AccessibleContentProvider(
 				AccessibleViewProviderId.SessionsListNotification,
 				{ type: AccessibleViewType.Help },
 				() => localize('notificationHelp', "{0}\nThis notice appears after marking sessions done or archiving them. Use Tab and Shift+Tab to reach Undo and Dismiss. Press Enter or Space to activate them, or Escape to dismiss the notice.\nUndo restores the sessions and their previous custom groups, if those groups still exist. It does not restart stopped requests.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open. The bar along the bottom shows the remaining time.", message),
 				() => {
 					if (!store.isDisposed) {
-						undoButton.focus();
-						helpOpen = false;
-						updateTimer();
+						if (DOM.isHTMLElement(activeElement) && element.contains(activeElement)) {
+							activeElement.focus();
+						} else {
+							undoButton.focus();
+						}
 					} else {
 						this.restoreFocus();
 					}
+					closeHelp();
 				},
 				AccessibilityVerbositySettingId.SessionsListNotification,
 			);
+			provider.onDispose = closeHelp;
+			return provider;
 		};
 		status(localize('undoAvailable', "{0}. Undo is available in the sessions list for 10 seconds.", message));
 	}
