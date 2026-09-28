@@ -11,7 +11,7 @@ import { localize } from '../../../nls.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
-import { IOnboardingTryoutWindowRequest, OnboardingTryoutWindowRequestResult } from '../common/onboardingTryoutHandoff.js';
+import { IOnboardingTryoutWindowRequest, isOnboardingTryoutSource, OnboardingTryoutWindowRequestResult } from '../common/onboardingTryoutHandoff.js';
 
 const TRYOUT_ACCEPT_TIMEOUT = 30_000;
 
@@ -33,7 +33,7 @@ export class OnboardingTryoutHandoff extends Disposable {
 	}
 
 	async open(sourceWindowId: number, request: IOnboardingTryoutWindowRequest): Promise<OnboardingTryoutWindowRequestResult> {
-		if (this._store.isDisposed || !request || typeof request.requestId !== 'string' || !isUUID(request.requestId) || typeof request.tryoutId !== 'string') {
+		if (this._store.isDisposed || !request || typeof request.requestId !== 'string' || !isUUID(request.requestId) || typeof request.tryoutId !== 'string' || !isOnboardingTryoutSource(request.source)) {
 			throw new Error(localize('onboardingTryout.invalidRequest', "The feature example request is invalid."));
 		}
 		const pending = this.createPendingRequest(sourceWindowId, request.requestId);

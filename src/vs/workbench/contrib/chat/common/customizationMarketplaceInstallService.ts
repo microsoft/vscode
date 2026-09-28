@@ -17,7 +17,8 @@ export type CustomizationMarketplaceInstallState =
 
 export type CustomizationMarketplaceInstallationTarget =
 	| { readonly kind: 'skill' | 'plugin'; readonly uri: URI }
-	| { readonly kind: 'mcp'; readonly id: string };
+	| { readonly kind: 'mcp'; readonly id: string }
+	| { readonly kind: 'copilotConnector'; readonly name: string };
 
 export const ICustomizationMarketplaceInstallService = createDecorator<ICustomizationMarketplaceInstallService>('customizationMarketplaceInstallService');
 
@@ -29,8 +30,10 @@ export interface ICustomizationMarketplaceInstallService {
 	getRecordedResources(): readonly ICustomizationMarketplaceResource[];
 	/** Uses the owning install flow; cancellation rejects with a CancellationError. */
 	install(resource: ICustomizationMarketplaceResource): Promise<void>;
-	/** Restores files or registrations missing from a recorded installation. */
+	/** Restores files, registrations, or account connections missing from a recorded installation. */
 	repair(resource: ICustomizationMarketplaceResource): Promise<void>;
+	/** Cancels an in-progress Connector install or repair. */
+	cancelConnectorOperation(resource: ICustomizationMarketplaceResource): void;
 	/** Removes a previously installed marketplace resource through its owning service. */
 	uninstall(resource: ICustomizationMarketplaceResource): Promise<void>;
 }
