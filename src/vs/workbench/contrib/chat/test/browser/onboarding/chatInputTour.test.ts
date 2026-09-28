@@ -20,7 +20,7 @@ import { IContextViewService } from '../../../../../../platform/contextview/brow
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { resolveOnboardingTarget } from '../../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG } from '../../../../onboarding/common/onboardingScenarioService.js';
-import { AgentHostChatInputPicker } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { AgentHostChatInputPicker, AgentHostPickerSection } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { CHAT_INPUT_TOUR_ID, ChatInputTourTarget, ChatInputTourTrigger, createChatInputTour } from '../../../browser/onboarding/chatInputTour.contribution.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
@@ -73,6 +73,7 @@ suite('ChatInputTourTrigger', () => {
 
 		let pickersRendered = false;
 		const opened: string[] = [];
+		const sections: string[] = [];
 		const menu = createElement('menu');
 		const createPicker = (label: string, combinesPermissions: boolean) => {
 			const element = createElement(label);
@@ -84,6 +85,13 @@ suite('ChatInputTourTrigger', () => {
 				override open(openPermissions?: boolean) {
 					open = true;
 					opened.push(`${label}${openPermissions ? ':permissions' : ''}`);
+				}
+				override setSectionExpanded(section: AgentHostPickerSection, expanded: boolean) {
+					if (!open || !combinesPermissions) {
+						return false;
+					}
+					sections.push(`${section}:${expanded ? 'expand' : 'collapse'}`);
+					return true;
 				}
 			}();
 		};
@@ -132,6 +140,7 @@ suite('ChatInputTourTrigger', () => {
 		return {
 			trigger,
 			opened,
+			sections,
 			menu,
 			modelPicker,
 			pickerElement: (property: string) => pickers.get(property)?.triggerElement,
@@ -160,8 +169,8 @@ suite('ChatInputTourTrigger', () => {
 		return { targets, popupsBeforeOpen, popups: targets.map(({ target }) => target?.popup?.()) };
 	}
 
-	test('triggers once a Copilot harness chat shows its pickers and opens the mode and permissions sections', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { trigger, opened, menu, modelPicker, pickerElement, showWidget, renderPickers, settle, retry } = createHarness();
+	test('triggers once a Copilot harness chat shows its pickers and moves the open menu from agent mode to permissions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { trigger, opened, sections, menu, modelPicker, pickerElement, showWidget, renderPickers, settle, retry } = createHarness();
 
 		const beforeOpen = trigger.signal.get();
 		showWidget();
@@ -179,6 +188,7 @@ suite('ChatInputTourTrigger', () => {
 			modePickerIsShared: targets[0].target?.element === pickerElement(SessionConfigKey.Mode) && targets[1].target?.element === pickerElement(SessionConfigKey.Mode),
 			modelPicker: targets[2].target?.element === modelPicker,
 			opened,
+			sections,
 			popupsBeforeOpen,
 			popupsAreMenu: popups.map(popup => popup === menu),
 			steps: createChatInputTour(trigger.signal).presentation.payload.steps.map(step => ({ targetId: step.targetId, openTarget: step.openTarget })),
@@ -193,7 +203,8 @@ suite('ChatInputTourTrigger', () => {
 			],
 			modePickerIsShared: true,
 			modelPicker: true,
-			opened: ['mode', 'mode:permissions'],
+			opened: ['mode'],
+			sections: ['mode:collapse', 'permissions:expand'],
 			popupsBeforeOpen: [undefined, undefined, undefined],
 			popupsAreMenu: [true, true, false],
 			steps: [
@@ -218,7 +229,7 @@ suite('ChatInputTourTrigger', () => {
 		}, {
 			triggered: true,
 			permissionsTarget: 'autoApprove',
-			opened: ['mode', 'autoApprove'],
+			opened: ['mode', 'autoApprove:permissions'],
 		});
 	}));
 
