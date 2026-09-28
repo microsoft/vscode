@@ -85,6 +85,7 @@ export namespace ChatContextKeys {
 	 * e.g. an observable worker chat. Read-only chats hide the composer and do not offer
 	 * mutating actions such as Start Over or Restore Checkpoint.
 	 */
+	export const inputBlocked = new RawContextKey<boolean>('chatInputBlocked', false, { type: 'boolean', description: localize('chatInputBlocked', "True when sending to the current chat is temporarily blocked.") });
 	export const readOnly = new RawContextKey<boolean>('chatIsReadonly', false, { type: 'boolean', description: localize('chatIsReadonly', "True when the chat shown in the widget is read-only (non-interactive).") });
 	/**
 	 * Widget-scoped: true when this chat widget is locked to an Agent Host-backed chat session.

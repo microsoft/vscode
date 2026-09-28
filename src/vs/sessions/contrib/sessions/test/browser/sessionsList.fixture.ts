@@ -53,6 +53,16 @@ const NESTED_CHAT_APPROVAL_SESSION: ISessionsListFixtureSession = {
 		{ id: 'task-c', title: 'Task C', status: SessionStatus.NeedsInput, approvalCommand: 'npm run test:integration -- --grep "retry"' },
 	],
 };
+const COMPACT_NESTED_CHAT_PRIMARY_ACTION_SESSION: ISessionsListFixtureSession = {
+	id: 'nested-primary-action',
+	title: 'Move chats',
+	workspace: 'vscode',
+	workspaceFolders: ['vscode', 'vscode-tools'],
+	minutesAgo: 2,
+	chats: [
+		{ id: 'review', title: 'Review chat transfer', workspace: 'vscode', canArchive: true },
+	],
+};
 const GROUPED_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'a', title: 'Fix authentication redirect loop', workspace: 'vscode', minutesAgo: 12, changesSummary: { files: 4, additions: 132, deletions: 18 } },
 	{ id: 'b', title: 'Add reconnect backoff', workspace: 'agent-host-protocol', minutesAgo: 64 },
@@ -666,6 +676,15 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['A compact parent session with an active and a done child has its context menu open. Show Done Chats is checked, and the parent offers Mark as Done rather than Restore.'],
+	}),
+	SessionsList_CompactNestedChatPrimaryAction: defineSessionsListFixture({
+		sessions: [COMPACT_NESTED_CHAT_PRIMARY_ACTION_SESSION],
+		view: { compact: true, width: 400 },
+		interaction: { focused: { session: 'nested-primary-action', chat: 'review' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['An expanded compact multi-folder session shows a nested chat with its workspace badge beside the title and its Mark as Done primary action aligned to the trailing edge of the row.'],
 	}),
 	SessionsList_ArchivedNestedChatSessionMenu: defineSessionsListFixture({
 		sessions: [{ ...ARCHIVED_CHAT_SESSION, chats: ARCHIVED_CHAT_SESSION.chats?.filter(chat => !chat.isArchived) }],
