@@ -220,20 +220,29 @@
 		color: var(--vscode-foreground);
 	}
 
-	.agent-sessions-storage-cleanup-notice-dismiss.monaco-button {
+	.agent-sessions-storage-cleanup-notice-dismiss {
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		flex-shrink: 0;
-		min-width: 20px;
 		width: 20px;
 		height: 20px;
 		padding: 0;
 		border: none;
-		background: transparent;
+		border-radius: var(--vscode-cornerRadius-small, 4px);
+		cursor: pointer;
 		color: var(--vscode-icon-foreground);
+		background: transparent;
+		outline: none;
 	}
 
-	.agent-sessions-storage-cleanup-notice-info.monaco-button:hover,
-	.agent-sessions-storage-cleanup-notice-dismiss.monaco-button:hover {
-		background: var(--vscode-toolbar-hoverBackground);
+	.agent-sessions-storage-cleanup-notice-dismiss:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+
+	.agent-sessions-storage-cleanup-notice-dismiss:focus-visible {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+		outline-offset: -1px;
 	}
 
 	.agent-sessions-storage-cleanup-notice-actions {

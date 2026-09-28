@@ -5,11 +5,13 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -26,6 +28,7 @@ export class SessionStorageCleanupNotice extends Disposable {
 		@ISessionWorktreeCleanupService private readonly cleanupService: ISessionWorktreeCleanupService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -38,13 +41,14 @@ export class SessionStorageCleanupNotice extends Disposable {
 		icon.appendChild(renderIcon(Codicon.database));
 		const description = DOM.append(content, DOM.$('.agent-sessions-storage-cleanup-notice-description'));
 
-		const dismissButton = this._register(new Button(content, { ...defaultButtonStyles, secondary: true }));
-		dismissButton.element.classList.add('agent-sessions-storage-cleanup-notice-dismiss');
-		dismissButton.icon = Codicon.close;
+		const dismissButton = DOM.append(content, DOM.$('button.agent-sessions-storage-cleanup-notice-dismiss')) as HTMLButtonElement;
+		dismissButton.type = 'button';
+		dismissButton.appendChild(renderIcon(Codicon.close));
 		const dismissLabel = localize('sessionStorageCleanupNotice.dismiss', "Dismiss Session Storage Suggestion");
-		dismissButton.setAriaLabel(dismissLabel);
-		dismissButton.setTitle(dismissLabel);
-		this._register(dismissButton.onDidClick(() => {
+		dismissButton.setAttribute('aria-label', dismissLabel);
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), dismissButton, dismissLabel));
+		this._register(DOM.addDisposableListener(dismissButton, DOM.EventType.CLICK, event => {
+			DOM.EventHelper.stop(event, true);
 			this.suggestion?.dismiss();
 			this.focusSessionsList();
 		}));
@@ -81,7 +85,7 @@ export class SessionStorageCleanupNotice extends Disposable {
 			description.textContent = this.suggestion?.description ?? '';
 			manageButton.enabled = available;
 			disableButton.enabled = available;
-			dismissButton.enabled = available;
+			dismissButton.disabled = !available;
 			if (available && !suggestionWasVisible) {
 				this.announceStatus(localize(
 					'sessionStorageCleanupNotice.announcement',
