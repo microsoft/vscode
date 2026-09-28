@@ -64,6 +64,8 @@ export interface IAgentPluginService {
 	readonly _serviceBrand: undefined;
 	readonly plugins: IObservable<readonly IAgentPlugin[]>;
 	readonly enablementModel: IEnablementModel;
+	/** Returns the repository's workspace decision after enterprise-policy precedence. */
+	getWorkspaceConfiguredEnablement(plugin: IAgentPlugin): boolean | undefined;
 }
 
 export interface IAgentPluginDiscovery extends IDisposable {
