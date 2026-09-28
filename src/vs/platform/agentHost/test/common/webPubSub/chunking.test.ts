@@ -145,7 +145,7 @@ suite('WebPubSub - chunk', () => {
 		assert.deepStrictEqual(reassembleAll(envelopes), original);
 	});
 
-	test('serializes the payload once for single-frame and chunked output', () => {
+	test('serializes the payload once, under its wire key, for single-frame and chunked output', () => {
 		const toJSONKeys: string[] = [];
 		const payload = (blob: string) => ({
 			toJSON: (key: string) => {
@@ -155,7 +155,42 @@ suite('WebPubSub - chunk', () => {
 		});
 		chunk(payload('small'));
 		chunk(payload('x'.repeat(5000)), { maxChunkBytes: 1024, newGroupId: () => 'g1' });
-		assert.deepStrictEqual(toJSONKeys, ['', '']);
+		assert.deepStrictEqual(toJSONKeys, ['data', 'data']);
+	});
+
+	test('sizes and chunks the payload as it is serialized on the wire', () => {
+		const maxChunkBytes = 1024;
+		const long = 'L'.repeat(4 * maxChunkBytes);
+		// Only a root `toJSON` sees a different key when the payload is serialized inside its envelope.
+		const keyed = (bare: string, wire: string) => ({ toJSON: (key: string) => key === 'data' ? wire : bare });
+		const actual = [keyed('small', long), keyed(long, 'small')].map(payload => {
+			const envelopes = chunk(payload, { maxChunkBytes, newGroupId: () => 'g1' });
+			return {
+				kinds: envelopes.map(envelope => envelope.kind),
+				framesFit: envelopes.every(envelope => wireBytes(envelope) <= maxChunkBytes),
+				delivered: reassembleFromWire(envelopes),
+			};
+		});
+		assert.deepStrictEqual(actual, [
+			{ kinds: ['chunk', 'chunk', 'chunk', 'chunk', 'chunk', 'chunk'], framesFit: true, delivered: long },
+			{ kinds: ['message'], framesFit: true, delivered: 'small' },
+		]);
+	});
+
+	test('rejects payloads that are not JSON-serialisable', () => {
+		const cyclic: { self?: unknown } = {};
+		cyclic.self = cyclic;
+		const payloads: unknown[] = [undefined, () => { }, Symbol('s'), { toJSON: () => undefined }, 1n, cyclic];
+		const errors = payloads.map(payload => {
+			try {
+				chunk(payload);
+				return 'accepted';
+			} catch (error) {
+				// Engines word the underlying serialization failure differently, so keep only our prefix.
+				return `${error.name}: ${error.message.split(':')[0]}`;
+			}
+		});
+		assert.deepStrictEqual(errors, payloads.map(() => 'ChunkingError: payload is not JSON-serialisable'));
 	});
 
 	test('rejects a non-positive ceiling', () => {
