@@ -593,6 +593,40 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['An expanded vscode session shows one active nested chat and one archived nested chat. The archived chat remains under its parent, uses the completed archive status icon, and shows Restore as its primary row action when focused.'],
 	}),
+<<<<<<< HEAD
+=======
+	SessionsList_CompactArchivedNestedChat: defineSessionsListFixture({
+		sessions: [ARCHIVED_CHAT_SESSION],
+		view: { compact: true, showArchived: true, width: 260 },
+		interaction: { selected: [{ session: 'nested-archive', chat: 'archived' }], focused: { session: 'nested-archive', chat: 'archived' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The done child is selected and keyboard-focused in a narrow compact list. Its completed archive icon, focus outline, and Restore action remain visible while its long title truncates; the active sibling and parent remain unselected.'],
+	}),
+	SessionsList_CompactArchivedSessionWithChats: defineSessionsListFixture({
+		sessions: [{ ...ARCHIVED_CHAT_SESSION, isArchived: true }],
+		view: { compact: true, width: 340, expanded: [{ section: 'archived' }] },
+		interaction: { focused: { session: 'nested-archive' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot' },
+		deferPaint: true,
+		expectedVisualDescriptions: ['A done parent session is expanded in the Done section with its active and done children still nested beneath it. The focused parent shows Restore rather than Pin or Mark as Done, independently of its children.'],
+	}),
+	SessionsList_ArchivedNestedChatMenu: defineSessionsListFixture({
+		sessions: [ARCHIVED_CHAT_SESSION],
+		view: { showArchived: true, width: 400 },
+		interaction: { contextMenu: { session: 'nested-archive', chat: 'archived' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+		frame: CONTEXT_MENU_FRAME,
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The done child has its own context menu with Restore instead of Mark as Done. Its parent remains active and both children remain nested beneath it.'],
+	}),
+>>>>>>> ad7afd04c60 (sessions: Use global archive filter for nested chats (#338535))
 	SessionsList_CompactNestedChatPrimaryAction: defineSessionsListFixture({
 		sessions: [COMPACT_NESTED_CHAT_PRIMARY_ACTION_SESSION],
 		view: { compact: true, width: 400 },
@@ -602,18 +636,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['An expanded compact multi-folder session shows a nested chat with its workspace badge beside the title and its Mark as Done primary action aligned to the trailing edge of the row.'],
 	}),
-	SessionsList_ArchivedNestedChatSessionMenu: defineSessionsListFixture({
-		sessions: [{ ...ARCHIVED_CHAT_SESSION, chats: ARCHIVED_CHAT_SESSION.chats?.filter(chat => !chat.isArchived) }],
-		view: { width: 400 },
-		interaction: { contextMenu: { session: 'nested-archive' } },
-		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
-		frame: CONTEXT_MENU_FRAME,
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['An expanded vscode session with no Done chats has its context menu open. Show Done Chats is always available, unchecked, and appears directly after New Chat in This Session in the same action group.'],
-	}),
-
 	//#endregion
 
 	//#region Archive onboarding
