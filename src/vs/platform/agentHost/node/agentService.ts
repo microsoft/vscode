@@ -6139,8 +6139,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- Protocol methods ---------------------------------------------------
 
-	async createTerminal(params: CreateTerminalParams): Promise<void> {
-		await this._terminalManager.createTerminal(params);
+	async createTerminal(params: CreateTerminalParams, clientContext?: IAgentHostClientTelemetryContext): Promise<void> {
+		await this._terminalManager.createTerminal(params, {
+			vscodeTerminalIdentity: clientContext !== undefined && clientContext.clientType !== AgentHostClientType.Unknown,
+		});
 	}
 
 	async disposeTerminal(terminal: URI): Promise<void> {

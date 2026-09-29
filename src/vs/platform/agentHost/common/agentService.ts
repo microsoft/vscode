@@ -855,7 +855,12 @@ export interface IAgentService {
 	/** Dispose a session in the agent host, freeing SDK resources. */
 	disposeSession(session: URI): Promise<void>;
 
-	createTerminal(params: CreateTerminalParams): Promise<void>;
+	/**
+	 * Create a terminal requested by a protocol client. `clientContext`
+	 * identifies the requesting client; VS Code clients receive VS Code's
+	 * terminal identity (`TERM_PROGRAM`).
+	 */
+	createTerminal(params: CreateTerminalParams, clientContext?: IAgentHostClientTelemetryContext): Promise<void>;
 
 	/** Dispose a terminal and kill its process if still running. */
 	disposeTerminal(terminal: URI): Promise<void>;

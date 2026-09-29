@@ -1773,8 +1773,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			return {};
 		},
-		createTerminal: async (_client, params) => {
-			await this._agentService.createTerminal(params);
+		createTerminal: async (client, params) => {
+			await this._agentService.createTerminal(params, client.telemetryContext);
 			return null;
 		},
 		disposeTerminal: async (_client, params) => {

@@ -18,7 +18,6 @@ import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { getShellIntegrationInjection } from '../../terminal/node/terminalEnvironment.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../common/agentHostCustomizationConfig.js';
-import { readTerminalProgramVersionMeta } from '../common/meta/agentTerminalMeta.js';
 import { ActionType } from '../common/state/protocol/actions.js';
 import type { CreateTerminalParams } from '../common/state/protocol/commands.js';
 import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind, TerminalLifecycleStatus } from '../common/state/protocol/state.js';
@@ -120,7 +119,7 @@ export function formatTerminalText(data: string, options: IFormatTerminalTextOpt
  */
 export interface IAgentHostTerminalManager {
 	readonly _serviceBrand: undefined;
-	createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void>;
+	createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean; vscodeTerminalIdentity?: boolean }): Promise<void>;
 	writeInput(uri: string, data: string): void;
 	sendText(uri: string, data: string, options: ISendTextOptions): Promise<void>;
 	onData(uri: string, cb: (data: string) => void): IDisposable;
@@ -290,13 +289,12 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	 * Create a new terminal backed by node-pty.
 	 * Spawns the user's default shell.
 	 */
-	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
+	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean; vscodeTerminalIdentity?: boolean }): Promise<void> {
 		const uri = params.channel;
 		if (this._terminals.has(uri)) {
 			throw new Error(`Terminal already exists: ${uri}`);
 		}
 
-		const terminalProgramVersion = readTerminalProgramVersionMeta(params);
 		const cwd = await this._resolveCwd(params.cwd, uri);
 		const cols = params.cols ?? 80;
 		const rows = params.rows ?? 24;
@@ -309,16 +307,10 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		// Shell integration — inject scripts so the shell emits OSC 633 sequences
 		const nonce = generateUuid();
 		const env: Record<string, string> = { ...process.env as Record<string, string> };
-		if (terminalProgramVersion !== undefined) {
-			// Remove differently cased inherited keys on Windows before setting the client identity.
-			for (const key of Object.keys(env)) {
-				const normalizedKey = platform.isWindows ? key.toUpperCase() : key;
-				if (normalizedKey === 'TERM_PROGRAM' || normalizedKey === 'TERM_PROGRAM_VERSION') {
-					delete env[key];
-				}
-			}
+		if (options?.vscodeTerminalIdentity) {
+			// Match the identity workbench terminals set in addTerminalEnvironmentKeys.
 			env['TERM_PROGRAM'] = 'vscode';
-			env['TERM_PROGRAM_VERSION'] = terminalProgramVersion;
+			env['TERM_PROGRAM_VERSION'] = this._productService.version;
 		}
 		// Attribute these commands to VS Code. Already inherited from the agent
 		// host process; set here as defense in depth.
