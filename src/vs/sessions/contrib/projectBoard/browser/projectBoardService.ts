@@ -23,7 +23,8 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { autorun, autorunHandleChanges, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { equals } from '../../../../base/common/objects.js';
+import { autorun, autorunHandleChanges, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -59,7 +60,7 @@ import { ProjectBoardNewSessionDialog } from './projectBoardNewSessionDialog.js'
 import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreviewState } from './projectBoardQuestions.js';
 import { getProjectBoardSubmittedAt, IProjectBoardMetadata } from './projectBoardMetadata.js';
 import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanOpenChatInSidePanelContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowSessionListContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
-import { IProjectBoardDisplayOptions } from '../common/projectBoardConfiguration.js';
+import { IProjectBoardCardIdentity, IProjectBoardDisplayOptions, IProjectBoardSavedPlacement, projectBoardIdentityLabelLimit } from '../common/projectBoardConfiguration.js';
 import { ProjectBoardWindow } from './projectBoardWindow.js';
 import { ProjectBoardChatSidePanel } from './projectBoardChatSidePanel.js';
 import { getSessionDragData, SessionsDataTransfers } from '../../../browser/dnd.js';
@@ -475,7 +476,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 					createdCardId = getProjectBoardCardId(session, chat);
 					this.onOpenChat(chat.resource);
 					try {
-						this.boardState.moveCard(createdCardId, placement);
+						this.boardState.moveCard(createdCardId, placement, getLastKnownIdentity(session, chat));
 						if (!this._store.isDisposed && this.expandPlacement(placement)) {
 							this.render();
 						}
@@ -533,9 +534,14 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			lines.push(localize('projectBoard.selectionHelp', "Use each conversation's checkbox to select it, then Mark as Done to archive the selected conversations' sessions, including their other chats. No conversations are deleted."));
 			lines.push(this.selectionLabel);
 		}
-		const appendGroup = (label: string, cards: readonly IProjectBoardCard[], collapsed: boolean) => {
+		const appendGroup = (label: string, cards: readonly IProjectBoardCard[], collapsed: boolean, placement?: IProjectBoardPlacement) => {
 			lines.push('', collapsed ? localize('projectBoard.collapsedGroup', "{0} (collapsed)", label) : label);
-			if (!cards.length) {
+			const missing = this.getUnavailablePlacements(placement);
+			for (const item of missing) {
+				const details = this.getUnavailableDetails(item);
+				lines.push(details.title, ...details.description);
+			}
+			if (!cards.length && !missing.length) {
 				lines.push(localize('projectBoard.accessibleEmpty', "No chats"));
 				return;
 			}
@@ -564,7 +570,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		appendGroup(localize('projectBoard.unassigned', "Unassigned"), this.model.getUnassignedCards(this.showArchived), this.unassignedCollapsed);
 		for (const row of this.model.rows) {
 			for (const column of this.model.columns) {
-				appendGroup(localize('projectBoard.cell', "{0}, {1}", row.label, column.label), this.model.getCards(row.id, column.id, this.showArchived), this.isCollapsed({ rowId: row.id, columnId: column.id }));
+				const placement = { rowId: row.id, columnId: column.id };
+				appendGroup(localize('projectBoard.cell', "{0}, {1}", row.label, column.label), this.model.getCards(row.id, column.id, this.showArchived), this.isCollapsed(placement), placement);
 			}
 		}
 		return lines.join('\n');
@@ -1568,7 +1575,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const autoIncludeSessions = this.boardState.configuration.get().autoIncludeSessions;
 		list.id = `${group.id}-cards`;
 		list.hidden = collapsed;
-		const missing = placement ? this.boardState.configuration.get().placements.filter(item => item.rowId === placement.rowId && item.columnId === placement.columnId && !this.model.hasChat(item.cardId)) : [];
+		const missing = this.getUnavailablePlacements(placement);
 		const totalCount = cards.length + missing.length;
 		if (collapsed) {
 			const summary = document.createElement('span');
@@ -1597,13 +1604,17 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			group.appendChild(recency);
 		}
 		for (const placement of missing.slice(0, this.showSessionList ? missing.length : Math.max(0, limit - cards.length))) {
+			const details = this.getUnavailableDetails(placement);
 			const unavailable = document.createElement('article');
 			unavailable.className = 'project-board-card project-board-card-unavailable';
 			const title = document.createElement('h4');
-			title.textContent = localize('projectBoard.unavailableChat', "Unavailable Chat");
-			const message = document.createElement('p');
-			message.textContent = localize('projectBoard.retainedPlacement', "The chat is not currently available. Its placement is retained.");
-			unavailable.append(title, message);
+			title.textContent = details.title;
+			unavailable.appendChild(title);
+			for (const text of details.description) {
+				const message = document.createElement('p');
+				message.textContent = text;
+				unavailable.appendChild(message);
+			}
 			const remove = this.createControl(unavailable, localize('projectBoard.removePlacement', "Remove Placement"), `remove:${placement.cardId}`, store);
 			store.add(remove.onDidClick(() => this.changeBoard(() => this.boardState.moveCard(placement.cardId, undefined))));
 			list.appendChild(unavailable);
@@ -1656,6 +1667,28 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 
 		return group;
+	}
+
+	private getUnavailablePlacements(placement: IProjectBoardPlacement | undefined): readonly IProjectBoardSavedPlacement[] {
+		return placement ? this.boardState.configuration.get().placements.filter(item =>
+			item.rowId === placement.rowId && item.columnId === placement.columnId && !this.model.hasChat(item.cardId)) : [];
+	}
+
+	private getUnavailableDetails(placement: IProjectBoardSavedPlacement): { title: string; description: string[] } {
+		const identity = placement.lastKnown;
+		const [provider, session, chat] = placement.cardId.split('\0');
+		return {
+			title: identity?.title || localize('projectBoard.unavailableChat', "Unavailable Chat"),
+			description: [
+				identity ? localize('projectBoard.lastKnownChat', "Unavailable - last known details")
+					: localize('projectBoard.noSavedChatTitle', "Unavailable - no saved title"),
+				...(identity?.sessionTitle ? [localize('projectBoard.lastKnownSession', "Session: {0}", identity.sessionTitle)] : []),
+				...(identity?.workspace ? [localize('projectBoard.lastKnownWorkspace', "Workspace: {0}", identity.workspace)] : []),
+				...(session && chat ? [localize('projectBoard.lastKnownProvider', "Provider: {0}", provider)] : []),
+				...(!identity?.title ? [localize('projectBoard.unavailableChatId', "Chat: {0}", chat ?? placement.cardId)] : []),
+				localize('projectBoard.retainedPlacement', "This chat is not currently listed by its provider. It may be temporarily unavailable or deleted. Its board placement is retained."),
+			],
+		};
 	}
 
 	private childChatSummary(children: readonly IProjectBoardCard[]): string {
@@ -2641,6 +2674,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 		this.chatWindows = this._register(instantiationService.createInstance(ProjectBoardChatWindows));
 		this.chatSidePanel = this._register(instantiationService.createInstance(ProjectBoardChatSidePanel));
 		this.previewPool = this._register(instantiationService.createInstance(ProjectBoardPreviewPool));
+		this.trackCardIdentities();
 		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
 			try {
 				this.catalog.replaceCardPlacements(getProjectBoardCardId(from, from.mainChat.get()), getProjectBoardCardId(to, to.mainChat.get()));
@@ -2666,6 +2700,46 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 			}
 		}));
 		this._register(addDisposableListener(mainWindow, EventType.UNLOAD, () => this.dispose()));
+	}
+
+	private trackCardIdentities(): void {
+		const discovery = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
+		// Ignore metadata-only catalog writes, including other windows' snapshots.
+		const observed = derivedOpts<readonly { cardId: string; lastKnown: IProjectBoardCardIdentity }[]>({ owner: this, equalsFn: equals }, reader => {
+			discovery.read(reader);
+			const placements = this.catalog.boards.read(reader).flatMap(board => board.configuration.placements);
+			if (!placements.length || !this.catalog.canEdit) {
+				return [];
+			}
+			const placedIds = new Set(placements.map(placement => placement.cardId));
+			const identities = new Map<string, IProjectBoardCardIdentity>();
+			const sessions = new Set([...this.sessionsManagementService.getSessions(), ...this.sessionsManagementService.sessionDrafts.read(reader)]);
+			for (const session of sessions) {
+				for (const chat of session.chats.read(reader)) {
+					const id = getProjectBoardCardId(session, chat);
+					if (!placedIds.has(id) || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
+						continue;
+					}
+					identities.set(id, getLastKnownIdentity(session, chat, reader));
+				}
+			}
+			return placements.flatMap(placement => {
+				const lastKnown = identities.get(placement.cardId);
+				return lastKnown ? [{ cardId: placement.cardId, lastKnown }] : [];
+			});
+		});
+		this._register(autorun(reader => {
+			const identities = new Map(observed.read(reader).map(item => [item.cardId, item.lastKnown]));
+			const placements = this.catalog.boards.read(undefined).flatMap(board => board.configuration.placements);
+			if (this.catalog.canEdit && placements.some(placement => identities.has(placement.cardId) && !equals(placement.lastKnown, identities.get(placement.cardId)))) {
+				try {
+					this.catalog.updateCardIdentities(identities);
+				} catch (error) {
+					// The catalog reports persistence failures; discovery must still render live chats.
+					this.logService.error('[ProjectBoard] Failed to retain chat identity', error);
+				}
+			}
+		}));
 	}
 
 	async open(boardId = this.catalog.selectedBoardId.get()): Promise<void> {
@@ -3048,6 +3122,15 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 			this.notificationService.error(localize('projectBoard.openWindowFailed', "Agents Hub could not be opened."));
 		}
 	}
+}
+
+function getLastKnownIdentity(session: ISession, chat: IChat, reader?: IReader): IProjectBoardCardIdentity {
+	const workspace = session.workspace?.read(reader)?.label;
+	return {
+		title: chat.title.read(reader).slice(0, projectBoardIdentityLabelLimit),
+		sessionTitle: session.title.read(reader).slice(0, projectBoardIdentityLabelLimit),
+		...(workspace !== undefined ? { workspace: workspace.slice(0, projectBoardIdentityLabelLimit) } : {}),
+	};
 }
 
 registerSingleton(IProjectBoardService, ProjectBoardService, InstantiationType.Delayed);

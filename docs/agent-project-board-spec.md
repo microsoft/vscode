@@ -158,8 +158,9 @@ Moving a card changes only its placement on the current board. The same conversa
 ### Storage and errors
 
 - Persist the versioned board collection, stable board IDs/names/order, embedded selection, and each board's axes, placements and preferences in profile-local storage. Migrate the legacy single-board configuration intact into Default and retain the old payload for recovery; older display preferences keep their existing defaults.
+- Each placement may retain `lastKnown` identity labels: chat title, owning-session title and optional workspace label, each bounded to 512 UTF-16 code units. The Hub service observes provider labels without loading chat models, updates existing placements across boards, and retains labels when discovery omits a chat. Moving or canonicalizing a placement retains its labels; removing the placement removes them. Older placements without labels remain valid.
 - Do not persist transcript copies, runtime status, credentials or artifact caches as board configuration.
-- Keep placement information when a provider disappears. Definitively unavailable placed chats have an explicit Remove Placement action.
+- A placed chat absent from provider discovery is shown as unavailable, not presumed deleted or disposed. Display retained labels explicitly as last known in cards and the accessible view; older anonymous placements expose their provider/chat identifier. Rediscovery restores live provider data in the same cell without duplication. Keep the explicit Remove Placement action, which removes organization only.
 - Corrupt saved state locks mutation until an explicit confirmed reset; do not silently replace it with defaults.
 - Surface load, save, navigation and submission failures with normal logging/notifications.
 
