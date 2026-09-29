@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import sinon from 'sinon';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -72,7 +71,6 @@ import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/loca
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostWorkspaceFiles } from '../../node/agentHostWorkspaceFiles.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
@@ -200,6 +198,7 @@ function createTestSideEffects(
 		gitStateService?: IAgentHostGitStateService;
 		initialTitleGenerationStrategy?: AutomaticTitleGenerationStrategy;
 		worktreeIsolation?: IAgentHostWorktreeIsolation;
+		fileService?: IFileService;
 	},
 	_gitService?: IAgentHostGitService,
 	telemetryService: ITelemetryService = NullTelemetryService,
@@ -219,7 +218,7 @@ function createTestSideEffects(
 		[IAgentHostGitStateService, options.gitStateService ?? new NoopGitStateService()],
 		[IAgentHostStateManager, stateManager],
 		[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
-		[IFileService, contributionFileService],
+		[IFileService, options.fileService ?? contributionFileService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
@@ -1602,8 +1601,10 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
-			const enumerate = sinon.stub(AgentHostWorkspaceFiles.prototype, 'enumerate').callsFake(async root => ({ files: [URI.joinPath(root, 'meta.json')], isTruncated: false }));
-			disposables.add(toDisposable(() => enumerate.restore()));
+			const diskFileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await diskFileService.writeFile(URI.joinPath(repository, 'repo-only.ts'), VSBuffer.fromString(''));
+			await diskFileService.writeFile(URI.joinPath(worktree, 'meta.json'), VSBuffer.fromString(''));
 			const worktreeIsolation = disposables.add(new FirstSendWorktreeIsolation());
 			const localSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
@@ -1611,6 +1612,7 @@ suite('AgentSideEffects', () => {
 				sessionDataService: createNullSessionDataService(),
 				resolveWorkingDirectoryBeforeSend: async () => [worktreeIsolation.create(AgentSession.id(sessionUri), worktree)],
 				worktreeIsolation,
+				fileService: diskFileService,
 			});
 			disposables.add(localSideEffects.registerProgressListener(agent));
 			// Model selection is a provider round-trip; the snapshot is prepared alongside it.
@@ -1626,13 +1628,7 @@ suite('AgentSideEffects', () => {
 
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
 			const snapshot = (!URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined)?.find(instruction => instruction.startsWith('<workspace_info>'));
-			assert.deepStrictEqual({
-				enumerated: enumerate.getCalls().map(call => call.args[0].toString()),
-				structure: snapshot?.split('```text\n')[1].split('\n```')[0],
-			}, {
-				enumerated: [worktree.toString()],
-				structure: `${JSON.stringify(worktree.fsPath).slice(1, -1)}\nmeta.json`,
-			});
+			assert.strictEqual(snapshot?.split('```text\n')[1].split('\n```')[0], `${JSON.stringify(worktree.fsPath).slice(1, -1)}\nmeta.json`);
 		});
 
 		test('adds focused edit guidance for an editor inline-chat surface', async () => {

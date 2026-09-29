@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource, type CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
 import { appendEscapedMarkdownCodeBlockFence } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, type IDisposable } from '../../../../../base/common/lifecycle.js';
+import { isAbsolute, join } from '../../../../../base/common/path.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { FileType, IFileService } from '../../../../files/common/files.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAppliedClientAction, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
@@ -17,20 +19,33 @@ import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
-import { AgentHostWorkspaceFiles } from '../../agentHostWorkspaceFiles.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type AgentHostWorkspaceSnapshotPreparation } from '../../agentHostTelemetryReporter.js';
 import { IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
 
 const firstTurnSeenMemento = createChatMementoKey<boolean>('firstTurnSeen', () => false);
 const MAX_STRUCTURE_LENGTH = 2000;
+/**
+ * Longest the first send waits for a snapshot that is still being prepared.
+ * Preparation starts when the turn is accepted and reads only as many
+ * directories as fit the budget, so it normally finishes well before the send.
+ */
+const SNAPSHOT_WAIT_MS = 1000;
+/** Folder names never expanded, mirroring the classic Copilot Chat workspace structure. Hidden entries are always skipped. */
+const EXCLUDED_FOLDERS = new Set(['node_modules', 'bower_components', 'out', 'dist', '__pycache__', 'venv', 'pods']);
+/** File names never listed, mirroring the classic Copilot Chat workspace structure. */
+const EXCLUDED_FILES = new Set(['package-lock.json', 'yarn.lock', 'thumbs.db']);
 
-/** One root's rendered tree, filled in when its preparation finishes. */
+type RootOutcome = 'pending' | 'included' | 'empty' | 'gitAdministrative' | 'failed';
+
+/** One root's preparation, updated in place when it finishes. */
 interface IPreparedRoot {
-	settled: boolean;
-	/** The rendered tree, or `undefined` for a root that produced none. */
+	readonly root: URI;
+	outcome: RootOutcome;
 	tree: string | undefined;
+	readonly done: Promise<void>;
 }
 
-/** A chat's snapshot preparation. Disposing it stops any enumeration still running. */
+/** A chat's snapshot preparation. Disposing it stops any directory walk still running. */
 interface IPreparedSnapshot extends IDisposable {
 	/** Identifies the roots it was prepared for, to detect a change before send. */
 	readonly key: string;
@@ -54,7 +69,6 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 
 	static readonly id = 'workspaceContext';
 	readonly order = 200;
-	private readonly _workspaceFiles: AgentHostWorkspaceFiles;
 	private readonly _prepared = this._register(new DisposableMap<ProtocolURI, IPreparedSnapshot>());
 	/** First-turn chats whose session is creating its worktree, keyed by session id. */
 	private readonly _awaitingWorktree = new Map<string, Set<ProtocolURI>>();
@@ -63,10 +77,11 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		private readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostWorktreeIsolation private readonly _worktreeIsolation: IAgentHostWorktreeIsolation,
+		@IFileService private readonly _fileService: IFileService,
+		@IAgentHostTelemetryReporter private readonly _telemetryReporter: AgentHostTelemetryReporter,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._workspaceFiles = this._register(new AgentHostWorkspaceFiles(_logService));
 		this._register(_worktreeIsolation.onDidChangeWorkingDirectoryPending(sessionId => this._onWorktreeResolved(sessionId)));
 		this._register(_stateManager.onDidRemoveSession(session => this._releaseSession(session)));
 	}
@@ -75,7 +90,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	 * Starts preparing as soon as a first turn is accepted, so the snapshot is
 	 * usually complete by the time {@link onOutgoingTurn} needs it. A session still
 	 * creating its worktree waits for {@link _onWorktreeResolved} instead: the
-	 * worktree does not exist yet, and scanning the source checkout would
+	 * worktree does not exist yet, and walking the source checkout would
 	 * compete with its creation.
 	 */
 	onDidApplyClientAction({ channel, session, action }: IAppliedClientAction): void {
@@ -102,27 +117,33 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	}
 
 	/**
-	 * Sends only what is already prepared, so the snapshot never delays the
-	 * send: a root still being listed or rendered is omitted, and anything
-	 * still running is stopped.
+	 * Adds the snapshot for the directories the turn runs in. Preparation that
+	 * has not finished, or that has not started because the turn bypassed
+	 * `ChatTurnStarted` or its directories changed, gets at most
+	 * {@link SNAPSHOT_WAIT_MS}; roots still unfinished after that are omitted.
 	 */
-	onOutgoingTurn(turn: IOutgoingTurn): ISendContribution | undefined {
+	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
 		try {
 			if (!this._firstTurnWorkingDirectories(turn.chat)) {
 				return undefined;
 			}
 			this._context.memento(firstTurnSeenMemento, turn.chat).set(true, undefined);
-			// Compare against the directories the provider will run in, not session state: a worktree created on this send is not in state until the provider materializes.
-			const prepared = this._prepared.get(turn.chat);
-			if (!prepared || prepared.key !== snapshotKey(resolveAgentHostFileCompletionRoots(turn.workingDirectories ?? []).enumerationRoots)) {
-				this._logService.trace(`[WorkspaceContext] Sent a first turn without a snapshot: none was prepared for its working directories`);
+			// Use the directories the provider will run in, not session state: a worktree created on this send is not in state until the provider materializes.
+			const { enumerationRoots } = resolveAgentHostFileCompletionRoots(turn.workingDirectories ?? []);
+			if (enumerationRoots.length === 0) {
 				return undefined;
 			}
-			const pending = prepared.roots.filter(root => !root.settled).length;
-			if (pending) {
-				this._logService.trace(`[WorkspaceContext] Sent a first turn without ${pending} root(s) whose file list was not ready`);
+			const existing = this._prepared.get(turn.chat);
+			const preparation: AgentHostWorkspaceSnapshotPreparation = !existing ? 'startedAtSend' : existing.key === snapshotKey(enumerationRoots) ? 'prepared' : 'directoriesChanged';
+			const prepared = this._prepare(turn.chat, enumerationRoots);
+			const waitStarted = Date.now();
+			const pending = prepared.roots.filter(root => root.outcome === 'pending');
+			if (pending.length) {
+				await raceTimeout(Promise.all(pending.map(root => root.done)), SNAPSHOT_WAIT_MS);
 			}
-			const structure = prepared.roots.map(root => root.tree).filter(Boolean).join('\n\n');
+			const waitMs = Date.now() - waitStarted;
+			const structure = prepared.roots.map(root => root.outcome === 'included' ? root.tree : undefined).filter(Boolean).join('\n\n');
+			this._report(turn.chat, prepared, preparation, waitMs, structure.length);
 			if (!structure) {
 				return undefined;
 			}
@@ -151,6 +172,23 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			this._context.memento(firstTurnSeenMemento, context.chat).set(true, undefined);
 		}
 		return turns;
+	}
+
+	/** Logs and reports why each root was or was not included, so a missing snapshot can be diagnosed. */
+	private _report(chat: ProtocolURI, prepared: IPreparedSnapshot, preparation: AgentHostWorkspaceSnapshotPreparation, waitMs: number, snapshotLength: number): void {
+		const count = (outcome: RootOutcome) => prepared.roots.filter(root => root.outcome === outcome).length;
+		const omitted = prepared.roots.filter(root => root.outcome !== 'included').map(root => `${root.outcome}: ${root.root.fsPath}`);
+		this._logService.info(`[WorkspaceContext] First turn of ${chat}: included ${count('included')}/${prepared.roots.length} roots (${preparation}, waited ${waitMs}ms)${omitted.length ? `; ${omitted.join('; ')}` : ''}`);
+		this._telemetryReporter.workspaceSnapshotSent({
+			preparation,
+			rootCount: prepared.roots.length,
+			includedRootCount: count('included'),
+			pendingRootCount: count('pending'),
+			emptyRootCount: count('empty') + count('gitAdministrative'),
+			failedRootCount: count('failed'),
+			waitMs,
+			snapshotLength,
+		});
 	}
 
 	/** Starts preparing the first-turn snapshots that were waiting for the worktree their session just created. */
@@ -189,45 +227,47 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	}
 
 	/**
-	 * Starts preparing the chat's snapshot for `workingDirectories`, unless it is
-	 * already being prepared for the same roots. A different set replaces and
-	 * stops the previous preparation.
+	 * Returns the chat's snapshot preparation for `workingDirectories`, starting
+	 * it unless it is already being prepared for the same roots. A different set
+	 * replaces and stops the previous preparation.
 	 */
-	private _prepare(chat: ProtocolURI, workingDirectories: readonly URI[]): void {
+	private _prepare(chat: ProtocolURI, workingDirectories: readonly URI[]): IPreparedSnapshot {
 		const { enumerationRoots } = resolveAgentHostFileCompletionRoots(workingDirectories);
 		const key = snapshotKey(enumerationRoots);
-		if (this._prepared.get(chat)?.key === key) {
-			return;
+		const existing = this._prepared.get(chat);
+		if (existing?.key === key) {
+			return existing;
 		}
 		const cancellation = new CancellationTokenSource();
 		const budget = enumerationRoots.length ? Math.floor(MAX_STRUCTURE_LENGTH / enumerationRoots.length) : 0;
 		const roots = enumerationRoots.map(root => {
-			const prepared: IPreparedRoot = { settled: false, tree: undefined };
-			this._prepareRoot(root, budget, cancellation.token).then(tree => {
+			const prepared: { -readonly [K in keyof IPreparedRoot]: IPreparedRoot[K] } = { root, outcome: 'pending', tree: undefined, done: Promise.resolve() };
+			prepared.done = this._prepareRoot(root, budget, cancellation.token).then(({ outcome, tree }) => {
+				prepared.outcome = outcome;
 				prepared.tree = tree;
-				prepared.settled = true;
 			});
 			return prepared;
 		});
-		this._prepared.set(chat, { key, roots, dispose: () => cancellation.dispose(true) });
+		const snapshot: IPreparedSnapshot = { key, roots, dispose: () => cancellation.dispose(true) };
+		this._prepared.set(chat, snapshot);
+		return snapshot;
 	}
 
 	/** Renders one root's tree. Failures are isolated to the root, so other roots still contribute. */
-	private async _prepareRoot(root: URI, budget: number, token: CancellationToken): Promise<string | undefined> {
+	private async _prepareRoot(root: URI, budget: number, token: CancellationToken): Promise<{ outcome: RootOutcome; tree?: string }> {
 		try {
-			const result = await this._workspaceFiles.enumerate(root, token);
-			const workspaceTree = await buildWorkspaceTree(root, result.files, token);
-			if (!workspaceTree) {
-				return undefined;
+			if (await isGitAdministrativeDirectory(this._fileService, root)) {
+				return { outcome: 'gitAdministrative' };
 			}
 			const heading = JSON.stringify(root.fsPath).slice(1, -1);
-			const tree = renderWorkspaceTree(workspaceTree, result.isTruncated, budget - heading.length - 3);
-			return tree ? `${heading}\n${tree}` : undefined;
-		} catch (err) {
-			if (!isCancellationError(err)) {
-				this._logService.warn(`[WorkspaceContext] Could not list ${root.fsPath} for the initial workspace snapshot: ${toErrorMessage(err)}`);
+			const tree = await renderWorkspaceTree(this._fileService, root, budget - heading.length - 3, token);
+			if (tree === undefined) {
+				return { outcome: 'pending' };
 			}
-			return undefined;
+			return tree ? { outcome: 'included', tree: `${heading}\n${tree}` } : { outcome: 'empty' };
+		} catch (err) {
+			this._logService.warn(`[WorkspaceContext] Could not list ${root.fsPath} for the initial workspace snapshot: ${toErrorMessage(err)}`);
+			return { outcome: 'failed' };
 		}
 	}
 
@@ -250,104 +290,125 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	}
 }
 
-/** A file (no children) or directory in the rendered tree. */
+/** A listed file or directory. `children` is read only for directories that are expanded. */
 interface IWorkspaceNode {
 	readonly name: string;
-	readonly children: Map<string, IWorkspaceNode>;
-	/** Children in display order, computed once when first rendered. */
-	sorted?: readonly IWorkspaceNode[];
+	readonly resource: URI;
+	/** Whether to render a trailing `/`. */
+	readonly isDirectory: boolean;
+	/** Whether to read its children. Symbolic links are listed but never followed, to avoid cycles. */
+	readonly expandable: boolean;
+	children?: readonly IWorkspaceNode[];
 }
 
 /**
- * Paths added to the tree between yields to the event loop. Listing can
- * return tens of thousands of paths per root, so building in batches lets the
- * provider send and other host work run while a snapshot is prepared.
+ * Reads a directory's visible entries in display order: files before
+ * directories, each sorted by name. Hidden entries and the excluded names are
+ * skipped. Reads names and types only, never per-file metadata.
  */
-const BUILD_BATCH_SIZE = 2000;
-
-function yieldToEventLoop(): Promise<void> {
-	return new Promise(resolve => setImmediate(resolve));
-}
-
-function sortedChildren(node: IWorkspaceNode): readonly IWorkspaceNode[] {
-	node.sorted ??= [...node.children.values()].sort((a, b) => Number(a.children.size > 0) - Number(b.children.size > 0) || compare(a.name, b.name));
-	return node.sorted;
-}
-
-/**
- * Builds the tree from plain path segments rather than URIs, in batches that
- * yield to the event loop. Returns `undefined` once `token` is cancelled.
- */
-async function buildWorkspaceTree(root: URI, files: readonly URI[], token: CancellationToken): Promise<IWorkspaceNode | undefined> {
-	const tree: IWorkspaceNode = { name: '', children: new Map() };
-	const prefix = root.path.endsWith('/') ? root.path : `${root.path}/`;
-	for (let index = 0; index < files.length; index++) {
-		if (index > 0 && index % BUILD_BATCH_SIZE === 0) {
-			await yieldToEventLoop();
-		}
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
-		const path = files[index].path;
-		if (!path.startsWith(prefix)) {
-			continue;
-		}
-		const segments = path.slice(prefix.length).split(/[\\/]/);
-		if (segments.some(segment => !segment || segment.startsWith('.') || segment === 'node_modules')) {
-			continue;
-		}
-		let node = tree;
-		for (const segment of segments) {
-			let child = node.children.get(segment);
-			if (!child) {
-				child = { name: segment, children: new Map() };
-				node.children.set(segment, child);
-			}
-			node = child;
-		}
+async function readChildren(fileService: IFileService, directory: URI): Promise<IWorkspaceNode[]> {
+	const provider = fileService.getProvider(directory.scheme);
+	if (!provider) {
+		return [];
 	}
-	return token.isCancellationRequested ? undefined : tree;
+	const entries = await provider.readdir(directory);
+	const nodes: IWorkspaceNode[] = [];
+	for (const [name, type] of entries) {
+		const isDirectory = (type & FileType.Directory) !== 0;
+		if (name.startsWith('.') || (isDirectory ? EXCLUDED_FOLDERS : EXCLUDED_FILES).has(name.toLowerCase())) {
+			continue;
+		}
+		nodes.push({ name, resource: URI.joinPath(directory, name), isDirectory, expandable: type === FileType.Directory });
+	}
+	return nodes.sort((a, b) => Number(a.isDirectory) - Number(b.isDirectory) || compare(a.name, b.name));
 }
 
-/** Renders at most `maxLength` characters of `tree`, breadth first, so top-level orientation survives truncation. */
-function renderWorkspaceTree(tree: IWorkspaceNode, isTruncated: boolean, maxLength: number): string {
+/**
+ * Renders at most `maxLength` characters of `root`'s file names, breadth
+ * first so top-level orientation survives truncation, reading only the
+ * directories whose names fit. Like the classic Copilot Chat workspace
+ * structure it does not apply `.gitignore`. Returns `undefined` once `token`
+ * is cancelled.
+ */
+async function renderWorkspaceTree(fileService: IFileService, root: URI, maxLength: number, token: CancellationToken): Promise<string | undefined> {
 	if (maxLength < 4) {
 		return '';
 	}
 	const selected = new Map<IWorkspaceNode, string>();
-	const queue = sortedChildren(tree).map(node => ({ node, depth: 0 }));
+	// The root must be readable; an unreadable nested directory is shown without children.
+	const topLevel = await readChildren(fileService, root);
+	let level = topLevel;
 	let length = 0;
-	let truncated = isTruncated;
-	for (let index = 0; index < queue.length; index++) {
-		const { node, depth } = queue[index];
-		const name = JSON.stringify(node.name).slice(1, -1);
-		const line = `${'\t'.repeat(depth)}${name}${node.children.size ? '/' : ''}`;
-		if (length + line.length + 1 > maxLength - 4) {
-			truncated = true;
-			break;
+	let truncated = false;
+	for (let depth = 0; level.length > 0 && !truncated; depth++) {
+		if (token.isCancellationRequested) {
+			return undefined;
 		}
-		selected.set(node, line);
-		length += line.length + 1;
-		queue.push(...sortedChildren(node).map(child => ({ node: child, depth: depth + 1 })));
+		const expanded: IWorkspaceNode[] = [];
+		for (const node of level) {
+			const line = `${'\t'.repeat(depth)}${JSON.stringify(node.name).slice(1, -1)}${node.isDirectory ? '/' : ''}`;
+			if (length + line.length + 1 > maxLength - 4) {
+				truncated = true;
+				break;
+			}
+			selected.set(node, line);
+			length += line.length + 1;
+			if (node.expandable) {
+				expanded.push(node);
+			}
+		}
+		if (!truncated) {
+			await Promise.all(expanded.map(async node => { node.children = await readChildren(fileService, node.resource).catch(() => []); }));
+			level = expanded.flatMap(node => node.children ?? []);
+		}
 	}
-	if (selected.size === 0) {
-		return '';
+	if (token.isCancellationRequested) {
+		return undefined;
 	}
 	const lines: string[] = [];
-	const render = (node: IWorkspaceNode): void => {
-		const line = selected.get(node);
-		if (line !== undefined) {
-			lines.push(line);
-			for (const child of sortedChildren(node)) {
-				render(child);
+	const render = (nodes: readonly IWorkspaceNode[] | undefined): void => {
+		for (const node of nodes ?? []) {
+			const line = selected.get(node);
+			if (line !== undefined) {
+				lines.push(line);
+				render(node.children);
 			}
 		}
 	};
-	for (const node of sortedChildren(tree)) {
-		render(node);
-	}
+	render(topLevel);
 	if (truncated) {
 		lines.push('...');
 	}
 	return lines.join('\n');
+}
+
+/**
+ * Whether `directory` is Git's own storage rather than a work tree: inside a
+ * `.git` directory, a bare repository, or a linked worktree's admin directory
+ * (`<common>/worktrees/<name>`), which can live under a common directory not
+ * named `.git`. Their `HEAD`, `config`, `objects/`, and `refs/` are not source
+ * files.
+ */
+async function isGitAdministrativeDirectory(fileService: IFileService, directory: URI): Promise<boolean> {
+	if (directory.path.split('/').includes('.git')) {
+		return true;
+	}
+	const stat = (resource: URI) => fileService.stat(resource).catch(() => undefined);
+	const [head, objects, refs, dotGit, gitdir, commondir] = await Promise.all(['HEAD', 'objects', 'refs', '.git', 'gitdir', 'commondir'].map(name => stat(URI.joinPath(directory, name))));
+	if (dotGit || !head?.isFile) {
+		return false;
+	}
+	if (objects?.isDirectory && refs?.isDirectory) {
+		return true;
+	}
+	if (!gitdir?.isFile || !commondir?.isFile) {
+		return false;
+	}
+	// A linked worktree's admin directory names its shared repository in `commondir`.
+	const common = (await fileService.readFile(URI.joinPath(directory, 'commondir')).then(content => content.value.toString(), () => '')).trim();
+	if (!common) {
+		return false;
+	}
+	const commonDirectory = isAbsolute(common) ? URI.file(common) : URI.file(join(directory.fsPath, common));
+	return !!(await stat(URI.joinPath(commonDirectory, 'objects')))?.isDirectory;
 }

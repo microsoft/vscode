@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { execFileSync } from 'child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -177,84 +176,5 @@ suite('AgentHostWorkspaceFiles', () => {
 		await assert.rejects(cancelled, (err: unknown) => err instanceof CancellationError);
 		const result = await survivor;
 		assert.ok(result.files.some(uri => uri.path.endsWith('/a.txt')), `survivor should resolve with files even when first caller cancelled: ${result.files.map(u => u.path).join(',')}`);
-	});
-	test('enumerate lists files for its caller without sharing a cached result', async () => {
-		const dir = createTempDir();
-		writeFileSync(join(dir, 'a.txt'), 'a');
-
-		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
-		const wd = URI.file(dir);
-		const [first, second] = await Promise.all([
-			files.enumerate(wd, CancellationToken.None),
-			files.enumerate(wd, CancellationToken.None),
-		]);
-		assert.deepStrictEqual({
-			separate: first !== second,
-			files: first.files.map(uri => uri.path.slice(uri.path.lastIndexOf('/') + 1)),
-		}, { separate: true, files: ['a.txt'] });
-	});
-
-	test('enumerate rejects when cancelled and never starts once already cancelled', async () => {
-		const dir = createTempDir();
-		writeFileSync(join(dir, 'a.txt'), 'a');
-
-		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
-		const running = new CancellationTokenSource();
-		const inFlight = files.enumerate(URI.file(dir), running.token);
-		running.cancel();
-		running.dispose();
-		const cancelled = new CancellationTokenSource();
-		cancelled.cancel();
-		const neverStarted = files.enumerate(URI.file(dir), cancelled.token);
-		cancelled.dispose();
-
-		await assert.rejects(inFlight, (err: unknown) => err instanceof CancellationError);
-		await assert.rejects(neverStarted, (err: unknown) => err instanceof CancellationError);
-	});
-	test('enumerate does not list Git administrative directories as source trees', async () => {
-		const dir = createTempDir();
-		const bare = join(dir, 'bare.git');
-		mkdirSync(join(bare, 'objects'), { recursive: true });
-		mkdirSync(join(bare, 'refs'));
-		writeFileSync(join(bare, 'HEAD'), 'ref: refs/heads/main\n');
-		writeFileSync(join(bare, 'config'), '[core]\n\tbare = true\n');
-		const commonDirectory = join(dir, 'repo', '.git');
-		mkdirSync(commonDirectory, { recursive: true });
-		writeFileSync(join(commonDirectory, 'HEAD'), 'ref: refs/heads/main\n');
-		const workTree = join(dir, 'repo');
-		writeFileSync(join(workTree, 'HEAD'), 'not git metadata');
-
-		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
-		const listed = async (path: string) => (await files.enumerate(URI.file(path), CancellationToken.None)).files.map(uri => uri.path.slice(uri.path.lastIndexOf('/') + 1));
-		assert.deepStrictEqual({
-			bare: await listed(bare),
-			commonDirectory: await listed(commonDirectory),
-			workTree: await listed(workTree),
-		}, { bare: [], commonDirectory: [], workTree: ['HEAD'] });
-	});
-	test('enumerate does not list a linked worktree admin directory outside .git', async function () {
-		try {
-			execFileSync('git', ['--version'], { stdio: 'ignore' });
-		} catch {
-			this.skip();
-		}
-		const dir = createTempDir();
-		const emptyConfig = join(dir, 'empty.gitconfig');
-		writeFileSync(emptyConfig, '');
-		const env = { ...process.env, GIT_CONFIG_GLOBAL: emptyConfig, GIT_CONFIG_NOSYSTEM: '1' };
-		const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, env, stdio: 'pipe' });
-		git('init', '-q', 'source');
-		git('-C', 'source', '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-q', '--allow-empty', '-m', 'init');
-		git('clone', '-q', '--bare', 'source', 'shared');
-		git('--git-dir=shared', 'worktree', 'add', '-q', '--no-checkout', join(dir, 'checkout'));
-		writeFileSync(join(dir, 'checkout', 'main.ts'), '');
-
-		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
-		const listed = async (path: string) => (await files.enumerate(URI.file(path), CancellationToken.None)).files.map(uri => uri.path.slice(uri.path.lastIndexOf('/') + 1)).sort();
-		assert.deepStrictEqual({
-			adminDirectory: await listed(join(dir, 'shared', 'worktrees', 'checkout')),
-			commonDirectory: await listed(join(dir, 'shared')),
-			worktree: await listed(join(dir, 'checkout')),
-		}, { adminDirectory: [], commonDirectory: [], worktree: ['main.ts'] });
 	});
 });

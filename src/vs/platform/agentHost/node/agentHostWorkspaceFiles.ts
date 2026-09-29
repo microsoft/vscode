@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as fs from 'fs/promises';
 import { Limiter } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { isAbsolute, join } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { rgDiskPath } from '../../../base/node/ripgrep.js';
@@ -133,44 +131,8 @@ export class AgentHostWorkspaceFiles extends Disposable {
 		});
 	}
 
-	/**
-	 * Enumerates `workingDirectory` for a single caller, without the shared
-	 * cache. Cancelling `token` stops a running ripgrep process, and an
-	 * enumeration still waiting for a concurrency slot never starts. Use this
-	 * when only the caller can use the result, so it should not keep consuming
-	 * I/O after the caller stops waiting.
-	 *
-	 * Git's own storage (a bare repository, or a directory inside `.git`) is not
-	 * a source tree and returns an empty list without being scanned. Only
-	 * `file://` URIs are supported. Other schemes return an empty list.
-	 */
-	async enumerate(workingDirectory: URI, token: CancellationToken): Promise<IAgentHostWorkspaceFilesResult> {
-		if (workingDirectory.scheme !== Schemas.file) {
-			return { files: [], isTruncated: false };
-		}
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		if (await isGitAdministrativeDirectory(workingDirectory)) {
-			this._logService.trace(`[AgentHostWorkspaceFiles] Skipped Git administrative directory ${workingDirectory.toString()}`);
-			return { files: [], isTruncated: false };
-		}
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		return enumerationLimiter.queue(() => {
-			if (token.isCancellationRequested) {
-				return Promise.reject(new CancellationError());
-			}
-			return this._isDisposed ? Promise.resolve({ files: [], isTruncated: false }) : this._enumerate(workingDirectory, token);
-		});
-	}
-
-	private async _enumerate(workingDirectory: URI, token: CancellationToken = CancellationToken.None): Promise<IAgentHostWorkspaceFilesResult> {
+	private async _enumerate(workingDirectory: URI): Promise<IAgentHostWorkspaceFilesResult> {
 		const resolvedRgDiskPath = await rgDiskPath();
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
 		return new Promise<IAgentHostWorkspaceFilesResult>((resolve, reject) => {
 			const cwd = workingDirectory.fsPath;
 			// Mirror the workbench's `ripgrepFileSearch.ts` invocation: pass
@@ -198,7 +160,6 @@ export class AgentHostWorkspaceFiles extends Disposable {
 					return;
 				}
 				settled = true;
-				cancellationListener.dispose();
 				this._activeChildren.delete(child);
 				if (error) {
 					reject(error);
@@ -206,15 +167,6 @@ export class AgentHostWorkspaceFiles extends Disposable {
 					resolve({ files, isTruncated: limitHit });
 				}
 			};
-
-			const cancellationListener = token.onCancellationRequested(() => {
-				try {
-					child.kill();
-				} catch {
-					// ignore
-				}
-				finish([], new CancellationError());
-			});
 
 			child.stdout.setEncoding('utf8');
 			child.stdout.on('data', (chunk: string) => {
@@ -284,35 +236,4 @@ export class AgentHostWorkspaceFiles extends Disposable {
 			});
 		});
 	}
-}
-
-/**
- * Whether `directory` is Git's own storage rather than a work tree: inside a
- * `.git` directory, a bare repository, or a linked worktree's admin directory
- * (`<common>/worktrees/<name>`), which can live under a common directory not
- * named `.git`. Their `HEAD`, `config`, `objects/`, and `refs/` are not source
- * files.
- */
-async function isGitAdministrativeDirectory(directory: URI): Promise<boolean> {
-	if (directory.path.split('/').includes('.git')) {
-		return true;
-	}
-	const stat = (path: string) => fs.stat(path).catch(() => undefined);
-	const [head, objects, refs, dotGit, gitdir, commondir] = await Promise.all(['HEAD', 'objects', 'refs', '.git', 'gitdir', 'commondir'].map(name => stat(join(directory.fsPath, name))));
-	if (dotGit || !head?.isFile()) {
-		return false;
-	}
-	if (objects?.isDirectory() && refs?.isDirectory()) {
-		return true;
-	}
-	if (!gitdir?.isFile() || !commondir?.isFile()) {
-		return false;
-	}
-	// A linked worktree's admin directory names its shared repository in `commondir`.
-	const common = (await fs.readFile(join(directory.fsPath, 'commondir'), 'utf8').catch(() => '')).trim();
-	if (!common) {
-		return false;
-	}
-	const commonObjects = await stat(join(isAbsolute(common) ? common : join(directory.fsPath, common), 'objects'));
-	return !!commonObjects?.isDirectory();
 }
