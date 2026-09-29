@@ -48,11 +48,13 @@ for (const [group, expected] of [
 	['ActiveGroup', {
 		activeTop: { display: 'block', color: 'rgb(34, 211, 238)' },
 		activeBottom: { display: 'block', color: 'rgb(244, 63, 94)' },
+		activeSide: 'rgb(250, 204, 21)',
 		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)' },
 	}],
 	['InactiveGroup', {
 		activeTop: { display: 'block', color: 'rgb(192, 132, 252)' },
 		activeBottom: { display: 'block', color: 'rgb(251, 146, 60)' },
+		activeSide: 'rgb(250, 204, 21)',
 		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)' },
 	}],
 ] as const) {
@@ -64,8 +66,9 @@ for (const [group, expected] of [
 			const selected = tabs.querySelector<HTMLElement>('.tab.selected:not(.active)');
 			const activeTop = active?.querySelector<HTMLElement>('.tab-border-top-container');
 			const activeBottom = active?.querySelector<HTMLElement>('.tab-border-bottom-container');
+			const activeFill = active?.querySelector<HTMLElement>('.tab-fill');
 			const selectedTop = selected?.querySelector<HTMLElement>('.tab-border-top-container');
-			if (!activeTop || !activeBottom || !selectedTop) {
+			if (!activeTop || !activeBottom || !activeFill || !selectedTop) {
 				throw new Error('Expected active and selected connected-tab border indicators');
 			}
 			const style = (element: HTMLElement) => {
@@ -75,6 +78,7 @@ for (const [group, expected] of [
 			return {
 				activeTop: style(activeTop),
 				activeBottom: style(activeBottom),
+				activeSide: getComputedStyle(activeFill).borderRightColor,
 				selectedTop: style(selectedTop),
 			};
 		});
