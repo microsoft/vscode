@@ -65,6 +65,7 @@ try {
 } finally {
 	$listener.Stop()
 }
+$node = @(Get-Command node -CommandType Application -ErrorAction Stop)[0].Source
 $command = "set ELECTRON_RUN_AS_NODE=&& call `"$codeBat`" --user-data-dir=`"$UserDataDir`" --shared-data-dir=`"$sharedDataDir`" --remote-debugging-port=$cdpPort >> `"$logFile`" 2>&1"
 $process = Start-Process -FilePath $env:ComSpec -ArgumentList '/d', '/s', '/c', "`"$command`"" -WorkingDirectory $Repo -PassThru
 $exitMarker = "$logFile.exited"
@@ -72,7 +73,6 @@ $stopMarker = "$logFile.stop"
 $monitorScript = Join-Path $PSScriptRoot 'windows-process-tree-monitor.ps1'
 $monitorArguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$monitorScript`" -RootProcessId $($process.Id) -ExitMarker `"$exitMarker`" -StopMarker `"$stopMarker`""
 Start-Process -FilePath 'powershell.exe' -ArgumentList $monitorArguments -WindowStyle Hidden | Out-Null
-$node = (Get-Command node -CommandType Application -ErrorAction Stop).Source
 $waitForCdp = Join-Path $PSScriptRoot 'waitForCdp.ts'
 $readyMs = & $node $waitForCdp $process.Id $cdpPort $ReadyTimeoutMs
 $readyStatus = $LASTEXITCODE

@@ -496,6 +496,7 @@ try {
 
 	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
 	$sourceSettingsFile = Join-Path $sourceUserDataDir 'User\settings.json'
+	New-Item -ItemType Directory -Force -Path (Split-Path -Parent $settingsFile) | Out-Null
 	$settingsScript = Join-Path $PSScriptRoot 'updateSettings.ts'
 	$settingsSessionTitle = if ($agents) { '' } else { $sessionTitle }
 	& $node $settingsScript $settingsFile $settingsSessionTitle $sourceSettingsFile
