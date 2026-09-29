@@ -1,0 +1,26 @@
+[package]
+name = "copilot_shim"
+version = "0.1.0"
+edition = "2021"
+autobins = false
+
+[lib]
+name = "copilot_shim"
+path = "src/lib.rs"
+
+[[bin]]
+name = "copilot"
+path = "src/main.rs"
+
+[profile.release]
+strip = true
+lto = "thin"
+
+[dependencies]
+tempfile = "3.5.0"
+
+[target."cfg(unix)".dependencies]
+libc = "0.2.189"
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_JobObjects", "Win32_System_Pipes", "Win32_System_Threading"] }
