@@ -2995,6 +2995,8 @@ suite('Sessions - SessionsList', () => {
 						: [];
 			const memberships = new Map(sessions.map(session => [session.sessionId, group.id]));
 			const harness = createListHarness(disposables, sessions, { groups: [group], memberships, comparisons: [comparison], pinnedSessionIds });
+			harness.managementService.onDidArchive = archived => [attempt1, attempt2, judge, synthesis]
+				.find(participant => participant.session === archived)?.isArchived.set(true, undefined);
 			const container = harness.createContainer();
 			container.style.setProperty('--vscode-descriptionForeground', 'rgb(128, 128, 128)');
 			container.style.setProperty('--vscode-cornerRadius-small', '4px');
@@ -3181,6 +3183,22 @@ suite('Sessions - SessionsList', () => {
 				archived: ['attempt-1', 'attempt-2', 'judge', 'synthesis'],
 				archivedComparisonIds: ['comparison-1'],
 				deletedGroupIds: [group.id],
+			});
+		});
+
+		test('keeps the comparison when a participant session could not be archived', async () => {
+			const { container, harness } = renderComparison(undefined, 'attempt1');
+			container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-archive')?.click();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				archived: harness.managementService.archived.map(session => session.sessionId).sort(),
+				archivedComparisonIds: harness.archivedComparisonIds,
+				deletedGroupIds: harness.deletedGroupIds,
+			}, {
+				archived: ['attempt-1', 'judge', 'synthesis'],
+				archivedComparisonIds: [],
+				deletedGroupIds: [],
 			});
 		});
 

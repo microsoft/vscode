@@ -219,6 +219,28 @@ suite('Session comparison grid controller', () => {
 		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed }, { shownOnly: [], closed: [] });
 	});
 
+	test('ignores archived comparisons for layout and Judge isolation', async () => {
+		const fixture = setup();
+		fixture.comparisons.set(fixture.comparisons.get().map(comparison => ({ ...comparison, archivedAt: 1 })), undefined);
+		fixture.focused.fire('judge');
+		fixture.activeSession.set(fixture.judge, undefined);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			shownOnly: fixture.shownOnly,
+			closed: fixture.closed,
+			gridActive: fixture.mainContainer.classList.contains('session-comparison-grid-active'),
+			editorVisible: fixture.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: fixture.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			shownOnly: [],
+			closed: [],
+			gridActive: false,
+			editorVisible: true,
+			auxiliaryBarVisible: true,
+		});
+	});
+
 	test('shows inputs by default and hides inactive inputs only when enabled for three or more attempts', async () => {
 		const defaultGrid = setup({ attemptsOnly: true, attemptCount: 3 });
 		const twoAttemptGrid = setup({ attemptsOnly: true, attemptCount: 2, hideInactiveInputs: true });

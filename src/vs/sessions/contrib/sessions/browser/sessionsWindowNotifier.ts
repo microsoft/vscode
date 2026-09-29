@@ -168,6 +168,7 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 			&& visibleSessions.some(candidate => candidate?.sessionId === session.sessionId)
 			&& activeSession?.sessionId !== session.sessionId
 			&& !!comparison
+			&& comparison.archivedAt === undefined
 			&& !!activeSession
 			&& this._sessionComparisonService.getComparisonForSession(activeSession.resource)?.id === comparison.id;
 	}

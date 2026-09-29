@@ -158,8 +158,9 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			return undefined;
 		}
 		const firstSession = visibleSessions[0]!;
-		const comparison = comparisons.find(candidate =>
-			candidate.participants.some(participant => participant.sessionResource && isEqual(participant.sessionResource, firstSession.resource)));
+		// Archived comparisons are history only; they must not drive the comparison layout.
+		const comparison = comparisons.find(candidate => candidate.archivedAt === undefined
+			&& candidate.participants.some(participant => participant.sessionResource && isEqual(participant.sessionResource, firstSession.resource)));
 		return comparison && visibleSessions.every(session => comparison.participants.some(participant =>
 			participant.sessionResource && isEqual(participant.sessionResource, session!.resource)))
 			? comparison

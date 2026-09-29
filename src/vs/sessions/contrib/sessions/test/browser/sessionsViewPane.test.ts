@@ -8,6 +8,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { SplitView, Sizing } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -29,6 +30,7 @@ const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerE
 }) => void;
 const handleSessionOpened = Reflect.get(SessionsView.prototype, '_handleSessionOpened') as (this: {
 	readonly sessionComparisonService: { getComparisonForSession(resource: URI): ISessionComparison | undefined };
+	readonly sessionsService: { readonly visibleSessions: IObservable<readonly (ISession | undefined)[]> };
 	readonly layoutService: { hideSidePane(): void; mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
 }, session: ISession) => void;
 const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: {
@@ -295,8 +297,8 @@ suite('Sessions - SessionsViewPane', () => {
 	});
 
 	test('hides session details only when an active comparison participant is opened', () => {
-		const attempt = upcastPartial<ISession>({ resource: URI.parse('test:/attempt') });
-		const judge = upcastPartial<ISession>({ resource: URI.parse('test:/judge') });
+		const attempt = upcastPartial<ISession>({ sessionId: 'attempt', resource: URI.parse('test:/attempt') });
+		const judge = upcastPartial<ISession>({ sessionId: 'judge', resource: URI.parse('test:/judge') });
 		const comparison: ISessionComparison = {
 			id: 'comparison',
 			groupId: 'group',
@@ -321,10 +323,12 @@ suite('Sessions - SessionsViewPane', () => {
 		};
 		let hideSidePaneCalls = 0;
 		let currentComparison: ISessionComparison | undefined = comparison;
+		const visibleSessions = observableValue<readonly ISession[]>('visibleSessions', [attempt, judge]);
 		const host = {
 			sessionComparisonService: {
 				getComparisonForSession: () => currentComparison,
 			},
+			sessionsService: { visibleSessions },
 			layoutService: {
 				hideSidePane: () => hideSidePaneCalls++,
 				mainContainer: mainWindow.document.createElement('div'),
@@ -334,6 +338,10 @@ suite('Sessions - SessionsViewPane', () => {
 
 		handleSessionOpened.call(host, attempt);
 		handleSessionOpened.call(host, judge);
+		// A cancelled or superseded open leaves the participant hidden, so the side pane stays.
+		visibleSessions.set([], undefined);
+		handleSessionOpened.call(host, attempt);
+		visibleSessions.set([attempt, judge], undefined);
 		currentComparison = { ...comparison, archivedAt: 1 };
 		handleSessionOpened.call(host, attempt);
 		currentComparison = undefined;

@@ -305,6 +305,20 @@ function getComparisonSessions(comparison: ISessionComparison, sessionsManagemen
 	});
 }
 
+/** Whether every participant session is archived. An unloaded participant blocks this unless its deletion was confirmed. */
+function areAllComparisonSessionsArchived(comparison: ISessionComparison, sessionsManagementService: ISessionsManagementService): boolean {
+	return comparison.participants.every(participant => {
+		if (!participant.sessionResource) {
+			return true;
+		}
+		const session = sessionsManagementService.getSession(participant.sessionResource);
+		if (session) {
+			return session.isArchived.get();
+		}
+		return participant.launchError !== undefined && !participant.missingSession;
+	});
+}
+
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
 	return 'group' in item;
 }
@@ -2524,6 +2538,13 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 				try {
 					for (const session of comparisonSessions) {
 						await this.sessionsManagementService.archiveSession(session);
+					}
+					// Participants that are not loaded, or whose provider could not record the archive, stay in the comparison.
+					const comparisonRecord = this.sessionComparisonService.getComparison(comparison.id);
+					if (comparisonRecord && !areAllComparisonSessionsArchived(comparisonRecord, this.sessionsManagementService)) {
+						template.comparisonArchive.enabled = true;
+						status(localize('comparisonPartiallyArchived', "Some comparison sessions could not be archived, so the comparison was kept."));
+						return;
 					}
 					this.sessionComparisonService.archiveComparison(comparison.id);
 					this.sessionGroupsService.deleteGroup(element.group.id);
@@ -5638,7 +5659,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			const comparisonRecord = this.sessionComparisonService.getComparison(comparison.id);
 			const comparisonSessions = comparisonRecord ? getComparisonSessions(comparisonRecord, this._sessionsManagementService) : [];
-			if (!comparisonSessions.some(session => isSessionActive(session, undefined))) {
+			// Deleting while attempts are still launching would retire the comparison under its in-flight launches.
+			if (comparisonRecord?.launching !== true && !comparisonSessions.some(session => isSessionActive(session, undefined))) {
 				actions.push(new Separator(), this.getDeleteGroupAction(groupItem));
 			}
 		}

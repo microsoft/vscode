@@ -5,6 +5,7 @@
 
 import { isCancellationError } from '../../base/common/errors.js';
 import { StringSHA1 } from '../../base/common/hash.js';
+import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../platform/agentHost/common/agentHostSessionType.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { isSSHHostKeyDeniedError } from '../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { PROTOCOL_VERSION } from '../../platform/agentHost/common/state/protocol/version/registry.js';
@@ -24,6 +25,24 @@ export function getSessionsTelemetryProviderId(providerId: string): SessionsTele
 		return 'remote-agent-host';
 	}
 	return 'other';
+}
+
+/** Removes the remote connection authority from an agent session type identifier. */
+export function getSessionsTelemetryAgentId(sessionTypeId: string): string {
+	return parseRemoteAgentHostHarness(sessionTypeId) ?? sessionTypeId;
+}
+
+/**
+ * Removes connection details from a model identifier. Remote agent host models are
+ * identified as `{sessionType}:{model}` and that session type embeds the connection
+ * authority, so only the provider-local model identifier is kept for them.
+ */
+export function getSessionsTelemetryModelId(sessionTypeId: string, modelId: string | undefined): string | undefined {
+	if (!modelId || !isRemoteAgentHostSessionType(sessionTypeId)) {
+		return modelId;
+	}
+	const vendorPrefix = `${sessionTypeId}:`;
+	return modelId.startsWith(vendorPrefix) ? modelId.slice(vendorPrefix.length) : undefined;
 }
 
 /** Hashes a session identifier while preserving deterministic event correlation. */

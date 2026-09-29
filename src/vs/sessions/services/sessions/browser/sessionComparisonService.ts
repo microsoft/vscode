@@ -24,7 +24,7 @@ import { isActiveSessionStatus, ISession, SessionStatus } from '../common/sessio
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { getSessionComparisonAttemptLabel, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
-import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonModelOutcome } from '../../../common/sessionsTelemetry.js';
+import { getSessionsTelemetryAgentId, getSessionsTelemetryModelId, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonModelOutcome } from '../../../common/sessionsTelemetry.js';
 
 interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonParticipant, 'sessionResource'> {
 	readonly sessionResource?: string;
@@ -40,6 +40,10 @@ function isDecisionAssessment(value: SessionComparisonDecisionAssessment | undef
 	return value === SessionComparisonDecisionAssessment.Better
 		|| value === SessionComparisonDecisionAssessment.Neutral
 		|| value === SessionComparisonDecisionAssessment.Worse;
+}
+
+function getAttemptUnavailableMessage(): string {
+	return localize('sessionComparison.attemptMissing', "The attempt session is no longer available.");
 }
 
 export class SessionComparisonService extends Disposable implements ISessionComparisonService {
@@ -85,6 +89,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			this._migrateLegacyAttemptTitles(activeComparisons);
 			this._checkComparisons(activeComparisons);
 		}));
+		this._register(this.sessionsManagementService.onDidDeleteSession(session => this._markParticipantDeleted(session)));
 		this._register(this.sessionGroupsService.onDidChange(event => {
 			if (event.groupsChanged) {
 				this._archiveComparisonsWithMissingGroups();
@@ -516,8 +521,13 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			return;
 		}
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
-		let successfulAttemptCount = 0;
+		let terminalAttemptCount = 0;
+		let completedAttemptCount = 0;
 		for (const participant of attempts) {
+			// A session missing from the catalog may return once its provider reconnects; only confirmed deletion is terminal.
+			if (participant.missingSession) {
+				return;
+			}
 			if (participant.launchError) {
 				continue;
 			}
@@ -530,15 +540,18 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			}
 			const status = session.status.get();
 			if (status === SessionStatus.Completed) {
-				successfulAttemptCount++;
+				terminalAttemptCount++;
+				completedAttemptCount++;
 				continue;
 			}
 			if (status === SessionStatus.Error) {
+				terminalAttemptCount++;
 				continue;
 			}
 			return;
 		}
-		if (successfulAttemptCount < 2) {
+		// The Judge reviews failed attempts too, but needs at least one finished attempt to recommend.
+		if (terminalAttemptCount < 2 || completedAttemptCount === 0) {
 			return;
 		}
 		const judgeParticipantId = generateUuid();
@@ -554,6 +567,10 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			this.logService.error('[SessionComparisonService] Failed to start the comparison judge.', error);
 			this._updateComparisonParticipant(comparison.id, judgeParticipantId, participant => ({
 				...participant,
+				// A draft published through onSessionCreated is deleted when configuration or send fails.
+				sessionResource: participant.sessionResource && this.sessionsManagementService.getSession(participant.sessionResource)
+					? participant.sessionResource
+					: undefined,
 				launchError: error instanceof Error ? error.message : String(error),
 			}));
 		}).finally(() => this._judgeStarting.delete(comparison.id));
@@ -641,12 +658,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				attemptIndex,
 				attemptCount: attempts.length,
 				providerId: getSessionsTelemetryProviderId(participant.harness.providerId),
-				agentId: participant.harness.sessionTypeId,
-				modelId: session?.modelId.get() ?? participant.harness.modelId,
+				agentId: getSessionsTelemetryAgentId(participant.harness.sessionTypeId),
+				modelId: getSessionsTelemetryModelId(participant.harness.sessionTypeId, session?.modelId.get() ?? participant.harness.modelId),
 				recommended: verdict.recommendedParticipantId === participant.id,
 				judgeProviderId: getSessionsTelemetryProviderId(judge.harness.providerId),
-				judgeAgentId: judge.harness.sessionTypeId,
-				judgeModelId: judgeSession?.modelId.get() ?? judge.harness.modelId,
+				judgeAgentId: getSessionsTelemetryAgentId(judge.harness.sessionTypeId),
+				judgeModelId: getSessionsTelemetryModelId(judge.harness.sessionTypeId, judgeSession?.modelId.get() ?? judge.harness.modelId),
 			});
 		}
 	}
@@ -937,6 +954,23 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		});
 	}
 
+	/** Confirmed deletion is terminal, unlike a session that only dropped out of its provider's catalog. */
+	private _markParticipantDeleted(session: ISession): void {
+		const comparison = this.getComparisonForSession(session.resource);
+		const participant = comparison?.participants.find(candidate => candidate.sessionResource?.toString() === session.resource.toString());
+		if (!comparison || comparison.archivedAt !== undefined || !participant) {
+			return;
+		}
+		const updated = this._updateComparisonParticipant(comparison.id, participant.id, current => ({
+			...current,
+			missingSession: undefined,
+			launchError: current.launchError ?? getAttemptUnavailableMessage(),
+		}));
+		if (updated) {
+			this._checkComparison(updated);
+		}
+	}
+
 	private _reconcileSessionAvailability(comparison: ISessionComparison, event: ISessionsChangeEvent): ISessionComparison {
 		const availableResources = new Set([...event.added, ...event.changed].map(session => session.resource.toString()));
 		const missingResources = new Set(event.removed
@@ -957,7 +991,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				return {
 					...participant,
 					missingSession: true,
-					launchError: localize('sessionComparison.attemptMissing', "The attempt session is no longer available."),
+					launchError: getAttemptUnavailableMessage(),
 				};
 			}
 			return participant;
@@ -985,6 +1019,10 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				participants: comparison.participants.map(participant => ({
 					...participant,
 					sessionResource: participant.sessionResource ? URI.parse(participant.sessionResource) : undefined,
+					// Launches do not resume after a reload, so an attempt that never received a session will not start.
+					...(comparison.launching && participant.role === SessionComparisonParticipantRole.Attempt && !participant.sessionResource && !participant.launchError
+						? { launchError: localize('sessionComparison.attemptInterrupted', "The attempt was interrupted before it started.") }
+						: {}),
 				})),
 			}));
 		} catch (error) {

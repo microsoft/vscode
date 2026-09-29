@@ -5,7 +5,6 @@
 
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getSessionComparisonParticipantsInDisplayOrder, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -24,7 +23,6 @@ export class SessionComparisonViewService implements ISessionComparisonViewServi
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 		@ISessionsManagementService private readonly managementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) { }
 
 	async open(comparisonId: string): Promise<void> {
@@ -45,8 +43,8 @@ export class SessionComparisonViewService implements ISessionComparisonViewServi
 		if (!availableAttempts.length) {
 			throw new Error(localize('sessionComparison.noAttempts', "No comparison attempts are available to open."));
 		}
+		// SessionComparisonGridController hides and later restores the side pane once
+		// the grid is actually shown, so a cancelled or single-attempt open leaves it alone.
 		await this.sessionsService.openSessionsInGrid(availableAttempts);
-		this.layoutService.setPartHidden(true, Parts.EDITOR_PART);
-		this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 	}
 }

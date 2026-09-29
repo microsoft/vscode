@@ -54,6 +54,8 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	readonly deleteChatOptions: (IDeleteChatOptions | undefined)[] = [];
 	renameError: Error | undefined;
 	renameChatError: Error | undefined;
+	/** Optional side effect for tests that need archiving to update the session, as the real service does. */
+	onDidArchive: ((session: ISession) => void) | undefined;
 
 	constructor(sessions: ISession[]) {
 		super();
@@ -85,6 +87,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 
 	override async archiveSession(session: ISession): Promise<void> {
 		this.archived.push(session);
+		this.onDidArchive?.(session);
 	}
 
 	override async cancelCurrentRequest(session: ISession): Promise<void> {

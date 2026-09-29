@@ -229,7 +229,9 @@ export class SessionsView extends ViewPane {
 
 	private _handleSessionOpened(session: ISession): void {
 		const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
-		if (comparison && comparison.archivedAt === undefined) {
+		// The open may have been cancelled or superseded; only hide the side pane for a session that is actually shown.
+		const isShown = this.sessionsService.visibleSessions.get().some(visible => visible?.sessionId === session.sessionId);
+		if (comparison && comparison.archivedAt === undefined && isShown) {
 			this.layoutService.hideSidePane();
 		}
 		if (isWeb && isPhoneLayout(this.layoutService)) {
