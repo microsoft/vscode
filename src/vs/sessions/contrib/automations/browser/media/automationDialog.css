@@ -500,9 +500,6 @@
 	flex-direction: row;
 	align-items: center;
 	gap: 8px;
-	margin-top: 2px;
-	padding-top: 10px;
-	border-top: 1px solid var(--vscode-widget-border, transparent);
 }
 
 .automation-form-row.automation-form-checkbox-row > .monaco-checkbox {
@@ -521,6 +518,9 @@
 	align-items: flex-end;
 	flex-wrap: wrap;
 	gap: 12px;
+	margin-top: var(--vscode-spacing-size20);
+	padding-top: var(--vscode-spacing-size100);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
 }
 
 .automation-form-schedule-group {
