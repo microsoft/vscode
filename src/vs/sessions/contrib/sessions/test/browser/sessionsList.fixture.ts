@@ -146,8 +146,6 @@ function showArchiveOnboarding(sessionId: string, wording: ChatSessionArchiveAct
 }
 
 const ONBOARDING_FRAME = { width: 760, height: 420 };
-/** Room beside and below the list for an open context menu. */
-const CONTEXT_MENU_FRAME = { width: 480, height: 320 };
 
 //#endregion
 
