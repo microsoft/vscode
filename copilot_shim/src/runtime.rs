@@ -83,7 +83,14 @@ pub(crate) struct NativeRuntime;
 
 impl EnvironmentEffects for NativeRuntime {
 	fn path(&self) -> Option<OsString> {
-		std::env::var_os("PATH")
+		#[cfg(windows)]
+		{
+			crate::setup::windows::discovery_path(std::env::var_os("PATH"))
+		}
+		#[cfg(not(windows))]
+		{
+			std::env::var_os("PATH")
+		}
 	}
 
 	fn current_executable(&self) -> io::Result<PathBuf> {

@@ -12,15 +12,15 @@ parameters:
 
 steps:
   - ${{ if eq(parameters.VSCODE_WAIT_FOR_CLI, true) }}:
-    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" "--producer=$(ARTIFACT_PREFIX)unsigned_copilot_shim_linux_$(VSCODE_ARCH)=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI"
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      displayName: Wait for CLI artifact (background)
+      displayName: Wait for CLI and Copilot shim artifacts (background)
 
-    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" "--producer=$(ARTIFACT_PREFIX)unsigned_copilot_shim_linux_$(VSCODE_ARCH)=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI"
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      displayName: Wait for CLI artifact
+      displayName: Wait for CLI and Copilot shim artifacts
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -36,6 +36,23 @@ steps:
       APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").applicationName")
       mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
     displayName: Mix in CLI
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: $(ARTIFACT_PREFIX)unsigned_copilot_shim_linux_$(VSCODE_ARCH)
+      patterns: "**"
+      path: $(Build.ArtifactStagingDirectory)/copilot-shim
+    displayName: Download Copilot shim
+
+  # Before the client and server are archived, so the archives and the deb, rpm and snap packages include it.
+  - script: |
+      set -e
+      tar -xzf $(Build.ArtifactStagingDirectory)/copilot-shim/*.tar.gz -C $(Build.ArtifactStagingDirectory)/copilot-shim
+      install -D -m 755 $(Build.ArtifactStagingDirectory)/copilot-shim/copilot $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/copilot-shim/copilot
+      if [ -d "$(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)" ]; then
+        install -D -m 755 $(Build.ArtifactStagingDirectory)/copilot-shim/copilot $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)/bin/copilot-shim/copilot
+      fi
+    displayName: Mix in Copilot shim
 
   - script: |
       set -e
