@@ -84,7 +84,8 @@ fn unix_black_box_preserves_launch_contract() {
 
 	let mut child = Command::new(env!("CARGO_BIN_EXE_copilot"))
 		.args([
-			"--clear",
+			"--vscode-shim",
+			"clear",
 			"--clear",
 			"",
 			"with spaces",

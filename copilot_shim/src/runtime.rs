@@ -56,6 +56,8 @@ pub(crate) trait FileSystemEffects {
 
 pub(crate) trait UserInteractionEffects {
 	fn clear_terminal(&self) -> io::Result<()>;
+	/// Whether a user can answer a prompt: stdin and stderr, which shows the prompt, are both terminals.
+	fn can_prompt(&self) -> bool;
 	fn prompt(&self, kind: PromptKind<'_>) -> io::Result<PromptResponse>;
 
 	fn write_diagnostic(&self, _message: &str) {}
@@ -240,6 +242,10 @@ impl UserInteractionEffects for NativeRuntime {
 		prompt::native_clear_terminal()
 	}
 
+	fn can_prompt(&self) -> bool {
+		prompt::native_can_prompt()
+	}
+
 	fn prompt(&self, kind: PromptKind<'_>) -> io::Result<PromptResponse> {
 		prompt::native_prompt(kind)
 	}
@@ -330,6 +336,10 @@ impl FileSystemEffects for TestRuntime {
 impl UserInteractionEffects for TestRuntime {
 	fn clear_terminal(&self) -> io::Result<()> {
 		Ok(())
+	}
+
+	fn can_prompt(&self) -> bool {
+		true
 	}
 
 	fn prompt(&self, _kind: PromptKind<'_>) -> io::Result<PromptResponse> {
