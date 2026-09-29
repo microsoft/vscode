@@ -6,10 +6,10 @@
 import { localize } from '../../../nls.js';
 
 import './media/sessionView.css';
-import { $, getWindow, isAncestorOfActiveElement, scheduleAtNextAnimationFrame, size } from '../../../base/browser/dom.js';
+import { $, isAncestorOfActiveElement, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IAgentsWindowDraft } from '../../../platform/window/common/window.js';
@@ -71,8 +71,6 @@ export class SessionView extends Disposable implements ISerializableView {
 	private readonly _contentContainer: HTMLElement;
 
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
-	private readonly _pendingChildLayout = this._register(new MutableDisposable<IDisposable>());
-	private readonly _scheduleChildLayout = (callback: () => void) => scheduleAtNextAnimationFrame(getWindow(this.element), callback);
 
 	private _openSessionDisposables = this._register(new DisposableStore());
 	private _currentSession: IActiveSession | undefined;
@@ -281,28 +279,12 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {
-		if (this._lastLayout?.width === width
-			&& this._lastLayout.height === height
-			&& this._lastLayout.top === top
-			&& this._lastLayout.left === left) {
-			return;
-		}
-
-		const isInitialLayout = !this._lastLayout;
 		size(this.element, width, height);
 		this._lastLayout = { width, height, top, left };
-		if (isInitialLayout) {
-			this._layoutChildren();
-		} else if (!this._pendingChildLayout.value) {
-			this._pendingChildLayout.value = this._scheduleChildLayout(() => {
-				this._pendingChildLayout.clear();
-				this._layoutChildren();
-			});
-		}
+		this._layoutChildren();
 	}
 
 	private _layoutChildren(): void {
-		this._pendingChildLayout.clear();
 		if (!this._lastLayout) {
 			return;
 		}

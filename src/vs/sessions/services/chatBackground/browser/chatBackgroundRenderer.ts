@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatBackground.css';
-import { $, addDisposableListener, clearNode, DisposableResizeObserver, EventType, getWindow, isHTMLElement, scheduleAtNextAnimationFrame, sharedMutationObserver } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, clearNode, DisposableResizeObserver, EventType, getWindow, isHTMLElement, sharedMutationObserver } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { getCompactCodicon } from '../../../../workbench/contrib/chat/browser/chatIcons.js';
@@ -454,12 +454,10 @@ export class SessionsChatBackgroundReplica extends Disposable {
 	private readonly viewport: HTMLElement;
 	private readonly element: HTMLElement;
 	private readonly renderer: SessionsChatBackgroundRenderer;
-	private readonly pendingLayout = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		private readonly source: HTMLElement,
 		private readonly container: HTMLElement,
-		private readonly layoutScheduler: (callback: () => void) => IDisposable = callback => scheduleAtNextAnimationFrame(getWindow(source), callback),
 	) {
 		super();
 
@@ -487,17 +485,6 @@ export class SessionsChatBackgroundReplica extends Disposable {
 		this.viewport.hidden = !background;
 		this.layout();
 		this.renderer.setBackground(background);
-	}
-
-	scheduleLayout(): void {
-		if (this.pendingLayout.value) {
-			return;
-		}
-
-		this.pendingLayout.value = this.layoutScheduler(() => {
-			this.pendingLayout.clear();
-			this.layout();
-		});
 	}
 
 	layout(): void {
