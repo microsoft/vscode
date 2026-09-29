@@ -13,7 +13,8 @@ import { isToolResultInputOutputDetails, ToolDataSource } from '../../../../comm
 export function isImageGenerationToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
 	return toolInvocation.toolSpecificData?.kind === 'generatedImage'
 		|| toolInvocation.toolId === 'image_gen.imagegen'
-		|| toolInvocation.toolId === 'image_generation';
+		|| toolInvocation.toolId === 'image_generation'
+		|| toolInvocation.toolId === 'generate_image_mock';
 }
 
 export function isImageGenerationToolInProgress(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, state?: IChatToolInvocation.State): boolean {

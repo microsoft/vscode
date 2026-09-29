@@ -93,6 +93,7 @@ import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, type CopilotFusionEvent, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
 import { getFusionEventKey, getFusionEventSdkTurnId } from './copilotFusionEventIdentity.js';
 import { readHostedImageToolCalls, readHostedImageToolProgress } from './copilotHostedImageTools.js';
+import { createImageGenerationMockTool } from './copilotImageGenerationMockTool.js';
 import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copilotFusionMessageChunks.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
@@ -2778,7 +2779,12 @@ export class CopilotAgentSession extends Disposable {
 			handleMcpAuthRequest: this._guarded(request => this._handleMcpAuthRequest(request), { kind: 'cancelled' } satisfies McpAuthResult, 'mcp-auth'),
 			requestUnsandboxedCommandConfirmation: this._guarded(request => this._requestUnsandboxedCommandConfirmation(request), false, 'unsandboxed-command-confirmation'),
 			createClientSdkTools: toolSearchActive => this._createClientSdkTools(toolSearchActive),
-			createServerSdkTools: () => this._createServerSdkTools(),
+			createServerSdkTools: () => [
+				...this._createServerSdkTools(),
+				...(!this._environmentService.isBuilt && !this._launchPlan.isEphemeral
+					? [createImageGenerationMockTool(() => this._abortToken, this._fileService, this._logService)]
+					: []),
+			],
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
 			handleUserPromptSubmitted: () => this.handleUserPromptSubmitted(),

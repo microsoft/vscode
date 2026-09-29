@@ -100,6 +100,8 @@ Provider-hosted image generation is observed, not dispatched as a client functio
 
 Copilot generation is runtime-owned; the local extension-host harness does not register an image generator or a client-side mock. Codex's existing `imageGeneration` items map to `image_gen.imagegen` and reuse the same renderer. Its final revised prompt is published before completion so live and restored tool dropdowns expose the provider's input without substituting a display label for an unavailable prompt.
 
+Source builds register `generate_image_mock` as an SDK client tool executed inside the Copilot Agent Host, not the workbench or local extension host. It returns a bundled sample PNG after a five-second cancellable wait through ordinary tool completion events. Packaged builds and ephemeral sessions do not register it. It does not call an image API, override `image_generation`, write workspace files, or send the image back as model input.
+
 Streamed SDK message IDs are tracked separately from the current markdown part, so opening a standalone image row cannot make the final assistant message repeat text that was already rendered.
 
 Hosted image results precede the final markdown carried by the same assistant message in both live rendering and restored history. Already-streamed text retains its position without being emitted again.

@@ -7786,7 +7786,7 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	for (const toolId of ['image_gen.imagegen', 'image_generation']) {
+	for (const toolId of ['image_gen.imagegen', 'image_generation', 'generate_image_mock']) {
 		for (const thinkingStyle of Object.values(ThinkingDisplayMode)) {
 			for (const collapsedTools of Object.values(CollapsedToolsDisplayMode)) {
 				for (const [progress, progressVerbosity] of [

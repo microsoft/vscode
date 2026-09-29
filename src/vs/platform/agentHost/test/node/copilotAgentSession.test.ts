@@ -930,6 +930,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	clientSnapshot?: IActiveClientSnapshot;
 	activeClientToolSet?: ActiveClientToolSet;
 	environmentServiceRegistration?: 'native' | 'none';
+	isBuilt?: boolean;
 	logService?: ILogService;
 	telemetryService?: ITelemetryService;
 	captureRuntime?: { current?: ICopilotSessionRuntime };
@@ -1252,6 +1253,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(IAgentHostPromptCache, new AgentHostPromptCache(stateManager));
 	const environmentService = {
 		_serviceBrand: undefined,
+		isBuilt: options?.isBuilt ?? true,
 		userHome: URI.file('/mock-home'),
 		tmpDir: URI.file('/mock-tmp'),
 		userDataPath: '/mock-userdata',
@@ -9342,7 +9344,7 @@ Use the attached image as context.
 	suite('failed turn resume', () => {
 
 		test('the development $error path uses raw sendMessages even with attachments', async () => {
-			const { session, mockSession } = await createAgentSession(disposables);
+			const { session, mockSession } = await createAgentSession(disposables, { isBuilt: false });
 
 			await session.send('$error', [{
 				type: MessageAttachmentKind.Simple,
@@ -16467,6 +16469,35 @@ Use the attached image as context.
 	// ---- Server tools -------------------------------------------------------
 
 	suite('server tools', () => {
+
+		for (const isBuilt of [false, true]) {
+			for (const isEphemeral of [false, true]) {
+				for (const resume of [false, true]) {
+					test(`registers the image mock only in development chats (built=${isBuilt}, ephemeral=${isEphemeral}, resume=${resume})`, async () => {
+						const { runtime } = await createAgentSession(disposables, { isBuilt, isEphemeral, resume });
+						assert.deepStrictEqual(runtime.createServerSdkTools().map(tool => ({
+							name: tool.name, defer: tool.defer, skipPermission: tool.skipPermission, overridesBuiltInTool: tool.overridesBuiltInTool,
+						})), !isBuilt && !isEphemeral ? [{
+							name: 'generate_image_mock', defer: 'never', skipPermission: true, overridesBuiltInTool: undefined,
+						}] : []);
+					});
+				}
+			}
+		}
+
+		test('cancels a running image mock when its Agent Host turn aborts', async () => {
+			const { session, runtime } = await createAgentSession(disposables, { isBuilt: false });
+			session.resetTurnState('mock-image-turn');
+			const tool = runtime.createServerSdkTools().find(tool => tool.name === 'generate_image_mock');
+			assert.ok(tool);
+			const result = invokeClientToolHandler(tool, 'mock-image-call', { prompt: 'Draw a puppy' });
+			await session.abort();
+			assert.deepStrictEqual(await result, {
+				resultType: 'failure',
+				textResultForLlm: 'Mock image generation was cancelled.',
+				error: 'Mock image generation was cancelled.',
+			});
+		});
 
 		const fakeToolDefinitions: readonly IAgentServerToolDefinition[] = [
 			{ name: 'serverToolA', description: 'A', inputSchema: { type: 'object', properties: {} } },

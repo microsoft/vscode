@@ -42,6 +42,12 @@ suite('Chat Accessibility Help', () => {
 		}, { standalone: true, harnesses: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, dropdown: true, expand: true, progress: true, imageAndDropdown: true, failure: true, restoredState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true });
 	});
 
+	test('documents the development-only Copilot Agent Host image preview', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.ok(help.includes('In source builds, Copilot Agent Host sessions can run generate_image_mock'));
+		assert.ok(help.includes('Stop cancels the preview wait'));
+	});
+
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
 		test(`documents skipping MCP startup only on supported surfaces (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);

@@ -1605,7 +1605,7 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('image generation', () => {
-		for (const toolName of ['image_generation', 'image_gen.imagegen', 'test_tool']) {
+		for (const toolName of ['image_generation', 'image_gen.imagegen', 'generate_image_mock', 'test_tool']) {
 			for (const streaming of [true, false]) {
 				test(`preserves the cancelled ${toolName} label from ${streaming ? 'streaming' : 'running'} across live and restored history`, () => {
 					const backendSession = URI.parse('copilot:/cancelled-image');
@@ -1645,6 +1645,8 @@ suite('stateToProgressAdapter', () => {
 			['image_generation', false],
 			['image_gen.imagegen', true],
 			['image_gen.imagegen', false],
+			['generate_image_mock', true],
+			['generate_image_mock', false],
 		] as const) {
 			test(`preserves the ${success ? 'completed' : 'failed'} ${toolName} label across live and restored history`, () => {
 				const backendSession = URI.parse('copilot:/image-state');
@@ -1683,7 +1685,7 @@ suite('stateToProgressAdapter', () => {
 			});
 		}
 
-		for (const toolName of ['image_gen.imagegen', 'image_generation']) {
+		for (const toolName of ['image_gen.imagegen', 'image_generation', 'generate_image_mock']) {
 			for (const resourceReference of [false, true]) {
 				for (const toolInput of [undefined, '{"prompt":"Draw a puppy"}']) {
 					test(`${toolName} preserves ${resourceReference ? 'referenced' : 'embedded'} images ${toolInput ? 'with' : 'without'} input across live, reconnect, and history`, () => {

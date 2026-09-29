@@ -59,7 +59,7 @@ export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
 
 const agentHostAskUserToolNames = new Set(['ask_user', 'AskUserQuestion', 'request_user_input']);
-const imageGenerationToolNames = new Set(['image_gen.imagegen', 'image_generation']);
+const imageGenerationToolNames = new Set(['image_gen.imagegen', 'image_generation', 'generate_image_mock']);
 
 function isAgentHostAskUserTool(toolName: string): boolean {
 	return agentHostAskUserToolNames.has(toolName);
