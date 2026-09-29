@@ -16,6 +16,7 @@ import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
+import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -855,7 +856,12 @@ export interface IAgentService {
 	/** Dispose a session in the agent host, freeing SDK resources. */
 	disposeSession(session: URI): Promise<void>;
 
-	createTerminal(params: CreateTerminalParams): Promise<void>;
+	/**
+	 * Create a terminal requested by a protocol client. Terminals created by
+	 * VS Code clients (per `clientType`) receive VS Code's terminal identity
+	 * (`TERM_PROGRAM`).
+	 */
+	createTerminal(params: CreateTerminalParams, clientType?: AgentHostClientType): Promise<void>;
 
 	/** Dispose a terminal and kill its process if still running. */
 	disposeTerminal(terminal: URI): Promise<void>;
