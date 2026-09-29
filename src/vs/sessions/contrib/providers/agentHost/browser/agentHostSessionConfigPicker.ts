@@ -9,6 +9,7 @@ import { Gesture, EventType as TouchEventType } from '../../../../../base/browse
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { toAction } from '../../../../../base/common/actions.js';
@@ -1088,8 +1089,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				getWidgetAriaLabel: () => localize('agentHostSessionConfig.ariaLabel', "{0} Picker", schema.title),
 			},
 			items.length > 10
-				? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options..."), minWidth: 255 }
-				: { minWidth: 255 },
+				? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options..."), minWidth: 255, preferredAnchorPosition: AnchorPosition.BELOW }
+				: { minWidth: 255, preferredAnchorPosition: AnchorPosition.BELOW },
 		);
 		const upstreamBranchName = repositoryState?.upstreamBranchName;
 		if (isBranchPicker && config?.values[SessionConfigKey.Isolation] === 'worktree' && upstreamBranchName && actionItems[0]?.item?.value === upstreamBranchName) {
