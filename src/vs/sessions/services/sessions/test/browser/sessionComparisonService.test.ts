@@ -125,6 +125,37 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
+	test('deletes the comparison group after every participant is archived', async () => {
+		const { service, sessionsManagementService, groupsService } = createServices();
+		const firstArchived = observableValue('firstArchived', false);
+		const secondArchived = observableValue('secondArchived', false);
+		sessionsManagementService.enqueue(stubSession('attempt-one', undefined, undefined, firstArchived));
+		sessionsManagementService.enqueue(stubSession('attempt-two', undefined, undefined, secondArchived));
+
+		const comparison = await service.startComparison(startOptions());
+		firstArchived.set(true, undefined);
+		sessionsManagementService.fireChange();
+
+		assert.deepStrictEqual({
+			archived: service.getComparison(comparison.id)?.archivedAt !== undefined,
+			deletedGroupIds: groupsService.deletedGroupIds,
+		}, {
+			archived: false,
+			deletedGroupIds: [],
+		});
+
+		secondArchived.set(true, undefined);
+		sessionsManagementService.fireChange();
+
+		assert.deepStrictEqual({
+			archived: service.getComparison(comparison.id)?.archivedAt !== undefined,
+			deletedGroupIds: groupsService.deletedGroupIds,
+		}, {
+			archived: true,
+			deletedGroupIds: [comparison.groupId],
+		});
+	});
+
 	test('deletes a Judge that finishes starting after its comparison is archived', async () => {
 		const { service, sessionsManagementService, groupsService } = createServices();
 		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
@@ -1432,7 +1463,12 @@ class RecordingTelemetryService extends NullTelemetryServiceShape {
 	}
 }
 
-function stubSession(sessionId: string, status = observableValue(`${sessionId}Status`, SessionStatus.InProgress), timing?: { readonly createdAt: Date; readonly updatedAt: Date }): ISession {
+function stubSession(
+	sessionId: string,
+	status = observableValue(`${sessionId}Status`, SessionStatus.InProgress),
+	timing?: { readonly createdAt: Date; readonly updatedAt: Date },
+	isArchived = constObservable(false),
+): ISession {
 	const chat = {
 		resource: URI.parse(`test-chat:/${sessionId}`),
 		createdAt: timing?.createdAt ?? new Date(),
@@ -1446,7 +1482,7 @@ function stubSession(sessionId: string, status = observableValue(`${sessionId}St
 		modelId: constObservable(undefined),
 		modelSource: constObservable(undefined),
 		mode: constObservable(undefined),
-		isArchived: constObservable(false),
+		isArchived,
 		isRead: constObservable(true),
 		interactivity: constObservable(ChatInteractivity.Full),
 		description: constObservable(undefined),
@@ -1466,7 +1502,7 @@ function stubSession(sessionId: string, status = observableValue(`${sessionId}St
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
-		isArchived: constObservable(false),
+		isArchived,
 		isRead: constObservable(true),
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),

@@ -1298,14 +1298,14 @@
 	}
 }
 
-.session-group .session-comparison-archive.monaco-button[hidden] {
-	display: none;
-}
-
 .session-group.session-comparison-group {
 	padding-top: var(--vscode-spacing-size40);
 	padding-bottom: var(--vscode-spacing-size40);
 	color: var(--vscode-foreground);
+
+	.session-group-labels {
+		align-items: flex-start;
+	}
 
 	.session-section-label {
 		display: block;
@@ -1327,21 +1327,6 @@
 		order: 3;
 		align-items: center;
 		gap: var(--vscode-spacing-size40);
-	}
-
-	.session-comparison-archive.monaco-button {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: var(--vscode-spacing-size160);
-		min-width: var(--vscode-spacing-size160);
-		height: var(--vscode-spacing-size160);
-		padding: 0;
-		border-radius: var(--vscode-cornerRadius-small);
-
-		.codicon {
-			font-size: var(--vscode-codiconFontSize-compact);
-		}
 	}
 }
 

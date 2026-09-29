@@ -79,9 +79,11 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this._register(this.sessionsManagementService.onDidChangeSessions(event => {
 			const comparisons = this._getComparisonsForSessionChanges(event);
 			const reconciled = comparisons.map(comparison => this._reconcileSessionAvailability(comparison, event));
-			this._ensureComparisonGroupMembership(reconciled);
-			this._migrateLegacyAttemptTitles(reconciled);
-			this._checkComparisons(reconciled);
+			this._archiveFullyArchivedComparisons(reconciled);
+			const activeComparisons = reconciled.filter(comparison => this.getComparison(comparison.id)?.archivedAt === undefined);
+			this._ensureComparisonGroupMembership(activeComparisons);
+			this._migrateLegacyAttemptTitles(activeComparisons);
+			this._checkComparisons(activeComparisons);
 		}));
 		this._register(this.sessionGroupsService.onDidChange(event => {
 			if (event.groupsChanged) {
@@ -822,6 +824,25 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this._pruneAttemptTelemetryState(new Set(updated
 			.filter(comparison => comparison.archivedAt === undefined)
 			.map(comparison => comparison.id)));
+	}
+
+	private _archiveFullyArchivedComparisons(comparisons: readonly ISessionComparison[]): void {
+		for (const comparison of comparisons) {
+			if (comparison.archivedAt !== undefined) {
+				continue;
+			}
+			const participantResources = comparison.participants
+				.map(participant => participant.sessionResource)
+				.filter(resource => resource !== undefined);
+			const sessions = participantResources
+				.map(resource => this.sessionsManagementService.getSession(resource))
+				.filter(session => session !== undefined);
+			if (sessions.length === 0 || sessions.length !== participantResources.length || sessions.some(session => !session.isArchived.get())) {
+				continue;
+			}
+			this.archiveComparison(comparison.id);
+			this.sessionGroupsService.deleteGroup(comparison.groupId);
+		}
 	}
 
 	private _migrateLegacyAttemptTitles(comparisons: readonly ISessionComparison[]): void {
