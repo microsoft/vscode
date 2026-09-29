@@ -442,7 +442,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { selected: [{ session: 'a' }], focused: { session: 'a' } },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['The selected session row has keyboard focus and visible Pin and Archive actions without hover; its long title truncates before the actions.'],
 	}),
 
