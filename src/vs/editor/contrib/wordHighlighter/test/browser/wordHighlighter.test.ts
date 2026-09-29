@@ -41,20 +41,18 @@ suite('DocumentHighlightProviders', () => {
 		model = store.add(createTextModel('word word word\nword'));
 	});
 
-	for (const mergeProviders of [undefined, false]) {
-		test(`keeps the first answer when merging is ${mergeProviders === undefined ? 'unspecified' : 'disabled'}`, async () => {
-			const calls: string[] = [];
-			store.add(registry.register('*', {
-				provideDocumentHighlights: () => { calls.push('lower'); return [second]; }
-			}));
-			store.add(registry.register('plaintext', {
-				provideDocumentHighlights: () => { calls.push('higher'); return [first]; }
-			}));
+	test('keeps the first answer when merging is disabled', async () => {
+		const calls: string[] = [];
+		store.add(registry.register('*', {
+			provideDocumentHighlights: () => { calls.push('lower'); return [second]; }
+		}));
+		store.add(registry.register('plaintext', {
+			provideDocumentHighlights: () => { calls.push('higher'); return [first]; }
+		}));
 
-			const result = await getOccurrencesAtPosition(registry, model, position, CancellationToken.None, mergeProviders);
-			assert.deepStrictEqual({ calls, highlights: result?.get(model.uri) }, { calls: ['higher'], highlights: [first] });
-		});
-	}
+		const result = await getOccurrencesAtPosition(registry, model, position, CancellationToken.None, false);
+		assert.deepStrictEqual({ calls, highlights: result?.get(model.uri) }, { calls: ['higher'], highlights: [first] });
+	});
 
 	test('an empty answer still stops the default provider search', async () => {
 		const calls: string[] = [];
@@ -65,7 +63,7 @@ suite('DocumentHighlightProviders', () => {
 			provideDocumentHighlights: () => { calls.push('higher'); return []; }
 		}));
 
-		const result = await getOccurrencesAtPosition(registry, model, position, CancellationToken.None);
+		const result = await getOccurrencesAtPosition(registry, model, position, CancellationToken.None, false);
 		assert.deepStrictEqual({ calls, highlights: result?.get(model.uri) }, { calls: ['higher'], highlights: [] });
 	});
 
@@ -179,7 +177,7 @@ suite('DocumentHighlightProviders', () => {
 		store.add(registry.register('*', new TextualDocumentHighlightProvider()));
 		store.add(registry.register('plaintext', { provideDocumentHighlights: () => undefined }));
 
-		const result = await getOccurrencesAtPosition(registry, model, position, CancellationToken.None);
+		const result = await getOccurrencesAtPosition(registry, model, position, CancellationToken.None, false);
 		assert.deepStrictEqual(result?.get(model.uri)?.map(highlight => highlight.range), [
 			new Range(1, 1, 1, 5), new Range(1, 6, 1, 10), new Range(1, 11, 1, 15), new Range(2, 1, 2, 5)
 		]);
