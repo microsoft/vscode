@@ -90,6 +90,28 @@
 	gap: var(--vscode-spacing-size80);
 }
 
+.customization-discovery-progress {
+	position: relative;
+	height: 2px;
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.customization-discovery-result-content.loading {
+	background: url('../../../../extensions/browser/media/loading.svg') center center no-repeat;
+}
+
+.vs-dark .customization-discovery-result-content.loading {
+	background-image: url('../../../../extensions/browser/media/loading-dark.svg');
+}
+
+.hc-black .customization-discovery-result-content.loading {
+	background-image: url('../../../../extensions/browser/media/loading-hc.svg');
+}
+
+.customization-discovery-result-content.loading > * {
+	visibility: hidden;
+}
+
 .customization-discovery-search {
 	position: relative;
 	flex: 1;
