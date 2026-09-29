@@ -1336,6 +1336,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				}
 				override deleteNewSession(sessionId: string): void { events.push(`discard:${sessionId}`); }
 				override isSessionConfigResolving() { return constObservable(false); }
+				override async whenSessionConfigResolved() { return this.getSessionConfig(); }
 				override getSessionConfig(): ResolveSessionConfigResult {
 					return {
 						schema: {
@@ -1402,6 +1403,132 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			});
 		});
 	}
+
+	suite('Dev Container configuration handoff', () => {
+		let source: RemoteAgentHostSessionsProvider;
+		let target: RemoteAgentHostSessionsProvider;
+		let targetConnection: MockAgentConnection;
+		let draft: ISession;
+		let replacementCreated: DeferredPromise<ISession>;
+		let releases: number;
+		let sentConfigs: (Record<string, unknown> | undefined)[];
+
+		setup(async () => {
+			const schema: ResolveSessionConfigResult['schema'] = {
+				type: 'object',
+				required: ['mode'],
+				properties: {
+					isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] },
+					autoApprove: { type: 'string', title: 'Approvals' },
+					mode: { type: 'string', title: 'Mode' },
+				},
+			};
+			connection.resolveSessionConfigResult = { schema, values: { isolation: 'folder', autoApprove: 'default', mode: 'plan' } };
+			source = createProvider(disposables, connection, { address: 'ssh:source' });
+			source.setAuthenticationPending(false);
+			targetConnection = new class extends MockAgentConnection {
+				override async resolveSessionConfig(params?: Parameters<IAgentConnection['resolveSessionConfig']>[0]): Promise<ResolveSessionConfigResult> {
+					if (this.failResolveSessionConfig) {
+						throw new Error('resolveSessionConfig unavailable');
+					}
+					return { schema, values: { isolation: 'worktree', autoApprove: 'autoApprove', ...params?.config } };
+				}
+			}();
+			disposables.add(toDisposable(() => targetConnection.dispose()));
+			replacementCreated = new DeferredPromise<ISession>();
+			releases = 0;
+			sentConfigs = [];
+			target = createProvider(disposables, targetConnection, {
+				address: 'container:test',
+				openSession: true,
+				ctor: class extends RemoteAgentHostSessionsProvider {
+					override createNewSession(workspace: URI, sessionType: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+						const session = super.createNewSession(workspace, sessionType, options);
+						void replacementCreated.complete(session);
+						return session;
+					}
+				},
+				sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+					sentConfigs.push(options?.agentHostSessionConfig);
+					targetConnection.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+					return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			target.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+			source.initializeDevContainerSupport(
+				new class extends mock<IDevContainerAgentHostService>() {
+					override readonly onDidChangeAvailability = Event.None;
+					override async isAvailable(): Promise<boolean> { return true; }
+					override async connect() {
+						return {
+							providerId: target.id,
+							workspaceUri: toAgentHostUri(URI.file('/workspaces/project'), agentHostAuthority('container:test')),
+							release: async () => { releases++; },
+						};
+					}
+				}(),
+				upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => target as ISessionsProvider as T }),
+				new class extends mock<IWorkspaceTrustRequestService>() {
+					override async requestResourcesTrust(): Promise<boolean> { return true; }
+				}(),
+			);
+			draft = source.createNewSession(toAgentHostUri(URI.file('/project'), agentHostAuthority('ssh:source')), source.sessionTypes[0].id);
+			source.preferDevContainer(draft.sessionId);
+			await waitForSessionConfig(source, draft.sessionId, config => config?.values.isolation === 'folder' && source.isDevContainerEnabled(draft.sessionId));
+		});
+
+		for (const authenticationPending of [true, false]) {
+			test(`preserves configuration with target authentication pending: ${authenticationPending}`, async () => {
+				if (!authenticationPending) {
+					target.setAuthenticationPending(false);
+				}
+				let prepared = false;
+				const preparation = source.prepareNewSession(draft.sessionId, CancellationToken.None, 'Run hostname').then(result => {
+					prepared = true;
+					return result;
+				});
+				await replacementCreated.p;
+				if (authenticationPending) {
+					await timeout(0);
+					assert.strictEqual(prepared, false);
+					target.setAuthenticationPending(false);
+				}
+				const result = await preparation;
+				const chat = await target.createNewChat(result.session.sessionId);
+				await target.sendRequest(result.session.sessionId, chat.resource, { query: 'Run hostname' });
+
+				assert.deepStrictEqual(sentConfigs, [{ isolation: 'folder', autoApprove: 'default', mode: 'plan' }]);
+			});
+		}
+
+		for (const reason of ['cancellation', 'draft disposal']) {
+			test(`abandons the handoff on ${reason} while target authentication is pending`, async () => {
+				const cancellation = disposables.add(new CancellationTokenSource());
+				const preparation = source.prepareNewSession(draft.sessionId, cancellation.token, 'Run hostname');
+				const rejected = assert.rejects(preparation, /Canceled/);
+				const replacement = await replacementCreated.p;
+				if (reason === 'cancellation') {
+					cancellation.cancel();
+				} else {
+					target.deleteNewSession(replacement.sessionId);
+				}
+				await rejected;
+
+				assert.deepStrictEqual({ releases, config: target.getSessionConfig(replacement.sessionId), sentConfigs }, { releases: 1, config: undefined, sentConfigs: [] });
+			});
+		}
+
+		test('rejects the handoff when target configuration resolution fails', async () => {
+			targetConnection.failResolveSessionConfig = true;
+			const preparation = source.prepareNewSession(draft.sessionId, CancellationToken.None, 'Run hostname');
+			const rejected = assert.rejects(preparation, /Could not resolve the Agent Host session configuration/);
+			const replacement = await replacementCreated.p;
+			target.setAuthenticationPending(false);
+			await rejected;
+
+			assert.deepStrictEqual({ releases, config: target.getSessionConfig(replacement.sessionId), sentConfigs }, { releases: 1, config: undefined, sentConfigs: [] });
+		});
+	});
 
 	test('does not prepare a remote Dev Container when source workspace trust is denied', async () => {
 		const provider = createProvider(disposables, connection);

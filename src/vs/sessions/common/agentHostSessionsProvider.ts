@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
@@ -216,6 +217,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidChangeSessionConfig: Event<string>;
 	/** Returns the last resolved dynamic configuration for a session. */
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	/** Waits for a draft's authentication and configuration resolution, rejecting if configuration is unavailable. */
+	whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
 	/** Effective runtime sandbox policy, refreshed with session configuration notifications. */
 	getSessionSandboxPolicy?(sessionId: string): ISessionSandboxPolicy | undefined;
 	/** Last sandbox enablement successfully applied by the host. */
