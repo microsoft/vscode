@@ -1431,7 +1431,7 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
 
 		// Browser View
-		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewMainService), disposables);
+		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewMainService), disposables, { unbufferedEvents: ['onDidCreateBrowserView'] });
 		mainProcessElectronServer.registerChannel(ipcBrowserViewChannelName, browserViewChannel);
 		sharedProcessClient.then(client => client.registerChannel(ipcBrowserViewChannelName, browserViewChannel));
 
