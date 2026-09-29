@@ -300,6 +300,24 @@
 	display: inline;
 }
 
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-relocated-model-picker .monaco-action-bar .action-item.model-picker-item:not(.compact-picker) {
+	flex: 0 1 auto;
+	min-width: min-content;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-relocated-model-picker .action-item.model-picker-item .action-label.model-picker-split {
+	box-sizing: border-box;
+	width: 100%;
+	min-width: 0;
+	height: auto;
+	padding: 0;
+	cursor: default;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-relocated-model-picker .action-item.model-picker-item .model-picker-config-summary {
+	display: none;
+}
+
 .agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-execute-toolbar {
 	order: 3;
 }
