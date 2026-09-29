@@ -73,6 +73,10 @@ export class ObjectTree<T, TFilterData = void> extends AbstractTree<T | null, TF
 		this.view.updateElementHeight(elementIndex, height);
 	}
 
+	getListRenderCount(element: T | null): number {
+		return this.model.getListRenderCount(element);
+	}
+
 	resort(element: T | null, recursive = true): void {
 		this.model.resort(element, recursive);
 	}
@@ -230,6 +234,9 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 			endIndex: lastStickyNode.endIndex,
 			position: stickyNodes[0].position,
 			height: stickyNodes[0].height,
+			sourceNodeEnd: stickyNodes[0].sourceNodeEnd,
+			sourceNodePartiallyVisible: stickyNodes.some(node => node.sourceNodePartiallyVisible),
+			hasExplicitHeight: stickyNodes[0].hasExplicitHeight,
 		};
 
 		this.compressedStickyNodes.set(stickyTreeNode, compressedNode);

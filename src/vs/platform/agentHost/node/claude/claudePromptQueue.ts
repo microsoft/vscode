@@ -6,7 +6,9 @@
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../log/common/log.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 
 /**
  * One {@link SDKUserMessage} the queue has handed to (or is about to
@@ -22,6 +24,8 @@ export interface IPendingSdkMessage {
 	readonly sdkMessage: SDKUserMessage;
 	readonly sdkUuid: string;
 	readonly turnId: string;
+	readonly clientContext?: IAgentHostClientTelemetryContext;
+	readonly stopWatch: StopWatch;
 	readonly deferred: DeferredPromise<void>;
 	readonly steeringPendingId?: string;
 }

@@ -2,7 +2,7 @@
   "name": "markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "10.0.0",
+  "version": "30.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -97,7 +97,20 @@
         },
         "unbalancedBracketScopes": [
           "markup.underline.link.markdown",
-          "punctuation.definition.list.begin.markdown"
+          "punctuation.definition.list.begin.markdown",
+          "keyword.operator.relational.cs",
+          "keyword.operator.arrow.cs",
+          "punctuation.accessor.pointer.cs",
+          "keyword.operator.bitwise.shift.cs",
+          "keyword.operator.assignment.compound.bitwise.cs",
+          "keyword.operator.relational.ts",
+          "storage.type.function.arrow.ts",
+          "keyword.operator.bitwise.shift.ts",
+          "keyword.operator.assignment.compound.bitwise.ts",
+          "keyword.operator.relational.tsx",
+          "storage.type.function.arrow.tsx",
+          "keyword.operator.bitwise.shift.tsx",
+          "keyword.operator.assignment.compound.bitwise.tsx"
         ]
       }
     ],

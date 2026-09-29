@@ -1,0 +1,47 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Modern UI module: "Agents Window Command Center".
+ *
+ * Mirrors the Agents window title-bar styling (see
+ * src/vs/sessions/contrib/sessions/browser/media/sessionsTitleBarWidget.css and
+ * src/vs/workbench/contrib/chat/browser/agentSessions/experiments/media/agenttitlebarstatuswidget.css):
+ * the command center and agent-status input sit on a transparent background at
+ * rest and only reveal the command-center active background/border on hover,
+ * instead of carrying a solid fill the whole time.
+ *
+ * All rules are gated behind the `.modern-ui` class, which
+ * the ModernUIContribution toggles onto the workbench container(s) when
+ * the `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
+ */
+
+/* Keep unavailable navigation actions on the contributed command-center foreground. */
+.modern-ui.monaco-workbench .part.titlebar .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label:is(.codicon-arrow-left, .codicon-arrow-right) {
+	color: var(--vscode-commandCenter-foreground);
+}
+
+/*
+ * Agent status pill and its input area. Both default to the indicator
+ * background; clear it so they match the transparent command center. Their own
+ * `:hover` rules already reveal the active background, and the connected
+ * `session-mode` pill keeps its active fill (excluded below).
+ */
+.modern-ui .agent-status-pill:not(.session-mode),
+.modern-ui .agent-status-pill .agent-status-input-area {
+	background-color: transparent !important;
+}
+
+/*
+ * Connected badge segments (sparkle / chat toggle dropdown, status sections and
+ * the command-center toolbar) also default to the indicator background. Clear
+ * it so the whole pill reads transparent at rest; each segment's own `:hover`
+ * rule still reveals the active background, and the `filtered` state keeps its
+ * own active fill (excluded below).
+ */
+.modern-ui .agent-status-badge-section:not(.filtered),
+.modern-ui .agent-status-command-center-toolbar {
+	background-color: transparent !important;
+}

@@ -10,7 +10,6 @@ import { TextDocumentSnapshot } from '../../editing/common/textDocumentSnapshot'
 import { BlockNameDetail, DetailBlock, QueryMatchTree } from './chunkGroupTypes';
 import { OverlayNode, TreeSitterExpressionInfo, TreeSitterOffsetRange, TreeSitterPointRange } from './nodes';
 import type * as parser from './parserImpl';
-import { TestableNode } from './testGenParsing';
 import { WASMLanguage } from './treeSitterLanguages';
 
 export const IParserService = createServiceIdentifier<IParserService>('IParserService');
@@ -60,11 +59,6 @@ export interface TreeSitterAST {
 	 * @param range The range to document.
 	 */
 	getDocumentableNodeIfOnIdentifier(range: TreeSitterOffsetRange): Promise<{ identifier: string; nodeRange?: TreeSitterOffsetRange } | undefined>;
-	/**
-	 * @param range The range to test.
-	 */
-	getTestableNode(range: TreeSitterOffsetRange): Promise<TestableNode | null>;
-	getTestableNodes(): Promise<TestableNode[] | null>;
 	/**
 	 * Starting from the smallest AST node that wraps `selection` and climbs up the AST until it sees a "documentable" node.
 	 * See {@link isDocumentableNode} for definition of a "documentable" node.

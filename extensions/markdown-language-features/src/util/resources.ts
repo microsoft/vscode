@@ -4,11 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { Utils } from 'vscode-uri';
 
 export interface WebviewResourceProvider {
 	asWebviewUri(resource: vscode.Uri): vscode.Uri;
 
 	readonly cspSource: string;
+}
+
+export function getMarkdownLocalResourceRoots(
+	resource: vscode.Uri,
+	baseRoots: readonly vscode.Uri[],
+	options: {
+		readonly includeWorkspaceResources?: boolean;
+		readonly workspaceContext?: Pick<typeof vscode.workspace, 'getWorkspaceFolder' | 'workspaceFolders'>;
+	} = {},
+): vscode.Uri[] {
+	const roots = [...baseRoots];
+	if (options.includeWorkspaceResources === false) {
+		return roots;
+	}
+
+	const workspaceContext = options.workspaceContext ?? vscode.workspace;
+	if (workspaceContext.getWorkspaceFolder(resource)) {
+		roots.push(...workspaceContext.workspaceFolders?.map(folder => folder.uri) ?? []);
+	} else {
+		roots.push(Utils.dirname(resource));
+	}
+
+	return roots;
 }
 
 export function areUrisEqual(uri1: vscode.Uri, uri2: vscode.Uri): boolean {

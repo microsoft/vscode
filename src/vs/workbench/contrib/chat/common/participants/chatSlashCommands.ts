@@ -30,6 +30,11 @@ export interface IChatSlashData {
 	executeImmediately?: boolean;
 
 	/**
+	 * Whether a silent command can execute independently while the chat has a request in progress.
+	 */
+	executeDuringRequest?: boolean;
+
+	/**
 	 * Whether the command should be added as a request/response
 	 * turn to the chat history. Defaults to `false`.
 	 *

@@ -42,4 +42,5 @@ export interface IStartOptions {
 	printOnly: boolean;
 	save: boolean;
 	once: boolean;
+	nonce: string;
 }

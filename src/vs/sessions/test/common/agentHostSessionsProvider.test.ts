@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { buildMutableConfigSchema } from '../../common/agentHostSessionsProvider.js';
+import { ChatInteractivity, effectiveChatInteractivity } from '../../services/sessions/common/session.js';
 
 suite('buildMutableConfigSchema', () => {
 
@@ -42,6 +43,30 @@ suite('buildMutableConfigSchema', () => {
 			permissions: { type: 'object', title: 'permissions', sessionMutable: true },
 			// `undefined` and `null` are omitted — they aren't representable in
 			// the config schema.
+		});
+	});
+});
+
+suite('effectiveChatInteractivity', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('archived sessions force interactive chats read-only, preserve hidden, and leave active chats unchanged', () => {
+		const actual = {
+			archivedFull: effectiveChatInteractivity(true, ChatInteractivity.Full),
+			archivedReadOnly: effectiveChatInteractivity(true, ChatInteractivity.ReadOnly),
+			archivedHidden: effectiveChatInteractivity(true, ChatInteractivity.Hidden),
+			activeFull: effectiveChatInteractivity(false, ChatInteractivity.Full),
+			activeReadOnly: effectiveChatInteractivity(false, ChatInteractivity.ReadOnly),
+			activeHidden: effectiveChatInteractivity(false, ChatInteractivity.Hidden),
+		};
+		assert.deepStrictEqual(actual, {
+			archivedFull: ChatInteractivity.ReadOnly,
+			archivedReadOnly: ChatInteractivity.ReadOnly,
+			archivedHidden: ChatInteractivity.Hidden,
+			activeFull: ChatInteractivity.Full,
+			activeReadOnly: ChatInteractivity.ReadOnly,
+			activeHidden: ChatInteractivity.Hidden,
 		});
 	});
 });

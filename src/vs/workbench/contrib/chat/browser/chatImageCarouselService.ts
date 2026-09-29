@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -11,7 +14,8 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { extractImagesFromChatRequest, extractImagesFromChatResponse, IChatExtractedImage } from '../common/chatImageExtraction.js';
+import type { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
+import { extractImagesFromChatRequest, extractImagesFromChatResponse, extractImagesFromChatVariables, IChatExtractedImage } from '../common/chatImageExtraction.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { IChatWidgetService } from './chat.js';
 
@@ -27,7 +31,7 @@ export interface IChatImageCarouselService {
 	 * @param resource The URI of the clicked image to start the carousel at.
 	 * @param data Optional raw image data (e.g. for input attachment images that are Uint8Arrays).
 	 */
-	openCarouselAtResource(resource: URI, data?: Uint8Array): Promise<void>;
+	openCarouselAtResource(resource: URI, data?: Uint8Array, options?: { readonly preferCurrentInput?: boolean }): Promise<void>;
 }
 
 //#region Carousel data types
@@ -73,6 +77,7 @@ export interface ICarouselSingleImageArgs {
 export async function collectCarouselSections(
 	items: (IChatRequestViewModel | IChatResponseViewModel)[],
 	readFile: (uri: URI) => Promise<Uint8Array>,
+	currentInput?: { readonly text: string; readonly attachments: readonly IChatRequestVariableEntry[] },
 ): Promise<ICarouselSection[]> {
 	const sections: ICarouselSection[] = [];
 
@@ -100,7 +105,7 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: request?.messageText ?? extractedTitle,
-				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption }))
+				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption: toCaptionText(caption) }))
 			});
 		}
 	}
@@ -118,12 +123,34 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: item.messageText,
-				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption }))
+				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption: toCaptionText(caption) }))
+			});
+		}
+	}
+
+	if (currentInput) {
+		const inputImages = deduplicateConsecutiveImages(extractImagesFromChatVariables(currentInput.attachments));
+		if (inputImages.length > 0) {
+			sections.push({
+				title: currentInput.text.trim() || localize('chatImageCarousel.currentInput', "Current Input"),
+				images: inputImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption: toCaptionText(caption) }))
 			});
 		}
 	}
 
 	return sections;
+}
+
+/**
+ * Converts an extracted image caption to plain display text, stripping
+ * Markdown syntax (e.g. "Viewed image [](file:///path/img.png)" becomes
+ * "Viewed image img.png") the same way chat renders tool invocation messages.
+ */
+function toCaptionText(caption: string | IMarkdownString | undefined): string | undefined {
+	if (caption === undefined) {
+		return undefined;
+	}
+	return typeof caption === 'string' ? caption : stripIcons(renderAsPlaintext(caption, { useLinkFormatter: true }));
 }
 
 /**
@@ -147,7 +174,17 @@ export function findClickedImageIndex(
 	sections: ICarouselSection[],
 	resource: URI,
 	data?: Uint8Array,
+	preferredSectionIndex?: number,
 ): number {
+	if (preferredSectionIndex !== undefined && preferredSectionIndex >= 0 && preferredSectionIndex < sections.length) {
+		const preferredSection = sections[preferredSectionIndex];
+		const uriIndex = findImageInListByUri(preferredSection.images, resource);
+		const localIndex = uriIndex >= 0 ? uriIndex : (data ? findImageInListByData(preferredSection.images, data) : -1);
+		if (localIndex >= 0) {
+			return sections.slice(0, preferredSectionIndex).reduce((total, section) => total + section.images.length, 0) + localIndex;
+		}
+	}
+
 	let globalOffset = 0;
 
 	for (const section of sections) {
@@ -231,7 +268,12 @@ export function buildCollectionArgs(
  * Builds the single-image arguments for the carousel command.
  */
 export function buildSingleImageArgs(resource: URI, data: Uint8Array): ICarouselSingleImageArgs {
-	const name = resource.path.split('/').pop() ?? 'image';
+	let name = resource.path.split('/').pop() ?? 'image';
+	try {
+		name = decodeURIComponent(name);
+	} catch {
+		// keep raw segment if it isn't valid percent-encoding
+	}
 	const mimeType = getMediaMime(resource.path) ?? getMediaMime(name) ?? 'image/png';
 	return { name, mimeType, data, title: name };
 }
@@ -250,7 +292,7 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 		@IFileService private readonly fileService: IFileService,
 	) { }
 
-	async openCarouselAtResource(resource: URI, data?: Uint8Array): Promise<void> {
+	async openCarouselAtResource(resource: URI, data?: Uint8Array, options?: { readonly preferCurrentInput?: boolean }): Promise<void> {
 		const widget = this.chatWidgetService.lastFocusedWidget;
 		if (!widget?.viewModel) {
 			await this.openSingleImage(resource, data);
@@ -262,7 +304,13 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 		);
 		const readFile = async (uri: URI) => (await this.fileService.readFile(uri)).value.buffer;
 		const sections = await collectCarouselSections(items, readFile);
-		const clickedGlobalIndex = findClickedImageIndex(sections, resource, data);
+		const currentInputSections = await collectCarouselSections([], readFile, {
+			text: widget.getInput(),
+			attachments: widget.attachmentModel.attachments,
+		});
+		const preferredSectionIndex = options?.preferCurrentInput && currentInputSections.length > 0 ? sections.length : undefined;
+		sections.push(...currentInputSections);
+		const clickedGlobalIndex = findClickedImageIndex(sections, resource, data, preferredSectionIndex);
 
 		if (clickedGlobalIndex === -1 || sections.length === 0) {
 			await this.openSingleImage(resource, data);

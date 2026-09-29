@@ -8,18 +8,30 @@ import * as vscode from 'vscode';
 import { ResolvedRepoRemoteInfo } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ICodeSearchAuthenticationService } from '../../../platform/remoteCodeSearch/node/codeSearchRepoAuth';
+import { ExternalIngestEnablement } from '../../../platform/workspaceChunkSearch/node/codeSearch/codeSearchChunkSearch';
 import { CodeSearchRepoStatus } from '../../../platform/workspaceChunkSearch/node/codeSearch/codeSearchRepo';
 import { IWorkspaceChunkSearchService, WorkspaceIndexState } from '../../../platform/workspaceChunkSearch/node/workspaceChunkSearchService';
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { commandUri } from '../../linkify/common/commands';
-import { buildRemoteIndexCommandId } from './commands';
+import { buildRemoteIndexCommandId, enableExternalIngestCommandId } from './commands';
 
 
 const reauthenticateCommandId = '_copilot.workspaceIndex.signInAgain';
 
 const codebaseSemanticSearchDocsLink = 'https://aka.ms/vscode-copilot-workspace-remote-index';
+const externalIngestPolicyLink = 'https://aka.ms/vscode-external-ingest-policy';
+const enableExternalIngestCommandLink = `command:${enableExternalIngestCommandId}`;
+
+const enableExternalIngestCommandTitle = t('Enable External Ingest');
+const externalIngestPolicyDetail = t('External ingest is disabled by your organization\'s policy. [Learn more]({0})', externalIngestPolicyLink);
+const externalIngestPolicyNoReposDetail = t('External ingest is disabled by your organization\'s policy, and no external repositories were found. [Learn more]({0})', externalIngestPolicyLink);
+const externalIngestPolicyAvailableDetail = t('External ingest is disabled by your organization\'s policy. Results may be incomplete or out of date. [Learn more]({0})', externalIngestPolicyLink);
+const externalIngestDisabledInWorkspaceDetail = t`External ingest is disabled in this workspace.`;
+const externalIngestDisabledInWorkspaceNoReposDetail = t`External ingest is disabled in this workspace, and no external repositories were found.`;
+const enableExternalIngestDetail = t('External ingest is disabled in this workspace. [Enable external ingest?]({0} "{1}")', enableExternalIngestCommandLink, enableExternalIngestCommandTitle);
+const enableExternalIngestNoReposDetail = t('External ingest is disabled in this workspace, and no external repositories were found. [Enable external ingest?]({0} "{1}")', enableExternalIngestCommandLink, enableExternalIngestCommandTitle);
 
 interface WorkspaceIndexStateReporter {
 	readonly onDidChangeIndexState: Event<void>;
@@ -63,6 +75,9 @@ interface ChatStatusItemState {
 }
 
 const spinnerCodicon = '$(loading~spin)';
+const warningCodicon = '$(warning)';
+const errorCodicon = '$(error)';
+const checkCodicon = '$(check)';
 const statusTitle = t`Codebase Semantic Index`;
 
 export class ChatStatusWorkspaceIndexingStatus extends Disposable {
@@ -127,6 +142,10 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 				});
 
 			case 'loaded': {
+				const externalIngestDisabledByPolicy = state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledByPolicy;
+				const externalIngestDisabledInWorkspace = state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledBySetting;
+				const noRepos = state.remoteIndexState.repos.length === 0;
+
 				// See if any repos are still being resolved
 				if (state.remoteIndexState.repos.some(repo => repo.status === CodeSearchRepoStatus.Resolving)) {
 					return this._writeStatusItem({
@@ -159,6 +178,20 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 							icon: spinnerCodicon,
 						},
 						tooltip: t`Your codebase is currently being indexed. This may take a few minutes.`,
+					});
+				}
+
+				if (externalIngestDisabledInWorkspace && !state.remoteIndexState.hasPromptedForExternalIngest) {
+					return this._writeStatusItem({
+						primary: {
+							message: t`Disabled`,
+							icon: noRepos ? errorCodicon : warningCodicon,
+						},
+						details: {
+							message: noRepos ? enableExternalIngestNoReposDetail : enableExternalIngestDetail,
+							busy: false,
+						},
+						tooltip: t`External ingest is disabled in this workspace.`,
 					});
 				}
 
@@ -199,13 +232,27 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 					}
 				}
 
+				if (externalIngestDisabledByPolicy && readyRepos.length > 0) {
+					return this._writeStatusItem({
+						primary: {
+							message: t`Available`,
+							icon: warningCodicon,
+						},
+						details: {
+							message: externalIngestPolicyAvailableDetail,
+							busy: false,
+						},
+						tooltip: t`Codebase semantic search is available from indexed repositories, but external ingest is disabled by your organization's policy. Results may be incomplete or out of date.`,
+					});
+				}
+
 				// Check if we have other errors
 				const errorRepos = state.remoteIndexState.repos.filter(repo => repo.status === CodeSearchRepoStatus.CouldNotCheckIndexStatus);
 				if (errorRepos.length > 0) {
 					return this._writeStatusItem({
 						primary: {
 							message: t`Not available`,
-							icon: '$(warning)',
+							icon: errorCodicon,
 						},
 						tooltip: t`This repository can't be indexed. It may be too large or not supported.`,
 					});
@@ -240,9 +287,27 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 					return this._writeStatusItem({
 						primary: {
 							message: t`Ready`,
-							icon: '$(check)',
+							icon: externalIngestDisabledInWorkspace ? warningCodicon : checkCodicon,
 						},
+						details: externalIngestDisabledInWorkspace ? {
+							message: externalIngestDisabledInWorkspaceDetail,
+							busy: false,
+						} : undefined,
 						tooltip: t`Your index is up to date and being used to improve suggestions.`,
+					});
+				}
+
+				if (externalIngestDisabledInWorkspace) {
+					return this._writeStatusItem({
+						primary: {
+							message: t`Disabled`,
+							icon: noRepos ? errorCodicon : warningCodicon,
+						},
+						details: {
+							message: noRepos ? externalIngestDisabledInWorkspaceNoReposDetail : externalIngestDisabledInWorkspaceDetail,
+							busy: false,
+						},
+						tooltip: t`External ingest is disabled in this workspace.`,
 					});
 				}
 
@@ -268,13 +333,26 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 			}
 		}
 
+		const externalIngestDisabledByPolicy = state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledByPolicy;
+		const externalIngestDisabledInWorkspace = state.remoteIndexState.externalIngestEnablement === ExternalIngestEnablement.DisabledBySetting;
+		const noRepos = state.remoteIndexState.repos.length === 0;
+
 		this._writeStatusItem({
 			primary: {
-				message: t`Not available`,
-				icon: '$(warning)',
+				message: externalIngestDisabledByPolicy || externalIngestDisabledInWorkspace ? t`Disabled` : t`Not available`,
+				icon: (externalIngestDisabledByPolicy || externalIngestDisabledInWorkspace) && !noRepos ? warningCodicon : errorCodicon,
 			},
-			details: undefined,
-			tooltip: t`This repository can't be indexed. It may be too large or not supported.`,
+			details: externalIngestDisabledByPolicy || externalIngestDisabledInWorkspace ? {
+				message: externalIngestDisabledByPolicy
+					? noRepos ? externalIngestPolicyNoReposDetail : externalIngestPolicyDetail
+					: noRepos ? externalIngestDisabledInWorkspaceNoReposDetail : externalIngestDisabledInWorkspaceDetail,
+				busy: false,
+			} : undefined,
+			tooltip: externalIngestDisabledByPolicy
+				? t`External ingest is disabled by your organization's policy.`
+				: externalIngestDisabledInWorkspace
+					? t`External ingest is disabled in this workspace.`
+					: t`This repository can't be indexed. It may be too large or not supported.`,
 		});
 	}
 

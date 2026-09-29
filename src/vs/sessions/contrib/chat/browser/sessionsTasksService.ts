@@ -3,21 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { joinPath, dirname, isEqual } from '../../../../base/common/resources.js';
 import { parse } from '../../../../base/common/jsonc.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IJSONEditingService } from '../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { CommandString } from '../../../../workbench/contrib/tasks/common/taskConfiguration.js';
-import { TaskRunSource } from '../../../../workbench/contrib/tasks/common/tasks.js';
-import { ITaskService } from '../../../../workbench/contrib/tasks/common/taskService.js';
+import { ISessionTaskRunnerRegistry } from './sessionTaskRunner.js';
 
 export type TaskStorageTarget = 'user' | 'workspace';
 type TaskRunOnOption = 'default' | 'folderOpen' | 'worktreeCreated';
@@ -41,6 +40,8 @@ export interface ITaskEntry {
 	readonly windows?: { command?: string; args?: CommandString[] };
 	readonly osx?: { command?: string; args?: CommandString[] };
 	readonly linux?: { command?: string; args?: CommandString[] };
+	readonly dependsOn?: string | readonly string[];
+	readonly dependsOrder?: 'sequence' | 'parallel';
 	readonly [key: string]: unknown;
 }
 
@@ -57,6 +58,15 @@ export interface ISessionTaskWithTarget {
 	readonly target: TaskStorageTarget;
 }
 
+/**
+ * Payload fired by {@link ISessionsTasksService.onDidRunTask} after a
+ * session task has been successfully dispatched to its runner.
+ */
+export interface ISessionTaskRunEvent {
+	readonly task: ITaskEntry;
+	readonly session: ISession;
+}
+
 interface ITasksJson {
 	version?: string;
 	tasks?: ITaskEntry[];
@@ -66,46 +76,81 @@ export interface ISessionsTasksService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Fires after a session task has been successfully dispatched to its
+	 * runner via {@link runTask}. Does not fire when the task throws or when
+	 * no runner is registered for the session.
+	 */
+	readonly onDidRunTask: Event<ISessionTaskRunEvent>;
+
+	/**
 	 * Observable list of tasks with `inAgents: true`, automatically
 	 * updated when the tasks.json file changes. Each entry includes the
 	 * storage target the task was loaded from.
+	 *
+	 * **Note:** This observable is shared across all sessions — repeated
+	 * calls with different sessions overwrite it with the most recently
+	 * requested session's tasks. It is intended for a single follower
+	 * (e.g. the toolbar tracking the active session). Consumers that need
+	 * a one-time snapshot for a specific session should use
+	 * {@link getSessionTasksOnce} instead.
 	 */
-	getSessionTasks(session: ISession): IObservable<readonly ISessionTaskWithTarget[]>;
+	getSessionTasks(session: ISession | IChat): IObservable<readonly ISessionTaskWithTarget[]>;
+
+	/**
+	 * Returns a one-shot snapshot of the tasks (with `inAgents: true`) for the
+	 * given session or chat, reading from both workspace and user `tasks.json`.
+	 *
+	 * Unlike {@link getSessionTasks}, this method does NOT touch the shared
+	 * `_sessionTasks` observable, so it is safe to call concurrently for
+	 * multiple sessions or chats.
+	 */
+	getSessionTasksOnce(session: ISession | IChat): Promise<readonly ISessionTaskWithTarget[]>;
+
+	/**
+	 * Returns a one-shot snapshot of **all** tasks (with or without `inAgents`)
+	 * declared for the given session or chat, reading from both workspace and
+	 * user `tasks.json`. Used by the agent-host runner to look up dependency
+	 * tasks referenced via `dependsOn`.
+	 */
+	getAllTasks(session: ISession | IChat): Promise<readonly ISessionTaskWithTarget[]>;
 
 	/**
 	 * Returns tasks that do NOT have `inAgents: true` — used as
 	 * suggestions in the "Add Run Action" picker.
 	 */
-	getNonSessionTasks(session: ISession): Promise<readonly INonSessionTaskEntry[]>;
+	getNonSessionTasks(session: ISession | IChat): Promise<readonly INonSessionTaskEntry[]>;
 
 	/**
 	 * Sets `inAgents: true` on an existing task (identified by label),
 	 * updating it in place in its tasks.json.
 	 */
-	addTaskToSessions(task: ITaskEntry, session: ISession, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void>;
+	addTaskToSessions(task: ITaskEntry, session: ISession | IChat, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void>;
 
 	/**
 	 * Creates a new shell task with `inAgents: true` and writes it to
 	 * the appropriate tasks.json (user or workspace).
 	 */
-	createAndAddTask(label: string | undefined, command: string, session: ISession, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined>;
+	createAndAddTask(label: string | undefined, command: string, session: ISession | IChat, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined>;
 
 	/**
 	 * Updates an existing task entry, optionally moving it between user and
 	 * workspace storage.
 	 */
-	updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: ISession, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void>;
+	updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: ISession | IChat, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void>;
 
 	/**
 	 * Removes an existing task entry from its tasks.json.
 	 */
-	removeTask(taskLabel: string, session: ISession, target: TaskStorageTarget): Promise<void>;
+	removeTask(taskLabel: string, session: ISession | IChat, target: TaskStorageTarget): Promise<void>;
 
 	/**
-	 * Runs a task via the task service, looking it up by label in the
-	 * workspace folder corresponding to the session worktree.
+	 * Runs a task via the task service, looking it up by label in the active
+	 * chat's workspace folder when provided.
+	 *
+	 * May resolve to an {@link IDisposable} that stops the launched task; see
+	 * {@link ISessionTaskRunner.runTask}.
 	 */
-	runTask(task: ITaskEntry, session: ISession): Promise<void>;
+	runTask(task: ITaskEntry, session: ISession, chat?: IChat): Promise<IDisposable | undefined>;
 
 	/**
 	 * Observable label of the pinned task for the given repository.
@@ -148,6 +193,10 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 	private static readonly _PINNED_TASK_LABELS_KEY = 'agentSessions.pinnedTaskLabels';
 	private static readonly _BROWSER_URLS_KEY = 'agentSessions.browserUrls';
 	private static readonly _PINNED_BROWSERS_KEY = 'agentSessions.pinnedBrowsers';
+
+	private readonly _onDidRunTask = this._register(new Emitter<ISessionTaskRunEvent>());
+	readonly onDidRunTask = this._onDidRunTask.event;
+
 	private readonly _sessionTasks = observableValue<readonly ISessionTaskWithTarget[]>(this, []);
 	private readonly _fileWatcher = this._register(new MutableDisposable());
 	private readonly _pinnedTaskLabels: Map<string, string>;
@@ -164,8 +213,7 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		@IFileService private readonly _fileService: IFileService,
 		@IJSONEditingService private readonly _jsonEditingService: IJSONEditingService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
-		@ITaskService private readonly _taskService: ITaskService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ISessionTaskRunnerRegistry private readonly _taskRunnerRegistry: ISessionTaskRunnerRegistry,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
@@ -174,7 +222,7 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		this._pinnedBrowsers = this._loadPinnedBrowsers();
 	}
 
-	getSessionTasks(session: ISession): IObservable<readonly ISessionTaskWithTarget[]> {
+	getSessionTasks(session: ISession | IChat): IObservable<readonly ISessionTaskWithTarget[]> {
 		const folder = this._getSessionFolder(session);
 		this._ensureFileWatch(folder);
 		// Trigger initial read only when the folder changes; the file watcher handles subsequent updates
@@ -185,33 +233,42 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		return this._sessionTasks;
 	}
 
-	async getNonSessionTasks(session: ISession): Promise<readonly INonSessionTaskEntry[]> {
-		const result: INonSessionTaskEntry[] = [];
+	async getSessionTasksOnce(session: ISession | IChat): Promise<readonly ISessionTaskWithTarget[]> {
+		return this._readTasksFromBothTargets(session, t => !!t.inAgents);
+	}
 
-		const workspaceUri = this._getTasksJsonUri(session, 'workspace');
-		if (workspaceUri) {
-			const workspaceJson = await this._readTasksJson(workspaceUri);
-			for (const task of workspaceJson.tasks ?? []) {
-				if (!task.inAgents && this._isSupportedTask(task)) {
-					result.push({ task, target: 'workspace' });
+	async getAllTasks(session: ISession | IChat): Promise<readonly ISessionTaskWithTarget[]> {
+		return this._readTasksFromBothTargets(session, () => true);
+	}
+
+	async getNonSessionTasks(session: ISession | IChat): Promise<readonly INonSessionTaskEntry[]> {
+		return this._readTasksFromBothTargets(session, t => !t.inAgents);
+	}
+
+	/**
+	 * Reads tasks from both workspace and user `tasks.json` for a session,
+	 * filtering each entry through `predicate` (in addition to the supported-type
+	 * check) and tagging it with its storage target.
+	 */
+	private async _readTasksFromBothTargets(session: ISession | IChat, predicate: (task: ITaskEntry) => boolean): Promise<ISessionTaskWithTarget[]> {
+		const result: ISessionTaskWithTarget[] = [];
+		const targets: TaskStorageTarget[] = ['workspace', 'user'];
+		for (const target of targets) {
+			const uri = this._getTasksJsonUri(session, target);
+			if (!uri) {
+				continue;
+			}
+			const json = await this._readTasksJson(uri);
+			for (const task of json.tasks ?? []) {
+				if (predicate(task) && this._isSupportedTask(task)) {
+					result.push({ task, target });
 				}
 			}
 		}
-
-		const userUri = this._getTasksJsonUri(session, 'user');
-		if (userUri) {
-			const userJson = await this._readTasksJson(userUri);
-			for (const task of userJson.tasks ?? []) {
-				if (!task.inAgents && this._isSupportedTask(task)) {
-					result.push({ task, target: 'user' });
-				}
-			}
-		}
-
 		return result;
 	}
 
-	async addTaskToSessions(task: ITaskEntry, session: ISession, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void> {
+	async addTaskToSessions(task: ITaskEntry, session: ISession | IChat, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
 			return;
@@ -238,7 +295,7 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		await this._jsonEditingService.write(tasksJsonUri, edits, true);
 	}
 
-	async createAndAddTask(label: string | undefined, command: string, session: ISession, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined> {
+	async createAndAddTask(label: string | undefined, command: string, session: ISession | IChat, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
 			return undefined;
@@ -263,7 +320,7 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		return newTask;
 	}
 
-	async updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: ISession, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void> {
+	async updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: ISession | IChat, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void> {
 		const currentTasksJsonUri = this._getTasksJsonUri(session, currentTarget);
 		const newTasksJsonUri = this._getTasksJsonUri(session, newTarget);
 		if (!currentTasksJsonUri || !newTasksJsonUri) {
@@ -305,7 +362,7 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		}
 	}
 
-	async removeTask(taskLabel: string, session: ISession, target: TaskStorageTarget): Promise<void> {
+	async removeTask(taskLabel: string, session: ISession | IChat, target: TaskStorageTarget): Promise<void> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
 			return;
@@ -331,24 +388,14 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		}
 	}
 
-	async runTask(task: ITaskEntry, session: ISession): Promise<void> {
-		const repo = this._getSessionRepo(session);
-		const cwd = repo?.workingDirectory ?? repo?.root;
-		if (!cwd) {
-			return;
+	async runTask(task: ITaskEntry, session: ISession, chat?: IChat): Promise<IDisposable | undefined> {
+		const runner = this._taskRunnerRegistry.getRunner(session, chat);
+		if (!runner) {
+			return undefined;
 		}
-
-		const workspaceFolder = this._workspaceContextService.getWorkspaceFolder(cwd);
-		if (!workspaceFolder) {
-			return;
-		}
-
-		const resolvedTask = await this._taskService.getTask(workspaceFolder, task.label);
-		if (!resolvedTask) {
-			return;
-		}
-
-		await this._taskService.run(resolvedTask, undefined, TaskRunSource.User);
+		const handle = await runner.runTask(task, session, chat);
+		this._onDidRunTask.fire({ task, session });
+		return handle;
 	}
 
 	getPinnedTaskLabel(repository: URI | undefined): IObservable<string | undefined> {
@@ -440,16 +487,16 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 
 	// --- private helpers ---
 
-	private _getSessionRepo(session: ISession) {
+	private _getSessionRepo(session: ISession | IChat) {
 		return session.workspace.get()?.folders[0];
 	}
 
-	private _getSessionFolder(session: ISession): URI | undefined {
+	private _getSessionFolder(session: ISession | IChat): URI | undefined {
 		const repo = this._getSessionRepo(session);
 		return repo?.workingDirectory ?? repo?.root;
 	}
 
-	private _getTasksJsonUri(session: ISession, target: TaskStorageTarget): URI | undefined {
+	private _getTasksJsonUri(session: ISession | IChat, target: TaskStorageTarget): URI | undefined {
 		if (target === 'workspace') {
 			return this._getWorkspaceTasksJsonUri(this._getSessionFolder(session));
 		}

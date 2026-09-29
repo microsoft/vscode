@@ -24,7 +24,7 @@ function exec(command: string, options: cp.ExecOptions): Promise<{ stdout: strin
 			if (error) {
 				reject({ error, stdout, stderr });
 			}
-			resolve({ stdout, stderr });
+			resolve({ stdout: stdout.toString(), stderr: stderr.toString() });
 		});
 	});
 }

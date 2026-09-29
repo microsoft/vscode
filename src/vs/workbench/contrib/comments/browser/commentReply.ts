@@ -86,14 +86,10 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.updateAuthorInfo();
 		const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
 		const modeId = generateUuid() + '-' + (hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID);
-		const params = JSON.stringify({
-			extensionId: this._commentThread.extensionId,
-			commentThreadId: this._commentThread.threadId
-		});
 
 		let resource = URI.from({
 			scheme: Schemas.commentsInput,
-			path: `/${this._commentThread.extensionId}/commentinput-${modeId}.md?${params}` // TODO. Remove params once extensions adopt authority.
+			path: `/${this._commentThread.extensionId}/commentinput-${modeId}.md`
 		});
 		const commentController = this.commentService.getCommentController(this.owner);
 		if (commentController) {

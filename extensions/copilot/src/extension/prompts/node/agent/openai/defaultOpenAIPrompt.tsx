@@ -10,7 +10,7 @@ import { InstructionMessage } from '../../base/instructionMessage';
 import { ResponseTranslationRules } from '../../base/responseTranslationRules';
 import { Tag } from '../../base/tag';
 import { EXISTING_CODE_MARKER } from '../../panel/codeBlockFormattingRules';
-import { MathIntegrationRules } from '../../panel/editorIntegrationRules';
+import { ResponseRenderingRules } from '../../panel/editorIntegrationRules';
 import { ApplyPatchInstructions, CodesearchModeInstructions, DefaultAgentPromptProps, detectToolCapabilities, GenericEditingTips, getEditingReminder, McpToolInstructions, NotebookInstructions, ReminderInstructionsProps } from '../defaultAgentInstructions';
 import { FileLinkificationInstructions } from '../fileLinkificationInstructions';
 import { IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SystemPrompt } from '../promptRegistry';
@@ -114,7 +114,7 @@ export class DefaultOpenAIAgentPrompt extends PromptElement<DefaultAgentPromptPr
 				- Wrap symbol names (classes, methods, variables) in backticks: `MyClass`, `handleClick()`<br />
 				- When mentioning files or line numbers, always follow the rules in fileLinkification section below:
 				<FileLinkificationInstructions />
-				<MathIntegrationRules />
+				<ResponseRenderingRules />
 			</Tag>
 			<ResponseTranslationRules />
 		</InstructionMessage>;
@@ -123,8 +123,12 @@ export class DefaultOpenAIAgentPrompt extends PromptElement<DefaultAgentPromptPr
 
 class DefaultOpenAIPromptResolver implements IAgentPrompt {
 
-	// This is overridden by `matchesModel` in the more specific prompt resolvers
-	static readonly familyPrefixes = ['gpt', 'o4-mini', 'o3-mini', 'OpenAI'];
+	static readonly familyPrefixes = [];
+
+	static matchesModel(endpoint: IChatEndpoint): boolean {
+		// Preserve legacy prompts without consuming new GPT generations before the provider fallback.
+		return /^(?:gpt-(?:3(?:\.5)?|4(?:\.1|\.5|o)?)|gpt-5-nano|o[34]-mini)(?:-|$)/.test(endpoint.family);
+	}
 
 	resolveSystemPrompt(endpoint: IChatEndpoint): SystemPrompt | undefined {
 		return DefaultOpenAIAgentPrompt;

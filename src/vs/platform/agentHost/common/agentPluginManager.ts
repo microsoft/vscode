@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { CustomizationRef, SessionCustomization } from './state/sessionState.js';
+import type { ClientPluginCustomization, PluginCustomization } from './state/sessionState.js';
 
 export const IAgentPluginManager = createDecorator<IAgentPluginManager>('agentPluginManager');
 
@@ -14,7 +14,7 @@ export const IAgentPluginManager = createDecorator<IAgentPluginManager>('agentPl
  */
 export interface ISyncedCustomization {
 	/** The session customization with loading/error status. */
-	readonly customization: SessionCustomization;
+	readonly customization: PluginCustomization;
 	/** Local plugin directory URI, defined when the sync was successful. */
 	readonly pluginDir?: URI;
 }
@@ -38,12 +38,12 @@ export interface IAgentPluginManager {
 	readonly basePath: URI;
 
 	/**
-	 * Syncs a set of client-provided customization refs to local storage.
+	 * Syncs a set of client-provided plugin customizations to local storage.
 	 *
-	 * Each ref is copied to a local directory, respecting nonce-based
-	 * caching. The optional {@link progress} callback fires as individual
-	 * customizations complete or fail, allowing callers to publish
-	 * incremental status updates.
+	 * Each plugin is copied to a local directory, respecting nonce-based
+	 * caching. The optional {@link progress} callback fires with the single
+	 * customization that completed or failed, allowing callers to publish
+	 * targeted incremental status updates.
 	 *
 	 * Concurrent calls for the same plugin URI are serialized so that
 	 * overlapping syncs do not clobber each other.
@@ -51,5 +51,5 @@ export interface IAgentPluginManager {
 	 * @returns Final status for every customization, with `pluginDir`
 	 * defined when the sync was successful.
 	 */
-	syncCustomizations(clientId: string, customizations: CustomizationRef[], progress?: (status: SessionCustomization[]) => void): Promise<ISyncedCustomization[]>;
+	syncCustomizations(clientId: string, customizations: ClientPluginCustomization[], progress?: (status: PluginCustomization) => void): Promise<ISyncedCustomization[]>;
 }

@@ -4,21 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { ChatFetchResponseType } from '../../../../platform/chat/common/commonTypes';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { MutableObservableDocument, MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
+import { FetchResultWithStats, IStatelessNextEditTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { eventPropertiesToSimpleObject } from '../../../../platform/telemetry/common/telemetryData';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
-import { TelemetryEventProperties } from '../../../../platform/telemetry/common/telemetry';
+import { TelemetryEventMeasurements, TelemetryEventProperties, TelemetryProperties } from '../../../../platform/telemetry/common/telemetry';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
-import { IEnhancedTelemetrySendingReason, NextEditProviderTelemetryBuilder, TelemetrySender } from '../../node/nextEditProviderTelemetry';
+import { IEnhancedTelemetrySendingReason, NES_GH_TELEMETRY_EVENT_NAME, NextEditProviderTelemetryBuilder, TelemetrySender } from '../../node/nextEditProviderTelemetry';
 import { INextEditResult } from '../../node/nextEditResult';
 
 class RecordingTelemetryService extends NullTelemetryService {
 	readonly enhancedEvents: { eventName: string; properties?: TelemetryEventProperties }[] = [];
+	readonly ghEvents: { eventName: string; properties?: TelemetryEventProperties; measurements?: TelemetryEventMeasurements }[] = [];
 
 	override sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties): void {
 		this.enhancedEvents.push({ eventName, properties });
+	}
+
+	override sendGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
+		this.ghEvents.push({ eventName, properties, measurements });
 	}
 }
 
@@ -425,6 +433,157 @@ describe('TelemetrySender', () => {
 
 			await vi.advanceTimersByTimeAsync(60_000 + 5_000); // at 185s total — new timeout + idle
 			expect(telemetryService.enhancedEvents).toHaveLength(1);
+		});
+	});
+
+	describe('fetchResult disambiguation', () => {
+		// `eventPropertiesToSimpleObject` drops falsy property values (including `""`), so
+		// once a payload reaches the wire, "model responded with empty string" looks identical
+		// to "fetch was canceled/failed" and to "no fetch happened". The `fetchResult` property
+		// on the enhanced/restricted event is what lets consumers tell them apart in the
+		// `copilot_v0_next_edit_suggestion_restricted_code_snippet` table.
+
+		function buildStatelessTelemetry(response: Promise<FetchResultWithStats> | undefined): IStatelessNextEditTelemetry {
+			return {
+				hadStatelessNextEditProviderCall: true,
+				statelessNextEditProviderDuration: 0,
+				isCursorAtEndOfLine: undefined,
+				isInlineSuggestion: undefined,
+				nLinesOfCurrentFileInPrompt: undefined,
+				modelName: undefined,
+				logProbThreshold: undefined,
+				prompt: undefined,
+				promptLineCount: undefined,
+				promptCharCount: undefined,
+				mergeConflictExpanded: undefined,
+				debounceTime: undefined,
+				fetchStartedAt: undefined,
+				artificialDelay: undefined,
+				hadLowLogProbSuggestion: undefined,
+				response,
+				nEditsSuggested: undefined,
+				lineDistanceToMostRecentEdit: undefined,
+				nextEditLogprob: undefined,
+				noNextEditReasonKind: undefined,
+				noNextEditReasonMessage: undefined,
+				nextCursorPrediction: { nextCursorLineError: undefined, nextCursorLineDistance: undefined, isCrossFile: undefined },
+				xtabAggressivenessLevel: undefined,
+				xtabUserHappinessScore: undefined,
+				userAggressivenessSetting: undefined,
+				editIntent: undefined,
+				editIntentParseError: undefined,
+				cursorJumpModelName: undefined,
+				cursorJumpPrompt: undefined,
+				cursorJumpResponse: undefined,
+				nDiffsInPrompt: undefined,
+				promptSectionTokens: undefined,
+				nNeighborSnippetsComputed: undefined,
+				nNeighborSnippetsInPrompt: undefined,
+				neighborSnippetIndicesInPrompt: undefined,
+				lintErrors: undefined,
+				terminalOutput: undefined,
+				similarFilesContext: undefined,
+				modelConfig: undefined,
+			};
+		}
+
+		async function sendAndFlush(response: Promise<FetchResultWithStats> | undefined): Promise<TelemetryProperties | undefined> {
+			const result = createMockNextEditResult();
+			const builder = createMockBuilder(undefined);
+			builder.nesBuilder.setStatelessNextEditTelemetry(buildStatelessTelemetry(response));
+
+			sender.sendTelemetry(result, builder);
+			// `_doSendEnhancedTelemetry` is async — flush its awaits so the event is recorded.
+			await vi.advanceTimersByTimeAsync(0);
+
+			expect(telemetryService.enhancedEvents).toHaveLength(1);
+			return eventPropertiesToSimpleObject(telemetryService.enhancedEvents[0].properties);
+		}
+
+		test('no fetch: fetchResult is undefined', async () => {
+			const properties = await sendAndFlush(undefined);
+			expect(properties?.fetchResult).toBeUndefined();
+			expect(properties?.modelResponse).toBeUndefined();
+		});
+
+		test('successful empty response: fetchResult is "success" (and modelResponse is dropped client-side as empty)', async () => {
+			const response: Promise<FetchResultWithStats> = Promise.resolve({
+				ttft: 0,
+				fetchTime: 0,
+				fetchResult: ChatFetchResponseType.Success,
+				response: {
+					type: ChatFetchResponseType.Success,
+					value: '',
+					requestId: 'req-1',
+					serverRequestId: undefined,
+					usage: undefined,
+					resolvedModel: 'm',
+				},
+			});
+
+			const properties = await sendAndFlush(response);
+			expect(properties?.fetchResult).toBe(ChatFetchResponseType.Success);
+			// `eventPropertiesToSimpleObject` strips falsy values, including an empty string response.
+			expect(properties?.modelResponse).toBeUndefined();
+		});
+
+		test('successful non-empty response: fetchResult is "success" and modelResponse carries the value', async () => {
+			const response: Promise<FetchResultWithStats> = Promise.resolve({
+				ttft: 0,
+				fetchTime: 0,
+				fetchResult: ChatFetchResponseType.Success,
+				response: {
+					type: ChatFetchResponseType.Success,
+					value: '<EDIT>hello</EDIT>',
+					requestId: 'req-2',
+					serverRequestId: undefined,
+					usage: undefined,
+					resolvedModel: 'm',
+				},
+			});
+
+			const properties = await sendAndFlush(response);
+			expect(properties?.fetchResult).toBe(ChatFetchResponseType.Success);
+			expect(properties?.modelResponse).toBe('<EDIT>hello</EDIT>');
+		});
+
+		test('fetch failure: fetchResult carries the failure kind and modelResponse is undefined', async () => {
+			const response: Promise<FetchResultWithStats> = Promise.resolve({
+				ttft: undefined,
+				fetchTime: 0,
+				fetchResult: ChatFetchResponseType.Canceled,
+				response: {
+					type: ChatFetchResponseType.Canceled,
+					reason: 'user-canceled',
+					requestId: 'req-3',
+					serverRequestId: undefined,
+				},
+			});
+
+			const properties = await sendAndFlush(response);
+			expect(properties?.fetchResult).toBe(ChatFetchResponseType.Canceled);
+			expect(properties?.modelResponse).toBeUndefined();
+		});
+	});
+
+	describe('suggestionLineDistanceToCursor', () => {
+		function sendAndGetMeasurements(configure: (builder: NextEditProviderTelemetryBuilder) => void): TelemetryEventMeasurements | undefined {
+			telemetryService.ghEvents.length = 0;
+			const result = createMockNextEditResult();
+			const builder = createMockBuilder(undefined);
+			configure(builder);
+			sender.sendTelemetry(result, builder);
+			return telemetryService.ghEvents.find(e => e.eventName === NES_GH_TELEMETRY_EVENT_NAME)?.measurements;
+		}
+
+		test('emits the signed distance, including 0 (same line) which survives serialization', () => {
+			expect(sendAndGetMeasurements(b => b.setSuggestionLineDistanceToCursor(0))?.suggestionLineDistanceToCursor).toBe(0);
+			expect(sendAndGetMeasurements(b => b.setSuggestionLineDistanceToCursor(5))?.suggestionLineDistanceToCursor).toBe(5);
+			expect(sendAndGetMeasurements(b => b.setSuggestionLineDistanceToCursor(-3))?.suggestionLineDistanceToCursor).toBe(-3);
+		});
+
+		test('is undefined when not set (e.g. cross-document suggestion)', () => {
+			expect(sendAndGetMeasurements(() => { })?.suggestionLineDistanceToCursor).toBeUndefined();
 		});
 	});
 });

@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-q+WTr+fBXpLLE3++yWNaxT6BTWQtsKscoeIlynBRk4E=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-FFQoOVVa2tOE3uqUvirwaMNT20TZmrHcL2aaOjJ8BUo=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -252,7 +252,7 @@
 				return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 			}
 
-			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`);
+			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}&platform=${searchParams.get('platform')}`);
 			navigator.serviceWorker.register(swPath, { type: 'module', updateViaCache: 'none' })
 				.then(async registration => {
 					if (navigator.serviceWorker.controller) {
@@ -533,7 +533,7 @@
 		 * @param {MouseEvent} event
 		 */
 		const handleInnerClick = (event) => {
-			if (!event?.view?.document) {
+			if (!event.isTrusted || !event?.view?.document) {
 				return;
 			}
 
@@ -606,7 +606,8 @@
 				e.preventDefault();
 			}
 
-			hostMessaging.postMessage('did-keydown', {
+			/** @type {import('../webviewMessages').FromWebviewMessage['did-keydown']} */
+			const data = {
 				key: e.key,
 				keyCode: e.keyCode,
 				code: e.code,
@@ -614,14 +615,17 @@
 				altKey: e.altKey,
 				ctrlKey: e.ctrlKey,
 				metaKey: e.metaKey,
-				repeat: e.repeat
-			});
+				repeat: e.repeat,
+				isTrusted: e.isTrusted
+			};
+			hostMessaging.postMessage('did-keydown', data);
 		};
 		/**
 		 * @param {KeyboardEvent} e
 		 */
 		const handleInnerKeyup = (e) => {
-			hostMessaging.postMessage('did-keyup', {
+			/** @type {import('../webviewMessages').FromWebviewMessage['did-keyup']} */
+			const data = {
 				key: e.key,
 				keyCode: e.keyCode,
 				code: e.code,
@@ -629,8 +633,10 @@
 				altKey: e.altKey,
 				ctrlKey: e.ctrlKey,
 				metaKey: e.metaKey,
-				repeat: e.repeat
-			});
+				repeat: e.repeat,
+				isTrusted: e.isTrusted
+			};
+			hostMessaging.postMessage('did-keyup', data);
 		};
 
 		/**

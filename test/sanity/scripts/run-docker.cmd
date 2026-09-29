@@ -26,8 +26,15 @@ goto :parse_args
 :done_parsing
 if "%CONTAINER%"=="" (
 	echo Error: --container is required
-	exit /b 1
+	goto :failed
 )
+goto :run
+
+:failed
+endlocal
+exit /b 1
+
+:run
 
 set HOST_ARCH=amd64
 if "%PROCESSOR_ARCHITECTURE%"=="ARM64" set HOST_ARCH=arm64

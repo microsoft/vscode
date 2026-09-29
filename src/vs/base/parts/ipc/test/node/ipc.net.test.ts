@@ -209,6 +209,27 @@ suite('IPC, Socket Protocol', () => {
 		timers.tick(1);
 		assert.ok(disposed.called);
 	});
+
+	test('dispose(false) detaches listeners without destroying the socket', () => {
+		let destroyed = false;
+		const socket = new EventEmitter();
+		Object.assign(socket, { destroy: () => { destroyed = true; } });
+
+		const nodeSocket = new NodeSocket(socket as Socket);
+		nodeSocket.dispose(false);
+
+		assert.deepStrictEqual({
+			destroyed,
+			errorListeners: socket.listenerCount('error'),
+			closeListeners: socket.listenerCount('close'),
+			endListeners: socket.listenerCount('end'),
+		}, {
+			destroyed: false,
+			errorListeners: 0,
+			closeListeners: 0,
+			endListeners: 0,
+		});
+	});
 });
 
 suite('PersistentProtocol reconnection', () => {

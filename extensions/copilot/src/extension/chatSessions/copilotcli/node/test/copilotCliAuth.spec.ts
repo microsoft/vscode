@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionOptions } from '@github/copilot/sdk';
+import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
@@ -17,6 +18,7 @@ import { CopilotCLISDK } from '../copilotCli';
 
 type TokenAuthInfo = Extract<NonNullable<SessionOptions['authInfo']>, { type: 'token' }>;
 type HmacAuthInfo = Extract<NonNullable<SessionOptions['authInfo']>, { type: 'hmac' }>;
+type CopilotSDKPackage = typeof import('@github/copilot/sdk');
 
 describe('CopilotCLISDK Authentication', () => {
 	const disposables = new DisposableStore();
@@ -24,6 +26,19 @@ describe('CopilotCLISDK Authentication', () => {
 	let logService: ILogService;
 
 	class TestCopilotCLISDK extends CopilotCLISDK {
+		public override async getPackage(): Promise<CopilotSDKPackage> {
+			return {
+				logger: {
+					setLogWriter: () => { },
+				},
+				resolveAuthInfoFromToken: async (token: string) => ({
+					type: 'token',
+					token,
+					host: 'https://github.com',
+				}),
+			} as unknown as CopilotSDKPackage;
+		}
+
 		protected override async ensureShims(): Promise<void> {
 			return;
 		}
@@ -32,6 +47,7 @@ describe('CopilotCLISDK Authentication', () => {
 	// Helper to create a mock extension context
 	function createMockExtensionContext(): IVSCodeExtensionContext {
 		return {
+			extensionPath: path.join(__dirname, '..', '..', '..', '..', '..', '..'),
 			workspaceState: {
 				get: () => ({}),
 				update: async () => { },
@@ -63,6 +79,9 @@ describe('CopilotCLISDK Authentication', () => {
 				if (key === ConfigKey.Shared.DebugOverrideProxyUrl) {
 					return 'https://proxy.example.com';
 				}
+				return undefined;
+			},
+			inspectConfig() {
 				return undefined;
 			}
 		} as unknown as IConfigurationService;

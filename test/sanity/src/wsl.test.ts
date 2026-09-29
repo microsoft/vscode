@@ -60,9 +60,11 @@ export function setup(context: TestContext) {
 			return;
 		}
 
+		const wslEntryPoint = context.toWslPath(entryPoint);
+
 		await context.runCliApp('WSL Server', 'wsl',
 			[
-				context.toWslPath(entryPoint),
+				wslEntryPoint,
 				'--accept-server-license-terms',
 				'--connection-token', context.getRandomToken(),
 				'--host', '0.0.0.0',
@@ -98,9 +100,11 @@ export function setup(context: TestContext) {
 		const token = context.getRandomToken();
 		const test = new WslUITest(context, undefined, wslWorkspaceDir, wslExtensionsDir);
 
+		const wslEntryPoint = context.toWslPath(entryPoint);
+
 		await context.runCliApp('WSL Server', 'wsl',
 			[
-				context.toWslPath(entryPoint),
+				wslEntryPoint,
 				'--accept-server-license-terms',
 				'--connection-token', token,
 				'--host', '0.0.0.0',
@@ -151,6 +155,10 @@ export function setup(context: TestContext) {
 			'--user-data-dir', test.userDataDir,
 			'--folder-uri', `vscode-remote://wsl+${wslDistro}${wslWorkspaceDir}`,
 		];
+		const crashDumpsDir = context.getCrashDumpsDir();
+		if (crashDumpsDir) {
+			args.push('--crash-reporter-directory', crashDumpsDir);
+		}
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });

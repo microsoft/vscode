@@ -1,0 +1,1586 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import * as dom from '../../../../../base/browser/dom.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INotificationHandle, INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatResponseViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, ResponseSelectionSideChatController } from '../../browser/responseSelectionSideChatController.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+
+class RecordingNotificationService extends TestNotificationService {
+	readonly notifications: { severity: Severity; message: string }[] = [];
+	override warn(message: string): INotificationHandle {
+		this.notifications.push({ severity: Severity.Warning, message });
+		return super.warn(message);
+	}
+	override error(error: string | Error): INotificationHandle {
+		this.notifications.push({ severity: Severity.Error, message: error instanceof Error ? error.message : error });
+		return super.error(error);
+	}
+}
+
+suite('ResponseSelectionSideChatController', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createChat(resource: URI, interactivity = ChatInteractivity.Full): IChat {
+		return upcastPartial<IChat>({
+			resource,
+			interactivity: constObservable(interactivity),
+		});
+	}
+
+	function setup(options?: {
+		createSideChatInSession?: ISessionsManagementService['createSideChatInSession'];
+		sendRequest?: ISessionsManagementService['sendRequest'];
+		getElementFromNode?: IChatWidget['getElementFromNode'];
+		enhancedSelectionMenu?: boolean;
+		initialInput?: string;
+		chatInteractivity?: ChatInteractivity;
+	}) {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = store.add(new TestInstantiationService());
+		const doc = dom.getActiveDocument();
+		const widgetDomNode = doc.createElement('div');
+		widgetDomNode.style.width = '600px';
+		doc.body.appendChild(widgetDomNode);
+		store.add(toDisposable(() => widgetDomNode.remove()));
+
+		// Mirrors the real structure: the scrollable transcript is a child of
+		// the chat view, and responses are rendered inside it.
+		const transcriptDomNode = doc.createElement('div');
+		widgetDomNode.appendChild(transcriptDomNode);
+
+		const markdown = doc.createElement('div');
+		markdown.classList.add('chat-markdown-part');
+		// Positioned so the selection's real client rects (the controller
+		// measures the range itself) land at known coordinates.
+		markdown.style.position = 'absolute';
+		markdown.style.top = '0px';
+		markdown.style.left = '0px';
+		const textNode = doc.createTextNode('hello world');
+		markdown.appendChild(textNode);
+		const firstEndpoint = doc.createElement('span');
+		firstEndpoint.style.position = 'absolute';
+		firstEndpoint.style.top = '0px';
+		firstEndpoint.style.left = '40px';
+		const firstEndpointTextNode = doc.createTextNode('selection start');
+		firstEndpoint.appendChild(firstEndpointTextNode);
+		markdown.appendChild(firstEndpoint);
+		const lastEndpoint = doc.createElement('span');
+		lastEndpoint.style.position = 'absolute';
+		lastEndpoint.style.top = '160px';
+		lastEndpoint.style.left = '240px';
+		lastEndpoint.dir = 'rtl';
+		const lastTextNode = doc.createTextNode('נקודת בחירה');
+		lastEndpoint.appendChild(lastTextNode);
+		markdown.appendChild(lastEndpoint);
+		const wrappedParagraph = doc.createElement('p');
+		wrappedParagraph.style.position = 'absolute';
+		wrappedParagraph.style.top = '260px';
+		wrappedParagraph.style.left = '40px';
+		wrappedParagraph.style.width = '110px';
+		wrappedParagraph.style.margin = '0';
+		wrappedParagraph.style.whiteSpace = 'normal';
+		const wrappedTextNode = doc.createTextNode('aaaa bbbb cccc ');
+		const wrappedCode = doc.createElement('code');
+		wrappedCode.textContent = 'dddd';
+		wrappedParagraph.append(wrappedTextNode, wrappedCode);
+		markdown.appendChild(wrappedParagraph);
+		transcriptDomNode.appendChild(markdown);
+
+		const response = upcastPartial<IChatResponseViewModel>({ requestId: 'turn-1', setVote: () => undefined });
+		const focusResponseItemCalls: boolean[] = [];
+		let inputValue = options?.initialInput ?? '';
+		let focusInputCalls = 0;
+		const onDidScroll = store.add(new Emitter<void>());
+		let autoScrollHolds = 0;
+		const widget = upcastPartial<IChatWidget>({
+			domNode: widgetDomNode,
+			transcriptDomNode,
+			getElementFromNode: options?.getElementFromNode ?? (() => response),
+			focusResponseItem: (lastFocused?: boolean) => { focusResponseItemCalls.push(!!lastFocused); },
+			onDidScroll: onDidScroll.event,
+			holdAutoScroll: () => {
+				autoScrollHolds++;
+				return toDisposable(() => { autoScrollHolds--; });
+			},
+			getInput: () => inputValue,
+			setInput: value => { inputValue = value ?? ''; },
+			focusInput: () => { focusInputCalls++; },
+		});
+
+		// The widget spans the whole chat view, including the input part below
+		// the transcript; the overlay is positioned relative to it.
+		const containerRect: Partial<DOMRect> = { top: 0, left: 0, width: 600, height: 600 };
+		widgetDomNode.getBoundingClientRect = () => containerRect as DOMRect;
+		// The scrollable transcript sits above the chat input, so it is shorter
+		// than the widget; the overlay is confined to it.
+		let transcriptRect: Partial<DOMRect> = { top: 0, left: 0, width: 600, height: 600 };
+		transcriptDomNode.getBoundingClientRect = () => transcriptRect as DOMRect;
+
+		const targetWindow = dom.getWindow(widgetDomNode);
+		const originalGetSelection = targetWindow.getSelection.bind(targetWindow);
+		const mutableWindow = targetWindow as typeof targetWindow & { getSelection: () => Selection | null };
+		let selectionText = '';
+		const range = doc.createRange();
+		range.setStart(textNode, 0);
+		range.setEnd(textNode, textNode.data.length);
+		const directionalRange = doc.createRange();
+		directionalRange.setStart(firstEndpointTextNode, 0);
+		directionalRange.setEnd(lastTextNode, lastTextNode.data.length);
+		const wrappedRange = doc.createRange();
+		wrappedRange.setStart(wrappedTextNode, 0);
+		wrappedRange.setEnd(wrappedTextNode, wrappedTextNode.data.length);
+		// A selection in chat-view chrome outside the scrollable transcript.
+		const outsideNode = doc.createTextNode('unrelated text');
+		const outside = doc.createElement('div');
+		outside.appendChild(outsideNode);
+		widgetDomNode.appendChild(outside);
+		const outsideRange = doc.createRange();
+		outsideRange.setStart(outsideNode, 0);
+		outsideRange.setEnd(outsideNode, outsideNode.data.length);
+		let activeRange = range;
+		let selectionDirection: 'forward' | 'backward' = 'forward';
+		mutableWindow.getSelection = () => upcastPartial<Selection>({
+			toString: () => selectionText,
+			isCollapsed: selectionText.length === 0,
+			anchorNode: selectionDirection === 'forward' ? activeRange.startContainer : activeRange.endContainer,
+			anchorOffset: selectionDirection === 'forward' ? activeRange.startOffset : activeRange.endOffset,
+			focusNode: selectionDirection === 'forward' ? activeRange.endContainer : activeRange.startContainer,
+			focusOffset: selectionDirection === 'forward' ? activeRange.endOffset : activeRange.startOffset,
+			rangeCount: 1,
+			getRangeAt: () => activeRange,
+		});
+		store.add(toDisposable(() => { mutableWindow.getSelection = originalGetSelection; }));
+
+		const setSelectionWithoutEvent = (text: string, selectionTop?: number) => {
+			activeRange = range;
+			selectionDirection = 'forward';
+			selectionText = text;
+			if (selectionTop !== undefined) {
+				markdown.style.top = `${selectionTop}px`;
+			}
+		};
+		const setSelection = (text: string, selectionTop?: number) => {
+			setSelectionWithoutEvent(text, selectionTop);
+			doc.dispatchEvent(new Event('selectionchange'));
+		};
+		const setSelectionOutsideTranscript = (text: string) => {
+			activeRange = outsideRange;
+			selectionDirection = 'forward';
+			selectionText = text;
+			doc.dispatchEvent(new Event('selectionchange'));
+		};
+		const setDirectionalSelection = (direction: 'forward' | 'backward', selectionTop: number) => {
+			activeRange = directionalRange;
+			selectionDirection = direction;
+			selectionText = 'hello world selection endpoint';
+			markdown.style.top = `${selectionTop}px`;
+			doc.dispatchEvent(new Event('selectionchange'));
+		};
+		const setWrappedSelection = () => {
+			activeRange = wrappedRange;
+			selectionDirection = 'forward';
+			selectionText = wrappedTextNode.data;
+			doc.dispatchEvent(new Event('selectionchange'));
+		};
+		const beginPointerSelection = (target: HTMLElement = markdown, pointerId = 1) => {
+			target.dispatchEvent(new targetWindow.PointerEvent('pointerdown', { bubbles: true, button: 0, isPrimary: true, pointerId }));
+			target.dispatchEvent(new targetWindow.MouseEvent('mousedown', { bubbles: true, button: 0, cancelable: true }));
+		};
+		const releasePointerSelection = (pointerId = 1) => {
+			targetWindow.dispatchEvent(new targetWindow.PointerEvent('pointerup', { bubbles: true, button: 0, isPrimary: true, pointerId }));
+		};
+		const cancelPointerSelection = (pointerId: number, isPrimary: boolean) => {
+			targetWindow.dispatchEvent(new targetWindow.PointerEvent('pointercancel', { bubbles: true, isPrimary, pointerId }));
+		};
+		const waitForAnimationFrame = () => new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(targetWindow, resolve));
+		const finishPointerSelection = async (pointerId = 1) => {
+			releasePointerSelection(pointerId);
+			await waitForAnimationFrame();
+		};
+		const createPreventedMarkdownControl = () => {
+			const control = doc.createElement('button');
+			markdown.appendChild(control);
+			store.add(dom.addDisposableListener(control, 'mousedown', event => event.preventDefault()));
+			return control;
+		};
+		const setTranscriptRect = (rect: Partial<DOMRect>) => { transcriptRect = rect; };
+		/**
+		 * Mimics the virtualized list removing the selected row: the nodes go
+		 * away and the browser collapses the selection that lived in them.
+		 */
+		const detachSelectedRow = () => {
+			markdown.remove();
+			selectionText = '';
+		};
+		const detachDirectionalFocusEndpoint = () => {
+			lastEndpoint.remove();
+		};
+		const scroll = (selectionTop?: number) => {
+			if (selectionTop !== undefined) {
+				markdown.style.top = `${selectionTop}px`;
+			}
+			onDidScroll.fire();
+		};
+		const highlightedRanges = () => targetWindow.CSS.highlights?.get('chat-response-selection')?.size ?? 0;
+
+		const sideChat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/side') });
+		const chat = createChat(URI.parse('test:///chat/source'), options?.chatInteractivity);
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			resource: URI.parse('test:///session'),
+			status: constObservable(SessionStatus.Completed),
+			isArchived: constObservable(false),
+			capabilities: constObservable({ supportsMultipleChats: true, supportsSideChat: true }),
+		});
+
+		const callOrder: string[] = [];
+		const clipboardWrites: string[] = [];
+		const telemetryEvents: { name: string; data: unknown }[] = [];
+		const notificationService = new RecordingNotificationService();
+		const configurationService = new TestConfigurationService({
+			[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: options?.enhancedSelectionMenu ?? false,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			getSessionForChatResource: resource => resource.toString() === chat.resource.toString() ? { session, chat } : undefined,
+			createSideChatInSession: options?.createSideChatInSession ?? (async (_session, _sourceChat, turnId, selection) => {
+				callOrder.push(`create:${turnId}:${selection?.text}`);
+				return sideChat;
+			}),
+			sendRequest: options?.sendRequest ?? (async (_session, sentChat, sendOptions) => {
+				callOrder.push(`send:${sentChat.resource.toString()}:${sendOptions.query}`);
+			}),
+		}));
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			openChat: async (_session, chatUri) => {
+				callOrder.push(`open:${chatUri.toString()}`);
+			},
+		}));
+		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+			getSessionView: () => undefined,
+		}));
+		instantiationService.stub(INotificationService, notificationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IClipboardService, upcastPartial<IClipboardService>({
+			writeText: async text => { clipboardWrites.push(text); },
+		}));
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ITelemetryService, upcastPartial<ITelemetryService>({
+			publicLog2: (name, data) => { telemetryEvents.push({ name, data }); },
+		}));
+
+		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget));
+		controller.setChat(chat);
+
+		return {
+			controller,
+			transcriptDomNode,
+			setSelection,
+			setSelectionWithoutEvent,
+			setSelectionOutsideTranscript,
+			setDirectionalSelection,
+			setWrappedSelection,
+			selectionFocusRects: () => {
+				const focusRect = (node: Text, offset: number) => {
+					const focusRange = doc.createRange();
+					focusRange.setStart(node, offset);
+					focusRange.collapse(true);
+					return focusRange.getBoundingClientRect();
+				};
+				return {
+					first: focusRect(firstEndpointTextNode, 0),
+					last: focusRect(lastTextNode, lastTextNode.data.length),
+				};
+			},
+			wrappedFocusCharacterRect: () => {
+				const focusRange = doc.createRange();
+				const endOffset = wrappedTextNode.data.trimEnd().length;
+				focusRange.setStart(wrappedTextNode, endOffset - 1);
+				focusRange.setEnd(wrappedTextNode, endOffset);
+				return focusRange.getBoundingClientRect();
+			},
+			remainingDirectionalFocusCharacterRect: () => {
+				const focusRange = doc.createRange();
+				focusRange.setStart(firstEndpointTextNode, firstEndpointTextNode.data.length - 1);
+				focusRange.setEnd(firstEndpointTextNode, firstEndpointTextNode.data.length);
+				return focusRange.getBoundingClientRect();
+			},
+			beginPointerSelection,
+			releasePointerSelection,
+			cancelPointerSelection,
+			finishPointerSelection,
+			waitForAnimationFrame,
+			createPreventedMarkdownControl,
+			setTranscriptRect,
+			detachSelectedRow,
+			detachDirectionalFocusEndpoint,
+			scroll,
+			autoScrollHolds: () => autoScrollHolds,
+			callOrder,
+			doc,
+			chat,
+			sideChat,
+			focusResponseItemCalls,
+			focusInputCalls: () => focusInputCalls,
+			inputValue: () => inputValue,
+			clipboardWrites,
+			telemetryEvents,
+			notificationService,
+			highlightedRanges,
+			inputHeight: () => inputDomNode(controller).offsetHeight,
+			inputWidth: () => inputDomNode(controller).offsetWidth,
+		};
+	}
+
+	function inputDomNode(controller: ResponseSelectionSideChatController): HTMLElement {
+		return (controller as unknown as { _input: { domNode: HTMLElement } })._input.domNode;
+	}
+
+	function inputTextArea(controller: ResponseSelectionSideChatController): HTMLTextAreaElement {
+		return (controller as unknown as { _input: { inputElement: HTMLTextAreaElement } })._input.inputElement;
+	}
+
+	function menuDomNode(controller: ResponseSelectionSideChatController): HTMLElement {
+		return (controller as unknown as { _menuDomNode: HTMLElement })._menuDomNode;
+	}
+
+	function position(top: number, left: number): { top: number; left: number } {
+		return {
+			top: Math.round(top * 100) / 100,
+			left: Math.round(left * 100) / 100,
+		};
+	}
+
+	function menuActionLabels(controller: ResponseSelectionSideChatController): string[] {
+		return Array.from(menuDomNode(controller).querySelectorAll<HTMLElement>('.action-menu-item'))
+			.map(item => item.textContent?.trim() ?? '');
+	}
+
+	function menuAction(controller: ResponseSelectionSideChatController, label: string): HTMLElement {
+		const item = Array.from(menuDomNode(controller).querySelectorAll<HTMLElement>('.action-menu-item'))
+			.find(item => item.textContent?.trim() === label);
+		assert.ok(item, `Missing menu action: ${label}`);
+		return item;
+	}
+
+	function triggerMenuAction(controller: ResponseSelectionSideChatController, label: string): void {
+		const menu = menuDomNode(controller);
+		const item = menuAction(controller, label);
+		const actionItem = item.closest<HTMLElement>('.action-item');
+		assert.ok(actionItem, `Missing action item for: ${label}`);
+		const index = Array.from(menu.querySelectorAll<HTMLElement>('.action-item')).indexOf(actionItem);
+		assert.notStrictEqual(index, -1, `Missing menu action: ${label}`);
+		(controller as unknown as { _menu: { trigger(index: number): void } })._menu.trigger(index);
+	}
+
+	function isInputBusy(controller: ResponseSelectionSideChatController): boolean {
+		return (controller as unknown as { _input: { isBusy: boolean } })._input.isBusy;
+	}
+
+	function submitViaClick(controller: ResponseSelectionSideChatController, query: string): void {
+		const textArea = inputTextArea(controller);
+		textArea.value = query;
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+		inputDomNode(controller).querySelector<HTMLElement>('.action-label')!.click();
+	}
+
+	function dispatchKey(target: HTMLElement, key: string, options?: { shiftKey?: boolean; isComposing?: boolean }): KeyboardEvent {
+		const event = new KeyboardEvent('keydown', { key, shiftKey: options?.shiftKey, bubbles: true, cancelable: true });
+		Object.defineProperty(event, 'keyCode', { get: () => key === 'Escape' ? 27 : 13 });
+		if (options?.isComposing) {
+			Object.defineProperty(event, 'isComposing', { get: () => true });
+		}
+		target.dispatchEvent(event);
+		return event;
+	}
+
+	test('shows the ask-question input for a valid markdown selection', () => {
+		const { controller, setSelection } = setup();
+		assert.strictEqual(inputDomNode(controller).style.display, 'none');
+
+		setSelection('hello world');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
+	});
+
+	test('hides the input again once the selection is cleared', () => {
+		const { controller, setSelection } = setup();
+		setSelection('hello world');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
+
+		setSelection('');
+		assert.strictEqual(inputDomNode(controller).style.display, 'none');
+	});
+
+	test('shows the enhanced action menu only when the experiment setting is enabled', () => {
+		const { controller, setSelection } = setup({ enhancedSelectionMenu: true });
+
+		setSelection('hello world');
+
+		assert.deepStrictEqual({
+			inputVisible: inputDomNode(controller).style.display !== 'none',
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			menuRole: menuDomNode(controller).querySelector('[role="menu"]')?.getAttribute('aria-label'),
+			actions: menuActionLabels(controller),
+		}, {
+			inputVisible: false,
+			menuVisible: true,
+			menuRole: 'Selected response text actions',
+			actions: ['Ask in a Side Chat', 'Quote', 'Copy'],
+		});
+	});
+
+	test('shows the enhanced action menu after pointer selection settles', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			finishPointerSelection,
+			setSelection,
+			setSelectionOutsideTranscript,
+			setSelectionWithoutEvent,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection();
+		setSelection('hello world');
+		const visibleDuringDrag = menuDomNode(controller).style.display !== 'none';
+		setSelectionOutsideTranscript('unrelated text');
+		setSelectionWithoutEvent('hello world');
+		const visibleAfterTransientSelection = menuDomNode(controller).style.display !== 'none';
+
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			visibleDuringDrag,
+			visibleAfterTransientSelection,
+			visibleAfterRelease: menuDomNode(controller).style.display !== 'none',
+			actions: menuActionLabels(controller),
+			telemetryEvents,
+		}, {
+			visibleDuringDrag: false,
+			visibleAfterTransientSelection: false,
+			visibleAfterRelease: true,
+			actions: ['Ask in a Side Chat', 'Quote', 'Copy'],
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('suppresses intermediate selection updates when the pointer starts outside markdown', async () => {
+		const {
+			controller,
+			transcriptDomNode,
+			beginPointerSelection,
+			finishPointerSelection,
+			setSelection,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection(transcriptDomNode);
+		setSelection('hello world');
+		const visibleDuringDrag = menuDomNode(controller).style.display !== 'none';
+
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			visibleDuringDrag,
+			visibleAfterRelease: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			visibleDuringDrag: false,
+			visibleAfterRelease: true,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('pressing a prevented markdown control preserves the focused question draft', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			createPreventedMarkdownControl,
+			finishPointerSelection,
+			setSelection,
+			focusResponseItemCalls,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		setSelection('hello world');
+		triggerMenuAction(controller, 'Ask in a Side Chat');
+		const textArea = inputTextArea(controller);
+		textArea.value = 'keep this draft';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		beginPointerSelection(createPreventedMarkdownControl());
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			inputVisible: inputDomNode(controller).style.display !== 'none',
+			draft: textArea.value,
+			inputFocused: textArea.ownerDocument.activeElement === textArea,
+			focusResponseItemCalls,
+			telemetryEvents,
+		}, {
+			inputVisible: true,
+			draft: 'keep this draft',
+			inputFocused: true,
+			focusResponseItemCalls: [],
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'askQuestionOpened' } },
+			],
+		});
+	});
+
+	test('keeps the enhanced action menu dismissed when pointer selection settles outside a response', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			finishPointerSelection,
+			setSelection,
+			setSelectionOutsideTranscript,
+			autoScrollHolds,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection();
+		setSelection('hello world');
+		setSelectionOutsideTranscript('unrelated text');
+
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			autoScrollHolds: autoScrollHolds(),
+			telemetryEvents,
+		}, {
+			menuVisible: false,
+			autoScrollHolds: 0,
+			telemetryEvents: [],
+		});
+	});
+
+	test('ignores pointer cancellation from a secondary pointer', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			cancelPointerSelection,
+			releasePointerSelection,
+			setSelection,
+			waitForAnimationFrame,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection(undefined, 1);
+		setSelection('hello world');
+		cancelPointerSelection(2, false);
+
+		await waitForAnimationFrame();
+		const menuVisibleAfterSecondaryCancel = menuDomNode(controller).style.display !== 'none';
+
+		releasePointerSelection(1);
+		await waitForAnimationFrame();
+
+		assert.deepStrictEqual({
+			menuVisibleAfterSecondaryCancel,
+			menuVisibleAfterPrimaryRelease: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			menuVisibleAfterSecondaryCancel: false,
+			menuVisibleAfterPrimaryRelease: true,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('new pointer selection cancels pending release reconciliation', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			releasePointerSelection,
+			setSelection,
+			waitForAnimationFrame,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection(undefined, 1);
+		setSelection('hello world');
+		releasePointerSelection(1);
+		beginPointerSelection(undefined, 2);
+
+		await waitForAnimationFrame();
+		const menuVisibleDuringSecondDrag = menuDomNode(controller).style.display !== 'none';
+
+		setSelection('hello world');
+		releasePointerSelection(2);
+		await waitForAnimationFrame();
+
+		assert.deepStrictEqual({
+			menuVisibleDuringSecondDrag,
+			menuVisibleAfterSecondRelease: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			menuVisibleDuringSecondDrag: false,
+			menuVisibleAfterSecondRelease: true,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('chat navigation cancels pending pointer selection reconciliation', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			releasePointerSelection,
+			setSelection,
+			waitForAnimationFrame,
+			telemetryEvents,
+		} = setup({ enhancedSelectionMenu: true });
+
+		beginPointerSelection();
+		setSelection('hello world');
+		releasePointerSelection();
+		controller.setChat(createChat(URI.parse('test:///chat/other')));
+
+		await waitForAnimationFrame();
+
+		assert.deepStrictEqual({
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			menuVisible: false,
+			telemetryEvents: [],
+		});
+	});
+
+	test('anchors the action menu to the pointer selection focus endpoint in either direction', async () => {
+		const {
+			controller,
+			beginPointerSelection,
+			finishPointerSelection,
+			setDirectionalSelection,
+			selectionFocusRects,
+			setTranscriptRect,
+		} = setup({ enhancedSelectionMenu: true });
+		setTranscriptRect({ top: 0, left: 0, width: 1000, height: 600 });
+
+		beginPointerSelection();
+		setDirectionalSelection('forward', 120);
+		await finishPointerSelection();
+		const menu = menuDomNode(controller);
+		const forward = position(parseFloat(menu.style.top), parseFloat(menu.style.left));
+		const { last } = selectionFocusRects();
+
+		beginPointerSelection();
+		setDirectionalSelection('backward', 120);
+		await finishPointerSelection();
+		const backward = position(parseFloat(menu.style.top), parseFloat(menu.style.left));
+		const { first } = selectionFocusRects();
+
+		assert.deepStrictEqual({ forward, backward }, {
+			forward: position(last.bottom + 4, last.left),
+			backward: position(first.top - menu.offsetHeight - 4, first.left),
+		});
+	});
+
+	test('anchors the ask-question input to the keyboard selection focus endpoint in either direction', () => {
+		const {
+			controller,
+			setDirectionalSelection,
+			selectionFocusRects,
+			setTranscriptRect,
+			inputHeight,
+		} = setup();
+		setTranscriptRect({ top: 0, left: 0, width: 1000, height: 600 });
+
+		setDirectionalSelection('forward', 120);
+		const input = inputDomNode(controller);
+		const forward = position(parseFloat(input.style.top), parseFloat(input.style.left));
+		const { last } = selectionFocusRects();
+
+		setDirectionalSelection('backward', 120);
+		const backward = position(parseFloat(input.style.top), parseFloat(input.style.left));
+		const { first } = selectionFocusRects();
+
+		assert.deepStrictEqual({ forward, backward }, {
+			forward: position(last.bottom + 4, last.left),
+			backward: position(first.top - inputHeight() - 4, first.left),
+		});
+	});
+
+	test('anchors a forward soft-wrap selection to the last selected character line', () => {
+		const { controller, setWrappedSelection, wrappedFocusCharacterRect } = setup({ enhancedSelectionMenu: true });
+
+		setWrappedSelection();
+
+		const menu = menuDomNode(controller);
+		const focusCharacterRect = wrappedFocusCharacterRect();
+		assert.deepStrictEqual({
+			menuVisible: menu.style.display !== 'none',
+			top: position(parseFloat(menu.style.top), 0).top,
+			left: position(0, parseFloat(menu.style.left)).left,
+		}, {
+			menuVisible: true,
+			top: position(focusCharacterRect.bottom + 4, 0).top,
+			left: position(0, focusCharacterRect.right).left,
+		});
+	});
+
+	test('reanchors a growing backward question input above the focus endpoint', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, inputHeight } = setup();
+		setDirectionalSelection('backward', 300);
+		const input = inputDomNode(controller);
+		const initialHeight = inputHeight();
+		const textArea = inputTextArea(controller);
+
+		textArea.value = 'first line\nsecond line\nthird line';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		const { first } = selectionFocusRects();
+		assert.deepStrictEqual({
+			grew: inputHeight() > initialHeight,
+			bottom: position(parseFloat(input.style.top) + inputHeight(), 0).top,
+		}, {
+			grew: true,
+			bottom: position(first.top - 4, 0).top,
+		});
+	});
+
+	test('keeps the chosen side while the question input crosses a fit threshold', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect, scroll, inputHeight } = setup();
+		setDirectionalSelection('backward', 300);
+		const input = inputDomNode(controller);
+		const { first } = selectionFocusRects();
+		const preferredTop = first.top - inputHeight() - 4;
+		const transcriptTop = preferredTop - 1;
+		setTranscriptRect({ top: transcriptTop, left: 0, width: 600, height: 600 - transcriptTop });
+		scroll();
+		const initialTop = parseFloat(input.style.top);
+		const textArea = inputTextArea(controller);
+
+		textArea.value = 'first line\nsecond line\nthird line';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+		const grownTop = parseFloat(input.style.top);
+		scroll();
+		const grownAfterScrollTop = parseFloat(input.style.top);
+
+		textArea.value = 'short';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+		const shrunkTop = parseFloat(input.style.top);
+		scroll();
+		const shrunkAfterScrollTop = parseFloat(input.style.top);
+
+		assert.deepStrictEqual({
+			initialTop: position(initialTop, 0).top,
+			grownTop: position(grownTop, 0).top,
+			grownAfterScrollTop: position(grownAfterScrollTop, 0).top,
+			stayedAbove: grownTop < first.bottom + 4,
+			shrunkTop: position(shrunkTop, 0).top,
+			shrunkAfterScrollTop: position(shrunkAfterScrollTop, 0).top,
+		}, {
+			initialTop: position(preferredTop, 0).top,
+			grownTop: position(transcriptTop, 0).top,
+			grownAfterScrollTop: position(transcriptTop, 0).top,
+			stayedAbove: true,
+			shrunkTop: position(preferredTop, 0).top,
+			shrunkAfterScrollTop: position(preferredTop, 0).top,
+		});
+	});
+
+	test('re-evaluates the side when scrolling moves the focus to a constrained edge', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect, scroll } = setup({ enhancedSelectionMenu: true });
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 300 });
+		setDirectionalSelection('forward', 0);
+		const menu = menuDomNode(controller);
+		const initialTop = parseFloat(menu.style.top);
+		const initialFocus = selectionFocusRects().last;
+
+		scroll(100);
+
+		const { last } = selectionFocusRects();
+		const constrainedTop = parseFloat(menu.style.top);
+		scroll(0);
+		const restoredFocus = selectionFocusRects().last;
+		assert.deepStrictEqual({
+			initialBelow: initialTop >= initialFocus.bottom + 4,
+			constrainedTop: position(constrainedTop, 0).top,
+			restoredTop: position(parseFloat(menu.style.top), 0).top,
+		}, {
+			initialBelow: true,
+			constrainedTop: position(last.top - menu.offsetHeight - 4, 0).top,
+			restoredTop: position(restoredFocus.bottom + 4, 0).top,
+		});
+	});
+
+	test('re-evaluates the side when transcript bounds shrink around a stationary focus', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect, scroll } = setup({ enhancedSelectionMenu: true });
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 600 });
+		setDirectionalSelection('forward', 120);
+		const menu = menuDomNode(controller);
+		const initialFocus = selectionFocusRects().last;
+		const initialTop = parseFloat(menu.style.top);
+
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: initialFocus.bottom + menu.offsetHeight / 2 });
+		scroll();
+
+		assert.deepStrictEqual({
+			initialTop: position(initialTop, 0).top,
+			shrunkTop: position(parseFloat(menu.style.top), 0).top,
+		}, {
+			initialTop: position(initialFocus.bottom + 4, 0).top,
+			shrunkTop: position(initialFocus.top - menu.offsetHeight - 4, 0).top,
+		});
+	});
+
+	test('keeps a draft when only the directional focus endpoint is re-rendered', () => {
+		const { controller, setDirectionalSelection, detachDirectionalFocusEndpoint, remainingDirectionalFocusCharacterRect, scroll } = setup();
+		setDirectionalSelection('forward', 120);
+		const input = inputDomNode(controller);
+		const textArea = inputTextArea(controller);
+		textArea.value = 'keep this draft';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+		textArea.focus();
+
+		detachDirectionalFocusEndpoint();
+		scroll(140);
+		const remainingFocus = remainingDirectionalFocusCharacterRect();
+
+		assert.deepStrictEqual({
+			inputVisible: input.style.display !== 'none',
+			draft: textArea.value,
+			focused: textArea.ownerDocument.activeElement === textArea,
+			top: position(parseFloat(input.style.top), 0).top,
+		}, {
+			inputVisible: true,
+			draft: 'keep this draft',
+			focused: true,
+			top: position(remainingFocus.bottom + 4, 0).top,
+		});
+	});
+
+	test('positions the question input from surviving text after the focus endpoint is re-rendered', () => {
+		const { controller, setDirectionalSelection, detachDirectionalFocusEndpoint, remainingDirectionalFocusCharacterRect } = setup({ enhancedSelectionMenu: true });
+		setDirectionalSelection('forward', 120);
+
+		detachDirectionalFocusEndpoint();
+		triggerMenuAction(controller, 'Ask in a Side Chat');
+
+		const remainingFocus = remainingDirectionalFocusCharacterRect();
+		assert.deepStrictEqual({
+			inputVisible: inputDomNode(controller).style.display !== 'none',
+			top: position(parseFloat(inputDomNode(controller).style.top), 0).top,
+		}, {
+			inputVisible: true,
+			top: position(remainingFocus.bottom + 4, 0).top,
+		});
+	});
+
+	test('reclamps a widening forward question input within the transcript', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect, inputWidth } = setup();
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 600 });
+		setDirectionalSelection('forward', 120);
+		const input = inputDomNode(controller);
+		const initialWidth = inputWidth();
+		const textArea = inputTextArea(controller);
+
+		textArea.value = 'A question long enough to widen the anchored input';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		const { last } = selectionFocusRects();
+		assert.deepStrictEqual({
+			grew: inputWidth() > initialWidth,
+			top: position(parseFloat(input.style.top), 0).top,
+			insideTranscript: parseFloat(input.style.left) + inputWidth() <= 600,
+		}, {
+			grew: true,
+			top: position(last.bottom + 4, 0).top,
+			insideTranscript: true,
+		});
+	});
+
+	test('flips a forward selection above its focus endpoint when constrained below', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect } = setup({ enhancedSelectionMenu: true });
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 350 });
+
+		setDirectionalSelection('forward', 160);
+
+		const menu = menuDomNode(controller);
+		const { last } = selectionFocusRects();
+		assert.strictEqual(parseFloat(menu.style.top), last.top - menu.offsetHeight - 4);
+	});
+
+	test('flips a backward selection below its focus endpoint when constrained above', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects } = setup();
+
+		setDirectionalSelection('backward', 0);
+
+		const { first } = selectionFocusRects();
+		assert.strictEqual(parseFloat(inputDomNode(controller).style.top), first.bottom + 4);
+	});
+
+	test('clamps to the preferred side when neither side fits', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect } = setup({ enhancedSelectionMenu: true });
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 600 });
+		const menu = menuDomNode(controller);
+		setDirectionalSelection('forward', 0);
+		const { first, last } = selectionFocusRects();
+		const constrainedHeight = menu.offsetHeight + 20;
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: constrainedHeight });
+
+		setDirectionalSelection('forward', 10 - last.top);
+		const forwardTop = parseFloat(menu.style.top);
+
+		setDirectionalSelection('backward', 10 - first.top);
+		const backwardTop = parseFloat(menu.style.top);
+
+		assert.deepStrictEqual({ forwardTop, backwardTop }, {
+			forwardTop: constrainedHeight - menu.offsetHeight,
+			backwardTop: 0,
+		});
+	});
+
+	test('Escape dismisses the focused enhanced menu and restores transcript focus', () => {
+		const { controller, setSelection, focusResponseItemCalls } = setup({ enhancedSelectionMenu: true });
+		setSelection('hello world');
+		const menu = menuDomNode(controller).querySelector<HTMLElement>('[role="menu"]');
+		assert.ok(menu);
+		menu.focus();
+
+		dispatchKey(menu, 'Escape');
+
+		assert.deepStrictEqual({
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			focusResponseItemCalls,
+		}, {
+			menuVisible: false,
+			focusResponseItemCalls: [true],
+		});
+	});
+
+	test('opens the anchored question input from Ask in a Side Chat and attributes telemetry to the action menu', () => {
+		const { controller, setSelection, telemetryEvents } = setup({ enhancedSelectionMenu: true });
+		setSelection('hello world');
+
+		triggerMenuAction(controller, 'Ask in a Side Chat');
+		submitViaClick(controller, 'what does this mean?');
+
+		assert.deepStrictEqual({
+			inputVisible: inputDomNode(controller).style.display !== 'none',
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			inputVisible: true,
+			menuVisible: false,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'askQuestionOpened' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'askQuestionSubmitted' } },
+			],
+		});
+	});
+
+	test('quotes the selection at the end of the current chat input', () => {
+		const { controller, setSelection, inputValue, focusInputCalls, telemetryEvents } = setup({
+			enhancedSelectionMenu: true,
+			initialInput: 'Existing prompt',
+		});
+		setSelection('first line\nsecond line');
+
+		triggerMenuAction(controller, 'Quote');
+
+		assert.deepStrictEqual({
+			inputValue: inputValue(),
+			focusInputCalls: focusInputCalls(),
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			inputValue: 'Existing prompt\n> first line\n> second line\n\n',
+			focusInputCalls: 1,
+			menuVisible: false,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'quote' } },
+			],
+		});
+	});
+
+	test('disables Quote for read-only chats', () => {
+		const { controller, setSelection, inputValue, focusInputCalls, telemetryEvents } = setup({
+			enhancedSelectionMenu: true,
+			initialInput: 'Existing prompt',
+			chatInteractivity: ChatInteractivity.ReadOnly,
+		});
+		setSelection('hello world');
+
+		triggerMenuAction(controller, 'Quote');
+
+		assert.deepStrictEqual({
+			quoteAriaDisabled: menuAction(controller, 'Quote').getAttribute('aria-disabled'),
+			inputValue: inputValue(),
+			focusInputCalls: focusInputCalls(),
+			telemetryEvents,
+		}, {
+			quoteAriaDisabled: 'true',
+			inputValue: 'Existing prompt',
+			focusInputCalls: 0,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('copies the exact selection and records the action', async () => {
+		const { controller, setSelection, clipboardWrites, telemetryEvents } = setup({ enhancedSelectionMenu: true });
+		setSelection('hello world');
+
+		triggerMenuAction(controller, 'Copy');
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			clipboardWrites,
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			clipboardWrites: ['hello world'],
+			menuVisible: false,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'copy' } },
+			],
+		});
+	});
+
+	test('records exposure and submission for the existing ask-question input', () => {
+		const { controller, setSelection, telemetryEvents } = setup();
+		setSelection('hello world');
+
+		submitViaClick(controller, 'what does this mean?');
+
+		assert.deepStrictEqual(telemetryEvents, [
+			{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'askQuestionInput', action: 'shown' } },
+			{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'askQuestionInput', action: 'askQuestionSubmitted' } },
+		]);
+	});
+
+	test('creates, opens, and sends a side chat anchored to the response on submit', async () => {
+		const { controller, setSelection, callOrder, sideChat } = setup();
+		setSelection('hello world');
+
+		const textArea = inputTextArea(controller);
+		textArea.value = 'what does this mean?';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+		inputDomNode(controller).querySelector<HTMLElement>('.action-label')!.click();
+
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual(callOrder, [
+			'create:turn-1:hello world',
+			`open:${sideChat.resource.toString()}`,
+			`send:${sideChat.resource.toString()}:what does this mean?`,
+		]);
+	});
+
+	test('stays visible and keeps the captured selection when the input steals focus and collapses the native selection', () => {
+		const { controller, setSelection, callOrder } = setup();
+		setSelection('hello world');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
+
+		const textArea = inputTextArea(controller);
+		textArea.focus();
+		// Focusing the textarea collapses the document Selection as a browser
+		// side effect; this must not dismiss the widget.
+		setSelection('');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'input must stay visible while focused');
+
+		// The originally-captured selection must still be used on submit, not
+		// the now-empty native selection.
+		textArea.value = 'what does this mean?';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+		inputDomNode(controller).querySelector<HTMLElement>('.action-label')!.click();
+		assert.ok(callOrder[0]?.startsWith('create:turn-1:hello world'));
+	});
+
+	test('dismisses once focus genuinely leaves the input and the selection is invalid', () => {
+		const { controller, setSelection } = setup();
+		setSelection('hello world');
+
+		const textArea = inputTextArea(controller);
+		textArea.focus();
+		setSelection('');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
+
+		textArea.blur();
+		setSelection('');
+		assert.strictEqual(inputDomNode(controller).style.display, 'none', 'input must dismiss once focus truly leaves it');
+	});
+
+	test('restores focus to the response item when Escape dismisses the focused input', () => {
+		const { controller, setSelection, focusResponseItemCalls } = setup();
+		setSelection('hello world');
+
+		const textArea = inputTextArea(controller);
+		textArea.focus();
+		dispatchKey(textArea, 'Escape');
+
+		assert.strictEqual(inputDomNode(controller).style.display, 'none');
+		assert.deepStrictEqual(focusResponseItemCalls, [true]);
+	});
+
+	test('does not restore focus on dismiss when the input was not focused', () => {
+		const { setSelection, focusResponseItemCalls } = setup();
+		setSelection('hello world');
+		setSelection('');
+
+		assert.deepStrictEqual(focusResponseItemCalls, []);
+	});
+
+	test('clamps the overlay vertically when the transcript is shorter than the overlay', () => {
+		const { controller, setSelection, setTranscriptRect } = setup();
+		// A transcript far shorter than any realistic overlay height forces the
+		// vertical clamp to floor the overlay at the top.
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 20 });
+		setSelection('hello world', 10);
+
+		const style = inputDomNode(controller).style;
+		assert.notStrictEqual(style.display, 'none');
+		assert.strictEqual(parseFloat(style.top), 0);
+	});
+
+	test('dismisses and releases the hold when virtualization detaches the selected row', () => {
+		const { controller, setSelection, scroll, autoScrollHolds, detachSelectedRow } = setup();
+		setSelection('hello world', 100);
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
+		assert.strictEqual(autoScrollHolds(), 1);
+
+		// Scrolling far enough removes the row from the DOM; the captured range
+		// now anchors to nodes that will never come back.
+		detachSelectedRow();
+		scroll();
+
+		assert.strictEqual(inputDomNode(controller).style.display, 'none', 'must not point at nothing');
+		assert.strictEqual(autoScrollHolds(), 0, 'the transcript must not stay pinned forever');
+	});
+
+	test('follows the selection as the transcript scrolls instead of staying pinned', () => {
+		const { controller, setSelection, scroll } = setup();
+		setSelection('hello world', 100);
+		const style = inputDomNode(controller).style;
+		const initialTop = parseFloat(style.top);
+
+		// The transcript scrolls the anchor up by 40px; the overlay must move with it.
+		scroll(60);
+
+		assert.strictEqual(parseFloat(style.top), initialTop - 40);
+	});
+
+	test('confines the overlay to the transcript even when the widget extends past it', () => {
+		// The reported bug: the overlay was clamped to the whole chat widget, so
+		// it could float all the way down over the input at the bottom of the
+		// window instead of stopping at the end of the scrollable message area.
+		const { controller, setSelection, scroll, setTranscriptRect, inputHeight } = setup();
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 300 });
+		setSelection('hello world', 50);
+
+		scroll(5000);
+
+		const top = parseFloat(inputDomNode(controller).style.top);
+		assert.ok(top <= 300 - inputHeight(), `top ${top} must stay within the 300px transcript, not the 600px widget`);
+	});
+
+	test('parks at the top of the transcript when the selection scrolls above it', () => {
+		const { controller, setSelection, scroll, setTranscriptRect, inputHeight } = setup();
+		// The transcript starts 100px below the widget's top edge (banners, etc).
+		setTranscriptRect({ top: 100, left: 0, width: 600, height: 300 });
+		setSelection('hello world', 200);
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
+
+		// Scroll the selection far above the transcript's top edge.
+		scroll(-800);
+
+		const style = inputDomNode(controller).style;
+		assert.notStrictEqual(style.display, 'none', 'the overlay stays visible at the edge');
+		assert.strictEqual(parseFloat(style.top), 100, 'parks at the transcript top, not the widget top');
+		assert.ok(inputHeight() > 0);
+	});
+
+	test('parks at the bottom of the transcript instead of drifting over the chat input', () => {
+		const { controller, setSelection, scroll, setTranscriptRect, inputHeight } = setup();
+		// The widget is 600 tall but the transcript only occupies the top 300;
+		// the remaining 300 is the chat input, which the overlay must not enter.
+		setTranscriptRect({ top: 0, left: 0, width: 600, height: 300 });
+		setSelection('hello world', 50);
+
+		// Scroll the selection far below the transcript's bottom edge.
+		scroll(900);
+
+		const top = parseFloat(inputDomNode(controller).style.top);
+		assert.strictEqual(top, 300 - inputHeight(), 'parks flush with the transcript bottom');
+	});
+
+	test('clamps horizontally to the transcript bounds', () => {
+		const { controller, setSelection, setTranscriptRect } = setup();
+		setTranscriptRect({ top: 0, left: 40, width: 120, height: 300 });
+		setSelection('hello world');
+
+		assert.strictEqual(parseFloat(inputDomNode(controller).style.left), 40);
+	});
+
+	test('holds transcript auto-scroll while a selection is active and releases it on dismiss', () => {
+		const { setSelection, autoScrollHolds } = setup();
+		assert.strictEqual(autoScrollHolds(), 0);
+
+		setSelection('hello world');
+		assert.strictEqual(autoScrollHolds(), 1, 'a selection must pin the transcript');
+
+		setSelection('');
+		assert.strictEqual(autoScrollHolds(), 0, 'clearing the selection releases the transcript');
+	});
+
+	test('does not hold auto-scroll for a selection outside the transcript', () => {
+		// Text selected in a banner or the input area says nothing about wanting
+		// the transcript to hold still.
+		const { setSelectionOutsideTranscript, autoScrollHolds } = setup({ getElementFromNode: () => undefined });
+		setSelectionOutsideTranscript('unrelated text');
+
+		assert.strictEqual(autoScrollHolds(), 0);
+	});
+
+	test('holds auto-scroll for a transcript selection that does not resolve to a single response', () => {
+		// Selections spanning responses (or non-markdown content) never open the
+		// affordance, but auto-scrolling out from under an in-progress drag is
+		// just as disruptive, so the transcript is still pinned.
+		const { controller, setSelection, autoScrollHolds } = setup({ getElementFromNode: () => undefined });
+		setSelection('hello world');
+
+		assert.strictEqual(inputDomNode(controller).style.display, 'none', 'no affordance for an unresolvable selection');
+		assert.strictEqual(autoScrollHolds(), 1);
+	});
+
+	test('keeps holding auto-scroll while the input has focus and the native selection is collapsed', () => {
+		const { controller, setSelection, autoScrollHolds } = setup();
+		setSelection('hello world');
+		inputTextArea(controller).focus();
+		// Focusing the textarea collapses the native selection as a browser side
+		// effect; the captured selection is still live, so the hold must persist.
+		setSelection('');
+
+		assert.strictEqual(autoScrollHolds(), 1);
+	});
+
+	test('releases the auto-scroll hold when disposed', () => {
+		const { controller, setSelection, autoScrollHolds } = setup();
+		setSelection('hello world');
+		assert.strictEqual(autoScrollHolds(), 1);
+
+		controller.dispose();
+		assert.strictEqual(autoScrollHolds(), 0);
+	});
+
+	test('paints the captured selection with a custom highlight once the native selection is gone', () => {
+		const { controller, setSelection, highlightedRanges } = setup();
+		setSelection('hello world');
+		assert.strictEqual(highlightedRanges(), 0, 'the browser still paints the live native selection');
+
+		// Focusing the textarea collapses the native selection; the highlight
+		// takes over so the user can still see what they selected.
+		inputTextArea(controller).focus();
+		setSelection('');
+		assert.strictEqual(highlightedRanges(), 1);
+
+		inputTextArea(controller).blur();
+		setSelection('');
+		assert.strictEqual(inputDomNode(controller).style.display, 'none');
+		assert.strictEqual(highlightedRanges(), 0, 'dismissing must clear the highlight');
+	});
+
+	test('clears the highlight when the controller is disposed', () => {
+		const { controller, setSelection, highlightedRanges } = setup();
+		setSelection('hello world');
+		inputTextArea(controller).focus();
+		setSelection('');
+		assert.strictEqual(highlightedRanges(), 1);
+
+		controller.dispose();
+		assert.strictEqual(highlightedRanges(), 0);
+	});
+
+	test('stays visible with a busy state while the request is pending, then clears once it settles', async () => {
+		let resolveCreate!: (chat: IChat) => void;
+		const pending = new Promise<IChat>(resolve => { resolveCreate = resolve; });
+		const { controller, setSelection, callOrder, sideChat } = setup({
+			createSideChatInSession: async (_session, _sourceChat, turnId, selection) => {
+				callOrder.push(`create:${turnId}:${selection?.text}`);
+				return pending;
+			},
+		});
+		setSelection('hello world');
+		submitViaClick(controller, 'what does this mean?');
+
+		assert.strictEqual(isInputBusy(controller), true, 'input must report busy while the request is pending');
+		assert.strictEqual(inputTextArea(controller).disabled, true, 'the textarea must be disabled while pending');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'the overlay must stay visible while pending, not be dismissed eagerly');
+
+		resolveCreate(sideChat);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual(callOrder, [
+			'create:turn-1:hello world',
+			`open:${sideChat.resource.toString()}`,
+			`send:${sideChat.resource.toString()}:what does this mean?`,
+		]);
+		assert.strictEqual(isInputBusy(controller), false, 'busy clears once the orchestration settles');
+	});
+
+	test('prevents duplicate submission (click and Enter) while a request is pending', async () => {
+		let resolveCreate!: (chat: IChat) => void;
+		const pending = new Promise<IChat>(resolve => { resolveCreate = resolve; });
+		let createCalls = 0;
+		const { controller, setSelection, sideChat } = setup({
+			createSideChatInSession: async () => {
+				createCalls++;
+				return pending;
+			},
+		});
+		setSelection('hello world');
+		submitViaClick(controller, 'what does this mean?');
+		assert.strictEqual(createCalls, 1);
+
+		// A second click and an Enter keypress while the first request is still
+		// in flight must not create a second side chat.
+		inputDomNode(controller).querySelector<HTMLElement>('.action-label')!.click();
+		dispatchKey(inputTextArea(controller), 'Enter');
+		assert.strictEqual(createCalls, 1, 'only the first submission must create a side chat');
+
+		resolveCreate(sideChat);
+		await new Promise(resolve => setTimeout(resolve, 0));
+	});
+
+	test('ignores Escape and selection-change dismissal while a request is pending', async () => {
+		let resolveCreate!: (chat: IChat) => void;
+		const pending = new Promise<IChat>(resolve => { resolveCreate = resolve; });
+		const { controller, setSelection, sideChat } = setup({
+			createSideChatInSession: async () => pending,
+		});
+		setSelection('hello world');
+		submitViaClick(controller, 'what does this mean?');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
+
+		dispatchKey(inputTextArea(controller), 'Escape');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'Escape must not dismiss a pending request');
+
+		setSelection('');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'an invalidated selection must not dismiss a pending request');
+
+		resolveCreate(sideChat);
+		await new Promise(resolve => setTimeout(resolve, 0));
+	});
+
+	test('restores the entered question and re-enables the input when the side chat fails to create', async () => {
+		let rejectCreate!: (error: Error) => void;
+		const pending = new Promise<IChat>((_resolve, reject) => { rejectCreate = reject; });
+		const { controller, setSelection, detachSelectedRow, scroll, notificationService } = setup({
+			createSideChatInSession: async () => pending,
+		});
+		setSelection('hello world');
+		submitViaClick(controller, 'what does this mean?');
+		assert.strictEqual(isInputBusy(controller), true);
+
+		detachSelectedRow();
+		scroll();
+		rejectCreate(new Error('boom'));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(isInputBusy(controller), false, 'busy must clear on failure');
+		assert.strictEqual(inputTextArea(controller).disabled, false, 'the textarea must be re-enabled on failure');
+		assert.strictEqual(inputTextArea(controller).value, 'what does this mean?', 'the entered question must be restored on failure');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'the overlay must stay visible so the user can retry');
+		assert.strictEqual(notificationService.notifications.length, 1);
+		assert.strictEqual(notificationService.notifications[0].severity, Severity.Error);
+	});
+
+	test('same-chat setChat (e.g. a status/interactivity update) preserves a visible draft', () => {
+		const { controller, setSelection, chat } = setup();
+		setSelection('hello world');
+		const textArea = inputTextArea(controller);
+		textArea.value = 'a draft in progress';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		// A new IChat object for the same resource (e.g. ChatView re-invoking
+		// setChat on a status/interactivity observable change) must not
+		// discard the visible draft.
+		controller.setChat(createChat(chat.resource));
+
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'input must stay visible on a same-resource setChat');
+		assert.strictEqual(textArea.value, 'a draft in progress', 'the typed draft must survive a same-resource setChat');
+	});
+
+	test('same-chat setChat does not clear a pending busy submission', async () => {
+		let resolveCreate!: (chat: IChat) => void;
+		const pending = new Promise<IChat>(resolve => { resolveCreate = resolve; });
+		const { controller, setSelection, callOrder, chat, sideChat } = setup({
+			createSideChatInSession: async (_session, _sourceChat, turnId, selection) => {
+				callOrder.push(`create:${turnId}:${selection?.text}`);
+				return pending;
+			},
+		});
+		setSelection('hello world');
+		submitViaClick(controller, 'what does this mean?');
+		assert.strictEqual(isInputBusy(controller), true);
+
+		// A same-resource setChat (status/interactivity update) must not
+		// force-dismiss or clear busy while the submission is still pending.
+		controller.setChat(createChat(chat.resource));
+		assert.strictEqual(isInputBusy(controller), true, 'busy must survive a same-resource setChat');
+		assert.strictEqual(inputTextArea(controller).disabled, true);
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
+
+		// The still-pending original request must be the one that eventually
+		// resolves the busy state — a same-resource setChat must not have
+		// let a second submission race in.
+		resolveCreate(sideChat);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual(callOrder, [
+			'create:turn-1:hello world',
+			`open:${sideChat.resource.toString()}`,
+			`send:${sideChat.resource.toString()}:what does this mean?`,
+		]);
+		assert.strictEqual(isInputBusy(controller), false);
+	});
+
+	test('different-resource setChat force-dismisses even while busy', async () => {
+		let resolveCreate!: (chat: IChat) => void;
+		const pending = new Promise<IChat>(resolve => { resolveCreate = resolve; });
+		const { controller, setSelection } = setup({
+			createSideChatInSession: async () => pending,
+		});
+		setSelection('hello world');
+		submitViaClick(controller, 'what does this mean?');
+		assert.strictEqual(isInputBusy(controller), true);
+
+		controller.setChat(createChat(URI.parse('test:///chat/other')));
+
+		assert.strictEqual(inputDomNode(controller).style.display, 'none', 'a genuine chat change must dismiss even a busy overlay');
+		assert.strictEqual(isInputBusy(controller), false);
+
+		// A real click also clears the browser's text selection; reflect that
+		// here so a `selectionchange` the browser fires asynchronously as
+		// focus leaves the now-hidden input (which the mocked `getSelection`
+		// would otherwise still report as "hello world") can't reopen it.
+		setSelection('');
+
+		// The now-orphaned request settling afterwards must not reopen the overlay.
+		resolveCreate(upcastPartial<IChat>({ resource: URI.parse('test:///chat/side') }));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.strictEqual(inputDomNode(controller).style.display, 'none');
+	});
+
+	test('a success that settles after a different-resource setChat does not reopen, refocus, or mutate the overlay', async () => {
+		let resolveCreate!: (chat: IChat) => void;
+		const pending = new Promise<IChat>(resolve => { resolveCreate = resolve; });
+		const { controller, setSelection, focusResponseItemCalls } = setup({
+			createSideChatInSession: async () => pending,
+		});
+		setSelection('hello world');
+		submitViaClick(controller, 'what does this mean?');
+
+		controller.setChat(createChat(URI.parse('test:///chat/other')));
+		setSelection('');
+		const focusCallsAtDismiss = focusResponseItemCalls.length;
+
+		resolveCreate(upcastPartial<IChat>({ resource: URI.parse('test:///chat/side') }));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(inputDomNode(controller).style.display, 'none', 'a stale success must not reopen the overlay');
+		assert.strictEqual(inputTextArea(controller).value, '', 'a stale success must not mutate the (already cleared) input value');
+		assert.deepStrictEqual(focusResponseItemCalls.length, focusCallsAtDismiss, 'a stale success must not refocus the transcript');
+	});
+
+	test('a failure that settles after a different-resource setChat does not reopen, refocus, mutate, or notify', async () => {
+		let rejectCreate!: (err: Error) => void;
+		const pending = new Promise<IChat>((_resolve, reject) => { rejectCreate = reject; });
+		const { controller, setSelection, notificationService, focusResponseItemCalls } = setup({
+			createSideChatInSession: async () => pending,
+		});
+		setSelection('hello world');
+		submitViaClick(controller, 'what does this mean?');
+
+		controller.setChat(createChat(URI.parse('test:///chat/other')));
+		setSelection('');
+		const focusCallsAtDismiss = focusResponseItemCalls.length;
+
+		rejectCreate(new Error('boom'));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(inputDomNode(controller).style.display, 'none', 'a stale failure must not reopen the overlay');
+		assert.strictEqual(inputTextArea(controller).value, '', 'a stale failure must not restore the failed question into the (already cleared) input');
+		assert.deepStrictEqual(focusResponseItemCalls.length, focusCallsAtDismiss, 'a stale failure must not refocus the input');
+		assert.strictEqual(notificationService.notifications.length, 0, 'a stale failure must not surface a retry notification for an abandoned overlay');
+	});
+
+	test('plain Enter submits and prevents the default newline', () => {
+		const { controller, setSelection, callOrder } = setup();
+		setSelection('hello world');
+		const textArea = inputTextArea(controller);
+		textArea.value = 'what does this mean?';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		const event = dispatchKey(textArea, 'Enter');
+
+		assert.strictEqual(event.defaultPrevented, true, 'plain Enter must prevent the default newline');
+		assert.ok(callOrder[0]?.startsWith('create:turn-1:hello world'), 'plain Enter must submit');
+	});
+
+	test('Shift+Enter inserts a newline instead of submitting', () => {
+		const { controller, setSelection, callOrder } = setup();
+		setSelection('hello world');
+		const textArea = inputTextArea(controller);
+		textArea.value = 'what does this mean?';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		const event = dispatchKey(textArea, 'Enter', { shiftKey: true });
+
+		assert.strictEqual(event.defaultPrevented, false, 'Shift+Enter must let the textarea insert a newline');
+		assert.deepStrictEqual(callOrder, [], 'Shift+Enter must not submit');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'Shift+Enter must not dismiss the overlay');
+	});
+
+	test('Enter during IME composition does not submit', () => {
+		const { controller, setSelection, callOrder } = setup();
+		setSelection('hello world');
+		const textArea = inputTextArea(controller);
+		textArea.value = 'what does this mean?';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		const event = dispatchKey(textArea, 'Enter', { isComposing: true });
+
+		assert.strictEqual(event.defaultPrevented, false, 'Enter during IME composition must not be prevented');
+		assert.deepStrictEqual(callOrder, [], 'Enter during IME composition must not submit');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'Enter during IME composition must not dismiss the overlay');
+	});
+});

@@ -6,6 +6,7 @@
 import { Action } from '../../../../base/common/actions.js';
 import { CancelablePromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
@@ -204,7 +205,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 
 		try {
 			if (git.sha) {
-				await this._pluginGit.checkout(repoDir, git.sha, true, token);
+				await this._pluginGit.checkoutCommit(repoDir, git.sha, token);
 				return;
 			}
 			// git.ref is guaranteed non-nullish by the guard above
@@ -299,14 +300,32 @@ export class GitHubPluginSource extends AbstractGitPluginSource {
 export class GitUrlPluginSource extends AbstractGitPluginSource {
 	readonly kind = PluginSourceKind.GitUrl;
 
+	/** Returns the URI where the plugin content lives (repo root + optional sub-path). */
 	getInstallUri(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI {
+		const repoDir = this._getRepoDir(cacheRoot, descriptor);
+		const git = descriptor as IGitUrlPluginSource;
+		if (git.path) {
+			const normalizedPath = git.path.trim().replace(/^\.?\/+|\/+$/g, '');
+			if (normalizedPath) {
+				const target = joinPath(repoDir, normalizedPath);
+				if (isEqualOrParent(target, repoDir)) {
+					return target;
+				}
+			}
+		}
+		return repoDir;
+	}
+
+	/** Returns the cloned repository root (without sub-path). */
+	protected override _getRepoDir(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI {
 		const git = descriptor as IGitUrlPluginSource;
 		const segments = this._gitUrlCacheSegments(git.url, git.ref, git.sha);
 		return joinPath(cacheRoot, ...segments);
 	}
 
 	getLabel(descriptor: IPluginSourceDescriptor): string {
-		return (descriptor as IGitUrlPluginSource).url;
+		const git = descriptor as IGitUrlPluginSource;
+		return git.path ? `${git.url}/${git.path}` : git.url;
 	}
 
 	protected _cloneUrl(descriptor: IPluginSourceDescriptor): string {
@@ -378,21 +397,35 @@ export abstract class AbstractPackagePluginSource implements IPluginSource {
 		return true;
 	}
 
-	async runInstall(installDir: URI, pluginDir: URI, plugin: IMarketplacePlugin, options?: { silent?: boolean }): Promise<{ pluginDir: URI } | undefined> {
+	async runInstall(installDir: URI, pluginDir: URI, plugin: IMarketplacePlugin, options?: { silent?: boolean; token?: CancellationToken }): Promise<{ pluginDir: URI } | undefined> {
+		if (options?.token?.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		const args = this._buildInstallArgs(installDir, plugin);
 		const command = formatShellCommand(args);
 		const confirmed = await this._confirmTerminalCommand(plugin.name, command, options?.silent);
+		if (options?.token?.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		if (!confirmed) {
 			return undefined;
 		}
 
 		const progressTitle = localize('installingPackagePlugin', "Installing {0} plugin '{1}'...", this._managerName, plugin.name);
 		const { success, terminal } = await this._runTerminalCommand(command, progressTitle);
+		if (options?.token?.isCancellationRequested) {
+			terminal?.dispose();
+			throw new CancellationError();
+		}
 		if (!success) {
 			return undefined;
 		}
 
 		const exists = await this._fileService.exists(pluginDir);
+		if (options?.token?.isCancellationRequested) {
+			terminal?.dispose();
+			throw new CancellationError();
+		}
 		if (!exists) {
 			this._notificationService.notify({
 				severity: Severity.Error,

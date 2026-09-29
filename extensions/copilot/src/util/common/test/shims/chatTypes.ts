@@ -80,6 +80,13 @@ export class ChatResponseHookPart {
 	}
 }
 
+export class ChatResponseVoiceProgressPart {
+	constructor(
+		readonly id: vscode.ChatResponseVoiceProgressStage,
+		readonly value: string,
+	) { }
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;
@@ -186,6 +193,14 @@ export class ChatResponsePullRequestPart {
 }
 
 
+export class ChatResponseAutoModeResolutionPart {
+	resolvedModel: { id: string; name: string } | undefined;
+	constructor(resolvedModel?: { id: string; name: string }) {
+		this.resolvedModel = resolvedModel;
+	}
+}
+
+
 export class ChatResponseCodeCitationPart {
 	value: vscode.Uri;
 	license: string;
@@ -217,6 +232,7 @@ export class ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
 	isDone?: boolean;
+	autoTier?: vscode.ChatAutoModeTier;
 	constructor(uri: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true) {
 		this.uri = uri;
 		if (editsOrDone === true) {
@@ -232,6 +248,7 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	uri: vscode.Uri;
 	edits: vscode.NotebookEdit[];
 	isDone?: boolean;
+	autoTier?: vscode.ChatAutoModeTier;
 	constructor(uri: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true) {
 		this.uri = uri;
 		if (editsOrDone === true) {
@@ -619,6 +636,7 @@ export class ChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	modelName?: string;
 	constructor(description?: string, agentName?: string, prompt?: string, result?: string) {
 		this.description = description;
 		this.agentName = agentName;

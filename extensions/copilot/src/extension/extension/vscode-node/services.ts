@@ -57,7 +57,7 @@ import { IFetcherService } from '../../../platform/networking/common/fetcherServ
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { ChatWebSocketManager, IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
 import { FetcherService } from '../../../platform/networking/vscode-node/fetcherServiceImpl';
-import { resolveOTelConfig } from '../../../platform/otel/common/otelConfig';
+import { IOTelConfigResolver } from '../../../platform/otel/common/otelConfigResolution';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { InMemoryOTelService } from '../../../platform/otel/node/inMemoryOTelService';
 import { IOTelSqliteStore, OTelSqliteStore } from '../../../platform/otel/node/sqlite/otelSqliteStore';
@@ -113,12 +113,12 @@ import { ConversationStore, IConversationStore } from '../../conversationStore/n
 import { SimilarFilesContextService } from '../../inlineEdits/vscode-node/similarFilesContext';
 import { IIntentService, IntentService } from '../../intents/node/intentService';
 import { INewWorkspacePreviewContentManager, NewWorkspacePreviewContentManagerImpl } from '../../intents/node/newIntent';
-import { ITestGenInfoStorage, TestGenInfoStorage } from '../../intents/node/testIntent/testInfoStorage';
 import { LanguageContextProviderService } from '../../languageContextProvider/vscode-node/languageContextProviderService';
 import { ILinkifyService, LinkifyService } from '../../linkify/common/linkifyService';
 import { DebugCommandToConfigConverter, IDebugCommandToConfigConverter } from '../../onboardDebug/node/commandToConfigConverter';
 import { DebuggableCommandIdentifier, IDebuggableCommandIdentifier } from '../../onboardDebug/node/debuggableCommandIdentifier';
 import { ILanguageToolsProvider, LanguageToolsProvider } from '../../onboardDebug/node/languageToolsProvider';
+import { VSCodeOTelConfigResolver } from '../../otel/vscode-node/otelConfigResolver';
 import { IPowerService } from '../../power/common/powerService';
 import { PowerService } from '../../power/vscode-node/powerService';
 import { ChatMLFetcherImpl } from '../../prompt/node/chatMLFetcher';
@@ -150,6 +150,11 @@ import { ISimilarFilesContextService } from '../../xtab/common/similarFilesConte
 import { registerServices as registerCommonServices } from '../vscode/services';
 import { PromptsServiceImpl } from '../../../platform/promptFiles/vscode-node/promptsServiceImpl';
 import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
+import { AutomaticInstructionsCollector, IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
+import { GrepResultService, IGrepResultService } from '../../tools/node/grepResultService';
+import { IRegionContextProviderService } from '../../../platform/languageContextProvider/common/regionContextProvider';
+import { ContainerContextProviderService } from '../../typescriptContext/vscode-node/regionContextProvider';
+
 
 // ###########################################################################################
 // ###                                                                                     ###
@@ -167,6 +172,8 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IAutomodeService, new SyncDescriptor(AutomodeService));
 	builder.define(IConversationStore, new SyncDescriptor(ConversationStore));
 	builder.define(IDiffService, new DiffServiceImpl());
+	builder.define(IGrepResultService, new SyncDescriptor(GrepResultService));
+	builder.define(IRegionContextProviderService, new SyncDescriptor(ContainerContextProviderService));
 	builder.define(ITokenizerProvider, new SyncDescriptor(TokenizerProvider, [true]));
 	builder.define(IToolsService, new SyncDescriptor(ToolsService));
 	builder.define(IToolDeferralService, new ToolDeferralService());
@@ -175,6 +182,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IRequestLogger, new SyncDescriptor(RequestLogger));
 	builder.define(INativeEnvService, new SyncDescriptor(NativeEnvServiceImpl));
 	builder.define(IPromptsService, new SyncDescriptor(PromptsServiceImpl));
+	builder.define(IAutomaticInstructionsCollector, new SyncDescriptor(AutomaticInstructionsCollector));
 
 	builder.define(IFetcherService, new SyncDescriptor(FetcherService, [undefined]));
 	builder.define(IDomainService, new SyncDescriptor(DomainService));
@@ -212,7 +220,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IGithubCodeSearchService, new SyncDescriptor(GithubCodeSearchService));
 	builder.define(IGithubAvailableEmbeddingTypesService, new SyncDescriptor(GithubAvailableEmbeddingTypesService));
 
-	builder.define(ITestGenInfoStorage, new SyncDescriptor(TestGenInfoStorage)); // Used for test generation (/tests intent)
 	builder.define(IParserService, new SyncDescriptor(ParserServiceImpl, [/*useWorker*/ true]));
 	builder.define(IIntentService, new SyncDescriptor(IntentService));
 	builder.define(INaiveChunkingService, new SyncDescriptor(NaiveChunkingService));
@@ -274,7 +281,10 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	const sessionStoreDbPath = extensionContext.globalStorageUri
 		? path.join(extensionContext.globalStorageUri.fsPath, 'session-store.db')
 		: path.join(os.tmpdir(), 'copilot-session-store.db');
-	const sessionStore = new SessionStore(sessionStoreDbPath);
+	// On remote workspaces the storage path is typically a network filesystem
+	// that does not honour the POSIX locking WAL mode requires, so use a more
+	// robust rollback-journal configuration there.
+	const sessionStore = new SessionStore(sessionStoreDbPath, { remote: !!env.remoteName });
 	builder.define(ISessionStore, sessionStore);
 
 	// OTel SQLite store — created lazily, DB file only appears when dbSpanExporter.enabled is true
@@ -284,20 +294,11 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	const otelSqliteStore = new OTelSqliteStore(otelDbPath);
 	builder.define(IOTelSqliteStore, otelSqliteStore);
 
-	// OTel service — resolve config from env + settings, create appropriate impl
-	const otelSettings = workspace.getConfiguration('github.copilot.chat.otel');
-	const otelConfig = resolveOTelConfig({
-		env: process.env,
-		settingEnabled: otelSettings.get<boolean>('enabled'),
-		settingExporterType: otelSettings.get<'otlp-grpc' | 'otlp-http' | 'console' | 'file'>('exporterType'),
-		settingOtlpEndpoint: otelSettings.get<string>('otlpEndpoint'),
-		settingCaptureContent: otelSettings.get<boolean>('captureContent'),
-		settingMaxAttributeSizeChars: otelSettings.get<number>('maxAttributeSizeChars'),
-		settingOutfile: otelSettings.get<string>('outfile') || undefined,
-		settingDbSpanExporter: otelSettings.get<boolean>('dbSpanExporter.enabled'),
-		extensionVersion: extensionContext.extension.packageJSON.version ?? '0.0.0',
-		sessionId: env.sessionId,
-	});
+	// Keep the exact resolution the service uses so late policy can be detected.
+	const otelConfigResolver = new VSCodeOTelConfigResolver(process.env, extensionContext.extension.packageJSON.version ?? '0.0.0', env.sessionId);
+	extensionContext.subscriptions.push(otelConfigResolver);
+	builder.define(IOTelConfigResolver, otelConfigResolver);
+	const otelConfig = otelConfigResolver.activeResolution.config;
 	if (otelConfig.enabled) {
 		// Dynamic import to avoid loading OTel SDK when disabled
 		const { NodeOTelService } = require('../../../platform/otel/node/otelServiceImpl') as typeof import('../../../platform/otel/node/otelServiceImpl');
@@ -308,7 +309,8 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 			else if (level === 'warn') { console.warn(msg); }
 			else { console.info(msg); }
 		};
-		builder.define(IOTelService, new NodeOTelService(otelConfig, logFn, otelConfig.dbSpanExporter ? otelSqliteStore : undefined));
+		builder.define(IOTelService, new NodeOTelService(otelConfig, logFn, otelConfig.dbSpanExporter ? otelSqliteStore : undefined,
+			() => otelConfigResolver.captureIdentityAllowed));
 	} else {
 		builder.define(IOTelService, new InMemoryOTelService(otelConfig));
 	}

@@ -8,13 +8,14 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IUntypedEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, SaveReason } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 import { AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID } from './aiCustomizationManagement.js';
 
 /**
  * Editor input for the AI Customizations Management Editor.
  * This is a singleton-style input with no file resource.
  */
-export class AICustomizationManagementEditorInput extends EditorInput {
+export class AICustomizationManagementEditorInput extends EditorInput implements IModalEditorOptionsProvider {
 
 	static readonly ID: string = AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID;
 
@@ -22,6 +23,8 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 
 	private _isDirty = false;
 	private _saveHandler?: () => Promise<boolean>;
+	private _harnessLabel: string | undefined;
+	private _workspaceLabel: string | undefined;
 
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
@@ -55,8 +58,26 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 		return localize('aiCustomizationManagementEditorName', "Agent Customizations");
 	}
 
+	override getDescription(): string | undefined {
+		if (this._harnessLabel && this._workspaceLabel) {
+			return localize('aiCustomizationManagementEditorDescriptionWithHarnessAndWorkspace', "({0} · {1})", this._harnessLabel, this._workspaceLabel);
+		}
+		if (this._harnessLabel || this._workspaceLabel) {
+			return localize('aiCustomizationManagementEditorDescriptionWithTarget', "({0})", this._harnessLabel ?? this._workspaceLabel);
+		}
+		return undefined;
+	}
+
 	override getIcon(): ThemeIcon {
 		return Codicon.settingsGear;
+	}
+
+	override getLabelExtraClasses(): string[] {
+		return ['ai-customization-management-editor-label'];
+	}
+
+	getModalEditorOptions(): IModalEditorOptions {
+		return { compactHeader: true };
 	}
 
 	override async resolve(): Promise<null> {
@@ -91,5 +112,14 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 
 	setSaveHandler(handler: (() => Promise<boolean>) | undefined): void {
 		this._saveHandler = handler;
+	}
+
+	setTargetLabels(harnessLabel: string | undefined, workspaceLabel?: string): void {
+		if (this._harnessLabel === harnessLabel && this._workspaceLabel === workspaceLabel) {
+			return;
+		}
+		this._harnessLabel = harnessLabel;
+		this._workspaceLabel = workspaceLabel;
+		this._onDidChangeLabel.fire();
 	}
 }

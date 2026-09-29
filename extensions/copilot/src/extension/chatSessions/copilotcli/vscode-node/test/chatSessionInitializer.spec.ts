@@ -6,7 +6,6 @@
 import type { SweCustomAgent } from '@github/copilot/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as vscode from 'vscode';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { IPromptsService } from '../../../../../platform/promptFiles/common/promptsService';
 import { IWorkspaceService, NullWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
@@ -19,7 +18,7 @@ import { IChatSessionWorkspaceFolderService } from '../../../common/chatSessionW
 import { IChatSessionWorktreeService } from '../../../common/chatSessionWorktreeService';
 import { FolderRepositoryInfo, IFolderRepositoryManager, IsolationMode } from '../../../common/folderRepositoryManager';
 import { IWorkspaceInfo } from '../../../common/workspaceInfo';
-import { ICopilotCLIAgents, ICopilotCLIModels } from '../../../copilotcli/node/copilotCli';
+import { CopilotCLIModelInfo, ICopilotCLIAgents, ICopilotCLIModels } from '../../../copilotcli/node/copilotCli';
 import { ICopilotCLISession } from '../../../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionService } from '../../../copilotcli/node/copilotcliSessionService';
 import { CopilotCLIChatSessionInitializer } from '../copilotCLIChatSessionInitializer';
@@ -73,6 +72,7 @@ class TestModels extends mock<ICopilotCLIModels>() {
 	declare readonly _serviceBrand: undefined;
 	override resolveModel = vi.fn(async (id: string) => id === 'known-model' ? 'resolved-model' : undefined);
 	override getDefaultModel = vi.fn(async () => 'default-model');
+	override getModels = vi.fn(async (): Promise<CopilotCLIModelInfo[]> => []);
 }
 
 class TestAgents extends mock<ICopilotCLIAgents>() {
@@ -88,11 +88,6 @@ class TestPromptsService extends mock<IPromptsService>() {
 class TestMetadataStore extends mock<IChatSessionMetadataStore>() {
 	declare readonly _serviceBrand: undefined;
 	override updateRequestDetails = vi.fn(async () => { });
-}
-
-class TestConfigurationService extends mock<IConfigurationService>() {
-	declare readonly _serviceBrand: undefined;
-	override getConfig = vi.fn(() => undefined as any);
 }
 
 class TestLogService extends mock<ILogService>() {
@@ -156,7 +151,6 @@ function createInitializer(overrides?: {
 	promptsService?: TestPromptsService;
 	metadataStore?: TestMetadataStore;
 	logService?: TestLogService;
-	configurationService?: TestConfigurationService;
 }) {
 	const sessionService = overrides?.sessionService ?? new TestSessionService();
 	const folderRepoManager = overrides?.folderRepoManager ?? new TestFolderRepositoryManager();
@@ -168,8 +162,6 @@ function createInitializer(overrides?: {
 	const promptsService = overrides?.promptsService ?? new TestPromptsService();
 	const metadataStore = overrides?.metadataStore ?? new TestMetadataStore();
 	const logService = overrides?.logService ?? new TestLogService();
-	const configurationService = overrides?.configurationService ?? new TestConfigurationService();
-
 	const initializer = new CopilotCLIChatSessionInitializer(
 		sessionService,
 		folderRepoManager,
@@ -178,10 +170,9 @@ function createInitializer(overrides?: {
 		agents,
 		promptsService,
 		logService,
-		configurationService,
 	);
 
-	return { initializer, sessionService, folderRepoManager, worktreeService, workspaceFolderService, models, agents, promptsService, metadataStore, logService, configurationService };
+	return { initializer, sessionService, folderRepoManager, worktreeService, workspaceFolderService, models, agents, promptsService, metadataStore, logService };
 }
 
 // ─── Tests ───────────────────────────────────────────────────────
@@ -217,6 +208,62 @@ describe('ChatSessionInitializer', () => {
 			const request = makeRequest({ model: undefined } as Partial<vscode.ChatRequest>);
 			const result = await initializer.resolveModel(request, CancellationToken.None);
 			expect(result).toEqual(expect.objectContaining({ model: 'default-model' }));
+		});
+
+		it('returns contextTier long_context when contextSize exceeds defaultContextMax', async () => {
+			const models = new TestModels();
+			models.getModels.mockResolvedValue([{
+				id: 'resolved-model',
+				name: 'Test Model',
+				maxContextWindowTokens: 200_000,
+				maxInputTokens: 200_000,
+				defaultContextMax: 128_000,
+			}]);
+			const { initializer } = createInitializer({ models });
+			const request = makeRequest({
+				model: { id: 'known-model' },
+				modelConfiguration: { contextSize: 200_000 },
+			} as unknown as Partial<vscode.ChatRequest>);
+
+			const result = await initializer.resolveModel(request, CancellationToken.None);
+			expect(result).toEqual(expect.objectContaining({ model: 'resolved-model', contextTier: 'long_context' }));
+		});
+
+		it('returns contextTier default when contextSize is within defaultContextMax', async () => {
+			const models = new TestModels();
+			models.getModels.mockResolvedValue([{
+				id: 'resolved-model',
+				name: 'Test Model',
+				maxContextWindowTokens: 200_000,
+				maxInputTokens: 200_000,
+				defaultContextMax: 128_000,
+			}]);
+			const { initializer } = createInitializer({ models });
+			const request = makeRequest({
+				model: { id: 'known-model' },
+				modelConfiguration: { contextSize: 128_000 },
+			} as unknown as Partial<vscode.ChatRequest>);
+
+			const result = await initializer.resolveModel(request, CancellationToken.None);
+			expect(result).toEqual(expect.objectContaining({ model: 'resolved-model', contextTier: 'default' }));
+		});
+
+		it('returns undefined contextTier when model has no defaultContextMax', async () => {
+			const models = new TestModels();
+			models.getModels.mockResolvedValue([{
+				id: 'resolved-model',
+				name: 'Test Model',
+				maxContextWindowTokens: 200_000,
+			}]);
+			const { initializer } = createInitializer({ models });
+			const request = makeRequest({
+				model: { id: 'known-model' },
+				modelConfiguration: { contextSize: 200_000 },
+			} as unknown as Partial<vscode.ChatRequest>);
+
+			const result = await initializer.resolveModel(request, CancellationToken.None);
+			expect(result).toEqual(expect.objectContaining({ model: 'resolved-model' }));
+			expect(result?.contextTier).toBeUndefined();
 		});
 	});
 

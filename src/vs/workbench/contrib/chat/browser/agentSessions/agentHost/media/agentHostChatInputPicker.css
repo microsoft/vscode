@@ -35,9 +35,10 @@
 .agent-host-chat-input-picker-slot span.action-label {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
-	height: 16px;
-	padding: 3px 0 3px 6px;
+	box-sizing: border-box;
+	height: var(--chat-input-control-height);
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: 4px;
 	color: var(--vscode-icon-foreground);
 }
 
@@ -45,6 +46,10 @@
 	font-size: 10px;
 	margin-left: 4px;
 	opacity: 0.75;
+}
+
+.agent-host-chat-input-picker-slot .action-label .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .agent-host-chat-input-picker-slot.disabled span.action-label {
@@ -66,7 +71,7 @@
 .chat-secondary-generic-chips {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
+	gap: 2px;
 
 	&:empty {
 		display: none;
@@ -84,9 +89,39 @@
 		}
 
 		.codicon {
-			font-size: 12px;
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 	}
+
+}
+
+/* Individual secondary pickers collapse from right to left as the lane narrows. */
+.interactive-session .compact-picker .agent-host-chat-input-picker-label {
+	display: none;
+}
+
+.interactive-session .compact-picker .agent-host-chat-input-picker-sandbox-icon {
+	display: none;
+}
+
+.interactive-session .compact-picker .agent-host-chat-input-picker-slot {
+	width: var(--chat-input-control-height);
+	height: var(--chat-input-control-height);
+}
+
+.interactive-session .compact-picker .agent-host-chat-input-picker-slot .action-label {
+	box-sizing: border-box;
+	width: var(--chat-input-control-height);
+	height: var(--chat-input-control-height);
+	min-width: var(--chat-input-control-height);
+	padding: 0;
+	justify-content: center;
+}
+
+.interactive-session .compact-picker .agent-host-chat-input-picker-slot .action-label .codicon {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
 }
 
 /*
@@ -120,34 +155,17 @@
 }
 
 .agent-host-chat-input-picker-label {
-	max-width: 16em;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	flex-shrink: 0;
+	overflow: visible;
+	text-overflow: clip;
 	white-space: nowrap;
 }
 
-/*
- * Right-align the Branch + Isolation chips within the secondary chat-input
- * toolbar. The picker tags its host element with a per-property modifier
- * class (`agent-host-chat-input-picker-host-branch`) so these selectors can
- * target just the right-aligned pair without affecting Mode. Branch (when
- * present) takes the leading `margin-left: auto`; Isolation otherwise. With
- * both present the Isolation rule is suppressed by the general-sibling
- * selector below that detects a preceding (visible) Branch chip.
- */
-.chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item.agent-host-chat-input-picker-host-branch {
-	margin-left: auto;
+.agent-host-chat-input-picker-slot .action-label .codicon + .agent-host-chat-input-picker-label {
+	margin-left: 6px;
 }
 
-.chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item.agent-host-chat-input-picker-host-isolation {
-	margin-left: auto;
-}
-
-/*
- * Suppress Isolation's leading-margin only when a *visible* Branch chip
- * precedes it. Hidden chips keep the `agent-host-chat-input-picker-host-hidden`
- * marker so this selector can ignore them.
- */
-.chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item.agent-host-chat-input-picker-host-branch:not(.agent-host-chat-input-picker-host-hidden) ~ .action-item.agent-host-chat-input-picker-host-isolation {
-	margin-left: 0;
+.agent-host-chat-input-picker-sandbox-icon {
+	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size60);
 }

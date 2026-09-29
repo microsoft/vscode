@@ -7,18 +7,23 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentSession } from '../../common/agentService.js';
-import { FileEditKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { AgentSession } from '../../common/agent.js';
+import { FileEditKind, MessageKind, ResponsePartKind, ToolResultContentType, buildChatUri } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
+import { parseSessionDbUri } from '../../common/sessionDbUri.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
-import { type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
+import { mapSessionEvents as mapSessionEventsWithRouting } from '../../node/copilot/mapSessionEvents.js';
+import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
 suite('mapSessionEventsToHistoryRecords', () => {
 
 	const disposables = new DisposableStore();
 	let db: SessionDatabase | undefined;
 	const session = AgentSession.uri('copilot', 'test-session');
+
+	function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2]) {
+		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')));
+	}
 
 	teardown(async () => {
 		disposables.clear();
@@ -72,6 +77,46 @@ suite('mapSessionEventsToHistoryRecords', () => {
 		const complete = result[1] as { result: { content?: readonly { type: string; text?: string }[] } };
 		assert.ok(complete.result.content);
 		assert.strictEqual(complete.result.content[0].type, ToolResultContentType.Text);
+	});
+
+	test('maps task_complete to a root markdown response part', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', data: { messageId: 'msg-1', content: 'finish this' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-read', toolName: 'view', arguments: { path: '/workspace/index.html' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-read', success: true, result: { content: 'file contents' } } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task-complete', toolName: 'task_complete', arguments: { summary: 'Reviewed index.html.' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task-complete', success: true, result: { content: 'Reviewed index.html.' } } },
+		];
+
+		const result = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		assert.deepStrictEqual(result.turns.map(turn => ({
+			message: turn.message,
+			state: turn.state,
+			parts: turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall ? {
+				kind: part.kind,
+				toolName: part.toolCall.toolName,
+			} : {
+				kind: part.kind,
+				content: part.kind === ResponsePartKind.Markdown ? part.content : undefined,
+			}),
+		})), [{
+			message: { text: 'finish this', origin: { kind: MessageKind.User } },
+			state: 'complete',
+			parts: [
+				{ kind: ResponsePartKind.ToolCall, toolName: 'view' },
+				{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:** Reviewed index.html.' },
+			],
+		}]);
+	});
+
+	test('drops orphan task_complete without synthesizing a turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task-complete', toolName: 'task_complete', arguments: { summary: 'Done.' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task-complete', success: true, result: { content: 'Done.' } } },
+		];
+
+		const result = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		assert.deepStrictEqual(result.turns, []);
 	});
 
 	test('skips tool_complete without matching tool_start', async () => {
@@ -272,7 +317,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 				{
 					type: 'skill.invoked',
 					id: 'evt-42',
-					data: { name: 'plan', path: '/abs/repo/skills/plan/SKILL.md' },
+					data: { name: 'plan', path: '/abs/repo/skills/plan/SKILL.md', content: '' },
 				},
 				{
 					type: 'user.message',
@@ -301,7 +346,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 					toolCallId: 'synth-skill-evt-42',
 					toolName: 'skill',
 					displayName: 'Read Skill',
-					invocationMessage: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+					invocationMessage: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 				},
 				skillComplete: {
 					session,
@@ -331,7 +376,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 		}
 
 		function getStart(events: ReturnType<typeof mapSessionEventsToHistoryRecords> extends Promise<infer R> ? R : never) {
-			return events[0] as { toolInput: string; toolArguments?: string };
+			return events[0] as { toolInput: string };
 		}
 
 		test('strips redundant bash cd prefix matching workingDirectory', async () => {
@@ -340,7 +385,6 @@ suite('mapSessionEventsToHistoryRecords', () => {
 			], cwd);
 			const start = getStart(result);
 			assert.strictEqual(start.toolInput, 'ls -la');
-			assert.deepStrictEqual(JSON.parse(start.toolArguments!), { command: 'ls -la' });
 		});
 
 		test('leaves command unchanged when cd dir does not match', async () => {
@@ -367,8 +411,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 				},
 			], cwd);
 			const start = getStart(result);
-			// edit tool's toolInput is derived from filePath, not command — but toolArguments preserves original
-			assert.deepStrictEqual(JSON.parse(start.toolArguments!), { command: 'cd /workspace/proj && ls' });
+			assert.strictEqual(start.toolInput, '{\n  "command": "cd /workspace/proj && ls"\n}');
 		});
 
 		test('handles trailing slash on workingDirectory', async () => {

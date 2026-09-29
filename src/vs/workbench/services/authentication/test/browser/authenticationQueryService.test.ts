@@ -1095,6 +1095,19 @@ suite('AuthenticationQueryService Integration Tests', () => {
 		assert.strictEqual(userServer.allowed, true);
 	});
 
+	test('getAllowedMcpServers method exposes agentHost metadata', () => {
+		authService.registerAuthenticationProvider('github', createProvider({ id: 'github', label: 'GitHub' }));
+		authService.addAccounts('github', [{ id: 'user1', label: 'user@github.com' }]);
+
+		mcpAccessService.updateAllowedMcpServers('github', 'user@github.com', [
+			{ id: 'agent-host-mcp:remote/GitHub/https://api.example/mcp', name: 'GitHub', allowed: true, agentHost: { authority: 'remote', label: 'SSH: my-host' } }
+		]);
+
+		const allowedServers = queryService.provider('github').account('user@github.com').mcpServers().getAllowedMcpServers();
+		const agentHostServer = allowedServers.find(s => s.id === 'agent-host-mcp:remote/GitHub/https://api.example/mcp');
+		assert.deepStrictEqual(agentHostServer?.agentHost, { authority: 'remote', label: 'SSH: my-host' });
+	});
+
 	test('getAllowedExtensions returns extension data with trusted state', () => {
 		// Set up some extension access data
 		const accountQuery = queryService.provider('github').account('user@example.com');

@@ -14,7 +14,7 @@ import { InstructionMessage } from '../../base/instructionMessage';
 import { ResponseTranslationRules } from '../../base/responseTranslationRules';
 import { Gpt5SafetyRule } from '../../base/safetyRules';
 import { Tag } from '../../base/tag';
-import { MathIntegrationRules } from '../../panel/editorIntegrationRules';
+import { ResponseRenderingRules } from '../../panel/editorIntegrationRules';
 import { ApplyPatchInstructions, DefaultAgentPromptProps, detectToolCapabilities, getEditingReminder, McpToolInstructions, ReminderInstructionsProps } from '../defaultAgentInstructions';
 import { FileLinkificationInstructions } from '../fileLinkificationInstructions';
 import { CopilotIdentityRulesConstructor, IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SafetyRulesConstructor, SystemPrompt } from '../promptRegistry';
@@ -62,7 +62,7 @@ class Gpt53CodexPrompt extends PromptElement<DefaultAgentPromptProps> {
 					<Tag name='example'>
 						The class `Person` is in `src/models/person.ts`.
 					</Tag>
-					<MathIntegrationRules />
+					<ResponseRenderingRules />
 				</Tag>
 				{this.props.availableTools && <McpToolInstructions tools={this.props.availableTools} />}
 				{tools[ToolName.ApplyPatch] && <ApplyPatchInstructions {...this.props} tools={tools} />}
@@ -303,7 +303,7 @@ class Gpt53CodexPrompt extends PromptElement<DefaultAgentPromptProps> {
 				<Tag name='example'>
 					The class `Person` is in `src/models/person.ts`.
 				</Tag>
-				<MathIntegrationRules />
+				<ResponseRenderingRules />
 			</Tag>
 			{this.props.availableTools && <McpToolInstructions tools={this.props.availableTools} />}
 			{tools[ToolName.ApplyPatch] && <ApplyPatchInstructions {...this.props} tools={tools} />}

@@ -7,7 +7,35 @@ trigger:
     include: ["main", "release/*"]
 pr: none
 
+resources:
+  repositories:
+    - repository: distro
+      type: github
+      name: microsoft/vscode-distro
+      ref: main
+      endpoint: Monaco
+    - repository: encrypt
+      type: github
+      name: microsoft/vscode-encrypt
+      ref: main
+      endpoint: Monaco
+    - repository: vsda
+      type: github
+      name: microsoft/vsda
+      ref: main
+      endpoint: Monaco
+    - repository: regexp
+      type: github
+      name: microsoft/vscode-regexp-languagedetection
+      ref: main
+      endpoint: Monaco
+
 steps:
+  - checkout: self
+    path: s
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
