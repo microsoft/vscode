@@ -70,8 +70,8 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 
 		// Capture the enterprise OTel policy the renderer forwards before it requests a
 		// connection (FIFO per sender ensures this lands before the spawn in `start()`).
-		const onOTelPolicy = (_e: IpcMainEvent, policy: unknown) => {
-			if (this._otelPolicyState.update(policy, this.utilityProcess !== undefined)) {
+		const onOTelPolicy = (_e: IpcMainEvent, policy: unknown, ready: unknown) => {
+			if (this._otelPolicyState.update(policy, this.utilityProcess !== undefined, ready === true)) {
 				this._logService.info('Agent Host enterprise OTel policy changed; restarting the Agent Host');
 				this._notifyWindowsWillRestart();
 				this._onRequestRestart.fire();

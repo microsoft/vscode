@@ -442,6 +442,12 @@ export interface IAgentHostOTelSettings {
  */
 export const AgentHostOTelPolicyIpcChannel = 'vscode:agentHostOTelPolicy';
 
+/** Whether the renderer has a settled policy rather than startup/refresh placeholders. */
+export interface IAgentHostOTelPolicyReadiness {
+	isReady(): boolean;
+	readonly onDidChange: Event<void>;
+}
+
 /** Renderer-to-main request to replace the shared local Agent Host process. */
 export const AgentHostRestartIpcChannel = 'vscode:restartAgentHost';
 
@@ -511,12 +517,17 @@ export function sanitizeAgentHostOTelPolicySettings(raw: unknown): IAgentHostOTe
 export class AgentHostOTelPolicyState {
 	private _policy: IAgentHostOTelSettings | undefined;
 	private _restartPending = false;
+	private _hasSettledPolicy = false;
 
 	get policy(): IAgentHostOTelSettings | undefined {
 		return this._policy;
 	}
 
-	update(raw: unknown, agentHostRunning: boolean): boolean {
+	update(raw: unknown, agentHostRunning: boolean, ready = true): boolean {
+		if (!ready && (agentHostRunning || this._hasSettledPolicy)) {
+			return false;
+		}
+		this._hasSettledPolicy ||= ready;
 		const policy = sanitizeAgentHostOTelPolicySettings(raw);
 		if (equals(this._policy, policy)) {
 			return false;

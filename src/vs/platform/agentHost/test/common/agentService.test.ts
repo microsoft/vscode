@@ -308,6 +308,55 @@ suite('AgentHostOTelPolicyState', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('ignores transient refresh and unresolved window snapshots for a running host', () => {
+		const state = new AgentHostOTelPolicyState();
+		const policy = { enabled: true, otlpEndpoint: 'https://collector.example' };
+		state.update(policy, false);
+		state.didStart();
+		assert.deepStrictEqual({
+			refreshPending: state.update({ enabled: false, otlpEndpoint: '' }, true, false),
+			newWindowLoading: state.update({}, true, false),
+			refreshComplete: state.update(policy, true, true),
+			policy: state.policy,
+		}, {
+			refreshPending: false,
+			newWindowLoading: false,
+			refreshComplete: false,
+			policy: sanitizeAgentHostOTelPolicySettings(policy),
+		});
+	});
+
+	test('uses provisional startup policy but never overwrites a settled policy during restart', () => {
+		const state = new AgentHostOTelPolicyState();
+		const restricted = { enabled: false, otlpEndpoint: '' };
+		state.update({}, false, false);
+		state.update(restricted, false, false);
+		assert.deepStrictEqual(state.policy, sanitizeAgentHostOTelPolicySettings(restricted));
+		state.didStart();
+		const policy = { enabled: true, otlpEndpoint: 'https://collector.example' };
+		assert.deepStrictEqual({
+			latePolicy: state.update(policy, true, true),
+			pendingDuringRestart: state.update(restricted, false, false),
+			policy: state.policy,
+		}, {
+			latePolicy: true,
+			pendingDuringRestart: false,
+			policy: sanitizeAgentHostOTelPolicySettings(policy),
+		});
+	});
+
+	test('applies settled restrictions and policy withdrawal', () => {
+		const state = new AgentHostOTelPolicyState();
+		state.update({ enabled: true, otlpEndpoint: 'https://collector.example' }, false);
+		state.didStart();
+		const failedRefresh = state.update({ enabled: false, otlpEndpoint: '' }, true, true);
+		state.didStart();
+		const withdrawal = state.update({}, true, true);
+		assert.deepStrictEqual({ failedRefresh, withdrawal, policy: state.policy }, {
+			failedRefresh: true, withdrawal: true, policy: sanitizeAgentHostOTelPolicySettings({}),
+		});
+	});
+
 	test('restarts once for changed forwarded policy while deduplicating events and windows', () => {
 		const state = new AgentHostOTelPolicyState();
 		const first = { enabled: true, otlpEndpoint: 'http://localhost:4318' };

@@ -31,6 +31,8 @@ class TestHost implements IOTelStaleConfigHost {
 	restartError: Error | undefined;
 	storageError: Error | undefined;
 	restartCompleted: (() => void) | undefined;
+	restartStarted: (() => void) | undefined;
+	beforeReload: (() => Promise<void>) | undefined;
 
 	getRestartRecord() { return this.record; }
 	async setRestartRecord(record: IOTelPolicyRestartRecord | undefined) {
@@ -42,14 +44,15 @@ class TestHost implements IOTelStaleConfigHost {
 	async restartExtensionHost(): Promise<void> {
 		this.restarts++;
 		this.recordAtRestart = this.record;
+		this.restartStarted?.();
 		if (this.restartError) {
 			throw this.restartError;
 		}
 		// Simulates the host remaining alive after the command and grace period.
 		await new Promise<void>(resolve => { this.restartCompleted = resolve; });
 	}
-	warnPolicyNotApplied() { this.warnings++; }
-	promptReload() { this.prompts++; }
+	warnPolicyNotApplied(beforeReload?: () => Promise<void>) { this.warnings++; this.beforeReload = beforeReload; }
+	promptReload(_current: IResolvedOTelConfig, beforeReload?: () => Promise<void>) { this.prompts++; this.beforeReload = beforeReload; }
 	notifyPolicyRestarted() { this.notifications++; }
 }
 
@@ -68,9 +71,9 @@ describe('OTelStaleConfigMonitor', () => {
 
 	/** Drain the promise queue as far as the simulated, non-returning restart. */
 	async function startRestart(monitor: OTelStaleConfigMonitor) {
+		const started = new Promise<void>(resolve => { host.restartStarted = resolve; });
 		const pending = monitor.check();
-		await Promise.resolve();
-		await Promise.resolve();
+		await started;
 		expect(host.recordAtRestart).toBeDefined();
 		return { pending };
 	}
@@ -161,8 +164,8 @@ describe('OTelStaleConfigMonitor', () => {
 		settings.policy = {};
 		const third = new OTelStaleConfigMonitor(new TestResolver(settings, {}, 'new-editor-session'), host, log);
 		settings.policy = managedPolicy;
-		expect(await third.check()).toBe(OTelConfigDrift.Policy);
-		expect(host.restarts).toBe(1);
+		await startRestart(third);
+		expect(host.restarts).toBe(2);
 		expect(host.warnings).toBe(1);
 	});
 
@@ -172,12 +175,88 @@ describe('OTelStaleConfigMonitor', () => {
 		settings.policy = { ...managedPolicy, otlpEndpoint: 'https://changed.example' };
 		expect(await first.check()).toBe(OTelConfigDrift.Policy);
 		expect(host.prompts).toBe(1);
+		expect(host.record).toBeUndefined();
+		await host.beforeReload!();
 
 		settings.policy = managedPolicy;
-		const second = new OTelStaleConfigMonitor(new TestResolver(settings, {}, 'reloaded-editor-session'), host, log);
+		const resolver = new TestResolver(settings, {}, 'reloaded-editor-session');
+		const second = new OTelStaleConfigMonitor(resolver, host, log);
+		await second.check();
 		settings.policy = { ...managedPolicy, otlpEndpoint: 'https://changed.example' };
 		expect(await second.check()).toBe(OTelConfigDrift.Policy);
-		expect(host.prompts).toBe(1);
+		await second.check();
+		await new OTelStaleConfigMonitor(resolver, host, log).check();
+		expect({ prompts: host.prompts, warnings: host.warnings, canReload: !!host.beforeReload }).toEqual({
+			prompts: 1, warnings: 2, canReload: false,
+		});
+	});
+
+	it('does not treat a dismissed reload prompt as a recovery attempt', async () => {
+		settings.policy = managedPolicy;
+		const first = newHost();
+		settings.policy = { ...managedPolicy, serviceName: 'changed' };
+		await first.check();
+
+		settings.policy = managedPolicy;
+		const second = new OTelStaleConfigMonitor(new TestResolver(settings, {}, 'later-session'), host, log);
+		settings.policy = { ...managedPolicy, serviceName: 'changed' };
+		await second.check();
+		expect({ prompts: host.prompts, record: host.record }).toEqual({ prompts: 2, record: undefined });
+	});
+
+	it('recovers late policy in a fresh editor session after successful automatic recovery', async () => {
+		const first = newHost();
+		settings.policy = managedPolicy;
+		await startRestart(first);
+		await newHost().check();
+
+		settings.policy = {};
+		const later = new OTelStaleConfigMonitor(new TestResolver(settings, {}, 'later-session'), host, log);
+		await later.check();
+		settings.policy = managedPolicy;
+		await startRestart(later);
+		expect({ restarts: host.restarts, sessionId: host.record?.sessionId, notifications: host.notifications }).toEqual({
+			restarts: 2, sessionId: 'later-session', notifications: 1,
+		});
+	});
+
+	it('acknowledges an applied window reload without blocking recovery on a future launch', async () => {
+		settings.policy = managedPolicy;
+		const first = newHost();
+		settings.policy = { ...managedPolicy, serviceName: 'changed' };
+		await first.check();
+		await host.beforeReload!();
+		await new OTelStaleConfigMonitor(new TestResolver(settings, {}, 'reloaded-session'), host, log).check();
+		expect(host.record).toMatchObject({ acknowledged: true, reloadRequested: false });
+
+		settings.policy = {};
+		const later = new OTelStaleConfigMonitor(new TestResolver(settings, {}, 'later-session'), host, log);
+		settings.policy = { ...managedPolicy, serviceName: 'changed' };
+		await startRestart(later);
+		expect(host.restarts).toBe(1);
+	});
+
+	it('bounds a failed automatic recovery and window reload to their immediate successor', async () => {
+		const first = newHost();
+		settings.policy = managedPolicy;
+		host.restartError = new Error('restart failed');
+		await first.check();
+		await host.beforeReload!();
+
+		settings.policy = {};
+		const second = new OTelStaleConfigMonitor(new TestResolver(settings, {}, 'reloaded-session'), host, log);
+		await second.check();
+		settings.policy = managedPolicy;
+		await second.check();
+		expect({ restarts: host.restarts, warnings: host.warnings, canReload: !!host.beforeReload }).toEqual({
+			restarts: 1, warnings: 2, canReload: false,
+		});
+
+		settings.policy = {};
+		const later = new OTelStaleConfigMonitor(new TestResolver(settings, {}, 'later-session'), host, log);
+		settings.policy = managedPolicy;
+		await later.check();
+		expect(host.restarts).toBe(2);
 	});
 
 	it('does not suppress personal setting drift that matches a managed reload guard', async () => {
@@ -185,6 +264,7 @@ describe('OTelStaleConfigMonitor', () => {
 		const first = newHost();
 		settings.policy = { ...managedPolicy, otlpEndpoint: 'https://changed.example' };
 		expect(await first.check()).toBe(OTelConfigDrift.Policy);
+		await host.beforeReload!();
 
 		settings.user = { captureIdentity: true };
 		const second = new OTelStaleConfigMonitor(new TestResolver(settings, {}, 'later-session'), host, log);
@@ -302,7 +382,7 @@ describe('OTelStaleConfigMonitor', () => {
 			prompts: host.prompts,
 			warnings: host.warnings,
 			restartRecord: host.record && { sessionId: host.record.sessionId, acknowledged: host.record.acknowledged },
-		}).toEqual({ restarts: 0, prompts: 1, warnings: 0, restartRecord: { sessionId: 'session', acknowledged: false } });
+		}).toEqual({ restarts: 0, prompts: 1, warnings: 0, restartRecord: undefined });
 	});
 
 	it('only prompts when policy is withdrawn', async () => {

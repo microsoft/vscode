@@ -51,6 +51,7 @@ import {
 	IAgentHostNetworkDiagnosticsInfo,
 	IAgentHostNetworkFetchResult,
 	type IAgentHostOTelSettings,
+	type IAgentHostOTelPolicyReadiness,
 	IAgentHostService,
 	IAgentHostSocketInfo,
 	IAgentResolveSessionConfigParams,
@@ -161,6 +162,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private _didStartInitialSessionList = false;
 	private _didCompleteInitialSessionList = false;
 	private _lastForwardedOTelPolicy: IAgentHostOTelSettings | undefined;
+	private _lastForwardedOTelPolicyReady: boolean | undefined;
 	private _startupTelemetry: AgentHostStartupTelemetry | undefined;
 
 	private readonly _onAgentHostExit = this._register(new Emitter<number>());
@@ -189,6 +191,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	constructor(
 		private readonly _clientInfo: Implementation,
+		private readonly _otelPolicyReadiness: IAgentHostOTelPolicyReadiness,
+		private readonly _sendOTelPolicy: (policy: IAgentHostOTelSettings, ready: boolean) => void = (policy, ready) => ipcRenderer.send(AgentHostOTelPolicyIpcChannel, policy, ready),
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -216,6 +220,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		ipcRenderer.on(AgentHostWillRestartIpcChannel, onWillRestart);
 		this._register(toDisposable(() => ipcRenderer.removeListener(AgentHostWillRestartIpcChannel, onWillRestart)));
 		this._register(this._configurationService.onDidChangeConfiguration(() => this._forwardOTelPolicy()));
+		this._register(this._otelPolicyReadiness.onDidChange(() => this._forwardOTelPolicy()));
 	}
 
 	startAgentHost(): void {
@@ -312,11 +317,13 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	private _forwardOTelPolicy(): void {
 		const policy = readAgentHostOTelPolicySettings(this._configurationService);
-		if (equals(this._lastForwardedOTelPolicy, policy)) {
+		const ready = this._otelPolicyReadiness.isReady();
+		if (equals(this._lastForwardedOTelPolicy, policy) && this._lastForwardedOTelPolicyReady === ready) {
 			return;
 		}
 		this._lastForwardedOTelPolicy = policy;
-		ipcRenderer.send(AgentHostOTelPolicyIpcChannel, policy);
+		this._lastForwardedOTelPolicyReady = ready;
+		this._sendOTelPolicy(policy, ready);
 	}
 
 	private _handleConnectionState(state: AgentHostClientState): void {

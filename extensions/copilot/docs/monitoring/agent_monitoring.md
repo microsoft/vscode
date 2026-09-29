@@ -222,10 +222,14 @@ the restart. The default-value signal cannot distinguish a policy consisting ent
 schema-default values from no policy.
 
 There is no periodic polling or restart loop. A startup check and configuration events trigger
-checks, coalesced by a 500 ms debounce. Recovery records use a configuration fingerprint that
-excludes `vscode.env.sessionId`, so reloading the window does not repeat an unsuccessful restart or
-reload prompt for the same policy. The attempt remains recorded even after success or failure.
-Later policy updates only offer a reload, deduplicated while stale.
+checks, coalesced by a 500 ms debounce. Automatic recovery is limited to one attempt per editor
+session. A reload guard is saved only when the user chooses **Reload Window**, not when a prompt
+is shown or dismissed. Its configuration fingerprint excludes `vscode.env.sessionId` and carries
+into the immediately following editor session. If that reload still fails to apply the same
+policy, a warning remains available without offering another reload. The guard is consumed by
+that successor and does not prevent recovery on a later launch. Successful recovery retains
+only the current session's automatic-restart budget. Later policy updates offer a reload,
+deduplicated while stale.
 If policy first arrives after a later sign-in, that single recovery can happen then rather than
 immediately at launch. A one-off 15-second grace period allows a requested restart to finish
 before a still-running host shows the reload fallback.

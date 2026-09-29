@@ -12,14 +12,16 @@ export interface IOTelPolicyRestartRecord {
 	readonly sessionId: string;
 	readonly fingerprint: string;
 	readonly acknowledged: boolean;
+	readonly reloadRequested?: boolean;
+	readonly reloadAttempted?: boolean;
 }
 
 export interface IOTelStaleConfigHost {
 	getRestartRecord(): IOTelPolicyRestartRecord | undefined;
 	setRestartRecord(record: IOTelPolicyRestartRecord | undefined): Promise<void>;
 	restartExtensionHost(): Promise<void>;
-	warnPolicyNotApplied(): void;
-	promptReload(current: IResolvedOTelConfig): void;
+	warnPolicyNotApplied(beforeReload?: () => Promise<void>): void;
+	promptReload(current: IResolvedOTelConfig, beforeReload?: () => Promise<void>): void;
 	notifyPolicyRestarted(): void;
 }
 
@@ -46,15 +48,22 @@ export class OTelStaleConfigMonitor {
 		const active = this._resolver.activeResolution;
 		const current = this._resolver.resolve();
 		const drift = classifyOTelConfigDrift(active, current);
+		let record = this._host.getRestartRecord();
+		if (record && record.sessionId !== active.config.sessionId) {
+			// Carry a user-requested reload into its successor, not every future editor session.
+			record = record.reloadRequested && !record.acknowledged
+				? { ...record, sessionId: active.config.sessionId, reloadRequested: false, reloadAttempted: true }
+				: undefined;
+			await this._host.setRestartRecord(record);
+		}
 		if (drift === OTelConfigDrift.None) {
 			this._handledFingerprint = undefined;
 			this._policyNoticeShown = false;
-			const record = this._host.getRestartRecord();
 			if (record?.sessionId === active.config.sessionId && record.fingerprint === fingerprintOf(active) && !record.acknowledged) {
 				try {
 					// Retain the session budget after success; future policy updates must not
 					// cause another automatic restart in this editor session.
-					await this._host.setRestartRecord({ ...record, acknowledged: true });
+					await this._host.setRestartRecord({ ...record, acknowledged: true, reloadRequested: false });
 					this._host.notifyPolicyRestarted();
 				} catch (error) {
 					this._logService.warn(`[OTel] Failed to acknowledge the telemetry policy restart: ${error}`);
@@ -72,22 +81,17 @@ export class OTelStaleConfigMonitor {
 			this._host.promptReload(current);
 			return drift;
 		}
-		const record = this._host.getRestartRecord();
-		if (record?.fingerprint === fingerprint && record.sessionId !== active.config.sessionId) {
+		if (record?.fingerprint === fingerprint && record.reloadAttempted && !record.acknowledged) {
 			this._handledFingerprint = fingerprint;
-			this._logService.warn('[OTel] Telemetry recovery was already attempted for this configuration. Not prompting for another window reload.');
+			this._logService.warn('[OTel] Telemetry policy is still not applied after reloading. Not prompting for another window reload.');
+			this._warnPolicyNotApplied();
 			return drift;
 		}
 		if (active.hasEnterpriseSettings || active.config.enabledExplicitly || !isPolicyEnabledOtlp(current)) {
-			try {
-				await this._host.setRestartRecord({ sessionId: active.config.sessionId, fingerprint, acknowledged: false });
-			} catch (error) {
-				this._logService.warn(`[OTel] Cannot store the telemetry policy reload guard: ${error}`);
-			}
 			this._handledFingerprint = fingerprint;
 			if (!this._policyNoticeShown) {
 				this._policyNoticeShown = true;
-				this._host.promptReload(current);
+				this._host.promptReload(current, () => this._recordReload());
 			}
 			return drift;
 		}
@@ -95,7 +99,7 @@ export class OTelStaleConfigMonitor {
 		if (record?.sessionId === active.config.sessionId) {
 			this._handledFingerprint = fingerprint;
 			this._logService.warn(`[OTel] Automatic telemetry recovery was already attempted in this editor session (${changed}). Not restarting again.`);
-			this._warnPolicyNotApplied();
+			this._warnPolicyNotApplied(current);
 			return drift;
 		}
 
@@ -103,7 +107,7 @@ export class OTelStaleConfigMonitor {
 			await this._host.setRestartRecord({ sessionId: active.config.sessionId, fingerprint, acknowledged: false });
 		} catch (error) {
 			this._logService.warn(`[OTel] Cannot store the telemetry policy restart guard: ${error}`);
-			this._warnPolicyNotApplied();
+			this._warnPolicyNotApplied(current);
 			return drift;
 		}
 
@@ -116,14 +120,24 @@ export class OTelStaleConfigMonitor {
 		} catch (error) {
 			this._logService.warn(`[OTel] Failed to restart the extension host: ${error}`);
 		}
-		this._warnPolicyNotApplied();
+		this._warnPolicyNotApplied(current);
 		return drift;
 	}
 
-	private _warnPolicyNotApplied(): void {
+	private async _recordReload(): Promise<void> {
+		const current = this._resolver.resolve();
+		await this._host.setRestartRecord({
+			sessionId: current.config.sessionId,
+			fingerprint: fingerprintOf(current),
+			acknowledged: false,
+			reloadRequested: true,
+		});
+	}
+
+	private _warnPolicyNotApplied(current?: IResolvedOTelConfig): void {
 		if (!this._policyNoticeShown) {
 			this._policyNoticeShown = true;
-			this._host.warnPolicyNotApplied();
+			this._host.warnPolicyNotApplied(current ? () => this._recordReload() : undefined);
 		}
 	}
 }
