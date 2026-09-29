@@ -15,7 +15,6 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
-import { stripIcons } from '../../../../../base/common/iconLabels.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
@@ -781,13 +780,13 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	private doRenderInner(element: ITreeElement, templateData: TemplateData, subjectElement: ITreeElement | undefined) {
 		let { label, labelWithIcons, description } = element;
 		if (subjectElement instanceof TestMessageElement) {
-			description = stripIcons(subjectElement.label).trim();
+			description = subjectElement.label;
 			if (element.description) {
 				description = `${description} @ ${element.description}`;
 			}
 		}
 
-		const descriptionElement = description ? dom.$('span.test-label-description', {}, description) : '';
+		const descriptionElement = description ? dom.$('span.test-label-description', {}, ...renderLabelWithIcons(description)) : '';
 		if (labelWithIcons) {
 			dom.reset(templateData.label, ...labelWithIcons, descriptionElement);
 		} else {
