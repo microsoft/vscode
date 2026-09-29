@@ -166,6 +166,7 @@
 	font: inherit;
 	text-align: left;
 	cursor: pointer;
+	align-self: stretch;
 }
 
 .monaco-workbench .automations-card-main:focus {
@@ -191,11 +192,10 @@
 	text-overflow: ellipsis;
 }
 
-.automations-card-disabled-badge {
-	font-size: 12px;
-	font-weight: 400;
-	font-style: italic;
-	color: var(--vscode-descriptionForeground);
+.automations-card.automation-disabled .automations-card-name-text,
+.automations-card.automation-disabled .automations-card-prompt,
+.automations-card.automation-disabled .automations-card-meta {
+	color: var(--vscode-disabledForeground);
 }
 
 /* Card Metadata */
@@ -207,9 +207,28 @@
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 	min-width: 0;
+	margin-top: auto;
+	padding-top: var(--vscode-spacing-size120);
+}
+
+.automations-card-meta-item {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.automations-card-meta-item > .codicon {
+	font-size: var(--vscode-codiconFontSize);
+	color: inherit;
+	flex-shrink: 0;
 }
 
 .automations-card-folder {
+	flex: 1;
+}
+
+.automations-card-meta-label {
 	min-width: 0;
 	overflow: hidden;
 	white-space: nowrap;
@@ -218,7 +237,6 @@
 
 .automations-card-meta-item + .automations-card-meta-item::before {
 	content: '·';
-	margin-right: 6px;
 	opacity: 0.6;
 }
 
@@ -234,7 +252,8 @@
 .automations-card-prompt {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
-	margin-top: 2px;
+	margin-top: var(--vscode-spacing-size20);
+	line-height: 1.4;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	word-break: break-word;

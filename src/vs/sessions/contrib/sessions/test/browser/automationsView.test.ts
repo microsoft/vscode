@@ -718,6 +718,66 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('renders card metadata below the prompt and updates enabled and workspace states', async () => {
+		const { automationService, automationDialogService, widget } = setup();
+		const prompt = 'Review the workspace and summarize changes. '.repeat(5);
+		const manual = { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 } satisfies IAutomationSchedule;
+		const states = [
+			automation({ prompt, schedule: manual }),
+			automation({ prompt, schedule: manual, target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' } }),
+			automation({ prompt, enabled: false }),
+			automation({ prompt, enabled: false, target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' } }),
+			automation({ prompt }),
+		];
+		automationService.setAutomations([states[0]]);
+		const card = widget.element.querySelector<HTMLElement>('.automations-card')!;
+		const main = card.querySelector<HTMLButtonElement>('.automations-card-main')!;
+		const actions = card.querySelector('.automations-card-actions');
+		main.focus();
+		const presentations = states.map(item => {
+			automationService.setAutomations([item]);
+			const folder = card.querySelector<HTMLElement>('.automations-card-folder')!;
+			return {
+				status: card.querySelector('.automations-card-schedule')?.textContent,
+				icon: card.querySelector('.automations-card-schedule .codicon')?.className,
+				folderVisible: folder.style.display !== 'none',
+				disabled: card.classList.contains('automation-disabled'),
+				label: card.getAttribute('aria-label'),
+			};
+		});
+		assert.deepStrictEqual({
+			presentations,
+			order: Array.from(main.children, element => element.className),
+			prompt: card.querySelector('.automations-card-prompt')?.textContent,
+			folder: card.querySelector('.automations-card-folder')?.textContent,
+			folderIcon: card.querySelector('.automations-card-folder .codicon')?.className,
+			decorativeIcons: Array.from(card.querySelectorAll('.automations-card-meta .codicon'), element => element.getAttribute('aria-hidden')),
+			sameCard: widget.element.querySelector('.automations-card') === card,
+			sameActions: card.querySelector('.automations-card-actions') === actions,
+			focusPreserved: document.activeElement === main,
+		}, {
+			presentations: [
+				{ status: 'Manual', icon: 'codicon codicon-person', folderVisible: true, disabled: false, label: 'Daily review — Manual' },
+				{ status: 'Manual', icon: 'codicon codicon-person', folderVisible: false, disabled: false, label: 'Daily review — Manual' },
+				{ status: 'Disabled', icon: 'codicon codicon-circle-slash', folderVisible: false, disabled: true, label: 'Daily review — Disabled' },
+				{ status: 'Disabled', icon: 'codicon codicon-circle-slash', folderVisible: false, disabled: true, label: 'Daily review — Disabled' },
+				{ status: 'Hourly', icon: 'codicon codicon-clockface', folderVisible: true, disabled: false, label: 'Daily review — Hourly' },
+			],
+			order: ['automations-card-name', 'automations-card-prompt', 'automations-card-meta'],
+			prompt,
+			folder: 'workspace',
+			folderIcon: 'codicon codicon-folder',
+			decorativeIcons: ['true', 'true'],
+			sameCard: true,
+			sameActions: true,
+			focusPreserved: true,
+		});
+		automationService.setAutomations([states[2]]);
+		main.click();
+		await timeout(0);
+		assert.strictEqual(automationDialogService.lastOptions?.existing?.enabled, false);
+	});
+
 	test('preserves a temporary Working row until its session resolves', () => {
 		const { automationService, widget } = setup();
 		automationService.setAutomations([automation()]);
