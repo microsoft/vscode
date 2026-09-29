@@ -67,12 +67,23 @@ export class OTelStaleConfigMonitor {
 		if (this._handledFingerprint === fingerprint) {
 			return drift;
 		}
+		const record = this._host.getRestartRecord();
+		if (record?.fingerprint === fingerprint && record.sessionId !== active.config.sessionId) {
+			this._handledFingerprint = fingerprint;
+			this._logService.warn('[OTel] Telemetry recovery was already attempted for this configuration. Not prompting for another window reload.');
+			return drift;
+		}
 		if (drift === OTelConfigDrift.User || drift === OTelConfigDrift.Withdrawal) {
 			this._handledFingerprint = fingerprint;
 			this._host.promptReload(current);
 			return drift;
 		}
 		if (active.hasEnterpriseSettings || active.config.enabledExplicitly || !isPolicyEnabledOtlp(current)) {
+			try {
+				await this._host.setRestartRecord({ sessionId: active.config.sessionId, fingerprint, acknowledged: false });
+			} catch (error) {
+				this._logService.warn(`[OTel] Cannot store the telemetry policy reload guard: ${error}`);
+			}
 			this._handledFingerprint = fingerprint;
 			if (!this._policyNoticeShown) {
 				this._policyNoticeShown = true;
@@ -80,9 +91,7 @@ export class OTelStaleConfigMonitor {
 			}
 			return drift;
 		}
-
 		const changed = describeOTelConfigDrift(active.config, current.config).join(', ');
-		const record = this._host.getRestartRecord();
 		if (record?.sessionId === active.config.sessionId) {
 			this._handledFingerprint = fingerprint;
 			this._logService.warn(`[OTel] Automatic telemetry recovery was already attempted in this editor session (${changed}). Not restarting again.`);
@@ -132,7 +141,8 @@ function isPolicyEnabledOtlp(resolution: IResolvedOTelConfig): boolean {
 
 function fingerprintOf(resolution: IResolvedOTelConfig): string {
 	const sha = new StringSHA1();
-	sha.update(JSON.stringify([resolution.config, resolution.defaultValues], (_key, value) =>
+	const { sessionId: _, ...config } = resolution.config;
+	sha.update(JSON.stringify([config, resolution.defaultValues], (_key, value) =>
 		value && typeof value === 'object' && !Array.isArray(value)
 			? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0))
 			: value));

@@ -24,7 +24,7 @@ import { AgentHostStartError, IAgentHostConnection, IAgentHostShutdownRequest, I
 import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
-import { deepClone } from '../../../base/common/objects.js';
+import { deepClone, equals } from '../../../base/common/objects.js';
 import '../common/agentHostStarter.config.contribution.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
@@ -48,6 +48,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	 * `buildAgentHostOTelEnv` in `start()`, falling back to main-process policy when absent.
 	 */
 	private _otelPolicyFromRenderer: IAgentHostOTelSettings | undefined = undefined;
+	private _otelPolicyRestartPending = false;
 
 	constructor(
 		private readonly _telemetryIds: IAgentHostForwardedTelemetryIds,
@@ -71,7 +72,17 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		// Capture the enterprise OTel policy the renderer forwards before it requests a
 		// connection (FIFO per sender ensures this lands before the spawn in `start()`).
 		const onOTelPolicy = (_e: IpcMainEvent, policy: unknown) => {
-			this._otelPolicyFromRenderer = sanitizeAgentHostOTelPolicySettings(policy);
+			const sanitizedPolicy = sanitizeAgentHostOTelPolicySettings(policy);
+			if (equals(this._otelPolicyFromRenderer, sanitizedPolicy)) {
+				return;
+			}
+			this._otelPolicyFromRenderer = sanitizedPolicy;
+			if (this.utilityProcess && !this._otelPolicyRestartPending) {
+				this._otelPolicyRestartPending = true;
+				this._logService.info('Agent Host enterprise OTel policy changed; restarting the Agent Host');
+				this._notifyWindowsWillRestart();
+				this._onRequestRestart.fire();
+			}
 		};
 		validatedIpcMain.on(AgentHostOTelPolicyIpcChannel, onOTelPolicy);
 		this._register(toDisposable(() => {
@@ -147,6 +158,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
 			resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
 		};
+		this._otelPolicyRestartPending = false;
 		const otelEnv = buildAgentHostOTelEnv({
 			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
 			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),

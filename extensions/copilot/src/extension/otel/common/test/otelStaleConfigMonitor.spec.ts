@@ -161,8 +161,23 @@ describe('OTelStaleConfigMonitor', () => {
 		settings.policy = {};
 		const third = new OTelStaleConfigMonitor(new TestResolver(settings, {}, 'new-editor-session'), host, log);
 		settings.policy = managedPolicy;
-		await startRestart(third);
-		expect(host.restarts).toBe(2);
+		expect(await third.check()).toBe(OTelConfigDrift.Policy);
+		expect(host.restarts).toBe(1);
+		expect(host.warnings).toBe(1);
+	});
+
+	it('does not repeat a managed reload prompt after the window reloads', async () => {
+		settings.policy = managedPolicy;
+		const first = newHost();
+		settings.policy = { ...managedPolicy, otlpEndpoint: 'https://changed.example' };
+		expect(await first.check()).toBe(OTelConfigDrift.Policy);
+		expect(host.prompts).toBe(1);
+
+		settings.policy = managedPolicy;
+		const second = new OTelStaleConfigMonitor(new TestResolver(settings, {}, 'reloaded-editor-session'), host, log);
+		settings.policy = { ...managedPolicy, otlpEndpoint: 'https://changed.example' };
+		expect(await second.check()).toBe(OTelConfigDrift.Policy);
+		expect(host.prompts).toBe(1);
 	});
 
 	it('canonicalizes object key order when checking the restart guard', async () => {
@@ -273,8 +288,8 @@ describe('OTelStaleConfigMonitor', () => {
 			restarts: host.restarts,
 			prompts: host.prompts,
 			warnings: host.warnings,
-			restartRecord: host.record,
-		}).toEqual({ restarts: 0, prompts: 1, warnings: 0, restartRecord: undefined });
+			restartRecord: host.record && { sessionId: host.record.sessionId, acknowledged: host.record.acknowledged },
+		}).toEqual({ restarts: 0, prompts: 1, warnings: 0, restartRecord: { sessionId: 'session', acknowledged: false } });
 	});
 
 	it('only prompts when policy is withdrawn', async () => {
