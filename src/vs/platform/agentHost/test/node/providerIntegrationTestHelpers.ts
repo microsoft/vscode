@@ -16,6 +16,7 @@ export interface IAgentHostProviderTestConfig {
 	readonly scheme: string;
 	readonly githubToken: string;
 	readonly sessionConfig?: Readonly<Record<string, unknown>>;
+	readonly clientMeta?: Readonly<Record<string, unknown>>;
 }
 
 export async function createProviderSession(
@@ -28,7 +29,12 @@ export async function createProviderSession(
 	beforeAuthenticate?: () => Promise<void>,
 ): Promise<string> {
 	client.setWorkingDirectory(workingDirectory.fsPath);
-	await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
+	await client.call('initialize', {
+		channel: ROOT_STATE_URI,
+		protocolVersions: [PROTOCOL_VERSION],
+		clientId,
+		_meta: config.clientMeta,
+	}, 30_000);
 	await beforeAuthenticate?.();
 	await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken }, 30_000);
 	await beforeCreateSession?.();
