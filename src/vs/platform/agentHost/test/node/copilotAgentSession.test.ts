@@ -1410,6 +1410,14 @@ suite('CopilotAgentSession', () => {
 			return getActions(signals).filter(action => action.type === ActionType.ChatBackgroundWorkSet || action.type === ActionType.ChatBackgroundWorkRemoved);
 		}
 
+		function agent(id: string): Extract<BackgroundTasks[number], { type: 'agent' }> {
+			return {
+				type: 'agent', id, toolCallId: `tc-${id}`, description: `Research ${id}`,
+				status: 'running', agentType: 'explore', prompt: 'Investigate',
+				startedAt: new Date(0).toISOString(), executionMode: 'background',
+			};
+		}
+
 		function publishedIds(signals: readonly AgentSignal[]) {
 			return workActions(signals).flatMap(action => action.type === ActionType.ChatBackgroundWorkSet ? [action.work.id] : []);
 		}
@@ -1464,6 +1472,27 @@ suite('CopilotAgentSession', () => {
 				{ id: 'shell:attached', attachment: 'attached' },
 				{ id: 'shell:detached', attachment: 'detached' },
 			]);
+		});
+
+		test('publishes running background subagents that point at their chats', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [
+				{ ...agent('running'), displayName: 'Reviewer' },
+				{ ...agent('idle'), status: 'idle' },
+				{ ...agent('sync'), executionMode: 'sync' },
+				{ ...agent('done'), status: 'completed' },
+			];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			assert.deepStrictEqual(workActions(signals), [{
+				type: ActionType.ChatBackgroundWorkSet,
+				work: {
+					kind: BackgroundWorkKind.Subagent, id: 'subagent:running', label: 'Reviewer',
+					startedAt: new Date(0).toISOString(),
+					chat: buildSubagentChatUri(session.ownerSessionUri.toString(), 'tc-running'),
+				},
+			}]);
 		});
 
 		test('shows a synchronous command once the runtime moves it to the background', async () => {

@@ -1926,6 +1926,16 @@ export class CopilotAgentSession extends Disposable {
 				_meta: toCopilotBackgroundShellMeta(task.id, task.attachmentMode === 'detached' ? 'detached' : 'attached'),
 			};
 		}
+		// An idle background agent has already reported back; only a running one will resume the chat.
+		if (task.type === 'agent' && task.executionMode === 'background' && task.status === 'running') {
+			return {
+				kind: BackgroundWorkKind.Subagent,
+				id: `subagent:${task.id}`,
+				label: task.displayName?.trim() || task.description,
+				startedAt: task.startedAt,
+				chat: buildSubagentChatUri(this._ownerSessionUri.toString(), task.toolCallId),
+			};
+		}
 		return undefined;
 	}
 
