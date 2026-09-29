@@ -1935,22 +1935,23 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 
 		if (options.pluginReadmeContent !== undefined) {
-			let pluginDetailContainer: HTMLElement | null = null;
+			let pluginDetailScrollHost: HTMLElement | null = null;
 			let overflowingCodeBlock: HTMLElement | null = null;
-			for (let attempt = 0; attempt < 40 && (!pluginDetailContainer || !overflowingCodeBlock); attempt++) {
+			for (let attempt = 0; attempt < 40 && (!pluginDetailScrollHost || !overflowingCodeBlock); attempt++) {
 				await timeout(50);
 				const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
+				const scrollHost = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-scrollable');
 				const detailContainer = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
 				const codeBlock = detailContainer?.querySelector<HTMLElement>('div[data-code]');
-				if (pluginDetailView?.style.display !== 'none' && detailContainer && detailContainer.scrollHeight > detailContainer.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
-					pluginDetailContainer = detailContainer;
+				if (pluginDetailView?.style.display !== 'none' && scrollHost && scrollHost.scrollHeight > scrollHost.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
+					pluginDetailScrollHost = scrollHost;
 					overflowingCodeBlock = codeBlock;
 				}
 			}
-			if (!pluginDetailContainer || !overflowingCodeBlock) {
+			if (!pluginDetailScrollHost || !overflowingCodeBlock) {
 				throw new Error('Overflowing plugin detail did not render');
 			}
-			pluginDetailContainer.scrollTop = pluginDetailContainer.scrollHeight;
+			pluginDetailScrollHost.scrollTop = pluginDetailScrollHost.scrollHeight;
 			await timeout(50);
 		}
 	}
