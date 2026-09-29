@@ -189,11 +189,6 @@ const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 1
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 const CHAT_INPUT_COMPACT_PICKER_WIDTH = 22;
-/**
- * Trailing editor space reserved when the context-usage widget is lifted into the input's top-right
- * corner (renderSecondaryControlsInInput), so the editor's first line never slides under it.
- */
-const CONTEXT_USAGE_WIDGET_TRAILING_SPACE = 72;
 
 function getToolbarPickerResponsiveItems(
 	toolbar: MenuWorkbenchToolBar,
@@ -280,12 +275,6 @@ export interface IChatInputPartOptions {
 	renderFollowups: boolean;
 	renderStyle?: 'compact';
 	renderInputToolbarBelowInput: boolean;
-	/**
-	 * Lift the secondary controls (mode / permissions pickers) into the input toolbar row and move
-	 * the context-usage widget into the input container's top-right corner, so the input matches the
-	 * Agents new-session composer layout. Positioning is handled in CSS.
-	 */
-	renderSecondaryControlsInInput?: boolean;
 	menus: {
 		executeToolbar: MenuId;
 		telemetrySource: string;
@@ -555,58 +544,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private contextUsageWidget?: ChatContextUsageWidget;
 	private contextUsageWidgetContainer!: HTMLElement;
-	/** The container the context-usage widget lives in by default (its secondary-toolbar home). */
-	private contextUsageWidgetHome!: HTMLElement;
-	/** Horizontal space reserved at the trailing edge of the input editor (e.g. for an overlaid widget). */
-	private inputEditorTrailingSpace = 0;
 	private readonly _contextUsageDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
-	}
-
-	/**
-	 * Moves the context-usage widget into {@link container}, or back to its default secondary-toolbar
-	 * home when omitted. Used by the Agents composer to lift the widget into the input's top-right
-	 * corner (positioned via CSS). Pair with {@link setInputEditorTrailingSpace} to reserve room so
-	 * the editor's first line never slides underneath it.
-	 */
-	placeContextUsageWidget(container?: HTMLElement): void {
-		(container ?? this.contextUsageWidgetHome).append(this.contextUsageWidgetContainer);
-	}
-
-	/** Reserves horizontal space at the trailing edge of the input editor. */
-	setInputEditorTrailingSpace(width: number): void {
-		const trailingSpace = Math.max(0, width);
-		if (this.inputEditorTrailingSpace === trailingSpace) {
-			return;
-		}
-		this.inputEditorTrailingSpace = trailingSpace;
-		this.layoutForToolbarChange();
-	}
-
-	/**
-	 * Moves the model picker out of the add-context input toolbar into a right-aligned slot in the
-	 * toolbar row, so the experimental Agents layout matches the composer order
-	 * ("+ Add Context", mode/permissions, then a right-aligned model before the execute controls).
-	 * The model picker is a MenuId.ChatInput item the toolbar recreates on every menu change, so
-	 * this is re-applied from {@link inputActionsToolbar}'s onDidChangeMenuItems. Marker classes
-	 * drive the flex order/right-alignment in CSS. The toolbar tracks its items by index rather than
-	 * DOM position, so relocating the element does not break responsive compaction.
-	 */
-	private _relocateModelPickerForInputLayout(toolbarsContainer: HTMLElement): void {
-		const modelElement = this.modelWidget?.element;
-		if (!modelElement) {
-			return;
-		}
-		let relocatedContainer = toolbarsContainer.querySelector('.chat-input-relocated-model-picker') as HTMLElement | null;
-		if (!relocatedContainer) {
-			relocatedContainer = dom.$('.chat-input-relocated-model-picker.chat-input-toolbar');
-			toolbarsContainer.appendChild(relocatedContainer);
-		}
-		if (modelElement.parentElement !== relocatedContainer) {
-			relocatedContainer.appendChild(modelElement);
-		}
 	}
 
 	get customizationMigrationNoticeContainerElement(): HTMLElement {
@@ -3413,25 +3354,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		));
 		this.chatGoalBannerContainer = elements.chatGoalBannerContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
-		this.contextUsageWidgetHome = this.options.renderStyle === 'compact' ? toolbarsContainer : this.secondaryToolbarContainer;
 		this.statusToolbarContainer = elements.statusToolbarContainer;
 
 		if (this.options.renderStyle === 'compact') {
 			toolbarsContainer.prepend(this.contextUsageWidgetContainer);
-		}
-
-		if (this.options.renderSecondaryControlsInInput) {
-			// Lift the context-usage widget into the input's top-right corner (positioned via CSS)
-			// and reserve trailing editor space so the first line of text never slides underneath
-			// it. Reusing placeContextUsageWidget / setInputEditorTrailingSpace (the same mechanism
-			// as the earlier composer work) keeps the widget absolutely positioned and out of flow,
-			// so it can never widen the input and desync the composer/editor width — the split-width
-			// mismatch fixed in microsoft/vscode#337490. The marker class binds that out-of-flow
-			// positioning to the reparent. The secondary controls (mode / permissions) are moved
-			// into the input toolbar row after it is created, so the add-context button stays first.
-			inputContainer.classList.add('chat-secondary-controls-in-input');
-			this.placeContextUsageWidget(inputContainer);
-			this.inputEditorTrailingSpace = CONTEXT_USAGE_WIDGET_TRAILING_SPACE;
 		}
 
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
@@ -3799,16 +3725,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
-		if (this.options.renderSecondaryControlsInInput) {
-			// Place the mode / permissions pickers immediately after the add-context toolbar so the
-			// input row matches the Agents composer order ("+ Add Context", then mode/permissions,
-			// then the model, then the execute controls) without displacing the add-context button.
-			// The model picker is a MenuId.ChatInput item nested inside the add-context toolbar, so
-			// it is relocated to a right-aligned slot in the toolbar row (see
-			// _relocateModelPickerForInputLayout) — CSS order/margin can't reach it in place.
-			this.inputActionsToolbar.getElement().after(responsivePickerContainer);
-			this._relocateModelPickerForInputLayout(toolbarsContainer);
-		}
 		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
 			// Update container reference for the pickers (cloud sessions host them in the primary toolbar)
@@ -3817,11 +3733,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const primaryPickerContainer = toolbarElement.querySelector('.chat-sessionPicker-container');
 			if (primaryPickerContainer) {
 				this.chatSessionPickerContainer = primaryPickerContainer as HTMLElement;
-			}
-			// The toolbar recreates its items (including the model picker) on menu changes, so move
-			// the model picker back into its right-aligned slot after every rebuild.
-			if (this.options.renderSecondaryControlsInInput) {
-				this._relocateModelPickerForInputLayout(toolbarsContainer);
 			}
 			if (this.cachedWidth && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
 				this._toolbarRelayoutScheduler.schedule();
@@ -5289,7 +5200,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		const newEditorWidth = Math.max(0, width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth - this.inputEditorTrailingSpace);
+		const newEditorWidth = Math.max(0, width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth);
 		const effectiveMaxHeight = this._effectiveInputEditorMaxHeight;
 		const contentHeight = preserveInputEditorHeight && this.previousInputEditorDimension
 			? this.previousInputEditorDimension.height

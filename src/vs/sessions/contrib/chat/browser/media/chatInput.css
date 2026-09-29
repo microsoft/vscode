@@ -243,55 +243,6 @@
 	justify-content: flex-end;
 }
 
-/*
- * Experimental in-session layout (renderSecondaryControlsInInput): order the input toolbar row to
- * match the new-session composer — add-context toolbar, then the mode/permissions pickers, then a
- * right-aligned model picker (relocated out of the add-context toolbar by ChatInputPart), then the
- * execute (voice/send) controls.
- */
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-toolbar:not(.chat-input-relocated-model-picker) {
-	order: 0;
-	/* Stay compact on the left so only the model's margin-left creates the gap (not this toolbar growing). */
-	flex: 0 1 auto;
-}
-
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-responsive-picker-container {
-	order: 1;
-}
-
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-relocated-model-picker {
-	order: 2;
-	flex: 0 0 auto;
-	min-width: 0;
-	display: flex;
-	align-items: center;
-	/* Push the model (and the execute controls after it) to the right, mirroring the composer. */
-	margin-left: auto;
-}
-
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-execute-toolbar {
-	order: 3;
-}
-
-/*
- * The context-usage widget is reparented into the input container (ChatInputPart, gated on
- * renderSecondaryControlsInInput) and sits absolutely in the input's top-right corner. Binding the
- * positioning to the .chat-secondary-controls-in-input marker the reparent adds — rather than the
- * reactive composer class — guarantees the widget is always out of flow when it lives in the input,
- * so it can never widen the input and desync the composer/editor width (see microsoft/vscode#337490).
- */
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat .chat-input-container.chat-secondary-controls-in-input {
-	position: relative;
-}
-
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat .chat-input-container.chat-secondary-controls-in-input > .chat-context-usage-container {
-	position: absolute;
-	top: var(--vscode-spacing-size120);
-	/* Align the widget's right edge with the send button below it. */
-	right: var(--vscode-spacing-size60);
-	z-index: 1;
-}
-
 .experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls {
 	justify-content: flex-start;
 	flex: 0 1 auto;
