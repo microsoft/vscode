@@ -566,6 +566,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.layoutForToolbarChange();
 	}
 
+	private _relocateModelPickerForInputLayout(toolbarsContainer: HTMLElement): void {
+		const modelElement = this.modelWidget?.element;
+		if (!modelElement) {
+			return;
+		}
+		let relocatedContainer = toolbarsContainer.querySelector('.chat-input-relocated-model-picker') as HTMLElement | null;
+		if (!relocatedContainer) {
+			relocatedContainer = dom.$('.chat-input-relocated-model-picker.chat-input-toolbar');
+			toolbarsContainer.appendChild(relocatedContainer);
+		}
+		if (modelElement.parentElement !== relocatedContainer) {
+			relocatedContainer.appendChild(modelElement);
+		}
+	}
+
 	get customizationMigrationNoticeContainerElement(): HTMLElement {
 		return this.chatCustomizationMigrationNoticeContainer;
 	}
@@ -3746,6 +3761,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
+		if (this.options.renderSecondaryControlsInInput) {
+			this._relocateModelPickerForInputLayout(toolbarsContainer);
+		}
 		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
 			// Update container reference for the pickers (cloud sessions host them in the primary toolbar)
@@ -3754,6 +3772,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const primaryPickerContainer = toolbarElement.querySelector('.chat-sessionPicker-container');
 			if (primaryPickerContainer) {
 				this.chatSessionPickerContainer = primaryPickerContainer as HTMLElement;
+			}
+			if (this.options.renderSecondaryControlsInInput) {
+				this._relocateModelPickerForInputLayout(toolbarsContainer);
 			}
 			if (this.cachedWidth && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
 				this._toolbarRelayoutScheduler.schedule();

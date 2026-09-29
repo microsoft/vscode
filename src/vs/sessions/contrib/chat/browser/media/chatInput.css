@@ -271,9 +271,17 @@
 	margin-right: 0;
 }
 
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-execute-toolbar {
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-relocated-model-picker {
 	order: 2;
+	flex: 0 0 auto;
+	min-width: 0;
+	display: flex;
+	align-items: center;
 	margin-left: auto;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-execute-toolbar {
+	order: 3;
 }
 
 .experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls {
