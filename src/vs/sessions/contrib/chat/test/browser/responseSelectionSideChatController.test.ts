@@ -19,9 +19,10 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationHandle, INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatResponseViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, ResponseSelectionSideChatController } from '../../browser/responseSelectionSideChatController.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_WIDGET_SETTING, ResponseSelectionSideChatController, ResponseSelectionWidgetMode } from '../../browser/responseSelectionSideChatController.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -53,7 +54,7 @@ suite('ResponseSelectionSideChatController', () => {
 		createSideChatInSession?: ISessionsManagementService['createSideChatInSession'];
 		sendRequest?: ISessionsManagementService['sendRequest'];
 		getElementFromNode?: IChatWidget['getElementFromNode'];
-		enhancedSelectionMenu?: boolean;
+		responseSelectionWidget?: ResponseSelectionWidgetMode;
 		initialInput?: string;
 		chatInteractivity?: ChatInteractivity;
 	}) {
@@ -258,9 +259,17 @@ suite('ResponseSelectionSideChatController', () => {
 		const callOrder: string[] = [];
 		const clipboardWrites: string[] = [];
 		const telemetryEvents: { name: string; data: unknown }[] = [];
+		const telemetryService = new class extends TestExperimentTriggerTelemetryService {
+			override publicLog2(name?: string, data?: object): void {
+				super.publicLog2(name, data);
+				if (name !== 'experimentTrigger') {
+					telemetryEvents.push({ name: name ?? '', data });
+				}
+			}
+		}();
 		const notificationService = new RecordingNotificationService();
 		const configurationService = new TestConfigurationService({
-			[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: options?.enhancedSelectionMenu ?? false,
+			[AGENT_SESSIONS_RESPONSE_SELECTION_WIDGET_SETTING]: options?.responseSelectionWidget ?? ResponseSelectionWidgetMode.Ask,
 		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
@@ -287,9 +296,7 @@ suite('ResponseSelectionSideChatController', () => {
 			writeText: async text => { clipboardWrites.push(text); },
 		}));
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(ITelemetryService, upcastPartial<ITelemetryService>({
-			publicLog2: (name, data) => { telemetryEvents.push({ name, data }); },
-		}));
+		instantiationService.stub(ITelemetryService, telemetryService);
 
 		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget));
 		controller.setChat(chat);
@@ -347,6 +354,7 @@ suite('ResponseSelectionSideChatController', () => {
 			inputValue: () => inputValue,
 			clipboardWrites,
 			telemetryEvents,
+			experimentTriggers: telemetryService.triggers,
 			notificationService,
 			highlightedRanges,
 			inputHeight: () => inputDomNode(controller).offsetHeight,
@@ -433,8 +441,25 @@ suite('ResponseSelectionSideChatController', () => {
 		assert.strictEqual(inputDomNode(controller).style.display, 'none');
 	});
 
-	test('shows the enhanced action menu only when the experiment setting is enabled', () => {
-		const { controller, setSelection } = setup({ enhancedSelectionMenu: true });
+	for (const mode of [ResponseSelectionWidgetMode.Ask, ResponseSelectionWidgetMode.MenuWithCopy, ResponseSelectionWidgetMode.Menu]) {
+		test(`reports the response-selection experiment trigger in ${mode} mode`, () => {
+			const { setSelection, experimentTriggers } = setup({ responseSelectionWidget: mode });
+			const beforeSelection = [...experimentTriggers];
+
+			setSelection('hello world');
+
+			assert.deepStrictEqual({
+				beforeSelection,
+				afterSelection: experimentTriggers,
+			}, {
+				beforeSelection: [],
+				afterSelection: [`config.${AGENT_SESSIONS_RESPONSE_SELECTION_WIDGET_SETTING}`],
+			});
+		});
+	}
+
+	test('shows the action menu without Copy when configured', () => {
+		const { controller, setSelection } = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.Menu });
 
 		setSelection('hello world');
 
@@ -447,7 +472,27 @@ suite('ResponseSelectionSideChatController', () => {
 			inputVisible: false,
 			menuVisible: true,
 			menuRole: 'Selected response text actions',
+			actions: ['Ask in a Side Chat', 'Quote'],
+		});
+	});
+
+	test('shows the action menu with Copy when configured', () => {
+		const { controller, setSelection, telemetryEvents } = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.MenuWithCopy });
+
+		setSelection('hello world');
+
+		assert.deepStrictEqual({
+			inputVisible: inputDomNode(controller).style.display !== 'none',
+			menuVisible: menuDomNode(controller).style.display !== 'none',
+			actions: menuActionLabels(controller),
+			telemetryEvents,
+		}, {
+			inputVisible: false,
+			menuVisible: true,
 			actions: ['Ask in a Side Chat', 'Quote', 'Copy'],
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
 		});
 	});
 
@@ -460,7 +505,7 @@ suite('ResponseSelectionSideChatController', () => {
 			setSelectionOutsideTranscript,
 			setSelectionWithoutEvent,
 			telemetryEvents,
-		} = setup({ enhancedSelectionMenu: true });
+		} = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.Menu });
 
 		beginPointerSelection();
 		setSelection('hello world');
@@ -481,9 +526,9 @@ suite('ResponseSelectionSideChatController', () => {
 			visibleDuringDrag: false,
 			visibleAfterTransientSelection: false,
 			visibleAfterRelease: true,
-			actions: ['Ask in a Side Chat', 'Quote', 'Copy'],
+			actions: ['Ask in a Side Chat', 'Quote'],
 			telemetryEvents: [
-				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenuWithoutCopy', action: 'shown' } },
 			],
 		});
 	});
@@ -496,7 +541,7 @@ suite('ResponseSelectionSideChatController', () => {
 			finishPointerSelection,
 			setSelection,
 			telemetryEvents,
-		} = setup({ enhancedSelectionMenu: true });
+		} = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.Menu });
 
 		beginPointerSelection(transcriptDomNode);
 		setSelection('hello world');
@@ -512,7 +557,7 @@ suite('ResponseSelectionSideChatController', () => {
 			visibleDuringDrag: false,
 			visibleAfterRelease: true,
 			telemetryEvents: [
-				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenuWithoutCopy', action: 'shown' } },
 			],
 		});
 	});
@@ -526,7 +571,7 @@ suite('ResponseSelectionSideChatController', () => {
 			setSelection,
 			focusResponseItemCalls,
 			telemetryEvents,
-		} = setup({ enhancedSelectionMenu: true });
+		} = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.Menu });
 
 		setSelection('hello world');
 		triggerMenuAction(controller, 'Ask in a Side Chat');
@@ -549,8 +594,8 @@ suite('ResponseSelectionSideChatController', () => {
 			inputFocused: true,
 			focusResponseItemCalls: [],
 			telemetryEvents: [
-				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
-				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'askQuestionOpened' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenuWithoutCopy', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenuWithoutCopy', action: 'askQuestionOpened' } },
 			],
 		});
 	});
@@ -564,7 +609,7 @@ suite('ResponseSelectionSideChatController', () => {
 			setSelectionOutsideTranscript,
 			autoScrollHolds,
 			telemetryEvents,
-		} = setup({ enhancedSelectionMenu: true });
+		} = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.Menu });
 
 		beginPointerSelection();
 		setSelection('hello world');
@@ -592,7 +637,7 @@ suite('ResponseSelectionSideChatController', () => {
 			setSelection,
 			waitForAnimationFrame,
 			telemetryEvents,
-		} = setup({ enhancedSelectionMenu: true });
+		} = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.Menu });
 
 		beginPointerSelection(undefined, 1);
 		setSelection('hello world');
@@ -612,7 +657,7 @@ suite('ResponseSelectionSideChatController', () => {
 			menuVisibleAfterSecondaryCancel: false,
 			menuVisibleAfterPrimaryRelease: true,
 			telemetryEvents: [
-				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenuWithoutCopy', action: 'shown' } },
 			],
 		});
 	});
@@ -625,7 +670,7 @@ suite('ResponseSelectionSideChatController', () => {
 			setSelection,
 			waitForAnimationFrame,
 			telemetryEvents,
-		} = setup({ enhancedSelectionMenu: true });
+		} = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.Menu });
 
 		beginPointerSelection(undefined, 1);
 		setSelection('hello world');
@@ -647,7 +692,7 @@ suite('ResponseSelectionSideChatController', () => {
 			menuVisibleDuringSecondDrag: false,
 			menuVisibleAfterSecondRelease: true,
 			telemetryEvents: [
-				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenuWithoutCopy', action: 'shown' } },
 			],
 		});
 	});
@@ -660,7 +705,7 @@ suite('ResponseSelectionSideChatController', () => {
 			setSelection,
 			waitForAnimationFrame,
 			telemetryEvents,
-		} = setup({ enhancedSelectionMenu: true });
+		} = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.Menu });
 
 		beginPointerSelection();
 		setSelection('hello world');
@@ -686,7 +731,7 @@ suite('ResponseSelectionSideChatController', () => {
 			setDirectionalSelection,
 			selectionFocusRects,
 			setTranscriptRect,
-		} = setup({ enhancedSelectionMenu: true });
+		} = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.MenuWithCopy });
 		setTranscriptRect({ top: 0, left: 0, width: 1000, height: 600 });
 
 		beginPointerSelection();
@@ -734,7 +779,7 @@ suite('ResponseSelectionSideChatController', () => {
 	});
 
 	test('anchors a forward soft-wrap selection to the last selected character line', () => {
-		const { controller, setWrappedSelection, wrappedFocusCharacterRect } = setup({ enhancedSelectionMenu: true });
+		const { controller, setWrappedSelection, wrappedFocusCharacterRect } = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.MenuWithCopy });
 
 		setWrappedSelection();
 
@@ -813,7 +858,7 @@ suite('ResponseSelectionSideChatController', () => {
 	});
 
 	test('re-evaluates the side when scrolling moves the focus to a constrained edge', () => {
-		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect, scroll } = setup({ enhancedSelectionMenu: true });
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect, scroll } = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.MenuWithCopy });
 		setTranscriptRect({ top: 0, left: 0, width: 600, height: 300 });
 		setDirectionalSelection('forward', 0);
 		const menu = menuDomNode(controller);
@@ -838,7 +883,7 @@ suite('ResponseSelectionSideChatController', () => {
 	});
 
 	test('re-evaluates the side when transcript bounds shrink around a stationary focus', () => {
-		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect, scroll } = setup({ enhancedSelectionMenu: true });
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect, scroll } = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.MenuWithCopy });
 		setTranscriptRect({ top: 0, left: 0, width: 600, height: 600 });
 		setDirectionalSelection('forward', 120);
 		const menu = menuDomNode(controller);
@@ -884,7 +929,7 @@ suite('ResponseSelectionSideChatController', () => {
 	});
 
 	test('positions the question input from surviving text after the focus endpoint is re-rendered', () => {
-		const { controller, setDirectionalSelection, detachDirectionalFocusEndpoint, remainingDirectionalFocusCharacterRect } = setup({ enhancedSelectionMenu: true });
+		const { controller, setDirectionalSelection, detachDirectionalFocusEndpoint, remainingDirectionalFocusCharacterRect } = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.MenuWithCopy });
 		setDirectionalSelection('forward', 120);
 
 		detachDirectionalFocusEndpoint();
@@ -924,7 +969,7 @@ suite('ResponseSelectionSideChatController', () => {
 	});
 
 	test('flips a forward selection above its focus endpoint when constrained below', () => {
-		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect } = setup({ enhancedSelectionMenu: true });
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect } = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.MenuWithCopy });
 		setTranscriptRect({ top: 0, left: 0, width: 600, height: 350 });
 
 		setDirectionalSelection('forward', 160);
@@ -944,7 +989,7 @@ suite('ResponseSelectionSideChatController', () => {
 	});
 
 	test('clamps to the preferred side when neither side fits', () => {
-		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect } = setup({ enhancedSelectionMenu: true });
+		const { controller, setDirectionalSelection, selectionFocusRects, setTranscriptRect } = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.MenuWithCopy });
 		setTranscriptRect({ top: 0, left: 0, width: 600, height: 600 });
 		const menu = menuDomNode(controller);
 		setDirectionalSelection('forward', 0);
@@ -965,7 +1010,7 @@ suite('ResponseSelectionSideChatController', () => {
 	});
 
 	test('Escape dismisses the focused enhanced menu and restores transcript focus', () => {
-		const { controller, setSelection, focusResponseItemCalls } = setup({ enhancedSelectionMenu: true });
+		const { controller, setSelection, focusResponseItemCalls } = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.Menu });
 		setSelection('hello world');
 		const menu = menuDomNode(controller).querySelector<HTMLElement>('[role="menu"]');
 		assert.ok(menu);
@@ -983,7 +1028,7 @@ suite('ResponseSelectionSideChatController', () => {
 	});
 
 	test('opens the anchored question input from Ask in a Side Chat and attributes telemetry to the action menu', () => {
-		const { controller, setSelection, telemetryEvents } = setup({ enhancedSelectionMenu: true });
+		const { controller, setSelection, telemetryEvents } = setup({ responseSelectionWidget: ResponseSelectionWidgetMode.Menu });
 		setSelection('hello world');
 
 		triggerMenuAction(controller, 'Ask in a Side Chat');
@@ -997,16 +1042,16 @@ suite('ResponseSelectionSideChatController', () => {
 			inputVisible: true,
 			menuVisible: false,
 			telemetryEvents: [
-				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
-				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'askQuestionOpened' } },
-				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'askQuestionSubmitted' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenuWithoutCopy', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenuWithoutCopy', action: 'askQuestionOpened' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenuWithoutCopy', action: 'askQuestionSubmitted' } },
 			],
 		});
 	});
 
 	test('quotes the selection at the end of the current chat input', () => {
 		const { controller, setSelection, inputValue, focusInputCalls, telemetryEvents } = setup({
-			enhancedSelectionMenu: true,
+			responseSelectionWidget: ResponseSelectionWidgetMode.Menu,
 			initialInput: 'Existing prompt',
 		});
 		setSelection('first line\nsecond line');
@@ -1023,15 +1068,15 @@ suite('ResponseSelectionSideChatController', () => {
 			focusInputCalls: 1,
 			menuVisible: false,
 			telemetryEvents: [
-				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
-				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'quote' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenuWithoutCopy', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenuWithoutCopy', action: 'quote' } },
 			],
 		});
 	});
 
 	test('disables Quote for read-only chats', () => {
 		const { controller, setSelection, inputValue, focusInputCalls, telemetryEvents } = setup({
-			enhancedSelectionMenu: true,
+			responseSelectionWidget: ResponseSelectionWidgetMode.Menu,
 			initialInput: 'Existing prompt',
 			chatInteractivity: ChatInteractivity.ReadOnly,
 		});
@@ -1049,13 +1094,15 @@ suite('ResponseSelectionSideChatController', () => {
 			inputValue: 'Existing prompt',
 			focusInputCalls: 0,
 			telemetryEvents: [
-				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenuWithoutCopy', action: 'shown' } },
 			],
 		});
 	});
 
-	test('copies the exact selection and records the action', async () => {
-		const { controller, setSelection, clipboardWrites, telemetryEvents } = setup({ enhancedSelectionMenu: true });
+	test('copies the exact selection from the menu with Copy', async () => {
+		const { controller, setSelection, clipboardWrites, telemetryEvents } = setup({
+			responseSelectionWidget: ResponseSelectionWidgetMode.MenuWithCopy,
+		});
 		setSelection('hello world');
 
 		triggerMenuAction(controller, 'Copy');
@@ -1196,6 +1243,34 @@ suite('ResponseSelectionSideChatController', () => {
 		scroll(60);
 
 		assert.strictEqual(parseFloat(style.top), initialTop - 40);
+	});
+
+	test('anchors the menu to the active endpoint and preferred side for each selection direction', () => {
+		const { controller, setDirectionalSelection, selectionFocusRects } = setup({
+			responseSelectionWidget: ResponseSelectionWidgetMode.Menu,
+		});
+		const menu = menuDomNode(controller);
+
+		setDirectionalSelection('forward', 200);
+		const forwardTop = parseFloat(menu.style.top);
+		const forwardLeft = parseFloat(menu.style.left);
+		const { first, last } = selectionFocusRects();
+
+		setDirectionalSelection('backward', 200);
+		const backwardTop = parseFloat(menu.style.top);
+		const backwardLeft = parseFloat(menu.style.left);
+
+		assert.deepStrictEqual({
+			forwardBelow: Math.abs(forwardTop - (last.bottom + 4)) < 0.5,
+			forwardAtFocusEdge: Math.abs(forwardLeft - last.right) < 0.5,
+			backwardAbove: Math.abs(backwardTop - (first.top - menu.offsetHeight - 4)) < 0.5,
+			backwardAtFocusEdge: Math.abs(backwardLeft - first.left) < 0.5,
+		}, {
+			forwardBelow: true,
+			forwardAtFocusEdge: true,
+			backwardAbove: true,
+			backwardAtFocusEdge: true,
+		});
 	});
 
 	test('confines the overlay to the transcript even when the widget extends past it', () => {
