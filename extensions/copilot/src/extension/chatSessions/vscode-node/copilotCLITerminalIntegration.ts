@@ -28,6 +28,11 @@ const COPILOT_SHIM_DIRECTORY = 'copilot-shim';
 const COPILOT_ICON = new ThemeIcon('copilot');
 
 /**
+ * Core setting, controlled by the `CopilotCliCommand` policy, that turns off the native shim in terminals.
+ */
+const COPILOT_CLI_COMMAND_ENABLED_SETTING = 'chat.copilotCliCommand.enabled';
+
+/**
  * Directory in global storage where earlier versions wrote script shims. It is removed on startup.
  */
 const LEGACY_SHIM_DIRECTORY = 'copilotCli';
@@ -80,9 +85,13 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 	declare _serviceBrand: undefined;
 	private readonly initialization: Promise<void>;
 	/**
-	 * The native shim when it ships with this build; otherwise `copilot`, resolved from PATH.
+	 * The native shim when it ships with this build and is enabled; otherwise `copilot`, resolved from PATH.
 	 */
 	private copilotCommand: string = COPILOT_CLI_COMMAND;
+	/**
+	 * The native shim, when it ships with this build.
+	 */
+	private nativeShimPath: string | undefined;
 	private readonly pythonTerminalService: PythonTerminalService;
 	private readonly _linkProvider: CopilotCLITerminalLinkProvider | undefined;
 	constructor(
@@ -92,7 +101,7 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 		@IEnvService private readonly envService: IEnvService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceService workspaceService: IWorkspaceService,
 		@IOTelService private readonly _otelService: IOTelService,
 	) {
@@ -110,13 +119,16 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 
 		const shimPath = getNativeCopilotShimPath(process.platform, process.execPath, this.envService.appRoot);
 		if (await isFile(shimPath)) {
-			this.copilotCommand = shimPath;
-			this.terminalService.contributePath('copilot-cli', path.dirname(shimPath), { command: COPILOT_CLI_COMMAND });
+			this.nativeShimPath = shimPath;
 		} else {
-			// Also drops a PATH contribution persisted by earlier versions that pointed at the legacy script shims.
-			this.terminalService.removePathContribution('copilot-cli');
 			this.logService.info(`[CopilotCLITerminalIntegration] The native copilot shim was not found at ${shimPath}; terminals run copilot from PATH.`);
 		}
+		this.updateCopilotCommand();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(COPILOT_CLI_COMMAND_ENABLED_SETTING)) {
+				this.updateCopilotCommand();
+			}
+		}));
 
 		const provideTerminalProfile = async () => {
 			const shellInfo = await this.getShellInfo([]);
@@ -139,6 +151,27 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 			});
 		};
 		this._register(window.registerTerminalProfileProvider('copilot-cli', { provideTerminalProfile }));
+	}
+
+	/**
+	 * Uses the native shim, and adds its directory to the terminal PATH, unless it is missing or
+	 * `chat.copilotCliCommand.enabled` (or its `CopilotCliCommand` policy) turns it off. A Copilot CLI on PATH keeps
+	 * working either way.
+	 */
+	private updateCopilotCommand(): void {
+		const enabled = this.configurationService.getNonExtensionConfig<boolean>(COPILOT_CLI_COMMAND_ENABLED_SETTING) !== false;
+		if (enabled && this.nativeShimPath) {
+			this.copilotCommand = this.nativeShimPath;
+			this.terminalService.contributePath('copilot-cli', path.dirname(this.nativeShimPath), { command: COPILOT_CLI_COMMAND });
+			return;
+		}
+
+		this.copilotCommand = COPILOT_CLI_COMMAND;
+		// Also drops a PATH contribution persisted by earlier versions that pointed at the legacy script shims.
+		this.terminalService.removePathContribution('copilot-cli');
+		if (!enabled && this.nativeShimPath) {
+			this.logService.info(`[CopilotCLITerminalIntegration] ${COPILOT_CLI_COMMAND_ENABLED_SETTING} is off; terminals run copilot from PATH.`);
+		}
 	}
 
 	private async removeLegacyShims(): Promise<void> {

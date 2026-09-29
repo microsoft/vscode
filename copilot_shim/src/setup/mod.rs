@@ -17,7 +17,7 @@ use crate::candidate::discover;
 use crate::install::HostTarget;
 use crate::invocation::{InstallMode, InstallOptions, ProbeOptions, ProbeScope};
 use crate::runtime::{
-	EnvironmentEffects, FileSystemEffects, InspectedFileType, PathInspection,
+	EnvironmentEffects, FileSystemEffects, InspectedFileType, PathInspection, PolicyEffects,
 	UserInteractionEffects,
 };
 
@@ -26,6 +26,9 @@ pub(crate) mod windows;
 
 /// Version of the setup contract. VS Code setup rejects probe results that report a different version.
 pub(crate) const PROTOCOL_VERSION: u32 = 1;
+
+/// The VS Code policy that turns off the `copilot` command that VS Code provides, including installing the CLI.
+pub(crate) const COPILOT_CLI_COMMAND_POLICY: &str = "CopilotCliCommand";
 
 #[cfg(windows)]
 const DEFAULT_RELEASES_URL: &str = "https://github.com/github/copilot-cli/releases";
@@ -225,9 +228,10 @@ pub(crate) fn info() -> i32 {
 
 pub(crate) fn probe<R>(runtime: &R, target: Option<HostTarget>, options: &ProbeOptions) -> i32
 where
-	R: EnvironmentEffects + FileSystemEffects + UserInteractionEffects,
+	R: EnvironmentEffects + FileSystemEffects + UserInteractionEffects + PolicyEffects,
 {
 	let deadline = Instant::now() + options.timeout;
+	let policy_disabled = runtime.copilot_cli_command_disabled();
 	let search_path = probe_search_path(runtime, options.scope);
 	let mut reasons = Vec::new();
 	let cli = find_cli(runtime, search_path.clone()).unwrap_or_else(|error| {
@@ -240,7 +244,12 @@ where
 	);
 	let power_shell = !windows_target || find_power_shell(runtime, search_path.as_ref());
 
-	let download = if options.network {
+	let download = if policy_disabled {
+		reasons.push(format!(
+			"the {COPILOT_CLI_COMMAND_POLICY} policy is disabled"
+		));
+		None
+	} else if options.network {
 		probe_download_before(target, deadline)
 			.map_err(|error| reasons.push(format!("download: {error}")))
 			.ok()
@@ -257,6 +266,14 @@ where
 			String::from(match options.scope {
 				ProbeScope::User => "user",
 				ProbeScope::Machine => "machine",
+			}),
+		),
+		(
+			"policy",
+			String::from(if policy_disabled {
+				"disabled"
+			} else {
+				"allowed"
 			}),
 		),
 		("cliFound", flag(cli.is_some())),
@@ -377,6 +394,7 @@ pub(crate) enum InstallStatus {
 	Installed,
 	AlreadyInstalled,
 	Unsupported,
+	Policy,
 	Network,
 	Verification,
 	Msiexec,
@@ -390,6 +408,7 @@ impl InstallStatus {
 			Self::Installed => "installed",
 			Self::AlreadyInstalled => "alreadyInstalled",
 			Self::Unsupported => "unsupported",
+			Self::Policy => "policy",
 			Self::Network => "network",
 			Self::Verification => "verification",
 			Self::Msiexec => "msiexec",
@@ -401,6 +420,7 @@ impl InstallStatus {
 	pub(crate) fn exit_code(self) -> i32 {
 		match self {
 			Self::Installed | Self::AlreadyInstalled => 0,
+			Self::Policy => 10,
 			Self::Network => 20,
 			Self::Verification => 30,
 			Self::Msiexec => 40,
@@ -545,15 +565,25 @@ impl InstallReporter for ConsoleReporter {
 
 pub(crate) fn install<R>(runtime: &R, target: Option<HostTarget>, options: &InstallOptions) -> i32
 where
-	R: EnvironmentEffects + FileSystemEffects + UserInteractionEffects,
+	R: EnvironmentEffects + FileSystemEffects + UserInteractionEffects + PolicyEffects,
 {
+	let policy_outcome = runtime.copilot_cli_command_disabled().then(|| {
+		InstallOutcome::failed(
+			InstallStatus::Policy,
+			format!(
+				"installing GitHub Copilot CLI from VS Code is turned off by the {COPILOT_CLI_COMMAND_POLICY} policy"
+			),
+		)
+	});
 	match &options.mode {
 		InstallMode::Interactive => {
-			let mut reporter = ConsoleReporter {
-				last_phase: None,
-				last_percent: None,
-			};
-			let outcome = install_cli(target, &mut reporter);
+			let outcome = policy_outcome.unwrap_or_else(|| {
+				let mut reporter = ConsoleReporter {
+					last_phase: None,
+					last_percent: None,
+				};
+				install_cli(target, &mut reporter)
+			});
 			match outcome.status {
 				InstallStatus::Installed => eprintln!(
 					"Installed GitHub Copilot CLI{}.",
@@ -593,24 +623,27 @@ where
 			#[cfg(not(windows))]
 			let _ = running_mutex;
 
-			let outcome = match find_cli(runtime, runtime.path()) {
-				Ok(Some(path)) => InstallOutcome {
-					status: InstallStatus::AlreadyInstalled,
-					reason: String::new(),
-					installer_exit_code: 0,
-					cli_path: Some(path),
-					release_tag: None,
-					log: None,
+			let outcome = match policy_outcome {
+				Some(outcome) => outcome,
+				None => match find_cli(runtime, runtime.path()) {
+					Ok(Some(path)) => InstallOutcome {
+						status: InstallStatus::AlreadyInstalled,
+						reason: String::new(),
+						installer_exit_code: 0,
+						cli_path: Some(path),
+						release_tag: None,
+						log: None,
+					},
+					_ => {
+						let mut reporter = FileReporter {
+							progress_file: progress_file.clone(),
+							cancel_file: cancel_file.clone(),
+							heartbeat: 0,
+							last: None,
+						};
+						install_cli(target, &mut reporter)
+					}
 				},
-				_ => {
-					let mut reporter = FileReporter {
-						progress_file: progress_file.clone(),
-						cancel_file: cancel_file.clone(),
-						heartbeat: 0,
-						last: None,
-					};
-					install_cli(target, &mut reporter)
-				}
 			};
 			let entries = [
 				("status", String::from(outcome.status.name())),
@@ -961,6 +994,7 @@ mod tests {
 			[
 				InstallStatus::Installed,
 				InstallStatus::AlreadyInstalled,
+				InstallStatus::Policy,
 				InstallStatus::Network,
 				InstallStatus::Verification,
 				InstallStatus::Msiexec,
@@ -972,6 +1006,7 @@ mod tests {
 			[
 				("installed", 0),
 				("alreadyInstalled", 0),
+				("policy", 10),
 				("network", 20),
 				("verification", 30),
 				("msiexec", 40),
