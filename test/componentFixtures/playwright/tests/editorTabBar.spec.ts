@@ -90,6 +90,85 @@ for (const [group, expected] of [
 	});
 }
 
+for (const [style, expected] of [
+	['Legacy', {
+		topIndicator: { display: 'block', color: 'rgb(34, 211, 238)' },
+		bottomIndicator: { display: 'block', color: 'rgb(244, 63, 94)' },
+	}],
+	['Pill', {
+		topIndicator: { display: 'none' },
+		bottomIndicator: { display: 'none' },
+		fillTop: 'rgb(34, 211, 238)',
+		fillBottom: 'rgb(244, 63, 94)',
+	}],
+	['Connected', {
+		topIndicator: { display: 'none' },
+		bottomIndicator: { display: 'block', color: 'rgb(244, 63, 94)' },
+		fillTop: 'rgb(34, 211, 238)',
+		fillBottom: 'rgba(0, 0, 0, 0)',
+		fillSide: 'rgb(250, 204, 21)',
+	}],
+] as const) {
+	test(`${style} tabs retain their border ownership`, async ({ page }) => {
+		await openFixture(page, `editor/editorTabBar/editorTabBar/BorderOwnership/${style}/Dark`, '.tabs-container > .tab.active');
+		const ownership = await page.locator('.tabs-container > .tab.active').evaluate(active => {
+			const top = active.querySelector<HTMLElement>('.tab-border-top-container');
+			const bottom = active.querySelector<HTMLElement>('.tab-border-bottom-container');
+			const fill = active.querySelector<HTMLElement>('.tab-fill');
+			if (!top || !bottom || !fill) {
+				throw new Error('Expected active tab border elements');
+			}
+			const fillStyle = getComputedStyle(fill);
+			const indicatorStyle = (element: HTMLElement) => {
+				const style = getComputedStyle(element);
+				return { display: style.display, color: style.backgroundColor };
+			};
+			return {
+				topIndicator: indicatorStyle(top),
+				bottomIndicator: indicatorStyle(bottom),
+				fillTop: fillStyle.borderTopColor,
+				fillBottom: fillStyle.borderBottomColor,
+				fillSide: fillStyle.borderRightColor,
+			};
+		});
+		expect(ownership).toMatchObject(expected);
+	});
+}
+
+for (const fixture of ['FirstActive', 'MiddleActive']) {
+	test(`connected border continuity stays aligned for ${fixture}`, async ({ page }) => {
+		await openFixture(page, `editor/editorTabBar/editorTabBar/ConnectedBorderContinuity/${fixture}/Dark`, '.tabs-container > .tab.active');
+		const state = await page.locator('.part.editor').evaluate(editor => {
+			const group = editor.querySelector<HTMLElement>('.editor-group-container.active');
+			const active = group?.querySelector<HTMLElement>('.tab.active');
+			const fill = active?.querySelector<HTMLElement>('.tab-fill');
+			const indicator = active?.querySelector<HTMLElement>('.tab-border-top-container');
+			const strip = group?.querySelector<HTMLElement>('.tabs-and-actions-container');
+			if (!group || !active || !fill || !indicator || !strip) {
+				throw new Error('Expected connected editor frame and active tab');
+			}
+			const editorRect = editor.getBoundingClientRect();
+			const fillRect = fill.getBoundingClientRect();
+			return {
+				editorBorder: getComputedStyle(editor).borderTopColor,
+				capTop: getComputedStyle(fill).borderTopColor,
+				capSide: getComputedStyle(fill).borderRightColor,
+				separator: getComputedStyle(strip, '::after').backgroundColor,
+				indicator: getComputedStyle(indicator).display,
+				topAligned: Math.abs(editorRect.top - fillRect.top) <= 1,
+			};
+		});
+		expect(state).toEqual({
+			editorBorder: 'rgb(34, 211, 238)',
+			capTop: 'rgb(34, 211, 238)',
+			capSide: 'rgb(34, 211, 238)',
+			separator: 'rgb(34, 211, 238)',
+			indicator: 'none',
+			topAligned: true,
+		});
+	});
+}
+
 for (const theme of ['DarkHighContrast', 'LightHighContrast']) {
 	test(`connected tab actions respect disabled hover state in ${theme}`, async ({ page }) => {
 		await openFixture(page, `editor/editorTabBar/editorTabBar/ConnectedSurface/SingleTab/${theme}`, '.tabs-container > .tab');

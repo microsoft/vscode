@@ -182,7 +182,6 @@
 
 /* Preserve the existing explicit selection and focus borders in high contrast. */
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-fill,
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-fill,
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.selected:not(.active).tab-border-top:not(.close-action-off) > .tab-actions,
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.multi-selected.tab-border-top:not(.close-action-off) > .tab-actions {
 	border-color: transparent;
@@ -211,6 +210,16 @@
  * adjacent surfaces. */
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.tab-border-top > .tab-fill {
 	border-top-color: var(--tab-border-top-color);
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-fill {
+	border-color: var(--modern-ui-connected-tab-border);
+	border-top-color: var(--tab-border-top-color);
+	border-bottom-color: transparent;
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container:not(.active) > .title.tabs .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-fill {
+	border-top-color: var(--vscode-tab-unfocusedActiveBorderTop, var(--tab-border-top-color));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
