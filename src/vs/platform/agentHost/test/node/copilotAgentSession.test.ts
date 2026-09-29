@@ -125,6 +125,8 @@ class MockCopilotSession {
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionMode[] = [];
 	permissionModeSetSuccess = true;
+	/** Per-call `setMode` success results, consumed in order before falling back to {@link permissionModeSetSuccess}. */
+	readonly permissionModeSetResults: boolean[] = [];
 	permissionModeSetError: Error | undefined;
 	readonly gitHubCredentialUpdates: Array<{ credentials?: { type: 'token'; host: string; token: string } }> = [];
 	gitHubCredentialUpdateResult = { success: true, copilotUserResolved: true };
@@ -414,7 +416,7 @@ class MockCopilotSession {
 				if (this.permissionModeSetError) {
 					throw this.permissionModeSetError;
 				}
-				return { success: this.permissionModeSetSuccess, enabled: mode === 'allow-all', mode };
+				return { success: this.permissionModeSetResults.shift() ?? this.permissionModeSetSuccess, enabled: mode === 'allow-all', mode };
 			},
 		},
 		eventLog: {
@@ -816,6 +818,17 @@ type ISessionInternalsForTest = {
 
 function isAction(s: AgentSignal, type: ActionType): s is IAgentActionSignal {
 	return s.kind === 'action' && s.action.type === type;
+}
+
+function fireManagedSettingsResolved(mockSession: MockCopilotSession): void {
+	mockSession.fire('session.managed_settings_resolved', {
+		source: 'server',
+		serverManaged: true,
+		deviceManaged: false,
+		managedKeys: ['permissions'],
+		bypassPermissionsDisabled: false,
+		failClosed: false,
+	} as SessionEventPayload<'session.managed_settings_resolved'>['data']);
 }
 
 function getActions(signals: readonly AgentSignal[]) {
@@ -7833,11 +7846,47 @@ suite('CopilotAgentSession', () => {
 			const { session, mockSession } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
 			});
+			fireManagedSettingsResolved(mockSession);
 			mockSession.permissionModeSetSuccess = false;
 
 			await assert.rejects(() => session.send('hello', undefined, 'turn-1'), /rejected permission mode 'assisted'/);
 
-			assert.deepStrictEqual(mockSession.sendRequests, []);
+			assert.deepStrictEqual({ sendRequests: mockSession.sendRequests, permissionModeSetCalls: mockSession.permissionModeSetCalls }, { sendRequests: [], permissionModeSetCalls: ['assisted'] });
+		});
+
+		test('retries a permission mode rejected before managed settings resolve', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+			mockSession.permissionModeSetResults.push(false);
+
+			const sync = session.syncPermissionMode('turn-start');
+			while (mockSession.permissionModeSetCalls.length === 0) {
+				await timeout(0);
+			}
+			await timeout(0);
+			fireManagedSettingsResolved(mockSession);
+			await sync;
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual({ sendRequests: mockSession.sendRequests.length, permissionModeSetCalls: mockSession.permissionModeSetCalls }, { sendRequests: 1, permissionModeSetCalls: ['allow-all', 'allow-all'] });
+		});
+
+		test('fails after one retry when the permission mode is still rejected once managed settings resolve', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+			mockSession.permissionModeSetSuccess = false;
+
+			const sync = session.syncPermissionMode('turn-start');
+			while (mockSession.permissionModeSetCalls.length === 0) {
+				await timeout(0);
+			}
+			await timeout(0);
+			fireManagedSettingsResolved(mockSession);
+
+			await assert.rejects(sync, /rejected permission mode 'allow-all'/);
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['allow-all', 'allow-all']);
 		});
 
 		for (const outcome of ['success', 'rejected', 'error', 'missing-request', 'expired-request'] as const) {
@@ -8317,6 +8366,7 @@ suite('CopilotAgentSession', () => {
 			});
 			await session.syncPermissionMode('turn-start');
 			session.resetTurnState('active-turn');
+			fireManagedSettingsResolved(mockSession);
 			mockSession.permissionModeSetSuccess = false;
 			setConfigValue(SessionConfigKey.AutoApprove, 'default');
 
