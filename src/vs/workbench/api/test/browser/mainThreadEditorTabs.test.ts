@@ -281,6 +281,8 @@ suite('MainThreadEditorTabs', () => {
 			new NullLogService(),
 			editorService,
 		));
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect listener ownership without exposing a test-only API.
+		const multiDiffEditorInputListeners = mainThreadEditorTabs['_multiDiffEditorInputListeners'];
 		await Promise.resolve();
 
 		// Open the multi diff editor so that its resources listener gets registered
@@ -323,14 +325,14 @@ suite('MainThreadEditorTabs', () => {
 			groupId: otherGroup.id,
 			event: { kind: GroupModelChangeKind.EDITOR_OPEN, editor: multiDiffInput, editorIndex: 0 }
 		});
-		assert.strictEqual(mainThreadEditorTabs['_multiDiffEditorInputListeners'].size, 2);
+		assert.strictEqual(multiDiffEditorInputListeners.size, 2);
 
 		editors.splice(1, 1);
 		editorChanges.fire({
 			groupId: group.id,
 			event: { kind: GroupModelChangeKind.EDITOR_CLOSE, editor: multiDiffInput, editorIndex: 1 }
 		});
-		assert.strictEqual(mainThreadEditorTabs['_multiDiffEditorInputListeners'].size, 1);
+		assert.strictEqual(multiDiffEditorInputListeners.size, 1);
 
 		tabUpdateCount = 0;
 		resources.set([], undefined);
@@ -341,6 +343,6 @@ suite('MainThreadEditorTabs', () => {
 			groupId: otherGroup.id,
 			event: { kind: GroupModelChangeKind.EDITOR_CLOSE, editor: multiDiffInput, editorIndex: 0 }
 		});
-		assert.strictEqual(mainThreadEditorTabs['_multiDiffEditorInputListeners'].size, 0);
+		assert.strictEqual(multiDiffEditorInputListeners.size, 0);
 	});
 });
