@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { IOTelConfigResolver, IResolvedOTelConfig, OTelConfigDrift, resolveOTelConfigFromSettings } from '../../../../platform/otel/common/otelConfigResolution';
 import { TestOTelSettings } from '../../../../platform/otel/common/test/otelTestSettings';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { IOTelPolicyRestartRecord, IOTelStaleConfigHost, OTelStaleConfigMonitor } from '../otelStaleConfigMonitor';
 
 class TestResolver implements IOTelConfigResolver {
@@ -22,6 +23,7 @@ class TestResolver implements IOTelConfigResolver {
 
 /** The record outlives the extension host, as workspaceState does. */
 class TestHost implements IOTelStaleConfigHost {
+	policySettled: Promise<void> = Promise.resolve();
 	record: IOTelPolicyRestartRecord | undefined;
 	recordAtRestart: IOTelPolicyRestartRecord | undefined;
 	restarts = 0;
@@ -34,6 +36,7 @@ class TestHost implements IOTelStaleConfigHost {
 	restartStarted: (() => void) | undefined;
 	beforeReload: (() => Promise<void>) | undefined;
 
+	whenPolicySettled() { return this.policySettled; }
 	getRestartRecord() { return this.record; }
 	async setRestartRecord(record: IOTelPolicyRestartRecord | undefined) {
 		if (this.storageError) {
@@ -141,14 +144,48 @@ describe('OTelStaleConfigMonitor', () => {
 	it('does not prompt while a forced refresh publishes restrictive placeholders', async () => {
 		const resolver = new TestResolver(settings);
 		const monitor = new OTelStaleConfigMonitor(resolver, host, log);
+		const settled = new DeferredPromise<void>();
+		host.policySettled = settled.p;
 		settings.policySlotDefaults = { exporterType: '', otlpEndpoint: '', captureIdentity: false };
-		expect(await monitor.check()).toBe(OTelConfigDrift.None);
+		const check = monitor.check();
+		await Promise.resolve();
 		expect({ restarts: host.restarts, prompts: host.prompts }).toEqual({ restarts: 0, prompts: 0 });
 
 		settings.policySlotDefaults = {};
 		settings.policy = managedPolicy;
-		await startRestart(monitor);
+		const started = new Promise<void>(resolve => { host.restartStarted = resolve; });
+		await settled.complete();
+		await started;
 		expect({ restarts: host.restarts, prompts: host.prompts }).toEqual({ restarts: 1, prompts: 0 });
+		host.restartCompleted!();
+		await check;
+	});
+
+	it('handles a settled blocked refresh without another configuration change', async () => {
+		settings.policy = managedPolicy;
+		const monitor = newHost();
+		const settled = new DeferredPromise<void>();
+		host.policySettled = settled.p;
+		settings.policy = {};
+		settings.policySlotDefaults = { enabled: false, exporterType: '', otlpEndpoint: '', captureIdentity: false };
+		const check = monitor.check();
+		await Promise.resolve();
+		expect({ restarts: host.restarts, prompts: host.prompts }).toEqual({ restarts: 0, prompts: 0 });
+
+		await settled.complete();
+		expect({ drift: await check, restarts: host.restarts, prompts: host.prompts }).toEqual({
+			drift: OTelConfigDrift.Policy, restarts: 0, prompts: 1,
+		});
+	});
+
+	it('does not ignore restrictive values when policy is already settled', async () => {
+		settings.policy = managedPolicy;
+		const monitor = newHost();
+		settings.policy = {};
+		settings.policySlotDefaults = { enabled: false, exporterType: '', otlpEndpoint: '', captureIdentity: false };
+		expect({ drift: await monitor.check(), restarts: host.restarts, prompts: host.prompts }).toEqual({
+			drift: OTelConfigDrift.Policy, restarts: 0, prompts: 1,
+		});
 	});
 
 	it('recovers settled policy when service construction observed a forced-refresh placeholder', async () => {

@@ -13,7 +13,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingsPick, IManagedSettingsService, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, hasRawManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
-import { IManagedSettingsFreshness, isManagedSettingsFreshnessBlocking } from '../../../../platform/policy/common/managedSettingsFreshness.js';
+import { IManagedSettingsFreshness, isManagedSettingsFreshnessBlocking, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
@@ -62,6 +62,15 @@ export interface IAccountPolicyGateService {
 	readonly _serviceBrand: undefined;
 	readonly gateInfo: IAccountPolicyGateInfo;
 	readonly onDidChangeGateInfo: Event<IAccountPolicyGateInfo>;
+}
+
+/** Waits for authoritative policy, including settled fail-closed restrictions. */
+export async function whenAccountPolicySettled(defaultAccountService: IDefaultAccountService, gateService: IAccountPolicyGateService): Promise<void> {
+	await defaultAccountService.getDefaultAccount();
+	while (gateService.gateInfo.reason === AccountPolicyGateUnsatisfiedReason.PolicyNotResolved
+		|| gateService.gateInfo.managedSettingsFreshness?.state === ManagedSettingsFreshnessState.Pending) {
+		await Event.toPromise(gateService.onDidChangeGateInfo);
+	}
 }
 
 interface IResolvedPolicyData {

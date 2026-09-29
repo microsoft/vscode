@@ -209,9 +209,10 @@ a warning offers **Reload Window** instead. User changes and policy withdrawal r
 opt-in reloads, except that identity denial is enforced before subsequent exports.
 Existing exporter selection and legacy environment-variable precedence are unchanged.
 It uses changes to the application-scoped, policy-backed configuration defaults as a recovery
-signal, without a new API. Normal personal settings changes do not change those defaults.
+signal. Normal personal settings changes do not change those defaults.
 If a recognizable enterprise OTel block was already present at initialization, later changes
-only offer a reload, including enabling a previously disabled managed configuration.
+only offer a reload, including enabling a previously disabled managed configuration, except
+when initialization observed the account gate's disabled, restricted configuration.
 Automatic recovery additionally requires policy-enabled OTLP export targeting the collector in
 those defaults. Disabled and DB-only pipelines, unrelated partial policies, and configurations
 still redirected by environment variables to a different collector or file do not qualify.
@@ -222,7 +223,12 @@ the restart. The default-value signal cannot distinguish a policy consisting ent
 schema-default values from no policy.
 
 There is no periodic polling or restart loop. A startup check and configuration events trigger
-checks, coalesced by a 500 ms debounce. Automatic recovery is limited to one attempt per editor
+checks, coalesced by a 500 ms debounce. Each check waits for account-policy settlement through
+the private `_workbench.whenAccountPolicySettled` command before reading the current configuration.
+Pending refreshes defer the check; settled blocked refreshes are authoritative restrictions,
+not placeholders. The wait resumes on gate changes even if the effective settings are unchanged,
+so a failed refresh still surfaces required reloads.
+Automatic recovery is limited to one attempt per editor
 session. A reload guard is saved only when the user chooses **Reload Window**, not when a prompt
 is shown or dismissed. Its configuration fingerprint excludes `vscode.env.sessionId` and carries
 into the immediately following editor session. If that reload still fails to apply the same

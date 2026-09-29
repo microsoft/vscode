@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ManagedSettingsData, PolicyCategory } from '../../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { AgentHostEnablementService } from '../../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
@@ -25,7 +27,7 @@ import { getComputedDefaultSessionType, getDefaultNewChatSessionType } from '../
 import { localChatSessionType, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { storeUserSelectedSessionType } from '../../../../contrib/chat/common/chatSessionTypePreference.js';
 import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
-import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, AccountPolicyService, APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateInfo } from '../../common/accountPolicyService.js';
+import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, AccountPolicyService, APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateInfo, IAccountPolicyGateService, whenAccountPolicySettled } from '../../common/accountPolicyService.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: {
@@ -37,6 +39,53 @@ const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	sessionId: 'abc123',
 	enterprise: false,
 };
+
+suite('whenAccountPolicySettled', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('waits for account initialization and unresolved policy before accepting settled policy', async () => {
+		const initialized = new DeferredPromise<IDefaultAccount | null>();
+		const account = new class extends mock<IDefaultAccountService>() {
+			override getDefaultAccount() { return initialized.p; }
+		}();
+		const changed = disposables.add(new Emitter<IAccountPolicyGateInfo>());
+		const gate = new class extends mock<IAccountPolicyGateService>() {
+			override gateInfo: IAccountPolicyGateInfo = { state: AccountPolicyGateState.Inactive };
+			override onDidChangeGateInfo = changed.event;
+		}();
+		let settled = false;
+		const waiting = whenAccountPolicySettled(account, gate).then(() => { settled = true; });
+		await timeout(0);
+		assert.strictEqual(settled, false);
+
+		gate.gateInfo = { state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.PolicyNotResolved };
+		await initialized.complete(BASE_DEFAULT_ACCOUNT);
+		await timeout(0);
+		assert.strictEqual(settled, false);
+
+		gate.gateInfo = { state: AccountPolicyGateState.Satisfied };
+		changed.fire(gate.gateInfo);
+		await waiting;
+		assert.strictEqual(settled, true);
+	});
+
+	test('accepts settled sign-out restrictions', async () => {
+		const account = new class extends mock<IDefaultAccountService>() {
+			override async getDefaultAccount() { return null; }
+		}();
+		const gate = new class extends mock<IAccountPolicyGateService>() {
+			override gateInfo = { state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.NoAccount };
+		}();
+		await whenAccountPolicySettled(account, gate);
+	});
+
+	test('propagates initialization failures', async () => {
+		const account = new class extends mock<IDefaultAccountService>() {
+			override async getDefaultAccount(): Promise<never> { throw new Error('account unavailable'); }
+		}();
+		await assert.rejects(whenAccountPolicySettled(account, new class extends mock<IAccountPolicyGateService>() { }()), /account unavailable/);
+	});
+});
 
 class DefaultAccountProvider implements IDefaultAccountProvider {
 
@@ -916,6 +965,40 @@ suite('AccountPolicyService', () => {
 			managedSettingsFreshness: freshness,
 		});
 		assert.strictEqual(policyService.getPolicyValueSource('PolicySettingD'), PolicyValueSource.AccountGate);
+	});
+
+	test('policy settlement resumes on Pending to Blocked without changed policy values', async () => {
+		const freshnessChanged = disposables.add(new Emitter<IManagedSettingsFreshness>());
+		const provider = new class extends DefaultAccountProvider {
+			override readonly onDidChangeManagedSettingsFreshness = freshnessChanged.event;
+			override managedSettingsFreshness: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Pending, source: 'server' };
+		}(APPROVED_ORG_ACCOUNT);
+		const accountService = disposables.add(new DefaultAccountService(TestProductService));
+		accountService.setDefaultAccountProvider(provider);
+		await accountService.refresh();
+		const service = disposables.add(new AccountPolicyService(logService, accountService));
+		await service.updatePolicyDefinitions({
+			enabled: { type: 'boolean', restrictedValue: false },
+			exporterType: { type: 'string', restrictedValue: '' },
+		});
+		const valuesBefore = [service.getPolicyValue('enabled'), service.getPolicyValue('exporterType')];
+		let policyChanges = 0;
+		disposables.add(service.onDidChange(() => policyChanges++));
+		let settled = false;
+		const waiting = whenAccountPolicySettled(accountService, service).then(() => { settled = true; });
+		await timeout(0);
+		assert.strictEqual(settled, false);
+
+		provider.managedSettingsFreshness = {
+			state: ManagedSettingsFreshnessState.Blocked, source: 'server',
+			failure: ManagedSettingsFreshnessFailure.Network, lastAttemptAt: 42,
+		};
+		freshnessChanged.fire(provider.managedSettingsFreshness);
+		await waiting;
+		assert.deepStrictEqual({
+			settled, policyChanges, valuesBefore,
+			valuesAfter: [service.getPolicyValue('enabled'), service.getPolicyValue('exporterType')],
+		}, { settled: true, policyChanges: 0, valuesBefore: [false, ''], valuesAfter: [false, ''] });
 	});
 
 	test('gate active, no account signed in: restricted', async () => {
