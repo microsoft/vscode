@@ -46,7 +46,7 @@ import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import { SessionActivatingActionRunner } from '../../../browser/sessionActionRunner.js';
 import { computePullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
-import { ISessionChangesStatsCache, readChatChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache, readChatChangesStats, readChatChangesSummaryStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
@@ -284,8 +284,9 @@ export function computeSessionInputPillStats(session: IActiveSession | undefined
 	if (session?.worktreePending?.read(reader)) {
 		return EMPTY_DIFF_STATS;
 	}
-	const workspace = chat?.workspace?.read(reader);
-	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace)) : undefined;
+	const summaryStats = chat ? readChatChangesSummaryStats(chat, reader) : undefined;
+	const workspace = summaryStats ? undefined : chat?.workspace?.read(reader);
+	const stats = summaryStats ?? (chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace)) : undefined);
 	if (stats) {
 		return stats;
 	}

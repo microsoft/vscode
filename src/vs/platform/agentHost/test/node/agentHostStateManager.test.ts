@@ -1961,7 +1961,7 @@ suite('AgentHostStateManager', () => {
 				...makeSessionSummary(),
 				chats: [
 					{ resource: defaultChat, title: '' },
-					{ resource: peerChat, title: 'Peer', archived: false },
+					{ resource: peerChat, title: 'Peer' },
 				],
 				defaultChat,
 			};

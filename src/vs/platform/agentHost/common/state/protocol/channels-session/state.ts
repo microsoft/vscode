@@ -465,7 +465,8 @@ export interface ProjectInfo {
  *   to a subset via {@link ChatSummary.workingDirectories}; aggregating these
  *   up is meaningless and SHOULD NOT be attempted.
  * - `changes`: optional roll-up across all chats. Producers MAY sum the
- *   per-chat changeset stats or report the most expensive chat's stats —
+ *   per-chat {@link ChatSummary.changes | changes summaries} or report the
+ *   most expensive chat's stats —
  *   whichever is cheaper for the host to compute.
  *
  * Sessions with a single chat trivially satisfy all of the above (the chat's
@@ -482,11 +483,11 @@ export interface SessionSummary extends SessionMetadata {
 	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
 	modifiedAt: string;
 	/**
-	* Aggregate summary of file changes associated with this session. Servers
-	* may populate this to give clients a quick at-a-glance view of the
-	* session's footprint (e.g., for list rendering) without requiring the
-	* client to subscribe to a changeset.
-	*/
+	 * Aggregate summary of file changes associated with this session. Servers
+	 * may populate this to give clients a quick at-a-glance view of the
+	 * session's footprint (e.g., for list rendering) without requiring the
+	 * client to subscribe to a changeset.
+	 */
 	changes?: ChangesSummary;
 	/**
 	 * Lightweight server-defined metadata clients may use for the session
@@ -528,11 +529,11 @@ export interface SessionChatSummary {
 	 * backward compatibility.
 	 */
 	interactivity?: ChatInteractivity;
-	archived?: boolean;
 }
 
 /**
- * Aggregate counts describing the file changes associated with a session.
+ * Aggregate counts describing the file changes associated with a session or
+ * chat.
  *
  * All fields are optional so servers can populate only the metrics they
  * cheaply have available.
@@ -1345,16 +1346,14 @@ export const enum McpAuthRequiredReason {
 export interface McpServerStartingState {
 	kind: McpServerStatus.Starting;
 	/**
-	 * When `true`, the host MAY hold back processing of new messages (for
-	 * example, the next turn) until this server finishes starting, because the
-	 * server's contributions — such as its tools — are still being discovered.
-	 * Clients SHOULD make it clear that the session is waiting on this server
-	 * and MAY offer to
-	 * {@link SessionMcpServerBackgroundRequestedAction | background} the
-	 * startup so message processing can continue without it.
+	 * Hosts SHOULD set this to `true` when this server's startup will hold back
+	 * the processing of new messages (for example, the next turn) while the
+	 * server's contributions — such as its tools — are discovered.
 	 *
-	 * Omitted or `false` means message processing is not blocked on this
-	 * server.
+	 * Clients MAY dispatch
+	 * {@link SessionMcpServerBackgroundRequestedAction | `session/mcpServerBackgroundRequested`}
+	 * through an appropriate affordance to ask the host to background the
+	 * startup.
 	 */
 	blocking?: boolean;
 }

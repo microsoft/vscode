@@ -42,7 +42,21 @@ export function readSessionChangesStats(session: ISession, reader: IReader | und
 
 /** The active chat's changes as represented by the preferred or default changeset. */
 export function readChatChangesStats(chat: IChat, reader: IReader | undefined, preferredChangesetId?: string): ISessionChangesStats | undefined {
+	const summary = readChatChangesSummaryStats(chat, reader);
+	if (summary) {
+		return summary;
+	}
+
 	return readChangesStats(chat.changesets.read(reader), chat.changes.read(reader), reader, preferredChangesetId);
+}
+
+/** The aggregate counts advertised in the chat's lightweight summary, when available. */
+export function readChatChangesSummaryStats(chat: IChat, reader: IReader | undefined): ISessionChangesStats | undefined {
+	const summary = chat.changesSummary?.read(reader);
+	if (summary) {
+		return { files: summary.files, insertions: summary.additions, deletions: summary.deletions };
+	}
+	return undefined;
 }
 
 function readChangesStats(changesets: readonly ISessionChangeset[] | undefined, fallbackChanges: readonly ISessionFileChange[], reader: IReader | undefined, preferredChangesetId?: string): ISessionChangesStats | undefined {
