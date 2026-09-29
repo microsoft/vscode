@@ -72,7 +72,7 @@ function renderBoard({ container, disposableStore, theme }: ComponentFixtureCont
 		async open() { },
 		dispose() { },
 	});
-	instantiationService.stubInstance(ProjectBoardChatSidePanel, { close() { }, dispose() { } });
+	instantiationService.stubInstance(ProjectBoardChatSidePanel, { activeCardId: constObservable(undefined), close() { }, dispose() { } });
 	const catalog = disposableStore.add(instantiationService.createInstance(ProjectBoardCatalogService));
 	instantiationService.stub(IProjectBoardCatalogService, catalog);
 	const state = disposableStore.add(instantiationService.createInstance(ProjectBoardState, DEFAULT_PROJECT_BOARD_ID));
