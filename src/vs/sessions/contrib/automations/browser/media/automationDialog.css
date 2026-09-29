@@ -496,16 +496,6 @@
 	gap: 4px;
 }
 
-.automation-form-row.automation-form-checkbox-row {
-	flex-direction: row;
-	align-items: center;
-	gap: 8px;
-}
-
-.automation-form-row.automation-form-checkbox-row > .monaco-checkbox {
-	margin-right: 0;
-}
-
 /*
  * Lay the Schedule / Time / Day controls along a single horizontal axis.
  * Each control lives in its own `.automation-form-schedule-group`
@@ -588,12 +578,6 @@
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;
 	min-height: 1em;
-}
-
-.automation-form-checkbox-label {
-	font-size: var(--vscode-fontSize-body1, 13px);
-	color: var(--vscode-foreground);
-	cursor: pointer;
 }
 
 /*

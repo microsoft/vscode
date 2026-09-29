@@ -346,9 +346,9 @@ suite('Automation dialog layout', () => {
 		const inputContainer = form.querySelector('.chat-input-container')!;
 		const sessionControls = form.querySelector('.automation-session-configuration')!;
 		const scheduleRow = form.querySelector('.automation-form-schedule-row')!;
-		const enabledRow = form.querySelector('.automation-form-checkbox-row')!;
 		assert.deepStrictEqual({
 			formSections: Array.from(form.querySelector('.automation-form-content')!.children, element => element.className),
+			enabledCheckbox: form.querySelector('[role="checkbox"][aria-label="Enabled"]'),
 			targetLabel: targetRow.querySelector('.automation-target-toolbar')?.getAttribute('aria-label'),
 			targetContainsWorkspace: targetRow.contains(workspaceButton),
 			targetBeforePrompt: !!(targetRow.compareDocumentPosition(promptSection) & Node.DOCUMENT_POSITION_FOLLOWING),
@@ -361,7 +361,6 @@ suite('Automation dialog layout', () => {
 			controlsInsideInput: inputContainer.contains(sessionControls),
 			controlsAfterInput: !!(inputContainer.compareDocumentPosition(sessionControls) & Node.DOCUMENT_POSITION_FOLLOWING),
 			scheduleAfterControls: !!(sessionControls.compareDocumentPosition(scheduleRow) & Node.DOCUMENT_POSITION_FOLLOWING),
-			enabledAfterSchedule: !!(scheduleRow.compareDocumentPosition(enabledRow) & Node.DOCUMENT_POSITION_FOLLOWING),
 			configurationHeader: form.querySelector('#automation-session-configuration-label'),
 			inputToolbarWrapperRole: inputToolbar.getAttribute('role'),
 			inputToolbarLabel: inputToolbar.querySelector('[role="toolbar"]')?.getAttribute('aria-label'),
@@ -375,8 +374,8 @@ suite('Automation dialog layout', () => {
 				'automation-form-row',
 				'automation-session-section',
 				'automation-form-row automation-form-schedule-row',
-				'automation-form-row automation-form-checkbox-row',
 			],
+			enabledCheckbox: null,
 			targetLabel: 'Target',
 			targetContainsWorkspace: true,
 			targetBeforePrompt: true,
@@ -389,7 +388,6 @@ suite('Automation dialog layout', () => {
 			controlsInsideInput: false,
 			controlsAfterInput: true,
 			scheduleAfterControls: true,
-			enabledAfterSchedule: true,
 			configurationHeader: null,
 			inputToolbarWrapperRole: null,
 			inputToolbarLabel: 'Session configuration options',
