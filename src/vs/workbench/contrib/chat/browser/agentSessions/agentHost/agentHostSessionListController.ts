@@ -97,7 +97,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
-		const rawId = generateUuid();
+		const adopted = request.untitledResource && !request.isEphemeral && !request._meta
+			? await this._provisional.tryAdopt(request.untitledResource, this._provider)
+			: undefined;
+		const rawId = adopted ? AgentSession.id(adopted) : generateUuid();
 		this._sessionListStore.addPendingNewSession(this._provider, rawId);
 		const now = Date.now();
 		const item = this._makeItem(rawId, {
@@ -112,7 +115,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		}
 
 		// Bridge any pre-creation provisional session the user built up
-		// against the untitled chat-input URI to the freshly-minted real
+		// against the untitled chat-input URI to the adopted or freshly-minted real
 		// resource. The provisional service is the source of truth for the
 		// `state.config.values` the user picked via chips; copying them
 		// here means the agent's `_materializeProvisional` will see them on
@@ -128,14 +131,18 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			// cleaned up when its compose model disposes; clearing it here would
 			// briefly fire a change while the widget still points at the untitled
 			// resource, flickering the chip back to the first folder.
-			if (workingDirectory) {
+			// Adoption already transferred the draft's authoritative primary. A
+			// fallback folder here could recreate the adopted backend under a new ID.
+			if (!adopted && workingDirectory) {
 				this._newSessionFolderService.setFolder(item.resource, workingDirectory);
 			}
 			// Carry any imported ("Continue in…") conversation snapshot from the
 			// untitled chat-input resource to the freshly-minted real resource so
 			// the provisional `getOrCreate` for the real resource seeds it.
 			this._importConversationStore.rename(request.untitledResource, item.resource);
-			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider);
+			if (!adopted) {
+				await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider);
+			}
 		}
 
 		return item;

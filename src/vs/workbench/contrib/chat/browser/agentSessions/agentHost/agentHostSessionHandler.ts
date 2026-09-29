@@ -47,7 +47,8 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../..
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, CustomizationType, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { createAgentHostModelSelection } from './agentHostLanguageModelProvider.js';
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -1857,6 +1858,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		progress: (parts: IChatProgress[]) => void,
 		cancellationToken: CancellationToken,
 	): Promise<IChatAgentResult> {
+		const traceStartup = (stage: string) => this._logService.trace('[StartupProbe]', { component: 'invokeHandler', stage, session: request.sessionResource.toString(), epochMs: performance.timeOrigin + performance.now() });
+		traceStartup('handler_begin');
 		const firstResponse = new AgentHostFirstResponseTiming();
 		let outcome: AgentHostFirstResponseOutcome = 'notDispatched';
 		let sessionId: string | undefined;
@@ -1886,6 +1889,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// scratch dir, not a user workspace. If the user declines, abort without
 			// starting a session.
 			const trustFolders = await this._resolveSessionTrustFolders(request.sessionResource, cancellationToken);
+			traceStartup('trust_folders_end');
 			if (cancellationToken.isCancellationRequested) {
 				return {};
 			}
@@ -1897,12 +1901,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 
 			failureStage = 'provisionalSession';
+			traceStartup('trust_end');
 			// The chat-input picker may have pre-created a provisional session
 			// against this resource (`IAgentHostUntitledProvisionalSessionService.getOrCreate`).
 			// In that case the agent already has the session + the user's chip
 			// selections in `state.config.values`; ensure we hold a refcounted
 			// subscription on it so the rest of the handler observes those.
 			await raceCancellation(this._provisionalService.waitForPending(request.sessionResource), cancellationToken);
+			traceStartup('pending_end');
 			if (cancellationToken.isCancellationRequested) {
 				return {};
 			}
@@ -1921,6 +1927,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// without taking a fresh subscription, which would trigger a
 			// duplicate snapshot fetch and (in tests) unrelated mock behaviour.
 			const existingState = await this._readEagerlyCreatedSessionState(resolvedSession, cancellationToken);
+			traceStartup('state_end');
 			if (cancellationToken.isCancellationRequested) {
 				return {};
 			}
@@ -1991,6 +1998,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			// Measure turn timings so the core `interactiveSessionProviderInvoked`
 			// telemetry event is populated for agent-host providers.
+			traceStartup('create_or_subscribe_end');
 			chatId = this._getChatURI(request.sessionResource);
 			const state = this._getSessionState(sessionKey, chatId);
 			sessionTurnKind = state && isDefaultChatUri(chatId) ? (state.turns.length > 0 ? 'later' : 'first') : 'unknown';
@@ -6077,24 +6085,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _createModelSelection(languageModelIdentifier: string | undefined, modelConfiguration: Record<string, unknown> | undefined): ModelSelection | undefined {
-		const rawModelId = this._extractRawModelId(languageModelIdentifier);
-		if (!rawModelId) {
-			return undefined;
-		}
-
-		// Forward model-specific config values as-is. Most pickers produce strings,
-		// but a synthesized numeric picker (e.g. the context-size picker, whose enum
-		// values are token counts) hands back a number; the protocol `config` bag
-		// carries JSON primitives, so the selection survives into it (and is mapped
-		// to the SDK context tier by the agent's `getCopilotContextTier`).
-		const config: Record<string, JsonPrimitive> = {};
-		for (const [key, value] of Object.entries(modelConfiguration ?? {})) {
-			if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null) {
-				config[key] = value;
-			}
-		}
-
-		return Object.keys(config).length > 0 ? { id: rawModelId, config } : { id: rawModelId };
+		return createAgentHostModelSelection(languageModelIdentifier, modelConfiguration, this._config.sessionType, this._logService);
 	}
 
 	private _draftToInputState(sessionResource: URI, draft: Message | undefined): ISerializableChatModelInputState | undefined {
@@ -6122,27 +6113,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				positionColumn: cursor.column,
 			}],
 		};
-	}
-
-	/**
-	 * Extracts the raw model id from a language-model service identifier.
-	 * E.g. "agent-host-copilot:claude-sonnet-4-20250514" → "claude-sonnet-4-20250514".
-	 * Foreign extension-host identifiers (`${vendor}/${id}`) are dropped so
-	 * the agent host falls back to its default model.
-	 */
-	private _extractRawModelId(languageModelIdentifier: string | undefined): string | undefined {
-		if (!languageModelIdentifier) {
-			return undefined;
-		}
-		const prefix = this._config.sessionType + ':';
-		if (languageModelIdentifier.startsWith(prefix)) {
-			return languageModelIdentifier.substring(prefix.length);
-		}
-		if (languageModelIdentifier.includes('/')) {
-			this._logService.warn(`[AgentHost] Dropping foreign model identifier '${languageModelIdentifier}' for session type '${this._config.sessionType}'; falling back to default model.`);
-			return undefined;
-		}
-		return languageModelIdentifier;
 	}
 
 	private _toLanguageModelId(sessionResource: URI, rawModelId: string | undefined): string | undefined {

@@ -2630,6 +2630,11 @@ export class CopilotAgentSession extends Disposable {
 		return false;
 	}
 
+	/** Isolated startup experiment only: tool initialization may start MCP/plugin components. */
+	async prepareNativeTools(): Promise<void> {
+		await this._awaitControlPlaneRpc('rpc.tools.initializeAndValidate', this._wrapper.session.rpc.tools.initializeAndValidate());
+	}
+
 	/**
 	 * Creates (or resumes) the SDK session via the injected launcher and
 	 * wires up all event listeners. Must be called exactly once after
@@ -3456,11 +3461,18 @@ export class CopilotAgentSession extends Disposable {
 	 * Permission and sandbox failures prevent the turn from starting.
 	 */
 	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined): Promise<void> {
+		const traceStartup = (stage: string) => this._logService.trace('[StartupProbe]', { component: 'sdkPrepare', stage, session: this.sessionId, epochMs: performance.timeOrigin + performance.now() });
+		traceStartup('prepare_begin');
 		await this.applyMode(mode);
+		traceStartup('mode_end');
 		await this.syncPermissionMode('turn-start');
+		traceStartup('permissions_end');
 		await this._applyEffectiveSandboxConfig();
+		traceStartup('sandbox_end');
 		await this._syncShellInitScript();
+		traceStartup('shell_end');
 		await this._reconcileMcpServerEnablement();
+		traceStartup('mcp_end');
 	}
 
 	/**

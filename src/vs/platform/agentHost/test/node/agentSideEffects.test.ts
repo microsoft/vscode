@@ -549,6 +549,99 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	for (const first of ['checkpoint', 'preparation'] as const) {
+		test(`overlaps provider preparation with checkpoint capture and waits for both (${first} finishes first)`, async () => {
+			const workingDirectory = URI.file('/wd');
+			setupSession(workingDirectory.toString());
+			const capture = new DeferredPromise<void>();
+			const preparation = new DeferredPromise<void>();
+			const preparing = new DeferredPromise<void>();
+			let selectionApplied = false;
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent, agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+			}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: () => capture.p,
+			});
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			agent.chats.changeAgent = async () => { selectionApplied = true; };
+			agent.chats.prepareTurn = async (chat, directories) => {
+				assert.deepStrictEqual({ chat: chat.toString(), directories, selectionApplied, captured: capture.isSettled }, {
+					chat: defaultChatUri, directories: [workingDirectory], selectionApplied: true, captured: false,
+				});
+				preparing.complete();
+				await preparation.p;
+			};
+			const action = {
+				type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(),
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchServerAction(defaultChatUri, action);
+			localSideEffects.handleAction(defaultChatUri, action);
+			await preparing.p;
+			(first === 'checkpoint' ? capture : preparation).complete();
+			await timeout(0);
+			assert.strictEqual(agent.sendMessageCalls.length, 0);
+			(first === 'checkpoint' ? preparation : capture).complete();
+			await waitForSendMessageCalls(1);
+		});
+	}
+
+	test('failed provider preparation discards the checkpoint without sending', async () => {
+		const workingDirectory = URI.file('/wd');
+		setupSession(workingDirectory.toString());
+		const discarded = new DeferredPromise<void>();
+		const localSideEffects = createTestSideEffects(disposables, stateManager, {
+			getAgent: () => agent, agents: agentList, sessionDataService: createNullSessionDataService(),
+			resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+		}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, {
+			...NULL_CHECKPOINT_SERVICE,
+			discardTurnStartCheckpoint: async () => { discarded.complete(); },
+		});
+		disposables.add(localSideEffects.registerProgressListener(agent));
+		agent.chats.prepareTurn = async () => { throw new Error('preparation failed'); };
+		const action = {
+			type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(),
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		} as const;
+		stateManager.dispatchServerAction(defaultChatUri, action);
+		localSideEffects.handleAction(defaultChatUri, action);
+		await discarded.p;
+		assert.strictEqual(agent.sendMessageCalls.length, 0);
+	});
+
+	test('cancellation during provider preparation never sends a prompt', async () => {
+		const workingDirectory = URI.file('/wd');
+		setupSession(workingDirectory.toString());
+		const preparing = new DeferredPromise<void>();
+		const preparation = new DeferredPromise<void>();
+		const discarded = new DeferredPromise<void>();
+		const localSideEffects = createTestSideEffects(disposables, stateManager, {
+			getAgent: () => agent, agents: agentList, sessionDataService: createNullSessionDataService(),
+			resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+		}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, {
+			...NULL_CHECKPOINT_SERVICE,
+			discardTurnStartCheckpoint: async () => { discarded.complete(); },
+		});
+		disposables.add(localSideEffects.registerProgressListener(agent));
+		agent.chats.prepareTurn = async () => { preparing.complete(); await preparation.p; };
+		const action = {
+			type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(),
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		} as const;
+		stateManager.dispatchServerAction(defaultChatUri, action);
+		localSideEffects.handleAction(defaultChatUri, action);
+		await preparing.p;
+		stateManager.dispatchClientAction(defaultChatUri, {
+			type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 0,
+		}, { clientId: 'test', clientSeq: 1 });
+		preparation.complete();
+		await discarded.p;
+		assert.strictEqual(agent.sendMessageCalls.length, 0);
+	});
+
 	test('discards a concurrently started turn-start checkpoint when the turn is cancelled before dispatch', async () => {
 		const workingDirectory = URI.file('/wd');
 		setupSession(workingDirectory.toString());

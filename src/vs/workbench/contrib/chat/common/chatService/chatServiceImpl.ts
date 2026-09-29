@@ -1282,7 +1282,12 @@ export class ChatService extends Disposable implements IChatService {
 		return result;
 	}
 
+	private traceStartup(stage: string, sessionResource: URI): void {
+		this.logService.trace('[StartupProbe]', { component: 'chatService', stage, session: sessionResource.toString(), epochMs: performance.timeOrigin + performance.now() });
+	}
+
 	private async sendRequestInternal(sessionResource: URI, request: string, options: IChatSendRequestOptions | undefined, isSubmission: boolean): Promise<ChatSendResult> {
+		this.traceStartup('send_enter', sessionResource);
 		this.trace('sendRequest', `sessionResource: ${sessionResource.toString()}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
 		const hasExplicitFileOrImageAttachment = [...(options?.attachedContext ?? []), ...(options?.resolvedVariables ?? [])].some(isExplicitFileOrImageVariableEntry);
@@ -1332,7 +1337,9 @@ export class ChatService extends Disposable implements IChatService {
 		// `_materializeUntitledSession`) before processing the request.
 		if (!model.hasRequests && isUntitledChatSession(sessionResource) && getChatSessionType(sessionResource) !== localChatSessionType) {
 			const untitledMode = model.inputModel.state.get()?.mode;
+			this.traceStartup('materialize_begin', sessionResource);
 			const materialized = await this._materializeUntitledSession(sessionResource, request, options, model);
+			this.traceStartup('materialize_end', sessionResource);
 			if (materialized) {
 				model = materialized.model;
 				sessionResource = materialized.sessionResource;
@@ -1460,7 +1467,9 @@ export class ChatService extends Disposable implements IChatService {
 			// after the untitled entry may have changed during materialization.
 			const initialSessionOptions = this.chatSessionService.getSessionOptions(untitledResource);
 
+			this.traceStartup('materialize_create_item_begin', untitledResource);
 			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(untitledResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions, untitledResource }, CancellationToken.None);
+			this.traceStartup('materialize_create_item_end', untitledResource);
 			if (!newItem) {
 				materialized.complete(undefined);
 				return undefined;
@@ -1471,7 +1480,9 @@ export class ChatService extends Disposable implements IChatService {
 			this.chatSessionService.registerSessionResourceAlias(untitledResource, newItem.resource);
 
 			// Do not dispose tempRef as per 6bc5ae80de9caffb21e9eb58e18b5ca24fa2d6e8
+			this.traceStartup('materialize_load_begin', untitledResource);
 			const tempRef = await this.loadRemoteSession(newItem.resource, untitledModel.initialLocation, CancellationToken.None, undefined, untitledModel.sessionTypeSelectionReason);
+			this.traceStartup('materialize_load_end', untitledResource);
 			const realModel = tempRef?.object as ChatModel | undefined;
 			if (!realModel) {
 				throw new Error(`Failed to load session for resource: ${newItem.resource}`);
@@ -1779,11 +1790,13 @@ export class ChatService extends Disposable implements IChatService {
 					completeResponseCreated();
 
 					// --- Step 2: Collect request context and hints in parallel (after UI is shown) ---
+					this.traceStartup('collect_context_begin', sessionResource);
 					const [hooksResult, instructionEntries, customizationMigrationHint] = await Promise.all([
 						collectHooks(),
 						collectInstructions(),
 						collectCustomizationMigrationHint(),
 					]);
+					this.traceStartup('collect_context_end', sessionResource);
 					const collectedHooks = hooksResult.hooks;
 					const hasDisabledClaudeHooks = hooksResult.hasDisabledClaudeHooks;
 
@@ -1965,13 +1978,16 @@ export class ChatService extends Disposable implements IChatService {
 
 					// MCP autostart: only run for native VS Code sessions (sidebar, new editors) but not for extension contributed sessions that have inputType set.
 					if (model.canUseTools) {
+						this.traceStartup('mcp_autostart_begin', sessionResource);
 						const autostartResult = new ChatMcpServersStarting(this.mcpService.autostart(token));
 						if (!autostartResult.isEmpty) {
 							progressCallback([autostartResult]);
 							await autostartResult.wait();
 						}
+						this.traceStartup('mcp_autostart_end', sessionResource);
 					}
 
+					this.traceStartup('invoke_agent', sessionResource);
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);

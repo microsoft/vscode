@@ -651,9 +651,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	) { }
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
+		this._logService.trace('[StartupProbe]', { component: 'launcher', stage: 'config_begin', sessionId: plan.sessionId, epochMs: performance.timeOrigin + performance.now() });
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.configurationResource.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
+		this._logService.trace('[StartupProbe]', { component: 'launcher', stage: 'config_end', sessionId: plan.sessionId, epochMs: performance.timeOrigin + performance.now() });
 		const sandboxConfig = async (session: CopilotSessionWrapper['session']) => {
 			if (!managedSettingsResolved) {
 				this._logService.error(`[Copilot:${plan.sessionId}] Copilot runtime did not report its resolved managed settings; continuing with available sandbox configuration`);
@@ -736,6 +738,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>): Promise<CopilotSessionWrapper> {
+		this._logService.trace('[StartupProbe]', { component: 'launcher', stage: 'sdk_begin', sessionId: plan.sessionId, epochMs: performance.timeOrigin + performance.now() });
 		const raw = await this._withTraceContext(plan.sessionId, () => plan.client.createSession({
 			...config,
 			sessionId: plan.sessionId,
@@ -746,6 +749,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
+		this._logService.trace('[StartupProbe]', { component: 'launcher', stage: 'sdk_end', sessionId: plan.sessionId, epochMs: performance.timeOrigin + performance.now() });
 		return this._finalizeSession(raw, sandboxConfig, plan, plan.model?.id);
 	}
 
@@ -764,6 +768,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (isGpt56Model(modelId)) {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
 		}
+		this._logService.trace('[StartupProbe]', { component: 'launcher', stage: 'finalize_end', sessionId: plan.sessionId, epochMs: performance.timeOrigin + performance.now() });
 		return new CopilotSessionWrapper(raw, this._logService);
 	}
 

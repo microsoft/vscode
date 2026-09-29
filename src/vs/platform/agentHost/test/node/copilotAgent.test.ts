@@ -829,6 +829,8 @@ class MockCopilotSession {
 	disconnectGate: Promise<void> | undefined;
 	sendCalls = 0;
 	disconnectCalls = 0;
+	initializeToolsCalls = 0;
+	initializeToolsError: Error | undefined;
 	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
 	setModelError: Error | undefined;
 	readonly workingDirectoryCalls: string[] = [];
@@ -836,6 +838,15 @@ class MockCopilotSession {
 	readonly workingDirectoryResults: string[] = [];
 	readonly gitHubCredentialUpdates: Array<{ credentials: { type: 'token'; host: string; token: string } }> = [];
 	readonly rpc = {
+		tools: {
+			initializeAndValidate: async () => {
+				this.initializeToolsCalls++;
+				if (this.initializeToolsError) {
+					throw this.initializeToolsError;
+				}
+				return {};
+			},
+		},
 		mcp: {
 			list: async () => ({ servers: [] }),
 			enable: async () => ({ success: true }),
@@ -10232,6 +10243,252 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		for (const mode of ['overlap', 'prewarm', 'prewarm-tools']) {
+			for (const enabledFlags of [[], ['IS_SCENARIO_AUTOMATION'], ['EVAL_AHP_DUMMY_AUTH']]) {
+				test(`${mode} without both safety flags leaves preparation hooks disabled and first send working (${enabledFlags.join(',')})`, async () => {
+					const keys = ['VSCODE_AGENT_HOST_STARTUP_EXPERIMENT', 'IS_SCENARIO_AUTOMATION', 'EVAL_AHP_DUMMY_AUTH'] as const;
+					const previous = keys.map(key => process.env[key]);
+					process.env[keys[0]] = mode;
+					for (const key of keys.slice(1)) {
+						delete process.env[key];
+						if (enabledFlags.includes(key)) {
+							process.env[key] = '1';
+						}
+					}
+					const native = new MockCopilotSession();
+					const client = new TestCopilotClient([]);
+					client.createSession = async () => native as unknown as CopilotSession;
+					const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()) });
+					try {
+						assert.strictEqual(agent.chats.prepareTurn, undefined);
+						assert.strictEqual(agent.chats.prepareDraft, undefined);
+						await agent.authenticate('https://api.github.com', 'token');
+						const session = AgentSession.uri('copilotcli', 'partial-experiment-flags');
+						const chat = defaultChatUri(session);
+						const directory = URI.file('/workspace');
+						await provisionSession(agent, { session, workingDirectories: [directory] });
+						await agent.chats.sendMessage(chat, 'hello', [directory], undefined, 'turn-1', undefined, exactChatContext(session, chat, session));
+						assert.strictEqual(native.sendCalls, 1);
+					} finally {
+						await disposeAgent(agent);
+						for (const [index, key] of keys.entries()) {
+							if (previous[index] === undefined) {
+								delete process.env[key];
+							} else {
+								process.env[key] = previous[index];
+							}
+						}
+					}
+				});
+			}
+		}
+
+		for (const action of ['claim', 'model-change', 'directory-change', 'configuration-change', 'configuration-order', 'tools-change', 'authentication-change', 'expired', 'automatic-expiry', 'inflight-dispose', 'dispose', 'shutdown', 'worktree', 'bounded', 'draft-model-change', 'draft-agent-change', 'initialize-tools', 'initialize-tools-error', 'initialize-tools-auth'] as const) {
+			test(`isolated native prewarm remains hidden until claim and handles ${action}`, async function () {
+				this.timeout(action === 'automatic-expiry' ? 45000 : 10000);
+				const keys = ['VSCODE_AGENT_HOST_STARTUP_EXPERIMENT', 'IS_SCENARIO_AUTOMATION', 'EVAL_AHP_DUMMY_AUTH'] as const;
+				const previous = keys.map(key => process.env[key]);
+				process.env[keys[0]] = action.startsWith('initialize-tools') ? 'prewarm-tools' : 'prewarm';
+				process.env[keys[1]] = '1';
+				process.env[keys[2]] = '1';
+				const client = new TestCopilotClient([]);
+				const native: MockCopilotSession[] = [];
+				const warnings: string[] = [];
+				const creationStarted = new DeferredPromise<void>();
+				const creationGate = new DeferredPromise<void>();
+				const authenticationRequested = new DeferredPromise<void>();
+				const authenticationResponses: TestMcpAuthResult[] = [];
+				client.createSession = async config => {
+					const session = new MockCopilotSession(config.sessionId);
+					if (action === 'initialize-tools-error') {
+						session.initializeToolsError = new Error('tool initialization failed');
+					}
+					if (action === 'initialize-tools-auth') {
+						session.rpc.tools.initializeAndValidate = async () => {
+							session.initializeToolsCalls++;
+							assert.ok(config.onMcpAuthRequest);
+							const response = config.onMcpAuthRequest({
+								requestId: 'prewarm-tool-auth',
+								serverName: 'example',
+								serverUrl: TEST_MCP_RESOURCE,
+								reason: 'initial',
+								wwwAuthenticateParams: { scope: TEST_MCP_SCOPES.join(' ') },
+								resourceMetadata: JSON.stringify({ resource: TEST_MCP_RESOURCE, authorization_servers: ['https://auth.example.com'] }),
+							}, { sessionId: session.sessionId });
+							authenticationRequested.complete();
+							authenticationResponses.push(await response);
+							return {};
+						};
+					}
+					native.push(session);
+					creationStarted.complete();
+					if (action === 'inflight-dispose') {
+						await creationGate.p;
+					}
+					return session as unknown as CopilotSession;
+				};
+				const { agent, stateManager, configurationService } = createTestAgentContext(disposables, {
+					copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()),
+					logService: new class extends NullLogService {
+						override warn(message: string, ...args: unknown[]): void { warnings.push([message, ...args].join(' ')); }
+					},
+				});
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					const session = AgentSession.uri('copilotcli', `prewarm-${action}`);
+					const chat = defaultChatUri(session);
+					const context = exactChatContext(session, chat, session);
+					const workingDirectory = URI.file('/workspace');
+					const now = new Date().toISOString();
+					stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+					stateManager.setSessionConfig(session.toString(), {
+						schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation' }, autoApprove: { type: 'string', title: 'Approval' } } },
+						values: { isolation: action === 'worktree' ? 'worktree' : 'folder', autoApprove: 'default' },
+					});
+					const materialized: IAgentMaterializeChatEvent[] = [];
+					disposables.add(agent.onDidMaterializeChat(e => materialized.push(e)));
+					await provisionSession(agent, { session, workingDirectories: [workingDirectory] });
+					assert.strictEqual(agent.chats.prepareChat, undefined, 'Speculation must not opt into blocking input preparation');
+					await agent.chats.prepareDraft!(chat, context, { model: { id: 'gpt-5.6-sol', config: { thinkingLevel: 'medium' } } });
+					await agent.chats.changeAgent(chat, undefined, context);
+					assert.strictEqual(native.length, 0, 'Do not prewarm before client tools have been published');
+					await agent.chats.prepareDraft!(chat, context, {});
+					agent.getOrCreateActiveClient(chat, context, { clientId: 'client' }).tools = [];
+					await agent.chats.prepareDraft!(chat, context);
+					await agent.chats.changeAgent(chat, undefined, context);
+					assert.strictEqual(native.length, 0, 'Do not guess a model before the composer publishes its selection');
+					await agent.chats.prepareDraft!(chat, context, { model: { id: 'gpt-5.6-sol', config: { thinkingLevel: 'medium' } } });
+					if (action === 'initialize-tools-auth') {
+						await authenticationRequested.p;
+						assert.strictEqual(hasLiveChat(agent, chat), false, 'Auth must route without registering a live session');
+						assert.strictEqual(await agent.handleAuthenticationToken({
+							resource: TEST_MCP_RESOURCE, scopes: TEST_MCP_SCOPES, token: 'mcp-token',
+						}), true);
+					}
+					if (action === 'inflight-dispose') {
+						await creationStarted.p;
+						const disposed = disposeProvisionedSession(agent, session);
+						creationGate.complete();
+						await disposed;
+						assert.ok(native[0].disconnectCalls > 0);
+						assert.strictEqual(native[0].sendCalls, 0);
+						assert.strictEqual(materialized.length, 0);
+						assert.strictEqual(hasLiveChat(agent, chat), false);
+						return;
+					}
+					// The selection update is queued behind native preparation, without claiming it.
+					await agent.chats.changeModel(chat, { id: 'gpt-5.6-sol', config: { thinkingLevel: 'medium' } }, context);
+					assert.strictEqual(native.length, action === 'worktree' ? 0 : 1, JSON.stringify({ warnings, config: configurationService.getSessionConfigValues(session.toString()) }));
+					assert.strictEqual(materialized.length, 0);
+					assert.strictEqual(hasLiveChat(agent, chat), false);
+					assert.strictEqual(native[0]?.sendCalls ?? 0, 0);
+					if (action === 'initialize-tools-error') {
+						assert.strictEqual(native[0].initializeToolsCalls, 1);
+						assert.ok(native[0].disconnectCalls > 0);
+						assert.ok(client.deletedSessionIds.includes(native[0].sessionId));
+						assert.ok(warnings.some(warning => warning.includes('tool initialization failed')));
+						return;
+					}
+					assert.strictEqual(native[0]?.initializeToolsCalls ?? 0, action.startsWith('initialize-tools') ? 1 : 0);
+					if (action === 'initialize-tools-auth') {
+						assert.deepStrictEqual(authenticationResponses, [{ kind: 'token', accessToken: 'mcp-token' }]);
+					}
+					if (action === 'draft-model-change' || action === 'draft-agent-change') {
+						await agent.chats.prepareDraft!(chat, context, {
+							model: { id: 'gpt-5.6-sol', config: { thinkingLevel: 'high' } },
+							agent: action === 'draft-agent-change' ? { uri: 'file:///workspace/custom.agent.md' } : undefined,
+						});
+						await agent.chats.changeAgent(chat, undefined, context);
+						assert.ok(native[0].disconnectCalls > 0);
+						assert.ok(client.deletedSessionIds.includes(native[0].sessionId));
+						assert.strictEqual(native.length, action === 'draft-model-change' ? 2 : 1);
+						assert.ok(native.every(session => session.sendCalls === 0));
+						return;
+					}
+
+					if (action === 'dispose' || action === 'shutdown') {
+						if (action === 'dispose') {
+							await disposeProvisionedSession(agent, session);
+							assert.ok(client.deletedSessionIds.includes(native[0].sessionId));
+						} else {
+							await agent.shutdown();
+						}
+						assert.ok(native[0].disconnectCalls > 0);
+						assert.strictEqual(materialized.length, 0);
+						return;
+					}
+					if (action === 'bounded') {
+						const second = AgentSession.uri('copilotcli', 'prewarm-second');
+						stateManager.createSession({ resource: second.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+						stateManager.setSessionConfig(second.toString(), {
+							schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation' } } },
+							values: { isolation: 'folder' },
+						});
+						await provisionSession(agent, { session: second, workingDirectories: [workingDirectory] });
+						agent.getOrCreateActiveClient(defaultChatUri(second), exactChatContext(second, defaultChatUri(second), second), { clientId: 'client' }).tools = [];
+						await agent.chats.prepareDraft!(defaultChatUri(second), exactChatContext(second, defaultChatUri(second), second), { model: { id: 'gpt-5.6-sol' } });
+						await agent.chats.changeAgent(defaultChatUri(second), undefined, exactChatContext(second, defaultChatUri(second), second));
+						assert.strictEqual(native.length, 1);
+					}
+					if (action === 'model-change') {
+						await agent.chats.changeModel(chat, { id: 'another-model' }, context);
+					}
+					if (action === 'configuration-change') {
+						configurationService.updateSessionConfig(session.toString(), { autoApprove: 'autoApprove' });
+					}
+					if (action === 'configuration-order') {
+						stateManager.setSessionConfig(session.toString(), {
+							schema: { type: 'object', properties: {} },
+							values: { autoApprove: 'default', isolation: 'folder' },
+						});
+					}
+					if (action === 'authentication-change') {
+						await agent.authenticate('https://api.github.com', 'new-token');
+					}
+					if (action === 'tools-change') {
+						agent.getOrCreateActiveClient(chat, context, { clientId: 'client' }).tools = [{
+							name: 'workspace_client_tool', description: 'Client tool',
+							inputSchema: { type: 'object', properties: {} },
+						}];
+					}
+					if (action === 'automatic-expiry') {
+						await timeout(30050);
+						await agent.chats.changeAgent(chat, undefined, context);
+						assert.ok(native[0].disconnectCalls > 0);
+						assert.ok(client.deletedSessionIds.includes(native[0].sessionId));
+					}
+					const directories = [action === 'directory-change' ? URI.file('/other-workspace') : workingDirectory];
+					const clock = action === 'expired' ? useFakeTimers({ now: Date.now() + 30001, toFake: ['Date'] }) : undefined;
+					try {
+						await agent.chats.prepareTurn!(chat, directories, context);
+					} finally {
+						clock?.restore();
+					}
+					const invalidated = ['model-change', 'directory-change', 'configuration-change', 'tools-change', 'authentication-change', 'expired', 'automatic-expiry'].includes(action);
+					assert.strictEqual(native.length, invalidated ? 2 : 1);
+					assert.strictEqual(materialized.length, 1);
+					assert.strictEqual(hasLiveChat(agent, chat), true);
+					assert.ok(native.every(session => session.sendCalls === 0));
+					await agent.chats.sendMessage(chat, 'hello', directories, undefined, 'turn-1', undefined, context);
+					assert.strictEqual(native.at(-1)?.sendCalls, 1);
+					if (invalidated) {
+						assert.ok(native[0].disconnectCalls > 0);
+						assert.ok(client.deletedSessionIds.includes(native[0].sessionId));
+					}
+				} finally {
+					creationGate.complete();
+					await disposeAgent(agent);
+					for (const [index, key] of keys.entries()) {
+						if (previous[index] === undefined) {
+							delete process.env[key];
+						} else {
+							process.env[key] = previous[index];
+						}
+					}
+				}
+			});
+		}
 
 		test('createChat binds a fresh session-backed chat directly and materializes it on first send, with no bindSessionChat call', async () => {
 			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);

@@ -1712,6 +1712,18 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		});
 	});
 
+	test('reports provider preparation separately from contributions and checkpoint waiting', async () => {
+		setupSession();
+		agent.chats.prepareTurn = async () => { await timeout(0); };
+		startTurn('turn-1');
+		await timeout(10);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.strictEqual(typeof data.sendStageProviderPreparationMs, 'number');
+		assert.strictEqual(typeof data.sendStageContributionsMs, 'number');
+		assert.strictEqual(typeof data.sendStageCheckpointMs, 'number');
+	});
+
 	test('reports no duration for a pre-send stage that never ran', async () => {
 		// An ephemeral session skips the turn-start checkpoint entirely, so that
 		// stage must be absent rather than reported as zero — otherwise a skipped
@@ -1724,10 +1736,12 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.deepStrictEqual({
 			checkpoint: data.sendStageCheckpointMs,
+			preparation: data.sendStageProviderPreparationMs,
 			contributions: typeof data.sendStageContributionsMs,
 			providerDispatch: typeof data.timeToProviderDispatch,
 		}, {
 			checkpoint: undefined,
+			preparation: undefined,
 			contributions: 'number',
 			providerDispatch: 'number',
 		});

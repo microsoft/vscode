@@ -494,6 +494,31 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		assert.ok(result[0].after && !result[0].before, 'untracked file in empty repo should be an addition');
 	});
 
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree reuses the HEAD tree for a clean checkout without a temporary index', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'tracked.txt'), 'unchanged\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'snapshot fixture');
+		const messages: string[] = [];
+		const service = createGitService(disposables, new class extends NullLogService {
+			override trace(message: string): void { messages.push(message); }
+		}());
+		const tree = await service.captureWorkingTreeAsTree(URI.file(dir));
+		assert.strictEqual(tree, run('rev-parse', 'HEAD^{tree}').toString().trim());
+		assert.ok(!messages.some(message => message.includes('> git read-tree') || message.includes('> git write-tree')));
+		assert.strictEqual(run('status', '--porcelain').toString(), '');
+	});
+
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree still writes an empty tree for an unborn clean repository', async () => {
+		const { dir, run } = initRepo();
+		const tree = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+		assert.ok(tree);
+		assert.strictEqual(run('cat-file', '-t', tree).toString().trim(), 'tree');
+		assert.strictEqual(run('ls-tree', '-r', tree).toString(), '');
+		assert.strictEqual(run('status', '--porcelain').toString(), '');
+	});
+
 	(hasGit ? test : test.skip)('captureWorkingTreeAsTree stages scoped rename source and untracked paths', async () => {
 		const fs = await import('fs/promises');
 		const { dir, run } = initRepo();

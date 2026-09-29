@@ -44,6 +44,7 @@ export interface IAgentHostTurnTimingDiagnostic {
 	sendStageModelSelectionMs?: number;
 	sendStageAttachmentsMs?: number;
 	sendStageContributionsMs?: number;
+	sendStageProviderPreparationMs?: number;
 	sendStageCheckpointMs?: number;
 	hostRootTurnOrdinal?: number;
 	hostProcessAgeMs?: number;
@@ -80,7 +81,7 @@ export function agentHostTimingAttributes(diagnostic: IAgentHostTurnTimingDiagno
 		if (diagnostic.titleGenerationStrategy !== undefined) {
 			put('titleGenerationStrategy', diagnostic.titleGenerationStrategy);
 		}
-		for (const key of ['totalTime', 'timeToProviderDispatch', 'timeToFirstProgress', 'timeToFirstSubstantiveProgress', 'sendStageWorkingDirectoryMs', 'sendStageModelSelectionMs', 'sendStageAttachmentsMs', 'sendStageContributionsMs', 'sendStageCheckpointMs', 'hostRootTurnOrdinal', 'hostProcessAgeMs'] as const) {
+		for (const key of ['totalTime', 'timeToProviderDispatch', 'timeToFirstProgress', 'timeToFirstSubstantiveProgress', 'sendStageWorkingDirectoryMs', 'sendStageModelSelectionMs', 'sendStageAttachmentsMs', 'sendStageContributionsMs', 'sendStageProviderPreparationMs', 'sendStageCheckpointMs', 'hostRootTurnOrdinal', 'hostProcessAgeMs'] as const) {
 			measurement(key, diagnostic[key]);
 		}
 	} else {

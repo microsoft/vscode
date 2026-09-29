@@ -104,6 +104,7 @@ import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreemen
 import { getAppNodeModulesUri } from '../appNodeModules.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
+import { getAgentHostStartupExperiment } from '../../common/agentHostStartupExperiment.js';
 import { hasClientPluginMcpDefaultCwd, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isRecognizedCopilotClientStartupFailure, reportCopilotClientOperationFailure, reportCopilotClientRecovery, reportCopilotClientRecoveryTurn, reportCopilotClientStartup, type CopilotClientOperation, type CopilotClientOperationFailureKind, type ICopilotFailureCorrelation } from './copilotFailureTelemetry.js';
 
@@ -386,6 +387,18 @@ interface IProvisionalSession {
 	readonly project: IAgentSessionProjectInfo | undefined;
 	/** Whether this session is workspace-less (surfaced in the sessions UI as a "Quick Chat"). */
 	readonly workspaceless?: boolean;
+}
+
+interface IStartupPreparedSession extends IDisposable {
+	readonly session: CopilotAgentSession;
+	readonly client: CopilotSessionLaunchPlan['client'];
+	readonly model: ModelSelection;
+	readonly workingDirectories: readonly URI[];
+	readonly configuration: string;
+	readonly authenticationGeneration: number;
+	readonly connectorGeneration: number;
+	readonly expiresAt: number;
+	readonly expiry: IDisposable;
 }
 
 interface IResolvedCopilotChatContext {
@@ -945,6 +958,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _chatEntriesBySdkId = this._register(new DisposableMap<string, CopilotChatEntry>());
 	/** Sessions that may issue SDK callbacks before joining `_chatEntriesBySdkId`. */
 	private readonly _sessionsPendingRegistration = this._register(new DisposableSet<CopilotAgentSession>());
+	private readonly _startupPreparedSessions = this._register(new DisposableMap<string, IStartupPreparedSession>());
+	private _startupPrewarmOwner: string | undefined;
 	private _connectorRefreshGeneration = 0;
 	/** Exact host chat URI -> persisted provider backing; live SDK sessions are tracked separately. */
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
@@ -1583,8 +1598,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** `hostCustomizations` refreshes the retained host snapshot before plugin/MCP resolution. */
 	async getChatCustomizations(chat: URI, context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]> {
 		const session = resolveAgentChatContext(context, chat).configurationResource;
+		const traceStartup = (stage: string) => this._logService.trace('[StartupProbe]', { component: 'customizations', stage, session: session.toString(), epochMs: performance.timeOrigin + performance.now() });
+		traceStartup('anchors_begin');
 		this._rememberHostCustomizations(session, hostCustomizations);
 		const anchors = await this._getSessionCustomizationAnchors(session);
+		traceStartup('anchors_end');
 		const activeClient = this._getOrCreateActiveClient(session, anchors.directory);
 		if (anchors.applyAdditional) {
 			// Provisional (pre-send) or pre-resume: the anchors carry the full ordered
@@ -1594,12 +1612,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
 		}
 		const fromPlugins = await activeClient.pluginController.getCustomizationsSettled();
+		traceStartup('plugins_end');
 		const sessionChat = this._findSessionChat(session);
 		const topLevelMcp = activeClient.pluginController.resolveTopLevelMcpCustomizations(
 			sessionChat?.topLevelMcpCustomizations() ?? this._rootMcpCustomizations(AgentSession.id(session), await activeClient.configuredMcpServers()),
 			sessionChat?.mcpServerOwners?.(),
 		);
 		const customizations = [...fromPlugins, ...topLevelMcp];
+		traceStartup('mcp_end');
 		return applyMcpServerEnablement(customizations, this._retainedHostCustomizations(session));
 	}
 
@@ -2057,7 +2077,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
 		let handled = false;
-		const sessions = new Set([...this._sessionsPendingRegistration.values(), ...this._allLiveSessions()]);
+		const sessions = new Set([...this._sessionsPendingRegistration.values(), ...[...this._startupPreparedSessions.values()].map(prepared => prepared.session), ...this._allLiveSessions()]);
 		for (const session of sessions) {
 			const didHandle = await session.resolveMcpAuthentication(params);
 			handled ||= didHandle;
@@ -3559,6 +3579,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Chat-addressed surface for the chats within a session.
 	 */
 	readonly chats: IAgentChats = {
+		prepareDraft: ['prewarm', 'prewarm-tools'].includes(getAgentHostStartupExperiment(process.env) ?? '') ? async (chat, context, selection) => {
+			const resolved = this._resolveChatContext(chat, context);
+			await this._queueChat(resolved.configurationId, resolved.sequencerKey, 'prepareDraft', async () => {
+				const provisional = this._provisionalSessions.get(resolved.configurationId);
+				if (!provisional || provisional.sdkSessionId !== resolved.sdkSessionId) {
+					return;
+				}
+				if (selection) {
+					if (selection.model) {
+						await this._validateModelSelection(selection.model);
+					}
+					if (!structuralEquals(provisional.model, selection.model) || !structuralEquals(provisional.agent, selection.agent)) {
+						await this._discardStartupPrewarm(provisional.sessionId);
+						provisional.model = selection.model;
+						provisional.agent = selection.agent;
+					}
+				}
+				this._scheduleStartupPrewarm(provisional);
+			});
+		} : undefined,
+		prepareTurn: getAgentHostStartupExperiment(process.env)
+			? (chat, workingDirectories, context) => this._prepareTurn(chat, workingDirectories, context)
+			: undefined,
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> => {
 			this._noteHostCustomizations(context);
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
@@ -3588,6 +3631,69 @@ export class CopilotAgent extends Disposable implements IAgent {
 		},
 		getMessages: (chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> => this._getChatMessages(chat, context),
 	};
+
+	private async _prepareTurn(chat: URI, workingDirectories: readonly URI[] | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
+		if (!getAgentHostStartupExperiment(process.env)) {
+			throw new Error('SDK startup overlap is restricted to isolated startup-control automation until initialization side effects are validated.');
+		}
+		const context = this._resolveSendChatContext(chat, operationContext);
+		await this._queueChat(context.configurationId, context.sequencerKey, 'prepareTurn', async () => {
+			const provisional = this._provisionalSessions.get(context.configurationId);
+			if (!provisional || provisional.sdkSessionId !== context.sdkSessionId) {
+				return;
+			}
+			this._logService.trace('[StartupProbe]', { component: 'prepareTurn', stage: 'begin', session: context.configurationResource.toString(), epochMs: performance.timeOrigin + performance.now() });
+			await this._ensureResolvedChatSession(this._resolveSendChatContext(chat, operationContext), workingDirectories);
+			this._logService.trace('[StartupProbe]', { component: 'prepareTurn', stage: 'end', session: context.configurationResource.toString(), epochMs: performance.timeOrigin + performance.now() });
+		});
+	}
+
+	private _startupConfigurationKey(session: URI): string {
+		return JSON.stringify([this._configurationService.getRootConfigValues?.(), this._configurationService.getSessionConfigValues(session.toString())]);
+	}
+
+	private _scheduleStartupPrewarm(provisional: IProvisionalSession): void {
+		if (!['prewarm', 'prewarm-tools'].includes(getAgentHostStartupExperiment(process.env) ?? '')) {
+			return;
+		}
+		if (this._startupPrewarmOwner || !provisional.model || provisional.isEphemeral || provisional.agent || provisional.workspaceless
+			|| !this._activeClients.get(provisional.sessionUri)?.toolSet.size
+			|| this._configurationService.getSessionConfigValues(provisional.sessionUri.toString())?.[SessionConfigKey.Isolation] !== 'folder'
+			|| (provisional.workingDirectories?.length ?? 1) !== 1) {
+			return;
+		}
+		this._startupPrewarmOwner = provisional.sessionId;
+		void this._queueChat(provisional.sessionId, provisional.sdkSessionId, 'startupPrewarm', async () => {
+			if (this._provisionalSessions.get(provisional.sessionId) !== provisional) {
+				this._startupPrewarmOwner = undefined;
+				return;
+			}
+			await this._materializeProvisional(provisional.sessionId, provisional.workingDirectories ?? [provisional.workingDirectory], true);
+		}).catch(error => {
+			if (this._startupPrewarmOwner === provisional.sessionId) {
+				this._startupPrewarmOwner = undefined;
+			}
+			this._logService.warn(`[Copilot:${provisional.sessionId}] Experimental native prewarming failed`, error);
+		});
+	}
+
+	private async _discardStartupPrewarm(sessionId: string): Promise<void> {
+		const prepared = this._startupPreparedSessions.get(sessionId);
+		if (this._startupPrewarmOwner === sessionId) {
+			this._startupPrewarmOwner = undefined;
+		}
+		if (!prepared) {
+			return;
+		}
+		this._startupPreparedSessions.deleteAndLeak(sessionId);
+		prepared.expiry.dispose();
+		try {
+			await prepared.session.destroySession();
+			await this._deleteSdkSession(prepared.session.sessionId, prepared.session.chatChannelUri.toString());
+		} finally {
+			prepared.dispose();
+		}
+	}
 
 	getTurnDiagnosticSnapshot(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot {
 		const session = this._findChatByUri(chat);
@@ -3691,13 +3797,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Reserves an SDK id now and defers real session creation to the first send. */
 	private async _reserveChatBacking(chat: URI, context: IAgentChatContext, options: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
 		const session = context.configurationResource;
+		const traceStartup = (stage: string) => this._logService.trace('[StartupProbe]', { component: 'reserveBacking', stage, session: session.toString(), epochMs: performance.timeOrigin + performance.now() });
+		traceStartup('reserve_begin');
 		const sessionId = AgentSession.id(session);
 		this._logService.info(`[Copilot] Creating chat ${chat.toString()} with a deferred backing... ${options.model ? `model=${options.model.id}` : ''}`);
 		const sdkSessionId = generateUuid();
 		// No working directory means a workspace-less chat that runs in a stable scratch dir.
 		const isWorkspaceless = options.workingDirectories === undefined;
 		const workingDirectory = await this._resolveCreateWorkingDirectory(options, sessionId, isWorkspaceless);
+		traceStartup('directory_end');
 		await this._ensureClient();
+		traceStartup('client_end');
 
 		// Idempotency: a duplicate creation for a chat that has already been
 		// promoted to a real SDK session (or restored from disk) is a no-op; we
@@ -3753,7 +3863,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Compute project metadata cheaply from the original working dir.
 		// Worktrees aren't created until materialization, so the project is
 		// reported relative to the user's chosen folder.
+		traceStartup('project_begin');
 		const project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+		traceStartup('project_end');
 
 		if (!reserved) {
 			this._resetSessionLifetime(sessionId);
@@ -3775,6 +3887,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		this._logService.info(`[Copilot] Chat created; its backing stays deferred until the first send: ${session.toString()}`);
+		traceStartup('reserve_end');
 		return {
 			resolvedWorkingDirectory: workingDirectory,
 			provisional: true,
@@ -4307,12 +4420,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Materializes a provisional chat into a real SDK session immediately before first send. */
-	private async _materializeProvisional(sessionId: string, resolvedWorkingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
+	private async _materializeProvisional(sessionId: string, resolvedWorkingDirectories?: readonly URI[], prepareOnly = false): Promise<CopilotAgentSession> {
+		const traceStartup = (stage: string) => this._logService.trace('[StartupProbe]', { component: 'materialize', stage, sessionId, epochMs: performance.timeOrigin + performance.now() });
+		traceStartup('begin');
 		const provisional = this._provisionalSessions.get(sessionId);
 		if (!provisional) {
 			throw new Error(`Cannot materialize unknown provisional session: ${sessionId}`);
 		}
 		const client = await this._ensureClientForSession();
+		traceStartup('client_end');
 		const sessionUri = provisional.sessionUri;
 		const sdkSessionId = provisional.sdkSessionId;
 
@@ -4338,54 +4454,116 @@ export class CopilotAgent extends Disposable implements IAgent {
 		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(resolvedWorkingDirectories));
 		// Advertise exactly the clients Agent Host fanned this chat out to.
 		const snapshot = await activeClient.snapshot((this._findSessionChatUri(sessionUri) ?? sessionUri).toString());
-		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
+		traceStartup('snapshot_end');
+		const materializedWorkingDirectories = resolvedWorkingDirectories ?? [workingDirectory];
+		const model = provisional.model;
+		const configuration = this._startupConfigurationKey(sessionUri);
+		const authenticationGeneration = this._telemetryAuthenticationGeneration;
+		const connectorGeneration = this._connectorRefreshGeneration;
+		let prepared = this._startupPreparedSessions.get(sessionId);
+		const invalidationReason = !prepared ? undefined
+			: prepared.expiresAt <= Date.now() ? 'expired'
+				: prepared.client !== client ? 'client'
+					: prepared.authenticationGeneration !== authenticationGeneration ? 'authentication'
+						: prepared.connectorGeneration !== connectorGeneration ? 'connectors'
+							: !structuralEquals(JSON.parse(prepared.configuration), JSON.parse(configuration)) ? 'configuration'
+								: !structuralEquals(prepared.model, model) ? 'model'
+									: provisional.agent ? 'agent'
+										: !equals(prepared.workingDirectories.map(uri => uri.toString()), materializedWorkingDirectories.map(uri => uri.toString())) ? 'directories'
+											: await activeClient.getRestartReason(prepared.session.appliedSnapshot, provisional.chat.toString(), snapshot);
+		if (invalidationReason) {
+			this._logService.trace('[StartupProbe]', { component: 'nativePrewarm', stage: 'invalidated', reason: invalidationReason, sessionId, epochMs: performance.timeOrigin + performance.now() });
+			await this._discardStartupPrewarm(sessionId);
+			prepared = undefined;
+		}
 
-		let agentSession: CopilotAgentSession | undefined;
+		let agentSession: CopilotAgentSession | undefined = prepared?.session;
 		let agent: AgentSelection | undefined;
-		try {
-			const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
-			agent = resolvedAgent?.agent;
-			const launchPlan: CopilotSessionLaunchPlan = {
-				kind: 'create',
-				client,
-				sessionId: sdkSessionId,
-				isEphemeral: provisional.isEphemeral,
-				hasScopedEditSurface: provisional.hasScopedEditSurface,
-				workingDirectory,
-				additionalDirectories: this._additionalCustomizationDirectories(resolvedWorkingDirectories),
-				resolvedAgentName: resolvedAgent?.name,
-				snapshot,
-				disabledRootMcpServers: await this._disabledRootMcpServers(sessionUri, sdkSessionId, snapshot),
-				activeClientToolSet: activeClient.toolSet,
-				shellManager,
-				githubCredentials: this._getGitHubSessionCredentials(),
-				model: provisional.model,
-				longContextWindow: this._longContextWindowFor(provisional.model?.id),
-				freeLongContext: this._isFreeLongContext(provisional.model?.id),
-				workspaceless: provisional.workspaceless,
-			};
-			const chatChannelUri = this._findBoundSessionChatUri(sdkSessionId) ?? URI.parse(buildDefaultChatUri(sessionUri));
-			agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient, {
-				sessionUri,
-				chatChannelUri,
-				resource: sessionUri,
+		if (prepared) {
+			this._startupPreparedSessions.deleteAndLeak(sessionId);
+			prepared.expiry.dispose();
+			this._startupPrewarmOwner = undefined;
+			this._registerInitializedSession(sdkSessionId, prepared.session, activeClient, client);
+			this._logService.trace('[StartupProbe]', { component: 'nativePrewarm', stage: 'claimed', sessionId, epochMs: performance.timeOrigin + performance.now() });
+		}
+		if (!agentSession) {
+			const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
+			try {
+				const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
+				traceStartup('agent_end');
+				agent = resolvedAgent?.agent;
+				const launchPlan: CopilotSessionLaunchPlan = {
+					kind: 'create',
+					client,
+					sessionId: sdkSessionId,
+					isEphemeral: provisional.isEphemeral,
+					hasScopedEditSurface: provisional.hasScopedEditSurface,
+					workingDirectory,
+					additionalDirectories: this._additionalCustomizationDirectories(resolvedWorkingDirectories),
+					resolvedAgentName: resolvedAgent?.name,
+					snapshot,
+					disabledRootMcpServers: await this._disabledRootMcpServers(sessionUri, sdkSessionId, snapshot),
+					activeClientToolSet: activeClient.toolSet,
+					shellManager,
+					githubCredentials: this._getGitHubSessionCredentials(),
+					model,
+					longContextWindow: this._longContextWindowFor(model?.id),
+					freeLongContext: this._isFreeLongContext(model?.id),
+					workspaceless: provisional.workspaceless,
+				};
+				const chatChannelUri = this._findBoundSessionChatUri(sdkSessionId) ?? URI.parse(buildDefaultChatUri(sessionUri));
+				traceStartup('plan_end');
+				agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient, {
+					sessionUri,
+					chatChannelUri,
+					resource: sessionUri,
+				});
+				const initializingSession = agentSession;
+				await this._initializeAndRegisterSession(initializingSession, () => {
+					if (prepareOnly) {
+						this._throwIfClientReplaced(launchPlan.client, initializingSession);
+					} else {
+						this._registerInitializedSession(sdkSessionId, initializingSession, activeClient, launchPlan.client);
+					}
+				});
+				traceStartup('initialize_end');
+			} catch (error) {
+				agentSession?.dispose();
+				throw error;
+			}
+		}
+		if (prepareOnly) {
+			const session = agentSession;
+			const expiry = disposableTimeout(() => {
+				void this._queueChat(sessionId, sdkSessionId, 'startupPrewarmExpiry', () => this._discardStartupPrewarm(sessionId))
+					.catch(error => this._logService.warn(`[Copilot:${sessionId}] Experimental prewarm expiry failed`, error));
+			}, 30000);
+			this._startupPreparedSessions.set(sessionId, {
+				session, client, model: model!, workingDirectories: materializedWorkingDirectories,
+				configuration, authenticationGeneration,
+				connectorGeneration, expiresAt: Date.now() + 30000, expiry,
+				dispose: () => { expiry.dispose(); session.dispose(); },
 			});
-			const initializingSession = agentSession;
-			await this._initializeAndRegisterSession(initializingSession, () => {
-				this._registerInitializedSession(sdkSessionId, initializingSession, activeClient, launchPlan.client);
-			});
-		} catch (error) {
-			agentSession?.dispose();
-			throw error;
+			if (getAgentHostStartupExperiment(process.env) === 'prewarm-tools') {
+				try {
+					traceStartup('tools_begin');
+					await session.prepareNativeTools();
+					traceStartup('tools_end');
+				} catch (error) {
+					await this._discardStartupPrewarm(sessionId);
+					throw error;
+				}
+			}
+			this._logService.trace('[StartupProbe]', { component: 'nativePrewarm', stage: 'ready', sessionId, epochMs: performance.timeOrigin + performance.now() });
+			return session;
 		}
 
 		const project = await projectFromCopilotContext({ cwd: workingDirectory?.fsPath }, this._gitService);
+		traceStartup('project_end');
 
 		// The resolved root set (index 0 = process root, e.g. a worktree).
 		// Shared by the persisted metadata, the baseline checkpoint and the
 		// materialize receipt so all three agree on the same directories.
-		const materializedWorkingDirectories = resolvedWorkingDirectories ?? ([workingDirectory]);
-
 		this._provisionalSessions.delete(sessionId);
 		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, materializedWorkingDirectories, customizationDirectory, project, true);
 		if (agent !== undefined) {
@@ -4410,6 +4588,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Emit the resolved working-directory set (index 0 = process root). The host
 		// replaces index 0 of the session set with it, preserving the tail.
 		this._onDidMaterializeChat.fire({ chat: provisional.chat, project, workingDirectories: materializedWorkingDirectories });
+		traceStartup('end');
 		return agentSession;
 	}
 
@@ -4768,6 +4947,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Releases provider-owned resources once the last chat sharing `scope` is gone. */
 	private async _finalizeConfigurationScope(scope: URI, scopeId: string, workspacelessHint: boolean): Promise<void> {
+		await this._discardStartupPrewarm(scopeId);
 		const isWorkspaceless = workspacelessHint
 			|| (await this._readSessionMetadata(scope).catch(() => undefined))?.workspaceless === true;
 		this._provisionalSessions.delete(scopeId);
@@ -5119,6 +5299,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			if (isProvisional) {
+				await this._discardStartupPrewarm(configurationId);
 				this._provisionalSessions.delete(configurationId);
 			}
 			this._chatBackings.delete(chatKey);
@@ -5588,6 +5769,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 			}
 			this._sessionsPendingRegistration.clearAndDisposeAll();
+			this._startupPreparedSessions.clearAndDisposeAll();
+			this._startupPrewarmOwner = undefined;
 			this._githubCredentials.shutdown();
 			for (const lifetime of this._sessionLifetimes.values()) {
 				void lifetime.close();

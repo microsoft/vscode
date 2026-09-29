@@ -10,13 +10,38 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
-import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ConfigSchema, SessionModelInfo, type ModelSelection } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type JsonPrimitive } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
+
+/** Uses the same model identifier and primitive configuration mapping for draft preparation and send. */
+export function createAgentHostModelSelection(languageModelIdentifier: string | undefined, modelConfiguration: Record<string, unknown> | undefined, sessionType: string, logService: ILogService): ModelSelection | undefined {
+	if (!languageModelIdentifier) {
+		return undefined;
+	}
+	const prefix = sessionType + ':';
+	const rawModelId = languageModelIdentifier.startsWith(prefix) ? languageModelIdentifier.substring(prefix.length) : languageModelIdentifier;
+	if (!languageModelIdentifier.startsWith(prefix) && languageModelIdentifier.includes('/')) {
+		logService.warn(`[AgentHost] Dropping foreign model identifier '${languageModelIdentifier}' for session type '${sessionType}'; falling back to default model.`);
+		return undefined;
+	}
+	if (!rawModelId) {
+		return undefined;
+	}
+	const config: Record<string, JsonPrimitive> = {};
+	for (const [key, value] of Object.entries(modelConfiguration ?? {})) {
+		if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null) {
+			config[key] = value;
+		}
+	}
+	return Object.keys(config).length > 0 ? { id: rawModelId, config } : { id: rawModelId };
+}
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to

@@ -789,6 +789,16 @@ export interface IAgentPrepareChatResult {
  * the provider needs the owning session or storage scope.
  */
 export interface IAgentChats {
+	/**
+	 * Optional pre-send initialization after model/agent and working-directory
+	 * resolution. Runs alongside the turn-start checkpoint: implementations
+	 * must not send a prompt or perform workspace-modifying work here.
+	 */
+	prepareTurn?(chat: URI, workingDirectories: readonly URI[] | undefined, context: AgentChatOperationContext): Promise<void>;
+
+	/** Speculative preparation without blocking input or sending a turn. A supplied draft selection supersedes the previous selection, including clearing it. */
+	prepareDraft?(chat: URI, context: AgentChatOperationContext, selection?: { readonly model?: ModelSelection; readonly agent?: AgentSelection }): Promise<void>;
+
 	/** Prepare an existing chat for input without sending a turn. May acquire its native writer lock. */
 	prepareChat?(chat: URI, context: AgentChatOperationContext): Promise<IAgentPrepareChatResult>;
 
