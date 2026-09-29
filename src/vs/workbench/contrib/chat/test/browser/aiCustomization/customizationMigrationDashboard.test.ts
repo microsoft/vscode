@@ -58,10 +58,10 @@ suite('CustomizationMigrationDashboard', () => {
 					],
 				},
 				{
-					storage: PromptsStorage.local, label: 'vscode', count: 1, skipped: false, hasConfigurableDestinations: false,
+					storage: PromptsStorage.local, label: 'vscode', count: 2, skipped: false, hasConfigurableDestinations: true,
 					categories: [
 						{ id: CustomizationMigrationCategoryId.McpServers, label: 'MCP Servers', description: 'Move supported servers.', count: 1, countLabel: '1 server' },
-						{ id: CustomizationMigrationCategoryId.ConfiguredLocations, label: 'Configured locations', description: 'Update locations.', count: 0, countLabel: '0 locations' },
+						{ id: CustomizationMigrationCategoryId.ConfiguredLocations, label: 'Custom location settings', description: 'Update locations.', count: 1, countLabel: '1 customization' },
 					],
 				},
 			],
@@ -81,6 +81,7 @@ suite('CustomizationMigrationDashboard', () => {
 		button(parent, 'Review Prompts to skills from Your profile').click();
 		button(parent, 'Review User Data from Your profile').click();
 		button(parent, 'Review MCP Servers from vscode').click();
+		button(parent, 'Review Custom location settings from vscode').click();
 		button(parent, 'Change destinations for Your profile').click();
 		dashboard.focusDestination(PromptsStorage.user);
 		assert.deepStrictEqual({
@@ -97,16 +98,16 @@ suite('CustomizationMigrationDashboard', () => {
 			telemetryActions,
 		}, {
 			title: 'Migrations',
-			categories: ['Prompts to skills', 'User Data', 'MCP Servers'],
-			counts: ['2 prompts', '2 agents · 1 instruction', '1 server'],
+			categories: ['Prompts to skills', 'User Data', 'MCP Servers', 'Custom location settings'],
+			counts: ['2 prompts', '2 agents · 1 instruction', '1 server', '1 customization'],
 			highRisk: 'High risk',
 			progress: '0 of 2 complete',
 			workspaceDescription: 'Workspace customizations. Skip this workspace if you do not own it.',
 			initialFocus: 'Review Prompts to skills from Your profile',
 			focus: 'Change destinations for Your profile',
-			workspaceDestinationButton: false,
-			actions: ['review:promptFiles:user', 'review:userData:user', 'review:mcpServers:local', 'destinations:user'],
-			telemetryActions: ['migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:mcpServers', 'destinationsClicked'],
+			workspaceDestinationButton: true,
+			actions: ['review:promptFiles:user', 'review:userData:user', 'review:mcpServers:local', 'review:configuredLocations:local', 'destinations:user'],
+			telemetryActions: ['migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
 		});
 	});
 
@@ -188,7 +189,7 @@ suite('CustomizationMigrationDashboard', () => {
 		}, {
 			skipped: { progress: '1 of 2 complete', state: 'Skipped', categories: 0, focus: 'Include workspace vscode' },
 			included: false,
-			categories: 3,
+			categories: 4,
 			focus: 'Skip workspace vscode',
 			telemetryActions: ['workspaceSkipped', 'workspaceIncluded'],
 		});

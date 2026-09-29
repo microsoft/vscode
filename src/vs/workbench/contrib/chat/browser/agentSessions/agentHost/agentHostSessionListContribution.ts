@@ -62,7 +62,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 			return;
 		}
 		this._initialized = true;
-		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService));
+		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, undefined));
 		this._sessionListStore = sessionListStore;
 
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {

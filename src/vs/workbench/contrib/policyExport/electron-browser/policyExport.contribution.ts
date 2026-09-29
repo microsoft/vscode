@@ -21,6 +21,7 @@ import { PolicyCategory, PolicyCategoryData } from '../../../../base/common/poli
 import { ExportedPolicyDataDto } from '../common/policyDto.js';
 import { join } from '../../../../base/common/path.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { arePolicyReferenceTypesCompatible } from '../common/policyReference.js';
 
 interface ExtensionConfigurationPolicyEntry {
 	readonly name: string;
@@ -187,7 +188,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 							// Extension-contributed reference settings are not registered in the
 							// headless export process, so their type cannot be validated here; only
 							// enforce the type match for settings present in the registry.
-							if (referenceType !== undefined && referenceType !== policy.type) {
+							if (referenceType !== undefined && !arePolicyReferenceTypesCompatible(policy.type, referenceType)) {
 								throw new Error(`Policy '${policy.name}': setting '${referenceKey}' (type '${referenceType}') declares a 'policyReference' to a policy of type '${policy.type}'. A 'policyReference' must match the owning setting's type.`);
 							}
 						}

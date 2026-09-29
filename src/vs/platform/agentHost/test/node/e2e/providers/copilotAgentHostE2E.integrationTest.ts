@@ -114,7 +114,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		}
 	});
 
-	test('materialized Copilot debug collection includes provider log entries', async function () {
+	test('materialized Copilot debug collection includes session event log', async function () {
 		this.timeout(180_000);
 		const workingDirectory = await mkdtemp(join(tmpdir(), 'ahp-copilot-debug-logs-'));
 		tempDirs.push(workingDirectory);
@@ -128,17 +128,18 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 		assert.deepStrictEqual({
 			providerLogsIncluded: debugLogs.providerLogsIncluded,
-			hasProviderLogEntries: debugLogs.entries.some(entry => !/^agenthost(?:-server)?(?:\.\d+)?\.log$/.test(entry.path)),
+			hasEventsLog: debugLogs.entries.some(entry => entry.path === 'events.jsonl'),
 		}, {
 			providerLogsIncluded: true,
-			hasProviderLogEntries: true,
+			hasEventsLog: true,
 		});
 	});
 
 	test('client tool reaches ready after start and completes', async function () {
 		this.timeout(180_000);
 		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs, {
-			ignoredActionTypes: [ActionType.ChatUsage],
+			// Sandbox metadata can arrive on either side of tool registration.
+			ignoredActionTypes: [ActionType.ChatUsage, ActionType.SessionMetaChanged],
 		});
 
 		const start = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))

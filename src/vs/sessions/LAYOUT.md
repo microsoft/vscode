@@ -47,6 +47,8 @@ Each visible session has one Sessions-owned view. The view presents the active c
 
 Chat-tab presentation is a property of the session view, not of the action that opened a chat. The view observes its configuration directly and consistently applies either tabbed or session-view presentation to every chat, including restored chats and chats opened through navigation or external entry points.
 
+In the side-by-side single-chat presentation, pinning a chat header keeps that chat visible while new chats reuse an unpinned group. If every visible group is pinned, opening another chat creates a group; chat pins persist with the chat-grid layout.
+
 `ISessionsService` owns:
 
 - visible-session identity and order;

@@ -27,6 +27,22 @@ steps:
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
         Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
 
+  - script: |
+      set -e
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      npm config set registry "$NPM_REGISTRY"
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(NPMRC_PATH)
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
   - script: npm ci
     workingDirectory: build
     displayName: Install build dependencies

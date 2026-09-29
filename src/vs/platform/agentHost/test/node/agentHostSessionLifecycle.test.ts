@@ -60,6 +60,7 @@ suite('AgentHostSessionLifecycle', () => {
 		const status = options?.sessionStatus ?? SessionStatus.Idle;
 		const meta = withSessionExternal(withSessionGitHubState(
 			withSessionGitState(undefined, { branchName: 'feature' }),
+			'file:///repo',
 			{ pullRequestUrls: options?.pullRequestUrls ?? [PULL_REQUEST_URL], pullRequestBranchName: 'feature' },
 		), options?.external ?? false);
 		const summary: SessionSummary = {

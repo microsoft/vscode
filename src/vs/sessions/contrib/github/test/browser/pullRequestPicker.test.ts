@@ -11,7 +11,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { readSessionGitHubState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionGitHubStateInput } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, isPullRequestAvailable, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
 import { IGitHubPullRequestSummary } from '../../common/types.js';
@@ -131,7 +131,7 @@ suite('Create Session from Pull Request', () => {
 
 	test('creates session metadata with the selected pull request identity', () => {
 		assert.deepStrictEqual(
-			readSessionGitHubState(createPullRequestSessionMetadata('microsoft', 'vscode', pullRequest(42, { headRef: 'feature' }))),
+			readSessionGitHubStateInput(createPullRequestSessionMetadata('microsoft', 'vscode', pullRequest(42, { headRef: 'feature' }))),
 			{
 				owner: 'microsoft',
 				repo: 'vscode',

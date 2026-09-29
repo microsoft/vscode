@@ -59,6 +59,80 @@ suite('McpResourceScannerService', () => {
 	const read = async () => (await fileService.readFile(resource)).value.toString();
 	const write = (content: string) => fileService.writeFile(resource, VSBuffer.fromString(content));
 
+	suite('Copilot Global', () => {
+		const format = McpResourceFormat.CopilotGlobal;
+
+		test('merges queued additions and preserves unknown neighboring CLI entries', async () => {
+			const original = '{\r\n  "custom": true,\r\n  "mcpServers": { "keep": { "type": "ws", "url": "ws://localhost", "tools": ["read"] }, "invalid": null }\r\n}\r\n';
+			await write(original);
+			await Promise.all([
+				scanner.addMcpServers([server('one')], resource, undefined, format),
+				scanner.addMcpServers([server('two')], resource, undefined, format),
+			]);
+			await scanner.removeMcpServers(['one'], resource, undefined, format);
+			const content = await read();
+			assert.deepStrictEqual({
+				document: JSON.parse(content),
+				lineEndings: content.includes('\r\n') && !content.replaceAll('\r\n', '').includes('\n'),
+				names: Object.keys((await scanner.scanMcpServers(resource, undefined, format)).servers ?? {}),
+			}, {
+				document: { custom: true, mcpServers: { keep: { type: 'ws', url: 'ws://localhost', tools: ['read'] }, invalid: null, two: { type: 'local', command: 'two', args: [], tools: ['*'] } } },
+				lineEndings: true,
+				names: ['two'],
+			});
+		});
+
+		test('missing reads and removals do not create a file; addition creates Copilot format', async () => {
+			await scanner.scanMcpServers(resource, undefined, format);
+			await scanner.removeMcpServers(['absent'], resource, undefined, format);
+			assert.strictEqual(await fileService.exists(resource), false);
+			await scanner.addMcpServers([server('new')], resource, undefined, format);
+			assert.deepStrictEqual(JSON.parse(await read()), { mcpServers: { new: { type: 'local', command: 'new', args: [], tools: ['*'] } } });
+		});
+
+		for (const original of ['', 'null', '[]', '{ broken', '{"mcpServers":null}', '{"mcpServers":[]}', '{"mcpServers":"bad"}']) {
+			test(`rejects invalid documents without writes: ${original}`, async () => {
+				await write(original);
+				await assert.rejects(scanner.addMcpServers([server('new')], resource, undefined, format));
+				await assert.rejects(scanner.removeMcpServers(['old'], resource, undefined, format));
+				assert.strictEqual(await read(), original);
+			});
+		}
+
+		test('rejects unsupported and malformed entries before writing any part of a batch', async () => {
+			const original = '{"mcpServers":{}}';
+			await write(original);
+			const invalidServers: IInstallableMcpServer[] = [
+				{ ...server('envFile'), config: { type: McpServerType.LOCAL, command: 'node', envFile: '.env' } },
+				{ ...server('empty'), config: { type: McpServerType.LOCAL, command: ' ' } },
+				{ ...server('input'), config: { type: McpServerType.LOCAL, command: 'node', args: ['${input:token}'] } },
+				{ ...server('inputs'), inputs: [{ id: 'token', type: McpServerVariableType.PROMPT, description: 'Token' }] },
+				JSON.parse('{"name":"bad-args","config":{"type":"stdio","command":"node","args":[1]}}'),
+				JSON.parse('{"name":"bad-env","config":{"type":"stdio","command":"node","env":{"A":{}}}}'),
+				JSON.parse('{"name":"bad-oauth","config":{"type":"http","url":"https://example.com","oauth":{"secret":"lost"}}}'),
+			];
+			for (const invalid of invalidServers) {
+				await assert.rejects(scanner.addMcpServers([server('valid'), invalid], resource, undefined, format));
+			}
+			await assert.rejects(scanner.updateSandboxConfig(data => data, resource, undefined, format));
+			assert.strictEqual(await read(), original);
+		});
+
+		for (const exists of [false, true]) {
+			test(`does not overwrite concurrent ${exists ? 'same-size edits' : 'creation'}`, async () => {
+				const concurrent = '{"mcpServers":{"new":{"command":"new"}}}';
+				if (exists) {
+					await write('{"mcpServers":{"old":{"command":"old"}}}');
+					fileService.afterRead = async () => { await write(concurrent); };
+				} else {
+					fileService.afterMissingRead = async () => { await write(concurrent); };
+				}
+				await assert.rejects(scanner.addMcpServers([server('mine')], resource, undefined, format));
+				assert.strictEqual(await read(), concurrent);
+			});
+		}
+	});
+
 	test('creates a canonical wrapped JSON document and merges concurrent additions', async () => {
 		await Promise.all([
 			scanner.addMcpServers([server('one')], resource, target, format),

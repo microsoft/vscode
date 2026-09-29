@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { AgentHostArtifactToolsCompactPromptsConfigKey, AgentHostArtifactToolsConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import type { Turn } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
-import { getArtifactToolsInstruction } from '../../shared/artifactServerTools.js';
+import { ARTIFACT_TOOLS_INSTRUCTION } from '../../shared/artifactServerTools.js';
 
 const artifactToolsFirstTurnSeenMemento = createChatMementoKey<boolean>('firstTurnSeen', () => false);
 
@@ -32,7 +32,7 @@ export class ArtifactToolsContribution extends Disposable implements IAgentHostC
 		}
 		firstTurnSeen.set(true, undefined);
 		return this._agentConfigService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey)
-			? { instructions: [getArtifactToolsInstruction(this._agentConfigService.getRootValue(platformRootSchema, AgentHostArtifactToolsCompactPromptsConfigKey) === true)] }
+			? { instructions: [ARTIFACT_TOOLS_INSTRUCTION] }
 			: undefined;
 	}
 

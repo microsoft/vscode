@@ -18,6 +18,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
+import { IAllowedMcpServersService } from '../../../platform/mcp/common/mcpManagement.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { ISecretStorageService } from '../../../platform/secrets/common/secrets.js';
 import { IWorkbenchMcpGatewayService } from '../../contrib/mcp/common/mcpGatewayService.js';
@@ -43,6 +44,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 
 	private readonly _servers = new Map<number, ExtHostMcpServerLaunch>();
 	private readonly _serverDefinitions = new Map<number, McpServerDefinition>();
+	private readonly _serverRequestUrls = new Map<number, Set<string>>();
 	private readonly _serverAuthTracking = new McpServerAuthTracker();
 	private readonly _proxy: Proxied<ExtHostMcpShape>;
 	private readonly _collectionDefinitions = this._register(new DisposableMap<string, {
@@ -66,10 +68,27 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		@IWorkbenchMcpGatewayService private readonly _mcpGatewayService: IWorkbenchMcpGatewayService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISecretStorageService private readonly _secretStorageService: ISecretStorageService,
+		@IAllowedMcpServersService private readonly _allowedMcpServersService: IAllowedMcpServersService,
 	) {
 		super();
 		this._register(_authenticationService.onDidChangeSessions(e => this._onDidChangeAuthSessions(e.providerId, e.label)));
 		const proxy = this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostMcp);
+		this._register(this._allowedMcpServersService.onDidChangeAllowedMcpServers(() => {
+			for (const [id, urls] of this._serverRequestUrls) {
+				const definition = this._serverDefinitions.get(id);
+				if (!definition) {
+					continue;
+				}
+				for (const url of urls) {
+					const allowed = this._allowedMcpServersService.isServerAllowed({ name: definition.label, url });
+					if (allowed !== true) {
+						this.$onDidChangeState(id, { state: McpConnectionState.Kind.Error, message: allowed.value });
+						proxy.$stopMcp(id);
+						break;
+					}
+				}
+			}
+		}));
 		this._register(this._mcpRegistry.registerDelegate({
 			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
 			priority: _extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
@@ -98,6 +117,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				);
 				this._servers.set(id, launch);
 				this._serverDefinitions.set(id, serverDefiniton);
+				if (resolveLaunch.type === McpServerTransportType.HTTP) {
+					this._serverRequestUrls.set(id, new Set([resolveLaunch.uri.toString(true)]));
+				}
 				proxy.$startMcp(id, {
 					launch: resolveLaunch,
 					defaultCwd: serverDefiniton.defaultCwd ?? serverDefiniton.variableReplacement?.folder?.uri,
@@ -197,6 +219,22 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._collectionDefinitions.deleteAndDispose(collectionId);
 	}
 
+	async $checkMcpServerAllowed(id: number, url: string): Promise<string | undefined> {
+		const definition = this._serverDefinitions.get(id);
+		const urls = this._serverRequestUrls.get(id);
+		if (!definition || !urls) {
+			throw new CancellationError();
+		}
+
+		const allowed = this._allowedMcpServersService.isServerAllowed({ name: definition.label, url });
+		if (allowed !== true) {
+			return allowed.value;
+		}
+
+		urls.add(url);
+		return undefined;
+	}
+
 	$onDidChangeState(id: number, update: McpConnectionState): void {
 		const server = this._servers.get(id);
 		if (!server) {
@@ -208,6 +246,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			server.dispose();
 			this._servers.delete(id);
 			this._serverDefinitions.delete(id);
+			this._serverRequestUrls.delete(id);
 			this._serverAuthTracking.untrack(id);
 		}
 	}
@@ -230,7 +269,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		if (!server) {
 			return undefined;
 		}
-		return this._getSessionForProvider(id, server, providerId, scopes, undefined, options.errorOnUserInteraction, options.clientId);
+		return this._getSessionForProvider(id, server, providerId, scopes, { clientId: options.clientId }, options.errorOnUserInteraction);
 	}
 
 	async $getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, { errorOnUserInteraction, forceNewRegistration, clientId }: IMcpAuthenticationOptions = {}): Promise<string | undefined> {
@@ -270,31 +309,33 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				return undefined;
 			}
 			const resourceClientId = clientId ?? authDetails.clientId;
-			// Resolve the resource-AS client secret from secret storage, keyed by the resource indicator
-			// + the configured resource client_id. Set via the "Set Client Secret" code lens above
-			// `oauth.clientId` in mcp.json (the server URL equals the resource indicator per RFC 9470).
-			// Using `resource` (not the server launch URI) ensures the key matches what the prompt
-			// writes in $promptForResourceClientSecret, so prompted secrets survive window reload.
+			let clientSecretStorageKey: string | undefined;
 			let resourceClientSecret: string | undefined;
 			if (resourceClientId) {
+				// Match the resource-scoped key used by $promptForResourceClientSecret.
+				clientSecretStorageKey = mcpOAuthClientSecretStorageKey(resource, resourceClientId);
 				try {
-					resourceClientSecret = await this._secretStorageService.get(mcpOAuthClientSecretStorageKey(resource, resourceClientId));
+					resourceClientSecret = await this._secretStorageService.get(clientSecretStorageKey);
 				} catch {
 					// Best-effort lookup; fall through.
 				}
 			}
-			return this._getSessionForProvider(id, server, xaaProviderId, xaaScopes, issuer, errorOnUserInteraction, resourceClientId, resource, audience, resourceClientSecret);
+			return this._getSessionForProvider(id, server, xaaProviderId, xaaScopes, {
+				authorizationServer: issuer, clientId: resourceClientId, resource, audience, clientSecretStorageKey
+			}, errorOnUserInteraction, resourceClientSecret);
 		}
 
 		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer);
 
 		const resolvedClientId = clientId ?? authDetails.clientId;
 		const mcpServerUrl = server.launch.type === McpServerTransportType.HTTP ? server.launch.uri.toString(true) : undefined;
+		let clientSecretStorageKey: string | undefined;
 		let clientSecret: string | undefined;
 		let didLookupClientSecret = false;
 		if (resolvedClientId && mcpServerUrl) {
+			clientSecretStorageKey = mcpOAuthClientSecretStorageKey(mcpServerUrl, resolvedClientId);
 			try {
-				clientSecret = await this._secretStorageService.get(mcpOAuthClientSecretStorageKey(mcpServerUrl, resolvedClientId));
+				clientSecret = await this._secretStorageService.get(clientSecretStorageKey);
 				didLookupClientSecret = true;
 			} catch {
 				// Best-effort lookup; proceed without a client secret.
@@ -331,7 +372,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			providerId = provider.id;
 		}
 
-		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction, resolvedClientId, authDetails.resourceMetadata?.resource, /* audience */ undefined, clientSecret);
+		return this._getSessionForProvider(id, server, providerId, resolvedScopes, {
+			authorizationServer, clientId: resolvedClientId, resource: authDetails.resourceMetadata?.resource, clientSecretStorageKey
+		}, errorOnUserInteraction, clientSecret);
 	}
 
 	private _ensureXaaIssuer(): URI {
@@ -357,15 +400,13 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		server: McpServerDefinition,
 		providerId: string,
 		scopes: string[],
-		authorizationServer?: URI,
+		authContext: IMcpServerAuthContext,
 		errorOnUserInteraction: boolean = false,
-		clientId?: string,
-		resource?: string,
-		audience?: string,
 		clientSecret?: string,
 	): Promise<string | undefined> {
-		const authContext: IMcpServerAuthContext = { authorizationServer, clientId, resource, audience };
-		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer, clientId, clientSecret, resource, audience }, true);
+		const { authorizationServer, clientId, resource, audience } = authContext;
+		const providerOptions = { authorizationServer, clientId, clientSecret, resource, audience };
+		const sessions = await this._authenticationService.getSessions(providerId, scopes, { ...providerOptions, silent: errorOnUserInteraction }, true);
 		// Only HTTP servers authenticate, so the server URL is always known here. A token is only released
 		// to a server whose current URL matches the one the user consented to, so changing the URL while
 		// keeping the same id requires re-consent.
@@ -409,7 +450,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				throw new UserInteractionRequiredError('authentication');
 			}
 			session = provider.supportsMultipleAccounts
-				? await this.authenticationMcpServersService.selectSession(providerId, server.id, server.label, scopes, sessions)
+				? await this.authenticationMcpServersService.selectSession(providerId, server.id, server.label, scopes, sessions, providerOptions)
 				: sessions[0];
 		}
 		else {
@@ -422,13 +463,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 					providerId,
 					scopes,
 					{
+						...providerOptions,
 						activateImmediate: true,
-						account: accountToCreate,
-						authorizationServer,
-						clientId,
-						clientSecret,
-						resource,
-						audience
+						account: accountToCreate
 					});
 			} while (
 				accountToCreate
@@ -489,20 +526,20 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				continue;
 			}
 
-			// Validate if the session is still available. Replay the authorization server, client
-			// id, resource, and audience captured when the session was established so the silent
-			// token request targets the same authority the user signed in against — dropping the
-			// authorization server here would fall back to the provider's default authority (e.g.
-			// the Microsoft provider's `organizations` tenant) and can tear down a working server.
 			try {
-				await this._getSessionForProvider(serverId, serverDefinition, providerId, scopes, context.authorizationServer, true, context.clientId, context.resource, context.audience);
+				// Replay the original context, but resolve the current secret so rotation takes effect.
+				const clientSecret = context.clientSecretStorageKey
+					? await this._secretStorageService.get(context.clientSecretStorageKey)
+					: undefined;
+				await this._getSessionForProvider(serverId, serverDefinition, providerId, scopes, context, true, clientSecret);
 			} catch (e) {
 				if (UserInteractionRequiredError.is(e)) {
 					// Session is no longer valid, stop the server
 					server.pushLog(LogLevel.Warning, nls.localize('mcpAuthSessionRemoved', "Authentication session for {0} removed, stopping server", providerLabel));
 					server.stop();
+				} else {
+					server.pushLog(LogLevel.Warning, nls.localize('mcpAuthRevalidationFailed', "Unable to revalidate authentication for {0}.", providerLabel));
 				}
-				// Ignore other errors to avoid disrupting other servers
 			}
 		}
 	}
@@ -578,6 +615,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}
 		this._servers.clear();
 		this._serverDefinitions.clear();
+		this._serverRequestUrls.clear();
 		this._serverAuthTracking.clear();
 		super.dispose();
 	}
@@ -656,6 +694,8 @@ export interface IMcpServerAuthContext {
 	readonly clientId?: string;
 	readonly resource?: string;
 	readonly audience?: string;
+	/** Secret-storage reference; the secret itself is never retained here. */
+	readonly clientSecretStorageKey?: string;
 }
 
 /**

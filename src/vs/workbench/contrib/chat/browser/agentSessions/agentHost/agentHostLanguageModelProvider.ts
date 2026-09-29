@@ -9,6 +9,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
+import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
@@ -101,12 +102,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
 				const hasDiscount = typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100;
-				const detail = isAuto && hasDiscount
-					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
-					: undefined;
-				const tooltip = notices?.rowWarning ?? (isAuto
-					? ILanguageModelChatMetadata.getAutoModelDescription(hasDiscount ? discountPercent : undefined)
-					: undefined);
+				const { detail, description } = this._routingPresentationFor(m, hasDiscount ? discountPercent : undefined);
+				const tooltip = notices?.rowWarning ?? description;
 				const modelGroup = this._modelGroupFor(m);
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
 				// A host that derives its list from the Copilot SDK advertises no billing and no
@@ -166,6 +163,26 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 					},
 				};
 			});
+	}
+
+	/**
+	 * The picker detail and description of a model that routes across others: Auto advertises its
+	 * discount, HydraFusion that it is a research preview. Other models have neither.
+	 */
+	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
+		if (model.id === AUTO_RAW_MODEL_ID) {
+			return {
+				detail: discountPercent !== undefined ? localize('agentHost.auto.discount', "{0}% discount", discountPercent) : undefined,
+				description: ILanguageModelChatMetadata.getAutoModelDescription(discountPercent),
+			};
+		}
+		if (model.id === COPILOT_HYDRA_FUSION_MODEL_ID) {
+			return {
+				detail: localize('agentHost.hydraFusion.researchPreview', "Research preview"),
+				description: localize('agentHost.hydraFusion.description', "HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route."),
+			};
+		}
+		return {};
 	}
 
 	/**
