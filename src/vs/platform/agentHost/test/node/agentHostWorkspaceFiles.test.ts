@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { execFileSync } from 'child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -230,5 +231,30 @@ suite('AgentHostWorkspaceFiles', () => {
 			commonDirectory: await listed(commonDirectory),
 			workTree: await listed(workTree),
 		}, { bare: [], commonDirectory: [], workTree: ['HEAD'] });
+	});
+	test('enumerate does not list a linked worktree admin directory outside .git', async function () {
+		try {
+			execFileSync('git', ['--version'], { stdio: 'ignore' });
+		} catch {
+			this.skip();
+		}
+		const dir = createTempDir();
+		const emptyConfig = join(dir, 'empty.gitconfig');
+		writeFileSync(emptyConfig, '');
+		const env = { ...process.env, GIT_CONFIG_GLOBAL: emptyConfig, GIT_CONFIG_NOSYSTEM: '1' };
+		const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, env, stdio: 'pipe' });
+		git('init', '-q', 'source');
+		git('-C', 'source', '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-q', '--allow-empty', '-m', 'init');
+		git('clone', '-q', '--bare', 'source', 'shared');
+		git('--git-dir=shared', 'worktree', 'add', '-q', '--no-checkout', join(dir, 'checkout'));
+		writeFileSync(join(dir, 'checkout', 'main.ts'), '');
+
+		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
+		const listed = async (path: string) => (await files.enumerate(URI.file(path), CancellationToken.None)).files.map(uri => uri.path.slice(uri.path.lastIndexOf('/') + 1)).sort();
+		assert.deepStrictEqual({
+			adminDirectory: await listed(join(dir, 'shared', 'worktrees', 'checkout')),
+			commonDirectory: await listed(join(dir, 'shared')),
+			worktree: await listed(join(dir, 'checkout')),
+		}, { adminDirectory: [], commonDirectory: [], worktree: ['main.ts'] });
 	});
 });

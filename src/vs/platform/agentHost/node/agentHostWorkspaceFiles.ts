@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
+import { isAbsolute, join } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { rgDiskPath } from '../../../base/node/ripgrep.js';
@@ -287,13 +288,31 @@ export class AgentHostWorkspaceFiles extends Disposable {
 
 /**
  * Whether `directory` is Git's own storage rather than a work tree: inside a
- * `.git` directory (including a linked worktree's admin directory), or a bare
- * repository. Its `HEAD`, `config`, `objects/`, and `refs/` are not source files.
+ * `.git` directory, a bare repository, or a linked worktree's admin directory
+ * (`<common>/worktrees/<name>`), which can live under a common directory not
+ * named `.git`. Their `HEAD`, `config`, `objects/`, and `refs/` are not source
+ * files.
  */
 async function isGitAdministrativeDirectory(directory: URI): Promise<boolean> {
 	if (directory.path.split('/').includes('.git')) {
 		return true;
 	}
-	const [head, objects, refs, dotGit] = await Promise.all(['HEAD', 'objects', 'refs', '.git'].map(name => fs.stat(URI.joinPath(directory, name).fsPath).catch(() => undefined)));
-	return !dotGit && !!head?.isFile() && !!objects?.isDirectory() && !!refs?.isDirectory();
+	const stat = (path: string) => fs.stat(path).catch(() => undefined);
+	const [head, objects, refs, dotGit, gitdir, commondir] = await Promise.all(['HEAD', 'objects', 'refs', '.git', 'gitdir', 'commondir'].map(name => stat(join(directory.fsPath, name))));
+	if (dotGit || !head?.isFile()) {
+		return false;
+	}
+	if (objects?.isDirectory() && refs?.isDirectory()) {
+		return true;
+	}
+	if (!gitdir?.isFile() || !commondir?.isFile()) {
+		return false;
+	}
+	// A linked worktree's admin directory names its shared repository in `commondir`.
+	const common = (await fs.readFile(join(directory.fsPath, 'commondir'), 'utf8').catch(() => '')).trim();
+	if (!common) {
+		return false;
+	}
+	const commonObjects = await stat(join(isAbsolute(common) ? common : join(directory.fsPath, common), 'objects'));
+	return !!commonObjects?.isDirectory();
 }

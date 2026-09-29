@@ -5,13 +5,12 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { timeout } from '../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../base/common/errors.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentSession } from '../../common/agent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -59,6 +58,7 @@ suite('WorkspaceContextContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const workspaceHeading = JSON.stringify(URI.file('/workspace').fsPath).slice(1, -1);
 	const otherHeading = JSON.stringify(URI.file('/other').fsPath).slice(1, -1);
+	const userMessage = { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } as const;
 	teardown(() => sinon.restore());
 
 	function setupContext(options: { files?: readonly string[]; roots?: readonly string[]; provider?: string; truncated?: boolean; worktreePending?: boolean } = {}) {
@@ -67,6 +67,7 @@ suite('WorkspaceContextContribution', () => {
 		const state = store.add(new AgentHostStateManager(log));
 		const session = 'agent-host-session://workspace-context';
 		const chat = buildDefaultChatUri(session);
+		const roots = options.roots ?? [URI.file('/workspace').toString()];
 		state.createSession({
 			resource: session,
 			provider: options.provider ?? 'copilotcli',
@@ -74,9 +75,8 @@ suite('WorkspaceContextContribution', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
-			workingDirectories: [URI.file('/workspace').toString()],
+			workingDirectories: [...roots],
 		});
-		const roots = (options.roots ?? [URI.file('/workspace').toString()]).map(root => URI.parse(root));
 		const instantiation = store.add(new InstantiationService(new ServiceCollection(
 			[ILogService, log],
 			[IAgentHostStateManager, state],
@@ -89,17 +89,36 @@ suite('WorkspaceContextContribution', () => {
 			isTruncated: options.truncated ?? false,
 		});
 		let turn = 0;
-		const send = (channel = chat, { workingDirectories }: { workingDirectories?: readonly URI[] } = { workingDirectories: roots }) => service.outgoingTurn({
-			session, chat: channel, turnId: String(++turn), workingDirectories,
-			message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } },
-		});
-		const turnStarted = (channel = chat) => service.didApplyClientAction({
+		/** Accepts a turn, as the client's `ChatTurnStarted` does before the send path runs. */
+		const accept = (channel = chat) => service.didApplyClientAction({
 			channel, session, clientId: 'client',
 			clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
-			action: { type: ActionType.ChatTurnStarted, turnId: String(turn + 1), startedAt: new Date(0).toISOString(), message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } },
+			action: { type: ActionType.ChatTurnStarted, turnId: String(turn + 1), startedAt: new Date(0).toISOString(), message: userMessage },
 		});
-		const turnEnded = (channel = chat) => service.turnEnd({ session, channel, turnId: String(turn), reason: { kind: 'cancelled' } });
-		return { log, state, service, session, chat, enumerate, send, turnStarted, turnEnded, worktreeIsolation };
+		/** Runs the outgoing-turn contributions for the directories the provider will run in. */
+		const send = (channel = chat, workingDirectories: readonly URI[] | undefined = roots.map(root => URI.parse(root))) => service.outgoingTurn({
+			session, chat: channel, turnId: String(++turn), workingDirectories, message: userMessage,
+		});
+		/** Accepts a turn, lets preparation finish, and sends it. */
+		const firstTurn = async (channel = chat, workingDirectories?: readonly URI[]) => {
+			accept(channel);
+			await timeout(0);
+			return workingDirectories ? send(channel, workingDirectories) : send(channel);
+		};
+		const endTurn = (channel = chat) => service.turnEnd({ session, channel, turnId: String(turn), reason: { kind: 'cancelled' } });
+		return { log, state, service, session, chat, enumerate, accept, send, firstTurn, endTurn, worktreeIsolation };
+	}
+
+	const structureOf = (result: { instructions?: readonly string[] }) => result.instructions?.[0].split('```text\n')[1].split('\n```')[0];
+
+	/** Records each enumeration as it starts, answering with `files` (or never, when omitted). */
+	function recordEnumerations(context: ReturnType<typeof setupContext>, files?: (root: URI) => readonly URI[]) {
+		const started: { root: string; token: CancellationToken }[] = [];
+		context.enumerate.callsFake((root, token) => {
+			started.push({ root: root.path, token });
+			return files ? Promise.resolve({ files: files(root), isTruncated: false }) : new Promise(() => { });
+		});
+		return started;
 	}
 
 	test('adds a sorted file-name tree and preserves the user message', async () => {
@@ -109,8 +128,8 @@ suite('WorkspaceContextContribution', () => {
 				'/workspace/.env', '/workspace/.git/config', '/workspace/node_modules/pkg/index.js', '/other/private.txt',
 			]
 		});
-		assert.deepStrictEqual(await context.send(), {
-			message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } },
+		assert.deepStrictEqual(await context.firstTurn(), {
+			message: userMessage,
 			instructions: ['<workspace_info>\nInitial workspace structure (file names only):\n```text\n' + workspaceHeading + '\nmeta.json\nsrc/\n\tmain.ts\ntests/\n\tmain.test.ts\n```\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>'],
 		});
 	});
@@ -128,7 +147,7 @@ suite('WorkspaceContextContribution', () => {
 		await context.service.hydrateTurns({ session: context.session, chat: empty }, []);
 		const results = [];
 		for (const chat of [context.chat, context.chat, peer, peer, restored, empty]) {
-			results.push(!!(await context.send(chat)).instructions?.length);
+			results.push(!!(await context.firstTurn(chat)).instructions?.length);
 		}
 		assert.deepStrictEqual({ results, enumerations: context.enumerate.callCount }, { results: [true, false, true, false, false, true], enumerations: 3 });
 	});
@@ -138,91 +157,85 @@ suite('WorkspaceContextContribution', () => {
 			roots: ['/workspace', '/workspace/src', '/workspace', '/other'].map(path => URI.file(path).toString()),
 			files: ['/workspace/package.json', '/workspace/src/main.ts', '/other/meta.json'],
 		});
-		const result = await context.send();
+		const result = await context.firstTurn();
 		assert.deepStrictEqual({
 			roots: context.enumerate.getCalls().map(call => call.args[0].path),
-			structure: result.instructions?.[0].split('```text\n')[1].split('\n```')[0],
+			structure: structureOf(result),
 		}, { roots: ['/workspace', '/other'], structure: workspaceHeading + '\npackage.json\nsrc/\n\tmain.ts\n\n' + otherHeading + '\nmeta.json' });
-	});
-
-	test('uses the turn\'s resolved working directories instead of session state', async () => {
-		const context = setupContext({ files: ['/worktrees/agent/meta.json'] });
-		const worktree = URI.file('/worktrees/agent');
-		const result = await context.send(context.chat, { workingDirectories: [worktree] });
-		assert.deepStrictEqual({
-			roots: context.enumerate.getCalls().map(call => call.args[0].path),
-			structure: result.instructions?.[0].split('```text\n')[1].split('\n```')[0],
-		}, { roots: ['/worktrees/agent'], structure: JSON.stringify(worktree.fsPath).slice(1, -1) + '\nmeta.json' });
-	});
-
-	/** Resolves with each root as soon as its enumeration starts, answering with `files` (or never, when omitted). */
-	function recordEnumerations(context: ReturnType<typeof setupContext>, files?: (root: URI) => readonly URI[]) {
-		const started: { root: string; token: CancellationToken }[] = [];
-		const onDidStart = store.add(new Emitter<void>());
-		context.enumerate.callsFake((root, token) => {
-			started.push({ root: root.path, token });
-			onDidStart.fire();
-			return files ? Promise.resolve({ files: files(root), isTruncated: false }) : new Promise(() => { });
-		});
-		const next = () => Event.toPromise(onDidStart.event);
-		return { started, next };
-	}
-
-	test('prepares the snapshot when a first turn is accepted and sends the prepared result', async () => {
-		const context = setupContext();
-		const enumerations = recordEnumerations(context, root => [URI.joinPath(root, 'meta.json')]);
-		const started = enumerations.next();
-		context.turnStarted();
-		await started;
-		const result = await context.send();
-		assert.deepStrictEqual({ roots: enumerations.started.map(e => e.root), snapshot: !!result.instructions?.length }, {
-			roots: ['/workspace'], snapshot: true,
-		});
 	});
 
 	test('prepares a pending session\'s snapshot in its worktree as soon as the worktree exists', async () => {
 		const context = setupContext({ worktreePending: true });
-		const enumerations = recordEnumerations(context, root => [URI.joinPath(root, 'meta.json')]);
+		const started = recordEnumerations(context, root => [URI.joinPath(root, 'meta.json')]);
 		const worktree = URI.file('/worktrees/agent');
-		context.turnStarted();
-		const started = enumerations.next();
+		context.accept();
+		const whilePending = started.length;
 		context.worktreeIsolation.resolve(AgentSession.id(context.session), worktree);
-		await started;
-		const result = await context.send(context.chat, { workingDirectories: [worktree] });
-		assert.deepStrictEqual({
-			roots: enumerations.started.map(e => e.root),
-			structure: result.instructions?.[0].split('```text\n')[1].split('\n```')[0],
-		}, {
+		await timeout(0);
+		const result = await context.send(context.chat, [worktree]);
+		assert.deepStrictEqual({ whilePending, roots: started.map(e => e.root), structure: structureOf(result) }, {
+			whilePending: 0,
 			roots: ['/worktrees/agent'],
 			structure: JSON.stringify(worktree.fsPath).slice(1, -1) + '\nmeta.json',
 		});
 	});
 
-	test('stops preparation when the turn ends or the send stops waiting', async () => {
+	test('sends only what is already prepared, without waiting', async () => {
+		const context = setupContext({ roots: ['/workspace', '/other'].map(path => URI.file(path).toString()) });
+		const started: { root: string; token: CancellationToken }[] = [];
+		context.enumerate.callsFake((root, token) => {
+			started.push({ root: root.path, token });
+			return root.path === '/workspace' ? Promise.resolve({ files: [URI.file('/workspace/meta.json')], isTruncated: false }) : new Promise(() => { });
+		});
+		const result = await context.firstTurn();
+		assert.deepStrictEqual({
+			structure: structureOf(result),
+			cancelled: started.map(e => ({ root: e.root, cancelled: e.token.isCancellationRequested })),
+		}, {
+			structure: workspaceHeading + '\nmeta.json',
+			cancelled: [{ root: '/workspace', cancelled: true }, { root: '/other', cancelled: true }],
+		});
+	});
+
+	test('does not add a snapshot that was not prepared before the send', async () => {
 		const context = setupContext();
-		const enumerations = recordEnumerations(context);
-		const [running, unstarted] = ['running', 'unstarted'].map(name => {
+		const unaccepted = await context.send();
+		const peer = buildChatUri(context.session, 'peer');
+		context.state.addChat(context.session, peer, { title: 'Peer', origin: { kind: ChatOriginKind.User } });
+		context.accept(peer);
+		const stillListing = await context.send(peer);
+		assert.deepStrictEqual({ unaccepted, stillListing }, { unaccepted: { message: userMessage }, stillListing: { message: userMessage } });
+	});
+
+	test('does not add a snapshot prepared for different directories than the turn runs in', async () => {
+		const context = setupContext();
+		const started = recordEnumerations(context, root => [URI.joinPath(root, 'meta.json')]);
+		const result = await context.firstTurn(context.chat, [URI.file('/worktrees/agent')]);
+		assert.deepStrictEqual({ result, cancelled: started.map(e => e.token.isCancellationRequested) }, {
+			result: { message: userMessage },
+			cancelled: [true],
+		});
+	});
+
+	test('stops preparation when its turn ends or its chat or session is removed', async () => {
+		const context = setupContext();
+		const started = recordEnumerations(context);
+		const [ended, removed] = ['ended', 'removed'].map(name => {
 			const chat = buildChatUri(context.session, name);
 			context.state.addChat(context.session, chat, { title: name, origin: { kind: ChatOriginKind.User } });
 			return chat;
 		});
-		const runningStarted = enumerations.next();
-		context.turnStarted(running);
-		await runningStarted;
-		context.turnEnded(running);
-		context.turnStarted(unstarted);
-		context.turnEnded(unstarted);
-		const sendStarted = enumerations.next();
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const sent = context.send();
-			await sendStarted;
-			return sent;
+		context.accept(ended);
+		context.accept(removed);
+		context.accept();
+		context.endTurn(ended);
+		context.service.didDispatchAction({ channel: context.session, session: context.session, action: { type: ActionType.SessionChatRemoved, chat: removed } });
+		const beforeSessionRemoval = started.map(e => e.token.isCancellationRequested);
+		context.state.removeSession(context.session);
+		assert.deepStrictEqual({ beforeSessionRemoval, afterSessionRemoval: started.map(e => e.token.isCancellationRequested) }, {
+			beforeSessionRemoval: [true, true, false],
+			afterSessionRemoval: [true, true, true],
 		});
-		assert.deepStrictEqual(enumerations.started.map(e => ({ root: e.root, cancelled: e.token.isCancellationRequested })), [
-			{ root: '/workspace', cancelled: true },
-			{ root: '/workspace', cancelled: true },
-			{ root: '/workspace', cancelled: true },
-		]);
 	});
 
 	test('skips chats that continue or were delegated from another conversation', async () => {
@@ -236,8 +249,7 @@ suite('WorkspaceContextContribution', () => {
 		for (const [name, origin] of Object.entries(origins)) {
 			const chat = buildChatUri(context.session, name);
 			context.state.addChat(context.session, chat, { title: name, origin });
-			context.turnStarted(chat);
-			results[name] = !!(await context.send(chat)).instructions?.length;
+			results[name] = !!(await context.firstTurn(chat)).instructions?.length;
 		}
 		assert.deepStrictEqual({ results, enumerations: context.enumerate.callCount }, {
 			results: { fork: false, sideChat: false, tool: false },
@@ -252,9 +264,8 @@ suite('WorkspaceContextContribution', () => {
 				...Array.from({ length: 1000 }, (_, i) => `/workspace/a-large/file-${String(i).padStart(4, '0')}.ts`),
 			]
 		});
-		const instruction = (await context.send()).instructions?.[0];
-		assert.ok(instruction);
-		const structure = instruction.split('```text\n')[1].split('\n```')[0];
+		const structure = structureOf(await context.firstTurn());
+		assert.ok(structure);
 		assert.deepStrictEqual({ bounded: structure.length <= 2000, manifest: structure.includes('meta.json'), lastDirectory: structure.includes('z-last/'), truncated: structure.endsWith('...') }, {
 			bounded: true, manifest: true, lastDirectory: true, truncated: true,
 		});
@@ -262,12 +273,12 @@ suite('WorkspaceContextContribution', () => {
 
 	test('marks an incomplete enumeration as truncated', async () => {
 		const context = setupContext({ truncated: true });
-		assert.ok((await context.send()).instructions?.[0].includes('meta.json\n...\n```'));
+		assert.ok((await context.firstTurn()).instructions?.[0].includes('meta.json\n...\n```'));
 	});
 
 	test('quotes control characters and uses a safe Markdown fence', async () => {
 		const context = setupContext({ files: ['/workspace/```', '/workspace/line\nname.ts'] });
-		const instruction = (await context.send()).instructions?.[0];
+		const instruction = (await context.firstTurn()).instructions?.[0];
 		assert.ok(instruction);
 		assert.deepStrictEqual({ safeFence: instruction.includes('````text\n'), escapedName: instruction.includes('line\\nname.ts') }, { safeFence: true, escapedName: true });
 	});
@@ -275,60 +286,18 @@ suite('WorkspaceContextContribution', () => {
 	for (const options of [{ roots: [] }, { roots: ['vscode-remote://host/workspace'] }, { files: [] }, { provider: 'claude' }]) {
 		test(`does not add unavailable context: ${JSON.stringify(options)}`, async () => {
 			const context = setupContext(options);
-			assert.deepStrictEqual(await context.send(), { message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } });
+			assert.deepStrictEqual(await context.firstTurn(), { message: userMessage });
 		});
 	}
 
 	test('does not add context to a workspace-less turn', async () => {
-		const context = setupContext();
-		assert.deepStrictEqual({ result: await context.send(context.chat, {}), enumerations: context.enumerate.callCount }, {
-			result: { message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } },
+		const context = setupContext({ roots: [] });
+		assert.deepStrictEqual({ result: await context.firstTurn(context.chat, []), enumerations: context.enumerate.callCount }, {
+			result: { message: userMessage },
 			enumerations: 0,
 		});
 	});
 
-	test('logs enumeration errors without blocking the user message', async () => {
-		const context = setupContext();
-		context.enumerate.rejects(new Error('directory unavailable'));
-		const warn = sinon.spy(context.log, 'warn');
-		const result = await context.send();
-		assert.deepStrictEqual({ text: result.message.text, instructions: result.instructions, warned: warn.calledOnce }, {
-			text: 'Bump the version to 2', instructions: undefined, warned: true,
-		});
-	});
-
-	test('bounds the wait for a slow filesystem', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const context = setupContext();
-		context.enumerate.callsFake((_root, token) => new Promise((_resolve, reject) => {
-			const listener = token.onCancellationRequested(() => {
-				listener.dispose();
-				reject(new CancellationError());
-			});
-			store.add(listener);
-		}));
-		const started = Date.now();
-		assert.deepStrictEqual(await context.send(), { message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } });
-		assert.strictEqual(Date.now() - started, 1000);
-	}));
-
-	test('keeps the roots that are ready when another root misses the deadline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const context = setupContext({ roots: ['/workspace', '/other'].map(path => URI.file(path).toString()) });
-		context.enumerate.callsFake((root, token) => root.path === '/workspace'
-			? Promise.resolve({ files: [URI.file('/workspace/meta.json')], isTruncated: false })
-			: new Promise((_resolve, reject) => {
-				const listener = token.onCancellationRequested(() => {
-					listener.dispose();
-					reject(new CancellationError());
-				});
-				store.add(listener);
-			}));
-		const error = sinon.spy(context.log, 'error');
-		const result = await context.send();
-		assert.deepStrictEqual({
-			structure: result.instructions?.[0].split('```text\n')[1].split('\n```')[0],
-			loggedError: error.called,
-		}, { structure: workspaceHeading + '\nmeta.json', loggedError: false });
-	}));
 	test('keeps healthy roots when another root cannot be listed', async () => {
 		const context = setupContext({ roots: ['/workspace', '/missing'].map(path => URI.file(path).toString()) });
 		context.enumerate.callsFake(async root => {
@@ -339,11 +308,9 @@ suite('WorkspaceContextContribution', () => {
 		});
 		const error = sinon.spy(context.log, 'error');
 		const warn = sinon.spy(context.log, 'warn');
-		const result = await context.send();
-		assert.deepStrictEqual({
-			structure: result.instructions?.[0].split('```text\n')[1].split('\n```')[0],
-			warnings: warn.callCount,
-			errors: error.callCount,
-		}, { structure: workspaceHeading + '\nmeta.json', warnings: 1, errors: 0 });
+		const result = await context.firstTurn();
+		assert.deepStrictEqual({ structure: structureOf(result), warnings: warn.callCount, errors: error.callCount }, {
+			structure: workspaceHeading + '\nmeta.json', warnings: 1, errors: 0,
+		});
 	});
 });

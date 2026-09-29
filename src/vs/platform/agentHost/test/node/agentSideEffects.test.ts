@@ -8,7 +8,7 @@ import sinon from 'sinon';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -142,9 +142,28 @@ class NoopGitStateService implements IAgentHostGitStateService {
 class NoopWorktreeIsolation extends NullAgentHostWorktreeIsolation { }
 
 /** Models a worktree session before its first send creates the worktree. */
-class PendingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
+/** Models a worktree session whose first send creates the worktree, as `resolveOnFirstSend` does. */
+class FirstSendWorktreeIsolation extends NullAgentHostWorktreeIsolation {
+	private readonly _onDidChangePending = new Emitter<string>();
+	override readonly onDidChangeWorkingDirectoryPending = this._onDidChangePending.event;
+	private _worktree: URI | undefined;
+
 	override isWorkingDirectoryPending(): boolean {
-		return true;
+		return this._worktree === undefined;
+	}
+
+	override getResolvedWorktree(): URI | undefined {
+		return this._worktree;
+	}
+
+	create(sessionId: string, worktree: URI): URI {
+		this._worktree = worktree;
+		this._onDidChangePending.fire(sessionId);
+		return worktree;
+	}
+
+	dispose(): void {
+		this._onDidChangePending.dispose();
 	}
 }
 
@@ -1585,14 +1604,17 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const enumerate = sinon.stub(AgentHostWorkspaceFiles.prototype, 'enumerate').callsFake(async root => ({ files: [URI.joinPath(root, 'meta.json')], isTruncated: false }));
 			disposables.add(toDisposable(() => enumerate.restore()));
+			const worktreeIsolation = disposables.add(new FirstSendWorktreeIsolation());
 			const localSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
-				resolveWorkingDirectoryBeforeSend: async () => [worktree],
-				worktreeIsolation: new PendingWorktreeIsolation(),
+				resolveWorkingDirectoryBeforeSend: async () => [worktreeIsolation.create(AgentSession.id(sessionUri), worktree)],
+				worktreeIsolation,
 			});
 			disposables.add(localSideEffects.registerProgressListener(agent));
+			// Model selection is a provider round-trip; the snapshot is prepared alongside it.
+			agent.chats.changeAgent = () => timeout(0);
 
 			localSideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource, type CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -13,9 +12,9 @@ import { compare } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
-import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAppliedClientAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAppliedClientAction, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { ChatOriginKind, isAhpChatChannel, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { AgentHostWorkspaceFiles, type IAgentHostWorkspaceFilesResult } from '../../agentHostWorkspaceFiles.js';
@@ -23,21 +22,28 @@ import { IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
 
 const firstTurnSeenMemento = createChatMementoKey<boolean>('firstTurnSeen', () => false);
 const MAX_STRUCTURE_LENGTH = 2000;
-/**
- * Longest the first send waits for a root's rendered tree before sending
- * without it. Preparation normally starts when the turn is accepted, or when a
- * first-send worktree is created, so it overlaps working-directory, model, and
- * attachment resolution; this only bounds what a slow or very large checkout
- * can add to time to first token.
- */
-const SNAPSHOT_TIMEOUT_MS = 1000;
 
-/** A chat's in-progress snapshot. Disposing it stops any enumeration still running. */
+/** One root's rendered tree, filled in when its preparation finishes. */
+interface IPreparedRoot {
+	settled: boolean;
+	/** The rendered tree, or `undefined` for a root that produced none. */
+	tree: string | undefined;
+}
+
+/** A chat's snapshot preparation. Disposing it stops any enumeration still running. */
 interface IPreparedSnapshot extends IDisposable {
 	/** Identifies the roots it was prepared for, to detect a change before send. */
 	readonly key: string;
-	/** One rendered tree per root, or `undefined` for a root that produced none. Never rejects. */
-	readonly roots: readonly Promise<string | undefined>[];
+	readonly roots: readonly IPreparedRoot[];
+}
+
+/** Mirrors the send path, where a created worktree replaces only the process root. */
+function withProcessRoot(worktree: URI, workingDirectories: readonly URI[]): URI[] {
+	return [worktree, ...workingDirectories.slice(1)];
+}
+
+function snapshotKey(enumerationRoots: readonly URI[]): string {
+	return enumerationRoots.map(root => root.toString()).join('\n');
 }
 
 /**
@@ -62,11 +68,12 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		super();
 		this._workspaceFiles = this._register(new AgentHostWorkspaceFiles(_logService));
 		this._register(_worktreeIsolation.onDidChangeWorkingDirectoryPending(sessionId => this._onWorktreeResolved(sessionId)));
+		this._register(_stateManager.onDidRemoveSession(session => this._releaseSession(session)));
 	}
 
 	/**
 	 * Starts preparing as soon as a first turn is accepted, so the snapshot is
-	 * usually ready by the time {@link onOutgoingTurn} needs it. A session still
+	 * usually complete by the time {@link onOutgoingTurn} needs it. A session still
 	 * creating its worktree waits for {@link _onWorktreeResolved} instead: the
 	 * worktree does not exist yet, and scanning the source checkout would
 	 * compete with its creation.
@@ -84,21 +91,33 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			this._awaitingWorktree.set(sessionId, channel);
 			return;
 		}
-		this._prepare(channel, workingDirectories);
+		// The session's worktree may already exist, e.g. when its creation finished before this hook ran.
+		const worktree = isDefaultChatUri(channel) ? this._worktreeIsolation.getResolvedWorktree(sessionId) : undefined;
+		this._prepare(channel, worktree ? withProcessRoot(worktree, workingDirectories) : workingDirectories);
 	}
 
-	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
-		this._forgetAwaitingWorktree(turn.chat);
-		if (!this._firstTurnWorkingDirectories(turn.chat)) {
-			this._prepared.deleteAndDispose(turn.chat);
-			return undefined;
-		}
-		this._context.memento(firstTurnSeenMemento, turn.chat).set(true, undefined);
+	/**
+	 * Sends only what is already prepared, so the snapshot never delays the
+	 * send: a root still being listed or rendered is omitted, and anything
+	 * still running is stopped.
+	 */
+	onOutgoingTurn(turn: IOutgoingTurn): ISendContribution | undefined {
 		try {
-			// Use the directories the provider will run in, not session state: a worktree created on this send is not in state until the provider materializes.
-			const prepared = this._prepare(turn.chat, turn.workingDirectories ?? []);
-			const structures = await Promise.all(prepared.roots.map(root => raceTimeout(root, SNAPSHOT_TIMEOUT_MS, () => this._logService.trace(`[WorkspaceContext] Sent a first turn before a root's file list was ready within ${SNAPSHOT_TIMEOUT_MS}ms`))));
-			const structure = structures.filter(Boolean).join('\n\n');
+			if (!this._firstTurnWorkingDirectories(turn.chat)) {
+				return undefined;
+			}
+			this._context.memento(firstTurnSeenMemento, turn.chat).set(true, undefined);
+			// Compare against the directories the provider will run in, not session state: a worktree created on this send is not in state until the provider materializes.
+			const prepared = this._prepared.get(turn.chat);
+			if (!prepared || prepared.key !== snapshotKey(resolveAgentHostFileCompletionRoots(turn.workingDirectories ?? []).enumerationRoots)) {
+				this._logService.trace(`[WorkspaceContext] Sent a first turn without a snapshot: none was prepared for its working directories`);
+				return undefined;
+			}
+			const pending = prepared.roots.filter(root => !root.settled).length;
+			if (pending) {
+				this._logService.trace(`[WorkspaceContext] Sent a first turn without ${pending} root(s) whose file list was not ready`);
+			}
+			const structure = prepared.roots.map(root => root.tree).filter(Boolean).join('\n\n');
 			if (!structure) {
 				return undefined;
 			}
@@ -106,15 +125,20 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 				instructions: [`<workspace_info>\nInitial workspace structure (file names only):\n${appendEscapedMarkdownCodeBlockFence(structure, 'text')}\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>`],
 			};
 		} finally {
-			// Stop any enumeration the send did not wait for.
-			this._prepared.deleteAndDispose(turn.chat);
+			this._release(turn.chat);
 		}
 	}
 
 	/** Releases preparation for a first turn that ended before it was sent (rejected, cancelled, or failed). */
 	onTurnEnd(turn: ITurnEnd): void {
-		this._forgetAwaitingWorktree(turn.channel);
-		this._prepared.deleteAndDispose(turn.channel);
+		this._release(turn.channel);
+	}
+
+	/** Stops preparation for a removed chat. Session removal is handled through {@link AgentHostStateManager.onDidRemoveSession}. */
+	onDidDispatchAction({ action, rejectionReason }: IDispatchedAction): void {
+		if (action.type === ActionType.SessionChatRemoved && rejectionReason === undefined) {
+			this._release(action.chat);
+		}
 	}
 
 	onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
@@ -135,40 +159,51 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		if (!workingDirectories) {
 			return;
 		}
-		// Mirrors the send path: a created worktree replaces only the process root.
 		const worktree = this._worktreeIsolation.getResolvedWorktree(sessionId);
-		this._prepare(chat, worktree ? [worktree, ...workingDirectories.slice(1)] : workingDirectories);
+		this._prepare(chat, worktree ? withProcessRoot(worktree, workingDirectories) : workingDirectories);
 	}
 
-	private _forgetAwaitingWorktree(chat: ProtocolURI): void {
+	/** Stops a chat's preparation, including a pending wait for its worktree. */
+	private _release(chat: ProtocolURI): void {
 		for (const [sessionId, awaiting] of this._awaitingWorktree) {
 			if (awaiting === chat) {
 				this._awaitingWorktree.delete(sessionId);
 			}
 		}
+		this._prepared.deleteAndDispose(chat);
+	}
+
+	private _releaseSession(session: ProtocolURI): void {
+		this._awaitingWorktree.delete(AgentSession.id(session));
+		for (const chat of [...this._prepared.keys()]) {
+			if (parseRequiredSessionUriFromChatUri(chat) === session) {
+				this._prepared.deleteAndDispose(chat);
+			}
+		}
 	}
 
 	/**
-	 * Returns the chat's snapshot for `workingDirectories`, starting it unless a
-	 * snapshot for the same roots is already in progress. Starting a different
-	 * set stops the previous one.
+	 * Starts preparing the chat's snapshot for `workingDirectories`, unless it is
+	 * already being prepared for the same roots. A different set replaces and
+	 * stops the previous preparation.
 	 */
-	private _prepare(chat: ProtocolURI, workingDirectories: readonly URI[]): IPreparedSnapshot {
+	private _prepare(chat: ProtocolURI, workingDirectories: readonly URI[]): void {
 		const { enumerationRoots } = resolveAgentHostFileCompletionRoots(workingDirectories);
-		const key = enumerationRoots.map(root => root.toString()).join('\n');
-		const existing = this._prepared.get(chat);
-		if (existing?.key === key) {
-			return existing;
+		const key = snapshotKey(enumerationRoots);
+		if (this._prepared.get(chat)?.key === key) {
+			return;
 		}
 		const cancellation = new CancellationTokenSource();
 		const budget = enumerationRoots.length ? Math.floor(MAX_STRUCTURE_LENGTH / enumerationRoots.length) : 0;
-		const prepared: IPreparedSnapshot = {
-			key,
-			roots: enumerationRoots.map(root => this._prepareRoot(root, budget, cancellation.token)),
-			dispose: () => cancellation.dispose(true),
-		};
-		this._prepared.set(chat, prepared);
-		return prepared;
+		const roots = enumerationRoots.map(root => {
+			const prepared: IPreparedRoot = { settled: false, tree: undefined };
+			this._prepareRoot(root, budget, cancellation.token).then(tree => {
+				prepared.tree = tree;
+				prepared.settled = true;
+			});
+			return prepared;
+		});
+		this._prepared.set(chat, { key, roots, dispose: () => cancellation.dispose(true) });
 	}
 
 	/** Renders one root's tree. Failures are isolated to the root, so other roots still contribute. */
