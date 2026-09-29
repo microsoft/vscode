@@ -845,6 +845,9 @@ interface IPendingSteering {
 	readonly sender: IAgentPendingMessageSender | undefined;
 }
 
+/** How long a rejected permission mode waits for managed settings to resolve before its single retry. */
+const managedSettingsPermissionRetryTimeoutMs = 3000;
+
 /**
  * Encapsulates a single Copilot SDK session and all its associated bookkeeping.
  *
@@ -1155,6 +1158,8 @@ export class CopilotAgentSession extends Disposable {
 	private _lastAppliedPermissionMode: PermissionMode | undefined;
 	private _experimentalModeEnabled = false;
 	private readonly _permissionModeSequencer = new Sequencer();
+	/** Settles when this session observes the runtime's top-level `session.managed_settings_resolved` event. */
+	private readonly _managedSettingsResolved = new DeferredPromise<void>();
 	private readonly _sandboxConfigSequencer = new Sequencer();
 	private readonly _sandboxDiagnostics: CopilotSandboxDiagnostics;
 	private readonly _mcpEnablementSequencer = new Sequencer();
@@ -4822,12 +4827,26 @@ export class CopilotAgentSession extends Disposable {
 			if (this._lastAppliedPermissionMode === mode) {
 				return;
 			}
-			const result = await this._wrapper.session.rpc.permissions.setMode({ mode });
-			if (!result.success || (result.mode !== undefined && result.mode !== mode)) {
+			const managedSettingsResolvedBeforeSet = this._managedSettingsResolved.isSettled;
+			let applied = await this._trySetSdkPermissionMode(mode);
+			if (!applied && !managedSettingsResolvedBeforeSet) {
+				// Mitigation: the runtime can reject a mode (e.g. `allow-all`) while it
+				// is still resolving managed settings in the background. Give it a short
+				// window to finish, then retry once before failing the turn.
+				this._logService.warn(`[Copilot:${this.sessionId}] SDK rejected permission mode '${mode}' before managed settings resolved; retrying once`);
+				await raceTimeout(this._managedSettingsResolved.p, managedSettingsPermissionRetryTimeoutMs);
+				applied = await this._trySetSdkPermissionMode(mode);
+			}
+			if (!applied) {
 				throw new Error(`Copilot SDK rejected permission mode '${mode}'`);
 			}
 			this._lastAppliedPermissionMode = mode;
 		});
+	}
+
+	private async _trySetSdkPermissionMode(mode: PermissionMode): Promise<boolean> {
+		const result = await this._wrapper.session.rpc.permissions.setMode({ mode });
+		return result.success && (result.mode === undefined || result.mode === mode);
 	}
 
 	/**
@@ -7774,6 +7793,9 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onManagedSettingsResolved(e => {
+			if (!e.agentId) {
+				void this._managedSettingsResolved.complete();
+			}
 			this._logService.info(`[Copilot:${sessionId}] Managed settings resolved: source=${e.data.source}, managedKeys=${e.data.managedKeys.join(',') || '(none)'}, bypassPermissionsDisabled=${e.data.bypassPermissionsDisabled}, failClosed=${e.data.failClosed}`);
 		}));
 
