@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -320,6 +321,39 @@ suite('AICustomizationDiscoveryPage', () => {
 			{ label: 'Import', small: true, hasChevron: true, hasPopup: 'menu' },
 			{ label: 'All sources', small: true, hasChevron: true, hasPopup: 'menu' },
 		]);
+	});
+
+	test('announces loading only after the scheduled catalog search starts', async () => {
+		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
+		store.add(toDisposable(() => ariaHost.remove()));
+		setARIAContainer(ariaHost);
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+
+		fixture.page.setSearchQuery('remote');
+		const pending = {
+			requests: fixture.requests.length,
+			busy: fixture.container.querySelector('.customization-discovery-results')?.getAttribute('aria-busy'),
+			announcements: [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+		};
+
+		await timeout(0);
+		const loading = {
+			requests: fixture.requests.length,
+			announcements: [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+		};
+
+		await fixture.requests[1].result.complete({ items: [resource('remote')] });
+		await timeout(0);
+		const complete = [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean);
+
+		assert.deepStrictEqual({ pending, loading, complete }, {
+			pending: { requests: 1, busy: 'true', announcements: [] },
+			loading: { requests: 2, announcements: ['Loading customizations...'] },
+			complete: ['1 customizations found.'],
+		});
 	});
 
 	test('browse features first-party resources ahead of the source order', async () => {
