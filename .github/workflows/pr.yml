@@ -128,6 +128,8 @@ jobs:
 
   # The other unit test jobs run with product.quality 'insider'. This one covers
   # 'stable' so stable-only test failures are caught before a stable build.
+  # Linux only: product.quality comes from product.json and is the same on every
+  # OS, so quality-dependent tests fail the same way on all of them.
   linux-electron-unit-tests-stable:
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
