@@ -481,7 +481,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			assert.ok(hookContent.includes('PreToolUseAfter:'));
 		});
 
-		pluginHookTest('host-configured client filesystem hooks use the non-file fallback', async function () {
+		test('host-configured client filesystem hooks use the non-file fallback', async function () {
 			this.timeout(180_000);
 			const hostPlugin = mkdtempSync(join(tmpdir(), 'ahp-non-file-hook-'));
 			const hookLog = join(hostPlugin, 'hook.log');
