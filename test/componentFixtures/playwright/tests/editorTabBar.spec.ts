@@ -205,9 +205,17 @@ for (const [theme, expectedFocusBorder] of [
 	});
 }
 
-for (const [fixture, expectedDividers] of [
-	['FirstActive', ['rgba(0, 0, 0, 0)']],
-	['MiddleActive', []],
+for (const [fixture, expected] of [
+	['FirstActive', {
+		capLeft: 'rgba(0, 0, 0, 0)',
+		capLeftWidth: '0px',
+		dividers: ['rgba(0, 0, 0, 0)'],
+	}],
+	['MiddleActive', {
+		capLeft: 'rgb(34, 211, 238)',
+		capLeftWidth: '1px',
+		dividers: [],
+	}],
 ] as const) {
 	test(`connected border continuity stays aligned for ${fixture}`, async ({ page }) => {
 		await openFixture(page, `editor/editorTabBar/editorTabBar/ConnectedBorderContinuity/${fixture}/Dark`, '.tabs-container > .tab.active');
@@ -241,13 +249,13 @@ for (const [fixture, expectedDividers] of [
 		expect(state).toEqual({
 			editorBorder: 'rgb(34, 211, 238)',
 			capTop: 'rgb(34, 211, 238)',
-			capLeft: 'rgb(34, 211, 238)',
-			capLeftWidth: '1px',
+			capLeft: expected.capLeft,
+			capLeftWidth: expected.capLeftWidth,
 			capSide: 'rgb(34, 211, 238)',
 			separator: 'rgb(34, 211, 238)',
 			indicator: 'none',
 			topAligned: true,
-			visibleDividers: expectedDividers,
+			visibleDividers: expected.dividers,
 		});
 	});
 }
