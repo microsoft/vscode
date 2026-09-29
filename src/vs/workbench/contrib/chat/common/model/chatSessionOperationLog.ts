@@ -63,6 +63,7 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'elicitationSerialized':
 				case 'progressTaskSerialized':
 				case 'textEditGroup':
+				case 'notebookEditGroup':
 				case 'multiDiffData':
 				case 'mcpServersStarting':
 				case 'thinking':
@@ -80,7 +81,6 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'hook':
 				case 'inlineReference':
 				case 'markdownVuln':
-				case 'notebookEditGroup':
 				case 'progressMessage':
 				case 'systemNotification':
 				case 'pullRequest':
@@ -138,6 +138,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	shouldBeRemovedOnSend: Adapt.v(m => m.shouldBeRemovedOnSend, objectsEqual),
 	agent: Adapt.v(m => m.response?.agent, (a, b) => a?.id === b?.id),
 	modelId: Adapt.v(m => m.modelId),
+	modelConfiguration: Adapt.v(m => m.modelConfiguration, objectsEqual),
 	editedFileEvents: Adapt.t(m => m.editedFileEvents, Adapt.array(agentEditedFileEventSchema)),
 	variableData: Adapt.t(m => m.variableData, chatVariableSchema),
 	isHidden: Adapt.v(() => undefined), // deprecated, always undefined for new data

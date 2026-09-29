@@ -3,39 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
-import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, type IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { derived, type IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY, applyLegacyAutomationSessionConfig, migrateLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationMigration.js';
-import { isAgentHostAutomationCatalogMigrated, isAgentHostLegacyAutomationImport, isAgentHostLegacyAutomationImportPending } from '../../../../../platform/agentHost/common/meta/automationMeta.js';
+import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, ROOT_STATE_URI, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { assertAutomationSessionTemplate, type AutomationRunTrigger, type AutomationTarget, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationActiveRunError, type AutomationCatalogueState, assertAutomationSessionTemplateAuthority, combineAutomationCatalogueStates, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
-import { IAutomationStorageService } from '../../../automations/common/automationStorageService.js';
+import { assertAutomationSessionTemplate, type AutomationTarget, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationUnavailableError, type AutomationCatalogueState, assertAutomationSessionTemplateAuthority, type AutomationMutationGuard, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, serializeAutomationEditableState, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 
 const MUTATION_TIMEOUT_MS = 30_000;
-const MIGRATION_POLL_INTERVAL_MS = 50;
 const LEGACY_RUN_ARCHIVE_VERSION = 1;
-const LEGACY_RUN_ARCHIVE_WRITE_ATTEMPTS = 10;
 
+/** The AHP connection surface for Automation catalogue subscriptions and commands. */
 export type IAgentHostAutomationConnection = Pick<IAgentConnection,
 	'dispatch'
 	| 'initializeResult'
-	| 'listAutomationTriggerDefinitions'
 	| 'onDidAction'
 	| 'runAutomation'
 > & {
@@ -50,16 +47,7 @@ interface ISerializedArchivedRun extends Omit<IAutomationRun, 'sessionResource'>
 	readonly sessionResource?: string;
 }
 
-interface ILegacyRunArchive {
-	readonly version: 1;
-	readonly runs: readonly ISerializedArchivedRun[];
-}
-
-interface ILoadedLegacyRunArchive {
-	readonly runs: readonly IAutomationRun[];
-	readonly repairedRuns: number;
-}
-
+/** Translation between host-local resources and editor-facing provider identities. */
 export interface IAgentHostAutomationBoundaryMapper {
 	toHost(resource: URI): URI;
 	fromHost(resource: URI): URI;
@@ -68,44 +56,41 @@ export interface IAgentHostAutomationBoundaryMapper {
 	providerForResourceScheme?(scheme: string): string | undefined;
 }
 
+/**
+ * Connection-scoped projection of one host's Automation catalogue, forwarding definition and manual-run requests over AHP.
+ * The host retains scheduling, execution, persistence, and run-lifecycle authority.
+ */
 export class AgentHostAutomationStore extends Disposable implements ISessionsProviderAutomations {
-
-	readonly preservesImportedRunHistory = true;
 
 	private readonly _catalogReference: IReference<IAgentSubscription<AutomationState>>;
 	private readonly _catalog: IAgentSubscription<AutomationState>;
 	private readonly _catalogChanged;
 	private readonly _catalogError;
-	private readonly _ready = observableValue(this, false);
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 	private readonly _pendingWaits = this._register(new DisposableMap<number, DisposableStore>());
 	private _pendingWaitIds = 0;
 	private readonly _archiveKey: string;
 	private readonly _archivedRuns;
-	private _migrationPromise: Promise<void> | undefined;
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
+	/** Authoritative host runs merged with read-only historical archive rows. */
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 	readonly catalogueState: IObservable<AutomationCatalogueState>;
+	readonly canCreateAutomation = derived(this, reader => this.catalogueState.read(reader) === 'ready'
+		&& !!this._connection.initializeResult.read(reader)?.automations?.create);
 
 	constructor(
 		private readonly _providerId: string,
 		private readonly _connection: IAgentHostAutomationConnection,
-		private readonly _legacySource: ISessionsProviderAutomations | undefined,
 		private readonly _boundaryMapper: IAgentHostAutomationBoundaryMapper | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IAutomationStorageService private readonly _automationStorageService: IAutomationStorageService,
 	) {
 		super();
 		this._archiveKey = `agentHostAutomation.legacyRunArchive.${_providerId}`;
-		const archive = this._loadArchivedRuns();
-		this._archivedRuns = observableValue<readonly IAutomationRun[]>(this, archive.runs);
-		this._persistRepairedArchivedRuns(archive);
+		this._archivedRuns = observableValue<readonly IAutomationRun[]>(this, this._loadArchivedRuns());
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, this._archiveKey, this._store)(() => {
-			const archive = this._loadArchivedRuns();
-			this._archivedRuns.set(archive.runs, undefined);
-			this._persistRepairedArchivedRuns(archive);
+			this._archivedRuns.set(this._loadArchivedRuns(), undefined);
 		}));
 		this._catalogReference = this._register(_connection.getSubscription(
 			StateComponents.AutomationCatalog,
@@ -118,67 +103,24 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		this.catalogueState = derived(this, reader => {
 			this._catalogChanged.read(reader);
 			this._catalogError.read(reader);
-			const hostState = this._catalog.value instanceof Error ? 'error' : this._catalog.verifiedValue ? 'ready' : 'loading';
-			const legacyState = this._ready.read(reader) ? 'ready' : this._legacySource?.catalogueState.read(reader) ?? 'ready';
-			return combineAutomationCatalogueStates([hostState, legacyState]);
+			return this._catalog.value instanceof Error ? 'error' : this._catalog.verifiedValue ? 'ready' : 'loading';
 		});
 		if (this._catalog.onDidError) {
 			this._register(this._catalog.onDidError(error => this._logService.error(`[AgentHostAutomationStore] Catalogue subscription failed: ${error.message}`)));
 		}
-		this._register(autorun(reader => {
-			this._catalogChanged.read(reader);
-			const catalog = this._catalog.value;
-			if (catalog && !(catalog instanceof Error)
-				&& (isAgentHostAutomationCatalogMigrated(catalog)
-					|| catalog.entries.some(automation => automation.operations.includes(AutomationOperation.Run)))
-				&& !catalog.entries.some(automation => isAgentHostLegacyAutomationImportPending(automation.definition))
-				&& (!this._legacySource || (
-					this._legacySource.catalogueState.read(reader) === 'ready'
-					&& this._legacySource.canCompleteMigration?.() !== false
-					&& this._legacySource.automations.read(reader).length === 0
-				))
-				&& !this._migrationPromise
-				&& !this._ready.read(reader)) {
-				this._ready.set(true, undefined);
-			}
-		}));
 		this.automations = derived(this, reader => {
 			this._catalogChanged.read(reader);
-			if (!this._ready.read(reader)) {
-				return distinctById([
-					...(this._legacySource?.automations.read(reader) ?? []),
-					...this._projectAutomations(),
-				]);
-			}
 			return this._projectAutomations();
 		});
 		this.runs = derived(this, reader => {
 			this._catalogChanged.read(reader);
-			if (!this._ready.read(reader)) {
-				return distinctById([
-					...(this._legacySource?.runs.read(reader) ?? []),
-					...this._archivedRuns.read(reader),
-				]).sort((first, second) => second.startedAt.localeCompare(first.startedAt));
-			}
 			return distinctById([...this._projectRuns(), ...this._archivedRuns.read(reader)])
 				.sort((first, second) => second.startedAt.localeCompare(first.startedAt));
 		});
 	}
 
 	getAutomation(id: string): IAutomationDescriptor | undefined {
-		return this._ready.get()
-			? this._projectAutomation(this._findAutomationEntry(id))
-			: this._legacySource?.getAutomation(id) ?? this._projectAutomation(this._findAutomationEntry(id));
-	}
-
-	isSchedulingOwnedByHost(automationId: string): boolean {
-		if (!this._ready.get()) {
-			return false;
-		}
-		const state = this._findAutomationEntry(automationId);
-		return state !== undefined
-			&& !isAgentHostLegacyAutomationImportPending(state.definition)
-			&& state.operations.includes(AutomationOperation.Run);
+		return this._projectAutomation(this._findAutomationEntry(id));
 	}
 
 	canRunAutomation(automationId: string): boolean {
@@ -203,14 +145,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	async createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
-		await this._waitForMigrationBeforeMutation();
-		if (!this._ready.get() && this._legacySource) {
-			return this._legacySource.createAutomation(options, mutationGuard);
+		if (this._store.isDisposed || !this.canCreateAutomation.get()) {
+			throw new AutomationUnavailableError(localize('agentHostAutomation.createUnavailable', "The Agent Host is not ready to create automations."));
 		}
-		mutationGuard?.();
 		const now = new Date();
+		const resource = automationResource(generateUuid());
 		const descriptor: IAutomationDescriptor = {
-			id: generateUuid(),
+			id: this._resourceId(resource),
 			name: options.name,
 			prompt: options.prompt,
 			schedule: options.schedule,
@@ -223,157 +164,84 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			createdAt: now.toISOString(),
 			updatedAt: now.toISOString(),
 		};
-		const state = await this._createDescriptor(descriptor);
+		const state = await this._createDescriptor(resource, descriptor, mutationGuard);
 		return this._requireProjectedAutomation(state);
 	}
 
-	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor> {
-		await this._waitForMigrationBeforeMutation();
-		if (!this._ready.get() && this._legacySource?.getAutomation(id)) {
-			return this._legacySource.updateAutomation(id, patch);
-		}
+	async updateAutomation(id: string, patch: IUpdateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
 		this._requireOperation(id, AutomationOperation.Update);
 		const current = this._requireAutomation(id);
 		const updated = this._applyPatch(current, patch);
-		const state = await this._replaceDescriptor(updated, false, undefined, patch.sessionTemplate === null);
+		const state = await this._replaceDescriptor(updated, patch.sessionTemplate === null, mutationGuard);
 		return this._requireProjectedAutomation(state);
 	}
 
 	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
-		await this._waitForMigrationBeforeMutation();
-		if (!this._ready.get() && this._legacySource?.getAutomation(id)) {
-			return this._legacySource.updateAutomationIfUnchanged(id, patch, expected, mutationGuard);
-		}
-		mutationGuard?.();
 		const current = this.getAutomation(id);
 		if (!current || serializeAutomationEditableState(current) !== serializeAutomationEditableState(expected)) {
 			return { kind: 'conflict', current };
 		}
-		return { kind: 'updated', automation: await this.updateAutomation(id, patch) };
+		return { kind: 'updated', automation: await this.updateAutomation(id, patch, mutationGuard) };
 	}
 
 	async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
-		await this._waitForMigrationBeforeMutation();
-		if (!this._ready.get() && this._legacySource?.getAutomation(id)) {
-			return this._legacySource.deleteAutomation(id, mutationGuard);
-		}
-		this._requireOperation(id, AutomationOperation.Remove);
-		mutationGuard?.();
-		const resource = automationResource(id);
-		if (!this._findAutomationEntry(id)) {
-			return;
-		}
+		const { resource } = this._requireOperation(id, AutomationOperation.Remove);
 		await this._dispatchAndWait(
 			{ type: ActionType.AutomationRemoved, resource },
 			catalog => !catalog.entries.some(automation => automation.resource === resource),
+			mutationGuard,
 		);
 		this._runsForCache.delete(id);
 	}
 
-	async importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult> {
-		return this._importAutomationSnapshot(snapshot, true);
-	}
-
-	private async _importAutomationSnapshot(snapshot: IAutomation, importPending: boolean): Promise<IAutomationSnapshotImportResult> {
-		assertTerminalRunHistory(snapshot.runs);
-		const existing = this._findAutomationEntry(snapshot.automation.id);
-		if (existing) {
-			const current = this._requireProjectedAutomation(existing);
-			const expected = this._canonicalDescriptor(snapshot.automation, existing);
-			if (serializeAutomationEditableState(current) !== serializeAutomationEditableState(expected)) {
-				if (isAgentHostLegacyAutomationImport(existing.definition)) {
-					await this._replaceDescriptor(snapshot.automation, true, importPending);
-					await this._archiveRuns(snapshot.runs);
-					return { kind: 'alreadyPresent' };
-				}
-				return { kind: 'conflict', current: { automation: current, runs: this._projectRunsFor(existing.resource) } };
-			}
-			// Editable state matches, but if the caller is staging pending and
-			// the existing definition is not already pending, re-dispatch so the
-			// meta flag lands. Otherwise a retry after a lost dispatch would
-			// leave Run authority granted on a not-yet-drained legacy row.
-			if (importPending && !isAgentHostLegacyAutomationImportPending(existing.definition)) {
-				await this._replaceDescriptor(snapshot.automation, true, importPending);
-			}
-			await this._archiveRuns(snapshot.runs);
-			return { kind: 'alreadyPresent' };
+	async runAutomation(automationId: string, token: CancellationToken = CancellationToken.None): Promise<IAutomationRunRequestResult> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
 		}
-		await this._createDescriptor(snapshot.automation, true, importPending);
-		await this._archiveRuns(snapshot.runs);
-		this._logService.info(`[AgentHostAutomationStore] Migrated Automation definition: resource=${automationResource(snapshot.automation.id)}, legacyRunsRetained=${snapshot.runs.length}.`);
-		return { kind: 'inserted' };
-	}
-
-	async upsertAutomationSnapshot(snapshot: IAutomation): Promise<void> {
-		assertTerminalRunHistory(snapshot.runs);
-		if (this._findAutomationEntry(snapshot.automation.id)) {
-			await this._replaceDescriptor(snapshot.automation, true, true);
-		} else {
-			await this._createDescriptor(snapshot.automation, true, true);
-		}
-		await this._archiveRuns(snapshot.runs);
-	}
-
-	async removeAutomationSnapshotIfUnchanged(expected: IAutomation): Promise<IGuardedAutomationSnapshotRemovalResult> {
-		const current = this._findAutomationEntry(expected.automation.id);
-		if (!current) {
-			return { kind: 'missing' };
-		}
-		const projected = this._requireProjectedAutomation(current);
-		const canonicalExpected = this._canonicalDescriptor(expected.automation, current);
-		if (serializeAutomationEditableState(projected) !== serializeAutomationEditableState(canonicalExpected)) {
-			return { kind: 'conflict', current: { automation: projected, runs: this._projectRunsFor(current.resource) } };
-		}
-		await this.deleteAutomation(expected.automation.id);
-		return { kind: 'removed' };
-	}
-
-	async acknowledgeAutomationSnapshotImported(snapshot: IAutomation): Promise<void> {
-		const current = this._findAutomationEntry(snapshot.automation.id);
-		if (!current || !isAgentHostLegacyAutomationImportPending(current.definition)) {
-			return;
-		}
-		await this._clearImportPending(snapshot.automation.id);
-	}
-
-	async recordRunStart(automationId: string, trigger: AutomationRunTrigger, _leaderWindowId: number): Promise<IAutomationRunClaim> {
-		if (!this._ready.get() && this._legacySource?.getAutomation(automationId)) {
-			return this._legacySource.recordRunStart(automationId, trigger, _leaderWindowId);
-		}
-		if (trigger !== 'manual') {
-			throw new Error('Scheduled Automation execution is owned by the Agent Host.');
-		}
-		this._requireOperation(automationId, AutomationOperation.Run);
+		const automation = this._requireOperation(automationId, AutomationOperation.Run);
 		const activeRun = this.getActiveRunFor(automationId);
 		if (activeRun) {
-			return { claimed: false, run: activeRun };
+			return { kind: 'alreadyRunning', run: activeRun };
 		}
 		const result = await this._connection.runAutomation({
 			channel: AUTOMATION_CATALOG_URI,
-			automation: automationResource(automationId),
+			automation: automation.resource,
 			requestId: generateUuid(),
 		});
-		const catalog = await this._waitForCatalog(state => state.entries.some(automation => automation.runs.some(run =>
-			run.resource === result.resource && (run.primarySession !== undefined || isTerminalRun(run))
-		)));
-		const run = catalog.entries.flatMap(automation => automation.runs).find(candidate => candidate.resource === result.resource);
-		if (!run) {
-			throw new Error(`Automation run did not appear in the authoritative catalogue: ${result.resource}`);
-		}
-		const projectedRun = this._projectRun(run);
-		return {
-			claimed: false,
-			run: projectedRun,
-			externalDispatch: {
-				sessionResource: projectedRun.sessionResource,
+		let cancellationForwarded = false;
+		const cancel = this._connection.initializeResult.get()?.automations?.runCancellation ? () => {
+			if (cancellationForwarded) {
+				return;
+			}
+			cancellationForwarded = true;
+			this._connection.dispatch(result.resource, { type: ActionType.AutomationRunCancelRequested });
+		} : undefined;
+		const dispatchDisposables = new DisposableStore();
+		try {
+			if (cancel) {
+				dispatchDisposables.add(token.onCancellationRequested(cancel));
+				if (token.isCancellationRequested) {
+					cancel();
+				}
+			}
+			const catalog = await this._waitForCatalog(state => state.entries.some(automation => automation.runs.some(run =>
+				run.resource === result.resource && (run.primarySession !== undefined || isTerminalRun(run))
+			)), undefined, null);
+			const run = catalog.entries.flatMap(automation => automation.runs).find(candidate => candidate.resource === result.resource);
+			if (!run) {
+				throw new Error(`Automation run did not appear in the authoritative catalogue: ${result.resource}`);
+			}
+			return {
+				kind: 'dispatched',
+				run: this._projectRun(run),
 				whenCompleted: this._waitForCatalog(state => state.entries.some(automation => automation.runs.some(candidate =>
 					candidate.resource === result.resource && isTerminalRun(candidate)
 				)), undefined, null).then(() => undefined),
-				...(this._connection.initializeResult.get()?.automations?.runCancellation ? {
-					cancel: () => this._connection.dispatch(result.resource, { type: ActionType.AutomationRunCancelRequested }),
-				} : {}),
-			},
-		};
+				...(cancel ? { cancel } : {}),
+			};
+		} finally {
+			dispatchDisposables.dispose();
+		}
 	}
 
 	// Projects an Agent Host session resource into the editor-facing provider scheme.
@@ -384,223 +252,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return resourceScheme ? session.with({ scheme: resourceScheme }) : session;
 	}
 
-	async updateRun(runId: string, _patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined> {
-		if (!this._ready.get() && this._legacySource?.runs.get().some(run => run.id === runId)) {
-			return this._legacySource.updateRun(runId, _patch);
-		}
-		return this.runs.get().find(run => run.id === runId);
-	}
-
-	async deleteRun(runId: string): Promise<void> {
-		if (!this._ready.get() && this._legacySource?.runs.get().some(run => run.id === runId)) {
-			return this._legacySource.deleteRun(runId);
-		}
-		throw new Error('Automation run history is owned by the Agent Host.');
-	}
-
 	getActiveRunFor(automationId: string): IAutomationRun | undefined {
-		if (!this._ready.get() && this._legacySource?.getAutomation(automationId)) {
-			return this._legacySource.getActiveRunFor(automationId);
-		}
 		return this.runs.get().find(run => run.automationId === automationId && (run.status === 'pending' || run.status === 'running'));
-	}
-
-	async markStaleRunsFailed(reason: string): Promise<void> {
-		if (!this._ready.get() && this._legacySource) {
-			return this._legacySource.markStaleRunsFailed(reason);
-		}
-	}
-
-	async completeMigration(): Promise<void> {
-		if (this._ready.get()) {
-			return;
-		}
-		if (this._migrationPromise) {
-			return this._migrationPromise;
-		}
-		const migration = this._completeMigration();
-		this._migrationPromise = migration;
-		try {
-			await migration;
-		} finally {
-			if (this._migrationPromise === migration) {
-				this._migrationPromise = undefined;
-			}
-		}
-	}
-
-	private async _completeMigration(): Promise<void> {
-		const startedAt = Date.now();
-		const source = this._legacySource;
-		const discovered = source ? [...source.automations.get()] : [];
-		const activeRuns = source
-			? discovered.flatMap(automation => source.runsFor(automation.id).get().filter(isNonTerminalRun))
-			: [];
-		if (activeRuns.length > 0) {
-			this._logService.info(`[AgentHostAutomationStore] Automation migration deferred: activeRuns=${activeRuns.length}.`);
-			throw new AutomationActiveRunError(activeRuns[0].automationId, activeRuns[0].id);
-		}
-		this._logService.info(`[AgentHostAutomationStore] Automation migration started: discovered=${discovered.length}.`);
-		let migratedCount = 0;
-		let failedCount = 0;
-		try {
-			this._requireLegacySourceReadable();
-			const failures: Error[] = [];
-			for (const automation of discovered) {
-				try {
-					await this._migrateLegacySourceAutomation(automation);
-					migratedCount++;
-				} catch (error) {
-					if (isCancellationError(error) || this._store.isDisposed) {
-						throw new CancellationError();
-					}
-					const failure = error instanceof Error ? error : new Error(String(error));
-					failures.push(failure);
-					failedCount++;
-					if (isAutomationActiveRunError(error)) {
-						this._logService.info(`[AgentHostAutomationStore] Automation migration item deferred while a run is active: resource=${automationResource(automation.id)}.`);
-					} else {
-						this._logService.error(`[AgentHostAutomationStore] Automation migration item failed: resource=${automationResource(automation.id)}, error=${failure.message}`);
-					}
-				}
-			}
-			if (failures.length > 0) {
-				throw new AggregateError(failures, `Failed to migrate ${failures.length} Agent Host Automation definition(s).`);
-			}
-
-			this._requireLegacySourceDrained();
-			await this._waitForCatalog(() => true);
-			this._requireLegacySourceDrained();
-			const resources = discovered.map(automation => automationResource(automation.id));
-			this._connection.dispatch(ROOT_STATE_URI, {
-				type: ActionType.RootConfigChanged,
-				config: {
-					[AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY]: {
-						version: 1,
-						status: 'complete',
-						resources,
-					},
-				},
-			});
-			await this._waitForMigrationCompletion();
-			this._requireLegacySourceDrained();
-			// Sweep any stragglers whose pending flag never cleared. This
-			// covers reconnect races and cross-provider transfers that stage
-			// pending without a subsequent acknowledgement path.
-			await this._drainPendingImports();
-			this._requireLegacySourceDrained();
-			this._ready.set(true, undefined);
-			const durationMs = Date.now() - startedAt;
-			this._logService.info(`[AgentHostAutomationStore] Automation migration completed: discovered=${discovered.length}, migrated=${resources.length}, failed=0, durationMs=${durationMs}.`);
-		} catch (error) {
-			if (isCancellationError(error)) {
-				throw error;
-			}
-			const durationMs = Date.now() - startedAt;
-			if (isAutomationActiveRunError(error)) {
-				this._logService.info(`[AgentHostAutomationStore] Automation migration deferred after ${migratedCount} item(s) while a run became active.`);
-				throw error;
-			}
-			if (error instanceof AggregateError) {
-				failedCount = Math.max(failedCount, error.errors.length);
-			}
-			this._logService.error(`[AgentHostAutomationStore] Automation migration failed: discovered=${discovered.length}, migrated=${migratedCount}, failed=${failedCount}, durationMs=${durationMs}, error=${error instanceof Error ? error.message : String(error)}.`);
-			throw error;
-		}
-	}
-
-	private async _waitForMigrationBeforeMutation(): Promise<void> {
-		const migration = this._migrationPromise;
-		if (migration) {
-			await migration;
-		}
-	}
-
-	private _requireLegacySourceReadable(): void {
-		if (this._legacySource && (this._legacySource.catalogueState.get() !== 'ready' || this._legacySource.canCompleteMigration?.() === false)) {
-			throw new Error('Legacy Automation storage cannot be migrated safely by this version.');
-		}
-	}
-
-	private _requireLegacySourceDrained(): void {
-		this._requireLegacySourceReadable();
-		const remaining = this._legacySource?.automations.get().length ?? 0;
-		if (remaining > 0) {
-			throw new Error(`Automation migration source changed during migration; ${remaining} definition(s) remain.`);
-		}
-	}
-
-	private async _migrateLegacySourceAutomation(initialAutomation: IAutomationDescriptor): Promise<void> {
-		const source = this._legacySource;
-		if (!source) {
-			return;
-		}
-		let snapshot: IAutomation = { automation: initialAutomation, runs: source.runsFor(initialAutomation.id).get() };
-		for (let attempt = 0; attempt < 3; attempt++) {
-			const result = await this._importAutomationSnapshot(snapshot, true);
-			if (result.kind === 'conflict') {
-				throw new Error(`Automation conflicts with the Agent Host catalogue: ${automationResource(initialAutomation.id)}`);
-			}
-			const removal = await source.removeAutomationSnapshotIfUnchanged(snapshot);
-			if (removal.kind === 'removed' || removal.kind === 'missing') {
-				// Legacy row is durably gone. Clear the pending flag so the
-				// host can grant Run authority now that no other authority
-				// owns the source.
-				await this._clearImportPending(initialAutomation.id);
-				return;
-			}
-			snapshot = removal.current;
-		}
-		throw new Error(`Automation kept changing while migrating: ${automationResource(initialAutomation.id)}`);
-	}
-
-	private async _clearImportPending(automationId: string): Promise<void> {
-		const current = this._findAutomationEntry(automationId);
-		if (!current || !isAgentHostLegacyAutomationImportPending(current.definition)) {
-			return;
-		}
-		const projected = this._projectAutomation(current);
-		if (!projected) {
-			return;
-		}
-		await this._replaceDescriptor(projected, isAgentHostLegacyAutomationImport(current.definition), false);
-	}
-
-	private async _drainPendingImports(): Promise<void> {
-		const catalog = this._catalog.value;
-		if (!catalog || catalog instanceof Error) {
-			return;
-		}
-		const failures: Error[] = [];
-		const pending = catalog.entries.filter(automation => isAgentHostLegacyAutomationImportPending(automation.definition));
-		for (const automation of pending) {
-			if (this._store.isDisposed) {
-				throw new CancellationError();
-			}
-			const id = automationId(automation.resource);
-			const legacyEntry = this._legacySource?.getAutomation(id);
-			try {
-				if (legacyEntry) {
-					await this._migrateLegacySourceAutomation(legacyEntry);
-				} else {
-					// Stranded pending row: the legacy source row was removed
-					// by another authority (e.g., a cross-provider transfer)
-					// without acknowledging the AHP import. Clear the flag so
-					// the host can start scheduling the automation.
-					await this._clearImportPending(id);
-				}
-			} catch (error) {
-				if (isCancellationError(error) || this._store.isDisposed) {
-					throw new CancellationError();
-				}
-				const failure = error instanceof Error ? error : new Error(String(error));
-				failures.push(failure);
-				this._logService.error(`[AgentHostAutomationStore] Failed to drain pending Automation import: id=${id}, error=${failure.message}`);
-			}
-		}
-		if (failures.length > 0) {
-			throw new AggregateError(failures, `Failed to drain ${failures.length} pending Agent Host Automation import(s).`);
-		}
 	}
 
 	// Projects the Agent Host catalogue into editor-facing Automation descriptors.
@@ -627,11 +280,6 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			.sort((first, second) => second.startedAt.localeCompare(first.startedAt));
 	}
 
-	// Projects one Agent Host Automation's run summaries into editor-facing runs.
-	private _projectRunsFor(resource: string): IAutomationRun[] {
-		return this._findAutomationEntryByResource(resource)?.runs.map(run => this._projectRun(run)) ?? [];
-	}
-
 	// Projects Agent Host Automation state into the editor-facing Automation model.
 	private _projectAutomation(state: AutomationEntry | undefined): IAutomationDescriptor | undefined {
 		if (!state) {
@@ -645,7 +293,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
 		return {
-			id: automationId(state.resource),
+			id: this._resourceId(state.resource),
 			name: state.definition.title,
 			prompt: state.definition.message.text,
 			schedule: projectSchedule(state.definition.triggers),
@@ -686,8 +334,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const lifecycle = run.lifecycle;
 		const primarySession = run.primarySession ? this._projectSessionResource(run.primarySession) : undefined;
 		return {
-			id: automationRunId(run.resource),
-			automationId: automationId(run.automation),
+			id: this._resourceId(run.resource),
+			automationId: this._resourceId(run.automation),
 			status: lifecycle.status === AutomationRunStatus.Cancelled ? 'failed' : lifecycle.status,
 			trigger: run.origin.kind === AutomationRunOriginKind.Manual
 				? 'manual'
@@ -702,19 +350,18 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				: lifecycle.status === AutomationRunStatus.Cancelled
 					? localize('agentHostAutomation.cancelled', "Cancelled")
 					: undefined,
-			leaderWindowId: 0,
 		};
 	}
 
 	private _findAutomationEntry(id: string): AutomationEntry | undefined {
-		return this._findAutomationEntryByResource(automationResource(id));
-	}
-
-	private _findAutomationEntryByResource(resource: string): AutomationEntry | undefined {
 		const catalog = this._catalog.value;
 		return catalog && !(catalog instanceof Error)
-			? catalog.entries.find(automation => automation.resource === resource)
+			? catalog.entries.find(automation => this._resourceId(automation.resource) === id)
 			: undefined;
+	}
+
+	private _resourceId(resource: string): string {
+		return `${encodeURIComponent(this._providerId)}:${resource}`;
 	}
 
 	private _requireAutomation(id: string): IAutomationDescriptor {
@@ -726,16 +373,16 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	private _operationAvailable(id: string, operation: AutomationOperation): boolean {
-		if (!this._ready.get() && this._legacySource?.getAutomation(id)) {
-			return true;
-		}
-		return this._findAutomationEntry(id)?.operations.includes(operation) === true;
+		return !this._store.isDisposed && this.catalogueState.get() === 'ready'
+			&& this._findAutomationEntry(id)?.operations.includes(operation) === true;
 	}
 
-	private _requireOperation(id: string, operation: AutomationOperation): void {
-		if (!this._operationAvailable(id, operation)) {
-			throw new Error(`Automation operation '${operation}' is not available: ${id}`);
+	private _requireOperation(id: string, operation: AutomationOperation): AutomationEntry {
+		const automation = this._findAutomationEntry(id);
+		if (this._store.isDisposed || this.catalogueState.get() !== 'ready' || !automation?.operations.includes(operation)) {
+			throw new AutomationUnavailableError(localize('agentHostAutomation.operationUnavailable', "Automation operation '{0}' is not available for '{1}'.", operation, id));
 		}
+		return automation;
 	}
 
 	private _requireProjectedAutomation(state: AutomationEntry): IAutomationDescriptor {
@@ -746,12 +393,12 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return automation;
 	}
 
-	private async _createDescriptor(descriptor: IAutomationDescriptor, imported = false, importPending?: boolean): Promise<AutomationEntry> {
-		const resource = automationResource(descriptor.id);
-		const definition = this._definitionFromDescriptor(descriptor, undefined, imported, importPending);
+	private async _createDescriptor(resource: string, descriptor: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<AutomationEntry> {
+		const definition = this._definitionFromDescriptor(descriptor);
 		const state = await this._dispatchAndWait(
 			{ type: ActionType.AutomationCreateRequested, resource, definition },
 			catalog => catalog.entries.some(automation => automation.resource === resource),
+			mutationGuard,
 		);
 		if (!state) {
 			throw new Error(`Automation create completed without authoritative state: ${resource}`);
@@ -759,13 +406,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return state;
 	}
 
-	private async _replaceDescriptor(descriptor: IAutomationDescriptor, imported = false, importPending?: boolean, resetSessionTemplate = false): Promise<AutomationEntry> {
-		const resource = automationResource(descriptor.id);
+	private async _replaceDescriptor(descriptor: IAutomationDescriptor, resetSessionTemplate = false, mutationGuard?: AutomationMutationGuard): Promise<AutomationEntry> {
 		const current = this._findAutomationEntry(descriptor.id);
 		if (!current) {
 			throw new Error(`Automation does not exist: ${descriptor.id}`);
 		}
-		const definition = this._definitionFromDescriptor(descriptor, current.definition, imported, importPending, resetSessionTemplate);
+		const resource = current.resource;
+		const definition = this._definitionFromDescriptor(descriptor, current.definition, resetSessionTemplate);
 		const expected = this._requireProjectedAutomation({ ...current, definition });
 		const state = await this._dispatchAndWait(
 			{
@@ -787,18 +434,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 					|| serializeAutomationEditableState(projected) !== serializeAutomationEditableState(expected)) {
 					return false;
 				}
-				// The pending flag lives on definition._meta, which the
-				// editable-state comparison does not observe. Force the wait
-				// to also see the intended pending state so a caller that
-				// depends on the flag being (un)set doesn't race the host.
-				if (importPending === true) {
-					return isAgentHostLegacyAutomationImportPending(state!.definition);
-				}
-				if (importPending === false) {
-					return !isAgentHostLegacyAutomationImportPending(state!.definition);
-				}
 				return true;
 			},
+			mutationGuard,
 		);
 		if (!state) {
 			throw new Error(`Automation update completed without authoritative state: ${resource}`);
@@ -806,7 +444,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return state;
 	}
 
-	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean, resetSessionTemplate = false): AutomationDefinition {
+	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, resetSessionTemplate = false): AutomationDefinition {
+		if (descriptor.target.providerId !== this._providerId) {
+			throw new AutomationUnavailableError(localize('agentHostAutomation.wrongHost', "The automation target must belong to this Agent Host."));
+		}
 		const sessionTemplate = descriptor.sessionTemplate;
 		assertAutomationSessionTemplate(sessionTemplate);
 		const modelId = sessionTemplate ? sessionTemplate.modelId : descriptor.modelId;
@@ -828,7 +469,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				descriptor.permissionLevel,
 			);
 		}
-		const config = imported ? migrateLegacyAutomationSessionConfig(provider, projectedConfig) : projectedConfig;
+		const config = projectedConfig;
 		if (descriptor.target.kind === 'workspace') {
 			setOptional(config, SessionConfigKey.Isolation, descriptor.target.isolation.kind === 'default' ? undefined : descriptor.target.isolation.kind);
 			setOptional(config, SessionConfigKey.Branch, descriptor.target.isolation.kind === 'worktree' ? descriptor.target.isolation.branch : undefined);
@@ -836,15 +477,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			setOptional(config, SessionConfigKey.Isolation, undefined);
 			setOptional(config, SessionConfigKey.Branch, undefined);
 		}
-		const meta: Record<string, unknown> = {
-			...existing?._meta,
-			...((imported || isAgentHostLegacyAutomationImport(existing)) ? { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true } : {}),
-		};
-		if (importPending === true) {
-			meta[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY] = true;
-		} else if (importPending === false) {
-			delete meta[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY];
-		}
+		const meta = existing?._meta ?? {};
 		return {
 			title: descriptor.name,
 			message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation } },
@@ -893,11 +526,6 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return prefix && !modelId.startsWith(prefix) ? `${prefix}${modelId}` : modelId;
 	}
 
-	private _canonicalDescriptor(descriptor: IAutomationDescriptor, state: AutomationEntry): IAutomationDescriptor {
-		const definition = this._definitionFromDescriptor(descriptor, state.definition);
-		return this._requireProjectedAutomation({ ...state, definition });
-	}
-
 	private _applyPatch(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): IAutomationDescriptor {
 		assertAutomationSessionTemplateAuthority(current, patch);
 		const now = new Date();
@@ -939,8 +567,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private async _dispatchAndWait(
 		action: Parameters<IAgentConnection['dispatch']>[1] & { readonly resource: string },
 		predicate: (catalog: AutomationState) => boolean,
+		mutationGuard?: AutomationMutationGuard,
 	): Promise<AutomationEntry | undefined> {
 		await this._waitForCatalog(() => true);
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		mutationGuard?.();
 		const result = this._waitForCatalog(predicate, action);
 		this._connection.dispatch(AUTOMATION_CATALOG_URI, action);
 		const catalog = await result;
@@ -1016,154 +649,33 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		});
 	}
 
-	private async _waitForMigrationCompletion(): Promise<void> {
-		const deadline = Date.now() + MUTATION_TIMEOUT_MS;
-		let lastError: Error | undefined;
-		while (Date.now() < deadline) {
-			if (this._store.isDisposed) {
-				throw new CancellationError();
-			}
-			try {
-				await this._connection.listAutomationTriggerDefinitions({ channel: ROOT_STATE_URI });
-				return;
-			} catch (error) {
-				if (isCancellationError(error) || this._store.isDisposed) {
-					throw new CancellationError();
-				}
-				lastError = error instanceof Error ? error : new Error(String(error));
-				await timeout(MIGRATION_POLL_INTERVAL_MS);
-			}
-		}
-		if (this._store.isDisposed) {
-			throw new CancellationError();
-		}
-		throw lastError ?? new Error('Timed out waiting for Agent Host Automation migration completion.');
-	}
-
-	private _loadArchivedRuns(): ILoadedLegacyRunArchive {
+	private _loadArchivedRuns(): readonly IAutomationRun[] {
 		const raw = this._storageService.get(this._archiveKey, StorageScope.APPLICATION);
 		if (!raw) {
-			return { runs: [], repairedRuns: 0 };
+			return [];
 		}
 		const parsed = parseArchivedRuns(raw);
 		if (parsed.kind === 'unsupported') {
 			this._logService.error(`[AgentHostAutomationStore] Ignoring legacy run archive with unsupported version: key=${this._archiveKey}, version=${parsed.version}.`);
-			return { runs: [], repairedRuns: 0 };
+			return [];
 		}
 		if (parsed.kind === 'invalid') {
 			this._logService.error(`[AgentHostAutomationStore] Ignoring invalid legacy run archive: key=${this._archiveKey}, error=${parsed.error}.`);
-			return { runs: [], repairedRuns: 0 };
+			return [];
 		}
 		if (parsed.droppedRuns > 0) {
 			this._logService.warn(`[AgentHostAutomationStore] Dropped ${parsed.droppedRuns} malformed run(s) from legacy run archive: key=${this._archiveKey}.`);
 		}
-		let repairedRuns = 0;
-		const runs = parsed.runs.map(run => {
-			const terminalRun = terminalizeArchivedRun(run);
-			if (terminalRun !== run) {
-				repairedRuns++;
-			}
-			return terminalRun;
-		});
-		return { runs, repairedRuns };
-	}
-
-	private _persistRepairedArchivedRuns(archive: ILoadedLegacyRunArchive): void {
-		if (archive.repairedRuns === 0) {
-			return;
-		}
-		this._logService.warn(`[AgentHostAutomationStore] Repairing ${archive.repairedRuns} non-terminal legacy Automation run(s): key=${this._archiveKey}.`);
-		void this._repairArchivedRuns().catch(error => {
-			this._logService.error(`[AgentHostAutomationStore] Failed to persist repaired legacy Automation runs: key=${this._archiveKey}, error=${error instanceof Error ? error.message : String(error)}.`);
-		});
-	}
-
-	private async _repairArchivedRuns(): Promise<void> {
-		let raw = await this._automationStorageService.read(this._archiveKey);
-		for (let attempt = 0; attempt < LEGACY_RUN_ARCHIVE_WRITE_ATTEMPTS; attempt++) {
-			if (raw === undefined) {
-				return;
-			}
-			const parsed = parseArchivedRuns(raw);
-			if (parsed.kind === 'unsupported') {
-				throw new Error(`Cannot repair legacy Automation run archive with unsupported version: key=${this._archiveKey}, version=${parsed.version}.`);
-			}
-			if (parsed.kind === 'invalid') {
-				throw new Error(`Cannot repair invalid legacy Automation run archive: key=${this._archiveKey}, error=${parsed.error}.`);
-			}
-			const runs = parsed.runs.map(terminalizeArchivedRun);
-			if (runs.every((run, index) => run === parsed.runs[index])) {
-				this._archivedRuns.set(runs, undefined);
-				return;
-			}
-			const archive: ILegacyRunArchive = {
-				version: LEGACY_RUN_ARCHIVE_VERSION,
-				runs: runs.map(run => ({
-					...run,
-					sessionResource: run.sessionResource?.toString(),
-				})),
-			};
-			const result = await this._automationStorageService.compareAndSwap(this._archiveKey, raw, JSON.stringify(archive));
-			if (result.swapped) {
-				this._archivedRuns.set(runs, undefined);
-				return;
-			}
-			raw = result.currentValue;
-		}
-		throw new Error(`Legacy Automation run archive kept changing while it was being repaired: ${this._archiveKey}`);
-	}
-
-	private async _archiveRuns(runs: readonly IAutomationRun[]): Promise<void> {
-		if (runs.length === 0) {
-			return;
-		}
-		let raw = await this._automationStorageService.read(this._archiveKey);
-		for (let attempt = 0; attempt < LEGACY_RUN_ARCHIVE_WRITE_ATTEMPTS; attempt++) {
-			let current: readonly IAutomationRun[] = [];
-			if (raw !== undefined) {
-				const parsed = parseArchivedRuns(raw);
-				if (parsed.kind === 'unsupported') {
-					throw new Error(`Cannot update legacy Automation run archive with unsupported version: key=${this._archiveKey}, version=${parsed.version}.`);
-				}
-				if (parsed.kind === 'invalid') {
-					this._logService.error(`[AgentHostAutomationStore] Replacing invalid legacy run archive: key=${this._archiveKey}, error=${parsed.error}.`);
-				} else {
-					current = parsed.runs;
-					if (parsed.droppedRuns > 0) {
-						this._logService.warn(`[AgentHostAutomationStore] Dropping ${parsed.droppedRuns} malformed run(s) while repairing legacy run archive: key=${this._archiveKey}.`);
-					}
-				}
-			}
-			const merged = distinctById([...runs, ...current]).map(terminalizeArchivedRun);
-			const archive: ILegacyRunArchive = {
-				version: LEGACY_RUN_ARCHIVE_VERSION,
-				runs: merged.map(run => ({
-					...run,
-					sessionResource: run.sessionResource?.toString(),
-				})),
-			};
-			const next = JSON.stringify(archive);
-			const result = await this._automationStorageService.compareAndSwap(this._archiveKey, raw, next);
-			if (result.swapped) {
-				this._archivedRuns.set(merged, undefined);
-				return;
-			}
-			raw = result.currentValue;
-		}
-		throw new Error(`Legacy Automation run archive kept changing while it was being updated: ${this._archiveKey}`);
+		return parsed.runs.map(run => ({
+			...terminalizeArchivedRun(run),
+			id: this._resourceId(URI.from({ scheme: 'legacy-automation-run', path: `/${run.id}` }).toString()),
+			automationId: this._resourceId(automationResource(run.automationId)),
+		}));
 	}
 }
 
 function automationResource(id: string): string {
 	return URI.from({ scheme: 'ahp-automation', path: `/${id}` }).toString();
-}
-
-function automationId(resource: string): string {
-	return URI.parse(resource).path.split('/').filter(Boolean).at(-1) ?? resource;
-}
-
-function automationRunId(resource: string): string {
-	return URI.parse(resource).path.split('/').filter(Boolean).at(-1) ?? resource;
 }
 
 function isTerminalRun(run: AutomationRunSummary): boolean {
@@ -1284,13 +796,6 @@ function distinctById<T extends { readonly id: string }>(items: readonly T[]): T
 	return result;
 }
 
-function assertTerminalRunHistory(runs: readonly IAutomationRun[]): void {
-	const activeRun = runs.find(isNonTerminalRun);
-	if (activeRun) {
-		throw new AutomationActiveRunError(activeRun.automationId, activeRun.id);
-	}
-}
-
 function isNonTerminalRun(run: IAutomationRun): boolean {
 	return run.status === 'pending' || run.status === 'running';
 }
@@ -1306,7 +811,7 @@ function terminalizeArchivedRun(run: IAutomationRun): IAutomationRun {
 		...run,
 		status: 'failed',
 		completedAt: run.completedAt ?? run.startedAt,
-		errorMessage: run.errorMessage ?? localize('agentHostAutomation.interruptedLegacyRun', "Interrupted while migrating Automation history"),
+		errorMessage: run.errorMessage ?? localize('agentHostAutomation.interruptedLegacyRun', "Legacy run tracking was interrupted."),
 	});
 }
 
@@ -1320,7 +825,6 @@ function isSerializedArchivedRun(value: unknown): value is ISerializedArchivedRu
 		&& (run['status'] === 'pending' || run['status'] === 'running' || run['status'] === 'completed' || run['status'] === 'failed')
 		&& (run['trigger'] === 'schedule' || run['trigger'] === 'catch_up' || run['trigger'] === 'manual')
 		&& typeof run['startedAt'] === 'string'
-		&& typeof run['leaderWindowId'] === 'number'
 		&& (run['sessionResource'] === undefined || typeof run['sessionResource'] === 'string')
 		&& (run['completedAt'] === undefined || typeof run['completedAt'] === 'string')
 		&& (run['errorMessage'] === undefined || typeof run['errorMessage'] === 'string');

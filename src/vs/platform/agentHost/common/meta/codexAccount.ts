@@ -33,18 +33,15 @@ export interface ICodexAccountRateLimitInfo {
 	readonly resetsAt?: number;
 }
 
-export type ICodexAccountRateLimitsInfo = readonly ICodexAccountRateLimitInfo[];
-
 export interface ICodexAccountInfo {
 	readonly status: 'unknown' | 'downloading' | 'signedIn' | 'signedOut' | 'unavailable' | 'error';
 	readonly email?: string;
 	readonly planType?: string;
 	readonly profileImage?: ICodexProfileImageReference;
 	readonly requiresOpenaiAuth?: boolean;
-	/** Preferred single-window summary retained for provider-switch telemetry and older consumers. */
+	/** Summary window retained for clients that only display one limit. */
 	readonly rateLimit?: ICodexAccountRateLimitInfo;
-	/** All Codex usage windows reported by the ChatGPT account. */
-	readonly rateLimits?: ICodexAccountRateLimitsInfo;
+	readonly rateLimits?: readonly ICodexAccountRateLimitInfo[];
 	readonly authUrl?: string;
 	readonly authUrlNonce?: string;
 }
@@ -59,35 +56,20 @@ export function readCodexAccountInfo(state: RootState | undefined): ICodexAccoun
 	if (account.status !== 'unknown' && account.status !== 'downloading' && account.status !== 'signedIn' && account.status !== 'signedOut' && account.status !== 'unavailable' && account.status !== 'error') {
 		return { status: 'unknown' };
 	}
-	const rateLimit = readRateLimit(account.rateLimit);
-	const rateLimits = readRateLimits(account.rateLimits);
 	return {
 		status: account.status,
 		email: typeof account.email === 'string' ? account.email : undefined,
 		planType: typeof account.planType === 'string' ? account.planType : undefined,
 		profileImage: readProfileImageReference(account.profileImage),
 		requiresOpenaiAuth: typeof account.requiresOpenaiAuth === 'boolean' ? account.requiresOpenaiAuth : undefined,
-		rateLimit,
-		rateLimits,
+		rateLimit: readRateLimitInfo(account.rateLimit),
+		rateLimits: Array.isArray(account.rateLimits) ? account.rateLimits.map(readRateLimitInfo).filter(limit => limit !== undefined) : undefined,
 		authUrl: typeof account.authUrl === 'string' ? account.authUrl : undefined,
 		authUrlNonce: typeof account.authUrlNonce === 'string' ? account.authUrlNonce : undefined,
 	};
 }
 
-function readRateLimits(value: unknown): ICodexAccountRateLimitsInfo | undefined {
-	if (!value) {
-		return undefined;
-	}
-	const candidates: readonly unknown[] = Array.isArray(value)
-		? value
-		: typeof value === 'object'
-			? [(value as { primary?: unknown }).primary, (value as { secondary?: unknown }).secondary]
-			: [];
-	const rateLimits = candidates.map(readRateLimit).filter((rateLimit): rateLimit is ICodexAccountRateLimitInfo => !!rateLimit);
-	return rateLimits.length > 0 ? rateLimits : undefined;
-}
-
-function readRateLimit(value: unknown): ICodexAccountRateLimitInfo | undefined {
+function readRateLimitInfo(value: unknown): ICodexAccountRateLimitInfo | undefined {
 	if (!value || typeof value !== 'object') {
 		return undefined;
 	}

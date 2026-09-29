@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import * as dom from '../../../../base/browser/dom.js';
-import { toAction } from '../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
+import { timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -23,13 +24,13 @@ import { MockContextKeyService, MockKeybindingService } from '../../../keybindin
 import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
-import { ActionListItemKind } from '../../browser/actionList.js';
+import { ActionListItemKind, IActionListItem } from '../../browser/actionList.js';
 import { ActionWidgetService, IActionWidgetService } from '../../browser/actionWidget.js';
 
 suite('ActionWidgetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function showWidget(filterAsCombobox?: boolean) {
+	function showWidget(filterAsCombobox?: boolean, contextViewLayer?: number) {
 		const descriptor = getSingletonServiceDescriptors().find(([id]) => id === IActionWidgetService)?.[1];
 		assert.ok(descriptor);
 		const container = document.createElement('div');
@@ -70,7 +71,7 @@ suite('ActionWidgetService', () => {
 			focusFilterOnOpen: true,
 			initialFilterValue: 'match',
 			filterAsCombobox,
-		});
+		}, contextViewLayer);
 		const input = instantiationService.get(IContextViewService).getContextViewElement().querySelector<HTMLInputElement>('input');
 		assert.ok(input);
 		return { service, input, selected, cancelled };
@@ -94,6 +95,13 @@ suite('ActionWidgetService', () => {
 			service.hide();
 		});
 	}
+
+	test('renders above a containing context view when requested', () => {
+		const { service, input } = showWidget(undefined, 1);
+
+		assert.strictEqual(input.closest<HTMLElement>('.context-view')?.style.zIndex, '2576');
+		service.hide();
+	});
 
 	test('search navigation keeps input focus and Enter accepts and closes the popup', () => {
 		const { service, input, selected } = showWidget(true);
@@ -145,6 +153,39 @@ suite('ActionWidgetService', () => {
 		instantiationService.set(IContextViewService, contextView);
 		const service = disposables.add(instantiationService.createInstance(ActionWidgetService));
 		return { container, layout, service };
+	}
+
+	for (const preferredAnchorPosition of [AnchorPosition.ABOVE, AnchorPosition.BELOW]) {
+		for (const fallback of [false, true]) {
+			test(`resolves preferred side ${preferredAnchorPosition} before context view placement with fallback ${fallback}`, () => {
+				const { container, layout, service } = setup();
+				const viewportHeight = dom.getWindow(container).innerHeight;
+				const y = fallback
+					? preferredAnchorPosition === AnchorPosition.ABOVE ? 20 : viewportHeight - 44
+					: viewportHeight / 2;
+				const expectedAbove = fallback ? preferredAnchorPosition === AnchorPosition.BELOW : preferredAnchorPosition === AnchorPosition.ABOVE;
+				service.show('placement', false, ['first', 'second', 'third'].map(id => ({
+					kind: ActionListItemKind.Action, label: id, item: { id },
+				})), { onSelect: () => { }, onHide: () => { } }, { x: 200, y, width: 100, height: 24 }, undefined, [], undefined, {
+					preferredAnchorPosition, showFilter: true, focusFilterOnOpen: true,
+				});
+				const popup = container.querySelector<HTMLElement>('.action-widget')!;
+				const input = popup.querySelector<HTMLInputElement>('input')!;
+				const before = popup.getBoundingClientRect();
+				input.value = 'first';
+				input.dispatchEvent(new globalThis.Event('input'));
+				layout.fire({ container, dimension: { width: 900, height: viewportHeight } });
+				const after = popup.getBoundingClientRect();
+				assert.deepStrictEqual({
+					placedOnResolvedSide: expectedAbove ? before.bottom <= y + 1 : before.top >= y + 23,
+					retainsResolvedSide: expectedAbove ? after.bottom <= y + 1 : after.top >= y + 23,
+					shrank: after.height < before.height,
+					focusPreserved: document.activeElement === input,
+					visible: service.isVisible,
+				}, { placedOnResolvedSide: true, retainsResolvedSide: true, shrank: true, focusPreserved: true, visible: true });
+				service.hide();
+			});
+		}
 	}
 
 	test('closes an inline permission action once before focusing a warning dialog', () => {
@@ -218,5 +259,106 @@ suite('ActionWidgetService', () => {
 			{ initialFocusItemId: undefined, openAfterInitialLayout: true, visibleAfterResize: true, hides: 0 },
 			{ initialFocusItemId: 'manual', openAfterInitialLayout: true, visibleAfterResize: true, hides: 0 },
 		]);
+	});
+
+	test('keeps a nested submenu open when removing a remote row refreshes parent items', async () => {
+		const { service } = setup();
+		let hides = 0;
+		let selected = 0;
+		const keep = toAction({ id: 'keep', label: 'Keep', run: () => { } });
+		const makeParent = (children: readonly IAction[]): IActionListItem<{ id: string }> => ({
+			kind: ActionListItemKind.Action,
+			label: 'Remote',
+			item: { id: 'remote' },
+			submenuActions: [...children],
+		});
+		const removable = Object.assign(toAction({ id: 'remove', label: 'Remove Me', run: () => { } }), {
+			onRemove: async () => {
+				await timeout(0);
+				service.updateItems([makeParent([keep])], undefined, { preserveHover: true });
+			},
+		});
+		service.show('remote', false, [makeParent([removable, keep])], {
+			onSelect: () => {
+				selected++;
+				service.hide();
+			},
+			onHide: () => { hides++; },
+		}, { x: 400, y: 400, width: 100, height: 24 }, undefined, [], undefined, {
+			showFilter: true,
+		});
+
+		const widget = document.querySelector<HTMLElement>('.action-widget .actionList');
+		assert.ok(widget);
+		widget.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = document.querySelector<HTMLElement>('.action-list-submenu-panel');
+		assert.ok(panel);
+		const removeButton = Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+			.find(row => row.querySelector<HTMLElement>('.title')?.textContent === 'Remove Me')
+			?.querySelector<HTMLElement>('.action-list-item-toolbar .action-label');
+		assert.ok(removeButton);
+		removeButton.click();
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			visible: service.isVisible,
+			hides,
+			selected,
+			rows: Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+				.map(row => row.querySelector<HTMLElement>('.title')?.textContent),
+		}, {
+			visible: true,
+			hides: 0,
+			selected: 0,
+			rows: ['Keep'],
+		});
+		service.hide();
+	});
+
+	test('keeps submenu open while remove action completes asynchronously', async () => {
+		const { service } = setup();
+		let hides = 0;
+		const keep = toAction({ id: 'keep', label: 'Keep', run: () => { } });
+		const makeParent = (children: readonly IAction[]): IActionListItem<{ id: string }> => ({
+			kind: ActionListItemKind.Action,
+			label: 'Remote',
+			item: { id: 'remote' },
+			submenuActions: [...children],
+		});
+		const removable = Object.assign(toAction({ id: 'remove', label: 'Remove Me', run: () => { } }), {
+			onRemove: async () => {
+				await timeout(350);
+				service.updateItems([makeParent([keep])], undefined, { preserveHover: true });
+			},
+		});
+		service.show('remote', false, [makeParent([removable, keep])], {
+			onSelect: () => { },
+			onHide: () => { hides++; },
+		}, { x: 400, y: 400, width: 100, height: 24 }, undefined, [], undefined, {
+			showFilter: true,
+		});
+
+		const widget = document.querySelector<HTMLElement>('.action-widget .actionList');
+		assert.ok(widget);
+		widget.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = document.querySelector<HTMLElement>('.action-list-submenu-panel');
+		assert.ok(panel);
+		const removeButton = panel.querySelector<HTMLElement>('.action-list-item-toolbar .action-label');
+		assert.ok(removeButton);
+		removeButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await timeout(450);
+
+		assert.deepStrictEqual({
+			visible: service.isVisible,
+			hides,
+		}, {
+			visible: true,
+			hides: 0,
+		});
+		await timeout(100);
+		service.hide();
 	});
 });

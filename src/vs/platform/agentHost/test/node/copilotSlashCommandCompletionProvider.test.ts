@@ -6,10 +6,12 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { CompletionItem, CompletionItemKind } from '../../common/state/protocol/commands.js';
 import { Customization, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageAttachmentKind, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandInfo, parseLeadingSlashCommand } from '../../node/copilot/copilotSlashCommandCompletionProvider.js';
+import { CopilotSlashCommandProvider } from '../../node/copilot/copilotSlashCommandProvider.js';
 
 /**
  * The provider now also injects workbench-defined config-action items
@@ -122,6 +124,21 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			getSessionCustomizations: async () => [],
 		});
 		const session = 'copilotcli:/abc';
+		const sandboxCommand: ICopilotRuntimeSlashCommandInfo = {
+			name: 'sandbox',
+			description: 'Configure sandbox',
+			kind: 'builtin',
+			allowDuringAgentExecution: true,
+			input: {
+				hint: '[policy|on|off]',
+				choices: [
+					{ name: '', description: 'Show sandbox status' },
+					{ name: 'policy', description: 'Show sandbox policy' },
+					{ name: 'on', description: 'Enable sandbox' },
+					{ name: 'off', description: 'Disable sandbox' },
+				],
+			},
+		};
 
 		async function run(text: string, offset = text.length) {
 			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, CancellationToken.None);
@@ -135,6 +152,192 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				offset: 1,
 			}, CancellationToken.None);
 			assert.deepStrictEqual(items, []);
+		});
+
+		test('offers /sandbox-policy while keeping SDK sandbox subcommands hidden', async () => {
+			const commands = new CopilotSlashCommandProvider(async () => [sandboxCommand], undefined, new NullLogService());
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: (_sessionId, options) => commands.getSlashCommands(options),
+				getSessionCustomizations: async () => [],
+			});
+
+			const items = await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/sand', offset: 5,
+			}, CancellationToken.None);
+
+			assert.deepStrictEqual(runtimeOnly(items), [{
+				insertText: '/sandbox-policy ',
+				rangeStart: 0,
+				rangeEnd: 5,
+				attachment: {
+					type: MessageAttachmentKind.Simple,
+					label: 'sandbox-policy',
+					_meta: {
+						command: 'sandbox-policy',
+						description: 'Show the effective sandbox policy for this session',
+					},
+				},
+			}]);
+		});
+
+		test('does not offer /sandbox-policy for another provider or as an inline skill', async () => {
+			const commands = new CopilotSlashCommandProvider(async () => [sandboxCommand], undefined, new NullLogService());
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: (_sessionId, options) => commands.getSlashCommands(options),
+				getSessionCustomizations: async () => [],
+			});
+
+			for (const { channel, text } of [
+				{ channel: 'claude:/abc', text: '/sandbox' },
+				{ channel: session, text: 'Explain /sandbox' },
+			]) {
+				assert.deepStrictEqual(await provider.provideCompletionItems({
+					kind: CompletionItemKind.UserMessage, channel, text, offset: text.length,
+				}, CancellationToken.None), []);
+			}
+		});
+
+		test('keeps /sandbox-policy available when runtime command discovery fails', async () => {
+			const commands = new CopilotSlashCommandProvider(async () => {
+				throw new Error('Command discovery unavailable');
+			}, undefined, new NullLogService());
+
+			assert.deepStrictEqual({
+				names: (await commands.getSlashCommands()).map(command => command.name),
+				resolved: (await commands.resolveSlashCommand('sandbox-policy'))?.name,
+			}, {
+				names: ['sandbox-policy'],
+				resolved: 'sandbox-policy',
+			});
+		});
+
+		test('does not duplicate a runtime command with the same name', async () => {
+			const commands = new CopilotSlashCommandProvider(async () => [{
+				...sandboxCommand, name: 'sandbox-policy',
+			}], undefined, new NullLogService());
+			assert.deepStrictEqual((await commands.getSlashCommands()).map(command => ({
+				name: command.name, input: command.input,
+			})), [{ name: 'sandbox-policy', input: undefined }]);
+		});
+
+		test('keeps native /sandbox hidden even when the SDK only advertises configuration choices', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					...sandboxCommand,
+					input: { hint: '[on|off]', choices: [{ name: 'off', description: 'Disable sandbox' }] },
+				}],
+				getSessionCustomizations: async () => [],
+			});
+			assert.deepStrictEqual(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/sand', offset: 5,
+			}, CancellationToken.None), []);
+		});
+
+		test('offers runtime customization commands with their supported subcommands', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [
+					{
+						name: 'skills',
+						description: 'Manage skills',
+						kind: 'builtin',
+						allowDuringAgentExecution: false,
+						input: {
+							hint: '[list|reload]',
+							choices: [
+								{ name: 'list', description: 'List skills' },
+								{ name: 'reload', description: 'Reload skills' },
+							],
+						},
+					},
+					{
+						name: 'plugin',
+						description: 'Manage plugins',
+						kind: 'builtin',
+						allowDuringAgentExecution: false,
+						input: { hint: '[list]', choices: [{ name: 'list', description: 'List plugins' }] },
+					},
+					{
+						name: 'mcp',
+						description: 'Manage MCP servers',
+						kind: 'builtin',
+						allowDuringAgentExecution: false,
+						input: {
+							hint: '[list|reload]',
+							choices: [
+								{ name: 'list', description: 'List MCP servers' },
+								{ name: 'reload', description: 'Reload MCP servers' },
+							],
+						},
+					},
+				],
+				getSessionCustomizations: async () => [],
+			});
+
+			assert.deepStrictEqual(runtimeOnly(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text: '/',
+				offset: 1,
+			}, CancellationToken.None)).map(item => item.insertText), [
+				'/mcp ',
+				'/mcp list ',
+				'/mcp reload ',
+				'/plugin ',
+				'/plugin list ',
+				'/skills ',
+				'/skills list ',
+				'/skills reload ',
+			]);
+		});
+
+		test('offers matching MCP server and skill names for customization commands', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [],
+				getSessionCustomizations: async () => [
+					{ type: CustomizationType.McpServer, id: 'mcp:top-level', uri: 'file:///mcp.json', name: 'top-level', state: { kind: McpServerStatus.Ready } },
+					{
+						type: CustomizationType.Plugin,
+						id: 'file:///plugin',
+						uri: 'file:///plugin',
+						name: 'plugin',
+						load: { kind: CustomizationLoadStatus.Loaded },
+						children: [
+							{ type: CustomizationType.McpServer, id: 'mcp:plugin-server', uri: 'file:///plugin/.mcp.json', name: 'plugin-server', state: { kind: McpServerStatus.Ready } },
+							{ type: CustomizationType.Skill, id: 'file:///plugin/skills/my-skill/SKILL.md', uri: 'file:///plugin/skills/my-skill/SKILL.md', name: 'my-skill', description: 'My skill' },
+						],
+					},
+				],
+			});
+
+			assert.deepStrictEqual(provider.triggerCharacters, ['/', ' ']);
+			assert.deepStrictEqual(await Promise.all([
+				'/mcp disable ',
+				'/mcp enable p',
+				'/mcp show ',
+				'/skills info ',
+			].map(async text => (await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text, offset: text.length,
+			}, CancellationToken.None)).map(item => ({
+				insertText: item.insertText,
+				rangeStart: item.rangeStart,
+				rangeEnd: item.rangeEnd,
+				label: item.attachment.label,
+			})))), [
+				[
+					{ insertText: 'plugin-server', rangeStart: 13, rangeEnd: 13, label: 'plugin-server' },
+					{ insertText: 'top-level', rangeStart: 13, rangeEnd: 13, label: 'top-level' },
+				],
+				[
+					{ insertText: 'plugin-server', rangeStart: 12, rangeEnd: 13, label: 'plugin-server' },
+				],
+				[
+					{ insertText: 'plugin-server', rangeStart: 10, rangeEnd: 10, label: 'plugin-server' },
+					{ insertText: 'top-level', rangeStart: 10, rangeEnd: 10, label: 'top-level' },
+				],
+				[
+					{ insertText: 'my-skill', rangeStart: 13, rangeEnd: 13, label: 'my-skill' },
+				],
+			]);
 		});
 
 		test('returns all runtime items for lone "/" (config-action items filtered)', async () => {
@@ -385,6 +588,168 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				{ insertText: '/toggle off ', meta: { command: 'toggle', description: 'Turn the feature off' } },
 				{ insertText: '/toggle on ', meta: { command: 'toggle', description: 'Turn the feature on' } },
 			]);
+		});
+
+		test('offers structured choices at the command and argument positions', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'mcp',
+					description: 'Manage MCP servers',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: {
+						hint: '[enable|disable|show]',
+						choices: [
+							{ name: 'enable', description: 'Enable an MCP server' },
+							{ name: 'disable', description: 'Disable an MCP server' },
+							{ name: 'show', description: 'Show an MCP server' },
+						],
+					},
+				}],
+				getSessionCustomizations: async () => [],
+			});
+
+			assert.deepStrictEqual(await Promise.all(['/mcp', '/mcp ', '/mcp en'].map(async text =>
+				(await gated.provideCompletionItems({
+					kind: CompletionItemKind.UserMessage,
+					channel: session,
+					text,
+					offset: text.length,
+				}, CancellationToken.None)).map(item => ({
+					insertText: item.insertText,
+					label: item.attachment.label,
+					rangeStart: item.rangeStart,
+					rangeEnd: item.rangeEnd,
+				})))), [
+				[
+					{ insertText: '/mcp ', label: 'mcp', rangeStart: 0, rangeEnd: 4 },
+					{ insertText: '/mcp disable ', label: 'mcp disable', rangeStart: 0, rangeEnd: 4 },
+					{ insertText: '/mcp enable ', label: 'mcp enable', rangeStart: 0, rangeEnd: 4 },
+					{ insertText: '/mcp show ', label: 'mcp show', rangeStart: 0, rangeEnd: 4 },
+				],
+				[
+					{ insertText: 'disable ', label: 'disable', rangeStart: 5, rangeEnd: 5 },
+					{ insertText: 'enable ', label: 'enable', rangeStart: 5, rangeEnd: 5 },
+					{ insertText: 'show ', label: 'show', rangeStart: 5, rangeEnd: 5 },
+				],
+				[
+					{ insertText: 'enable ', label: 'enable', rangeStart: 5, rangeEnd: 7 },
+				],
+			]);
+
+			const retriggeringItems = await Promise.all(['/mcp', '/mcp ', '/mcp en'].map(async text =>
+				(await gated.provideCompletionItems({
+					kind: CompletionItemKind.UserMessage,
+					channel: session,
+					text,
+					offset: text.length,
+				}, CancellationToken.None))
+					.filter(item => item.attachment._meta?.retriggerSuggestions === true)
+					.map(item => item.insertText)));
+			assert.deepStrictEqual(retriggeringItems, [
+				['/mcp ', '/mcp disable ', '/mcp enable ', '/mcp show '],
+				['disable ', 'enable ', 'show '],
+				['enable '],
+			]);
+		});
+
+		test('retriggers suggestions after accepting skills info', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'skills',
+					description: 'Manage skills',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: {
+						hint: '[info|list]',
+						choices: [
+							{ name: 'info', description: 'Show skill information' },
+							{ name: 'list', description: 'List skills' },
+							{ name: 'reload', description: 'Reload skills' },
+						],
+					},
+				}],
+				getSessionCustomizations: async () => [],
+			});
+
+			const text = '/skills ';
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text,
+				offset: text.length,
+			}, CancellationToken.None);
+
+			assert.deepStrictEqual(items.map(item => ({
+				insertText: item.insertText,
+				retriggerSuggestions: item.attachment._meta?.retriggerSuggestions === true,
+				submitOnAccept: item.attachment._meta?.submitOnAccept === true,
+			})), [
+				{ insertText: 'info ', retriggerSuggestions: true, submitOnAccept: false },
+				{ insertText: 'list ', retriggerSuggestions: false, submitOnAccept: true },
+				{ insertText: 'reload ', retriggerSuggestions: false, submitOnAccept: true },
+			]);
+
+			const commandItems = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text: '/skills',
+				offset: '/skills'.length,
+			}, CancellationToken.None);
+			assert.deepStrictEqual(
+				commandItems.filter(item => item.attachment._meta?.submitOnAccept === true).map(item => item.insertText),
+				['/skills list ', '/skills reload '],
+			);
+			assert.strictEqual(
+				commandItems.find(item => item.insertText === '/skills ')?.attachment._meta?.retriggerSuggestions,
+				true,
+			);
+		});
+
+		test('submits terminal MCP choices on accept', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'mcp',
+					description: 'Manage MCP servers',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: {
+						hint: '[list|reload]',
+						choices: [
+							{ name: 'list', description: 'List MCP servers' },
+							{ name: 'reload', description: 'Reload MCP servers' },
+						],
+					},
+				}],
+				getSessionCustomizations: async () => [],
+			});
+
+			const text = '/mcp ';
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text,
+				offset: text.length,
+			}, CancellationToken.None);
+
+			assert.deepStrictEqual(items.map(item => ({
+				insertText: item.insertText,
+				submitOnAccept: item.attachment._meta?.submitOnAccept === true,
+			})), [
+				{ insertText: 'list ', submitOnAccept: true },
+				{ insertText: 'reload ', submitOnAccept: true },
+			]);
+
+			const commandItems = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text: '/mcp',
+				offset: '/mcp'.length,
+			}, CancellationToken.None);
+			assert.deepStrictEqual(
+				commandItems.filter(item => item.attachment._meta?.submitOnAccept === true).map(item => item.insertText),
+				['/mcp list ', '/mcp reload '],
+			);
 		});
 
 		test('includes a bare command item when a choice has an empty name', async () => {

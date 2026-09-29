@@ -18,10 +18,6 @@ suite('Codex account metadata', () => {
 					status: 'signedIn',
 					email: 'person@example.com',
 					rateLimit: { usedPercent: 42.4, windowDurationMins: 10080, resetsAt: 1234 },
-					rateLimits: [
-						{ usedPercent: 21, windowDurationMins: 300, resetsAt: 1200 },
-						{ usedPercent: 42.4, windowDurationMins: 10080, resetsAt: 1234 },
-					],
 				},
 			},
 		}), {
@@ -31,10 +27,7 @@ suite('Codex account metadata', () => {
 			profileImage: undefined,
 			requiresOpenaiAuth: undefined,
 			rateLimit: { usedPercent: 42.4, windowDurationMins: 10080, resetsAt: 1234 },
-			rateLimits: [
-				{ usedPercent: 21, windowDurationMins: 300, resetsAt: 1200 },
-				{ usedPercent: 42.4, windowDurationMins: 10080, resetsAt: 1234 },
-			],
+			rateLimits: undefined,
 			authUrl: undefined,
 			authUrlNonce: undefined,
 		});
@@ -44,38 +37,26 @@ suite('Codex account metadata', () => {
 		const account = readCodexAccountInfo({
 			agents: [],
 			_meta: {
-				[CODEX_ACCOUNT_META_KEY]: {
-					status: 'signedIn',
-					rateLimit: { usedPercent: 101 },
-					rateLimits: [
-						{ usedPercent: -1 },
-						{ usedPercent: Number.POSITIVE_INFINITY },
-					],
-				},
+				[CODEX_ACCOUNT_META_KEY]: { status: 'signedIn', rateLimit: { usedPercent: 101 } },
 			},
 		});
 		assert.strictEqual(account.status, 'signedIn');
 		assert.strictEqual(account.rateLimit, undefined);
-		assert.strictEqual(account.rateLimits, undefined);
 	});
 
-	test('normalizes legacy primary and secondary rate-limit metadata', () => {
+	test('reads both rate-limit windows and drops malformed entries independently', () => {
+		const weekly = { usedPercent: 42.4, windowDurationMins: 10080, resetsAt: 1234 };
+		const fiveHour = { usedPercent: 0, windowDurationMins: 300, resetsAt: 123 };
 		const account = readCodexAccountInfo({
 			agents: [],
 			_meta: {
 				[CODEX_ACCOUNT_META_KEY]: {
 					status: 'signedIn',
-					rateLimits: {
-						primary: { usedPercent: 21, windowDurationMins: 300 },
-						secondary: { usedPercent: 42, windowDurationMins: 10080 },
-					},
+					rateLimits: [weekly, null, { usedPercent: 101 }, { usedPercent: 10, resetsAt: -1 }, fiveHour],
 				},
 			},
 		});
-		assert.deepStrictEqual(account.rateLimits, [
-			{ usedPercent: 21, windowDurationMins: 300, resetsAt: undefined },
-			{ usedPercent: 42, windowDurationMins: 10080, resetsAt: undefined },
-		]);
+		assert.deepStrictEqual(account.rateLimits, [weekly, fiveHour]);
 	});
 
 	test('reads only safe profile-image references', () => {

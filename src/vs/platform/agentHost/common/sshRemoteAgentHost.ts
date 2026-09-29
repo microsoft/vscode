@@ -271,15 +271,18 @@ export function isSSHStrictHostKeyChecking(value: string): value is SSHStrictHos
  */
 export interface ISSHResolvedConfig {
 	readonly hostname: string;
+	/** Host identity used for host-key lookup and storage instead of {@link hostname}. */
+	readonly hostKeyAlias?: string;
 	readonly user: string | undefined;
 	readonly port: number;
 	readonly identityFile: string[];
 	readonly identityAgent: string | undefined;
+	/** Command providing the raw SSH connection over standard input/output. */
+	readonly proxyCommand?: string;
 	readonly forwardAgent: boolean;
 	/**
-	 * `UserKnownHostsFile` paths, in priority order. `ssh -G` emits these as a
-	 * single space-separated list, so this is already split. Typically
-	 * `~/.ssh/known_hosts` and `~/.ssh/known_hosts2`.
+	 * `UserKnownHostsFile` paths, in priority order. The node service recovers
+	 * unquoted paths containing spaces only when filesystem matches are unambiguous.
 	 */
 	readonly userKnownHostsFiles: string[];
 	/** `GlobalKnownHostsFile` paths, e.g. `/etc/ssh/ssh_known_hosts`. */
@@ -371,7 +374,7 @@ export type ISSHEndpointSelection =
  * `KnownHostsMatch` in `../node/sshKnownHosts.js`, redeclared here because
  * this common-layer module cannot import from `node`.
  */
-export type SSHKnownHostsMatch = 'match' | 'mismatch' | 'revoked' | 'ca-only' | 'unknown';
+export type SSHKnownHostsMatch = 'match' | 'mismatch' | 'other-key-type' | 'revoked' | 'ca-only' | 'unknown';
 
 /**
  * Error name for a connect attempt refused because the server's host key was
@@ -423,8 +426,10 @@ export interface ISSHHostKeyVerificationRequest {
 	readonly connectionKey: string;
 	/** Display-friendly host (e.g. SSH config alias or `user@host`). */
 	readonly displayHost: string;
-	/** Resolved hostname the key was presented for. */
+	/** Effective host-key identity: `HostKeyAlias` when configured, otherwise the resolved hostname. */
 	readonly host: string;
+	/** Resolved connection hostname, used to consult trust stored before `HostKeyAlias` was supported. */
+	readonly resolvedHost: string;
 	readonly port: number;
 	/** Host key algorithm, e.g. `ssh-ed25519`. */
 	readonly keyType: string;

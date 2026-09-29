@@ -15,7 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { Queue } from '../../../../base/common/async.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
 import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
@@ -34,68 +34,67 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		super();
 		this._register(autorun(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
-			activeSession?.workspace.read(reader);
-			this.queue.queue(() => this.updateWorkspaceFoldersForSession(activeSession));
+			const activeChat = activeSession?.activeChat.read(reader);
+			const workspace = activeChat?.workspace.read(reader);
+			this.queue.queue(() => this.updateWorkspaceFolders(workspace));
 		}));
 	}
 
-	private async updateWorkspaceFoldersForSession(session: ISession | undefined): Promise<void> {
+	private async updateWorkspaceFolders(workspace: ISessionWorkspace | undefined): Promise<void> {
 		// Auto-trust an isolated worktree VS Code created off a trusted repo, so a
 		// worktree session mounts without tripping the untrusted-folder backstop.
-		await ensureSessionWorktreesTrusted(session?.workspace.get(), this.workspaceTrustManagementService);
-		const activeSessionFolderData = this.getActiveSessionFolderData(session);
-		const currentRepo = this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		await ensureSessionWorktreesTrusted(workspace, this.workspaceTrustManagementService);
+		const activeSessionFolders = this.getWorkspaceFolderData(workspace);
+		const currentFolders = this.workspaceContextService.getWorkspace().folders;
 
-		// Never mount an untrusted folder: mounting it would flip the whole Agents
+		// Never mount untrusted folders: mounting one would flip the whole Agents
 		// Window into Restricted Mode. Sessions opened from the list are already
 		// gated on trust (see `ISessionsService.canOpenSession`); this backstop
-		// keeps paths that bypass that gate (e.g. startup restore) safe too by
-		// leaving the folder unmounted rather than mounting it untrusted.
-		if (activeSessionFolderData && !await this.isFolderMountable(session, activeSessionFolderData.uri)) {
-			if (currentRepo) {
-				await this.workspaceEditingService.removeFolders([currentRepo], true);
+		// keeps paths that bypass that gate (e.g. startup restore) safe too.
+		const mountable = await Promise.all(activeSessionFolders.map(folder => this.isFolderMountable(workspace, folder.uri)));
+		if (mountable.some(isMountable => !isMountable)) {
+			if (currentFolders.length > 0) {
+				await this.workspaceEditingService.removeFolders(currentFolders.map(folder => folder.uri), true);
 			}
 			return;
 		}
 
-		if (!activeSessionFolderData) {
-			if (currentRepo) {
-				await this.workspaceEditingService.removeFolders([currentRepo], true);
+		if (activeSessionFolders.length === 0) {
+			if (currentFolders.length > 0) {
+				await this.workspaceEditingService.removeFolders(currentFolders.map(folder => folder.uri), true);
 			}
 			return;
 		}
 
-		if (!currentRepo) {
-			await this.workspaceEditingService.addFolders([activeSessionFolderData], true);
+		if (currentFolders.length === 0) {
+			await this.workspaceEditingService.addFolders(activeSessionFolders, true);
 			return;
 		}
 
-		if (this.uriIdentityService.extUri.isEqual(currentRepo, activeSessionFolderData.uri)) {
+		const foldersMatch = currentFolders.length === activeSessionFolders.length
+			&& currentFolders.every((folder, index) => this.uriIdentityService.extUri.isEqual(folder.uri, activeSessionFolders[index].uri));
+		if (foldersMatch) {
 			return;
 		}
 
-		await this.workspaceEditingService.updateFolders(0, 1, [activeSessionFolderData], true);
+		await this.workspaceEditingService.updateFolders(0, currentFolders.length, activeSessionFolders, true);
 	}
 
-	private getActiveSessionFolderData(session: ISession | undefined): IWorkspaceFolderCreationData | undefined {
-		if (!session) {
-			return undefined;
+	private getWorkspaceFolderData(workspace: ISessionWorkspace | undefined): IWorkspaceFolderCreationData[] {
+		if (!workspace) {
+			return [];
 		}
 
-		const workspace = session.workspace.get();
-		const folder = workspace?.folders[0];
-
-		if (!folder) {
-			return undefined;
-		}
-
-		return {
-			uri: folder.workingDirectory,
-			name: this.workspaceFolderLabelService.getWorkspaceFolderLabel(
-				new WorkspaceFolder({ uri: folder.workingDirectory, name: workspace.label, index: 0 }),
-				true
-			) ?? workspace.label
-		};
+		return workspace.folders.map((folder, index) => {
+			const name = index === 0 ? workspace.label : folder.name;
+			return {
+				uri: folder.workingDirectory,
+				name: this.workspaceFolderLabelService.getWorkspaceFolderLabel(
+					new WorkspaceFolder({ uri: folder.workingDirectory, name, index }),
+					true
+				) ?? name
+			};
+		});
 	}
 
 	/**
@@ -104,8 +103,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	 * left unmounted so the window never enters Restricted Mode behind the user's
 	 * back. Sessions that don't require trust (e.g. virtual/cloud) always mount.
 	 */
-	private async isFolderMountable(session: ISession | undefined, uri: URI): Promise<boolean> {
-		const workspace = session?.workspace.get();
+	private async isFolderMountable(workspace: ISessionWorkspace | undefined, uri: URI): Promise<boolean> {
 		if (!workspace?.requiresWorkspaceTrust) {
 			return true;
 		}

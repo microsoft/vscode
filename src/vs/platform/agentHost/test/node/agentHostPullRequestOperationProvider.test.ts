@@ -15,9 +15,10 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestOperationContribution } from '../../node/agentHostPullRequestOperationProvider.js';
 import { AgentHostPullRequestLifecycleOperationHandler } from '../../node/agentHostPullRequestLifecycleOperationHandler.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
-import { SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildChatUri, SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import { ChangesetKind } from '../../common/changesetUri.js';
+import { buildFolderChangesetOwnerUri, ChangesetKind } from '../../common/changesetUri.js';
+import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -26,6 +27,9 @@ import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../../common/meta/agentPullRe
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import type { IChangesetOperationHandler } from '../../common/agentHostChangesetOperationService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
+import { createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { SESSION_ARTIFACTS_KEY } from '../../node/shared/persistSessionMetadata.js';
 
 const nullGitStateService = new class implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
@@ -122,9 +126,166 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			nullGitStateService,
 			createStatusService(status, onDidChangePullRequestStatus),
 			configurationService,
+			createNullSessionDataService(),
 			new NullLogService(),
 		));
 	}
+
+	test('records a pull request created through the session action as an artifact', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession({
+			resource: 'agent:/session',
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(1).toISOString(),
+			modifiedAt: new Date(1).toISOString(),
+			workingDirectories: ['file:///repo'],
+		});
+		const database = new TestSessionDatabase();
+		const reference: ISessionArtifact = {
+			id: 'existing-reference',
+			type: SessionArtifactType.PullRequest,
+			label: 'Referenced PR',
+			isArtifact: false,
+			link: 'https://github.com/microsoft/vscode/pull/123',
+			isGitHub: true,
+		};
+		stateManager.setSessionMeta('agent:/session', withSessionArtifacts(undefined, [reference]));
+		await database.setMetadata(SESSION_ARTIFACTS_KEY, stringifySessionArtifacts([reference]));
+		const contribution = disposables.add(new AgentHostPullRequestOperationContribution(
+			stateManager,
+			disposables.add(new InstantiationService()),
+			nullGitStateService,
+			createStatusService(),
+			new class extends mock<IAgentConfigurationService>() { }(),
+			createSessionDataService(database),
+			new NullLogService(),
+		));
+
+		await contribution.recordCreatedPullRequest({
+			sessionKey: 'agent:/session',
+			ownerUri: 'agent:/session',
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/123',
+			pullRequestNumber: 123,
+			pullRequestTitle: 'Improve archive nudges',
+			branchName: 'feature/test',
+		});
+		await contribution.recordCreatedPullRequest({
+			sessionKey: 'agent:/session',
+			ownerUri: 'agent:/session',
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/124',
+			pullRequestNumber: 124,
+			branchName: 'feature/test',
+		});
+		await contribution.recordCreatedPullRequest({
+			sessionKey: 'agent:/session',
+			ownerUri: 'agent:/session',
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/123',
+			pullRequestNumber: 123,
+			pullRequestTitle: 'Improve archive nudges',
+			branchName: 'feature/test',
+		});
+
+		const liveArtifacts = readSessionArtifacts(stateManager.getSessionState('agent:/session')?._meta);
+		const persistedArtifacts = parseSessionArtifacts(await database.getMetadata(SESSION_ARTIFACTS_KEY)).artifacts;
+		assert.deepStrictEqual({
+			live: liveArtifacts.map(({ id: _id, ...artifact }) => artifact),
+			persisted: persistedArtifacts.map(({ id: _id, ...artifact }) => artifact),
+		}, {
+			live: [{
+				type: SessionArtifactType.PullRequest,
+				label: 'Improve archive nudges',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/123',
+				isGitHub: true,
+			}, {
+				type: SessionArtifactType.PullRequest,
+				label: '',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/124',
+				isGitHub: true,
+			}],
+			persisted: [{
+				type: SessionArtifactType.PullRequest,
+				label: 'Improve archive nudges',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/123',
+				isGitHub: true,
+			}, {
+				type: SessionArtifactType.PullRequest,
+				label: '',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/124',
+				isGitHub: true,
+			}],
+		});
+	});
+
+	test('records a pull request created from another folder in that folder and offers that pull request\'s lifecycle operations there', async () => {
+		const sessionKey = 'agent:/session';
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.restoreSession({
+			resource: sessionKey,
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(1).toISOString(),
+			modifiedAt: new Date(1).toISOString(),
+			workingDirectories: ['file:///repo'],
+		}, []);
+		const peerChat = buildChatUri(sessionKey, 'peer');
+		stateManager.addChat(sessionKey, peerChat, { workingDirectories: ['file:///other'] });
+		const peerScopeOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///other']));
+		const defaultScopeOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///repo']));
+		const recordedGitHubStates: [string, ISessionGitHubState][] = [];
+		const gitStateService: IAgentHostGitStateService = {
+			_serviceBrand: undefined,
+			onDidRefreshSessionGitState: Event.None,
+			onDidChangeSessionGitHubState: Event.None,
+			refreshSessionGitState: async () => { },
+			getMaterializedWorktreeMeta: () => undefined,
+			resolveSessionBaseBranchName: async () => undefined,
+			setSessionGitHubState: async (key, state) => { recordedGitHubStates.push([key, state]); },
+			recordSessionMerge: async () => { },
+			attachSessionGitHubPullRequest: async () => { },
+		};
+		const contribution = disposables.add(new AgentHostPullRequestOperationContribution(
+			stateManager,
+			disposables.add(new InstantiationService()),
+			gitStateService,
+			// Only the other folder's pull request is mergeable.
+			{ ...createStatusService(), getPullRequestStatus: key => key === peerScopeOwner ? openPullRequest({ mergeReady: true }) : openPullRequest({ draft: true }) },
+			new class extends mock<IAgentConfigurationService>() {
+				override readonly onDidRootConfigChange = Event.None;
+				override getRootValue() { return undefined as never; }
+			}(),
+			createSessionDataService(new TestSessionDatabase()),
+			new NullLogService(),
+		));
+
+		await contribution.recordCreatedPullRequest({
+			sessionKey,
+			ownerUri: peerScopeOwner,
+			pullRequestUrl: 'https://github.com/contoso/tools/pull/7',
+			pullRequestNumber: 7,
+			pullRequestTitle: 'Tools change',
+			branchName: 'feature/tools',
+		});
+		const operationsFor = (ownerKey: string) => contribution.getOperations({ sessionKey, ownerKey, gitState: githubBranchWithUncommittedChanges, gitHubState: pullRequestForBranch, changesetKind: ChangesetKind.Branch, changesetUri: '' })?.map(operation => operation.id);
+
+		assert.deepStrictEqual({
+			artifacts: readSessionArtifacts(stateManager.getSessionState(sessionKey)?._meta).map(({ id: _id, ...artifact }) => artifact),
+			recordedGitHubStates,
+			defaultScopeOperations: operationsFor(defaultScopeOwner),
+			peerScopeOperations: operationsFor(peerScopeOwner),
+		}, {
+			artifacts: [{ type: SessionArtifactType.PullRequest, label: 'Tools change', isArtifact: true, link: 'https://github.com/contoso/tools/pull/7', isGitHub: true }],
+			recordedGitHubStates: [[peerScopeOwner, { pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], associatedPullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'feature/tools' }]],
+			defaultScopeOperations: ['pr-mark-ready'],
+			peerScopeOperations: ['pr-merge'],
+		});
+	});
 
 	test('advertises PR operations for GitHub branches with uncommitted changes', () => {
 		const provider = createContribution();

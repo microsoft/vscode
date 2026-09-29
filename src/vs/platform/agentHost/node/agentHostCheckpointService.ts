@@ -208,10 +208,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			const turnNumber = await this._nextTurnNumber(ref.object);
 			const refName = buildCheckpointRefName(sanitized, turnNumber);
 
-			const [checkpointRef, prevTurnCheckpointRef] = await Promise.all([
-				ref.object.getTurnCheckpointRef(turnId),
-				ref.object.getPreviousCheckpointRef(turnId),
-			]);
+			const checkpointRef = await ref.object.getTurnCheckpointRef(turnId);
 
 			if (checkpointRef) {
 				// Already captured for this
@@ -235,7 +232,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 						continue;
 					}
 
-					const parentRef = prevTurnCheckpointRef ?? baselineCheckpointRef;
+					const parentRef = await this._getRepositoryParentRef(ref.object, turnId, repositoryRootUri, baselineCheckpointRef);
 					let parentCommitOid = await this._gitService.revParse(repositoryRootUri, parentRef);
 					if (!parentCommitOid) {
 						this._logService.warn(`[AgentHostCheckpoint] Parent ref ${parentRef} missing for session ${sessionUri.toString()} in working directory ${workingDirectoryUri.toString()}`);
@@ -280,6 +277,22 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			this._deleteTurnStartCheckpoint(sessionUri, turnKey);
 			ref?.dispose();
 		}
+	}
+
+	private async _getRepositoryParentRef(db: ISessionDatabase, turnId: string, repositoryRootUri: URI, baselineCheckpointRef: string): Promise<string> {
+		const previousCheckpointRef = await db.getPreviousCheckpointRef(turnId);
+		if (previousCheckpointRef && await this._gitService.revParse(repositoryRootUri, previousCheckpointRef)) {
+			return previousCheckpointRef;
+		}
+
+		const allCheckpointRefs = await db.getAllCheckpointRefs();
+		for (const checkpointRef of allCheckpointRefs.toReversed()) {
+			if (checkpointRef !== previousCheckpointRef && await this._gitService.revParse(repositoryRootUri, checkpointRef)) {
+				return checkpointRef;
+			}
+		}
+
+		return baselineCheckpointRef;
 	}
 
 	async getTurnCheckpointPair(

@@ -9,7 +9,11 @@ parameters:
 jobs:
   - job: Windows${{ parameters.VSCODE_TEST_SUITE }}
     displayName: ${{ parameters.VSCODE_TEST_SUITE }} Tests
-    timeoutInMinutes: 50
+    ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Electron') }}:
+      timeoutInMinutes: 70
+    ${{ else }}:
+      timeoutInMinutes: 50
+    cancelTimeoutInMinutes: 10
     variables:
       VSCODE_ARCH: x64
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
@@ -35,7 +39,7 @@ jobs:
           displayName: Publish Log Files
           sbomEnabled: false
           isProduction: false
-          condition: succeededOrFailed()
+          condition: always()
     steps:
       - template: ./steps/product-build-win32-compile.yml@self
         parameters:

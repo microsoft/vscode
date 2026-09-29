@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ICodexAccountRateLimitInfo, ICodexAccountRateLimitsInfo } from '../../common/codexAccount.js';
+import type { ICodexAccountRateLimitInfo } from '../../common/codexAccount.js';
 import type { GetAccountRateLimitsResponse } from './protocol/generated/v2/GetAccountRateLimitsResponse.js';
 import type { GetAccountResponse } from './protocol/generated/v2/GetAccountResponse.js';
 import type { RateLimitWindow } from './protocol/generated/v2/RateLimitWindow.js';
@@ -31,39 +31,23 @@ export function codexAccountStateFromResponse(response: GetAccountResponse): ICo
 	return { usageSource: 'openai', status: response.requiresOpenaiAuth ? 'signedOut' : 'unavailable', requiresOpenaiAuth: response.requiresOpenaiAuth };
 }
 
-export function codexAccountRateLimitFromResponse(response: GetAccountRateLimitsResponse): ICodexAccountRateLimitInfo | undefined {
-	const windows = codexAccountRateLimitsFromResponse(response) ?? [];
-	if (windows.length === 0) {
-		return undefined;
-	}
-	const weeklyWindowMins = 7 * 24 * 60;
-	return windows.reduce((best, candidate) => {
-		if (candidate.windowDurationMins === undefined) {
-			return best;
-		}
-		if (best.windowDurationMins === undefined) {
-			return candidate;
-		}
-		return Math.abs(candidate.windowDurationMins - weeklyWindowMins) < Math.abs(best.windowDurationMins - weeklyWindowMins) ? candidate : best;
-	});
-}
-
-export function codexAccountRateLimitsFromResponse(response: GetAccountRateLimitsResponse): ICodexAccountRateLimitsInfo | undefined {
+export function codexAccountRateLimitsFromResponse(response: GetAccountRateLimitsResponse): readonly ICodexAccountRateLimitInfo[] {
 	const codexSnapshot = response.rateLimitsByLimitId?.codex;
 	const snapshot = codexSnapshot?.primary || codexSnapshot?.secondary ? codexSnapshot : response.rateLimits;
-	const primary = codexAccountRateLimitWindowFromResponse(snapshot.primary);
-	const secondary = codexAccountRateLimitWindowFromResponse(snapshot.secondary);
-	const rateLimits = [primary, secondary].filter((rateLimit): rateLimit is ICodexAccountRateLimitInfo => !!rateLimit);
-	return rateLimits.length > 0 ? rateLimits : undefined;
-}
-
-function codexAccountRateLimitWindowFromResponse(window: RateLimitWindow | null): ICodexAccountRateLimitInfo | undefined {
-	if (!window || !Number.isFinite(window.usedPercent)) {
-		return undefined;
-	}
-	return {
-		usedPercent: Math.min(100, Math.max(0, window.usedPercent)),
-		windowDurationMins: window.windowDurationMins !== null && window.windowDurationMins > 0 ? window.windowDurationMins : undefined,
-		resetsAt: window.resetsAt !== null && window.resetsAt > 0 ? window.resetsAt : undefined,
-	};
+	const windows = [snapshot.primary, snapshot.secondary].filter((window): window is RateLimitWindow => !!window
+		&& Number.isFinite(window.usedPercent) && window.usedPercent >= 0 && window.usedPercent <= 100
+		&& (window.windowDurationMins === null || (Number.isFinite(window.windowDurationMins) && window.windowDurationMins > 0))
+		&& (window.resetsAt === null || (Number.isFinite(window.resetsAt) && window.resetsAt > 0)));
+	const weeklyWindowMins = 7 * 24 * 60;
+	// Keep the weekly window first for the account summary and older clients.
+	windows.sort((a, b) => {
+		const aDistance = a.windowDurationMins === null ? Infinity : Math.abs(a.windowDurationMins - weeklyWindowMins);
+		const bDistance = b.windowDurationMins === null ? Infinity : Math.abs(b.windowDurationMins - weeklyWindowMins);
+		return aDistance - bDistance;
+	});
+	return windows.map(window => ({
+		usedPercent: window.usedPercent,
+		windowDurationMins: window.windowDurationMins ?? undefined,
+		resetsAt: window.resetsAt ?? undefined,
+	}));
 }

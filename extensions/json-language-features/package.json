@@ -135,6 +135,7 @@
             "https://raw.githubusercontent.com/devcontainers/spec/": true,
             "https://www.schemastore.org/": true,
             "https://json.schemastore.org/": true,
+            "https://spec.openapis.org/": true,
             "https://json-schema.org/": true,
             "https://developer.microsoft.com/json-schemas/": true
           },
@@ -172,6 +173,24 @@
       {
         "fileMatch": "*.schema.json",
         "url": "http://json-schema.org/draft-07/schema#"
+      },
+      {
+        "fileMatch": "arazzo.json",
+        "url": "https://www.schemastore.org/openapi-arazzo-1.X.json"
+      },
+      {
+        "fileMatch": [
+          "openapi.json",
+          "*.openapi.json"
+        ],
+        "url": "https://www.schemastore.org/openapi-3.X.json"
+      },
+      {
+        "fileMatch": [
+          "overlay.json",
+          "*.overlay.json"
+        ],
+        "url": "https://www.schemastore.org/openapi-overlay-1.X.json"
       }
     ],
     "jsonValidationRegistry": [

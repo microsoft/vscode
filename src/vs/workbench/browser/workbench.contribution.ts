@@ -833,7 +833,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			[LayoutSettings.MODERN_UI]: {
 				'type': 'boolean',
-				'default': false,
+				'default': true,
 				'description': localize('modernUI', "Controls whether the Modern UI Update is enabled. When on, the side bars and bottom panel are shown as floating cards with rounded corners and gaps, and a set of refreshed workbench styles is applied, matching the Agents window design."),
 				experiment: { mode: 'auto' },
 			},
@@ -852,8 +852,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'default': ModernUIEditorTabStyle.Connected,
 				'tags': ['experimental'],
-				'markdownDescription': localize({ key: 'modernUIEditorTabStyle', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls the editor tab style when {0} is enabled. High contrast themes retain explicit selection and focus borders.", '`#workbench.experimental.modernUI#`'),
-				agentsWindow: { default: ModernUIEditorTabStyle.Pill, readOnly: true },
+				'markdownDescription': localize({ key: 'modernUIEditorTabStyle', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls the editor tab style when {0} is enabled, and the chat and side-panel tab style in the Agents window. High contrast themes retain explicit selection and focus borders.", '`#workbench.experimental.modernUI#`'),
 			},
 		}
 	});

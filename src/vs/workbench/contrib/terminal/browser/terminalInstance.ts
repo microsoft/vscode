@@ -1317,7 +1317,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._wrapperElement.xterm = undefined;
 		}
 		if (this._horizontalScrollbar) {
-			this._horizontalScrollbar.dispose();
+			this._store.delete(this._horizontalScrollbar);
 			this._horizontalScrollbar = undefined;
 		}
 
@@ -2140,6 +2140,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _updateTitleProperties(title: string | undefined, eventSource: TitleEventSource): string {
 		if (title === undefined) {
+			if (eventSource === TitleEventSource.Api) {
+				this._staticTitle = undefined;
+				this._titleSource = TitleEventSource.Process;
+				this._messageTitleDisposable.value = this.xterm?.raw.onTitleChange(e => this._onTitleChange(e));
+			}
 			return this._processName;
 		}
 		switch (eventSource) {
@@ -2309,7 +2314,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._horizontalScrollbar.getDomNode().remove();
-		this._horizontalScrollbar.dispose();
+		this._store.delete(this._horizontalScrollbar);
 		this._horizontalScrollbar = undefined;
 		this._wrapperElement.remove();
 		this._wrapperElement.classList.remove('fixed-dims');

@@ -181,22 +181,11 @@ export async function resolveLocalCustomAgents(
 }
 
 /**
- * Enumerates MCP servers configured directly in VS Code — i.e. those that
- * are not contributed by an agent plugin — so they can be bundled into the
- * synthetic synced plugin. Plugin-sourced servers are excluded because they
- * are already synced via their owning plugin's customization ref. Servers whose
- * launch cannot be expressed declaratively are skipped.
- *
- * Workspace-discovered servers are also excluded by default: the agent host
- * discovers workspace `.mcp.json` itself, so syncing them would duplicate. The
- * exception is `.vscode/mcp.json`, which the agent host does not discover
- * (despite what the SDK's `enableConfigDiscovery` docs imply) — those are
- * synced, but only when their config can be resolved without requiring user
- * interaction. For agent-host providers with their own GitHub MCP server, the
- * Copilot Chat extension's duplicate provider is excluded.
+ * Collects declaratively forwardable MCP servers, excluding plugin-sourced servers, duplicate built-ins, and workspace-discovered servers other than resolvable `.vscode/mcp.json` entries.
+ * Copilot-home `mcp-config.json` (`COPILOT_HOME`, otherwise `~/.copilot`) is runtime-discovered only by the window's own Copilot host on the same machine.
  */
-export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[]): Promise<ISyncableMcpServer[]> {
-	const resolved = await resolveMcpServersForAgentHostDelivery(mcpService.servers.get(), configurationResolverService, sessionType, workingDirectories);
+export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[], windowRemoteAuthority: string | null): Promise<ISyncableMcpServer[]> {
+	const resolved = await resolveMcpServersForAgentHostDelivery(mcpService.servers.get(), configurationResolverService, sessionType, workingDirectories, windowRemoteAuthority);
 	return resolved.flatMap(({ server, definition, delivery, projectedConfiguration }) => {
 		if (delivery !== AgentHostMcpServerDelivery.ClientForwarded || !definition || !projectedConfiguration) {
 			return [];
@@ -233,6 +222,7 @@ export async function resolveCustomizationRefs(
 	sessionType: string,
 	options: ILocalCustomizationSyncOptions | undefined,
 	workingDirectories: readonly URI[] = [],
+	windowRemoteAuthority: string | null = null,
 ): Promise<ClientPluginCustomization[]> {
 	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 	const enabled = enumerated.filter(e => !e.disabled);
@@ -303,7 +293,7 @@ export async function resolveCustomizationRefs(
 	}
 
 	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
-	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, workingDirectories);
+	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, workingDirectories, windowRemoteAuthority);
 	if (looseFiles.length > 0 || mcpServers.length > 0) {
 		refs.push(bundler.bundle(looseFiles, mcpServers).then(r => r?.ref));
 	}

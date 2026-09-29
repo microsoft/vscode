@@ -263,6 +263,7 @@ export interface IGitHubPullRequestReviewThread {
 	readonly id: string;
 	readonly isResolved: boolean;
 	readonly path: string;
+	readonly startLine: number | undefined;
 	readonly line: number | undefined;
 	readonly comments: readonly IGitHubPRComment[];
 }

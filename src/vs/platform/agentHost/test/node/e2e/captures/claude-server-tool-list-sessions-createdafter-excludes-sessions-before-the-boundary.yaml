@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -16,7 +16,7 @@ exchanges:
             createdAfter: '2999-01-01T00:00:00Z'
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
