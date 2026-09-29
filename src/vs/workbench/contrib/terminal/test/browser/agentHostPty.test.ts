@@ -198,7 +198,10 @@ suite('AgentHostPty', () => {
 	test('start() creates terminal and subscribes', async () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, { name: 'test' }, logService));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, {
+			name: 'test',
+			terminalProgram: { name: 'vscode', version: '1.140.0-client' },
+		}, logService));
 
 		const result = await pty.start();
 
@@ -207,6 +210,36 @@ suite('AgentHostPty', () => {
 		assert.strictEqual(conn.createdTerminals[0].channel, terminalUri.toString());
 		assert.strictEqual(conn.createdTerminals[0].name, 'test');
 		assert.deepStrictEqual(conn.createdTerminals[0].claim, { kind: TerminalClaimKind.Client, clientId: 'test-client' });
+		assert.deepStrictEqual(conn.createdTerminals[0]._meta, {
+			'vscode.terminalProgram': { name: 'vscode', version: '1.140.0-client' },
+		});
+	});
+
+	test('start() does not infer terminal identity when none is provided', async () => {
+		const conn = disposables.add(new MockAgentConnection());
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
+
+		await pty.start();
+
+		assert.deepStrictEqual(conn.createdTerminals.map(params => params._meta), [undefined]);
+	});
+
+	test('attaching to an existing terminal does not send launch-time identity', async () => {
+		const conn = disposables.add(new MockAgentConnection({ cwd: '/existing-terminal' }));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, {
+			attachOnly: true,
+			terminalProgram: { name: 'vscode', version: '1.140.0-client' },
+		}, logService));
+
+		await pty.start();
+
+		assert.deepStrictEqual({
+			createdTerminals: conn.createdTerminals,
+			cwd: await pty.getCwd(),
+		}, {
+			createdTerminals: [],
+			cwd: '/existing-terminal',
+		});
 	});
 
 	test('start() fires onProcessReady', async () => {
@@ -632,6 +665,7 @@ suite('AgentHostPty', () => {
 		const result = await pty.reconnect(conn2);
 
 		assert.strictEqual(result, true, 'reconnect() should succeed');
+		assert.deepStrictEqual(conn2.createdTerminals, [], 'reconnection must not recreate or relabel the terminal');
 		// Should have clear sequence + replayed content
 		assert.ok(dataReceived.some(d => d.includes('\x1b[2J')), 'should clear buffer before replay');
 		assert.ok(dataReceived.some(d => d.includes('new output after reconnect')), 'should replay new content');

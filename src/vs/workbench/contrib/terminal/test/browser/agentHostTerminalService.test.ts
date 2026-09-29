@@ -12,9 +12,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
+import type { CreateTerminalParams } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { TerminalClaimKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientAnnotationsAction, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IShellLaunchConfig, ITerminalChildProcess } from '../../../../../platform/terminal/common/terminal.js';
 import { AgentHostPty } from '../../browser/agentHostPty.js';
@@ -76,12 +78,14 @@ class TestTerminalService extends mock<ITerminalService>() {
 class TestAgentConnection extends mock<IAgentConnection>() {
 	override readonly clientId = 'test-client';
 	createTerminalCallCount = 0;
+	readonly createdTerminals: CreateTerminalParams[] = [];
 	disposeTerminalCallCount = 0;
 	disposedSubscriptions = 0;
 	readonly dispatchedActions: (SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction)[] = [];
 
-	override async createTerminal(): Promise<void> {
+	override async createTerminal(params: CreateTerminalParams): Promise<void> {
 		this.createTerminalCallCount++;
+		this.createdTerminals.push(params);
 	}
 
 	override async disposeTerminal(): Promise<void> {
@@ -124,7 +128,19 @@ suite('AgentHostTerminalService', () => {
 			new class extends mock<ITerminalProfileService>() { },
 			new class extends mock<IQuickInputService>() { },
 			new class extends NullLogService { readonly _logBrand = undefined; },
+			new class extends mock<IProductService>() { override readonly version = '1.140.0-client'; },
 		));
+	});
+
+	test('new terminals request the creating VS Code client identity', async () => {
+		await service.createTerminal(connection);
+		const pty = terminalService.createPty();
+
+		await pty.start();
+
+		assert.deepStrictEqual(connection.createdTerminals.map(params => params._meta), [{
+			'vscode.terminalProgram': { name: 'vscode', version: '1.140.0-client' },
+		}]);
 	});
 
 	test('instance disposal locally disposes a created PTY without deleting the host terminal', async () => {

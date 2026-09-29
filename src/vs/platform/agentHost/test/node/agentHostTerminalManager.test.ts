@@ -11,9 +11,12 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { toTerminalProgramMeta } from '../../common/meta/agentTerminalMeta.js';
+import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { ActionType, StateAction } from '../../common/state/protocol/actions.js';
 import { TerminalClaimKind, TerminalContentPart, TerminalLifecycleStatus, type TerminalClaim } from '../../common/state/protocol/state.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostTerminalManager, formatTerminalText, removeTerminalQueriesSuppressedFromClient, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
@@ -359,6 +362,104 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		await manager.sendText('agenthost-terminal://test/bracketed-paste-disabled', 'echo first\necho second', { shouldExecute: true, bracketedPasteMode: true });
 
 		assert.deepStrictEqual(pty.writes, ['echo first\recho second\r']);
+	});
+
+	suite('terminal program identity', () => {
+		function createManager() {
+			const logService = new NullLogService();
+			const stateManager = disposables.add(new AgentHostStateManager(logService));
+			const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+			const productService = { _serviceBrand: undefined, applicationName: 'vscode', version: 'host-version' } as IProductService;
+			const pty = new TestPty();
+			const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+			return { manager, pty };
+		}
+
+		async function createTerminal(params: Partial<CreateTerminalParams> = {}) {
+			const { manager, pty } = createManager();
+			const creating = manager.createTerminal({
+				channel: 'agenthost-terminal://test/terminal-program',
+				claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+				cwd: process.cwd(),
+				...params,
+			}, { shell: '/test/unsupported-shell' });
+			await pty.dataListenerRegistered.p;
+			pty.fireData('prompt');
+			await creating;
+			const env = manager.spawnOptions?.env;
+			assert.ok(env);
+			return env;
+		}
+
+		test('sets the requested identity even without shell integration and leaves the parent unchanged', async () => {
+			const inherited = { name: process.env['TERM_PROGRAM'], version: process.env['TERM_PROGRAM_VERSION'] };
+			const env = await createTerminal({
+				_meta: toTerminalProgramMeta({ name: 'vscode', version: '1.140.0-client' }),
+			});
+
+			assert.deepStrictEqual({
+				terminal: { name: env.TERM_PROGRAM, version: env.TERM_PROGRAM_VERSION },
+				parent: { name: process.env['TERM_PROGRAM'], version: process.env['TERM_PROGRAM_VERSION'] },
+			}, {
+				terminal: { name: 'vscode', version: '1.140.0-client' },
+				parent: inherited,
+			});
+		});
+
+		test('does not force VS Code identity for an unmarked client request', async () => {
+			const inherited = { name: process.env['TERM_PROGRAM'], version: process.env['TERM_PROGRAM_VERSION'] };
+			const env = await createTerminal({ _meta: { unrelated: true } });
+
+			assert.deepStrictEqual({ name: env.TERM_PROGRAM, version: env.TERM_PROGRAM_VERSION }, inherited);
+		});
+
+		test('does not infer VS Code identity for a session-owned terminal', async () => {
+			const inherited = { name: process.env['TERM_PROGRAM'], version: process.env['TERM_PROGRAM_VERSION'] };
+			const env = await createTerminal({
+				claim: {
+					kind: TerminalClaimKind.Session,
+					session: 'copilot:/session-1',
+					chat: buildDefaultChatUri('copilot:/session-1'),
+				},
+			});
+
+			assert.deepStrictEqual({ name: env.TERM_PROGRAM, version: env.TERM_PROGRAM_VERSION }, inherited);
+		});
+
+		test('honors another client identity instead of substituting VS Code', async () => {
+			const env = await createTerminal({ _meta: toTerminalProgramMeta({ name: 'another-client', version: '2.0' }) });
+
+			assert.deepStrictEqual({ name: env.TERM_PROGRAM, version: env.TERM_PROGRAM_VERSION }, { name: 'another-client', version: '2.0' });
+		});
+
+		test('does not retain an inherited version when the requested identity has no version', async () => {
+			const env = await createTerminal({ _meta: toTerminalProgramMeta({ name: 'vscode' }) });
+
+			assert.deepStrictEqual({ name: env.TERM_PROGRAM, version: env.TERM_PROGRAM_VERSION }, { name: 'vscode', version: undefined });
+		});
+
+		for (const [description, value] of [
+			['non-object identity', 'vscode'],
+			['null identity', null],
+			['missing name', {}],
+			['empty name', { name: '' }],
+			['non-string name', { name: 42 }],
+			['NUL in name', { name: 'vs\0code' }],
+			['non-string version', { name: 'vscode', version: 42 }],
+			['empty version', { name: 'vscode', version: '' }],
+			['NUL in version', { name: 'vscode', version: '1\0' }],
+		] as const) {
+			test(`rejects ${description} before spawning`, async () => {
+				const { manager } = createManager();
+
+				await assert.rejects(manager.createTerminal({
+					channel: 'agenthost-terminal://test/invalid-terminal-program',
+					claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+					_meta: { 'vscode.terminalProgram': value },
+				}), error => error instanceof ProtocolError && error.code === JsonRpcErrorCodes.InvalidParams);
+				assert.strictEqual(manager.spawnOptions, undefined);
+			});
+		}
 	});
 
 	test('sets zsh agent fixups only for session zsh terminals', async () => {

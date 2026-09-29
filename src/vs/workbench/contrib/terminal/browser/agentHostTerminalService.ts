@@ -10,6 +10,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
 import { AgentHostPty } from './agentHostPty.js';
@@ -83,6 +84,8 @@ export interface IAgentHostTerminalService {
 
 	/**
 	 * Creates a new interactive terminal on the given agent host connection.
+	 * Supplies VS Code's terminal identity at launch; attaching to an existing
+	 * terminal does not change its environment.
 	 */
 	createTerminal(connection: IAgentConnection, options?: IAgentHostTerminalCreateOptions): Promise<ITerminalInstance>;
 
@@ -150,6 +153,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 	}
@@ -329,6 +333,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 						const pty = new AgentHostPty(id, connection, terminalUri, {
 							name,
 							cwd: options?.cwd,
+							terminalProgram: { name: 'vscode', version: this._productService.version },
 						}, this._logService);
 						if (cols > 0 && rows > 0) {
 							pty.resize(cols, rows);
