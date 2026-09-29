@@ -4357,30 +4357,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.customizationDetailOrigin = origin;
 		this.prepareCustomizationView(uri, displayName, promptType, source, isWorkspaceFile, isReadOnly, true);
-		this.embeddedEditor?.setModel(null);
 
 		try {
-			const ref = await this.textModelService.createModelReference(uri);
-			if (!isEqual(this.currentEditingUri, uri)) {
-				ref.dispose();
+			if (!await this.loadCustomizationEditorModel(uri, promptType, source, isReadOnly)) {
 				return;
-			}
-			this.currentModelRef = ref;
-			if (promptType === PromptsType.skill) {
-				this.embeddedEditor?.setModel(ref.object.textEditorModel);
-				this.embeddedEditor?.updateOptions({ readOnly: isReadOnly });
-				this._editorContentChanged = !isReadOnly && this.workingCopyService.isDirty(uri);
-			}
-			this.renderCurrentEditorPreview();
-			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => {
-				this.scheduleCurrentEditorPreviewRender();
-				if (promptType === PromptsType.skill && !isReadOnly) {
-					this._editorContentChanged = true;
-					this.resetEditorSaveIndicator();
-				}
-			}));
-			if (promptType === PromptsType.skill && !isReadOnly) {
-				this.registerWorkingCopySaveListener(uri);
 			}
 			if (this.dimension) {
 				this.layout(this.dimension);
@@ -4402,47 +4382,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.prepareCustomizationView(uri, displayName, promptType, source, isWorkspaceFile, isReadOnly, false);
 
 		try {
-			if (source === AICustomizationSources.builtin && (promptType === PromptsType.prompt || promptType === PromptsType.skill)) {
-				const session = await this.getOrCreateBuiltinEditingSession(uri);
-
-				if (!isEqual(this.currentEditingUri, uri)) {
-					return;
-				}
-
-				this.embeddedEditor!.setModel(session.model);
-				this.embeddedEditor!.updateOptions({ readOnly: false });
-				this._editorContentChanged = session.model.getValue() !== session.originalContent;
-				this.renderCurrentEditorPreview();
-				this.updateEditorActionButton();
-
-				if (this.dimension) {
-					this.layout(this.dimension);
-				}
-				if (this.editorDisplayMode === 'raw') {
-					this.embeddedEditor!.focus();
-				} else {
-					this.editorModeButton?.focus();
-				}
-
-				this.editorModelChangeDisposables.add(session.model.onDidChangeContent(() => {
-					this._editorContentChanged = session.model.getValue() !== session.originalContent;
-					this.scheduleCurrentEditorPreviewRender();
-					this.updateEditorActionButton();
-				}));
+			if (!await this.loadCustomizationEditorModel(uri, promptType, source, isReadOnly)) {
 				return;
 			}
-
-			const ref = await this.textModelService.createModelReference(uri);
-
-			if (!isEqual(this.currentEditingUri, uri)) {
-				ref.dispose();
-				return; // another item was selected while loading
-			}
-
-			this.currentModelRef = ref;
-			this.embeddedEditor!.setModel(ref.object.textEditorModel);
-			this.embeddedEditor!.updateOptions({ readOnly: isReadOnly });
-			this.renderCurrentEditorPreview();
 
 			if (this.dimension) {
 				this.layout(this.dimension);
@@ -4452,20 +4394,56 @@ export class AICustomizationManagementEditor extends EditorPane {
 			} else {
 				this.editorModeButton?.focus();
 			}
-
-			this._editorContentChanged = this.workingCopyService.isDirty(uri);
-			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => {
-				this._editorContentChanged = true;
-				this.scheduleCurrentEditorPreviewRender();
-				this.resetEditorSaveIndicator();
-			}));
-			this.registerWorkingCopySaveListener(uri);
 		} catch (error) {
 			console.error('Failed to load model for embedded editor:', error);
 			if (isEqual(this.currentEditingUri, uri)) {
 				this.goBackToList();
 			}
 		}
+	}
+
+	private async loadCustomizationEditorModel(uri: URI, promptType: PromptsType, source: AICustomizationSource, isReadOnly: boolean): Promise<boolean> {
+		if (source === AICustomizationSources.builtin && (promptType === PromptsType.prompt || promptType === PromptsType.skill)) {
+			const session = await this.getOrCreateBuiltinEditingSession(uri);
+			if (!isEqual(this.currentEditingUri, uri)) {
+				return false;
+			}
+
+			this.embeddedEditor!.setModel(session.model);
+			this.embeddedEditor!.updateOptions({ readOnly: false });
+			this._editorContentChanged = session.model.getValue() !== session.originalContent;
+			this.renderCurrentEditorPreview();
+			this.updateEditorActionButton();
+			this.editorModelChangeDisposables.add(session.model.onDidChangeContent(() => {
+				this._editorContentChanged = session.model.getValue() !== session.originalContent;
+				this.scheduleCurrentEditorPreviewRender();
+				this.updateEditorActionButton();
+			}));
+			return true;
+		}
+
+		const ref = await this.textModelService.createModelReference(uri);
+		if (!isEqual(this.currentEditingUri, uri)) {
+			ref.dispose();
+			return false;
+		}
+
+		this.currentModelRef = ref;
+		this.embeddedEditor!.setModel(ref.object.textEditorModel);
+		this.embeddedEditor!.updateOptions({ readOnly: isReadOnly });
+		this._editorContentChanged = !isReadOnly && this.workingCopyService.isDirty(uri);
+		this.renderCurrentEditorPreview();
+		this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => {
+			this.scheduleCurrentEditorPreviewRender();
+			if (!isReadOnly) {
+				this._editorContentChanged = true;
+				this.resetEditorSaveIndicator();
+			}
+		}));
+		if (!isReadOnly) {
+			this.registerWorkingCopySaveListener(uri);
+		}
+		return true;
 	}
 
 	private prepareCustomizationView(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile: boolean, isReadOnly: boolean, customizationDetail: boolean): void {
@@ -4480,11 +4458,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentEditingSource = source;
 		this.currentEditingPromptType = promptType;
 		this.currentEditingReadOnly = isReadOnly;
-		this.editorDisplayMode = customizationDetail || this.isStructuredPreviewSupported(promptType) ? 'preview' : 'raw';
+		this.editorDisplayMode = !customizationDetail && this.isStructuredPreviewSupported(promptType) ? 'preview' : 'raw';
 		this.currentCustomizationDetail = customizationDetail;
 		this.viewMode = 'editor';
 		this.editorContentContainer?.classList.toggle('customization-detail-mode', customizationDetail);
-		this.editorContentContainer?.classList.toggle('customization-skill-detail', customizationDetail && promptType === PromptsType.skill);
 
 		this.editorItemNameElement.textContent = displayName;
 		this.editorItemDescriptionElement.textContent = '';
@@ -4542,7 +4519,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentEditingReadOnly = false;
 		this.currentCustomizationDetail = false;
 		this.editorContentContainer?.classList.remove('customization-detail-mode');
-		this.editorContentContainer?.classList.remove('customization-skill-detail');
 		this.editorDisplayMode = 'preview';
 		this._editorContentChanged = false;
 		this.editorModelChangeDisposables.clear();
@@ -4915,11 +4891,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateEditorDisplayMode(): void {
-		const supportsStructuredPreview = this.isStructuredPreviewSupported(this.currentEditingPromptType);
-		const skillDetail = this.currentCustomizationDetail && this.currentEditingPromptType === PromptsType.skill;
-		const showPreview = this.currentCustomizationDetail
-			? !skillDetail || this.editorDisplayMode === 'preview'
-			: supportsStructuredPreview && this.editorDisplayMode === 'preview';
+		const supportsPreview = !this.currentCustomizationDetail && this.isStructuredPreviewSupported(this.currentEditingPromptType);
+		const showPreview = supportsPreview && this.editorDisplayMode === 'preview';
 
 		if (this.editorModeButton) {
 			this.editorModeButton.style.display = this.canToggleEditorDisplayMode() ? '' : 'none';
@@ -4934,12 +4907,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		if (this.embeddedEditorContainer) {
-			this.embeddedEditorContainer.style.display = showPreview || (this.currentCustomizationDetail && !skillDetail) ? 'none' : '';
+			this.embeddedEditorContainer.style.display = showPreview ? 'none' : '';
 		}
-	}
-
-	private isCustomizationDetailPreviewSupported(promptType: PromptsType | undefined): boolean {
-		return promptType !== undefined && promptType !== PromptsType.hook;
 	}
 
 	private getEditorModeButtonLabel(): string {
@@ -4980,13 +4949,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return false;
 		}
 
-		return (!this.currentCustomizationDetail && this.currentEditingSource === AICustomizationSources.builtin && (promptType === PromptsType.prompt || promptType === PromptsType.skill))
+		return (this.currentEditingSource === AICustomizationSources.builtin && (promptType === PromptsType.prompt || promptType === PromptsType.skill))
 			|| !this.currentEditingReadOnly;
 	}
 
 	private canToggleEditorDisplayMode(): boolean {
-		return (this.currentCustomizationDetail && this.currentEditingPromptType === PromptsType.skill)
-			|| this.isStructuredPreviewSupported(this.currentEditingPromptType);
+		return !this.currentCustomizationDetail && this.isStructuredPreviewSupported(this.currentEditingPromptType);
 	}
 
 	private registerWorkingCopySaveListener(uri: URI): void {
@@ -5003,7 +4971,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private scheduleCurrentEditorPreviewRender(): void {
-		if (this.editorDisplayMode !== 'preview') {
+		if (this.editorDisplayMode !== 'preview' && !this.currentCustomizationDetail) {
 			return;
 		}
 
@@ -5013,15 +4981,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private renderCurrentEditorPreview(): void {
 		const model = this.getCurrentEditingModel();
 		const promptType = this.currentEditingPromptType;
-		const previewSupported = this.currentCustomizationDetail
-			? this.isCustomizationDetailPreviewSupported(promptType)
-			: this.isStructuredPreviewSupported(promptType);
-		if (!model || !promptType || this.editorDisplayMode !== 'preview' || !previewSupported) {
+		if (!model || !promptType) {
 			this.clearEditorPreview();
 			return;
 		}
 
 		const parsedPromptFile = this.promptsService.getParsedPromptFile(model);
+		if (this.currentCustomizationDetail) {
+			const description = parsedPromptFile.header?.description?.trim();
+			this.editorItemDescriptionElement.textContent = description ?? '';
+			this.editorItemDescriptionElement.style.display = description ? '' : 'none';
+		}
+		if (this.editorDisplayMode !== 'preview' || !this.isStructuredPreviewSupported(promptType)) {
+			this.clearEditorPreview();
+			return;
+		}
+
 		this.renderEditorPreview(parsedPromptFile, promptType);
 	}
 

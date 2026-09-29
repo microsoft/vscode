@@ -4311,7 +4311,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .customization-detail-mode .editor-header,
 .ai-customization-management-editor .customization-detail-mode .editor-preview-scroll-container,
-.ai-customization-management-editor .customization-detail-mode.customization-skill-detail .embedded-editor-container {
+.ai-customization-management-editor .customization-detail-mode .embedded-editor-container {
 	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
 	margin-inline: auto;
 	box-sizing: border-box;
@@ -4319,12 +4319,6 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .customization-detail-mode .editor-header {
 	padding: 0;
-}
-
-.ai-customization-management-editor .customization-detail-mode:not(.customization-skill-detail) .editor-mode-button,
-.ai-customization-management-editor .customization-detail-mode:not(.customization-skill-detail) .editor-save-indicator,
-.ai-customization-management-editor .customization-detail-mode:not(.customization-skill-detail) .embedded-editor-container {
-	display: none;
 }
 
 .ai-customization-management-editor .customization-detail-mode .editor-item-name {

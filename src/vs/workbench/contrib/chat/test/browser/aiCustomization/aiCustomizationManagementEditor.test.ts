@@ -848,15 +848,16 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('skill details toggle between preview and source while other details remain preview-only', async () => {
+	test('file-backed customization details always show their source editor without a mode toggle', async () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: false,
 		}));
 		const uri = URI.file('/workspace/.github/skills/review/SKILL.md');
 		const opened: object[] = [];
 		editor.currentCustomizationDetail = true;
-		editor.currentEditingPromptType = PromptsType.skill;
 		editor.currentEditingUri = uri;
+		editor.currentEditingSource = AICustomizationSources.local;
+		editor.currentEditingReadOnly = false;
 		editor.editorService = {
 			openEditor: async input => {
 				opened.push(input);
@@ -864,36 +865,46 @@ suite('aiCustomizationManagementEditor', () => {
 			},
 		};
 
-		editor.updateEditorDisplayMode();
-		const skillPreview = {
-			modeButton: editor.editorModeButton?.style.display,
-			preview: editor.editorPreviewContainer?.style.display,
-			embeddedEditor: editor.embeddedEditorContainer?.style.display,
-		};
-		editor.editorDisplayMode = 'raw';
-		editor.updateEditorDisplayMode();
-		const skillSource = {
-			modeButton: editor.editorModeButton?.style.display,
-			preview: editor.editorPreviewContainer?.style.display,
-			embeddedEditor: editor.embeddedEditorContainer?.style.display,
-		};
-		editor.currentEditingPromptType = PromptsType.instructions;
-		editor.updateEditorDisplayMode();
+		const detailStates = [PromptsType.skill, PromptsType.agent, PromptsType.prompt, PromptsType.instructions, PromptsType.hook].map(promptType => {
+			editor.currentEditingPromptType = promptType;
+			editor.editorDisplayMode = 'raw';
+			editor.updateEditorDisplayMode();
+			return {
+				promptType,
+				modeButton: editor.editorModeButton?.style.display,
+				modeButtonLabel: editor.editorModeButton?.textContent,
+				preview: editor.editorPreviewContainer?.style.display,
+				embeddedEditor: editor.embeddedEditorContainer?.style.display,
+			};
+		});
 		await editor.openCurrentCustomizationFile();
 
 		assert.deepStrictEqual({
-			skillPreview,
-			skillSource,
-			instructions: {
-				modeButton: editor.editorModeButton?.style.display,
-				preview: editor.editorPreviewContainer?.style.display,
-				embeddedEditor: editor.embeddedEditorContainer?.style.display,
-			},
+			detailStates,
 			opened,
 		}, {
-			skillPreview: { modeButton: '', preview: '', embeddedEditor: 'none' },
-			skillSource: { modeButton: '', preview: 'none', embeddedEditor: '' },
-			instructions: { modeButton: 'none', preview: '', embeddedEditor: 'none' },
+			detailStates: [
+				{
+					promptType: PromptsType.skill,
+					modeButton: 'none', modeButtonLabel: '', preview: 'none', embeddedEditor: '',
+				},
+				{
+					promptType: PromptsType.agent,
+					modeButton: 'none', modeButtonLabel: '', preview: 'none', embeddedEditor: '',
+				},
+				{
+					promptType: PromptsType.prompt,
+					modeButton: 'none', modeButtonLabel: '', preview: 'none', embeddedEditor: '',
+				},
+				{
+					promptType: PromptsType.instructions,
+					modeButton: 'none', modeButtonLabel: '', preview: 'none', embeddedEditor: '',
+				},
+				{
+					promptType: PromptsType.hook,
+					modeButton: 'none', modeButtonLabel: '', preview: 'none', embeddedEditor: '',
+				},
+			],
 			opened: [{ resource: uri, options: { pinned: true } }],
 		});
 
