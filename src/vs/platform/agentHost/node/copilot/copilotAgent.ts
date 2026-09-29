@@ -73,7 +73,7 @@ import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointServi
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
-import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, mergeMcpServerCustomizations, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 import { McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
@@ -176,6 +176,7 @@ export async function getCopilotManagedSettingsDiagnostics(
 }
 
 function invokeWithTemporaryProxyEnvironment<T>(proxy: string | undefined, noProxy: string | undefined, invoke: () => T): T {
+	noProxy = getCopilotNoProxy(proxy, noProxy);
 	if (!proxy && !noProxy) {
 		return invoke();
 	}
@@ -240,6 +241,10 @@ const COPILOT_NO_PROXY_ENV_KEYS = ['no_proxy', 'NO_PROXY'] as const;
  * Proxy env vars we set when injecting the resolved CAPI proxy.
  */
 const COPILOT_PROXY_SET_ENV_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY'] as const;
+
+function getCopilotNoProxy(proxy: string | undefined, noProxy: string | undefined): string | undefined {
+	return noProxy ?? (proxy ? 'localhost,127.0.0.1,::1,::ffff:127.0.0.1' : undefined);
+}
 
 async function fileExists(filePath: string): Promise<boolean> {
 	try {
@@ -1599,7 +1604,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			sessionChat?.topLevelMcpCustomizations() ?? this._rootMcpCustomizations(AgentSession.id(session), await activeClient.configuredMcpServers()),
 			sessionChat?.mcpServerOwners?.(),
 		);
-		const customizations = [...fromPlugins, ...topLevelMcp];
+		const customizations = mergeMcpServerCustomizations(fromPlugins, topLevelMcp);
 		return applyMcpServerEnablement(customizations, this._retainedHostCustomizations(session));
 	}
 
@@ -5665,7 +5670,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _createCopilotCliEnvironment(skillCharBudget = this._getSkillCharBudget()): Record<string, string | undefined> {
 		const proxy = this._readConfiguredProxy() ?? (this._isSystemProxyEnabled() ? this._resolvedProxy : undefined);
 		this._appliedProxy = proxy;
-		const noProxy = this._readNoProxy(process.env);
+		const noProxy = getCopilotNoProxy(proxy, this._readNoProxy(process.env));
 		this._appliedNoProxy = noProxy;
 		const omittedKeys = [
 			...(proxy ? COPILOT_PROXY_ENV_KEYS : []),
@@ -5735,7 +5740,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._resolvedProxy = proxy;
 			const effectiveProxy = this._readConfiguredProxy() ?? (this._isSystemProxyEnabled() ? proxy : undefined);
-			const effectiveNoProxy = this._readNoProxy(process.env);
+			const effectiveNoProxy = getCopilotNoProxy(effectiveProxy, this._readNoProxy(process.env));
 			const effectiveKerberosSpn = this._readKerberosSpn(process.env);
 			if (effectiveProxy === this._appliedProxy && effectiveNoProxy === this._appliedNoProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn) {
 				return;

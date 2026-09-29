@@ -178,6 +178,7 @@ const SORT_FALLBACK_STEP_MS = 60_000;
 
 export interface ISessionSection {
 	readonly id: string;
+	readonly collapseStateId?: string;
 	readonly label: string;
 	readonly sessions: ISession[];
 }
@@ -3923,7 +3924,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			} else if (element && isSessionSection(element)) {
 				sectionRenderer.updateCollapseState(element, e.node.collapsed);
 				if (!this.suspendCollapseStatePersistence) {
-					this.saveSectionCollapseState(element.id, e.node.collapsed);
+					this.saveSectionCollapseState(element.collapseStateId ?? element.id, e.node.collapsed);
 				}
 			} else if (element && isSessionItem(element)) {
 				this.syncCollapsedSessionIds();
@@ -4311,7 +4312,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return {
 				element: section as SessionListItem,
 				collapsible: true,
-				collapsed: this.getSavedCollapseState(section.id) ?? defaultCollapsed,
+				collapsed: this.getSavedCollapseState(section.collapseStateId ?? section.id, section.collapseStateId ? section.id : undefined) ?? defaultCollapsed,
 				children: sectionChildren,
 			};
 		};
@@ -5636,13 +5637,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	// -- Section collapse persistence --
 
-	private getSavedCollapseState(sectionId: string): boolean | undefined {
+	private getSavedCollapseState(sectionId: string, legacySectionId?: string): boolean | undefined {
 		const raw = this.storageService.get(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
 		if (raw) {
 			try {
 				const state: Record<string, boolean> = JSON.parse(raw);
 				if (typeof state[sectionId] === 'boolean') {
 					return state[sectionId];
+				}
+				if (legacySectionId && typeof state[legacySectionId] === 'boolean') {
+					const collapsed = state[legacySectionId];
+					delete state[legacySectionId];
+					state[sectionId] = collapsed;
+					this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+					return collapsed;
 				}
 			} catch {
 				// ignore corrupt data
@@ -5672,7 +5680,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const state: Record<string, boolean> = {};
 		const collectSections = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
 			if (node.element && isSessionSection(node.element) && node.element.id !== SESSIONS_HEADER_SECTION_ID && !isShortcutSection(node.element.id)) {
-				state[node.element.id] = collapsed;
+				state[node.element.collapseStateId ?? node.element.id] = collapsed;
 			}
 			for (const child of node.children) {
 				collectSections(child);
@@ -6010,6 +6018,7 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 
 	const result: ISessionSection[] = order.map(label => ({
 		id: `workspace:${label}`,
+		collapseStateId: workspaceCollapseStateId(groups.get(label)!),
 		label,
 		sessions: groups.get(label)!,
 	}));
@@ -6021,6 +6030,13 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	}
 
 	return result;
+}
+
+function workspaceCollapseStateId(sessions: readonly ISession[]): string | undefined {
+	const resource = sessions[0]?.workspace.get()?.uri.toString();
+	return resource && sessions.every(session => session.workspace.get()?.uri.toString() === resource)
+		? `workspace:${resource}`
+		: undefined;
 }
 
 /** Maximum number of sessions shown in the "Recent" date section. */

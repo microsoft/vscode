@@ -110,6 +110,7 @@ suite('ChatCustomizationMigrationNotice', () => {
 			() => focusCount++,
 			available => availability.push(available),
 			visible => visibility.push(visible),
+			undefined,
 		));
 		return { notice, context, hint, migrations, migrationTelemetry, commands, availability, visibility, get focusCount() { return focusCount; } };
 	}

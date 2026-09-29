@@ -115,6 +115,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly listHeight?: number;
+	/** Omit the auxiliary-bar ancestry when the caller supplies the owning workbench part. */
+	readonly useAuxiliaryBarWrapper?: boolean;
 	/** Total horizontal padding reserved when laying out response content and embedded editors. */
 	readonly contentHorizontalPadding?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
@@ -634,14 +636,18 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	// Mirror the product DOM ancestry: the chat widget lives inside
 	// `.part.auxiliarybar > .content`, where auxiliaryBarPart.css recolors
 	// inline editors with `--vscode-sideBar-background` (used by the carousel).
-	const auxBar = dom.$('.part.auxiliarybar');
-	auxBar.style.width = '100%';
-	auxBar.style.height = '100%';
-	const auxContent = dom.$('.content');
-	auxContent.style.width = '100%';
-	auxContent.style.height = '100%';
-	auxBar.appendChild(auxContent);
-	container.appendChild(auxBar);
+	let chatContainer = container;
+	if (options.useAuxiliaryBarWrapper !== false) {
+		const auxBar = dom.$('.part.auxiliarybar');
+		auxBar.style.width = '100%';
+		auxBar.style.height = '100%';
+		const auxContent = dom.$('.content');
+		auxContent.style.width = '100%';
+		auxContent.style.height = '100%';
+		auxBar.appendChild(auxContent);
+		container.appendChild(auxBar);
+		chatContainer = auxContent;
+	}
 
 	const session = dom.$('.interactive-session');
 	session.style.setProperty('--vscode-chat-list-background', listBackground);
@@ -650,7 +656,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		session.classList.add(chatFloatingPersistentContentClass);
 		session.style.setProperty(chatPersistentContentHeightVariable, `${options.persistentContentHeight}px`);
 	}
-	auxContent.appendChild(session);
+	chatContainer.appendChild(session);
 
 	// Build the input part FIRST so the widget (with its inputPart) is registered
 	// in IChatWidgetService before the list widget renders. The renderer queries

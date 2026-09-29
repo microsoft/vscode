@@ -212,6 +212,8 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidAcceptRequest = this._register(new Emitter<IChatRequestAcceptedEvent>());
 	readonly onDidAcceptRequest = this._onDidAcceptRequest.event;
 	private readonly _modelsWithAcceptedRequests = new WeakSet<ChatModel>();
+	/** Models whose session's queue is managed by an agent host; see {@link _isServerManagedQueue}. */
+	private readonly _serverManagedQueueModels = new WeakSet<ChatModel>();
 
 	public get onDidCreateModel() { return this._sessionModels.onDidCreateModel; }
 
@@ -580,6 +582,9 @@ export class ChatService extends Disposable implements IChatService {
 	private _startSession(props: IStartSessionProps): ChatModel {
 		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked, sessionTypeSelectionReason } = props;
 		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked, sessionTypeSelectionReason });
+		if (this._hasAgentHostContribution(sessionResource)) {
+			this._serverManagedQueueModels.add(model);
+		}
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(true, transferEditingSession);
 		}
@@ -2102,8 +2107,25 @@ export class ChatService extends Disposable implements IChatService {
 	/**
 	 * Returns true if the session is backed by an agent host server, which
 	 * controls queued-message dequeuing on the server side.
+	 *
+	 * This also holds for a model created while its session's contribution was
+	 * registered, after that contribution goes away. A model can outlive the
+	 * registration: when a remote connection is replaced, its contribution is
+	 * unregistered before its sessions finish their in-flight turn, and the
+	 * queue they mirror still belongs to the host.
 	 */
 	private _isServerManagedQueue(sessionResource: URI): boolean {
+		const model = this._sessionModels.get(sessionResource);
+		if (this._hasAgentHostContribution(sessionResource)) {
+			if (model) {
+				this._serverManagedQueueModels.add(model);
+			}
+			return true;
+		}
+		return !!model && this._serverManagedQueueModels.has(model);
+	}
+
+	private _hasAgentHostContribution(sessionResource: URI): boolean {
 		return this.chatSessionService.getChatSessionContribution(getChatSessionType(sessionResource))?.agentHostProviderId !== undefined;
 	}
 

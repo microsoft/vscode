@@ -66,6 +66,8 @@ The view service:
 
 It delegates model lifecycle operations to `ISessionsManagementService`.
 
+Visible-session slots have stable identities independent of list position. The view service coordinates membership, activation, directional placement, cancellation, and persisted leaf bindings; the Sessions Part owns rendering and split geometry. Explicit batch opening resolves and prepares its sessions before committing a visibility change. Geometry and layout operations remain independent of providers and comparison membership. See [LAYOUT.md](LAYOUT.md#sessions-part) for the grid and restoration contract.
+
 ### Scoped session context
 
 Surfaces that can represent a session other than the window-global active session use `ISessionContext`. Commands and menus resolve their target through that scope rather than assuming the active session.
@@ -104,6 +106,8 @@ Chat origin and interactivity describe whether a chat is user-created, tool-crea
 ### Workspaces and quick chats
 
 `ISession.workspace` describes the complete workspace in which a session operates. `IChat.workspace` describes the effective workspace available to that chat and may be a subset of the session workspace. Each folder of a chat's workspace reports that folder's own repository and pull request information, so chats sharing a folder share its pull requests. Each folder also has its own Agent Merge settings: Agent Merge actions and indicators for the focused conversation follow the folder `IActiveSession.activeChat` works in, while session-wide surfaces such as the sessions list use the session folder (the main chat's). A folder that is a VS Code-created worktree (`<repo>.worktrees/<name>`) reports its repository as the folder's project, so a chat working in such a worktree shows that project. Filesystem-facing UI and actions for the focused conversation use `IActiveSession.activeChat.workspace`; session lifecycle, creation, and list presentation continue to use the aggregate session workspace. In the compact sessions list, a chat row shows the folder its chat works in, on hover or focus, when the session spans more than one project and the chat works in exactly one folder. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
+
+`ISessionsRecentWorkspacesService` owns persistent workspace dismissals shared by the new-session pickers. Provider-derived workspaces require a non-archived, non-external session; dismissals also prevent automatic selection and survive provider refreshes and reloads. Only a successful send from the new-session composer clears a dismissal, using the selected workspace captured before session preparation; browsing or sessions created elsewhere do not clear it.
 
 ### Capabilities
 

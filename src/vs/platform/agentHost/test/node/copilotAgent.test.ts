@@ -61,7 +61,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
-import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -3008,6 +3008,26 @@ suite('CopilotAgent', () => {
 			getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.com', new AbortController().signal, 10),
 			/Copilot runtime managed-settings query exceeded 0.01 seconds while waiting for native MDM or GitHub policy resolution/,
 		);
+	});
+
+	test('bypasses loopback addresses for managed settings queries with a proxy', async () => {
+		let noProxy: string | undefined;
+		const runtimeSdk = {
+			getManagedSettings: async () => {
+				noProxy = process.env['NO_PROXY'];
+				return { resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] } };
+			},
+		};
+
+		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.com', new AbortController().signal, 3500, 'http://proxy.example.com:8080');
+
+		assert.deepStrictEqual({
+			noProxy,
+			restoredNoProxy: process.env['NO_PROXY'],
+		}, {
+			noProxy: 'localhost,127.0.0.1,::1,::ffff:127.0.0.1',
+			restoredNoProxy: undefined,
+		});
 	});
 
 	test('returns empty models and lists sessions before authentication', async () => {
@@ -6492,6 +6512,8 @@ suite('CopilotAgent', () => {
 						https_proxy: createdEnv?.['https_proxy'],
 						ALL_PROXY: createdEnv?.['ALL_PROXY'],
 						all_proxy: createdEnv?.['all_proxy'],
+						NO_PROXY: createdEnv?.['NO_PROXY'],
+						no_proxy: createdEnv?.['no_proxy'],
 					},
 					resolveProxyCalls: proxyResolver.resolveProxyCalls,
 				}, {
@@ -6504,6 +6526,8 @@ suite('CopilotAgent', () => {
 						https_proxy: undefined,
 						ALL_PROXY: undefined,
 						all_proxy: undefined,
+						NO_PROXY: 'localhost,127.0.0.1,::1,::ffff:127.0.0.1',
+						no_proxy: undefined,
 					},
 					resolveProxyCalls: 0,
 				});
@@ -6511,6 +6535,38 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		for (const noProxyKey of ['NO_PROXY', 'no_proxy']) {
+			for (const proxy of [undefined, 'http://configured-proxy.example:8080']) {
+				test(`preserves ${noProxyKey} exclusions ${proxy ? 'with' : 'without'} an injected proxy`, async () => {
+					process.env[noProxyKey] = 'example.com, localhost';
+					const { agent } = createTestAgentContext(disposables, {
+						copilotClient: new TestCopilotClient([]),
+						rootConfig: { [AgentHostProxyConfigKey.Proxy]: proxy },
+					});
+					try {
+						await agent.listChatsToMigrate();
+						const env = getCreatedClientOptions(agent).at(-1)?.env;
+
+						assert.deepStrictEqual({
+							httpProxy: env?.['HTTP_PROXY'],
+							httpsProxy: env?.['HTTPS_PROXY'],
+							noProxy: env?.['NO_PROXY'],
+							lowercaseNoProxy: env?.['no_proxy'],
+							inheritedNoProxy: process.env[noProxyKey],
+						}, {
+							httpProxy: proxy,
+							httpsProxy: proxy,
+							noProxy: 'example.com, localhost',
+							lowercaseNoProxy: undefined,
+							inheritedNoProxy: 'example.com, localhost',
+						});
+					} finally {
+						await disposeAgent(agent);
+					}
+				});
+			}
+		}
 
 		(process.platform === 'win32' ? test : test.skip)('omits environment keys case-insensitively on Windows', () => {
 			const env = createCopilotCliEnvironment({
@@ -6582,10 +6638,12 @@ suite('CopilotAgent', () => {
 					startCallCount: client.startCallCount,
 					resolveProxyCalls: proxyResolver.resolveProxyCalls,
 					httpProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTP_PROXY'],
+					noProxy: getCreatedClientOptions(agent).at(-1)?.env?.['NO_PROXY'],
 				}, {
 					startCallCount: 1,
 					resolveProxyCalls: 1,
 					httpProxy: undefined,
+					noProxy: undefined,
 				});
 
 				resolveProxyGate.complete();
@@ -6601,12 +6659,14 @@ suite('CopilotAgent', () => {
 					resolveProxyCalls: proxyResolver.resolveProxyCalls,
 					httpProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTP_PROXY'],
 					httpsProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTPS_PROXY'],
+					noProxy: getCreatedClientOptions(agent).at(-1)?.env?.['NO_PROXY'],
 				}, {
 					startCallCount: 2,
 					stopCallCount: 1,
 					resolveProxyCalls: 2,
 					httpProxy: proxyResolver.resolvedProxy,
 					httpsProxy: proxyResolver.resolvedProxy,
+					noProxy: 'localhost,127.0.0.1,::1,::ffff:127.0.0.1',
 				});
 			} finally {
 				if (!proxyResolutionCompleted) {
@@ -6686,7 +6746,7 @@ suite('CopilotAgent', () => {
 			const { agent } = createTestAgentContext(disposables, {
 				copilotClient: client,
 				proxyResolver,
-				rootConfig: { [AgentHostProxyConfigKey.NoProxy]: [' 127.0.0.1 ', '', 'localhost'] },
+				rootConfig: { [AgentHostProxyConfigKey.NoProxy]: [' 127.0.0.1 ', '', 'localhost', 'example.com'] },
 			});
 			try {
 				disposables.add(proxyResolver.register('test', {
@@ -6709,7 +6769,7 @@ suite('CopilotAgent', () => {
 					resolveProxyCalls: 2,
 					httpProxy: proxyResolver.resolvedProxy,
 					httpsProxy: proxyResolver.resolvedProxy,
-					noProxy: '127.0.0.1,localhost',
+					noProxy: '127.0.0.1,localhost,example.com',
 					lowercaseNoProxy: undefined,
 				});
 			} finally {
@@ -10628,6 +10688,48 @@ suite('CopilotAgent', () => {
 						load: CustomizationLoadStatus.Loaded,
 						children: [{ type: CustomizationType.Agent, uri: agentFile.toString(), name: 'host-agent' }],
 					}]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('getChatCustomizations publishes each discovered and live native MCP server once', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const workspace = URI.file('/workspace');
+			const source = URI.joinPath(workspace, '.mcp.json');
+			await fileService.writeFile(source, VSBuffer.fromString('{"mcpServers":{"automation":{"command":"node"},"explorer":{"command":"node"}}}'));
+			const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
+				fileService,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+				customizationEnablementService: {
+					...createNoopCustomizationEnablementService(),
+					resolve: () => ({ kind: 'resolved', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }], enabled: false, workingDirectory: { kind: 'directory', uri: workspace } }),
+				},
+			});
+			try {
+				const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+				await provisionSession(agent, { session: sessionUri, workingDirectories: [workspace] });
+				stateManager.createSession({
+					resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), workingDirectories: [workspace.toString()],
+				});
+				const declarations = await getDefaultChatCustomizations(agent, sessionUri);
+				stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...declarations] });
+				const { session } = createAgentSessionThroughAgent(agent, instantiationService, { workingDirectory: workspace });
+				agent['_registerLiveChat'](URI.parse(buildDefaultChatUri(sessionUri)), session, agent['_getOrCreateActiveClient'](sessionUri, workspace));
+				session['_mcpCustomizations'].applyAll([
+					{ name: 'automation', state: { kind: McpServerStatus.Ready } },
+					{ name: 'explorer', state: { kind: McpServerStatus.Stopped } },
+				]);
+				const customizations = await getDefaultChatCustomizations(agent, sessionUri);
+				assert.deepStrictEqual(customizations.filter(item => item.type === CustomizationType.McpServer).map(item => ({
+					id: item.id, uri: item.uri, name: item.name, enabled: isCustomizationEnabled(item), state: item.state.kind, hasChannel: !!item.channel,
+				})), [
+					{ id: `${source}#mcp=automation`, uri: source.toString(), name: 'automation', enabled: false, state: McpServerStatus.Ready, hasChannel: true },
+					{ id: `${source}#mcp=explorer`, uri: source.toString(), name: 'explorer', enabled: false, state: McpServerStatus.Stopped, hasChannel: false },
+				]);
 			} finally {
 				await disposeAgent(agent);
 			}

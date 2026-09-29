@@ -11,7 +11,7 @@ import { CancellationError, getErrorCode, isCancellationError } from '../../../.
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
-import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
@@ -815,6 +815,12 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		// `ContributedChatSessionData` in `ChatSessionsService`) can evict
 		// this session from their caches.
 		if (!this._store.isDisposed) {
+			// A disposed session can no longer report the end of its active
+			// turn, so finish it now. Otherwise a ChatModel still bound to it
+			// (e.g. after the remote connection was replaced) stays in
+			// progress, which keeps the model alive and makes a later open
+			// reuse it instead of loading the session's current state.
+			this.complete();
 			this._onWillDispose.fire();
 		}
 		super.dispose();
@@ -1153,6 +1159,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _pendingMcpAutoAuthentication = new Map<string, Promise<boolean>>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
 	private readonly _clientDispatchedTurnIds = new Set<string>();
+	/** Observations of turns awaited by {@link _invokeAgent}; see {@link _createTurnObservation}. */
+	private readonly _turnObservations = this._register(new DisposableSet<DisposableStore>());
+	/** Cancelled when this handler is disposed, so waits that outlive a replaced connection settle. */
+	private readonly _lifetime = new CancellationTokenSource();
 	private readonly _turnStopWatches = new Map<string, StopWatch>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
 
@@ -1886,13 +1896,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// scratch dir, not a user workspace. If the user declines, abort without
 			// starting a session.
 			const trustFolders = await this._resolveSessionTrustFolders(request.sessionResource, cancellationToken);
-			if (cancellationToken.isCancellationRequested) {
+			if (this._isInvocationAbandoned(cancellationToken)) {
 				return {};
 			}
 			if (trustFolders !== undefined && !await this._ensureFoldersTrusted(trustFolders, () => trustInteractionRequired = true)) {
 				return {};
 			}
-			if (cancellationToken.isCancellationRequested) {
+			if (this._isInvocationAbandoned(cancellationToken)) {
 				return {};
 			}
 
@@ -1903,7 +1913,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// selections in `state.config.values`; ensure we hold a refcounted
 			// subscription on it so the rest of the handler observes those.
 			await raceCancellation(this._provisionalService.waitForPending(request.sessionResource), cancellationToken);
-			if (cancellationToken.isCancellationRequested) {
+			if (this._isInvocationAbandoned(cancellationToken)) {
 				return {};
 			}
 			const resolvedSession = this._resolveSessionUri(request.sessionResource);
@@ -1921,7 +1931,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// without taking a fresh subscription, which would trigger a
 			// duplicate snapshot fetch and (in tests) unrelated mock behaviour.
 			const existingState = await this._readEagerlyCreatedSessionState(resolvedSession, cancellationToken);
-			if (cancellationToken.isCancellationRequested) {
+			if (this._isInvocationAbandoned(cancellationToken)) {
 				return {};
 			}
 
@@ -1958,6 +1968,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			} else {
 				failureStage = 'authentication';
 				await this._ensureRequiredAuthentication(this._createModelSelection(request.userSelectedModelId, request.modelConfiguration));
+				if (this._isInvocationAbandoned(cancellationToken)) {
+					return {};
+				}
 
 				failureStage = 'subscribeSession';
 				// Eager-created session: take a refcounted subscription so the
@@ -3115,6 +3128,34 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 	}
 
+	/**
+	 * Creates the store that observes a turn awaited by {@link _invokeAgent}.
+	 * Disposing it resolves the invocation with no turn, so callers must
+	 * settle the invocation before disposing the store when the turn ends.
+	 *
+	 * If this handler is disposed first (e.g. the remote connection was
+	 * replaced), the invocation settles without cancelling the turn on the
+	 * host. The old connection's state can no longer report the turn's end,
+	 * and an unsettled invocation would keep its chat request, and therefore
+	 * its ChatModel, in progress indefinitely.
+	 */
+	private _createTurnObservation(resolve: (turn: Turn | undefined) => void): DisposableStore {
+		const store = new DisposableStore();
+		store.add(toDisposable(() => resolve(undefined)));
+		this._turnObservations.add(store);
+		return store;
+	}
+
+	/**
+	 * Whether an invocation that is still preparing its turn should stop:
+	 * either the request was cancelled, or this handler was disposed (e.g. the
+	 * remote connection was replaced) and must not create a session or
+	 * dispatch the turn on a connection that is going away.
+	 */
+	private _isInvocationAbandoned(cancellationToken: CancellationToken): boolean {
+		return cancellationToken.isCancellationRequested || this._store.isDisposed;
+	}
+
 	private _turnStopWatchKey(chatURI: string, turnId: string): string {
 		return `${chatURI}\0${turnId}`;
 	}
@@ -3148,7 +3189,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		onFailureStage: (stage: AgentHostInvocationFailureStage) => void,
 		onResponseText?: (text: string) => void,
 	): Promise<Turn | undefined> {
-		if (cancellationToken.isCancellationRequested) {
+		if (this._isInvocationAbandoned(cancellationToken)) {
 			return;
 		}
 
@@ -3161,14 +3202,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// This waits only for local trust checks and ordered optimistic dispatch;
 		// working-directory action envelopes are not a turn-start barrier.
 		await this._workingDirectorySynchronizer.reconcile(session, cancellationToken);
-		if (cancellationToken.isCancellationRequested) {
+		if (this._isInvocationAbandoned(cancellationToken)) {
 			return;
 		}
 		const turnId = request.requestId;
 		const chatURI = this._getChatURI(request.sessionResource);
 		const turnChannel = chatURI;
 		const messageAttachments = await this._convertVariablesToAttachments(request);
-		if (cancellationToken.isCancellationRequested) {
+		if (this._isInvocationAbandoned(cancellationToken)) {
 			return;
 		}
 
@@ -3177,7 +3218,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// so that opening a session doesn't eagerly register this client while
 		// another client is in the middle of a turn.
 		await this._ensureActiveClient(request.sessionResource, session, cancellationToken);
-		if (cancellationToken.isCancellationRequested) {
+		// This handler may have been disposed while the turn was being prepared
+		// (e.g. the remote connection was replaced). Don't dispatch it on the old
+		// connection, which could never report its end.
+		if (this._isInvocationAbandoned(cancellationToken)) {
 			return;
 		}
 		this._clientDispatchedTurnIds.add(turnId);
@@ -3244,7 +3288,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// `cancellationToken` fires, then calls `onTurnEnded(undefined)`.
 		onFailureStage('observeTurn');
 		return new Promise<Turn | undefined>(resolve => {
-			const store = new DisposableStore();
+			const store = this._createTurnObservation(resolve);
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
 				cancelSub.dispose();
 				this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
@@ -3265,10 +3309,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				suppressErrorMarkdown: true,
 				onResponseText,
 				onTurnEnded: (lastTurn) => {
-					store.dispose();
+					resolve(lastTurn);
+					this._turnObservations.deleteAndDispose(store);
 					this._clientDispatchedTurnIds.delete(turnId);
 					this._completeSessionTurn(session, request.sessionResource, turnId);
-					resolve(lastTurn);
 				},
 			}));
 		});
@@ -3280,13 +3324,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		progress: (parts: IChatProgress[]) => void,
 		cancellationToken: CancellationToken,
 	): Promise<Turn | undefined> {
-		if (cancellationToken.isCancellationRequested) {
+		if (this._isInvocationAbandoned(cancellationToken)) {
 			return;
 		}
 		const turnId = request.requestId;
 		const chatURI = this._getChatURI(request.sessionResource);
 		await this._ensureActiveClient(request.sessionResource, session, cancellationToken);
-		if (cancellationToken.isCancellationRequested) {
+		if (this._isInvocationAbandoned(cancellationToken)) {
 			return;
 		}
 		const state = this._getSessionState(session.toString(), chatURI);
@@ -3307,7 +3351,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._clientDispatchedTurnIds.add(turnId);
 
 		return new Promise<Turn | undefined>((resolve, reject) => {
-			const store = new DisposableStore();
+			const store = this._createTurnObservation(resolve);
 			const chatSubscription = this._ensureChatSubscription(session.toString(), chatURI);
 			if (shouldDispatchResume) {
 				let acceptedConcurrentResume = false;
@@ -3323,9 +3367,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					if (envelope.origin?.clientId !== this._config.connection.clientId || acceptedConcurrentResume) {
 						return;
 					}
-					store.dispose();
-					this._clientDispatchedTurnIds.delete(turnId);
 					reject(new Error(localize('agentHost.resumeTurnRejected', "This failed request could not be resumed: {0}", envelope.rejectionReason)));
+					this._turnObservations.deleteAndDispose(store);
+					this._clientDispatchedTurnIds.delete(turnId);
 				}));
 			}
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
@@ -3346,10 +3390,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				suppressErrorMarkdown: true,
 				requireActiveTurn: shouldDispatchResume,
 				onTurnEnded: lastTurn => {
-					store.dispose();
+					resolve(lastTurn);
+					this._turnObservations.deleteAndDispose(store);
 					this._clientDispatchedTurnIds.delete(turnId);
 					this._completeSessionTurn(session, request.sessionResource, turnId);
-					resolve(lastTurn);
 				},
 			}));
 			if (shouldDispatchResume) {
@@ -5751,9 +5795,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 		const workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
+		if (this._isInvocationAbandoned(cancellationToken)) {
+			throw new CancellationError();
+		}
 		const activeClientEntry = this._ensureActiveClientEntry(sessionResource);
 		await raceCancellationError(activeClientEntry.whenSettled(), cancellationToken);
-		if (cancellationToken.isCancellationRequested) {
+		if (this._isInvocationAbandoned(cancellationToken)) {
 			throw new CancellationError();
 		}
 		const activeClient = this._getCurrentActiveClient(sessionResource);
@@ -5783,6 +5830,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				onFailureStage?.('authentication');
 				this._logService.info('[AgentHost] Authentication required, prompting user...');
 				const authenticated = await this._config.resolveAuthentication(protectedResources);
+				if (this._isInvocationAbandoned(cancellationToken)) {
+					throw new CancellationError();
+				}
 				if (authenticated) {
 					onFailureStage?.('createSession');
 					session = await this._config.connection.createSession({
@@ -5804,6 +5854,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 		this._provisionalService.clearSessionCreationMetadata(sessionResource);
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
 
 		if (requestedSession && !isEqual(session, requestedSession)) {
 			throw new Error(`Agent host returned unexpected session URI. Expected ${requestedSession.toString()}, got ${session.toString()}`);
@@ -5825,8 +5878,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// also settles on `onDidError` — a failed subscribe flips the
 			// subscription via `setError`, which fires `onDidError` but NOT
 			// `onDidChange`, so an `onDidChange`-only wait would hang for the
-			// full turn timeout (issue #5242).
-			await this._whenSubscriptionHydrated(newSub, CancellationToken.None);
+			// full turn timeout (issue #5242). The handler's lifetime token
+			// settles the wait if this handler is disposed first, because
+			// disposing a subscription does not fire either event.
+			await this._whenSubscriptionHydrated(newSub, this._lifetime.token);
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
 		}
 
 		const rawState = this._requireRawSessionState(session.toString());
@@ -7237,6 +7295,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	override dispose(): void {
+		this._lifetime.dispose(true);
 		for (const [, session] of this._activeSessions) {
 			session.dispose();
 		}

@@ -44,7 +44,7 @@ import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationAction, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
-import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS, getCopilotHarnessIntroductionMode } from '../../common/constants.js';
+import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS, getCopilotHarnessIntroductionMode } from '../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
@@ -298,14 +298,14 @@ export class OpenAgentsWindowAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 				weight: KeybindingWeight.WorkbenchContrib,
 				// On Linux, Ctrl+Shift+A is Toggle Block Comment, so defer to it in a focused writable editor.
-				when: ContextKeyExpr.and(IsSessionsWindowContext.toNegated(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.toNegated(), ContextKeyExpr.or(IsLinuxContext.toNegated(), EditorAreaFocusContext.toNegated(), EditorContextKeys.readOnly)),
+				when: ContextKeyExpr.and(ChatContextKeys.hasCreatedSessionInAgentsWindow, IsSessionsWindowContext.toNegated(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.toNegated(), ContextKeyExpr.or(IsLinuxContext.toNegated(), EditorAreaFocusContext.toNegated(), EditorContextKeys.readOnly)),
 				args: { source: AgentsWindowOpenSource.KeyboardShortcut },
 			}, {
 				// In screen reader mode, Cmd/Ctrl+Shift+A conflicts with many screen reader keybindings,
 				// so require an additional Alt modifier.
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyA,
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(IsSessionsWindowContext.toNegated(), CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+				when: ContextKeyExpr.and(ChatContextKeys.hasCreatedSessionInAgentsWindow, IsSessionsWindowContext.toNegated(), CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 				args: { source: AgentsWindowOpenSource.KeyboardShortcut },
 			}],
 		});
@@ -446,8 +446,14 @@ export class OpenWorkspaceInAgentsContribution extends Disposable implements IWo
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IProductService productService: IProductService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
+		const hasCreatedSession = ChatContextKeys.hasCreatedSessionInAgentsWindow.bindTo(contextKeyService);
+		const updateHasCreatedSession = () => hasCreatedSession.set(storageService.getNumber(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, StorageScope.APPLICATION, 0) > 0);
+		updateHasCreatedSession();
+		this._register(storageService.onDidChangeValue(StorageScope.APPLICATION, AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, this._store)(updateHasCreatedSession));
+
 		this._register(actionViewItemService.register(MenuId.TitleBarAdjacentCenter, OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID, (action, options) => {
 			return instantiationService.createInstance(OpenWorkspaceInAgentsTitleBarWidget, action, options);
 		}, undefined));

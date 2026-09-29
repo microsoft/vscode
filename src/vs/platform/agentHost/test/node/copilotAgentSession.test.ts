@@ -125,6 +125,8 @@ class MockCopilotSession {
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionMode[] = [];
 	permissionModeSetSuccess = true;
+	/** Per-call `setMode` success results, consumed in order before falling back to {@link permissionModeSetSuccess}. */
+	readonly permissionModeSetResults: boolean[] = [];
 	permissionModeSetError: Error | undefined;
 	readonly gitHubCredentialUpdates: Array<{ credentials?: { type: 'token'; host: string; token: string } }> = [];
 	gitHubCredentialUpdateResult = { success: true, copilotUserResolved: true };
@@ -414,7 +416,7 @@ class MockCopilotSession {
 				if (this.permissionModeSetError) {
 					throw this.permissionModeSetError;
 				}
-				return { success: this.permissionModeSetSuccess, enabled: mode === 'allow-all', mode };
+				return { success: this.permissionModeSetResults.shift() ?? this.permissionModeSetSuccess, enabled: mode === 'allow-all', mode };
 			},
 		},
 		eventLog: {
@@ -816,6 +818,17 @@ type ISessionInternalsForTest = {
 
 function isAction(s: AgentSignal, type: ActionType): s is IAgentActionSignal {
 	return s.kind === 'action' && s.action.type === type;
+}
+
+function fireManagedSettingsResolved(mockSession: MockCopilotSession): void {
+	mockSession.fire('session.managed_settings_resolved', {
+		source: 'server',
+		serverManaged: true,
+		deviceManaged: false,
+		managedKeys: ['permissions'],
+		bypassPermissionsDisabled: false,
+		failClosed: false,
+	} as SessionEventPayload<'session.managed_settings_resolved'>['data']);
 }
 
 function getActions(signals: readonly AgentSignal[]) {
@@ -7931,11 +7944,47 @@ suite('CopilotAgentSession', () => {
 			const { session, mockSession } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
 			});
+			fireManagedSettingsResolved(mockSession);
 			mockSession.permissionModeSetSuccess = false;
 
 			await assert.rejects(() => session.send('hello', undefined, 'turn-1'), /rejected permission mode 'assisted'/);
 
-			assert.deepStrictEqual(mockSession.sendRequests, []);
+			assert.deepStrictEqual({ sendRequests: mockSession.sendRequests, permissionModeSetCalls: mockSession.permissionModeSetCalls }, { sendRequests: [], permissionModeSetCalls: ['assisted'] });
+		});
+
+		test('retries a permission mode rejected before managed settings resolve', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+			mockSession.permissionModeSetResults.push(false);
+
+			const sync = session.syncPermissionMode('turn-start');
+			while (mockSession.permissionModeSetCalls.length === 0) {
+				await timeout(0);
+			}
+			await timeout(0);
+			fireManagedSettingsResolved(mockSession);
+			await sync;
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual({ sendRequests: mockSession.sendRequests.length, permissionModeSetCalls: mockSession.permissionModeSetCalls }, { sendRequests: 1, permissionModeSetCalls: ['allow-all', 'allow-all'] });
+		});
+
+		test('fails after one retry when the permission mode is still rejected once managed settings resolve', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+			mockSession.permissionModeSetSuccess = false;
+
+			const sync = session.syncPermissionMode('turn-start');
+			while (mockSession.permissionModeSetCalls.length === 0) {
+				await timeout(0);
+			}
+			await timeout(0);
+			fireManagedSettingsResolved(mockSession);
+
+			await assert.rejects(sync, /rejected permission mode 'allow-all'/);
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['allow-all', 'allow-all']);
 		});
 
 		for (const outcome of ['success', 'rejected', 'error', 'missing-request', 'expired-request'] as const) {
@@ -8415,6 +8464,7 @@ suite('CopilotAgentSession', () => {
 			});
 			await session.syncPermissionMode('turn-start');
 			session.resetTurnState('active-turn');
+			fireManagedSettingsResolved(mockSession);
 			mockSession.permissionModeSetSuccess = false;
 			setConfigValue(SessionConfigKey.AutoApprove, 'default');
 
@@ -17192,6 +17242,96 @@ Use the attached image as context.
 	});
 
 	suite('MCP server inventory', () => {
+
+		for (const testCase of [
+			{ name: 'records an externally disabled server', initialStatus: 'connected', observedStatus: 'disabled', desired: true, expected: false },
+			{ name: 'records an externally enabled server', initialStatus: 'disabled', observedStatus: 'pending', desired: false, expected: true },
+			{ name: 'does not record a host-requested enablement change', initialStatus: 'connected', observedStatus: 'disabled', desired: false, expected: undefined },
+		] as const) {
+			test(testCase.name, async () => {
+				const serverName = 'component-explorer';
+				const id = 'mcp-top-level:copilot:test-session-1:component-explorer';
+				const enablement: NonNullable<McpServerCustomization['enablement']> = [{ kind: CustomizationEnablementKind.Global, enabled: testCase.desired }];
+				const server: McpServerCustomization = {
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					state: { kind: McpServerStatus.Stopped },
+					enablement,
+				};
+				const { mockSession, signals } = await createAgentSession(disposables, {
+					sessionCustomizations: () => [server],
+					resolveCustomizationEnablement: () => ({
+						kind: 'resolved',
+						enablement,
+						enabled: testCase.desired,
+						workingDirectory: { kind: 'workspaceless' },
+					}),
+				});
+
+				mockSession.fire('session.mcp_server_status_changed', { serverName, status: testCase.initialStatus });
+				mockSession.fire('session.mcp_server_status_changed', { serverName, status: testCase.observedStatus });
+
+				assert.deepStrictEqual(getActions(signals)
+					.filter(action => action.type === ActionType.SessionCustomizationToggled)
+					.map(action => ({ id: action.id, enablement: action.enablement })), testCase.expected === undefined ? [] : [{
+						id,
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: testCase.expected }],
+					}]);
+			});
+		}
+
+		test('does not reverse an external disable when an enable reconciliation is already running', async () => {
+			const serverName = 'component-explorer';
+			const id = 'mcp-top-level:copilot:test-session-1:component-explorer';
+			const enablement: NonNullable<McpServerCustomization['enablement']> = [{ kind: CustomizationEnablementKind.Global, enabled: true }];
+			const enableGate = new DeferredPromise<void>();
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					state: { kind: McpServerStatus.Ready },
+					enablement,
+				}],
+				resolveCustomizationEnablement: () => ({
+					kind: 'resolved',
+					enablement,
+					enabled: true,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+				},
+			});
+			await timeout(0);
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'connected' });
+			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'disabled' }] };
+			mockSession.mcpEnableGate = enableGate.p;
+
+			const sending = session.send('reconcile MCP enablement');
+			await timeout(0);
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'disabled' });
+			enableGate.complete();
+			await timeout(0);
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'pending' });
+			await sending;
+
+			assert.deepStrictEqual({
+				enableCalls: mockSession.mcpEnableCalls,
+				toggles: getActions(signals)
+					.filter(action => action.type === ActionType.SessionCustomizationToggled)
+					.map(action => ({ id: action.id, enablement: action.enablement })),
+			}, {
+				enableCalls: [{ serverName }],
+				toggles: [{
+					id,
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				}],
+			});
+		});
 
 		for (const status of ['disabled', 'not_configured', 'stopped'] as const) {
 			for (const enabled of [false, true]) {

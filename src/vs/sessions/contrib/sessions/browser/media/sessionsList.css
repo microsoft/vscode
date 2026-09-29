@@ -397,10 +397,16 @@
 		}
 	}
 
-	.session-title,
-	.session-description {
+	.session-title {
 		/* push other items to the end */
 		flex: 1;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.session-description {
+		/* size to content so it doesn't push the timestamp to the end of the row */
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;

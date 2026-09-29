@@ -36,9 +36,9 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionItemIsMultiSelectionContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -69,6 +69,8 @@ import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
+import { Direction } from '../../../../base/browser/ui/grid/grid.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 export const NEW_SESSION_BUTTON_STYLE_SETTING = 'sessions.newSessionButton.style';
 export const NEW_SESSION_BUTTON_STYLE_TREATMENT = 'agentSessionsNewSessionButtonStyle';
@@ -212,7 +214,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			// normal open when there is no active session to anchor against or the
 			// session is already the active one.
 			if (toSide && activeSessionId !== undefined && selected.session.sessionId !== activeSessionId) {
-				sessionsService.insertAt(selected.session, activeSessionId, 'right', !inBackground);
+				void sessionsService.openSessionsAt([selected.session], activeSessionId, 'right', { preserveFocus: inBackground, activate: inBackground ? false : 'first', source: 'sessionsList' }).catch(onUnexpectedError);
 			} else {
 				sessionsService.openSession(selected.session.resource, { preserveFocus: inBackground, source: 'sessionsList' });
 			}
@@ -1941,11 +1943,85 @@ registerAction2(class CloseSessionAction extends Action2 {
 	}
 });
 
+const sessionGridWhen = ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), MultipleSessionsVisibleContext);
+
+MenuRegistry.appendMenuItem(Menus.SessionHeaderContext, {
+	submenu: Menus.SessionGridLayout,
+	title: localize('sessionGridLayout', "Session Layout"),
+	group: '1_view',
+	order: 3,
+	when: sessionGridWhen,
+});
+MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
+	submenu: Menus.SessionGridLayout,
+	title: localize('sessionGridLayout', "Session Layout"),
+	group: 'secondary/4_pin',
+	order: 30,
+	when: sessionGridWhen,
+});
+
+registerAction2(class ArrangeSessionsAction extends Action2 {
+	constructor() {
+		super({
+			id: ARRANGE_SESSIONS_COMMAND_ID,
+			title: localize2('arrangeSessions', "Arrange Sessions in a Balanced Grid"),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: sessionGridWhen,
+			menu: { id: Menus.SessionGridLayout, group: '0_arrange', order: 0 },
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(ISessionsService).arrangeSessions();
+	}
+});
+
+for (const item of [
+	{ direction: Direction.Left, key: KeyCode.LeftArrow, focus: SESSION_GRID_FOCUS_COMMANDS.left, focusTitle: localize2('focusSessionLeft', "Focus Session to the Left"), move: 'sessions.moveSessionLeft', moveTitle: localize2('moveSessionLeft', "Move Session Left"), resize: 'sessions.narrowSession', resizeTitle: localize2('narrowSession', "Decrease Session Width") },
+	{ direction: Direction.Right, key: KeyCode.RightArrow, focus: SESSION_GRID_FOCUS_COMMANDS.right, focusTitle: localize2('focusSessionRight', "Focus Session to the Right"), move: 'sessions.moveSessionRight', moveTitle: localize2('moveSessionRight', "Move Session Right"), resize: 'sessions.widenSession', resizeTitle: localize2('widenSession', "Increase Session Width") },
+	{ direction: Direction.Up, key: KeyCode.UpArrow, focus: SESSION_GRID_FOCUS_COMMANDS.up, focusTitle: localize2('focusSessionAbove', "Focus Session Above"), move: 'sessions.moveSessionUp', moveTitle: localize2('moveSessionUp', "Move Session Above"), resize: 'sessions.shortenSession', resizeTitle: localize2('shortenSession', "Decrease Session Height") },
+	{ direction: Direction.Down, key: KeyCode.DownArrow, focus: SESSION_GRID_FOCUS_COMMANDS.down, focusTitle: localize2('focusSessionBelow', "Focus Session Below"), move: 'sessions.moveSessionDown', moveTitle: localize2('moveSessionDown', "Move Session Below"), resize: 'sessions.heightenSession', resizeTitle: localize2('heightenSession', "Increase Session Height") },
+]) {
+	for (const operation of ['focus', 'move', 'resize'] as const) {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: item[operation],
+					title: operation === 'focus' ? item.focusTitle : operation === 'move' ? item.moveTitle : item.resizeTitle,
+					category: SessionsCategories.Sessions,
+					f1: true,
+					precondition: sessionGridWhen,
+					menu: { id: Menus.SessionGridLayout, group: operation === 'focus' ? '1_focus' : operation === 'move' ? '2_move' : '3_size', order: item.direction },
+					keybinding: operation === 'focus' ? {
+						primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | item.key),
+						weight: KeybindingWeight.SessionsContrib,
+						when: SessionsFocusContext,
+					} : undefined,
+				});
+			}
+			run(accessor: ServicesAccessor, session?: IActiveSession): void {
+				const service = accessor.get(ISessionsService);
+				session ??= service.activeSession.get();
+				if (operation === 'focus') {
+					service.focusSessionInDirection(session, item.direction);
+				} else if (operation === 'move') {
+					service.moveSessionInDirection(session, item.direction);
+				} else {
+					service.resizeSession(session, item.direction);
+				}
+			}
+		});
+	}
+}
+
 registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.chatCompositeBar.toggleMaximize',
 			title: localize2('chatCompositeBar.maximize', "Maximize"),
+			category: SessionsCategories.Sessions,
+			precondition: sessionGridWhen,
+			f1: true,
 			icon: Codicon.screenFull,
 			toggled: {
 				condition: SessionIsMaximizedContext,
@@ -1954,7 +2030,7 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 			},
 			menu: {
 				id: Menus.SessionBarToolbar,
-				when: MultipleSessionsVisibleContext,
+				when: sessionGridWhen,
 				group: 'secondary/4_pin',
 				order: 20,
 			},
@@ -1962,8 +2038,9 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
+		session ??= accessor.get(ISessionsService).activeSession.get();
 		accessor.get(ISessionsService).setActive(session);
+		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
 	}
 });
 
