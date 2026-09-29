@@ -79,7 +79,13 @@ function snapshotKey(enumerationRoots: readonly URI[]): string {
 export class WorkspaceContextContribution extends Disposable implements IAgentHostChatContribution {
 
 	static readonly id = 'workspaceContext';
-	readonly order = 200;
+	/**
+	 * Before `QueueDrainContribution` (200): its `onTurnEnd` can start a turn
+	 * queued behind a local command, and that turn must already see the local
+	 * command as undispatched to start preparing. Instructions still follow
+	 * `markdownPlanRichLinks` (100) and precede `chatSurface` (300).
+	 */
+	readonly order = 175;
 	private readonly _prepared = this._register(new DisposableMap<ProtocolURI, IPreparedSnapshot>());
 	/** First-turn chats whose session is creating its worktree, keyed by session id. */
 	private readonly _awaitingWorktree = new Map<string, Set<ProtocolURI>>();
@@ -107,10 +113,11 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	 * {@link SNAPSHOT_WAIT_MS}; roots still unfinished after that are omitted.
 	 */
 	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
+		// A send still unwinding after its turn was cancelled must not touch state that a newer turn may own.
+		if (!this._isActiveTurn(turn) || !this._firstTurnWorkingDirectories(turn.chat)) {
+			return undefined;
+		}
 		try {
-			if (!this._firstTurnWorkingDirectories(turn.chat)) {
-				return undefined;
-			}
 			// Consumed and reported only when the turn reaches the provider; see _onTurnDispatched.
 			const candidate: ICandidateTurn = { turnId: turn.turnId };
 			this._candidates.set(turn.chat, candidate);
@@ -126,6 +133,10 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			const pending = prepared.roots.filter(root => root.outcome === 'pending');
 			if (pending.length) {
 				await raceTimeout(Promise.all(pending.map(root => root.done)), SNAPSHOT_WAIT_MS);
+				if (!this._isActiveTurn(turn)) {
+					// Cancelled while waiting: its turn end already released this turn's state.
+					return undefined;
+				}
 			}
 			const waitMs = Date.now() - waitStarted;
 			const structure = prepared.roots.map(root => root.outcome === 'included' ? root.tree : undefined).filter(Boolean).join('\n\n');
@@ -137,8 +148,14 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 				instructions: [`<workspace_info>\nInitial workspace structure (file names only):\n${appendEscapedMarkdownCodeBlockFence(structure, 'text')}\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>`],
 			};
 		} finally {
-			this._stopPreparing(turn.chat);
+			if (this._isActiveTurn(turn)) {
+				this._stopPreparing(turn.chat);
+			}
 		}
+	}
+
+	private _isActiveTurn(turn: IOutgoingTurn): boolean {
+		return this._stateManager.getActiveTurnId(turn.chat) === turn.turnId;
 	}
 
 	/**

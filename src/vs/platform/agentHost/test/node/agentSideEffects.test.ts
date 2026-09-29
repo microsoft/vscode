@@ -1687,6 +1687,51 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
+		test('prepares the workspace snapshot for a provider turn queued behind a local command before the send path', async () => {
+			const repository = URI.file('/repo');
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'copilotcli',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				workingDirectories: [repository.toString()],
+			});
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
+			const diskFileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
+			const telemetry = new TestTelemetryService();
+			// `/rename` persists the new title, so it needs a real session database.
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [repository],
+				fileService: diskFileService,
+			}, undefined, telemetry);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			// As AgentService does for a client action: apply it, then run its side effects.
+			const dispatchClient = (action: ChatAction, clientSeq: number) => {
+				stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq });
+				localSideEffects.handleAction(defaultChatUri, action);
+			};
+
+			dispatchClient({ type: ActionType.ChatTurnStarted, turnId: 'rename', startedAt: '2025-01-01T00:00:00.000Z', message: { text: '/rename Version bump', origin: { kind: MessageKind.User } } }, 1);
+			// Queued while the local command runs, so the queue drains it from the command's turn end.
+			dispatchClient({ type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'queued', message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } }, 2);
+			await waitForSendMessageCalls(1);
+
+			const snapshotEvent = telemetry.events.find(event => event.eventName === 'agentHost.workspaceSnapshot')?.data as { preparation?: string; includedRootCount?: number } | undefined;
+			assert.deepStrictEqual({
+				prompt: agent.sendMessageCalls[0].prompt,
+				preparation: snapshotEvent?.preparation,
+				included: snapshotEvent?.includedRootCount,
+			}, { prompt: 'Bump the version to 2', preparation: 'prepared', included: 1 });
+		});
+
 		test('snapshots the worktree created for the first send, not the folder in session state', async () => {
 			const repository = URI.file('/repo');
 			const worktree = URI.file('/worktrees/repo-agent');
@@ -1718,12 +1763,14 @@ suite('AgentSideEffects', () => {
 			// Model selection is a provider round-trip; the snapshot is prepared alongside it.
 			agent.chats.changeAgent = () => timeout(0);
 
-			localSideEffects.handleAction(defaultChatUri, {
+			const turnStarted = {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } },
-			});
+			} as const;
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
 			await waitForSendMessageCalls(1);
 
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
