@@ -43,7 +43,7 @@ import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../s
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { PROJECT_BOARD_CHAT_CONTAINER_ID, ProjectBoardChatContent, ProjectBoardChatSidePanel, ProjectBoardChatViewPane } from '../../browser/projectBoardChatSidePanel.js';
-import { IProjectBoardCard } from '../../common/projectBoardModel.js';
+import { getProjectBoardCardId, IProjectBoardCard } from '../../common/projectBoardModel.js';
 
 function createCard(name = 'child'): IProjectBoardCard {
 	const chat = new class extends mock<IChat>() {
@@ -116,8 +116,10 @@ suite('ProjectBoardChatSidePanel', () => {
 		instantiation.stub(ILogService, new NullLogService());
 
 		let activeComposite: string | undefined = 'previous-pane';
+		const paneActiveCardId = observableValue<string | undefined>('activeCardId', undefined);
 		const pane = new class extends mock<ProjectBoardChatViewPane>() {
-			override open = sinon.stub().resolves();
+			override readonly activeCardId = paneActiveCardId;
+			override open = sinon.stub().callsFake(async (card: IProjectBoardCard) => paneActiveCardId.set(getProjectBoardCardId(card.session, card.chat), undefined));
 			override clear = sinon.spy();
 			override focus = sinon.spy();
 			override hasChatFocus = sinon.stub().returns(true);
@@ -152,8 +154,62 @@ suite('ProjectBoardChatSidePanel', () => {
 			},
 		});
 		const panel = store.add(instantiation.createInstance(ProjectBoardChatSidePanel));
-		return { panel, pane, instantiation, customView, auxiliaryBarVisible, paneEvents, active, activeSession, trust, markRead, openView, restorePane, sentiment, sentimentChanged, notifications, getActiveComposite: () => activeComposite, setActiveComposite: (id: string) => activeComposite = id, setUnderlyingAuxiliaryVisible: (visible: boolean) => underlyingAuxiliaryVisible = visible, waitForClose: () => waitForState(auxiliaryBarVisible, visible => !visible) };
+		return { panel, pane, paneActiveCardId, instantiation, customView, auxiliaryBarVisible, paneEvents, active, activeSession, trust, markRead, openView, restorePane, sentiment, sentimentChanged, notifications, getActiveComposite: () => activeComposite, setActiveComposite: (id: string) => activeComposite = id, setUnderlyingAuxiliaryVisible: (visible: boolean) => underlyingAuxiliaryVisible = visible, waitForClose: () => waitForState(auxiliaryBarVisible, visible => !visible) };
 	}
+
+	test('exposes only the successfully loaded exact card and clears immediately while switching or closing', async () => {
+		const h = setup();
+		const first = createCard('first');
+		const second = createCard('second');
+		const firstId = getProjectBoardCardId(first.session, first.chat);
+		const secondId = getProjectBoardCardId(second.session, second.chat);
+		const identities: (string | undefined)[] = [];
+		store.add(autorun(reader => identities.push(h.panel.activeCardId.read(reader))));
+		await h.panel.open(first, () => { });
+		const rendered = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		h.pane.open.callsFake(async () => {
+			h.paneActiveCardId.set(secondId, undefined);
+			await started.complete();
+			await rendered.p;
+		});
+		const opening = h.panel.open(second, () => { });
+		await started.p;
+		assert.strictEqual(h.panel.activeCardId.get(), undefined);
+		await rendered.complete();
+		await opening;
+		h.panel.close();
+		assert.deepStrictEqual(identities, [undefined, firstId, undefined, secondId, undefined]);
+	});
+
+	test('tracks canonical identity without reopening, focusing, or marking read again', async () => {
+		const h = setup();
+		const card = createCard();
+		await h.panel.open(card, () => { });
+		const canonicalId = getProjectBoardCardId({ ...card.session, resource: URI.parse('test-session:canonical') }, card.chat);
+		h.paneActiveCardId.set(canonicalId, undefined);
+		assert.deepStrictEqual({
+			current: h.panel.activeCardId.get(), opens: h.pane.open.callCount, focuses: h.pane.focus.callCount, reads: h.markRead.callCount,
+		}, { current: canonicalId, opens: 1, focuses: 1, reads: 1 });
+	});
+
+	test('failed replacement and cancelled late loads cannot leave or restore a current card', async () => {
+		const h = setup();
+		await h.panel.open(createCard('first'), () => { });
+		h.pane.open.rejects(new Error('load failed'));
+		await assert.rejects(h.panel.open(createCard('failed'), () => { }), /load failed/);
+		assert.strictEqual(h.panel.activeCardId.get(), undefined);
+		const rendering = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		h.pane.open.callsFake(() => { void started.complete(); return rendering.p; });
+		const loading = h.panel.open(createCard('late'), () => { });
+		await started.p;
+		h.panel.close();
+		h.paneActiveCardId.set('late identity', undefined);
+		await rendering.complete();
+		await loading;
+		assert.deepStrictEqual({ current: h.panel.activeCardId.get(), reads: h.markRead.callCount }, { current: undefined, reads: 1 });
+	});
 
 	test('opens the clicked child without activating its session, and marks read after render', async () => {
 		const h = setup();
@@ -178,7 +234,8 @@ suite('ProjectBoardChatSidePanel', () => {
 	test('hiding and showing the auxiliary bar preserves the chat without cancellation or reopening', async () => {
 		const h = setup();
 		const focusCard = sinon.spy();
-		await h.panel.open(createCard(), focusCard);
+		const card = createCard();
+		await h.panel.open(card, focusCard);
 		const token: CancellationToken = h.pane.open.firstCall.args[1];
 		h.pane.clear.resetHistory();
 		const state = () => ({
@@ -187,13 +244,14 @@ suite('ProjectBoardChatSidePanel', () => {
 			cleared: h.pane.clear.callCount,
 			opens: h.pane.open.callCount,
 			focusCard: focusCard.callCount,
+			current: h.panel.activeCardId.get(),
 		});
 		h.auxiliaryBarVisible.set(false, undefined);
 		const hidden = state();
 		h.auxiliaryBarVisible.set(true, undefined);
 		assert.deepStrictEqual({ hidden, shown: state() }, {
-			hidden: { visible: false, cancelled: false, cleared: 0, opens: 1, focusCard: 0 },
-			shown: { visible: true, cancelled: false, cleared: 0, opens: 1, focusCard: 0 },
+			hidden: { visible: false, cancelled: false, cleared: 0, opens: 1, focusCard: 0, current: undefined },
+			shown: { visible: true, cancelled: false, cleared: 0, opens: 1, focusCard: 0, current: getProjectBoardCardId(card.session, card.chat) },
 		});
 	});
 
@@ -392,7 +450,7 @@ suite('ProjectBoardChatSidePanel', () => {
 		await h.panel.open(createCard(), () => { });
 		h.customView.set(undefined, undefined);
 		await assert.rejects(h.panel.open(createCard(), () => { }), /embedded Agents Hub/);
-		assert.deepStrictEqual([h.pane.clear.callCount, h.auxiliaryBarVisible.get()], [1, false]);
+		assert.deepStrictEqual([h.pane.clear.callCount, h.auxiliaryBarVisible.get(), h.panel.activeCardId.get()], [1, false, undefined]);
 
 		const other = setup();
 		await other.panel.open(createCard(), () => { });
@@ -400,7 +458,7 @@ suite('ProjectBoardChatSidePanel', () => {
 		other.sentimentChanged.fire();
 		await assert.rejects(other.panel.open(createCard(), () => { }), /AI features/);
 		await other.waitForClose();
-		assert.deepStrictEqual([other.pane.clear.callCount, other.auxiliaryBarVisible.get()], [1, false]);
+		assert.deepStrictEqual([other.pane.clear.callCount, other.auxiliaryBarVisible.get(), other.panel.activeCardId.get()], [1, false, undefined]);
 	});
 });
 
@@ -511,6 +569,7 @@ suite('ProjectBoardChatContent', () => {
 			title: h.content.element.getAttribute('aria-label'),
 			readOnly: h.widget.setReadOnly.lastCall.args[0],
 		}, { title: 'Agents Hub chat: Updated canonical chat', readOnly: false });
+		assert.strictEqual(h.content.cardId.get(), getProjectBoardCardId(canonical, canonical.mainChat.get()));
 	});
 
 	test('replacement during loading keeps the pending model acquisition', async () => {
@@ -520,7 +579,8 @@ suite('ProjectBoardChatContent', () => {
 		h.load.callsFake(() => { void started.complete(); return deferred.p; });
 		const loading = h.content.load(CancellationToken.None);
 		await started.p;
-		h.replacements.fire({ from: h.card.session, to: canonicalSession(h.card) });
+		const canonical = canonicalSession(h.card);
+		h.replacements.fire({ from: h.card.session, to: canonical });
 		await deferred.complete(h.ref);
 		await loading;
 		assert.deepStrictEqual({
@@ -529,6 +589,7 @@ suite('ProjectBoardChatContent', () => {
 			title: h.content.element.getAttribute('aria-label'),
 			releases: h.released.callCount,
 		}, { loads: 1, models: [h.ref.object], title: 'Agents Hub chat: Canonical chat', releases: 0 });
+		assert.strictEqual(h.content.cardId.get(), getProjectBoardCardId(canonical, canonical.mainChat.get()));
 	});
 
 	test('ignores replacements from a different provider or session', () => {
@@ -560,6 +621,7 @@ suite('ProjectBoardChatContent', () => {
 			lookup: h.card.session.resource, resource: canonical.resource, chat: canonical.mainChat.get(),
 			title: 'Agents Hub chat: Canonical chat', readOnly: true,
 		});
+		assert.strictEqual(h.content.cardId.get(), getProjectBoardCardId(canonical, canonical.mainChat.get()));
 	});
 
 	test('does not resolve a stale card to another provider', () => {
@@ -597,6 +659,7 @@ suite('ProjectBoardChatContent', () => {
 		h.widget.getInputState.returns(draft);
 		const canonical = canonicalSession(h.card, URI.parse('test-chat:canonical'));
 		h.replacements.fire({ from: h.card.session, to: canonical });
+		assert.strictEqual(h.content.cardId.get(), undefined);
 		h.content.dispose();
 		const reopened = store.add(h.instantiation.createInstance(ProjectBoardChatContent, {
 			session: canonical, chat: canonical.mainChat.get(),
