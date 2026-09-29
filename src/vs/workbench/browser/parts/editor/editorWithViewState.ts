@@ -80,6 +80,16 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		super.saveState();
 	}
 
+	/**
+	 * Persist the current input's view state now. Useful for editors that can be
+	 * hidden/backgrounded without being cleared or closed (e.g. when another
+	 * editor becomes active), where the state would otherwise only be captured
+	 * on close or shutdown.
+	 */
+	protected saveCurrentEditorViewState(): void {
+		this.updateEditorViewState(this.input);
+	}
+
 	private updateEditorViewState(input: EditorInput | undefined): void {
 		if (!input || !this.tracksEditorViewState(input)) {
 			return; // ensure we have an input to handle view state for

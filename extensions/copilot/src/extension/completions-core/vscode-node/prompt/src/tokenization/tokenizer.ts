@@ -16,9 +16,63 @@ export enum TokenizerName {
 
 const tokenizers = new Map<TokenizerName, Tokenizer>();
 
+/**
+ * Tokenizer implementation supplied by the embedding host via
+ * {@link setExternalTokenizerProvider}. Hosts that already have the
+ * cl100k/o200k BPE dictionaries in memory (e.g. a language server that
+ * bundles its own copy of this prompt library) can register a provider so
+ * this module never loads a duplicate dictionary set (~100 MB per encoder).
+ */
+export interface ExternalTokenizerProvider {
+	/** Returns a tokenizer for the given encoder. */
+	getTokenizer(name: TokenizerName): Tokenizer;
+	/**
+	 * Ensures the host's dictionaries are loaded. Awaited by
+	 * {@link ensureTokenizersLoaded}, which callers use as the
+	 * exact-tokenization gate before token counting.
+	 */
+	ensureLoaded(): Promise<void>;
+}
+
+let externalProvider: ExternalTokenizerProvider | undefined;
+
+/**
+ * Installs a host tokenizer used instead of loading this module's own BPE
+ * dictionaries. chat-lib embedders supply this through the inline-completions
+ * factory option `tokenizerProvider`, which installs it synchronously before
+ * any tokenization — so there is no registration race.
+ *
+ * Never throws, to keep host startup robust. The first provider wins: a later
+ * registration, or one made after the built-in dictionaries already started
+ * loading, is ignored and the current tokenizer keeps being used. The
+ * completions tokenizer is process-global, so only one provider is ever in
+ * effect.
+ */
+export function setExternalTokenizerProvider(provider: ExternalTokenizerProvider): void {
+	if (externalProvider || ownLoadPromise) {
+		// A provider is already installed, or the built-in dictionaries already
+		// started loading; keep the current strategy rather than switching
+		// mid-session. The host transparently falls back instead of failing.
+		return;
+	}
+	externalProvider = provider;
+}
+
 export function getTokenizer(name: TokenizerName = TokenizerName.o200k): Tokenizer {
+	if (externalProvider) {
+		try {
+			return externalProvider.getTokenizer(name);
+		} catch {
+			// Preserve this function's never-throws contract; fall back below.
+		}
+	}
 	let tokenizer = tokenizers.get(name);
 	if (tokenizer !== undefined) { return tokenizer; }
+	// Kick the lazy dictionary load (fire-and-forget) so callers that never
+	// call ensureTokenizersLoaded() still get exact tokenization on a later
+	// call once the load finishes — or stay on the approximate fallback if it
+	// fails.
+	void loadTokenizers();
 	// Fallback to o200k
 	tokenizer = tokenizers.get(TokenizerName.o200k);
 	if (tokenizer !== undefined) { return tokenizer; }
@@ -378,8 +432,51 @@ async function setTokenizer(name: TokenizerName) {
 	}
 }
 
-/** Load tokenizers on start. Export promise for to be awaited by initialization. */
-export const initializeTokenizers = (async () => {
+tokenizers.set(TokenizerName.mock, new MockTokenizer());
+
+let ownLoadPromise: Promise<void> | undefined;
+let externalLoadPromise: Promise<void> | undefined;
+
+function loadTokenizers(): Promise<void> {
+	if (externalProvider) {
+		const provider = externalProvider;
+		// Single-flight: concurrent awaits share one ensureLoaded() call. Like
+		// the built-in path (setTokenizer swallows load errors), the gate never
+		// rejects — but a failed attempt clears the memo so a later await can
+		// retry instead of pinning approximate tokenization forever.
+		externalLoadPromise ??= Promise.resolve().then(() => provider.ensureLoaded()).catch(() => {
+			externalLoadPromise = undefined;
+		});
+		return externalLoadPromise;
+	}
+	ownLoadPromise ??= Promise.all([setTokenizer(TokenizerName.cl100k), setTokenizer(TokenizerName.o200k)]).then(() => undefined);
+	return ownLoadPromise;
+}
+
+/**
+ * Ensures the tokenizers are loaded; resolves once tokenization is exact.
+ *
+ * Lazy: the dictionary load starts the first time this is called (callers like
+ * ghostText call it before token counting) instead of at module evaluation.
+ * That gives an embedding host the chance to register an
+ * {@link setExternalTokenizerProvider | external provider} first, in which case
+ * this defers to the host's dictionaries and this module's own dictionaries are
+ * never loaded. Never rejects — load failures (built-in or external) resolve
+ * and leave the approximate tokenizer fallback in place.
+ */
+export function ensureTokenizersLoaded(): Promise<void> {
+	return loadTokenizers();
+}
+
+/**
+ * Test-only: restores this module's tokenizer state to its initial values so a
+ * suite that installs a fake {@link ExternalTokenizerProvider} does not leak
+ * into other suites that share the same process. Not part of the public API.
+ */
+export function resetTokenizersForTest(): void {
+	externalProvider = undefined;
+	ownLoadPromise = undefined;
+	externalLoadPromise = undefined;
+	tokenizers.clear();
 	tokenizers.set(TokenizerName.mock, new MockTokenizer());
-	await Promise.all([setTokenizer(TokenizerName.cl100k), setTokenizer(TokenizerName.o200k)]);
-})();
+}

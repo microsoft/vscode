@@ -3,28 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { OperatingSystem } from '../../../base/common/platform.js';
+
+export interface IAgentSandboxFileSystemSetting {
+	allowRead?: string[];
+	allowWrite?: string[];
+	denyRead?: string[];
+	denyWrite?: string[];
+}
+
+/** Converts path separators for the sandbox's execution OS without resolving paths or patterns. */
+export function normalizeSandboxFileSystemPath(path: string, os: OperatingSystem): string {
+	return os === OperatingSystem.Windows ? path.replace(/\//g, '\\') : path;
+}
+
 /**
  * Setting IDs for agent sandboxing.
  */
 export const enum AgentSandboxSettingId {
 	AgentSandboxEnabled = 'chat.agent.sandbox.enabled',
 	AgentSandboxWindowsEnabled = 'chat.agent.sandbox.enabledWindows',
+	AgentSandboxAllowNetwork = 'chat.agent.sandbox.allowNetwork',
 	AgentSandboxAllowUnsandboxedCommands = 'chat.agent.sandbox.allowUnsandboxedCommands',
 	AgentSandboxRetryWithAllowNetworkRequests = 'chat.agent.sandbox.retryWithAllowNetworkRequests',
-	AgentSandboxAutoApproveUnsandboxedCommands = 'chat.agent.sandbox.autoApproveUnsandboxedCommands',
 	AgentSandboxAllowAutoApprove = 'chat.agent.sandbox.allowAutoApprove',
 	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
 	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
 	AgentSandboxWindowsFileSystem = 'chat.agent.sandbox.fileSystem.windows',
 	AgentSandboxWindowsSchemaVersion = 'chat.agent.sandbox.advanced.windows.schemaVersion',
 	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
-	DeprecatedAgentSandboxEnabled = 'chat.agent.sandbox',
-	DeprecatedAgentSandboxLinuxFileSystem = 'chat.agent.sandboxFileSystem.linux',
-	DeprecatedAgentSandboxMacFileSystem = 'chat.agent.sandboxFileSystem.mac',
 }
 
 export const enum AgentSandboxEnabledValue {
 	Off = 'off',
 	On = 'on',
-	AllowNetwork = 'allowNetwork',
+}
+
+export type AgentSandboxEnabledSettingValue = AgentSandboxEnabledValue | boolean;
+
+export function normalizeAgentSandboxEnabledValue(value: AgentSandboxEnabledSettingValue): AgentSandboxEnabledValue {
+	if (value === true) {
+		return AgentSandboxEnabledValue.On;
+	}
+	if (value === false) {
+		return AgentSandboxEnabledValue.Off;
+	}
+	return value;
+}
+
+export function isAgentSandboxEnabledValue(value: AgentSandboxEnabledSettingValue | undefined): boolean {
+	return value !== undefined && normalizeAgentSandboxEnabledValue(value) !== AgentSandboxEnabledValue.Off;
 }

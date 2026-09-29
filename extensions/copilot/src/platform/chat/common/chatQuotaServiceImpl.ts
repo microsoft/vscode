@@ -29,7 +29,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	) {
 		super();
 		this._rateLimitInfo = { session: undefined, weekly: undefined };
-		this._register(this._authService.onDidAuthenticationChange(() => {
+		this._register(this._authService.onDidCopilotTokenChange(() => {
 			this._processUserInfoQuotaSnapshot(this._authService.copilotToken?.quotaInfo);
 		}));
 	}

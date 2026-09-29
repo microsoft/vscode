@@ -21,12 +21,20 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 const REMOTE_HOST_GROUP = 'remote-host';
 const REMOTE_CLIENT_GROUP = 'remote-client';
 
+class TestLogService extends NullLogService {
+	readonly traces: string[] = [];
+
+	override trace(message: string, ...args: unknown[]): void {
+		this.traces.push([message, ...args].join(' '));
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function expand(expander: AgentCustomizationContentExpander, pluginUri: URI, groupKey: string, isBundleItem: boolean, source: AICustomizationSource, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
-	return expander.expandPluginContents(pluginUri, groupKey, isBundleItem, source, token);
+function expand(expander: AgentCustomizationContentExpander, pluginUri: URI, groupKey: string, isBundleItem: boolean, source: AICustomizationSource, token: CancellationToken, pluginLabel?: string): Promise<readonly ICustomizationItem[]> {
+	return expander.expandPluginContents(pluginUri, groupKey, isBundleItem, source, pluginLabel, token);
 }
 
 // ---------------------------------------------------------------------------
@@ -79,12 +87,17 @@ suite('AgentCustomizationContentExpander', () => {
 				},
 			]);
 
-			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
+			const logService = new TestLogService();
+			const expander = new AgentCustomizationContentExpander(fileService, logService);
 			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
 
-			assert.deepStrictEqual(items.map(i => ({ type: i.type, name: i.name, description: i.description })), [
-				{ type: PromptsType.skill, name: 'Lint', description: 'Runs linting' },
-			]);
+			assert.deepStrictEqual({
+				items: items.map(i => ({ type: i.type, name: i.name, description: i.description })),
+				traces: logService.traces,
+			}, {
+				items: [{ type: PromptsType.skill, name: 'Lint', description: 'Runs linting' }],
+				traces: [],
+			});
 		});
 
 		test('uses folder name as fallback when SKILL.md has no name frontmatter', async () => {
@@ -464,7 +477,7 @@ suite('AgentCustomizationContentExpander', () => {
 			}
 		});
 
-		test('isBundleItem=true clears pluginUri on child items', async () => {
+		test('isBundleItem=true clears pluginUri and pluginLabel on child items', async () => {
 			const pluginRoot = URI.file('/plugins/bundle');
 			await mockFiles(fileService, [
 				{
@@ -477,15 +490,14 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const bundleItems = await expand(expander, pluginRoot, REMOTE_CLIENT_GROUP, true /* isBundleItem */, AICustomizationSources.plugin, CancellationToken.None);
+			const bundleItems = await expand(expander, pluginRoot, REMOTE_CLIENT_GROUP, true /* isBundleItem */, AICustomizationSources.plugin, CancellationToken.None, 'bundle-plugin');
 
-			// Bundle items must not carry pluginUri
 			for (const item of bundleItems) {
-				assert.strictEqual(item.pluginUri, undefined, `bundle item ${item.name} must have no pluginUri`);
+				assert.deepStrictEqual({ pluginUri: item.pluginUri, pluginLabel: item.pluginLabel }, { pluginUri: undefined, pluginLabel: undefined }, `bundle item ${item.name} must have no plugin provenance`);
 			}
 		});
 
-		test('isBundleItem=false sets pluginUri to the plugin root on child items', async () => {
+		test('isBundleItem=false sets pluginUri and pluginLabel on child items', async () => {
 			const pluginRoot = URI.file('/plugins/with-uri');
 			await mockFiles(fileService, [
 				{
@@ -498,9 +510,9 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None, 'Datadog');
 			assert.strictEqual(items.length, 1);
-			assert.strictEqual(items[0].pluginUri?.toString(), pluginRoot.toString());
+			assert.deepStrictEqual({ pluginUri: items[0].pluginUri?.toString(), pluginLabel: items[0].pluginLabel }, { pluginUri: pluginRoot.toString(), pluginLabel: 'Datadog' });
 		});
 	});
 });

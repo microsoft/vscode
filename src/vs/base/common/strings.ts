@@ -116,10 +116,18 @@ export function truncateMiddle(value: string, maxLength: number, suffix = Ellips
 		return value;
 	}
 
-	const prefixLength = Math.ceil(maxLength / 2) - suffix.length / 2;
-	const suffixLength = Math.floor(maxLength / 2) - suffix.length / 2;
+	let prefixLength = Math.floor(Math.ceil(maxLength / 2) - suffix.length / 2);
+	const suffixLength = Math.ceil(Math.floor(maxLength / 2) - suffix.length / 2);
+	let suffixStart = value.length - suffixLength;
 
-	return `${value.substr(0, prefixLength)}${suffix}${value.substr(value.length - suffixLength)}`;
+	if (isHighSurrogate(value.charCodeAt(prefixLength - 1)) && isLowSurrogate(value.charCodeAt(prefixLength))) {
+		prefixLength--;
+	}
+	if (isHighSurrogate(value.charCodeAt(suffixStart - 1)) && isLowSurrogate(value.charCodeAt(suffixStart))) {
+		suffixStart++;
+	}
+
+	return `${value.substring(0, prefixLength)}${suffix}${value.substring(suffixStart)}`;
 }
 
 /**
@@ -915,13 +923,15 @@ export function fuzzyContains(target: string, query: string): boolean {
 		return false; // impossible for query to be contained in target
 	}
 
-	const queryLen = query.length;
 	const targetLower = target.toLowerCase();
+	const queryLower = query.toLowerCase();
+	// toLowerCase() can change a string's length (e.g. \u0130 -> i\u0307), so iterate over the lowered query.
+	const queryLen = queryLower.length;
 
 	let index = 0;
 	let lastIndexOf = -1;
 	while (index < queryLen) {
-		const indexOf = targetLower.indexOf(query[index], lastIndexOf + 1);
+		const indexOf = targetLower.indexOf(queryLower[index], lastIndexOf + 1);
 		if (indexOf < 0) {
 			return false;
 		}

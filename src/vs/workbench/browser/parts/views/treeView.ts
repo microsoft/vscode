@@ -1475,6 +1475,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
 				if (node.themeIcon.color) {
 					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.color.id)?.toString() ?? '';
+				} else {
+					iconClass = iconClass + ' codicon-colored';
 				}
 			}
 			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
@@ -1677,6 +1679,12 @@ class Aligner extends Disposable {
 	private hasIcon(node: ITreeItem): boolean {
 		const icon = !isDark(this.themeService.getColorTheme().type) ? node.icon : node.iconDark;
 		if (icon) {
+			return true;
+		}
+		// `file` and `folder` ThemeIcons defer to the file icon theme only when the item has a resource.
+		// Any other ThemeIcon, or a `file`/`folder` ThemeIcon on an item without a resource, is always
+		// rendered as a codicon and therefore always has an icon regardless of the file icon theme.
+		if (node.themeIcon && (!node.resourceUri || (node.themeIcon.id !== FileThemeIcon.id && node.themeIcon.id !== FolderThemeIcon.id))) {
 			return true;
 		}
 		if (node.resourceUri || node.themeIcon) {

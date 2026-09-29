@@ -41,6 +41,45 @@ const ISSUE_DATA_ATTACHMENT_NAME = 'issue-data.md';
 type IssueUploadFile = { key: string; name: string; bytes: Uint8Array; contentType: string };
 type ExtractedIssueData = { body: string; fileContent: string };
 
+export function extractIssueData(issueBody: string): ExtractedIssueData | undefined {
+	const detailsBlocks: string[] = [];
+	const bodyParts: string[] = [];
+	const detailsTag = /<details\b[^>]*>|<\/details\s*>/gi;
+	let depth = 0;
+	let blockStart = 0;
+	let bodyStart = 0;
+	let match: RegExpExecArray | null;
+
+	while ((match = detailsTag.exec(issueBody))) {
+		if (match[0].startsWith('</')) {
+			if (depth === 0) {
+				continue;
+			}
+			depth--;
+			if (depth === 0) {
+				detailsBlocks.push(issueBody.slice(blockStart, detailsTag.lastIndex).trim());
+				bodyParts.push(issueBody.slice(bodyStart, blockStart));
+				bodyStart = detailsTag.lastIndex;
+			}
+		} else {
+			if (depth === 0) {
+				blockStart = match.index;
+			}
+			depth++;
+		}
+	}
+
+	if (!detailsBlocks.length) {
+		return undefined;
+	}
+
+	bodyParts.push(issueBody.slice(bodyStart));
+	return {
+		body: bodyParts.join('\n\n').replace(/\n{3,}/g, '\n\n').trimEnd(),
+		fileContent: `# ${localize('issueData', "Issue Data")}\n\n${detailsBlocks.join('\n\n')}\n`,
+	};
+}
+
 export class IssueFormService extends Disposable implements IIssueFormService {
 
 	readonly _serviceBrand: undefined;
@@ -241,7 +280,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		githubAccessToken: string,
 		resolveRepoId: () => Promise<string | undefined>
 	): Promise<string | undefined> {
-		const extracted = this.extractIssueData(issueBody);
+		const extracted = extractIssueData(issueBody);
 		if (!extracted) {
 			return undefined;
 		}
@@ -285,23 +324,6 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		}
 		this.uploadCache.set(key, result);
 		return result;
-	}
-
-	private extractIssueData(issueBody: string): ExtractedIssueData | undefined {
-		const detailsBlocks: string[] = [];
-		const body = issueBody.replace(/\n*<details\b[\s\S]*?<\/details>\n*/gi, match => {
-			detailsBlocks.push(match.trim());
-			return '\n\n';
-		}).replace(/\n{3,}/g, '\n\n').trimEnd();
-
-		if (!detailsBlocks.length) {
-			return undefined;
-		}
-
-		return {
-			body,
-			fileContent: `# ${localize('issueData', "Issue Data")}\n\n${detailsBlocks.join('\n\n')}\n`,
-		};
 	}
 
 	private createBodyWithIssueDataLink(body: string, issueDataUrl: string): string {
@@ -393,7 +415,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 	}
 
 	private addTemplateToUrl(baseUrl: string, owner?: string, repositoryName?: string, issueSource?: IssueSource): string {
-		const needsTemplate = issueSource === IssueSource.VSCode || (owner?.toLowerCase() === 'microsoft' && repositoryName?.toLowerCase() === 'vscode');
+		const needsTemplate = issueSource === IssueSource.VSCode || issueSource === IssueSource.AgentsWindow || (owner?.toLowerCase() === 'microsoft' && repositoryName?.toLowerCase() === 'vscode');
 		if (!needsTemplate) {
 			return baseUrl;
 		}
@@ -420,15 +442,15 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 
 	/** Opens the classic non-wizard reporter in an auxiliary window. */
 	async openAuxIssueReporterLegacy(data: IssueReporterData): Promise<void> {
-		await this.openAuxIssueReporter(data);
+		const disposables = await this.openAuxIssueReporter(data);
 
 		if (this.issueReporterWindow) {
-			const issueReporter = this.instantiationService.createInstance(IssueWebReporter, false, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow);
+			const issueReporter = disposables.add(this.instantiationService.createInstance(IssueWebReporter, false, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow));
 			issueReporter.render();
 		}
 	}
 
-	async openAuxIssueReporter(data: IssueReporterData, bounds?: IRectangle): Promise<void> {
+	async openAuxIssueReporter(data: IssueReporterData, bounds?: IRectangle): Promise<DisposableStore> {
 
 		let issueReporterBounds: Partial<IRectangle> = { width: 700, height: 800 };
 
@@ -500,6 +522,8 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 			disposables.dispose();
 			this.issueReporterWindow = null;
 		});
+
+		return disposables;
 	}
 
 	async sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined> {

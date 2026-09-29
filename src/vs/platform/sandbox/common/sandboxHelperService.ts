@@ -12,6 +12,8 @@ export interface ISandboxDependencyStatus {
 	readonly bubblewrapUsable: boolean;
 	readonly socatInstalled: boolean;
 	readonly bubblewrapError?: string;
+	readonly dependencyInstallCommand?: string;
+	readonly apparmorRestrictsUnprivilegedUserNamespaces?: boolean;
 }
 
 export interface IWindowsMxcFilesystemPolicy {
@@ -59,7 +61,6 @@ export interface IWindowsMxcConfig {
 		timeout?: number;
 	};
 	processContainer?: {
-		name?: string;
 		leastPrivilege?: boolean;
 		capabilities?: string[];
 		ui?: {

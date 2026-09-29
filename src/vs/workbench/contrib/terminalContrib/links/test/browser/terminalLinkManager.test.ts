@@ -30,6 +30,12 @@ import { TestXtermLogger } from '../../../../../../platform/terminal/test/common
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ILinkHoverTargetOptions } from '../../../../terminal/browser/widgets/terminalHoverWidget.js';
+import { TerminalWidgetManager } from '../../../../terminal/browser/widgets/widgetManager.js';
+import { TerminalLink } from '../../browser/terminalLink.js';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -219,6 +225,43 @@ suite('TerminalLinkManager', () => {
 				});
 			});
 		}));
+	});
+
+	suite('link hover invalidation', () => {
+		type ShowHover = (
+			targetOptions: ILinkHoverTargetOptions,
+			text: MarkdownString,
+			actions: undefined,
+			linkHandler: (url: string) => void,
+			link?: TerminalLink
+		) => IDisposable | undefined;
+
+		test('replacing or invalidating a link hover disposes the previous hover and its invalidation listener', () => {
+			instantiationService.stub(IHoverService, upcastPartial<IHoverService>({}));
+
+			// Fake widget manager that records disposal of each attached hover and disposes the widget
+			const disposedAttached: boolean[] = [];
+			linkManager.setWidgetManager(upcastPartial<TerminalWidgetManager>({
+				attachWidget: widget => {
+					const index = disposedAttached.push(false) - 1;
+					return { dispose: () => { disposedAttached[index] = true; widget.dispose(); } };
+				}
+			}));
+
+			const showHover = (linkManager as unknown as { _showHover: ShowHover })._showHover.bind(linkManager);
+			const onInvalidated1 = store.add(new Emitter<void>());
+			const onInvalidated2 = store.add(new Emitter<void>());
+			const link1 = upcastPartial<TerminalLink>({ onInvalidated: onInvalidated1.event });
+			const link2 = upcastPartial<TerminalLink>({ onInvalidated: onInvalidated2.event });
+			const targetOptions = upcastPartial<ILinkHoverTargetOptions>({});
+
+			// Showing a second link hover should dispose the first, then invalidating the second disposes it
+			showHover(targetOptions, new MarkdownString('hover'), undefined, () => { }, link1);
+			showHover(targetOptions, new MarkdownString('hover'), undefined, () => { }, link2);
+			onInvalidated2.fire();
+
+			deepStrictEqual(disposedAttached, [true, true]);
+		});
 	});
 
 	suite('getLinks and open recent link', () => {

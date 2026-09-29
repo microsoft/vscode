@@ -26,6 +26,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type SymbolTag } from '../../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { EditDeltaInfo } from '../../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -43,9 +44,10 @@ import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/brows
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupport.js';
 import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText } from '../../../common/widget/annotations.js';
-import { IEditSessionDiffStats, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
+import { IChatSessionsService, isAgentHostSessionResource } from '../../../common/chatSessionsService.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
@@ -58,8 +60,8 @@ import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from './codeBl
 import './media/chatCodeBlockPill.css';
 import { IDisposableReference } from './chatCollections.js';
 import { EditorPool } from './chatContentCodePools.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { ChatEditPillElement } from './chatEditPillElement.js';
+import { IChatContentPart, IChatContentPartDiffData, IChatContentPartRenderContext } from './chatContentParts.js';
+import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
 import { ChatProgressSubPart } from './chatProgressContentPart.js';
 import { IncrementalDOMMorpher } from './chatIncrementalRendering/chatIncrementalRendering.js';
@@ -96,12 +98,21 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
-	private readonly _onDidChangeDiff = this._register(new Emitter<IEditSessionDiffStats>());
+	private readonly _onDidChangeDiff = this._register(new Emitter<IChatContentPartDiffData>());
 	/**
 	 * Fires when any edit pill (CollapsedCodeBlock) in this markdown part updates its diff.
-	 * The aggregated stats reflect the total added/removed across all edit pills.
+	 * The data includes the total stats and current resources across all edit pills.
 	 */
-	readonly onDidChangeDiff: Event<IEditSessionDiffStats> = this._onDidChangeDiff.event;
+	readonly onDidChangeDiff: Event<IChatContentPartDiffData> = this._onDidChangeDiff.event;
+	private _diffData: IChatContentPartDiffData | undefined;
+	/** The latest aggregated edit-pill diff, available even when it was emitted during construction. */
+	get diffData(): IChatContentPartDiffData | undefined { return this._diffData; }
+
+	private readonly _onDidFinishRendering = this._register(new Emitter<void>());
+	readonly onDidFinishRendering: Event<void> = this._onDidFinishRendering.event;
+
+	private readonly _onDidChangeCodeblocks = this._register(new Emitter<void>());
+	readonly onDidChangeCodeblocks: Event<void> = this._onDidChangeCodeblocks.event;
 
 	private readonly allRefs: IDisposableReference<CodeBlockPart | ChatOutputCodeBlockPart | CollapsedCodeBlock | MarkdownDiffBlockPart>[] = [];
 
@@ -111,6 +122,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	private readonly mathLayoutParticipants = new Set<() => void>();
+	private readonly renderMarkdown: () => void;
 
 	/** Incremental rendering morpher — only created when the experiment is enabled. */
 	private _incrementalMorpher: IncrementalDOMMorpher | undefined;
@@ -123,13 +135,14 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		codeBlockStartIndex = 0,
 		renderer: IMarkdownRenderer,
 		markdownRenderOptions: MarkdownRenderOptions | undefined,
-		currentWidth: number,
+		currentWidthDelegate: () => number,
 		private readonly rendererOptions: IChatMarkdownContentPartOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -158,9 +171,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		const incrementalRenderingEnabled = configurationService.getValue<boolean>(ChatConfiguration.IncrementalRendering);
 		if (incrementalRenderingEnabled && isResponseVM(element) && fillInIncompleteTokens && !element.isComplete) {
 			this._incrementalMorpher = this._register(instantiationService.createInstance(IncrementalDOMMorpher, this.domNode));
+			this._register(this._incrementalMorpher.onDidDrain(() => this._onDidFinishRendering.fire()));
 			this._incrementalMorpher.setRenderCallback((newMd) => {
 				// Temporarily swap this.markdown to the buffered content
-				// for doRenderMarkdown(), then restore it. The morpher may
+				// for renderMarkdown(), then restore it. The morpher may
 				// render a subset of the full markdown (word/paragraph
 				// buffering), but this.markdown must always reflect the
 				// latest full content from tryIncrementalUpdate so that
@@ -171,7 +185,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				content.baseUri = URI.revive(this.markdown.content.baseUri);
 				content.uris = this.markdown.content.uris;
 				this.markdown = { ...this.markdown, content };
-				doRenderMarkdown();
+				this.renderMarkdown();
 				this.markdown = savedMarkdown;
 				// Notify the list that our height changed so it can
 				// update scroll position. The morpher renders via rAF,
@@ -182,8 +196,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 
 		const renderStore = this._register(new MutableDisposable<DisposableStore>());
+		const markdownDecorationsRenderer = this._register(instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
 
-		const doRenderMarkdown = () => {
+		this.renderMarkdown = () => {
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -202,7 +217,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			// Reset state for re-render
 			const store = new DisposableStore();
 			renderStore.value = store;
-			dom.clearNode(this.domNode);
 			this.allRefs.length = 0;
 			this._codeblocks.length = 0;
 			this.mathLayoutParticipants.clear();
@@ -222,6 +236,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				breaks: true,
 			};
 
+			const configuredUriTransformer = markdownRenderOptions?.transformUri;
+			const transformUri = isResponseVM(element)
+				? (href: string, kind: 'link' | 'image') => this.chatSessionsService.resolveChatResponseUri(element.sessionResource, configuredUriTransformer?.(href, kind) ?? href, kind)
+				: configuredUriTransformer;
 			const result = store.add(renderer.render(this.markdown.content, {
 				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
 					allowedTags: allowedChatMarkdownHtmlTags,
@@ -320,7 +338,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							return ref.object.element;
 						}
 
-						const ref = this.renderCodeBlock(codeBlockInfo, currentWidth);
+						const ref = this.renderCodeBlock(codeBlockInfo, currentWidthDelegate());
 						this._codeblocks.push({
 							...baseCodeBlockInfo,
 							codemapperUri: codeBlockInfo.codemapperUri,
@@ -355,6 +373,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				markedOptions: markedOpts,
 				markedExtensions,
 				...markdownRenderOptions,
+				transformUri,
 			}, this.domNode));
 
 			// Ideally this would happen earlier, but we need to parse the markdown.
@@ -371,12 +390,12 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							applyCodeBlockSuggestionId: undefined,
 							source: undefined,
 							sourceRequestId: undefined,
+							isAgentHostSession: isAgentHostSessionResource(element.sessionResource),
 						})
 					};
 				}));
 			}
 
-			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
 
 			const layoutParticipants = new Lazy(() => {
@@ -405,10 +424,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 			store.add(wrapTablesWithScrollable(this.domNode, layoutParticipants));
 			dispose(reusableOutputCodeBlockRefs.values());
+			this._onDidChangeCodeblocks.fire();
 		};
 
 		// Always render immediately
-		doRenderMarkdown();
+		this.renderMarkdown();
 
 		// Seed the morpher *after* the initial render so it captures
 		// the correct markdown baseline. Pass `animateInitial: true`
@@ -421,7 +441,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			// KaTeX not yet loaded - load it and re-render when ready
 			MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
 				.then(() => {
-					doRenderMarkdown();
+					this.renderMarkdown();
 				})
 				.catch(e => {
 					console.error('Failed to load MarkedKatexSupport extension:', e);
@@ -494,13 +514,21 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	private fireAggregatedDiff(): void {
 		let totalAdded = 0;
 		let totalRemoved = 0;
+		const resources: IChatContentPartDiffData['resources'][number][] = [];
 		for (const ref of this.allRefs) {
 			if (ref.object instanceof CollapsedCodeBlock && ref.object.diff) {
-				totalAdded += ref.object.diff.added;
-				totalRemoved += ref.object.diff.removed;
+				const diff = ref.object.diff;
+				totalAdded += diff.added;
+				totalRemoved += diff.removed;
+				resources.push({
+					resource: diff.modifiedURI,
+					originalURI: diff.originalURI,
+					modifiedURI: diff.isDeleted ? undefined : diff.modifiedSnapshotURI ?? diff.modifiedURI,
+				});
 			}
 		}
-		this._onDidChangeDiff.fire({ added: totalAdded, removed: totalRemoved });
+		this._diffData = { added: totalAdded, removed: totalRemoved, resources };
+		this._onDidChangeDiff.fire(this._diffData);
 	}
 
 	private renderCodeBlock(data: ICodeBlockData, currentWidth: number): IDisposableReference<CodeBlockPart> {
@@ -537,27 +565,30 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		return false;
 	}
 
-	/**
-	 * Attempts an incremental DOM update for smooth streaming instead of
-	 * tearing down and rebuilding the entire markdown part.
-	 *
-	 * The morpher checks that the new content is a pure append, then
-	 * schedules a rAF-batched re-render through the full markdown
-	 * pipeline. Code blocks, tables, and all markdown features are
-	 * rendered correctly because the update goes through the standard
-	 * `doRenderMarkdown()` path.
-	 *
-	 * @param newMarkdown The new (appended) markdown content.
-	 * @returns `true` if the incremental update succeeded and the caller
-	 *          should treat this part as unchanged. `false` if a full
-	 *          re-render is needed.
-	 */
+	get isRenderComplete(): boolean {
+		return this._incrementalMorpher?.isDrained ?? true;
+	}
+
+	/** Attempts an append-only update, preserving rendered code blocks even when streaming animations are disabled. */
 	tryIncrementalUpdate(newMarkdown: IChatMarkdownContent): boolean {
-		if (!this._incrementalMorpher) {
+		if (!equalsInlineReferences(newMarkdown.inlineReferences, this.markdown.inlineReferences)) {
 			return false;
 		}
 
-		if (!equalsInlineReferences(newMarkdown.inlineReferences, this.markdown.inlineReferences)) {
+		if (!this._incrementalMorpher) {
+			if (this.allRefs.some(ref => ref.object instanceof ChatOutputCodeBlockPart)
+				&& newMarkdown.content.value.startsWith(this.markdown.content.value)) {
+				const previousMarkdown = this.markdown;
+				this.markdown = newMarkdown;
+				try {
+					this.renderMarkdown();
+				} catch (error) {
+					// Leave the part describing what is actually rendered so the next update rebuilds it.
+					this.markdown = previousMarkdown;
+					throw error;
+				}
+				return true;
+			}
 			return false;
 		}
 
@@ -851,6 +882,7 @@ export class CollapsedCodeBlock extends ChatEditPillElement {
 		@IHoverService hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super(labelService, modelService, languageService, hoverService);
 
@@ -877,15 +909,23 @@ export class CollapsedCodeBlock extends ChatEditPillElement {
 		}));
 	}
 
-	private showDiff({ editorOptions: options, openToSide }: IOpenEditorOptions): void {
+	private async showDiff({ editorOptions: options, openToSide }: IOpenEditorOptions): Promise<void> {
+		const group = openToSide ? SIDE_GROUP : undefined;
 		if (this.currentDiff) {
+			// If the change is a pure addition into a file whose original version did not
+			// exist or was empty, there is nothing meaningful to diff against. Open the
+			// file in a normal editor instead of a diff editor.
+			if (this.currentDiff.removed === 0 && await isResourceContentEmpty(this.textModelService, this.currentDiff.originalURI) && this.uri) {
+				this.editorService.openEditor({ resource: this.uri, options }, group);
+				return;
+			}
 			this.editorService.openEditor({
 				original: { resource: this.currentDiff.originalURI },
 				modified: { resource: this.currentDiff.modifiedURI },
 				options
-			}, openToSide ? SIDE_GROUP : undefined);
+			}, group);
 		} else if (this.uri) {
-			this.editorService.openEditor({ resource: this.uri, options }, openToSide ? SIDE_GROUP : undefined);
+			this.editorService.openEditor({ resource: this.uri, options }, group);
 		}
 	}
 

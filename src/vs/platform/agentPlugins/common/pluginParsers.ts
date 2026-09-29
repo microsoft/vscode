@@ -6,7 +6,6 @@
 import { parse as parseJSONC } from '../../../base/common/json.js';
 import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
-import { untildify } from '../../../base/common/labels.js';
 import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals, dirname } from '../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
@@ -17,6 +16,7 @@ import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServer
 import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
 import { customizationId } from '../../agentHost/common/state/sessionState.js';
+import { readAgentPluginManifest } from './agentPluginParser.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,6 +82,7 @@ export interface IParsedHookGroup {
 export interface IMcpServerDefinition {
 	readonly name: string;
 	readonly configuration: IMcpServerConfiguration;
+	readonly defaultCwd?: URI;
 	readonly uri: URI;
 	/** Protocol-level projection of this MCP server as a child customization. */
 	readonly customization: McpServerCustomization;
@@ -98,13 +99,27 @@ export interface INamedPluginResource {
 	readonly description?: string;
 }
 
+/** A parsed agent resource with the frontmatter metadata shared by providers. */
+export interface IAgentPluginResource extends INamedPluginResource {
+	readonly model?: string;
+	readonly tools?: readonly string[];
+	readonly disableModelInvocation?: boolean;
+	readonly disableUserInvocation?: boolean;
+}
+
+/** A parsed skill resource with normalized invocation metadata. */
+interface ISkillPluginResource extends INamedPluginResource {
+	readonly disableModelInvocation?: boolean;
+	readonly disableUserInvocation?: boolean;
+}
+
 /** A parsed agent paired with its protocol-level child customization. */
-export interface IParsedAgent extends INamedPluginResource {
+export interface IParsedAgent extends IAgentPluginResource {
 	readonly customization: AgentCustomization;
 }
 
 /** A parsed skill paired with its protocol-level child customization. */
-export interface IParsedSkill extends INamedPluginResource {
+export interface IParsedSkill extends ISkillPluginResource {
 	readonly customization: SkillCustomization;
 }
 
@@ -115,6 +130,7 @@ export interface IParsedRule extends INamedPluginResource {
 
 /** The result of parsing a single plugin directory. */
 export interface IParsedPlugin {
+	readonly format: PluginFormat;
 	readonly hooks: readonly IParsedHookGroup[];
 	readonly mcpServers: readonly IMcpServerDefinition[];
 	readonly skills: readonly IParsedSkill[];
@@ -130,24 +146,44 @@ export const enum PluginFormat {
 	Copilot,
 	Claude,
 	OpenPlugin,
+	AgentPlugin,
+}
+
+/** A plugin-root token and its matching subprocess environment variable. */
+export interface IPluginRootInterpolation {
+	readonly token: string;
+	readonly envVar: string;
 }
 
 export interface IPluginFormatConfig {
 	readonly format: PluginFormat;
 	readonly manifestPath: string;
 	readonly hookConfigPath: string;
-	readonly pluginRootToken: string | undefined;
-	readonly pluginRootEnvVar: string | undefined;
+	readonly componentPaths?: Readonly<Partial<Record<PluginComponent, string | false>>>;
+	readonly manifestExtensionNamespace?: string;
+	readonly requiresManifest?: boolean;
+	readonly pluginRootTokens: readonly string[];
+	readonly pluginRootEnvVars: readonly string[];
+	/** The canonical plugin-root variable exposed to hook commands. */
+	readonly hookPluginRoot?: IPluginRootInterpolation;
 	/** Parses hooks from a JSON object using the format's conventions. */
-	parseHooks(hookUri: URI, json: unknown, pluginUri: URI, workspaceRoot: URI | undefined, userHome: string): IParsedHookGroup[];
+	parseHooks(hookUri: URI, json: unknown, pluginUri: URI, workspaceRoot: URI | undefined, userHome: URI): IParsedHookGroup[];
 }
+
+export type PluginComponent = 'commands' | 'skills' | 'agents' | 'rules' | 'hooks' | 'mcpServers' | 'automations';
+
+const PLUGIN_ROOT: IPluginRootInterpolation = { token: '${PLUGIN_ROOT}', envVar: 'PLUGIN_ROOT' };
+const CLAUDE_PLUGIN_ROOT: IPluginRootInterpolation = { token: '${CLAUDE_PLUGIN_ROOT}', envVar: 'CLAUDE_PLUGIN_ROOT' };
+const LEGACY_PLUGIN_ROOTS = [PLUGIN_ROOT, CLAUDE_PLUGIN_ROOT];
+const LEGACY_PLUGIN_ROOT_TOKENS = LEGACY_PLUGIN_ROOTS.map(root => root.token);
+const LEGACY_PLUGIN_ROOT_ENV_VARS = LEGACY_PLUGIN_ROOTS.map(root => root.envVar);
 
 const COPILOT_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Copilot,
 	manifestPath: 'plugin.json',
 	hookConfigPath: 'hooks.json',
-	pluginRootToken: undefined,
-	pluginRootEnvVar: undefined,
+	pluginRootTokens: LEGACY_PLUGIN_ROOT_TOKENS,
+	pluginRootEnvVars: LEGACY_PLUGIN_ROOT_ENV_VARS,
 	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
 		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
 	},
@@ -157,10 +193,11 @@ const CLAUDE_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Claude,
 	manifestPath: '.claude-plugin/plugin.json',
 	hookConfigPath: 'hooks/hooks.json',
-	pluginRootToken: '${CLAUDE_PLUGIN_ROOT}',
-	pluginRootEnvVar: 'CLAUDE_PLUGIN_ROOT',
+	pluginRootTokens: LEGACY_PLUGIN_ROOT_TOKENS,
+	pluginRootEnvVars: LEGACY_PLUGIN_ROOT_ENV_VARS,
+	hookPluginRoot: CLAUDE_PLUGIN_ROOT,
 	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
-		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
+		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, CLAUDE_PLUGIN_ROOT);
 	},
 };
 
@@ -168,14 +205,49 @@ const OPEN_PLUGIN_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.OpenPlugin,
 	manifestPath: '.plugin/plugin.json',
 	hookConfigPath: 'hooks/hooks.json',
-	pluginRootToken: '${PLUGIN_ROOT}',
-	pluginRootEnvVar: 'PLUGIN_ROOT',
+	pluginRootTokens: LEGACY_PLUGIN_ROOT_TOKENS,
+	pluginRootEnvVars: LEGACY_PLUGIN_ROOT_ENV_VARS,
+	hookPluginRoot: PLUGIN_ROOT,
 	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
-		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
+		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, PLUGIN_ROOT);
 	},
 };
 
+const AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE = 'com.github.copilot';
+
+const AGENT_PLUGIN_FORMAT: IPluginFormatConfig = {
+	format: PluginFormat.AgentPlugin,
+	manifestPath: 'plugin.json',
+	hookConfigPath: `${AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE}/hooks/hooks.json`,
+	componentPaths: {
+		commands: `${AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE}/commands`,
+		skills: 'skills',
+		agents: `${AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE}/agents`,
+		rules: `${AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE}/rules`,
+		hooks: `${AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE}/hooks/hooks.json`,
+		mcpServers: 'mcp.json',
+		automations: 'automations',
+	},
+	manifestExtensionNamespace: AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE,
+	requiresManifest: true,
+	pluginRootTokens: [],
+	pluginRootEnvVars: [],
+	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
+		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
+	},
+};
+
+const PLUGIN_FORMAT_CONFIGS: Readonly<Record<PluginFormat, IPluginFormatConfig>> = {
+	[PluginFormat.Copilot]: COPILOT_FORMAT,
+	[PluginFormat.Claude]: CLAUDE_FORMAT,
+	[PluginFormat.OpenPlugin]: OPEN_PLUGIN_FORMAT,
+	[PluginFormat.AgentPlugin]: AGENT_PLUGIN_FORMAT,
+};
+
 export async function detectPluginFormat(pluginUri: URI, fileService: IFileService): Promise<IPluginFormatConfig> {
+	if (await readAgentPluginManifest(pluginUri, fileService)) {
+		return AGENT_PLUGIN_FORMAT;
+	}
 	if (await pathExists(joinPath(pluginUri, '.plugin', 'plugin.json'), fileService)) {
 		return OPEN_PLUGIN_FORMAT;
 	}
@@ -186,6 +258,62 @@ export async function detectPluginFormat(pluginUri: URI, fileService: IFileServi
 	}
 
 	return COPILOT_FORMAT;
+}
+
+export async function readPluginManifest(pluginUri: URI, format: IPluginFormatConfig, fileService: IFileService): Promise<Record<string, unknown> | undefined> {
+	if (format.format === PluginFormat.AgentPlugin) {
+		const manifest = await readAgentPluginManifest(pluginUri, fileService);
+		return manifest ? { ...manifest } : undefined;
+	}
+	const json = await readJsonFile(joinPath(pluginUri, format.manifestPath), fileService);
+	return json && typeof json === 'object' && !Array.isArray(json) ? json as Record<string, unknown> : undefined;
+}
+
+export function getPluginManifestComponent(format: IPluginFormatConfig, component: PluginComponent, manifest: Record<string, unknown> | undefined): unknown {
+	if (format.manifestExtensionNamespace) {
+		const extensions = manifest?.['extensions'];
+		if (!extensions || typeof extensions !== 'object' || Array.isArray(extensions)) {
+			return undefined;
+		}
+		const extension = (extensions as Record<string, unknown>)[format.manifestExtensionNamespace];
+		return extension && typeof extension === 'object' && !Array.isArray(extension)
+			? (extension as Record<string, unknown>)[component]
+			: undefined;
+	}
+	return format.componentPaths && Object.hasOwn(format.componentPaths, component) ? undefined : manifest?.[component];
+}
+
+export function resolvePluginComponentDirs(
+	pluginUri: URI,
+	format: IPluginFormatConfig,
+	component: PluginComponent,
+	fallbackPath: string,
+	manifestSection: unknown,
+	boundaryUri?: URI,
+): readonly URI[] {
+	const componentPath = format.componentPaths?.[component];
+	if (format.componentPaths && Object.hasOwn(format.componentPaths, component)) {
+		if (typeof componentPath !== 'string') {
+			return [];
+		}
+		if (!format.manifestExtensionNamespace) {
+			return resolveComponentDirs(pluginUri, componentPath, emptyComponentPathConfig, boundaryUri);
+		}
+
+		const config = parseComponentPathConfig(manifestSection);
+		const defaultDirs = config.exclusive
+			? []
+			: resolveComponentDirs(pluginUri, componentPath, emptyComponentPathConfig, boundaryUri);
+		const extensionRoot = joinPath(pluginUri, format.manifestExtensionNamespace);
+		const configuredDirs = resolveComponentDirs(extensionRoot, '', { paths: config.paths, exclusive: true }, extensionRoot);
+		return [...defaultDirs, ...configuredDirs];
+	}
+	return resolveComponentDirs(
+		pluginUri,
+		fallbackPath,
+		parseComponentPathConfig(manifestSection),
+		boundaryUri,
+	);
 }
 
 // ---------------------------------------------------------------------------
@@ -210,7 +338,7 @@ function buildChildId(uri: URI, disambiguator?: string): string {
 	return `${base.replace(/#/g, '%23')}#${disambiguator}`;
 }
 
-function makeAgentCustomization(resource: INamedPluginResource): AgentCustomization {
+function makeAgentCustomization(resource: IAgentPluginResource): AgentCustomization {
 	const uri = resource.uri.toString();
 	return {
 		type: CustomizationType.Agent,
@@ -218,10 +346,14 @@ function makeAgentCustomization(resource: INamedPluginResource): AgentCustomizat
 		uri,
 		name: resource.name,
 		...(resource.description ? { description: resource.description } : {}),
+		...(resource.model ? { model: resource.model } : {}),
+		...(resource.tools?.length ? { tools: [...resource.tools] } : {}),
+		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
+		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
 	};
 }
 
-function makeSkillCustomization(resource: INamedPluginResource): SkillCustomization {
+function makeSkillCustomization(resource: ISkillPluginResource): SkillCustomization {
 	const uri = resource.uri.toString();
 	return {
 		type: CustomizationType.Skill,
@@ -229,6 +361,8 @@ function makeSkillCustomization(resource: INamedPluginResource): SkillCustomizat
 		uri,
 		name: resource.name,
 		...(resource.description ? { description: resource.description } : {}),
+		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
+		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
 	};
 }
 
@@ -252,14 +386,26 @@ function makeHookCustomization(hookUri: URI): HookCustomization {
 	};
 }
 
-function makeMcpServerCustomization(definitionUri: URI, name: string): McpServerCustomization {
+/**
+ * Builds the protocol {@link McpServerCustomization} for an MCP server
+ * declared at `definitionUri` (the manifest / settings / `.mcp.json` file
+ * the server is defined in). The id is disambiguated by server `name` so
+ * multiple servers declared in one file get distinct ids, and the entry
+ * carries {@link DEFAULT_MCP_APP} so MCP App support is advertised
+ * consistently with every other MCP customization.
+ *
+ * The seed state is {@link McpServerStatus.Stopped}: a declared-but-not-yet
+ * connected server has not been started by any SDK, so it must not claim to
+ * be {@link McpServerStatus.Starting}. The live state is enriched from the
+ * SDK's reported status once a session materializes.
+ */
+export function makeMcpServerCustomization(definitionUri: URI, name: string): McpServerCustomization {
 	return {
 		type: CustomizationType.McpServer,
 		id: buildChildId(definitionUri, `mcp=${encodeURIComponent(name)}`),
 		uri: definitionUri.toString(),
 		name,
-		enabled: true,
-		state: { kind: McpServerStatus.Starting },
+		state: { kind: McpServerStatus.Stopped },
 		mcpApp: DEFAULT_MCP_APP,
 	};
 }
@@ -361,6 +507,7 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 
 	const candidate = rawConfig as Record<string, unknown>;
 	const type = typeof candidate['type'] === 'string' ? candidate['type'] : undefined;
+	const transport = candidate['transport'] === 'sse' || candidate['transport'] === 'http' ? candidate['transport'] : undefined;
 
 	const command = typeof candidate['command'] === 'string' ? candidate['command'] : undefined;
 	const url = typeof candidate['url'] === 'string' ? candidate['url'] : undefined;
@@ -377,6 +524,10 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 			.filter(([, value]) => typeof value === 'string')
 			.map(([key, value]) => [key, value as string]))
 		: undefined;
+	const rawOAuth = candidate['oauth'] && typeof candidate['oauth'] === 'object' ? candidate['oauth'] as Record<string, unknown> : undefined;
+	const oauthClientId = (typeof rawOAuth?.['clientId'] === 'string' ? rawOAuth['clientId'] : undefined)
+		?? (typeof candidate['oauthClientId'] === 'string' ? candidate['oauthClientId'] : undefined);
+	const oauth = oauthClientId ? { clientId: oauthClientId } : undefined;
 	const dev = candidate['dev'] && typeof candidate['dev'] === 'object' ? candidate['dev'] as IMcpStdioServerConfiguration['dev'] : undefined;
 
 	if (type === 'ws') {
@@ -390,11 +541,11 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 		return { type: McpServerType.LOCAL, command, args, env, envFile, cwd, dev };
 	}
 
-	if (type === McpServerType.REMOTE || type === 'sse' || (!type && url)) {
+	if (type === McpServerType.REMOTE || type === 'streamable-http' || type === 'sse' || (!type && url)) {
 		if (!url) {
 			return undefined;
 		}
-		return { type: McpServerType.REMOTE, url, headers, dev };
+		return { type: McpServerType.REMOTE, ...(type === 'sse' || transport === 'sse' ? { transport: 'sse' as const } : {}), url, headers, ...(oauth ? { oauth } : {}), dev };
 	}
 
 	return undefined;
@@ -435,16 +586,39 @@ export function shellQuotePluginRootInCommand(command: string, fsPath: string, t
 }
 
 /**
+ * Applies the plugin-root convention for a Claude or Open Plugin hook command.
+ */
+export function interpolateHookCommandPluginRoot(hook: Record<string, unknown>, pluginUri: URI, format: PluginFormat): Record<string, unknown> {
+	const root = PLUGIN_FORMAT_CONFIGS[format].hookPluginRoot;
+	return root ? interpolateHookCommandRoot(hook, pluginUri, root) : hook;
+}
+
+function interpolateHookCommandRoot(hook: Record<string, unknown>, pluginUri: URI, root: IPluginRootInterpolation): Record<string, unknown> {
+	const fsPath = pluginUri.fsPath;
+	const result = cloneAndChange(hook, value => typeof value === 'string' ? value.replaceAll(root.token, fsPath) : undefined) as Record<string, unknown>;
+	for (const field of ['command', 'windows', 'linux', 'osx', 'bash', 'powershell'] as const) {
+		if (typeof hook[field] === 'string') {
+			result[field] = shellQuotePluginRootInCommand(hook[field], fsPath, root.token);
+		}
+	}
+	result.env = {
+		...(result.env && typeof result.env === 'object' && !Array.isArray(result.env) ? result.env : {}),
+		[root.envVar]: fsPath,
+	};
+	return result;
+}
+
+/**
  * Replaces plugin-root token references in MCP server definition string fields
  * with the plugin root filesystem path.
  */
 export function interpolateMcpPluginRoot(
 	def: IMcpServerDefinition,
 	fsPath: string,
-	token: string,
-	envVar: string,
+	tokens: readonly string[],
+	envVars: readonly string[],
 ): IMcpServerDefinition {
-	const replace = (s: string) => s.replaceAll(token, fsPath);
+	const replace = (s: string) => tokens.reduce((result, token) => result.replaceAll(token, fsPath), s);
 
 	const config = def.configuration;
 	let interpolated: IMcpServerConfiguration;
@@ -464,7 +638,9 @@ export function interpolateMcpPluginRoot(
 				local.env[k] = replace(v);
 			}
 		}
-		local.env[envVar] = fsPath;
+		for (const envVar of envVars) {
+			local.env[envVar] = fsPath;
+		}
 		if (local.envFile) {
 			local.envFile = replace(local.envFile);
 		}
@@ -480,7 +656,7 @@ export function interpolateMcpPluginRoot(
 		interpolated = remote;
 	}
 
-	return { name: def.name, configuration: interpolated, uri: def.uri, customization: def.customization };
+	return { ...def, configuration: interpolated };
 }
 
 /**
@@ -581,7 +757,7 @@ function normalizeHookCommand(raw: Record<string, unknown>): IParsedHookCommand 
  * Resolves a raw hook command JSON object into a {@link IParsedHookCommand},
  * normalizing fields and resolving the working directory.
  */
-function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | undefined, userHome: string): IParsedHookCommand | undefined {
+function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | undefined, userHome: URI): IParsedHookCommand | undefined {
 	const normalized = normalizeHookCommand(raw);
 	if (!normalized) {
 		return undefined;
@@ -590,11 +766,12 @@ function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | u
 	let cwdUri: URI | undefined;
 	const rawCwd = typeof raw.cwd === 'string' ? raw.cwd : undefined;
 	if (rawCwd) {
-		const expanded = untildify(rawCwd, userHome);
-		if (isAbsolute(expanded)) {
-			cwdUri = URI.file(expanded);
+		if (rawCwd.startsWith('~/')) {
+			cwdUri = URI.joinPath(userHome, rawCwd.substring(2));
+		} else if (isAbsolute(rawCwd)) {
+			cwdUri = URI.file(rawCwd);
 		} else if (workspaceRoot) {
-			cwdUri = joinPath(workspaceRoot, expanded);
+			cwdUri = joinPath(workspaceRoot, rawCwd);
 		}
 	} else {
 		cwdUri = workspaceRoot;
@@ -607,7 +784,7 @@ function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | u
  * Extracts hook commands from an item that may be a direct command object
  * or a nested structure with a `matcher` (Claude format).
  */
-function extractHookCommands(item: unknown, workspaceRoot: URI | undefined, userHome: string): IParsedHookCommand[] {
+function extractHookCommands(item: unknown, workspaceRoot: URI | undefined, userHome: URI): IParsedHookCommand[] {
 	if (!item || typeof item !== 'object') {
 		return [];
 	}
@@ -639,12 +816,19 @@ function extractHookCommands(item: unknown, workspaceRoot: URI | undefined, user
 
 /**
  * Parses hooks from a JSON object (any supported format).
+ *
+ * Handles Claude's `disableAllHooks` short-circuit, the `HOOK_TYPE_MAP`
+ * canonicalization, and the nested `{ matcher, hooks: [...] }` command
+ * form. Returns one {@link IParsedHookGroup} per recognized lifecycle
+ * event; all groups parsed from the same file share a single
+ * {@link IParsedHookGroup.customization} (keyed on `hookUri`), so callers
+ * that only need the file-level customization can read it off any group.
  */
-function parseHooksJson(
+export function parseHooksJson(
 	hookUri: URI,
 	json: unknown,
 	workspaceRoot: URI | undefined,
-	userHome: string,
+	userHome: URI,
 ): IParsedHookGroup[] {
 	if (!json || typeof json !== 'object') {
 		return [];
@@ -658,11 +842,9 @@ function parseHooksJson(
 	}
 
 	const hooks = root.hooks;
-	if (!hooks || typeof hooks !== 'object') {
-		return [];
-	}
-
-	const hooksObj = hooks as Record<string, unknown>;
+	const hooksObj = hooks && typeof hooks === 'object' && !Array.isArray(hooks)
+		? hooks as Record<string, unknown>
+		: root;
 	const result: IParsedHookGroup[] = [];
 	const customization = makeHookCustomization(hookUri);
 
@@ -699,24 +881,13 @@ export function interpolateHookPluginRoot(
 	json: unknown,
 	pluginUri: URI,
 	workspaceRoot: URI | undefined,
-	userHome: string,
-	token: string,
-	envVar: string,
+	userHome: URI,
+	root: IPluginRootInterpolation,
 ): IParsedHookGroup[] {
-	const fsPath = pluginUri.fsPath;
 	const typedJson = json as { hooks?: Record<string, unknown[]> };
 
 	const mutateHookCommand = (hook: Record<string, unknown>): void => {
-		for (const field of ['command', 'windows', 'linux', 'osx'] as const) {
-			if (typeof hook[field] === 'string') {
-				hook[field] = shellQuotePluginRootInCommand(hook[field] as string, fsPath, token);
-			}
-		}
-
-		if (!hook.env || typeof hook.env !== 'object') {
-			hook.env = {};
-		}
-		(hook.env as Record<string, string>)[envVar] = fsPath;
+		Object.assign(hook, interpolateHookCommandRoot(hook, pluginUri, root));
 	};
 
 	for (const lifecycle of Object.values(typedJson.hooks ?? {})) {
@@ -740,7 +911,7 @@ export function interpolateHookPluginRoot(
 
 	const replacer = (v: unknown): unknown => {
 		return typeof v === 'string'
-			? v.replaceAll(token, pluginUri.fsPath)
+			? v.replaceAll(root.token, pluginUri.fsPath)
 			: undefined;
 	};
 
@@ -777,30 +948,43 @@ const COMMAND_FILE_SUFFIX = '.md';
 const RULE_FILE_SUFFIX = '.mdc';
 const INSTRUCTION_FILE_SUFFIX = '.instructions.md';
 
-export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileService: IFileService): Promise<readonly INamedPluginResource[]> {
+export async function readSkills(
+	pluginRoot: URI,
+	dirs: readonly URI[],
+	fileService: IFileService,
+	options?: { readonly childDirectoriesOnly?: boolean; readonly containmentRoot?: URI; readonly deduplicateByName?: boolean },
+): Promise<readonly ISkillPluginResource[]> {
 	const seen = new Set<string>();
-	const skills: INamedPluginResource[] = [];
+	const skills: ISkillPluginResource[] = [];
 
 	const addSkill = async (name: string, skillMd: URI) => {
-		if (seen.has(name)) {
+		if (options?.containmentRoot && !await isResolvedWithin(options.containmentRoot, skillMd, fileService)) {
 			return;
 		}
-		seen.add(name);
-
 		let description: string | undefined;
+		let invocationFlags: ReturnType<typeof toSkillInvocationFlags> = {};
 		try {
-			description = (await parseSkillFile(skillMd, fileService)).description;
+			const parsedInfo = await parseSkillFile(skillMd, fileService);
+			description = parsedInfo.description;
+			name = parsedInfo.name || name;
+			invocationFlags = toSkillInvocationFlags(parsedInfo.userInvocable, parsedInfo.disableModelInvocation);
 		} catch {
 			// Keep the existing best-effort discovery behavior for malformed skills.
 		}
-		skills.push({ uri: skillMd, name, ...(description ? { description } : {}) });
+		if (options?.deduplicateByName !== false && seen.has(name)) {
+			return;
+		}
+		seen.add(name);
+		skills.push({ uri: skillMd, name, ...(description ? { description } : {}), ...invocationFlags });
 	};
 
 	await Promise.all(dirs.map(async dir => {
-		const skillMd = URI.joinPath(dir, 'SKILL.md');
-		if (await pathExists(skillMd, fileService)) {
-			await addSkill(basename(dir), skillMd);
-			return;
+		if (!options?.childDirectoriesOnly) {
+			const skillMd = URI.joinPath(dir, 'SKILL.md');
+			if (await pathExists(skillMd, fileService)) {
+				await addSkill(basename(dir), skillMd);
+				return;
+			}
 		}
 
 		let stat;
@@ -822,7 +1006,7 @@ export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileServ
 		}));
 	}));
 
-	if (skills.length === 0) {
+	if (!options?.childDirectoriesOnly && skills.length === 0) {
 		const rootSkillMd = URI.joinPath(pluginRoot, 'SKILL.md');
 		if (await pathExists(rootSkillMd, fileService)) {
 			await addSkill(basename(pluginRoot), rootSkillMd);
@@ -833,11 +1017,36 @@ export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileServ
 	return skills;
 }
 
-export async function readMarkdownComponents(dirs: readonly URI[], fileService: IFileService): Promise<readonly INamedPluginResource[]> {
+export async function readPluginSkills(pluginRoot: URI, dirs: readonly URI[], format: IPluginFormatConfig, fileService: IFileService): Promise<readonly ISkillPluginResource[]> {
+	return readSkills(pluginRoot, dirs, fileService, format.format === PluginFormat.AgentPlugin
+		? { childDirectoriesOnly: true, containmentRoot: pluginRoot }
+		: undefined);
+}
+
+async function isResolvedWithin(root: URI, resource: URI, fileService: IFileService): Promise<boolean> {
+	try {
+		const [resolvedRoot, resolvedResource] = await Promise.all([
+			fileService.realpath(root),
+			fileService.realpath(resource),
+		]);
+		return isEqualOrParent(resolvedResource ?? normalizePath(resource), resolvedRoot ?? normalizePath(root));
+	} catch {
+		return false;
+	}
+}
+
+export async function readMarkdownComponents(
+	dirs: readonly URI[],
+	fileService: IFileService,
+	options?: { readonly containmentRoot?: URI },
+): Promise<readonly INamedPluginResource[]> {
 	const seen = new Set<string>();
 	const items: INamedPluginResource[] = [];
 
-	const addItem = (name: string, uri: URI) => {
+	const addItem = async (name: string, uri: URI) => {
+		if (options?.containmentRoot && !await isResolvedWithin(options.containmentRoot, uri, fileService)) {
+			return;
+		}
 		if (!seen.has(name)) {
 			seen.add(name);
 			items.push({ uri, name });
@@ -853,7 +1062,7 @@ export async function readMarkdownComponents(dirs: readonly URI[], fileService: 
 		}
 
 		if (stat.isFile && extname(dir).toLowerCase() === COMMAND_FILE_SUFFIX) {
-			addItem(basename(dir).slice(0, -COMMAND_FILE_SUFFIX.length), dir);
+			await addItem(basename(dir).slice(0, -COMMAND_FILE_SUFFIX.length), dir);
 			continue;
 		}
 
@@ -865,7 +1074,7 @@ export async function readMarkdownComponents(dirs: readonly URI[], fileService: 
 			if (!child.isFile || extname(child.resource).toLowerCase() !== COMMAND_FILE_SUFFIX) {
 				continue;
 			}
-			addItem(basename(child.resource).slice(0, -COMMAND_FILE_SUFFIX.length), child.resource);
+			await addItem(basename(child.resource).slice(0, -COMMAND_FILE_SUFFIX.length), child.resource);
 		}
 	}
 
@@ -892,11 +1101,18 @@ function getInstructionFileName(resource: URI): string | undefined {
  * `.instructions.md` for compatibility with VS Code-discovered instructions
  * bundled as synthetic plugins.
  */
-export async function readInstructionComponents(dirs: readonly URI[], fileService: IFileService): Promise<readonly INamedPluginResource[]> {
+export async function readInstructionComponents(
+	dirs: readonly URI[],
+	fileService: IFileService,
+	options?: { readonly containmentRoot?: URI },
+): Promise<readonly INamedPluginResource[]> {
 	const seen = new Set<string>();
 	const items: INamedPluginResource[] = [];
 
-	const addItem = (name: string, uri: URI) => {
+	const addItem = async (name: string, uri: URI) => {
+		if (options?.containmentRoot && !await isResolvedWithin(options.containmentRoot, uri, fileService)) {
+			return;
+		}
 		if (!seen.has(name)) {
 			seen.add(name);
 			items.push({ uri, name });
@@ -914,7 +1130,7 @@ export async function readInstructionComponents(dirs: readonly URI[], fileServic
 		if (stat.isFile) {
 			const instructionName = getInstructionFileName(dir);
 			if (instructionName) {
-				addItem(instructionName, dir);
+				await addItem(instructionName, dir);
 			}
 			continue;
 		}
@@ -929,7 +1145,7 @@ export async function readInstructionComponents(dirs: readonly URI[], fileServic
 			}
 			const instructionName = getInstructionFileName(child.resource);
 			if (instructionName) {
-				addItem(instructionName, child.resource);
+				await addItem(instructionName, child.resource);
 			}
 		}
 	}
@@ -943,26 +1159,34 @@ export async function readInstructionComponents(dirs: readonly URI[], fileServic
  * the optional `name` / `description` from YAML frontmatter. Falls back
  * to the file-derived name when frontmatter is missing or unreadable.
  */
-export async function readAgentComponents(dirs: readonly URI[], fileService: IFileService): Promise<readonly INamedPluginResource[]> {
-	const files = await readMarkdownComponents(dirs, fileService);
+export async function readAgentComponents(
+	dirs: readonly URI[],
+	fileService: IFileService,
+	options?: { readonly containmentRoot?: URI },
+): Promise<readonly IAgentPluginResource[]> {
+	const files = await readMarkdownComponents(dirs, fileService, options);
 	if (files.length === 0) {
 		return files;
 	}
 	const enriched = await Promise.all(files.map(async file => {
 		try {
-			const { name, description } = await parseAgentFile(file.uri, fileService);
+			const parsed = await parseAgentFile(file.uri, fileService);
 			return {
 				uri: file.uri,
-				name: name || file.name,
-				...(description ? { description } : {}),
-			} satisfies INamedPluginResource;
+				name: parsed.name || file.name,
+				...(parsed.description ? { description: parsed.description } : {}),
+				...(parsed.model ? { model: parsed.model } : {}),
+				...(parsed.tools?.length ? { tools: parsed.tools } : {}),
+				...(parsed.disableModelInvocation ? { disableModelInvocation: true } : {}),
+				...(parsed.userInvocable === false ? { disableUserInvocation: true } : {}),
+			} satisfies IAgentPluginResource;
 		} catch {
 			return file;
 		}
 	}));
 	// De-dupe again in case frontmatter `name` collides; first-seen wins.
 	const seen = new Set<string>();
-	const result: INamedPluginResource[] = [];
+	const result: IAgentPluginResource[] = [];
 	for (const item of enriched) {
 		if (seen.has(item.name)) {
 			continue;
@@ -974,7 +1198,7 @@ export async function readAgentComponents(dirs: readonly URI[], fileService: IFi
 	return result;
 }
 
-export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean }> {
+export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; model?: string; tools?: readonly string[]; disableModelInvocation?: boolean }> {
 	// Use regex to strip the trailing `.agent.md` or .md before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
 	const nameFromFile = basename(uri).replace(/(\.agent)?\.md$/i, '');
 	try {
@@ -983,23 +1207,41 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
 		const description = frontmatter?.getStringValue('description')?.trim();
 		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
-		return { name, description, userInvocable };
+		const model = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).find(Boolean);
+		const tools = frontmatter?.getStringArrayValue('tools')?.map(value => value.trim()).filter(Boolean);
+		const infer = frontmatter?.getBooleanValue('infer');
+		const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'));
+		return { name, description, userInvocable, model, tools, disableModelInvocation };
 	} catch {
 		return { name: nameFromFile };
 	}
 }
 
-export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvokable?: boolean }> {
+/** Resolves the deprecated `infer` field before its modern replacement, matching workspace-agent parsing. */
+export function resolveAgentDisableModelInvocation(infer: boolean | undefined, disableModelInvocation: boolean | undefined, fallback?: boolean): boolean | undefined {
+	return infer !== undefined ? !infer : (disableModelInvocation ?? fallback);
+}
+
+export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; disableModelInvocation?: boolean }> {
 	try {
 		const content = await fileService.readFile(uri);
 		const frontmatter = parseFrontMatter(content.value.toString());
 		const name = frontmatter?.getStringValue('name')?.trim() || basename(dirname(uri));
 		const description = frontmatter?.getStringValue('description')?.trim();
-		const userInvokable = frontmatter?.getBooleanValue('user-invocable');
-		return { name, description, userInvokable };
+		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
+		const disableModelInvocation = frontmatter?.getBooleanValue('disable-model-invocation');
+		return { name, description, userInvocable, disableModelInvocation };
 	} catch {
 		return { name: basename(dirname(uri)) };
 	}
+}
+
+/** Maps SKILL.md invocation metadata onto the restrictive protocol flags. */
+export function toSkillInvocationFlags(userInvocable: boolean | undefined, disableModelInvocation: boolean | undefined): { readonly disableUserInvocation?: boolean; readonly disableModelInvocation?: boolean } {
+	return {
+		...(userInvocable === false ? { disableUserInvocation: true } : {}),
+		...(disableModelInvocation === true ? { disableModelInvocation: true } : {}),
+	};
 }
 
 export async function parseRuleFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; globs?: string[]; alwaysApply?: boolean }> {
@@ -1023,9 +1265,12 @@ async function readHooks(
 	formatConfig: IPluginFormatConfig,
 	fileService: IFileService,
 	workspaceRoot: URI | undefined,
-	userHome: string,
+	userHome: URI,
 ): Promise<readonly IParsedHookGroup[]> {
 	for (const hookPath of paths) {
+		if (formatConfig.format === PluginFormat.AgentPlugin && !await isResolvedWithin(pluginUri, hookPath, fileService)) {
+			continue;
+		}
 		const json = await readJsonFile(hookPath, fileService);
 		if (!json) {
 			continue;
@@ -1037,15 +1282,18 @@ async function readHooks(
 }
 
 async function readMcpServers(
+	pluginUri: URI,
 	paths: readonly URI[],
-	pluginFsPath: string,
 	formatConfig: IPluginFormatConfig,
 	fileService: IFileService,
 ): Promise<readonly IMcpServerDefinition[]> {
 	const merged = new Map<string, IMcpServerDefinition>();
 	for (const mcpPath of paths) {
+		if (formatConfig.format === PluginFormat.AgentPlugin && !await isResolvedWithin(pluginUri, mcpPath, fileService)) {
+			continue;
+		}
 		const json = await readJsonFile(mcpPath, fileService);
-		for (const def of parseMcpServerDefinitionMap(mcpPath, json, pluginFsPath, formatConfig)) {
+		for (const def of parseMcpServerDefinitionMap(mcpPath, json, pluginUri, formatConfig)) {
 			if (!merged.has(def.name)) {
 				merged.set(def.name, def);
 			}
@@ -1054,10 +1302,19 @@ async function readMcpServers(
 	return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+export async function readPluginMcpServers(
+	pluginUri: URI,
+	paths: readonly URI[],
+	format: IPluginFormatConfig,
+	fileService: IFileService,
+): Promise<readonly IMcpServerDefinition[]> {
+	return readMcpServers(pluginUri, paths, format, fileService);
+}
+
 export function parseMcpServerDefinitionMap(
 	definitionURI: URI,
 	raw: unknown,
-	pluginFsPath: string,
+	pluginRoot: URI,
 	formatConfig: IPluginFormatConfig,
 ): IMcpServerDefinition[] {
 	const mcpServers = resolveMcpServersMap(raw);
@@ -1065,6 +1322,7 @@ export function parseMcpServerDefinitionMap(
 		return [];
 	}
 
+	const pluginFsPath = pluginRoot.fsPath;
 	const definitions: IMcpServerDefinition[] = [];
 	for (const [name, configValue] of Object.entries(mcpServers)) {
 		const configuration = normalizeMcpServerConfiguration(configValue);
@@ -1075,13 +1333,14 @@ export function parseMcpServerDefinitionMap(
 		let def: IMcpServerDefinition = {
 			name,
 			configuration,
+			...(formatConfig.format !== PluginFormat.AgentPlugin && { defaultCwd: pluginRoot }),
 			uri: definitionURI,
 			customization: makeMcpServerCustomization(definitionURI, name),
 		};
-		if (formatConfig.pluginRootToken && formatConfig.pluginRootEnvVar) {
-			def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootToken, formatConfig.pluginRootEnvVar);
+		def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
+		if (formatConfig.format !== PluginFormat.AgentPlugin) {
+			def = convertBareEnvVarsToVsCodeSyntax(def);
 		}
-		def = convertBareEnvVarsToVsCodeSyntax(def);
 		definitions.push(def);
 	}
 
@@ -1101,40 +1360,45 @@ export async function parsePlugin(
 	pluginUri: URI,
 	fileService: IFileService,
 	workspaceRoot: URI | undefined,
-	userHome: string,
+	userHome: URI,
 	boundaryUri?: URI,
 ): Promise<IParsedPlugin> {
 	const formatConfig = await detectPluginFormat(pluginUri, fileService);
 
 	// Read manifest
-	const manifestJson = await readJsonFile(joinPath(pluginUri, formatConfig.manifestPath), fileService);
-	const manifest = (manifestJson && typeof manifestJson === 'object') ? manifestJson as Record<string, unknown> : undefined;
+	const manifest = await readPluginManifest(pluginUri, formatConfig, fileService);
+	if (formatConfig.requiresManifest && !manifest) {
+		throw new Error(`Plugin manifest '${joinPath(pluginUri, formatConfig.manifestPath).toString()}' is missing`);
+	}
 
 	// Resolve component directories from manifest
-	const hookDirs = resolveComponentDirs(pluginUri, formatConfig.hookConfigPath, parseComponentPathConfig(manifest?.['hooks']), boundaryUri);
-	const mcpDirs = resolveComponentDirs(pluginUri, '.mcp.json', parseComponentPathConfig(manifest?.['mcpServers']), boundaryUri);
-	const skillDirs = resolveComponentDirs(pluginUri, 'skills', parseComponentPathConfig(manifest?.['skills']), boundaryUri);
-	const agentDirs = resolveComponentDirs(pluginUri, 'agents', parseComponentPathConfig(manifest?.['agents']), boundaryUri);
-	const instructionDirs = resolveComponentDirs(pluginUri, 'rules', parseComponentPathConfig(manifest?.['rules']), boundaryUri);
+	const hooksSection = getPluginManifestComponent(formatConfig, 'hooks', manifest);
+	const mcpSection = getPluginManifestComponent(formatConfig, 'mcpServers', manifest);
+	const skillsSection = getPluginManifestComponent(formatConfig, 'skills', manifest);
+	const agentsSection = getPluginManifestComponent(formatConfig, 'agents', manifest);
+	const rulesSection = getPluginManifestComponent(formatConfig, 'rules', manifest);
+	const hookDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'hooks', formatConfig.hookConfigPath, hooksSection, boundaryUri);
+	const mcpDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'mcpServers', '.mcp.json', mcpSection, boundaryUri);
+	const skillDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'skills', 'skills', skillsSection, boundaryUri);
+	const agentDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'agents', 'agents', agentsSection, boundaryUri);
+	const instructionDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'rules', 'rules', rulesSection, boundaryUri);
 
 	// Handle embedded MCP servers in manifest
 	let embeddedMcp: IMcpServerDefinition[] = [];
-	const mcpSection = manifest?.['mcpServers'];
 	if (mcpSection && typeof mcpSection === 'object' && !Array.isArray(mcpSection) && !(hasKey(mcpSection, { paths: true }))) {
 		embeddedMcp = parseMcpServerDefinitionMap(
 			joinPath(pluginUri, formatConfig.manifestPath),
 			{ mcpServers: mcpSection },
-			pluginUri.fsPath,
+			pluginUri,
 			formatConfig,
 		);
 	}
 
 	// Handle embedded hooks in manifest
 	let embeddedHooks: IParsedHookGroup[] = [];
-	const hooksSection = manifest?.['hooks'];
 	if (hooksSection && typeof hooksSection === 'object' && !Array.isArray(hooksSection) && !(hasKey(hooksSection, { paths: true }))) {
 		const manifestUri = joinPath(pluginUri, formatConfig.manifestPath);
-		embeddedHooks = formatConfig.parseHooks(manifestUri, { hooks: hooksSection }, pluginUri, workspaceRoot, userHome);
+		embeddedHooks = formatConfig.parseHooks(manifestUri, hooksSection, pluginUri, workspaceRoot, userHome);
 	}
 
 	const [hooks, mcpServers, skills, agents, instructions] = await Promise.all([
@@ -1143,13 +1407,14 @@ export async function parsePlugin(
 			: readHooks(pluginUri, hookDirs, formatConfig, fileService, workspaceRoot, userHome),
 		embeddedMcp.length > 0
 			? Promise.resolve(embeddedMcp)
-			: readMcpServers(mcpDirs, pluginUri.fsPath, formatConfig, fileService),
-		readSkills(pluginUri, skillDirs, fileService),
-		readAgentComponents(agentDirs, fileService),
-		readInstructionComponents(instructionDirs, fileService),
+			: readPluginMcpServers(pluginUri, mcpDirs, formatConfig, fileService),
+		readPluginSkills(pluginUri, skillDirs, formatConfig, fileService),
+		readAgentComponents(agentDirs, fileService, formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : undefined),
+		readInstructionComponents(instructionDirs, fileService, formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : undefined),
 	]);
 
 	return {
+		format: formatConfig.format,
 		hooks,
 		mcpServers,
 		skills: skills.map(toParsedSkill),
@@ -1158,11 +1423,13 @@ export async function parsePlugin(
 	};
 }
 
-function toParsedAgent(resource: INamedPluginResource): IParsedAgent {
+/** Pairs an agent {@link IAgentPluginResource} with its protocol-level {@link AgentCustomization}. */
+export function toParsedAgent(resource: IAgentPluginResource): IParsedAgent {
 	return { ...resource, customization: makeAgentCustomization(resource) };
 }
 
-function toParsedSkill(resource: INamedPluginResource): IParsedSkill {
+/** Pairs a skill {@link ISkillPluginResource} with its protocol-level {@link SkillCustomization}. */
+export function toParsedSkill(resource: ISkillPluginResource): IParsedSkill {
 	return { ...resource, customization: makeSkillCustomization(resource) };
 }
 

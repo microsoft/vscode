@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -21,7 +24,7 @@ import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginR
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
-import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
 export class ManagePluginsAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.managePlugins';
@@ -32,10 +35,6 @@ export class ManagePluginsAction extends Action2 {
 			title: localize2('plugins', 'Plugins'),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
-			menu: [{
-				id: CHAT_CONFIG_MENU_ID,
-				group: '2_plugins',
-			}],
 			f1: true
 		});
 	}
@@ -43,6 +42,11 @@ export class ManagePluginsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		accessor.get(IExtensionsWorkbenchService).openSearch('@agentPlugins ');
 	}
+}
+
+interface IInstallFromSourceActionOptions {
+	/** When `true`, do not reveal the installed plugin in the Extensions viewlet after install. */
+	readonly skipReveal?: boolean;
 }
 
 class InstallFromSourceAction extends Action2 {
@@ -69,30 +73,27 @@ class InstallFromSourceAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, options?: IInstallFromSourceActionOptions): Promise<boolean> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const pluginInstallService = accessor.get(IPluginInstallService);
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const fileDialogService = accessor.get(IFileDialogService);
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
-		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo or git clone URL");
-		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository or git URL to install a plugin from");
+		const pickFolderButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.folder),
+			tooltip: localize('pickPluginFolder', "Pick Folder"),
+		};
+		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo, git URL, or local folder path");
+		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository, git URL, or local folder path to install a plugin from");
+		inputBox.buttons = [pickFolderButton];
 		inputBox.ignoreFocusOut = true;
 		inputBox.show();
 
-		store.add(inputBox.onDidChangeValue(() => {
-			inputBox.validationMessage = undefined;
-		}));
-
 		let installing = false;
-		store.add(inputBox.onDidHide(() => {
-			if (!installing) {
-				store.dispose();
-			}
-		}));
-
-		store.add(inputBox.onDidAccept(async () => {
+		let installed = false;
+		const submit = async () => {
 			const source = inputBox.value.trim();
 			if (!source) {
 				return;
@@ -113,7 +114,7 @@ class InstallFromSourceAction extends Action2 {
 				// Hide the input box so it doesn't conflict with trust/progress dialogs.
 				inputBox.hide();
 
-				const result = await pluginInstallService.installPluginFromValidatedSource(source);
+				const result = await pluginInstallService.installPluginFromSource(source);
 				if (!result.success) {
 					if (result.message) {
 						// Re-open with the error so the user can correct their input.
@@ -121,12 +122,22 @@ class InstallFromSourceAction extends Action2 {
 					}
 					inputBox.show();
 				} else {
-					const ref = parseMarketplaceReference(source);
-					if (ref) {
-						extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
+					installed = true;
+					if (!options?.skipReveal) {
+						const ref = parseMarketplaceReference(source);
+						if (ref) {
+							extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
+						}
 					}
 					store.dispose();
 				}
+			} catch (e) {
+				// An unexpected failure (e.g. cancelled trust prompt) would otherwise
+				// leave the hidden input box and awaited promise stuck. Re-show it with
+				// the error so the user can retry or cancel.
+				const detail = e instanceof Error ? e.message : String(e);
+				inputBox.validationMessage = localize('installFromSourceFailed', "Failed to install plugin: {0}", detail);
+				inputBox.show();
 			} finally {
 				installing = false;
 				if (!store.isDisposed) {
@@ -134,7 +145,39 @@ class InstallFromSourceAction extends Action2 {
 					inputBox.enabled = true;
 				}
 			}
+		};
+		store.add(inputBox.onDidChangeValue(() => {
+			inputBox.validationMessage = undefined;
 		}));
+		store.add(inputBox.onDidTriggerButton(async button => {
+			if (button !== pickFolderButton || installing) {
+				return;
+			}
+
+			const folder = (await fileDialogService.showOpenDialog({
+				title: localize('pickPluginFolderTitle', "Select Plugin Folder"),
+				openLabel: localize('selectPluginFolder', "Select Folder"),
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				availableFileSystems: [Schemas.file],
+			}))?.[0];
+			if (folder) {
+				inputBox.value = folder.fsPath;
+				await submit();
+			}
+		}));
+		return new Promise<boolean>(resolve => {
+			store.add(toDisposable(() => resolve(installed)));
+
+			store.add(inputBox.onDidHide(() => {
+				if (!installing) {
+					store.dispose();
+				}
+			}));
+
+			store.add(inputBox.onDidAccept(submit));
+		});
 	}
 }
 

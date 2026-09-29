@@ -22,10 +22,10 @@ export function setupCompletionsExperimentationService(accessor: ServicesAccesso
 	const authService = accessor.get(IAuthenticationService);
 	const instantiationService = accessor.get(IInstantiationService);
 
-	// Use onDidAuthenticationChange instead of deprecated onDidAccessTokenChange.
-	// onDidAuthenticationChange fires AFTER CopilotToken is minted and stored,
+	// Use onDidCopilotTokenChange to react to Copilot token updates (including refreshes).
+	// This fires AFTER CopilotToken is minted and stored,
 	// ensuring copilotTrackingId is available for experiment assignment.
-	const disposable = authService.onDidAuthenticationChange(() => {
+	const disposable = authService.onDidCopilotTokenChange(() => {
 		instantiationService.invokeFunction(updateCompletionsFilters, authService.copilotToken);
 	});
 

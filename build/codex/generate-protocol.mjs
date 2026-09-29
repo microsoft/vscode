@@ -19,7 +19,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync, statSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,9 +27,6 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const VERSION_FILE = path.join(REPO_ROOT, 'build', 'codex', 'codex-version.txt');
 const OUT_DIR = path.join(REPO_ROOT, 'src', 'vs', 'platform', 'agentHost', 'node', 'codex', 'protocol', 'generated');
 const FORMATTER = path.join(REPO_ROOT, 'build', 'lib', 'formatter.ts');
-
-const args = process.argv.slice(2);
-const noVersionCheck = args.includes('--no-version-check');
 
 function resolveCodexBinary() {
 	if (process.env.CODEX_BIN) {
@@ -151,6 +148,7 @@ function generate(bin, outDir, codexVersion) {
 }
 
 function main() {
+	const noVersionCheck = process.argv.slice(2).includes('--no-version-check');
 	const bin = resolveCodexBinary();
 	const binVersion = readBinaryVersion(bin);
 	const pinnedVersion = readPinnedVersion();
@@ -173,4 +171,10 @@ function main() {
 	console.log(`\nWrote ${count} files to ${path.relative(REPO_ROOT, OUT_DIR)}`);
 }
 
-main();
+// Only generate when invoked directly (e.g. `npm run codex:gen-protocol`), not when
+// imported by the freshness check (build/codex/check-protocol-sync.ts).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+	main();
+}
+
+export { REPO_ROOT, OUT_DIR, VERSION_FILE, resolveCodexBinary, readBinaryVersion, readPinnedVersion, generate };

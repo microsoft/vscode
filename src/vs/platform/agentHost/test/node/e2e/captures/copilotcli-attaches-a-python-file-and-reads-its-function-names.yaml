@@ -1,0 +1,47 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Read the attached Python file. What function names are defined in it? Reply with only the function names.
+
+            <tagged_files>
+            * ${workdir}/calculator.py (2 lines)
+            </tagged_files>
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/calculator.py
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Read the attached Python file. What function names are defined in it? Reply with only the function names.
+
+            <tagged_files>
+            * ${workdir}/calculator.py (2 lines)
+            </tagged_files>
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/calculator.py
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1. def add(a, b):\n2. \treturn a + b"
+    response:
+      content: add
+      stopReason: end_turn

@@ -8,14 +8,15 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IChatPromptSlashCommand, PromptsStorage } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IChatPromptSlashCommand } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { IAICustomizationWorkspaceService } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { AICustomizationWelcomePage } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationWelcomePage.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
@@ -31,10 +32,6 @@ const visibleSections = new Set<AICustomizationManagementSection>([
 	AICustomizationManagementSection.Plugins,
 ]);
 
-const defaultFilter: IStorageSourceFilter = {
-	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin],
-};
-
 function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 	return new class extends mock<IAICustomizationWorkspaceService>() {
 		override readonly isSessionsWindow = false;
@@ -43,12 +40,10 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 			showGettingStartedBanner: true,
 		};
 		override readonly activeProjectRoot = constObservable(URI.file('/workspace'));
+		override readonly activeProjectLabel = constObservable('workspace');
 		override readonly hasOverrideProjectRoot = constObservable(false);
 		override getActiveProjectRoot(): URI {
 			return URI.file('/workspace');
-		}
-		override getStorageSourceFilter(_type: PromptsType): IStorageSourceFilter {
-			return defaultFilter;
 		}
 		override async commitFiles(): Promise<void> { }
 		override async deleteFiles(): Promise<void> { }
@@ -60,14 +55,6 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 		}
 		override getSkillUIIntegrations(): ReadonlyMap<string, string> {
 			return new Map();
-		}
-	}();
-}
-
-function createMockCommandService(): ICommandService {
-	return new class extends mock<ICommandService>() {
-		override async executeCommand<R = unknown>(_commandId: string, ..._args: unknown[]): Promise<R | undefined> {
-			return undefined;
 		}
 	}();
 }
@@ -84,21 +71,34 @@ function createHost(container: HTMLElement): HTMLElement {
 function renderWelcomePage(ctx: ComponentFixtureContext): void {
 	const host = createHost(ctx.container);
 	const workspaceService = createMockWorkspaceService();
-	const page = ctx.disposableStore.add(new AICustomizationWelcomePage(
+	const configuration = new TestConfigurationService();
+	ctx.disposableStore.add(configuration.onDidChangeConfigurationEmitter);
+	const instantiationService = createEditorServices(ctx.disposableStore, {
+		colorTheme: ctx.theme,
+		additionalServices: reg => {
+			reg.defineInstance(IAICustomizationWorkspaceService, workspaceService);
+			reg.defineInstance(IConfigurationService, configuration);
+			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = Object.values(CustomizationMarketplaceSources);
+			}());
+		},
+	});
+	const page = ctx.disposableStore.add(instantiationService.createInstance(AICustomizationWelcomePage,
 		host,
 		workspaceService.welcomePageFeatures,
 		{
 			selectSection: () => { },
 			selectSectionWithMarketplace: () => { },
 			closeEditor: () => { },
+			reviewMigrations: () => { },
 			prefillChat: () => { },
 		},
-		createMockCommandService(),
-		workspaceService,
-		NullHoverService,
 		'Local',
 	));
 	page.rebuildCards(visibleSections);
+	if (page.isDiscover || !host.querySelector('.welcome-prompts-content-container')) {
+		throw new Error('The disabled marketplace must show the original Overview.');
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {

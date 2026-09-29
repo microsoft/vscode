@@ -5,9 +5,15 @@
 
 import path from 'path';
 import fs from 'fs';
-import { retry } from './retry.ts';
+import { execSync } from 'child_process';
 
 const root = path.dirname(path.dirname(path.dirname(import.meta.dirname)));
+
+// The microsoft/vscode-distro repository is checked out locally by
+// download-distro.yml (into .build/distro) using the agent's GitHub App
+// (Monaco) credentials, so we can resolve branch heads without a token that
+// has private repository access.
+const distroPath = path.join(root, '.build', 'distro');
 
 function getEnv(name: string): string {
 	const result = process.env[name];
@@ -19,30 +25,14 @@ function getEnv(name: string): string {
 	return result;
 }
 
-interface GitHubBranchResponse {
-	commit: {
-		sha: string;
-	};
+function assertDistroCheckout(): void {
+	if (!fs.existsSync(path.join(distroPath, '.git'))) {
+		throw new Error(`Expected a vscode-distro checkout at ${distroPath} but found none. Ensure download-distro.yml ran before this check.`);
+	}
 }
 
-async function getDistroBranchHead(branch: string, token: string): Promise<string> {
-	const url = `https://api.github.com/repos/microsoft/vscode-distro/branches/${encodeURIComponent(branch)}`;
-
-	const response = await fetch(url, {
-		headers: {
-			'Accept': 'application/vnd.github+json',
-			'Authorization': `Bearer ${token}`,
-			'X-GitHub-Api-Version': '2022-11-28',
-			'User-Agent': 'VSCode Build'
-		}
-	});
-
-	if (!response.ok) {
-		throw new Error(`Failed to fetch branch ${branch} from vscode-distro: ${response.status} ${response.statusText}`);
-	}
-
-	const data = await response.json() as GitHubBranchResponse;
-	return data.commit.sha;
+function getDistroBranchHead(branch: string): string {
+	return execSync(`git -C "${distroPath}" rev-parse "refs/remotes/origin/${branch}"`, { encoding: 'utf8' }).trim();
 }
 
 async function checkDistroCommit(): Promise<void> {
@@ -71,16 +61,18 @@ async function checkDistroCommit(): Promise<void> {
 	const branch = branchMatch[1];
 	console.log(`Current branch: ${branch}`);
 
-	// Get the GitHub token
-	const token = getEnv('GITHUB_TOKEN');
+	// Make sure the distro repository is actually checked out before we try to
+	// resolve a branch head from it; otherwise a missing checkout would be
+	// indistinguishable from a branch that simply doesn't exist in distro.
+	assertDistroCheckout();
 
-	// Fetch the HEAD of the matching branch in vscode-distro
+	// Resolve the HEAD of the matching branch from the local distro checkout
 	let distroBranchHead: string;
 	try {
-		distroBranchHead = await retry(() => getDistroBranchHead(branch, token));
+		distroBranchHead = getDistroBranchHead(branch);
 	} catch (error) {
 		// If the branch doesn't exist in distro, that's expected for feature branches
-		console.log(`Could not fetch branch '${branch}' from vscode-distro: ${error}`);
+		console.log(`Could not resolve branch '${branch}' from local vscode-distro checkout: ${error}`);
 		console.log('This is expected for feature branches that have not been merged to distro');
 		return;
 	}

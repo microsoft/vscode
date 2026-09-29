@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { type AgentProvider } from './agentService.js';
+import { type AgentProvider } from './agent.js';
 
 const REMOTE_AGENT_HOST_SESSION_TYPE_PREFIX = 'remote-';
 
@@ -55,6 +55,22 @@ export function findRemoteAgentHostSessionTypeAuthority(sessionType: string, con
 
 function isRemoteAgentHostSessionTypeForAuthority(sessionType: string, connectionAuthority: string): boolean {
 	return !!connectionAuthority && sessionType.startsWith(remoteAgentHostSessionTypeAuthorityPrefix(connectionAuthority));
+}
+
+/**
+ * Extracts the harness/provider suffix from a remote agent host session type.
+ *
+ * Remote session types are formatted as `remote-{authority}-{provider}`. The
+ * authority may contain `-`, but provider names do not, so the harness is the
+ * final `-`-delimited segment. Returns `undefined` for non-remote session types.
+ */
+export function parseRemoteAgentHostHarness(sessionType: string): string | undefined {
+	if (!isRemoteAgentHostSessionType(sessionType)) {
+		return undefined;
+	}
+	const lastDash = sessionType.lastIndexOf('-');
+	const harness = sessionType.slice(lastDash + 1);
+	return harness || undefined;
 }
 
 /**

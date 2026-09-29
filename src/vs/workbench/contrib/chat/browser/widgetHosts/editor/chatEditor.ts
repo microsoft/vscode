@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import * as nls from '../../../../../../nls.js';
 import { ITextResourceConfigurationService } from '../../../../../../editor/common/services/textResourceConfiguration.js';
 import { IContextKeyService, IScopedContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -30,10 +31,12 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatModel, IChatModelInputState, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
+import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentHostSessionInputPills.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
+import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	/**
@@ -42,6 +45,15 @@ export interface IChatEditorOptions extends IEditorOptions {
 	 * https://github.com/microsoft/vscode/pull/278476 as input state is stored on the model.
 	 */
 	modelInputState?: IChatModelInputState;
+	/**
+	 * Session type explicitly selected by the user when opening a new chat editor.
+	 * Non-local session types are already encoded in the editor resource, so this
+	 * currently preserves an explicit local selection when default/last-used
+	 * provider resolution would otherwise apply.
+	 */
+	explicitSessionType?: string;
+	/** Creation-only metadata describing why the new session type was selected. */
+	sessionTypeSelectionReason?: SessionTypeSelectionReason;
 	target?: { data: IExportableChatData | ISerializableChatData };
 	title?: {
 		preferred?: string;
@@ -49,9 +61,7 @@ export interface IChatEditorOptions extends IEditorOptions {
 	};
 }
 
-export interface IChatEditorViewState {
-	scrollTop: number;
-}
+export type IChatEditorViewState = IChatWidgetViewState;
 
 export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState> {
 	private static readonly VIEW_STATE_KEY = 'chatEditorViewState';
@@ -85,9 +95,9 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		super(ChatEditorInput.EditorID, group, ChatEditor.VIEW_STATE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 	}
 
-	private async clear() {
+	private async clear(resolvedSessionType?: IResolvedNewChatSessionType) {
 		if (this.input) {
-			return this.instantiationService.invokeFunction(clearChatEditor, this.input as ChatEditorInput);
+			return this.instantiationService.invokeFunction(clearChatEditor, this.input as ChatEditorInput, resolvedSessionType);
 		}
 	}
 
@@ -106,9 +116,11 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				undefined,
 				{
 					autoScroll: mode => mode !== ChatModeKind.Ask,
+					readOnlyBannerAtTop: true,
 					renderFollowups: true,
 					supportsFileReferences: true,
-					clear: () => this.clear(),
+					clear: resolvedSessionType => this.clear(resolvedSessionType),
+					enableFind: true,
 					rendererOptions: {
 						renderTextEditsAsSummary: (uri) => {
 							return true;
@@ -119,6 +131,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 					enableImplicitContext: true,
 					enableWorkingSet: 'explicit',
 					supportsChangingModes: true,
+					enableSessionStateIndicator: true,
 				},
 				{
 					listForeground: editorForeground,
@@ -139,6 +152,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			}
 		}));
 		this.widget.render(parent);
+		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this.widget, 'auto'));
 		this.widget.setVisible(true);
 	}
 
@@ -159,8 +173,14 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 	}
 
 	override clearInput(): void {
-		this.widget.setModel(undefined);
 		super.clearInput();
+		this.widget.setModel(undefined);
+		// Clear the bound-resource attribute while the rebind is in flight so
+		// test automation can wait for the next `updateModel` cycle to finish
+		// before acting on the editor.
+		if (this._editorContainer) {
+			delete this._editorContainer.dataset.boundChatResource;
+		}
 	}
 
 	private showLoadingInChatWidget(message: string): void {
@@ -207,6 +227,10 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 	}
 
 	override async setInput(input: ChatEditorInput, options: IChatEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		// Capture the input draft before the load window opens so text typed
+		// during loading is preserved when the model binds. See #325323.
+		const inputBeforeLoad = this.widget?.getInput() ?? '';
+
 		// Show loading indicator early for non-local sessions to prevent layout shifts
 		let isContributedChatSession = false;
 		const chatSessionType = input.getSessionType();
@@ -231,7 +255,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				const contributions = this.chatSessionsService.getAllChatSessionContributions();
 				const contribution = contributions.find(c => c.type === chatSessionType);
 				if (contribution) {
-					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type, contribution.agentHostProviderId);
 					isContributedChatSession = true;
 				} else {
 					this.widget.unlockFromCodingAgent();
@@ -260,11 +284,11 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				editorModel.model.inputModel.setState(options.modelInputState);
 			}
 
-			this.updateModel(editorModel.model);
+			setModelPreservingInputTypedWhileLoading(this.widget, inputBeforeLoad, () => this.updateModel(editorModel.model));
 
 			const viewState = this.loadEditorViewState(input, context);
 			if (viewState) {
-				this._widget.scrollTop = viewState.scrollTop;
+				this._widget.restoreViewState(viewState);
 			}
 
 			if (isContributedChatSession && options?.title?.preferred && input.sessionResource) {
@@ -278,13 +302,21 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 	private updateModel(model: IChatModel): void {
 		this.widget.setModel(model);
+		// Expose the bound chat resource on the DOM so test automation can
+		// synchronize with the post-rebind state without polling timeouts.
+		// Set AFTER `setModel` so observers see the attribute only once the
+		// widget is fully attached to the loaded model. Mirrors the same
+		// signal exposed by the Agents Window's `ChatView`.
+		if (this._editorContainer) {
+			this._editorContainer.dataset.boundChatResource = model.sessionResource.toString();
+		}
 	}
 
-	protected computeEditorViewState(_resource: URI): IChatEditorViewState | undefined {
-		if (!this._widget) {
+	protected computeEditorViewState(resource: URI): IChatEditorViewState | undefined {
+		if (!this._widget || !isEqual(this._widget.viewModel?.sessionResource, resource)) {
 			return undefined;
 		}
-		return { scrollTop: this._widget.scrollTop };
+		return this._widget.getViewState();
 	}
 
 	protected tracksEditorViewState(input: EditorInput): boolean {

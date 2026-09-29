@@ -22,6 +22,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { registerSharedProcessRemoteService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
+import product from '../../../../platform/product/common/product.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ViewContainerLocation } from '../../../common/views.js';
@@ -31,8 +32,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import { AgentHostContribution } from '../browser/agentSessions/agentHost/agentHostChatContribution.js';
-import { AgentHostTerminalContribution } from '../browser/agentSessions/agentHost/agentHostTerminalContribution.js';
+import './codexCustomizationSettings.contribution.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from '../browser/agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
@@ -46,9 +46,10 @@ import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb.js';
-import { shouldWarnForSessionShutdown } from './chatLifecycle.js';
+import { registerInstallDictationModelAction } from './actions/installDictationModelAction.js';
+import { confirmSessionShutdown, getEffectiveSessionShutdownReason, shouldWarnForInFlightSessionShutdown, shouldWarnForSessionShutdown } from './chatLifecycle.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
-import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, AgentsHandoffInputTipContribution, ToggleOpenInAgentsWindowTitleBarAction } from './agentSessions/agentSessionsActions.js';
+import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, AgentsHandoffInputTipContribution, AgentsParallelWorkContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction, ResetCopilotHarnessIntroductionAction } from './agentSessions/agentSessionsActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 import { NativePluginGitCommandService } from './pluginGitCommandService.js';
 
@@ -165,6 +166,8 @@ class ChatLifecycleHandler extends Disposable {
 		@IExtensionService extensionService: IExtensionService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -182,15 +185,21 @@ class ChatLifecycleHandler extends Disposable {
 			return false; // AI features are disabled
 		}
 
+		if (shouldWarnForInFlightSessionShutdown(this.chatService.getPendingRequestSessionTypes(), reason)) {
+			return true;
+		}
+
 		return this.agentSessionsService.model.sessions.some(session => shouldWarnForSessionShutdown(session, reason));
 	}
 
-	private shouldVetoShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	private async shouldVetoShutdown(reason: ShutdownReason): Promise<boolean> {
 		if (this.environmentService.enableSmokeTestDriver) {
 			return false;
 		}
 
-		if (!this.hasSessionThatWillStop(reason)) {
+		const windowCount = reason === ShutdownReason.CLOSE ? await this.nativeHostService.getWindowCount() : 0;
+		const effectiveReason = getEffectiveSessionShutdownReason(reason, windowCount, isMacintosh);
+		if (!this.hasSessionThatWillStop(effectiveReason)) {
 			return false;
 		}
 
@@ -198,44 +207,20 @@ class ChatLifecycleHandler extends Disposable {
 			return false;
 		}
 
-		return this.doShouldVetoShutdown(reason);
-	}
-
-	private async doShouldVetoShutdown(reason: ShutdownReason): Promise<boolean> {
-
 		this.widgetService.revealWidget();
-
-		let message: string;
-		let detail: string;
-		switch (reason) {
-			case ShutdownReason.CLOSE:
-				message = localize('closeTheWindow.message', "A session is in progress. Are you sure you want to close the window?");
-				detail = localize('closeTheWindow.detail', "The session will stop if you close the window.");
-				break;
-			case ShutdownReason.LOAD:
-				message = localize('changeWorkspace.message', "A session is in progress. Are you sure you want to change the workspace?");
-				detail = localize('changeWorkspace.detail', "The session will stop if you change the workspace.");
-				break;
-			case ShutdownReason.RELOAD:
-				message = localize('reloadTheWindow.message', "A session is in progress. Are you sure you want to reload the window?");
-				detail = localize('reloadTheWindow.detail', "The session will stop if you reload the window.");
-				break;
-			default:
-				message = isMacintosh ? localize('quit.message', "A session is in progress. Are you sure you want to quit?") : localize('exit.message', "A session is in progress. Are you sure you want to exit?");
-				detail = isMacintosh ? localize('quit.detail', "The session will stop if you quit.") : localize('exit.detail', "The session will stop if you exit.");
-				break;
-		}
-
-		const result = await this.dialogService.confirm({ message, detail });
-
-		return !result.confirmed;
+		return !await confirmSessionShutdown(this.dialogService, effectiveReason);
 	}
 }
 
 registerAction2(OpenWorkspaceInAgentsWindowAction);
+registerAction2(OpenWorkspaceInAgentsWindowChatTitleAction);
+registerAction2(OpenWorkspaceInAgentsWindowTitleBarAction);
 registerAction2(ToggleOpenInAgentsWindowTitleBarAction);
 registerAction2(OpenAgentsWindowAction);
 registerAction2(OpenChatSessionInAgentsWindowAction);
+if (!product.quality) {
+	registerAction2(ResetCopilotHarnessIntroductionAction);
+}
 registerAction2(StartVoiceChatAction);
 
 registerAction2(VoiceChatInChatViewAction);
@@ -253,16 +238,16 @@ registerAction2(StopReadAloud);
 registerChatDeveloperActions();
 registerChatExportZipAction();
 registerExportAgentTracesDbAction();
+registerInstallDictationModelAction();
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatCommandLineHandler.ID, ChatCommandLineHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrottlingHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(OpenWorkspaceInAgentsContribution.ID, OpenWorkspaceInAgentsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AgentsHandoffInputTipContribution.ID, AgentsHandoffInputTipContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(AgentsParallelWorkContribution.ID, AgentsParallelWorkContribution, WorkbenchPhase.Eventually);
 
 // How long to wait for the agent host to surface an AgentInfo before
 // throwing an error. Long enough for normal startup, short enough to avoid
@@ -322,11 +307,13 @@ async function resolveAgentHostSessionType(agentHostService: IAgentHostService):
 	return `agent-host-${resolved.provider}`;
 }
 
+type NewAgentHostSessionSendOptions = Parameters<typeof openChatSession>[2];
+
 // Open a new Agent Host session at the given position. Shared by the session
 // type picker command and the static sidebar/editor commands below.
 // Delegates to `openChatSession` so the session type picker, context keys,
 // and welcome flows all stay in sync with the dynamic per-agent path.
-async function openNewAgentHostSession(accessor: ServicesAccessor, position: ChatSessionPosition): Promise<void> {
+async function openNewAgentHostSession(accessor: ServicesAccessor, position: ChatSessionPosition, chatSendOptions?: NewAgentHostSessionSendOptions): Promise<void> {
 	// Snapshot the services we need synchronously — `accessor` is only valid
 	// before the first `await`. Use the instantiation service to mint a fresh
 	// accessor for the downstream `openChatSession` call.
@@ -337,7 +324,7 @@ async function openNewAgentHostSession(accessor: ServicesAccessor, position: Cha
 		type: sessionType,
 		displayName: getAgentSessionProviderName(sessionType),
 		position,
-	}));
+	}, chatSendOptions));
 }
 
 // Static sidebar/editor open commands for the Agent Host umbrella scheme.
@@ -347,9 +334,9 @@ async function openNewAgentHostSession(accessor: ServicesAccessor, position: Cha
 // invoke before the dynamic registration has occurred.
 CommandsRegistry.registerCommand(
 	`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`,
-	accessor => openNewAgentHostSession(accessor, ChatSessionPosition.Sidebar)
+	(accessor, chatSendOptions?: NewAgentHostSessionSendOptions) => openNewAgentHostSession(accessor, ChatSessionPosition.Sidebar, chatSendOptions)
 );
 CommandsRegistry.registerCommand(
 	`workbench.action.chat.openNewSessionEditor.${AgentSessionProviders.AgentHostCopilot}`,
-	accessor => openNewAgentHostSession(accessor, ChatSessionPosition.Editor)
+	(accessor, chatSendOptions?: NewAgentHostSessionSendOptions) => openNewAgentHostSession(accessor, ChatSessionPosition.Editor, chatSendOptions)
 );

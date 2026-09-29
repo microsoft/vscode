@@ -11,7 +11,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { FileEditKind, ToolCallStatus, type ToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -158,8 +158,8 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 				kind: edit.kind,
 				resource,
 				originalResource: edit.originalResource ? toAgentHostUri(edit.originalResource, authority) : undefined,
-				beforeContentUri: edit.beforeContentUri ? toAgentHostUri(edit.beforeContentUri, authority) : undefined,
-				afterContentUri: edit.afterContentUri ? toAgentHostUri(edit.afterContentUri, authority) : undefined,
+				beforeContentUri: edit.beforeContentUri ? toAgentHostContentUri(edit.beforeContentUri, authority) : undefined,
+				afterContentUri: edit.afterContentUri ? toAgentHostContentUri(edit.afterContentUri, authority) : undefined,
 				undoStopId: edit.undoStopId,
 				diff: edit.diff,
 			};
@@ -301,7 +301,8 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	}
 
 	hasEditsInRequest(requestId: string, _reader?: IReader): boolean {
-		return this._checkpoints.some(cp => cp.requestId === requestId);
+		const cp = this._checkpoints.find(c => c.requestId === requestId);
+		return !!cp && cp.edits.length > 0;
 	}
 
 	// ---- Unsupported / no-op (agent host owns edits server-side) ------------

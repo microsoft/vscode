@@ -55,6 +55,9 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 		@IFileService private readonly _fileService: IFileService,
 		@ITimerService timerService: ITimerService
 	) {
+		if (this._environmentServie.extensionTestsLocationURI) {
+			return;
+		}
 
 		timerService.perfBaseline.then(value => {
 			if (value < 0) {

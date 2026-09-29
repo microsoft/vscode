@@ -116,6 +116,39 @@ suite('platform/otel - outboundForwarder', () => {
 		strictEqual(logger.messages.filter(m => m.level === 'Warning').length, 0);
 	});
 
+	test('OtlpHttpForwarder uses supplied fetch with raw body and custom headers', async () => {
+		const logger = store.add(new CapturingLogger());
+		let captured: { input: string | URL | Request; init?: RequestInit } | undefined;
+		const fetchFn: typeof globalThis.fetch = async (input, init) => {
+			captured = { input, init };
+			return new Response(undefined, { status: 200 });
+		};
+		const fwd = store.add(new OtlpHttpForwarder({
+			endpoint: 'https://collector.example.com/v1/traces',
+			headers: { authorization: 'Bearer test-token' },
+		}, logger, fetchFn));
+		const body = Buffer.from([0, 1, 2, 255]);
+
+		fwd.forwardRaw(body, 'application/x-protobuf');
+		await fwd.flush();
+
+		deepStrictEqual({
+			url: captured?.input,
+			method: captured?.init?.method,
+			contentType: new Headers(captured?.init?.headers).get('content-type'),
+			contentLength: new Headers(captured?.init?.headers).get('content-length'),
+			authorization: new Headers(captured?.init?.headers).get('authorization'),
+			body: [...new Uint8Array(captured?.init?.body as ArrayBuffer)],
+		}, {
+			url: 'https://collector.example.com/v1/traces',
+			method: 'POST',
+			contentType: 'application/x-protobuf',
+			contentLength: '4',
+			authorization: 'Bearer test-token',
+			body: [0, 1, 2, 255],
+		});
+	});
+
 	test('OtlpHttpForwarder logs warning on upstream 500 and does not throw', async () => {
 		const upstream = await startFakeUpstream('fail');
 		const logger = store.add(new CapturingLogger());

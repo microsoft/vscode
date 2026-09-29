@@ -8,11 +8,95 @@ import { ConfigKey, IConfigurationService } from '../../../configuration/common/
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { getModelCapabilityOverride, modelSupportsContextEditing, modelSupportsPDFDocuments, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
+import { getModelCapabilityOverride, getVerbosityForModelSync, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isGpt6Family, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelPrefersJsonNotebookRepresentation, modelSupportCacheBreakPoints, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string, model: string = family) {
 	return { family, model } as unknown as IChatEndpoint;
 }
+
+describe('OpenAI prompt model classification', () => {
+	test.each([
+		['gpt-5.7', 'copilot', true],
+		['gpt-6', 'Azure', true],
+		['GPT-6', 'copilot', true],
+		['OpenAI', 'copilot', true],
+		['preview-model', 'OpenAI', true],
+		['preview-model', 'openai', true],
+		['preview-model', 'OpenAI Compatible', false],
+		['OpenAI Compatible', 'custom', false],
+		['unknown', 'custom', false],
+		['claude-sonnet-4.6', 'Anthropic', false],
+		['gemini-3-pro', 'Google', false],
+	])('classifies %s from %s as OpenAI: %s', (family, modelProvider, expected) => {
+		expect(isOpenAIModel({ family, modelProvider })).toBe(expected);
+	});
+
+	test.each([
+		['gpt-5.1', isGpt51Family],
+		['gpt-5.3-codex', isGpt53Codex],
+		['gpt-5.4', isGpt54],
+		['gpt-5.5', isGpt55],
+		['gpt-5.6', isGpt56],
+	] as const)('%s matcher respects version boundaries', (family, matches) => {
+		expect([
+			matches(family),
+			matches(`${family}-mini`),
+			matches(`${family}-20260828`),
+			matches(`${family}0`),
+			matches(`${family}0-codex`),
+			matches(`${family}.1`),
+		]).toEqual([true, true, true, false, false, false]);
+	});
+});
+
+describe('GPT-6 family capabilities', () => {
+	test.each(['gpt-6', 'gpt-6-preview', 'gpt-6-codex', 'gpt-6.1', 'gpt-6.1-mini', 'gpt-6-astra'])('enables capabilities for %s and aliased endpoints', family => {
+		const model = fakeModel(family, 'preview-model');
+
+		expect({
+			isGpt6: isGpt6Family(model),
+			isGpt6ByFamily: isGpt6Family(family),
+			isGpt56: isGpt56(model),
+			applyPatch: modelSupportsApplyPatch(model),
+			applyPatchExclusively: modelCanUseApplyPatchExclusively(model),
+			simplifiedApplyPatchInstructions: modelSupportsSimplifiedApplyPatchInstructions(model),
+			jsonNotebook: modelPrefersJsonNotebookRepresentation(model),
+			pdf: modelSupportsPDFDocuments(model),
+			cacheBreakpoints: modelSupportCacheBreakPoints(model),
+			toolSearch: modelSupportsToolSearch(model),
+			toolSearchByFamily: modelSupportsToolSearch(family),
+			replaceString: modelSupportsReplaceString(model),
+			multiReplaceString: modelSupportsMultiReplaceString(model),
+			replaceStringExclusively: modelCanUseReplaceStringExclusively(model),
+			contextEditing: modelSupportsContextEditing(model),
+			verbosity: [true, false, undefined].map(enabled => getVerbosityForModelSync(model, enabled)),
+		}).toEqual({
+			isGpt6: true,
+			isGpt6ByFamily: true,
+			isGpt56: false,
+			applyPatch: true,
+			applyPatchExclusively: true,
+			simplifiedApplyPatchInstructions: true,
+			jsonNotebook: true,
+			pdf: true,
+			cacheBreakpoints: true,
+			toolSearch: true,
+			toolSearchByFamily: true,
+			replaceString: false,
+			multiReplaceString: false,
+			replaceStringExclusively: false,
+			contextEditing: false,
+			verbosity: ['low', undefined, undefined],
+		});
+	});
+
+	test.each(['gpt-5.6', 'gpt-7', 'GPT-6', 'custom-gpt-6', 'unknown', ''])('does not classify %s as a GPT-6 family based on the model id', family => {
+		expect([
+			isGpt6Family(family),
+			isGpt6Family(fakeModel(family, 'gpt-6')),
+		]).toEqual([false, false]);
+	});
+});
 
 describe('modelSupportsPDFDocuments', () => {
 	test('returns true for claude family', () => {
@@ -38,6 +122,78 @@ describe('modelSupportsPDFDocuments', () => {
 	test('returns false for other families', () => {
 		expect(modelSupportsPDFDocuments(fakeModel('gemini-2.0-flash'))).toBe(false);
 		expect(modelSupportsPDFDocuments(fakeModel('o4-mini'))).toBe(false);
+	});
+});
+
+describe('Kimi edit tool capabilities', () => {
+	test('uses replace-string tools without insert-edit or apply-patch', () => {
+		const models = {
+			'kimi-k2.6': fakeModel('kimi-k2.6'),
+			'kimi-k2.7-code': fakeModel('kimi-k2.7-code'),
+			'kimi-k3': fakeModel('kimi-k3'),
+			'moonshot/kimi-k2.7-code': fakeModel('moonshot/kimi-k2.7-code'),
+			'moonshot/kimi-k2.6': fakeModel('moonshot/kimi-k2.6'),
+			'unknown-family + kimi model id': fakeModel('unknown-family', 'kimi-k2.7-code-preview'),
+		};
+		const actual = Object.fromEntries(Object.entries(models).map(([name, model]) => [name, {
+			isKimiFamily: isKimiFamily(model),
+			supportsReplaceString: modelSupportsReplaceString(model),
+			supportsMultiReplaceString: modelSupportsMultiReplaceString(model),
+			canUseReplaceStringExclusively: modelCanUseReplaceStringExclusively(model),
+			supportsApplyPatch: modelSupportsApplyPatch(model),
+			canUseApplyPatchExclusively: modelCanUseApplyPatchExclusively(model),
+		}]));
+
+		expect(actual).toEqual({
+			'kimi-k2.6': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'kimi-k2.7-code': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'kimi-k3': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'moonshot/kimi-k2.7-code': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'moonshot/kimi-k2.6': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'unknown-family + kimi model id': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+		});
 	});
 });
 
@@ -72,10 +228,13 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-opus-4-1-20250805')).toBe(false);
 	});
 
-	test('rejects Haiku and legacy Claude families', () => {
-	// Haiku is current-gen but has no tool search support — denied explicitly.
-		expect(modelSupportsToolSearch('claude-haiku-4-5')).toBe(false);
-		expect(modelSupportsToolSearch('claude-haiku-4.5')).toBe(false);
+	test('supports Haiku 4.5, the only shipping Haiku', () => {
+		expect(modelSupportsToolSearch('claude-haiku-4-5')).toBe(true);
+		expect(modelSupportsToolSearch('claude-haiku-4.5')).toBe(true);
+		expect(modelSupportsToolSearch('claude-haiku-4-5-20251001')).toBe(true);
+	});
+
+	test('rejects legacy Claude families', () => {
 		expect(modelSupportsToolSearch('claude-3-5-sonnet-20241022')).toBe(false);
 		expect(modelSupportsToolSearch('claude-3-opus')).toBe(false);
 	});
@@ -118,12 +277,20 @@ describe('modelSupportsContextEditing', () => {
 	test('matches Claude id strings', () => {
 		expect({
 			'claude-opus-4.6': modelSupportsContextEditing('claude-opus-4.6'),
+			'claude-fable-5': modelSupportsContextEditing('claude-fable-5'),
+			'claude-opus-4.7': modelSupportsContextEditing('claude-opus-4.7'),
+			'claude-opus-4.8': modelSupportsContextEditing('claude-opus-4.8'),
+			'claude-opus-4-8-1m': modelSupportsContextEditing('claude-opus-4-8-1m'),
 			'claude-sonnet-4.5': modelSupportsContextEditing('claude-sonnet-4.5'),
 			'claude-haiku-4-5': modelSupportsContextEditing('claude-haiku-4-5'),
 			'claude-opus-4.6-1m': modelSupportsContextEditing('claude-opus-4.6-1m'),
 			'gpt-5': modelSupportsContextEditing('gpt-5'),
 		}).toEqual({
 			'claude-opus-4.6': true,
+			'claude-fable-5': true,
+			'claude-opus-4.7': true,
+			'claude-opus-4.8': true,
+			'claude-opus-4-8-1m': false, // 1M variant excluded
 			'claude-sonnet-4.5': true,
 			'claude-haiku-4-5': true,
 			'claude-opus-4.6-1m': false, // 1M variant excluded

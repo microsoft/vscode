@@ -8,8 +8,56 @@
 	min-width: 0;
 }
 
-.chat-terminal-progress-row > div:first-child {
-	display: none;
+/*
+ * Intention label layout: when the model supplies an intention, the collapsed
+ * terminal-row header shows "<intention> <command>" as two flex cells on a
+ * single non-wrapping line. Each cell ellipsis-truncates and they split the
+ * available width equally when the content overflows the row.
+ */
+.chat-terminal-thinking-collapsible.chat-terminal-has-intention .chat-used-context-label {
+	width: 100%;
+	max-width: 100%;
+}
+
+.chat-terminal-thinking-collapsible.chat-terminal-has-intention .monaco-button.monaco-icon-button {
+	width: fit-content;
+	max-width: 100%;
+	justify-content: flex-start;
+}
+
+.chat-terminal-thinking-collapsible.chat-terminal-has-intention .monaco-button-mdlabel {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.chat-terminal-label-flex {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: baseline;
+	column-gap: 4px;
+	min-width: 0;
+	width: 100%;
+}
+
+.chat-terminal-label-flex > .chat-terminal-intention,
+.chat-terminal-label-flex > .chat-terminal-command {
+	/* Natural width so short content stays inline and adjacent; only shrink
+	 * (dividing the available space) once the row would overflow. */
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-terminal-label-flex > .chat-terminal-command > code {
+	white-space: nowrap;
+}
+
+.chat-terminal-label-flex > .chat-terminal-label-suffix {
+	flex: 0 0 auto;
+	white-space: nowrap;
 }
 
 .chat-terminal-content-part .chat-terminal-content-title {
@@ -124,6 +172,7 @@
 
 .chat-terminal-content-part .chat-terminal-action-bar {
 	display: flex;
+	flex-shrink: 0;
 	gap: 4px;
 	margin-left: auto;
 	align-self: center;
@@ -178,6 +227,13 @@
 .chat-terminal-output-container.expanded {
 	display: block;
 }
+.chat-terminal-output-container.chat-terminal-output-clickable,
+.chat-terminal-output-clickable .xterm:not(.column-select),
+.chat-terminal-output-clickable .xterm:not(.column-select) .xterm-screen,
+.chat-terminal-output-clickable .xterm:not(.column-select) .terminal-widget-container {
+	cursor: pointer;
+}
+
 .chat-terminal-output-container > .monaco-scrollable-element {
 	width: 100%;
 	background: inherit;
@@ -217,12 +273,12 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
 	display: none;
 }
-.chat-terminal-output {
-	margin: 0;
-	white-space: pre;
-	font-size: 12px;
+.chat-terminal-output-truncation:not(:empty) {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	line-height: normal;
+	padding: 4px 12px 0;
 }
-
 .chat-terminal-output-empty {
 	display: none;
 	font-style: italic;
@@ -245,20 +301,6 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 
 .chat-terminal-output-container > .monaco-scrollable-element > .scrollbar.horizontal .slider {
 	pointer-events: auto;
-}
-
-.chat-terminal-output div,
-.chat-terminal-output span {
-	height: auto;
-	line-height: normal;
-}
-
-.chat-terminal-output pre {
-	margin: 0;
-}
-.chat-terminal-output-info {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-chat-font-size-body-xs);
 }
 
 .chat-used-context-label .chat-terminal-show-link {

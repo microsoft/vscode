@@ -1,188 +1,126 @@
-# Sessions List
+# Sessions list
 
-The sessions list is the primary navigation surface in the Agents Window. It occupies the **Sidebar** and presents all sessions from all registered providers as a grouped, filterable, sortable list.
+> **Specification change gate:** Do not update this document for row rendering, styling, actions, picker flows, or bug fixes. Update it only when placement precedence, state ownership, or a cross-surface list contract changes.
 
----
+## Scope
 
-## Overview
+The Sessions list is the primary navigation surface in the Agents Window. It aggregates provider-neutral sessions into a grouped, filterable tree and owns user presentation state such as pins, custom groups, ordering, and collapsed sections.
 
-The sessions list (`SessionsView` + `SessionsList`) displays every session known to `ISessionsManagementService`. Sessions are aggregated from all registered providers and shown in collapsible **sections**. The user can group, sort, filter, pin, and archive sessions. Selecting a session navigates to it.
+This specification defines stable placement and state-ownership rules. Row styling, labels, icons, action placement, animation, picker workflows, and implementation algorithms belong in code and focused tests.
 
-### Key Files
+## Ownership
 
-| File | Purpose |
-|------|---------|
-| `contrib/sessions/browser/views/sessionsView.ts` | `SessionsView` — ViewPane with header, new-session button, sort/group/filter persistence |
-| `contrib/sessions/browser/views/sessionsList.ts` | `SessionsList` — tree control, grouping/filtering logic, menu IDs, context keys |
-| `services/sessions/browser/sessionsListModelService.ts` | `ISessionsListModelService` — pin/read state + shared status icon (UI-only, not synced to providers) |
-| `contrib/sessions/browser/views/sessionsViewActions.ts` | All registered actions (sort, group, filter, pin, archive, rename, navigate) |
+| Concern | Owner |
+|---------|-------|
+| Session catalog and lifecycle | `ISessionsManagementService` |
+| Pin and per-sort ordering state | `ISessionsListModelService` |
+| Custom groups and membership | `ISessionGroupsService` |
+| Top-level group/workspace order | `ISessionSectionOrderService` |
+| Tree composition and presentation | `SessionsView` and `SessionsList` |
 
----
+List-owned state is local presentation state. It is not synchronized back to a provider and must not mutate provider timestamps or metadata.
 
-## Features
+## Inputs
 
-### Session Row
+The list consumes sessions from `ISessionsManagementService`. Providers decide whether a model represents a workspace session, quick chat, automation, or archived session through provider-neutral fields.
 
-Each session row displays:
+Automation runs are excluded from the primary Sessions list. Surfaces that need session-row presentation without sectioning use `SessionsFlatList`.
 
-- **Status icon** — animated indicator for InProgress / NeedsInput / Error / Completed / Unread
-- **Title** — the session's display title (observable)
-- **Workspace badge** — folder/worktree/cloud icon + label (hidden when redundant with section header)
-- **Diff stats** — `+insertions −deletions` when the session has pending changes
-- **Status description or timestamp** — InProgress/NeedsInput/Error show a status message; otherwise a relative timestamp
-- **Approval row** (optional) — pending agent approvals with an "Allow" button
+## Placement precedence
 
-### Grouping
+A session appears in exactly one primary section. Higher-precedence states win:
 
-Sessions are organized into sections with fixed priority:
-
-```
-1. Pinned        ← always first
-2. Regular       ← grouped by workspace or date
-3. Done/Archived ← always last
+```text
+Archived
+    > Pinned
+    > Custom group
+    > External (when dedicated sectioning is enabled)
+    > Quick chat
+    > Workspace or date group
 ```
 
-Two grouping modes (user-switchable):
+- Archived sessions appear only in the final archived section.
+- Pinned sessions appear in the pinned section.
+- A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat.
+- When dedicated external sectioning is enabled, remaining external sessions appear together before the archived section. Pinning and custom-group membership retain their precedence; disabling sectioning returns external sessions to the ordinary grouping rules without changing that presentation state.
+- Remaining unpinned quick chats appear in the dedicated chats section.
+- Remaining sessions follow the selected workspace or date grouping.
+- A regular session created by another regular session is initially placed
+  immediately after its creator. While it has neither custom-group membership
+  nor an explicit ungrouped preference, it inherits the creator's custom group
+  when one becomes available. Subsequent user grouping, ungrouping, and
+  reordering are ordinary persisted list state.
 
-- **By Workspace** (default) — one section per workspace label, sorted alphabetically. "Unknown" workspace sorts last.
-- **By Date** — sections: Today, Yesterday, Last 7 Days, Older.
+The active session remains visible even when a filter would otherwise exclude it.
 
-Archived sessions always go to the "Done" section regardless of grouping mode. Archive wins over pin — an archived session is never shown in Pinned.
+A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and exposes the requested spotlight target. An archive-action reveal also keeps the action visible without hover or focus. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 
-### Sorting
+## Grouping
 
-- **By Created** (default) — `createdAt` descending
-- **By Updated** — `updatedAt` descending
+### Workspace grouping
 
-### Workspace Group Capping
+User-created groups and workspace sections share a user-managed order below the fixed sections. Workspace capping may initially hide inactive workspaces; search and explicit user promotion reveal them.
 
-When grouping by workspace, the list shows only **primary** workspace sections by default:
+### Date grouping
 
-- A workspace qualifies as primary if it has recent activity (last 4 days), matches the open window's folder, or contains the most recently updated session
-- Remaining workspaces collapse behind a "+N more workspaces" toggle
-- Within each workspace, sessions beyond 5 also show a "Show more" toggle
-- The find widget bypasses all capping
+User-created groups remain a contiguous user-managed block. Ungrouped sessions follow in fixed date sections.
 
-### Filtering
+### Quick chats
 
-Multiple filter dimensions combine:
+Quick chats are identified through `ISession.isQuickChat`, not by checking for an absent workspace. They remain session rows; the list never exposes `IChat` objects as top-level rows.
 
-| Filter | Default | Effect |
-|--------|---------|--------|
-| Session type | All shown | Hides sessions of specific types (per available session types) |
-| Status | All shown | Hides sessions by `SessionStatus` (InProgress, NeedsInput, Error, Completed, Untitled) |
-| Archived | Hidden | Shows/hides the Done section |
-| Read | All shown | Optionally shows only unread sessions |
-| Agent host | All | Scopes to a specific agent host provider |
+### Archived sessions
 
-The **active session is always visible** even if it would be excluded by filters.
+Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing a bulk archive from the list: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
 
-### Find
+## Durable user intent
 
-A built-in find widget filters the list by session title and section label. When a search pattern is entered, it bypasses workspace group capping so all matching sessions are visible. Simply opening the find widget (without typing) does not reorder the list.
+Pin, group, and ordering state survives temporary provider-catalog removal. Providers may transiently publish incomplete catalogs while reconnecting or hydrating, so `onDidChangeSessions.removed` is not proof of deletion.
 
-### Pinning
+List-owned state is removed only when:
 
-Pinned sessions appear in a dedicated "Pinned" section at the top. Pin state is managed by `ISessionsListModelService` and persisted locally (not synced to providers).
+- the management service reports definitive deletion;
+- archiving invalidates group membership;
+- the user explicitly changes or removes the state.
 
-### Read / Unread
+Stale entries that match no current session are inert and may be compacted by their owning service.
 
-- Sessions start as **unread**
-- A session becomes **read** when the user opens it or explicitly marks it
-- A session becomes **unread** when it completes in the background (transitions from InProgress to a terminal status while not active)
-- Pin and read state are cleaned up when a provider reports a real session removal; remote agent host disconnects hide cached sessions without reporting them as removed
+## Sorting and filtering
 
-### Navigation
+The list supports created-time and updated-time sorting. Manual ordering stores list-owned sort keys for each mode without changing provider timestamps.
 
-- **Clicking a session** marks it read and calls `SessionsManagementService.openSession()`
-- **Active session tracking** — the list auto-scrolls to and selects the active session via an `autorun` on `activeSession`
-- **Keyboard shortcuts** — `Ctrl/Cmd+1..9` opens sessions by index; `Ctrl+Alt+-` / `Ctrl+Alt+Shift+-` for back/forward navigation
-- **Mobile** — opening a session also closes the sidebar drawer
+Filters compose across session type, status, archive/read state, and provider. The archived filter governs both archived sessions and archived nested chats; there is no per-session archive-visibility override. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. The find widget matches session and section labels and bypasses presentation capping while a search is active.
 
-### Mobile
+## Drag and drop
 
-On phone layout (`IsPhoneLayoutContext`):
+Drag and drop changes only list-owned presentation state or opens sessions through the appropriate service:
 
-- Session rows are taller for touch targets; inline toolbars are always visible (no hover)
-- A **filter chips** row appears below the header with status toggles (Completed, In Progress, Failed) and a Sort chip
-- Sort/Group options open as a **bottom sheet** instead of a menu
+- sessions may reorder within valid sections;
+- sessions may move into user-created groups;
+- non-archived sessions may move into the pinned section;
+- user groups and workspace sections may reorder where the grouping mode allows;
+- dropping sessions on the Sessions grid opens them through `ISessionsService`.
 
----
+Archived and fixed sections are not reorder targets. Multi-selection preserves relative order.
 
-## Menu Entry Points
+## Reactive presentation
 
-The sessions list defines menu IDs that contributions can target to add actions. All are exported from `sessionsList.ts` and `sessionsView.ts`.
+Rows derive title, status, workspace, changes, capabilities, and quick-chat identity from session observables. Renderers must support tree virtualization: reusing a row template for another session must not retain stale state, animations, hovers, or disposables.
 
-### Session Item Menus
+Row renderers use tree-supported row classes and APIs rather than traversing tree-owned DOM structure.
 
-| Menu | Constant | Where it appears | Use for |
-|------|----------|------------------|---------|
-| `SessionItemToolbar` | `SessionItemToolbarMenuId` | Inline toolbar on each session row (hover on desktop, always on mobile) | Primary actions like pin, archive. Group `navigation` for icons, other groups for overflow. |
-| `SessionItemContextMenu` | `SessionItemContextMenuId` | Right-click context menu on session rows | Secondary actions like rename, mark read/unread. Groups: `0_pin`, `0_read`, `1_edit`. |
+Session facades may expose catalog-backed peer-chat identities, titles, and interactivity before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
 
-### Section Header Menu
+## Persistence
 
-| Menu | Constant | Where it appears | Use for |
-|------|----------|------------------|---------|
-| `SessionSectionToolbar` | `SessionSectionToolbarMenuId` | Toolbar on section headers (Pinned, workspace groups, Done) | Section-scoped actions like "New Session for Workspace", "Archive All", "Restore All". Section headers also show a collapsible chevron on hover/focus; the chevron uses the same ghost icon hover background token as toolbar icon buttons. |
+List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, pins, custom groups, manual sort keys, and section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
-### View Title Menus
+## Change policy
 
-| Menu | Constant | Where it appears | Use for |
-|------|----------|------------------|---------|
-| `SessionsViewPaneFilterSubMenu` | `SessionsViewFilterSubMenu` | Filter/sort dropdown in the view title bar | Sort, group, and workspace capping toggles. |
-| `SessionsViewPaneFilterOptionsSubMenu` | `SessionsViewFilterOptionsSubMenu` | Nested under the filter sub-menu | Session type and status filter checkboxes. |
+Update this specification only when placement precedence, state ownership, or a cross-surface list invariant changes. Express concrete row behavior, menu enablement, picker flows, and regressions in focused tests instead.
 
-### Contributing an Action
+## Related specifications
 
-Register an `Action2` and target one of the menu IDs above. Use the context keys (below) in `when` clauses to scope the action to the right sessions or sections.
-
-```typescript
-registerAction2(class MySessionAction extends Action2 {
-    constructor() {
-        super({
-            id: 'myExtension.mySessionAction',
-            title: localize2('myAction', "My Action"),
-            menu: {
-                id: SessionItemContextMenuId,
-                group: '1_edit',
-                when: ContextKeyExpr.equals('chatSessionType', 'my-session-type'),
-            },
-        });
-    }
-    run(accessor: ServicesAccessor, ...args: unknown[]): void {
-        // action logic
-    }
-});
-```
-
----
-
-## Context Keys
-
-Context keys available for `when` clauses when contributing to session list menus.
-
-### Per-Session Item
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `sessionItem.isPinned` | boolean | Whether the session is pinned |
-| `sessionIsArchived` | boolean | Whether the session is archived |
-| `sessionIsRead` | boolean | Whether the session has been read |
-| `sessionItem.hasBranchName` | boolean | Whether the session has a git branch name |
-| `chatSessionType` | string | Session type ID (use to scope actions to specific providers) |
-| `chatSessionProviderId` | string | Provider ID |
-
-### Per-Section
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `sessionSection.type` | string | `'pinned'`, `'archived'`, `'workspace:<label>'`, `'today'`, etc. |
-
-### View-Level
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `sessionsViewPane.grouping` | string | Current grouping mode (`'workspace'` or `'date'`) |
-| `sessionsViewPane.sorting` | string | Current sorting mode (`'created'` or `'updated'`) |
-| `sessionsViewPane.workspaceGroupCapped` | boolean | Whether workspace groups are capped (primary-only) or fully expanded |
+- [Sessions architecture](SESSIONS.md)
+- [Layout](LAYOUT.md)
+- [Mobile](MOBILE.md)

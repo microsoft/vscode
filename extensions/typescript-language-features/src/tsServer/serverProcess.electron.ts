@@ -145,12 +145,12 @@ function generatePatchedEnv(env: any, modulePath: string, hasExecPath: boolean):
 	const newEnv = Object.assign({}, env);
 
 	if (!hasExecPath) {
-		newEnv['ELECTRON_RUN_AS_NODE'] = '1';
+		newEnv.ELECTRON_RUN_AS_NODE = '1';
 	}
-	newEnv['NODE_PATH'] = path.join(modulePath, '..', '..', '..');
+	newEnv.NODE_PATH = path.join(modulePath, '..', '..', '..');
 
 	// Ensure we always have a PATH set
-	newEnv['PATH'] = newEnv['PATH'] || process.env.PATH;
+	newEnv.PATH = newEnv.PATH || process.env.PATH;
 
 	return newEnv;
 }

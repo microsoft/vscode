@@ -10,10 +10,11 @@
 // come before any mocha imports.
 process.env.MOCHA_COLORS = '1';
 
-const { app, BrowserWindow, ipcMain, crashReporter, session } = require('electron');
+const { app, BrowserWindow, ipcMain, crashReporter, net: electronNet, protocol, session } = require('electron');
 const product = require('../../../product.json');
 const { tmpdir } = require('os');
 const { existsSync, mkdirSync, promises } = require('fs');
+const http = require('http');
 const path = require('path');
 const mocha = require('mocha');
 const events = require('events');
@@ -25,12 +26,24 @@ const { applyReporter, importMochaReporter } = require('../reporter');
 
 const minimist = require('minimist');
 
+protocol.registerSchemesAsPrivileged([
+	{
+		scheme: 'vscode-file',
+		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true }
+	},
+	{
+		scheme: 'vscode-remote-resource',
+		privileges: { secure: true, supportFetchAPI: true, corsEnabled: true }
+	}
+]);
+
 /**
  * @type {{
  * _: string[];
  * grep: string;
  * run: string | string[];
  * runGlob: string;
+ * excludeRunGlob: string;
  * testSplit: string;
  * dev: boolean;
  * reporter: string;
@@ -48,7 +61,7 @@ const minimist = require('minimist');
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
+	string: ['grep', 'run', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -62,6 +75,8 @@ const args = minimist(process.argv.slice(2), {
 	}
 });
 
+const isCI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
+
 if (args.help) {
 	console.log(`Usage: node ${process.argv[1]} [options] [file...]
 
@@ -72,6 +87,7 @@ Options:
 --grep, -g, -f <pattern>      only run tests matching <pattern>
 --run <file>                  only run tests from <file>
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
+--excludeRunGlob <file_pattern> exclude tests matching <file_pattern> from --runGlob
 --testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
 --build                       run with build output (out-build)
 --coverage                    generate coverage report
@@ -120,14 +136,14 @@ if (crashReporterDirectory) {
 
 	crashReporter.start({
 		companyName: 'Microsoft',
-		productName: process.env['VSCODE_DEV'] ? `${product.nameShort} Dev` : product.nameShort,
+		productName: process.env.VSCODE_DEV ? `${product.nameShort} Dev` : product.nameShort,
 		uploadToServer: false,
 		compress: true
 	});
 }
 
 if (!args.dev) {
-	app.setPath('userData', path.join(tmpdir(), `vscode-tests-${Date.now()}`));
+	app.setPath('userData', path.join(tmpdir(), `vscode-tests-${Date.now()}-${process.pid}`));
 }
 
 function deserializeSuite(suite) {
@@ -230,12 +246,73 @@ class IPCRunner extends events.EventEmitter {
 	}
 }
 
-app.on('ready', () => {
+app.on('ready', async () => {
+	const outDir = args.build ? 'out-build' : 'out';
+	const [{ createRemoteResourceRequestHandler }, { getRemoteResourceResponseHeaders }] = await Promise.all([
+		import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/remoteResourceProtocol.js`)).href),
+		import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/server/node/remoteResourceResponse.js`)).href),
+	]);
+	/** @type {import('http').IncomingHttpHeaders | undefined} */
+	let remoteResourceRequestHeaders;
+	const remoteResourceServer = http.createServer((request, response) => {
+		remoteResourceRequestHeaders = request.headers;
+		response.writeHead(200, {
+			...getRemoteResourceResponseHeaders(request.headers.origin, () => false),
+			'Content-Type': 'image/svg+xml',
+		});
+		response.write('<svg xmlns="http://www.w3.org/2000/svg">');
+		setTimeout(() => response.end('</svg>'), 10);
+	});
+	await new Promise((resolve, reject) => {
+		remoteResourceServer.once('error', reject);
+		remoteResourceServer.listen(0, '127.0.0.1', () => resolve());
+	});
+	const remoteResourceServerAddress = remoteResourceServer.address();
+	if (!remoteResourceServerAddress || typeof remoteResourceServerAddress === 'string') {
+		throw new Error('Remote resource test server did not bind to a TCP port');
+	}
+	protocol.handle('vscode-remote-resource', createRemoteResourceRequestHandler({ warn() { } }));
+	ipcMain.handle('vscode:test-remote-resource', async () => {
+		const remoteResourceTestWindow = new BrowserWindow({ show: false });
+		try {
+			const pagePath = url.pathToFileURL(path.join(__dirname, 'fixtures/remote-resource.html')).pathname;
+			await remoteResourceTestWindow.loadURL(`vscode-file://vscode-app${pagePath}`);
+
+			const remoteResourceUrl = `vscode-remote-resource://127.0.0.1:${remoteResourceServerAddress.port}/vscode-remote-resource`;
+			await remoteResourceTestWindow.webContents.executeJavaScript(`
+				new Promise((resolve, reject) => {
+					const image = new Image();
+					image.crossOrigin = 'anonymous';
+					image.onload = resolve;
+					image.onerror = () => reject(new Error('Remote resource image failed to load'));
+					image.src = ${JSON.stringify(remoteResourceUrl)};
+					document.body.append(image);
+				})
+			`);
+			return {
+				loaded: true,
+				requestHeaders: {
+					origin: remoteResourceRequestHeaders?.origin,
+					secFetchMode: remoteResourceRequestHeaders?.['sec-fetch-mode'],
+				},
+			};
+		} finally {
+			remoteResourceTestWindow.close();
+		}
+	});
 
 	// needed when loading resources from the renderer, e.g xterm.js or the encoding lib
-	session.defaultSession.protocol.registerFileProtocol('vscode-file', (request, callback) => {
-		const path = new URL(request.url).pathname;
-		callback({ path });
+	session.defaultSession.protocol.handle('vscode-file', request => {
+		const fileUrl = new URL(request.url.replace(/^vscode-file:/, 'file:'));
+		if (fileUrl.hostname === 'vscode-app') {
+			fileUrl.hostname = '';
+		}
+
+		return electronNet.fetch(fileUrl, {
+			method: request.method,
+			headers: request.headers,
+			bypassCustomProtocolHandlers: true
+		}).catch(() => Response.error());
 	});
 
 	ipcMain.on('error', (_, err) => {
@@ -329,10 +406,15 @@ app.on('ready', () => {
 			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
 			nodeIntegration: true,
 			contextIsolation: false,
-			enableWebSQL: false,
+			backgroundThrottling: false,
 			spellcheck: false
 		}
 	});
+
+	if (isCI) {
+		// Hidden windows throttle requestAnimationFrame on Windows even when background throttling is disabled.
+		win.showInactive();
+	}
 
 	win.webContents.on('did-finish-load', () => {
 		if (args.dev) {
@@ -423,6 +505,7 @@ app.on('ready', () => {
 	if (!args.dev) {
 		ipcMain.on('all done', async () => {
 			await Promise.all(reporters.map(r => r.drain?.()));
+			await new Promise(resolve => remoteResourceServer.close(resolve));
 			app.exit(runner.didFail ? 1 : 0);
 		});
 	}

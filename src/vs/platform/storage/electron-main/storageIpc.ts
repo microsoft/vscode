@@ -8,7 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../log/common/log.js';
-import { IBaseSerializableStorageRequest, ISerializableItemsChangeEvent, ISerializableUpdateRequest, Key, Value } from '../common/storageIpc.js';
+import { IBaseSerializableStorageRequest, ISerializableCompareAndSwapRequest, ISerializableCompareAndSwapResult, ISerializableGetValueRequest, ISerializableItemsChangeEvent, ISerializableUpdateRequest, Key, Value } from '../common/storageIpc.js';
 import { ApplicationSharedStorageMain, IStorageChangeEvent, IStorageMain } from './storageMain.js';
 import { IStorageMainService } from './storageMainService.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
@@ -121,6 +121,11 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 				return Array.from(items.entries());
 			}
 
+			case 'getValue': {
+				const request = arg as ISerializableGetValueRequest;
+				return storage.get(request.key);
+			}
+
 			case 'getFallbackApplicationStorageItems': {
 				if (storage instanceof ApplicationSharedStorageMain) {
 					return Array.from(storage.applicationStorageItems.entries());
@@ -140,6 +145,19 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 				items.delete?.forEach(key => storage.delete(key));
 
 				break;
+			}
+
+			case 'compareAndSwap': {
+				const request = arg as ISerializableCompareAndSwapRequest;
+				const currentValue = storage.get(request.key);
+				if (currentValue !== request.expectedValue) {
+					const result: ISerializableCompareAndSwapResult = { swapped: false, currentValue };
+					return result;
+				}
+
+				storage.set(request.key, request.newValue);
+				const result: ISerializableCompareAndSwapResult = { swapped: true, currentValue: request.newValue };
+				return result;
 			}
 
 			case 'optimize': {

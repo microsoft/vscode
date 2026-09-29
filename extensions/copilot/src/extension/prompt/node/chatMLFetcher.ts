@@ -20,7 +20,7 @@ import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, responseApiInputToRawMessagesForLogging, sendCompletionOutputTelemetry } from '../../../platform/endpoint/node/responsesApi';
 import { getImageTelemetryMeasurementsFromMessages, type ImageTelemetryMeasurements } from '../../../platform/image/common/imageTelemetry';
 import { collectSingleLineErrorMessage, ILogService } from '../../../platform/log/common/logService';
-import { FinishedCallback, getRequestId, IResponseDelta, OptionalChatRequestParams, RequestId } from '../../../platform/networking/common/fetch';
+import { FinishedCallback, getCopilotServiceRequestId, getRequestId, IResponseDelta, OptionalChatRequestParams, RequestId } from '../../../platform/networking/common/fetch';
 import { FetcherId, IFetcherService, Response } from '../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, IEndpointBody, InteractionTypeOverride, postRequest, stringifyUrlOrRequestMetadata } from '../../../platform/networking/common/networking';
 import { CAPIChatMessage, ChatCompletion, FilterReason, FinishedCompletionReason, rawMessageToCAPI } from '../../../platform/networking/common/openai';
@@ -138,7 +138,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 	 * Note: the returned array of strings may be less than `n` (e.g., in case there were errors during streaming)
 	 */
 	public async fetchMany(opts: IFetchMLOptions, token: CancellationToken): Promise<ChatResponses> {
-		let { debugName, endpoint: chatEndpoint, finishedCb, location, messages, requestOptions, source, telemetryProperties, userInitiatedRequest, interactionTypeOverride, conversationId, turnId, topLevelTurnId, useWebSocket, ignoreStatefulMarker } = opts;
+		let { debugName, endpoint: chatEndpoint, finishedCb, location, messages, requestOptions, source, telemetryProperties, userInitiatedRequest, interactionTypeOverride, conversationId, webSocketConnectionId, turnId, topLevelTurnId, useWebSocket, ignoreStatefulMarker } = opts;
 		const interactionType = interactionTypeOverride ?? locationToIntent(location);
 		if (useWebSocket && this._consecutiveWebSocketRetryFallbacks >= ChatMLFetcherImpl._maxConsecutiveWebSocketFallbacks) {
 			this._logService.debug(`[ChatWebSocketManager] Disabling WebSocket for request due to ${this._consecutiveWebSocketRetryFallbacks} consecutive WebSocket failures with successful HTTP fallback.`);
@@ -243,6 +243,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					useWebSocket,
 					turnId,
 					conversationId,
+					webSocketConnectionId,
 					telemetryProperties,
 					opts.useFetcher,
 					canRetryOnce,
@@ -544,8 +545,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							parentRequestId: telemetryProperties.parentRequestId,
 							retryAfterError: telemetryProperties.retryAfterError,
 							retryAfterErrorGitHubRequestId: telemetryProperties.retryAfterErrorGitHubRequestId,
+							retryAfterErrorCopilotServiceRequestId: telemetryProperties.retryAfterErrorCopilotServiceRequestId,
 							connectivityTestError: telemetryProperties.connectivityTestError,
 							connectivityTestErrorGitHubRequestId: telemetryProperties.connectivityTestErrorGitHubRequestId,
+							connectivityTestErrorCopilotServiceRequestId: telemetryProperties.connectivityTestErrorCopilotServiceRequestId,
 							retryAfterFilterCategory: telemetryProperties.retryAfterFilterCategory,
 							fetcher: actualFetcher,
 							suspendEventSeen,
@@ -653,11 +656,11 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			if (err.resumeEventSeen) {
 				resumeEventSeen = true;
 			}
-			const processed = this.processError(err, ourRequestId, err.gitHubRequestId, usernameToScrub, isAutoModel(chatEndpoint) === 1);
+			const processed = this.processError(err, ourRequestId, err.gitHubRequestId, err.copilotServiceRequestId, usernameToScrub, isAutoModel(chatEndpoint) === 1);
 			const retryNetworkError = enableRetryOnError && processed.type === ChatFetchResponseType.NetworkError && this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.RetryNetworkErrors, this._experimentationService);
 			const retryWithoutWebSocket = enableRetryOnError && useWebSocket && (processed.type === ChatFetchResponseType.NetworkError || processed.type === ChatFetchResponseType.Failed);
 			if (retryNetworkError || retryWithoutWebSocket) {
-				const { retryResult, connectivityTestError, connectivityTestErrorGitHubRequestId } = await this._retryAfterError({
+				const { retryResult, connectivityTestError, connectivityTestErrorGitHubRequestId, connectivityTestErrorCopilotServiceRequestId } = await this._retryAfterError({
 					opts,
 					processed,
 					telemetryProperties,
@@ -683,7 +686,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				if (retryResult) {
 					return retryResult;
 				}
-				telemetryProperties = { ...telemetryProperties, connectivityTestError, connectivityTestErrorGitHubRequestId };
+				telemetryProperties = { ...telemetryProperties, connectivityTestError, connectivityTestErrorGitHubRequestId, connectivityTestErrorCopilotServiceRequestId };
 			}
 			if (processed.type === ChatFetchResponseType.Canceled) {
 				Telemetry.sendCancellationTelemetry(
@@ -691,6 +694,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					{
 						source: telemetryProperties.messageSource ?? 'unknown',
 						requestId: ourRequestId,
+						copilotServiceRequestId: processed.copilotServiceRequestId,
 						model: chatEndpoint.model,
 						apiType: chatEndpoint.apiType,
 						transport,
@@ -700,8 +704,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						parentRequestId: telemetryProperties.parentRequestId,
 						retryAfterError: telemetryProperties.retryAfterError,
 						retryAfterErrorGitHubRequestId: telemetryProperties.retryAfterErrorGitHubRequestId,
+						retryAfterErrorCopilotServiceRequestId: telemetryProperties.retryAfterErrorCopilotServiceRequestId,
 						connectivityTestError: telemetryProperties.connectivityTestError,
 						connectivityTestErrorGitHubRequestId: telemetryProperties.connectivityTestErrorGitHubRequestId,
+						connectivityTestErrorCopilotServiceRequestId: telemetryProperties.connectivityTestErrorCopilotServiceRequestId,
 						retryAfterFilterCategory: telemetryProperties.retryAfterFilterCategory,
 						fetcher: actualFetcher,
 						suspendEventSeen,
@@ -747,11 +753,12 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		}
 	}
 
-	private async _checkNetworkConnectivity(useFetcher?: FetcherId): Promise<{ retryRequest: boolean; connectivityTestError?: string; connectivityTestErrorGitHubRequestId?: string }> {
+	private async _checkNetworkConnectivity(useFetcher?: FetcherId): Promise<{ retryRequest: boolean; connectivityTestError?: string; connectivityTestErrorGitHubRequestId?: string; connectivityTestErrorCopilotServiceRequestId?: string }> {
 		// Ping CAPI to check network connectivity before retrying
 		const delays = this.connectivityCheckDelays;
 		let connectivityTestError: string | undefined = undefined;
 		let connectivityTestErrorGitHubRequestId: string | undefined = undefined;
+		let connectivityTestErrorCopilotServiceRequestId: string | undefined = undefined;
 		for (const delay of delays) {
 			this._logService.info(`Waiting ${delay}ms before pinging CAPI to check network connectivity...`);
 			await new Promise(resolve => setTimeout(resolve, delay));
@@ -766,19 +773,21 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				});
 				if (res.status >= 200 && res.status < 300) {
 					this._logService.info(`CAPI ping successful, proceeding with chat request retry...`);
-					return { retryRequest: true, connectivityTestError, connectivityTestErrorGitHubRequestId };
+					return { retryRequest: true, connectivityTestError, connectivityTestErrorGitHubRequestId, connectivityTestErrorCopilotServiceRequestId };
 				} else {
 					connectivityTestError = `Status ${res.status}: ${res.statusText}`;
 					connectivityTestErrorGitHubRequestId = res.headers.get('x-github-request-id') ?? '';
+					connectivityTestErrorCopilotServiceRequestId = getCopilotServiceRequestId(res.headers);
 					this._logService.info(`CAPI ping returned status ${res.status}, retrying ping...`);
 				}
 			} catch (err) {
 				connectivityTestError = collectSingleLineErrorMessage(err, true);
 				connectivityTestErrorGitHubRequestId = undefined; // no response headers yet
+				connectivityTestErrorCopilotServiceRequestId = undefined; // no response headers yet
 				this._logService.info(`CAPI ping failed with error, retrying ping: ${connectivityTestError}`);
 			}
 		}
-		return { retryRequest: false, connectivityTestError, connectivityTestErrorGitHubRequestId };
+		return { retryRequest: false, connectivityTestError, connectivityTestErrorGitHubRequestId, connectivityTestErrorCopilotServiceRequestId };
 	}
 
 	private async _getAuthHeaders(isGHEnterprise: boolean, url: string) {
@@ -822,7 +831,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		suspendEventSeen: boolean | undefined;
 		resumeEventSeen: boolean | undefined;
 		interactionType: string;
-	}): Promise<{ retryResult?: ChatResponses; connectivityTestError?: string; connectivityTestErrorGitHubRequestId?: string }> {
+	}): Promise<{ retryResult?: ChatResponses; connectivityTestError?: string; connectivityTestErrorGitHubRequestId?: string; connectivityTestErrorCopilotServiceRequestId?: string }> {
 		const {
 			opts,
 			processed,
@@ -861,9 +870,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		const connectivity = await this._checkNetworkConnectivity(useFetcher);
 		const connectivityTestError = connectivity.connectivityTestError ? this.scrubErrorDetail(connectivity.connectivityTestError, usernameToScrub) : undefined;
 		const connectivityTestErrorGitHubRequestId = connectivity.connectivityTestErrorGitHubRequestId;
+		const connectivityTestErrorCopilotServiceRequestId = connectivity.connectivityTestErrorCopilotServiceRequestId;
 		if (!connectivity.retryRequest) {
 			this._logService.info(`Not retrying chat request as network connectivity could not be re-established.`);
-			return { connectivityTestError, connectivityTestErrorGitHubRequestId };
+			return { connectivityTestError, connectivityTestErrorGitHubRequestId, connectivityTestErrorCopilotServiceRequestId };
 		}
 
 		Telemetry.sendResponseErrorTelemetry(
@@ -901,8 +911,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				...telemetryProperties,
 				retryAfterError: processed.reasonDetail || processed.reason,
 				retryAfterErrorGitHubRequestId: processed.serverRequestId,
+				retryAfterErrorCopilotServiceRequestId: processed.copilotServiceRequestId,
 				connectivityTestError,
 				connectivityTestErrorGitHubRequestId,
+				connectivityTestErrorCopilotServiceRequestId,
 			},
 			enableRetryOnError: false,
 			useFetcher,
@@ -914,10 +926,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._logService.info(`[ChatWebSocketManager] WebSocket request failed with successful HTTP fallback (${this._consecutiveWebSocketRetryFallbacks} consecutive).`);
 			if (opts.conversationId) {
 				// Closing here because the retry is transparent.
-				this._webSocketManager.closeConnection(opts.conversationId);
+				this._webSocketManager.closeConnection(opts.conversationId, opts.webSocketConnectionId);
 			}
 		}
-		return { retryResult, connectivityTestError, connectivityTestErrorGitHubRequestId };
+		return { retryResult, connectivityTestError, connectivityTestErrorGitHubRequestId, connectivityTestErrorCopilotServiceRequestId };
 	}
 
 	private async _fetchAndStreamChat(
@@ -936,6 +948,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		useWebSocket?: boolean,
 		turnId?: string,
 		conversationId?: string,
+		webSocketConnectionId?: string,
 		telemetryProperties?: TelemetryProperties | undefined,
 		useFetcher?: FetcherId,
 		canRetryOnce?: boolean,
@@ -976,6 +989,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				useWebSocket,
 				turnId,
 				conversationId,
+				webSocketConnectionId,
 				telemetryProperties,
 				useFetcher,
 				canRetryOnce,
@@ -1015,6 +1029,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		useWebSocket?: boolean,
 		turnId?: string,
 		conversationId?: string,
+		webSocketConnectionId?: string,
 		telemetryProperties?: TelemetryProperties | undefined,
 		useFetcher?: FetcherId,
 		canRetryOnce?: boolean,
@@ -1040,13 +1055,13 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
 				[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
 				[GenAiAttr.REQUEST_MODEL]: chatEndpointInfo.model,
-				[GenAiAttr.CONVERSATION_ID]: telemetryProperties?.requestId ?? ourRequestId,
+				...((conversationId ?? chatSessionId) ? { [GenAiAttr.CONVERSATION_ID]: conversationId ?? chatSessionId } : {}),
 				[GenAiAttr.REQUEST_MAX_TOKENS]: request.max_tokens ?? request.max_output_tokens ?? request.max_completion_tokens ?? 2048,
 				...(request.temperature !== undefined ? { [GenAiAttr.REQUEST_TEMPERATURE]: request.temperature } : {}),
 				...(request.top_p !== undefined ? { [GenAiAttr.REQUEST_TOP_P]: request.top_p } : {}),
 				[CopilotChatAttr.MAX_PROMPT_TOKENS]: chatEndpointInfo.modelMaxPromptTokens,
 				...(serverAddress ? { [StdAttr.SERVER_ADDRESS]: serverAddress } : {}),
-				...(conversationId ? { [CopilotChatAttr.SESSION_ID]: conversationId } : {}),
+				...((conversationId ?? chatSessionId) ? { [CopilotChatAttr.SESSION_ID]: conversationId ?? chatSessionId } : {}),
 				...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
 				...(parentChatSessionId ? { [CopilotChatAttr.PARENT_CHAT_SESSION_ID]: parentChatSessionId } : {}),
 				...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
@@ -1093,6 +1108,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					ourRequestId,
 					turnId,
 					conversationId,
+					webSocketConnectionId,
 					cancellationToken,
 					countTokens,
 					userInitiatedRequest,
@@ -1152,6 +1168,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		ourRequestId: string,
 		turnId: string,
 		conversationId: string,
+		webSocketConnectionId: string | undefined,
 		cancellationToken: CancellationToken,
 		countTokens: () => Promise<number>,
 		userInitiatedRequest: boolean | undefined,
@@ -1175,11 +1192,12 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		if (request.messages?.some((m: CAPIChatMessage) => Array.isArray(m.content) ? m.content.some(c => 'image_url' in c) : false) && chatEndpointInfo.supportsVision) {
 			additionalHeaders['Copilot-Vision-Request'] = 'true';
 		}
-		const connection = this._webSocketManager.getOrCreateConnection(conversationId, additionalHeaders, ourRequestId);
+		const connection = this._webSocketManager.getOrCreateConnection({ conversationId, modelId: chatEndpointInfo.model, connectionId: webSocketConnectionId }, additionalHeaders, ourRequestId);
 		try {
 			await connection.connect();
 		} catch (err) {
 			(err as any).gitHubRequestId = connection.gitHubRequestId;
+			(err as any).copilotServiceRequestId = connection.copilotServiceRequestId;
 			throw err;
 		}
 
@@ -1217,18 +1235,18 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
 
 		if (request.tools) {
-			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+			void multiplexProperties({
 				headerRequestId: ourRequestId,
 				conversationId,
 				messagesJson: stringifyToolsRawForTelemetry(request.tools)!,
-			}), telemetryData.measurements);
+			}).then(properties => this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', properties, telemetryData.measurements)).catch(() => { /* best-effort telemetry */ });
 		}
 
 		const requestStart = Date.now();
 		const handle = connection.sendRequest(request, { userInitiated: !!userInitiatedRequest, turnId, requestId: ourRequestId, model: chatEndpointInfo.model, countTokens, tokenCountMax: chatEndpointInfo.maxOutputTokens, modelMaxPromptTokens: chatEndpointInfo.modelMaxPromptTokens, summarizedAtRoundId, modeChanged }, cancellationToken);
 
 		const extendedBaseTelemetryData = baseTelemetryData.extendedBy({ modelCallId });
-		const processor = this._instantiationService.createInstance(OpenAIResponsesProcessor, extendedBaseTelemetryData, this._telemetryService, modelRequestId.headerRequestId, modelRequestId.gitHubRequestId, modelRequestId.serverExperiments, getResponsesApiCompactionThresholdFromBody(request));
+		const processor = this._instantiationService.createInstance(OpenAIResponsesProcessor, extendedBaseTelemetryData, this._telemetryService, modelRequestId.headerRequestId, modelRequestId.gitHubRequestId, modelRequestId.copilotServiceRequestId, modelRequestId.serverExperiments, getResponsesApiCompactionThresholdFromBody(request));
 
 		// Set up streaming first so event listeners are registered before we
 		// await the first event — AsyncIterableObject runs its executor eagerly.
@@ -1254,12 +1272,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						// Mid-stream CAPI error — throw so the caller can handle it
 						const error = new Error(`${event.error.message} (${event.error.code})`);
 						(error as any).gitHubRequestId = modelRequestId.gitHubRequestId;
+						(error as any).copilotServiceRequestId = modelRequestId.copilotServiceRequestId;
 						(error as any).capiWebSocketError = event;
 						reject(error);
 					});
 
 					handle.onError(error => {
 						(error as any).gitHubRequestId = modelRequestId.gitHubRequestId;
+						(error as any).copilotServiceRequestId = modelRequestId.copilotServiceRequestId;
 						if (isCancellationError(error)) {
 							reject(error);
 							return;
@@ -1401,6 +1421,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 
 		let chatCompletions;
 		const gitHubRequestId = response.headers.get('x-github-request-id') ?? '';
+		const copilotServiceRequestId = getCopilotServiceRequestId(response.headers);
 		try {
 			const completions = await chatEndpointInfo.processResponseFromChatEndpoint(
 				this._telemetryService,
@@ -1420,6 +1441,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				} catch (err) {
 					err.fetcherId = response.fetcher;
 					err.gitHubRequestId = gitHubRequestId;
+					err.copilotServiceRequestId = copilotServiceRequestId;
 					err.bytesReceived = response.bytesReceived;
 					throw err;
 				}
@@ -1427,6 +1449,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		} catch (err) {
 			err.fetcherId = response.fetcher;
 			err.gitHubRequestId = gitHubRequestId;
+			err.copilotServiceRequestId = copilotServiceRequestId;
 			err.bytesReceived = response.bytesReceived;
 			throw err;
 		}
@@ -1501,11 +1524,11 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
 
 		if (request.tools) {
-			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+			void multiplexProperties({
 				headerRequestId: ourRequestId,
 				conversationId: telemetryProperties?.conversationId,
 				messagesJson: stringifyToolsRawForTelemetry(request.tools)!,
-			}), telemetryData.measurements);
+			}).then(properties => this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', properties, telemetryData.measurements)).catch(() => { /* best-effort telemetry */ });
 		}
 
 		const requestStart = Date.now();
@@ -1896,6 +1919,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				value: successfulCompletions.map(c => getTextPart(c.message.content)),
 				requestId,
 				serverRequestId: successfulCompletions[0].requestId.headerRequestId,
+				copilotServiceRequestId: successfulCompletions[0].requestId.copilotServiceRequestId,
 				modelCallId,
 			};
 		}
@@ -1911,6 +1935,15 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					value: completions.map(c => getTextPart(c.message.content)),
 					requestId: requestId,
 					serverRequestId: result.requestId.headerRequestId,
+					copilotServiceRequestId: result.requestId.copilotServiceRequestId,
+				};
+			case FinishedCompletionReason.Refusal:
+				return {
+					type: ChatFetchResponseType.Refusal,
+					reason: 'Model declined to respond.',
+					requestId: requestId,
+					serverRequestId: result.requestId.headerRequestId,
+					copilotServiceRequestId: result.requestId.copilotServiceRequestId,
 				};
 			case FinishedCompletionReason.Length:
 				return {
@@ -1918,6 +1951,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					reason: 'Response too long.',
 					requestId: requestId,
 					serverRequestId: result.requestId.headerRequestId,
+					copilotServiceRequestId: result.requestId.copilotServiceRequestId,
 					truncatedValue: getTextPart(result.message.content)
 				};
 			case FinishedCompletionReason.ServerError:
@@ -1926,6 +1960,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					reason: 'Server error. Stream terminated',
 					requestId: requestId,
 					serverRequestId: result.requestId.headerRequestId,
+					copilotServiceRequestId: result.requestId.copilotServiceRequestId,
 					streamError: result.error
 				};
 		}
@@ -1934,6 +1969,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			reason: RESPONSE_CONTAINED_NO_CHOICES,
 			requestId: requestId,
 			serverRequestId: result?.requestId.headerRequestId,
+			copilotServiceRequestId: result?.requestId.copilotServiceRequestId,
 		};
 	}
 
@@ -2057,49 +2093,50 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 
 	private processFailedResponse(response: ChatRequestFailed, requestId: string, isAuto: boolean): ChatFetchError {
 		const serverRequestId = response.modelRequestId?.gitHubRequestId;
+		const copilotServiceRequestId = response.modelRequestId?.copilotServiceRequestId;
 		const reason = response.reason;
 		if (response.failKind === ChatFailKind.RateLimited) {
-			return { type: ChatFetchResponseType.RateLimited, reason, requestId, serverRequestId, retryAfter: response.data?.retryAfter, rateLimitKey: (response.data?.rateLimitKey || ''), isAuto, capiError: response.data?.capiError };
+			return { type: ChatFetchResponseType.RateLimited, reason, requestId, serverRequestId, copilotServiceRequestId, retryAfter: response.data?.retryAfter, rateLimitKey: (response.data?.rateLimitKey || ''), isAuto, capiError: response.data?.capiError };
 		}
 		if (response.failKind === ChatFailKind.QuotaExceeded) {
-			return { type: ChatFetchResponseType.QuotaExceeded, reason, requestId, serverRequestId, retryAfter: response.data?.retryAfter, capiError: response.data?.capiError };
+			return { type: ChatFetchResponseType.QuotaExceeded, reason, requestId, serverRequestId, copilotServiceRequestId, retryAfter: response.data?.retryAfter, capiError: response.data?.capiError };
 		}
 		if (response.failKind === ChatFailKind.OffTopic) {
-			return { type: ChatFetchResponseType.OffTopic, reason, requestId, serverRequestId };
+			return { type: ChatFetchResponseType.OffTopic, reason, requestId, serverRequestId, copilotServiceRequestId };
 		}
 		if (response.failKind === ChatFailKind.TokenExpiredOrInvalid || response.failKind === ChatFailKind.ClientNotSupported || reason.includes('Bad request: ')) {
-			return { type: ChatFetchResponseType.BadRequest, reason, requestId, serverRequestId };
+			return { type: ChatFetchResponseType.BadRequest, reason, requestId, serverRequestId, copilotServiceRequestId };
 		}
 		if (response.failKind === ChatFailKind.ServerError) {
-			return { type: ChatFetchResponseType.Failed, reason, requestId, serverRequestId };
+			return { type: ChatFetchResponseType.Failed, reason, requestId, serverRequestId, copilotServiceRequestId };
 		}
 		if (response.failKind === ChatFailKind.ContentFilter) {
-			return { type: ChatFetchResponseType.PromptFiltered, reason, category: FilterReason.Prompt, requestId, serverRequestId };
+			return { type: ChatFetchResponseType.PromptFiltered, reason, category: FilterReason.Prompt, requestId, serverRequestId, copilotServiceRequestId };
 		}
 		if (response.failKind === ChatFailKind.AgentUnauthorized) {
-			return { type: ChatFetchResponseType.AgentUnauthorized, reason, authorizationUrl: response.data!.authorize_url, requestId, serverRequestId };
+			return { type: ChatFetchResponseType.AgentUnauthorized, reason, authorizationUrl: response.data!.authorize_url, requestId, serverRequestId, copilotServiceRequestId };
 		}
 		if (response.failKind === ChatFailKind.AgentFailedDependency) {
-			return { type: ChatFetchResponseType.AgentFailedDependency, reason, requestId, serverRequestId };
+			return { type: ChatFetchResponseType.AgentFailedDependency, reason, requestId, serverRequestId, copilotServiceRequestId };
 		}
 		if (response.failKind === ChatFailKind.ExtensionBlocked) {
 			const retryAfter = typeof response.data?.retryAfter === 'number' ? response.data.retryAfter : 300;
-			return { type: ChatFetchResponseType.ExtensionBlocked, reason, requestId, retryAfter, learnMoreLink: response.data?.learnMoreLink ?? '', serverRequestId };
+			return { type: ChatFetchResponseType.ExtensionBlocked, reason, requestId, retryAfter, learnMoreLink: response.data?.learnMoreLink ?? '', serverRequestId, copilotServiceRequestId };
 		}
 		if (response.failKind === ChatFailKind.NotFound) {
-			return { type: ChatFetchResponseType.NotFound, reason, requestId, serverRequestId };
+			return { type: ChatFetchResponseType.NotFound, reason, requestId, serverRequestId, copilotServiceRequestId };
 		}
 		if (response.failKind === ChatFailKind.InvalidPreviousResponseId) {
-			return { type: ChatFetchResponseType.InvalidStatefulMarker, reason, requestId, serverRequestId };
+			return { type: ChatFetchResponseType.InvalidStatefulMarker, reason, requestId, serverRequestId, copilotServiceRequestId };
 		}
 
-		return { type: ChatFetchResponseType.Failed, reason, requestId, serverRequestId };
+		return { type: ChatFetchResponseType.Failed, reason, requestId, serverRequestId, copilotServiceRequestId };
 	}
 
-	private processError(err: unknown, requestId: string, gitHubRequestId: string | undefined, usernameToScrub: string | undefined, isAuto: boolean): ChatFetchError {
+	private processError(err: unknown, requestId: string, gitHubRequestId: string | undefined, copilotServiceRequestId: string | undefined, usernameToScrub: string | undefined, isAuto: boolean): ChatFetchError {
 		const capiWebSocketError = (err as any)?.capiWebSocketError as CAPIWebSocketErrorEvent | undefined;
 		if (capiWebSocketError) {
-			return this._handleWebSocketError(capiWebSocketError, requestId, gitHubRequestId, isAuto);
+			return { ...this._handleWebSocketError(capiWebSocketError, requestId, gitHubRequestId, isAuto), copilotServiceRequestId };
 		}
 
 		const fetcher = this._fetcherService;
@@ -2110,6 +2147,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				reason: 'network request aborted',
 				requestId: requestId,
 				serverRequestId: gitHubRequestId,
+				copilotServiceRequestId,
 			};
 		}
 		if (isCancellationError(err)) {
@@ -2118,6 +2156,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				reason: 'Got a cancellation error',
 				requestId: requestId,
 				serverRequestId: gitHubRequestId,
+				copilotServiceRequestId,
 			};
 		}
 		if (err && (
@@ -2129,6 +2168,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				reason: 'Stream closed prematurely',
 				requestId: requestId,
 				serverRequestId: gitHubRequestId,
+				copilotServiceRequestId,
 			};
 		}
 		this._logService.error(ErrorUtils.fromUnknown(err), `Error on conversation request`);
@@ -2143,6 +2183,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				reasonDetail: scrubbedErrorDetail,
 				requestId: requestId,
 				serverRequestId: gitHubRequestId,
+				copilotServiceRequestId,
 			};
 		} else if (fetcher.isFetcherError(err)) {
 			const isNetworkProcessCrash = fetcher.isNetworkProcessCrashedError(err);
@@ -2152,6 +2193,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				reasonDetail: scrubbedErrorDetail,
 				requestId: requestId,
 				serverRequestId: gitHubRequestId,
+				copilotServiceRequestId,
 				...(isNetworkProcessCrash ? { isNetworkProcessCrash: true } : {}),
 			};
 		} else {
@@ -2161,6 +2203,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				reasonDetail: scrubbedErrorDetail,
 				requestId: requestId,
 				serverRequestId: gitHubRequestId,
+				copilotServiceRequestId,
 			};
 		}
 	}

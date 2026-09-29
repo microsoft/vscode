@@ -10,6 +10,7 @@ import { ILanguageModelConfigurationSchema } from '../../../../common/languageMo
 import {
 	computeStoredConfiguration,
 	extractSchemaDefaults,
+	filterConfigurationToSchema,
 	resolveModelConfiguration,
 } from '../../../../browser/widget/input/chatModelConfigurationLogic.js';
 
@@ -54,8 +55,20 @@ suite('chatModelConfigurationLogic', () => {
 			assert.deepStrictEqual(resolved, { thinkingEffort: 'high' });
 		});
 
-		test('absent entry with no global value resolves to empty', () => {
-			assert.deepStrictEqual(resolveModelConfiguration(undefined, defaults, undefined), {});
+		test('absent entry with no global value resolves to the schema defaults', () => {
+			// Schema defaults must be present even when nothing is stored, so a value
+			// the user never explicitly set (e.g. a model's default contextSize) is
+			// not dropped — otherwise the request and context-usage widget fall back
+			// to the model's full native window while the picker shows the default.
+			assert.deepStrictEqual(resolveModelConfiguration(undefined, defaults, undefined), { thinkingEffort: 'medium' });
+		});
+
+		test('absent entry with a partial global value keeps untouched schema defaults', () => {
+			// Regression for the contextSize 200K-vs-full-window bug: a global config
+			// that lacks contextSize must not strip the default contextSize.
+			const partialDefaults: IStringDictionary<unknown> = { thinkingEffort: 'medium', contextSize: 200_000 };
+			const resolved = resolveModelConfiguration(undefined, partialDefaults, { thinkingEffort: 'high' });
+			assert.deepStrictEqual(resolved, { thinkingEffort: 'high', contextSize: 200_000 });
 		});
 	});
 
@@ -73,6 +86,48 @@ suite('chatModelConfigurationLogic', () => {
 		test('merges new values over the current effective config', () => {
 			const current: IStringDictionary<unknown> = { thinkingEffort: 'high', contextSize: 1000 };
 			assert.deepStrictEqual(computeStoredConfiguration(current, { contextSize: 2000 }, defaults), { thinkingEffort: 'high', contextSize: 2000 });
+		});
+	});
+
+	suite('filterConfigurationToSchema', () => {
+		test('drops keys that are absent from the current schema (removed property)', () => {
+			const filtered = filterConfigurationToSchema({ thinkingEffort: 'high', removedProp: 42 }, effortSchema);
+			assert.deepStrictEqual(filtered, { thinkingEffort: 'high' });
+		});
+
+		test('drops values that violate the enum constraint, falling back to the live default', () => {
+			// 'extreme' was valid against an older schema but is no longer an enum member.
+			const filtered = filterConfigurationToSchema({ thinkingEffort: 'extreme' }, effortSchema);
+			assert.deepStrictEqual(filtered, {});
+		});
+
+		test('keeps values for non-enum properties (no constraint to validate)', () => {
+			const filtered = filterConfigurationToSchema({ contextSize: 2000 }, effortSchema);
+			assert.deepStrictEqual(filtered, { contextSize: 2000 });
+		});
+
+		test('drops prototype keys rather than resolving them through Object.prototype', () => {
+			assert.deepStrictEqual(filterConfigurationToSchema({ constructor: 'x', __proto__: 'y', toString: 'z' }, effortSchema), {});
+		});
+
+		test('drops a value from another model, so an Auto tier is not set from a thinking level', () => {
+			// Auto's navigation-group property is its routing tier, not a thinking effort.
+			const autoSchema: ILanguageModelConfigurationSchema = { properties: { tier: { group: 'navigation', enum: ['eco', 'balanced', 'max'] } } };
+			assert.deepStrictEqual(filterConfigurationToSchema({ thinkingLevel: 'high', tier: 'high' }, autoSchema), {});
+		});
+
+		test('drops values that do not match a declared primitive type', () => {
+			const schema: ILanguageModelConfigurationSchema = { properties: { contextSize: { type: 'number' }, label: { type: 'string' } } };
+			assert.deepStrictEqual([
+				filterConfigurationToSchema({ contextSize: 2000 }, schema),
+				filterConfigurationToSchema({ contextSize: 'banana' }, schema),
+				filterConfigurationToSchema({ label: 42 }, schema),
+			], [{ contextSize: 2000 }, {}, {}]);
+		});
+
+		test('returns empty when the schema (or its properties) is missing', () => {
+			assert.deepStrictEqual(filterConfigurationToSchema({ thinkingEffort: 'high' }, undefined), {});
+			assert.deepStrictEqual(filterConfigurationToSchema({ thinkingEffort: 'high' }, {}), {});
 		});
 	});
 

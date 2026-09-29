@@ -286,7 +286,7 @@ D5).
      `sessionPermissions.test.ts` (or add the file if absent).
    - Files: see above.
    - Depends on: Steps 1–6.
-   - Done when: `npm run compile-check-ts-native` clean,
+   - Done when: `npm run typecheck-client` clean,
      `valid-layers-check` clean, all agentHost tests green.
 
 ## Files to Modify or Create
@@ -532,7 +532,7 @@ D5).
   `state._meta` is copied into `SessionToolCallReady`.
 - Run with: `runTests` (preferred) or `scripts/test.sh --grep
   "agentHost"`.
-- TS validity: `npm run compile-check-ts-native` and
+- TS validity: `npm run typecheck-client` and
   `npm run valid-layers-check`.
 
 ### E2E
@@ -738,7 +738,7 @@ Tests:
 
 - 1154 tests pass in `**/agentHost/test/node/*.test.js` (was 1146;
   +8 from the new registry suite).
-- `npm run compile-check-ts-native` clean.
+- `npm run typecheck-client` clean.
 - `npm run valid-layers-check` clean.
 - `/avoid-private-methods` audit re-run after D5′ extraction:
   `ClaudeMapperState` now at 12 methods across 3 concerns

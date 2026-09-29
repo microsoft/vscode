@@ -21,16 +21,22 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ChatTreeItem, ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 
+export const ForkConversationActionId = 'workbench.action.chat.forkConversation';
+
+export interface IForkConversationOptions {
+	readonly toSide?: boolean;
+}
+
 export class ForkConversationAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.forkConversation',
+			id: ForkConversationActionId,
 			title: localize2('chat.forkConversation.label', "Fork Conversation"),
 			tooltip: localize2('chat.forkConversation.tooltip', "Fork conversation from this point"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.repoForked,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.readOnly.negate()),
 			menu: [
 				{
 					id: MenuId.ChatMessageCheckpoint,
@@ -42,7 +48,8 @@ export class ForkConversationAction extends Action2 {
 						ContextKeyExpr.or(
 							ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession),
 							ChatContextKeys.chatSessionSupportsFork
-						)
+						),
+						ChatContextKeys.readOnly.negate()
 					)
 				}
 			]
@@ -64,6 +71,9 @@ export class ForkConversationAction extends Action2 {
 			// Check if this is a contributed session that supports forking
 			const contentProviderSchemes = chatSessionsService.getContentProviderSchemes();
 			if (contentProviderSchemes.includes(getChatSessionType(sourceSessionResource))) {
+				if (await this._tryForkAsChat(instantiationService, sourceSessionResource, undefined)) {
+					return;
+				}
 				return await this.forkContributedChatSession(sourceSessionResource, undefined, false, chatSessionsService, instantiationService);
 			}
 
@@ -96,7 +106,7 @@ export class ForkConversationAction extends Action2 {
 				}
 			}
 
-			const modelRef = chatService.loadSessionFromData(cleanData, 'ChatForkActions#forkCleanSession');
+			const modelRef = chatService.loadSessionFromData(cleanData, 'ChatForkActions#forkCleanSession', 'currentSession');
 
 			// Defer navigation until after the slash command flow completes.
 			const newSessionResource = modelRef.object.sessionResource;
@@ -111,7 +121,8 @@ export class ForkConversationAction extends Action2 {
 		}
 
 		// When invoked from the checkpoint menu, args[0] is a ChatTreeItem.
-		const arg = args[0] as { element?: unknown; context?: unknown; item?: unknown } | undefined;
+		const arg = args[0] as (IForkConversationOptions & { element?: unknown; context?: unknown; item?: unknown }) | undefined;
+		const options: IForkConversationOptions | undefined = arg?.toSide === true ? { toSide: true } : undefined;
 		let item: ChatTreeItem | undefined = isChatTreeItem(arg)
 			? arg
 			: isChatTreeItem(arg?.element)
@@ -121,7 +132,7 @@ export class ForkConversationAction extends Action2 {
 					: isChatTreeItem(arg?.item)
 						? arg.item
 						: undefined;
-		const widget = (item && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
+		const widget = item ? chatWidgetService.getWidgetBySessionResource(item.sessionResource) : chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}
@@ -163,7 +174,10 @@ export class ForkConversationAction extends Action2 {
 					}
 				}
 			}
-			return await this.forkContributedChatSession(sessionResource, request, true, chatSessionsService, instantiationService);
+			if (await this._tryForkAsChat(instantiationService, sessionResource, request, options)) {
+				return;
+			}
+			return await this.forkContributedChatSession(sessionResource, request, true, chatSessionsService, instantiationService, options);
 		}
 
 		const chatModel = chatService.getSession(sessionResource);
@@ -217,7 +231,7 @@ export class ForkConversationAction extends Action2 {
 			}
 		}
 
-		const modelRef = chatService.loadSessionFromData(forkedData, 'ChatForkActions#forkSession');
+		const modelRef = chatService.loadSessionFromData(forkedData, 'ChatForkActions#forkSession', 'currentSession');
 
 		if (!modelRef) {
 			return;
@@ -226,22 +240,33 @@ export class ForkConversationAction extends Action2 {
 		// Navigate to the new session in the chat view pane
 		try {
 			const newSessionResource = modelRef.object.sessionResource;
-			await this._openForkedSession(instantiationService, chatModel.sessionResource, newSessionResource);
+			await this._openForkedSession(instantiationService, chatModel.sessionResource, newSessionResource, options);
 		} finally {
 			modelRef.dispose();
 		}
 	}
 
-	protected async _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI): Promise<void> {
+	protected async _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI, _options?: IForkConversationOptions): Promise<void> {
 		await instantiationService.invokeFunction(async accessor => {
 			const chatWidgetService = accessor.get(IChatWidgetService);
-			await chatWidgetService.openSession(forkedSessionResource, ChatViewPaneTarget);
+			await chatWidgetService.openSession(forkedSessionResource, ChatViewPaneTarget, { sessionTypeSelectionReason: 'currentSession' });
 		});
+	}
+
+	/**
+	 * Hook for surfaces (the Agents window) that prefer to fork a multi-chat
+	 * session into a new peer chat in the same session rather than a brand-new
+	 * session. Returns `true` when it fully handled the fork; the default
+	 * implementation does nothing and returns `false`, so the standard
+	 * session-creating fork path runs.
+	 */
+	protected async _tryForkAsChat(_instantiationService: IInstantiationService, _sourceSessionResource: URI, _request: IChatSessionRequestHistoryItem | undefined, _options?: IForkConversationOptions): Promise<boolean> {
+		return false;
 	}
 
 	private pendingFork = new Map<string, Promise<void>>();
 
-	private async forkContributedChatSession(sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, openForkedSessionImmediately: boolean, chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService) {
+	private async forkContributedChatSession(sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, openForkedSessionImmediately: boolean, chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, options?: IForkConversationOptions) {
 		const pendingKey = `${sourceSessionResource.toString()}@${request?.id ?? 'full'}`;
 		const pending = this.pendingFork.get(pendingKey);
 		if (pending) {
@@ -252,7 +277,7 @@ export class ForkConversationAction extends Action2 {
 			const cts = new CancellationTokenSource();
 			try {
 				const forkedItem = await chatSessionsService.forkChatSession(sourceSessionResource, request, cts.token);
-				const open = () => this._openForkedSession(instantiationService, sourceSessionResource, forkedItem.resource);
+				const open = () => this._openForkedSession(instantiationService, sourceSessionResource, forkedItem.resource, options);
 				if (openForkedSessionImmediately) {
 					await open();
 				} else {

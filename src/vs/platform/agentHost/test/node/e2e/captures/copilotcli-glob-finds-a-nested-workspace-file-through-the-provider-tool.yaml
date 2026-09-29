@@ -1,0 +1,37 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use glob exactly once to find files matching **/*.unique, then reply exactly "found".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: glob
+          input:
+            pattern: '**/*.unique'
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use glob exactly once to find files matching **/*.unique, then reply exactly "found".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: glob
+              input:
+                pattern: '**/*.unique'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: ./glob-target.unique
+    response:
+      content: found
+      stopReason: end_turn

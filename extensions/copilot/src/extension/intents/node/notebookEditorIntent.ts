@@ -39,6 +39,7 @@ import { getAgentMaxRequests } from '../common/agentConfig';
 import { EditCodeIntent, EditCodeIntentOptions } from './editCodeIntent';
 import { EditCode2IntentInvocation } from './editCodeIntent2';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
 
 const getTools = (instaService: IInstantiationService, request: vscode.ChatRequest): Promise<vscode.LanguageModelToolInformation[]> =>
 	instaService.invokeFunction(async accessor => {
@@ -110,9 +111,10 @@ export class NotebookEditorIntentInvocation extends EditCode2IntentInvocation {
 		@IAutomodeService automodeService: IAutomodeService,
 		@IOTelService otelService: IOTelService,
 		@ISessionTranscriptService sessionTranscriptService: ISessionTranscriptService,
+		@IAutomaticInstructionsCollector automaticInstructionsCollector: IAutomaticInstructionsCollector,
 		@IAuthenticationService authenticationService: IAuthenticationService,
 	) {
-		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService, sessionTranscriptService, authenticationService);
+		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService, sessionTranscriptService, automaticInstructionsCollector, authenticationService);
 	}
 
 	protected override prompt = NotebookInlinePrompt;

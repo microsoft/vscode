@@ -1,0 +1,54 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "COMBINED_TARGET_READY".
+    response:
+      content: COMBINED_TARGET_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with status ["inProgress", "archived"], then reply exactly "filtered".
+    response:
+      content:
+        - type: text
+          text: Got it — I’ll run that exact session filter now.
+        - type: tool_use
+          id: toolcall_0
+          name: list_sessions
+          input:
+            status:
+              - inProgress
+              - archived
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with status ["inProgress", "archived"], then reply exactly "filtered".
+        - role: assistant
+          content: Got it — I’ll run that exact session filter now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_sessions
+              input:
+                status:
+                  - inProgress
+                  - archived
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"sessions":[{"session":"codex:/${uuid_0}","title":"Call list_sessions exactly once with status [\"inProgress\", \"archived\"], then reply exactly \"filtered\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-15T23:39:55.468Z","modifiedAt":"2026-08-15T23:39:57.604Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"codex:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"codex:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]},{"session":"codex:/${uuid_1}","title":"Reply exactly \"COMBINED_TARGET_READY\".","status":"idle,archived","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-15T23:39:55.588Z","modifiedAt":"2026-08-15T23:39:57.601Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"codex:/${uuid_1}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"codex:/${uuid_1}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+    response:
+      content: filtered
+      stopReason: end_turn

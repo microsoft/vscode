@@ -131,6 +131,7 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	isModelHidden(_modelIdentifier: string): boolean { return false; }
 	isGroupHidden(_vendor: string, _groupName: string): boolean { return false; }
 	setModelHidden(_modelIdentifier: string, _hidden: boolean): void { }
+	setModelsHidden(_modelIdentifiers: readonly string[], _hidden: boolean): void { }
 	setGroupHidden(_vendor: string, _groupName: string, _hidden: boolean): void { }
 	getHiddenModelIds(): string[] { return []; }
 

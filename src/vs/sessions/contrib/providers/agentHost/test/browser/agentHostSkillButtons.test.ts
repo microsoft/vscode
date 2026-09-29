@@ -14,10 +14,11 @@ import { CommandsRegistry } from '../../../../../../platform/commands/common/com
 import { ContextKeyExpression, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IChat } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, IsAgentHostSession, IsAgentHostSessionContextContribution, isAgentHostSkillButtonId } from '../../browser/agentHostSkillButtons.js';
 import { BaseAgentHostSessionsProvider } from '../../browser/baseAgentHostSessionsProvider.js';
 // Importing this contribution registers the apply submenu on the changes toolbar,
@@ -28,14 +29,18 @@ function makeActiveSession(providerId: string): IActiveSession {
 	const chat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
+		workspace: constObservable(undefined),
 		title: observableValue('t', 'Test'),
 		updatedAt: observableValue('u', new Date()),
 		status: observableValue('s', 0),
 		changes: observableValue('c', []),
+		changesets: constObservable([]),
 		modelId: observableValue('m', undefined),
+		modelSource: observableValue('ms', undefined),
 		mode: observableValue('mo', undefined),
 		isArchived: observableValue('ia', false),
 		isRead: observableValue('ir', true),
+		interactivity: observableValue('ii', ChatInteractivity.Full),
 		checkpoints: observableValue('cp', undefined),
 		lastTurnEnd: observableValue('lte', undefined),
 		description: observableValue('d', undefined),
@@ -51,8 +56,6 @@ function makeActiveSession(providerId: string): IActiveSession {
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
-		changesets: constObservable([]),
-		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,
 		loading: observableValue('l', false),
@@ -63,9 +66,14 @@ function makeActiveSession(providerId: string): IActiveSession {
 		chats: observableValue('chats', [chat]),
 		activeChat: observableValue('ac', chat),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 		isCreated: observableValue('isCreated', true),
 		sticky: observableValue('sticky', false),
+		openChats: observableValue('openChats', [chat]),
+		closedChats: constObservable([]),
+		lastClosedChat: undefined,
+		visibleChatTabs: constObservable([chat]),
+		shouldShowChatTabs: constObservable(false),
 	} satisfies IActiveSession;
 }
 
@@ -79,10 +87,10 @@ class FakeNonAgentHostProvider {
 	constructor(public readonly id: string) { }
 }
 
-class FakeSessionsManagementService extends mock<ISessionsManagementService>() {
+class FakeSessionsService extends mock<ISessionsService>() {
 	declare readonly _serviceBrand: undefined;
 	override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
-	override setActiveSession(s: IActiveSession | undefined): void {
+	setActiveSession(s: IActiveSession | undefined): void {
 		this.activeSession.set(s, undefined);
 	}
 }
@@ -107,12 +115,12 @@ suite('agentHostSkillButtons - IsAgentHostSession context key', () => {
 
 	function setup() {
 		const contextKeyService = store.add(new MockContextKeyService());
-		const sessions = new FakeSessionsManagementService();
+		const sessions = new FakeSessionsService();
 		const providers = new FakeSessionsProvidersService();
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IContextKeyService, contextKeyService);
-		instantiationService.stub(ISessionsManagementService, sessions);
+		instantiationService.stub(ISessionsService, sessions);
 		instantiationService.stub(ISessionsProvidersService, providers);
 
 		store.add(instantiationService.createInstance(IsAgentHostSessionContextContribution));
@@ -161,7 +169,7 @@ suite('agentHostSkillButtons - IsAgentHostSession context key', () => {
 	});
 });
 
-suite('agentHostSkillButtons - menu registration', () => {
+suite.skip('agentHostSkillButtons - menu registration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 

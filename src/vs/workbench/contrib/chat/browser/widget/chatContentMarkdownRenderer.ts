@@ -8,6 +8,9 @@ import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../base/br
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { type MarkedExtension } from '../../../../../base/common/marked/marked.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -16,16 +19,31 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import product from '../../../../../platform/product/common/product.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../platform/agentHost/common/openSessionLink.js';
 
 const _remoteImageDisallowed = () => false;
 
-const nonPlainTextMarkdownSyntax = /[\\`*_[\]<>|&$~]/;
+const nonPlainTextMarkdownSyntax = /[\\`*_[\]<>|&$]/;
 const gfmAutolink = /\b(?:https?:\/\/|www\.)/i;
+const gfmStrikethrough = /~~/;
 const blockMarkdownSyntax = /(^|\n)\s{0,3}(?:#{1,6}\s|>\s?|[-+]\s|\d+[.)]\s|---+\s*$)/;
+
+const literalSingleTildeExtension: MarkedExtension = {
+	extensions: [{
+		name: 'literalSingleTilde',
+		level: 'inline',
+		tokenizer: source => {
+			if (source[0] === '~' && source[1] !== '~') {
+				return { type: 'text', raw: '~', text: '~' };
+			}
+			return undefined;
+		},
+	}]
+};
 
 function renderPlainTextMarkdown(markdown: IMarkdownString, outElement?: HTMLElement): IRenderedMarkdown | undefined {
 	const value = markdown.value;
-	if (!value || value.includes('\n') || nonPlainTextMarkdownSyntax.test(value) || gfmAutolink.test(value) || blockMarkdownSyntax.test(value)) {
+	if (!value || value.includes('\n') || nonPlainTextMarkdownSyntax.test(value) || gfmAutolink.test(value) || gfmStrikethrough.test(value) || blockMarkdownSyntax.test(value)) {
 		return undefined;
 	}
 
@@ -83,13 +101,16 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
 export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): MarkdownRenderOptions {
 	return {
 		...options,
+		markedExtensions: options?.markedExtensions?.includes(literalSingleTildeExtension)
+			? options.markedExtensions
+			: [...(options?.markedExtensions ?? []), literalSingleTildeExtension],
 		sanitizerConfig: {
 			replaceWithPlaintext: true,
 			allowedTags: {
 				override: allowedChatMarkdownHtmlTags,
 			},
 			...options?.sanitizerConfig,
-			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME] },
+			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME, AGENT_HOST_SESSION_LINK_SCHEME] },
 			remoteImageIsAllowed: _remoteImageDisallowed,
 		}
 	};
@@ -105,6 +126,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
 	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
@@ -143,7 +165,12 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 		// eslint-disable-next-line no-restricted-syntax
 		result.element.querySelectorAll('a').forEach((element) => {
 			if (element.title) {
-				const title = element.title;
+				let title = element.title;
+				if (title === element.dataset.href && title.startsWith(`${AGENT_HOST_SCHEME}:`)) {
+					const uri = URI.parse(title);
+					const label = this.labelService.getUriLabel(uri);
+					title = uri.fragment ? `${label}#${uri.fragment}` : label;
+				}
 				element.title = '';
 				store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, title));
 			}
