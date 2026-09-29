@@ -84,11 +84,7 @@ pub async fn agent_stop(ctx: CommandContext, args: AgentStopArgs) -> Result<i32,
 		// Defensive programming: Prevent negative duration values caused by clock skew
 		let now_ms = Timestamp::now().as_millisecond();
 		let started_ms = started_at.as_millisecond();
-		let duration = if now_ms >= started_ms {
-			now_ms - started_ms
-		} else {
-			0
-		};
+		let duration = std::cmp::max(0, now_ms - started_ms);
 
 		let turn_id = active_turn.id;
 
