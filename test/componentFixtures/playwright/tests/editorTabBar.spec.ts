@@ -49,13 +49,15 @@ for (const [group, expected] of [
 		activeTop: { indicator: 'none', color: 'rgb(34, 211, 238)' },
 		activeBottom: { display: 'block', color: 'rgb(244, 63, 94)' },
 		activeSide: 'rgb(250, 204, 21)',
-		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)' },
+		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)', height: 2, leftInset: 2, rightInset: 2 },
+		selectedBorder: 'rgba(0, 0, 0, 0)',
 	}],
 	['InactiveGroup', {
 		activeTop: { indicator: 'none', color: 'rgb(192, 132, 252)' },
 		activeBottom: { display: 'block', color: 'rgb(251, 146, 60)' },
 		activeSide: 'rgb(250, 204, 21)',
-		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)' },
+		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)', height: 2, leftInset: 2, rightInset: 2 },
+		selectedBorder: 'rgba(0, 0, 0, 0)',
 	}],
 ] as const) {
 	test(`connected tabs show legacy border customizations in ${group}`, async ({ page }) => {
@@ -68,7 +70,8 @@ for (const [group, expected] of [
 			const activeBottom = active?.querySelector<HTMLElement>('.tab-border-bottom-container');
 			const activeFill = active?.querySelector<HTMLElement>('.tab-fill');
 			const selectedTop = selected?.querySelector<HTMLElement>('.tab-border-top-container');
-			if (!activeTop || !activeBottom || !activeFill || !selectedTop) {
+			const selectedFill = selected?.querySelector<HTMLElement>('.tab-fill');
+			if (!activeTop || !activeBottom || !activeFill || !selectedTop || !selectedFill) {
 				throw new Error('Expected active and selected connected-tab border indicators');
 			}
 			const style = (element: HTMLElement) => {
@@ -82,7 +85,13 @@ for (const [group, expected] of [
 				},
 				activeBottom: style(activeBottom),
 				activeSide: getComputedStyle(activeFill).borderRightColor,
-				selectedTop: style(selectedTop),
+				selectedTop: {
+					...style(selectedTop),
+					height: selectedTop.getBoundingClientRect().height,
+					leftInset: selectedTop.getBoundingClientRect().left - selectedFill.getBoundingClientRect().left,
+					rightInset: selectedFill.getBoundingClientRect().right - selectedTop.getBoundingClientRect().right,
+				},
+				selectedBorder: getComputedStyle(selectedFill).borderRightColor,
 			};
 		});
 
@@ -112,6 +121,7 @@ for (const [style, expected] of [
 		fillTop: 'rgb(34, 211, 238)',
 		fillBottom: 'rgba(0, 0, 0, 0)',
 		fillSide: 'rgb(250, 204, 21)',
+		inactiveBorder: 'rgba(0, 0, 0, 0)',
 		visibleDividers: Array(5).fill('rgb(255, 255, 255)'),
 	}],
 ] as const) {
@@ -125,6 +135,10 @@ for (const [style, expected] of [
 				throw new Error('Expected active tab border elements');
 			}
 			const fillStyle = getComputedStyle(fill);
+			const inactiveFill = active.parentElement!.querySelector<HTMLElement>('.tab:not(.active) > .tab-fill');
+			if (!inactiveFill) {
+				throw new Error('Expected an inactive tab fill');
+			}
 			const visibleDividers = [...active.parentElement!.querySelectorAll<HTMLElement>('.tab-divider')]
 				.filter(element => getComputedStyle(element).display !== 'none')
 				.map(element => getComputedStyle(element).backgroundColor);
@@ -138,6 +152,7 @@ for (const [style, expected] of [
 				fillTop: fillStyle.borderTopColor,
 				fillBottom: fillStyle.borderBottomColor,
 				fillSide: fillStyle.borderRightColor,
+				inactiveBorder: getComputedStyle(inactiveFill).borderRightColor,
 				topAccent: getComputedStyle(fill, '::before').backgroundColor,
 				bottomAccent: getComputedStyle(fill, '::after').backgroundColor,
 				visibleDividers,
@@ -164,12 +179,15 @@ for (const [fixture, expectedDividers] of [
 			}
 			const editorRect = editor.getBoundingClientRect();
 			const fillRect = fill.getBoundingClientRect();
+			const fillStyle = getComputedStyle(fill);
 			const visibleDividers = [...group.querySelectorAll<HTMLElement>('.tab-divider')]
 				.filter(element => getComputedStyle(element).display !== 'none')
 				.map(element => getComputedStyle(element).backgroundColor);
 			return {
 				editorBorder: getComputedStyle(editor).borderTopColor,
 				capTop: getComputedStyle(fill).borderTopColor,
+				capLeft: fillStyle.borderLeftColor,
+				capLeftWidth: fillStyle.borderLeftWidth,
 				capSide: getComputedStyle(fill).borderRightColor,
 				separator: getComputedStyle(strip, '::after').backgroundColor,
 				indicator: getComputedStyle(indicator).display,
@@ -180,6 +198,8 @@ for (const [fixture, expectedDividers] of [
 		expect(state).toEqual({
 			editorBorder: 'rgb(34, 211, 238)',
 			capTop: 'rgb(34, 211, 238)',
+			capLeft: 'rgb(34, 211, 238)',
+			capLeftWidth: '1px',
 			capSide: 'rgb(34, 211, 238)',
 			separator: 'rgb(34, 211, 238)',
 			indicator: 'none',
