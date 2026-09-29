@@ -202,6 +202,8 @@ export interface IAgentHostProtocolClientOptions {
 	readonly prepareAuthentication?: () => Promise<void>;
 	/** Resolves authentication to restore immediately after every fresh initialize. */
 	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
+	/** Releases resources owned by the logical protocol client after its final disposal. */
+	readonly onDispose?: () => void;
 }
 
 /** An initial authentication resolver failed after a successful initialize. */
@@ -394,6 +396,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _reconnectDeadlineTimer = this._register(new TimeoutTimer());
 	private _firstSessionRequestPending = false;
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
+	private readonly _onDispose: (() => void) | undefined;
+	private _didDispose = false;
 
 	/**
 	 * URIs we have already granted implicit read access for on this connection.
@@ -461,6 +465,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._prepareReconnect = options?.prepareReconnect;
 		this._prepareAuthentication = options?.prepareAuthentication;
 		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
+		this._onDispose = options?.onDispose;
 
 		if (typeof transportOrFactory === 'function') {
 			this._transportFactory = transportOrFactory;
@@ -630,6 +635,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	override dispose(): void {
+		if (!this._didDispose) {
+			this._didDispose = true;
+			this._onDispose?.();
+		}
 		this._handleClose(connectionDisposedError(this._address));
 		super.dispose();
 	}

@@ -53,11 +53,18 @@ class MockWebSocket {
  */
 class TestableWSLRemoteAgentHostMainService extends WSLRemoteAgentHostMainService {
 	readonly children: MockWSLChild[] = [];
+	private nextWebSocket: DeferredPromise<MockWebSocket> | undefined;
 
 	private readonly _platform = new DeferredPromise<{ os: string; arch: string }>();
 
 	resolvePlatform(): void {
 		this._platform.complete({ os: 'linux', arch: 'x64' });
+	}
+
+	deferNextWebSocket(): DeferredPromise<MockWebSocket> {
+		const deferred = new DeferredPromise<MockWebSocket>();
+		this.nextWebSocket = deferred;
+		return deferred;
 	}
 
 	protected override _spawnAgentHost(_distro: string, _script: string): cp.ChildProcess {
@@ -71,6 +78,11 @@ class TestableWSLRemoteAgentHostMainService extends WSLRemoteAgentHostMainServic
 	}
 
 	protected override async _openWebSocket(_url: string): Promise<WebSocket> {
+		const deferred = this.nextWebSocket;
+		this.nextWebSocket = undefined;
+		if (deferred) {
+			return deferred.p as never;
+		}
 		return new MockWebSocket() as never;
 	}
 }
@@ -92,12 +104,10 @@ function createService(): TestableWSLRemoteAgentHostMainService {
 suite('WSL Remote Agent Host Service', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('deduplicates simultaneous connects to one distro', async () => {
+	test('shares one bootstrap while allocating separate relay leases', async () => {
 		const service = disposables.add(createService());
 		const first = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
 		const second = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
-
-		assert.strictEqual(first, second);
 
 		service.resolvePlatform();
 		await Promise.resolve();
@@ -105,10 +115,10 @@ suite('WSL Remote Agent Host Service', () => {
 		const [firstResult, secondResult] = await Promise.all([first, second]);
 
 		assert.deepStrictEqual(
-			{ spawnCount: service.children.length, sameResult: firstResult === secondResult, results: [firstResult, secondResult] },
+			{ spawnCount: service.children.length, sameRelay: firstResult.connectionId === secondResult.connectionId, results: [firstResult, secondResult] },
 			{
 				spawnCount: 1,
-				sameResult: true,
+				sameRelay: false,
 				results: [
 					{
 						connectionId: firstResult.connectionId,
@@ -118,7 +128,7 @@ suite('WSL Remote Agent Host Service', () => {
 						connectionToken: 'token',
 					},
 					{
-						connectionId: firstResult.connectionId,
+						connectionId: secondResult.connectionId,
 						address: 'wsl:Ubuntu',
 						distro: 'Ubuntu',
 						name: 'Ubuntu',
@@ -126,6 +136,51 @@ suite('WSL Remote Agent Host Service', () => {
 					},
 				],
 			},
+		);
+	});
+
+	test('keeps the shared bootstrap until its final relay lease closes', async () => {
+		const service = disposables.add(createService());
+		const first = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+		service.resolvePlatform();
+		await Promise.resolve();
+		service.children[0].emitStdout('ws://127.0.0.1:3000?tkn=token\n');
+		const firstResult = await first;
+		const secondResult = await service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+
+		await service.releaseRelay(firstResult.connectionId);
+		const afterFirstRelease = service.children[0].killCalls;
+		await service.releaseRelay(secondResult.connectionId);
+
+		assert.deepStrictEqual(
+			{ afterFirstRelease, afterFinalRelease: service.children[0].killCalls },
+			{ afterFirstRelease: 0, afterFinalRelease: 1 },
+		);
+	});
+
+	test('does not stop a replacement bootstrap when a failed relay acquisition belongs to the old session', async () => {
+		const service = disposables.add(createService());
+		const first = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+		service.resolvePlatform();
+		await Promise.resolve();
+		service.children[0].emitStdout('ws://127.0.0.1:3000?tkn=token\n');
+		const firstResult = await first;
+
+		const pendingSocket = service.deferNextWebSocket();
+		const staleReconnect = service.reconnect('Ubuntu', 'Ubuntu', undefined, false, firstResult.connectionId);
+		await service.disconnect('Ubuntu');
+
+		const replacement = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+		await Promise.resolve();
+		service.children[1].emitStdout('ws://127.0.0.1:3001?tkn=token\n');
+		const replacementResult = await replacement;
+
+		pendingSocket.complete(new MockWebSocket());
+		await assert.rejects(staleReconnect, /session.*closed while acquiring a relay/);
+
+		assert.deepStrictEqual(
+			{ replacementConnectionId: replacementResult.connectionId, replacementKillCalls: service.children[1].killCalls },
+			{ replacementConnectionId: replacementResult.connectionId, replacementKillCalls: 0 },
 		);
 	});
 

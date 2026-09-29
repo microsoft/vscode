@@ -82,6 +82,10 @@ class MockProtocolClient extends Disposable {
 		return this.connectDeferred.p;
 	}
 
+	get isDisposed(): boolean {
+		return this._store.isDisposed;
+	}
+
 	reconnectNow(): boolean {
 		this.reconnectNowCalls++;
 		return this.reconnectNowResult;
@@ -1497,6 +1501,87 @@ suite('RemoteAgentHostService', () => {
 
 			assert.strictEqual(t2.disposed(), true, 'new transport disposable runs on full removal');
 		});
+
+		test('releases the retained transport owner when an explicit replacement fails', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:failed-replacement');
+			const transport = makeTransportDisposable();
+			const client = new MockProtocolClient('cloud:failed-replacement');
+			await reconnectStagedConnection(factory, entry, client, transport.disposable, true);
+
+			factory.stageFailure(entry, new Error('replacement failed'));
+			service.reconnect('cloud:failed-replacement');
+			await assert.rejects(() => service.waitForConnection('cloud:failed-replacement'), /replacement failed/);
+
+			assert.deepStrictEqual({
+				clientDisposed: client.isDisposed,
+				transportDisposed: transport.disposed(),
+				connection: service.getConnection('cloud:failed-replacement'),
+			}, {
+				clientDisposed: true,
+				transportDisposed: true,
+				connection: undefined,
+			});
+		});
+
+		for (const outcome of ['success', 'failure'] as const) {
+			test(`an abandoned factory ${outcome} does not release a newer reconnect owner`, async () => {
+				const address = 'cloud:retained-replacement';
+				const entry = cloudSandboxEntry('Sandbox', address);
+				const abandoned = disposables.add(new MockProtocolClient(address));
+				const retained = disposables.add(new MockProtocolClient(address));
+				const replacement = disposables.add(new MockProtocolClient(address));
+				const abandonedGate = new DeferredPromise<void>();
+				const replacementGate = new DeferredPromise<void>();
+				const transport = makeTransportDisposable();
+				const factory = disposables.add(new class extends TestConnectionFactory {
+					override async createConnection(entry: IRemoteAgentHostEntry): Promise<IRemoteAgentHostCreatedConnection> {
+						const created = await super.createConnection(entry);
+						try {
+							if (created.connection.clientId === abandoned.clientId) {
+								await abandonedGate.p;
+							} else if (created.connection.clientId === replacement.clientId) {
+								await replacementGate.p;
+							}
+						} catch (error) {
+							created.connection.dispose();
+							throw error;
+						}
+						return created;
+					}
+				}(RemoteAgentHostEntryType.CloudSandbox));
+				disposables.add(service.registerConnectionFactory(factory));
+				factory.stage(entry, abandoned);
+				service.reconnect(address);
+				await waitForFactoryConnection(factory, 1);
+				await service.removeRemoteAgentHost(address);
+				await reconnectStagedConnection(factory, entry, retained, transport.disposable, true);
+
+				factory.stage(entry, replacement);
+				service.reconnect(address);
+				await waitForFactoryConnection(factory, 3);
+				if (outcome === 'success') {
+					await abandonedGate.complete();
+				} else {
+					await abandonedGate.error(new Error('abandoned factory failed'));
+				}
+				await timeout(0);
+				const retainedBeforeAcquisition = !retained.isDisposed && !transport.disposed();
+				await replacementGate.complete();
+				await replacement.connectDeferred.complete();
+				await service.waitForConnection(address);
+
+				assert.deepStrictEqual({
+					retainedBeforeAcquisition,
+					retainedDisposed: retained.isDisposed,
+					clientId: service.getConnection(address)?.clientId,
+				}, {
+					retainedBeforeAcquisition: true,
+					retainedDisposed: true,
+					clientId: replacement.clientId,
+				});
+			});
+		}
 
 		test('disposes transportDisposable when service itself is disposed', async () => {
 			const factory = createFactory();

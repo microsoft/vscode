@@ -187,6 +187,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	readonly onDidChangeConfiguredEntries = Event.fromObservableLight(this._configuredEntries);
 	/** In-flight connection attempts, keyed by normalized address. */
 	private readonly _pendingConnects = new Map<string, IPendingConnectionAttempt>();
+	/**
+	 * Protocol clients held alive while an explicit reconnect acquires their
+	 * replacement. This prevents an SSH/WSL relay release from tearing down
+	 * shared bootstrap state in the gap before the replacement lease exists.
+	 */
+	private readonly _retainedReconnectEntries = new Map<string, IConnectionEntry>();
 
 	get pendingConnections(): readonly IRemoteAgentHostPendingConnection[] {
 		if (this._store.isDisposed || !this._remoteAgentHostsEnabled.get()) {
@@ -425,10 +431,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (entry.connected) {
 				entry.observer?.('disposed');
 			}
-			entry.store.dispose();
-			if (!entry.reconnectTransfersTransportOwnership) {
-				entry.transportDisposable?.dispose();
-			}
+			this._retainedReconnectEntries.set(normalized, entry);
 			this._onDidChangeConnections.fire();
 		}
 
@@ -522,6 +525,19 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			disposeEntry(entry);
 			this._rejectPendingConnectionWait(address, new Error(`Connection closed: ${address}`));
 			this._onDidChangeConnections.fire();
+		}
+		this._disposeRetainedReconnectEntry(address, true);
+	}
+
+	private _disposeRetainedReconnectEntry(address: string, disposeTransport: boolean): void {
+		const entry = this._retainedReconnectEntries.get(address);
+		if (!entry) {
+			return;
+		}
+		this._retainedReconnectEntries.delete(address);
+		entry.store.dispose();
+		if (disposeTransport || !entry.reconnectTransfersTransportOwnership) {
+			entry.transportDisposable?.dispose();
 		}
 	}
 
@@ -681,8 +697,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			return;
 		}
 
-		// Dispose any existing entry for this address before creating a new one
-		// to avoid leaking disposables on reconnect.
+		// Automatic recovery and entry changes can still race a reconnect. An
+		// explicit reconnect keeps its old entry in `_retainedReconnectEntries`
+		// until this factory has acquired a replacement lease.
 		const existingEntry = this._entries.get(address);
 		if (existingEntry) {
 			this._entries.delete(address);
@@ -701,6 +718,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (this._pendingConnects.get(address) !== attempt) {
 				return;
 			}
+			this._disposeRetainedReconnectEntry(address, true);
 			this._logService.error(`[RemoteAgentHost] Failed to create a connection to ${address}. Verify address and connectionToken`, err);
 			// A factory can fail before any client exists — a stopped WSL distro is
 			// rejected by its precondition check, never reaching the handshake below.
@@ -744,11 +762,17 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			|| this._entries.has(address)
 		) {
 			observer?.('disposed');
+			this._disposeRetainedReconnectEntry(address, true);
 			createdConnection.connection.dispose();
 			createdConnection.transportDisposable?.dispose();
 			this._rejectPendingConnectionWait(address, new Error(`Connection attempt for ${address} was discarded because it is no longer active.`));
 			return;
 		}
+
+		// The factory has acquired the replacement transport/lease. Releasing
+		// the old protocol client now is safe: SSH and WSL still retain their
+		// shared session/bootstrap through the new logical lease.
+		this._disposeRetainedReconnectEntry(address, false);
 
 		const store = new DisposableStore();
 		const client = store.add(createdConnection.connection);
@@ -1083,6 +1107,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			disposeEntry(entry);
 		}
 		this._entries.clear();
+		for (const entry of this._retainedReconnectEntries.values()) {
+			entry.observer?.('disposed');
+			disposeEntry(entry);
+		}
+		this._retainedReconnectEntries.clear();
 		for (const handle of this._labelFormatters.values()) {
 			handle.dispose();
 		}

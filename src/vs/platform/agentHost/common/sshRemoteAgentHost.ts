@@ -565,15 +565,19 @@ export interface ISSHRemoteAgentHostMainService {
 	 * Bootstrap a remote agent host over SSH. Returns serializable
 	 * connection info for the renderer to register.
 	 *
-	 * @param replaceRelay When an existing SSH connection backs a new
-	 * protocol client, replace its relay while retaining the SSH session.
+	 * @param expectedConnectionId The caller's current relay lease. When it is
+	 * supplied, concurrent renewal of that lease coalesces and a stale lease
+	 * resolves to its current replacement.
 	 */
-	connect(config: ISSHAgentHostConfig, replaceRelay?: boolean): Promise<ISSHConnectResult>;
+	connect(config: ISSHAgentHostConfig, expectedConnectionId?: string): Promise<ISSHConnectResult>;
 
 	/**
 	 * Send a message to a remote agent host through the SSH relay.
 	 */
 	relaySend(connectionId: string, message: string): Promise<void>;
+
+	/** Release one renderer-owned relay lease; the shared SSH session closes after its final lease is released. */
+	releaseRelay(connectionId: string): Promise<void>;
 
 	/**
 	 * Disconnect an SSH-bootstrapped connection by host address.
@@ -606,5 +610,5 @@ export interface ISSHRemoteAgentHostMainService {
 	 * The renderer computes this from its stored preference for this host's
 	 * {@link computeSSHConnectionKey stable key} before calling reconnect.
 	 */
-	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult>;
+	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, expectedConnectionId?: string): Promise<ISSHConnectResult>;
 }
