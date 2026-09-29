@@ -293,6 +293,9 @@ export class Throttler implements IDisposable {
 	}
 }
 
+/**
+ * Runs queued promise tasks one at a time, in order, without letting a rejected task block subsequent tasks.
+ */
 export class Sequencer {
 
 	private current: Promise<unknown> = Promise.resolve(null);
