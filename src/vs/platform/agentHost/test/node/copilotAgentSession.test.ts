@@ -1531,6 +1531,27 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(publishedIds(signals), ['shell:current']);
 		});
 
+		test('reads again after an abort discards a read in flight', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [{ ...shell('server'), attachmentMode: 'detached' }];
+			disposables.add(session.observeBackgroundWork([]));
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+			const gate = new DeferredPromise<void>();
+			mockSession.backgroundTaskListGates.push(gate.p);
+			mockSession.backgroundTasks = [];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			session.resetTurnState('turn-1');
+			await session.abort();
+			await gate.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual(workActions(signals).map(action => action.type === ActionType.ChatBackgroundWorkSet ? `set ${action.work.id}` : `removed ${action.id}`), [
+				'set shell:server',
+				'removed shell:server',
+			]);
+		});
+
 		test('preserves the list on failed reads and reconciles on the next change', async () => {
 			const { mockSession, signals, waitForSignal } = await createAgentSession(disposables);
 			mockSession.backgroundTasks = [shell('running')];

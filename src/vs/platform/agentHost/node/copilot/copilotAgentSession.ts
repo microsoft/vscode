@@ -3954,6 +3954,7 @@ export class CopilotAgentSession extends Disposable {
 		if (abortTarget) {
 			this._cancelFusionEvents(abortTarget.id);
 		}
+		let droppedBackgroundTaskReads = false;
 		if (abortingTurn || this._activeSubagentAgentIds.size > 0) {
 			this._dropLateRootTurnEvents = true;
 			// Aborted children are not guaranteed to emit a terminal event before reuse.
@@ -3963,6 +3964,7 @@ export class CopilotAgentSession extends Disposable {
 			this._subagentTaskCompletionSchedulers.clearAndDisposeAll();
 			this._subagentActivityRevisions.clear();
 			this._backgroundTaskStatusRevision++;
+			droppedBackgroundTaskReads = true;
 		}
 		const abortBarrier = this._abortBarrier ??= new DeferredPromise<void>();
 		try {
@@ -3979,6 +3981,11 @@ export class CopilotAgentSession extends Disposable {
 			abortBarrier.complete();
 			if (this._abortBarrier === abortBarrier) {
 				this._abortBarrier = undefined;
+			}
+			if (droppedBackgroundTaskReads && !this._store.isDisposed) {
+				// The bump discards any background task read in flight, possibly the detached shell poll,
+				// and detached shells report no exit on their own, so read again to keep publishing.
+				this._refreshBackgroundTasks(true);
 			}
 		}
 		if (resumingTurn && this._resumingTurnAwaitingProviderStart === resumingTurn && this._currentTurn.value === resumingTurn && !resumingTurn.providerTurnStarted) {
