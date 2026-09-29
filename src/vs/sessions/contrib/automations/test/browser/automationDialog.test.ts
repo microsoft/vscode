@@ -1211,6 +1211,7 @@ suite('Automation branch picker', () => {
 		readonly providerInitiallyUnavailable?: boolean;
 		readonly revalidate?: () => void;
 		readonly visible?: boolean;
+		readonly hasRepository?: boolean;
 	}): {
 		readonly container: HTMLElement;
 		readonly state: IFormState;
@@ -1252,7 +1253,7 @@ suite('Automation branch picker', () => {
 				if (options?.failOpenRepositoryOnce && openRepositoryAttempts === 1) {
 					throw new Error('failed to open repository');
 				}
-				return repository;
+				return options?.hasRepository === false ? undefined : repository;
 			},
 		}));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
@@ -1679,6 +1680,19 @@ suite('Automation branch picker', () => {
 			folderUri: undefined,
 			isolationMode: undefined,
 			branch: undefined,
+		});
+	});
+
+	test('hides the Worktree and branch pickers for a non-Git workspace', async () => {
+		const { container } = createItem({ visible: true, hasRepository: false });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			display: container.style.display,
+			ariaHidden: container.getAttribute('aria-hidden'),
+		}, {
+			display: 'none',
+			ariaHidden: 'true',
 		});
 	});
 

@@ -571,6 +571,8 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	private branches: readonly string[] = [];
 	private detachedCommit: string | undefined;
 	private worktreeCapabilityResolved = false;
+	private container: HTMLElement | undefined;
+	private visibleFromInput = true;
 
 	constructor(
 		action: IAction,
@@ -620,10 +622,12 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		this.cancelBranchRequest();
 		DOM.clearNode(container);
 		container.style.marginLeft = 'auto';
+		this.container = container;
 		const visible = this.visible;
 		if (visible) {
 			this.renderDisposables.add(autorun(reader => {
-				setAutomationControlVisible(container, visible.read(reader));
+				this.visibleFromInput = visible.read(reader);
+				this.updateVisibility();
 			}));
 		}
 
@@ -650,6 +654,13 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 
 	showPicker(anchor: HTMLElement): void {
 		this.branchPicker.showPicker(anchor);
+	}
+
+	/** Worktree and branch pickers only apply to Git repositories, so hide them once the folder is known not to be one. */
+	private updateVisibility(): void {
+		if (this.container) {
+			setAutomationControlVisible(this.container, this.visibleFromInput && this.branchLoadState !== 'noRepository');
+		}
 	}
 
 	private refreshTargetCapability(): void {
@@ -721,6 +732,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 				disabledReason: worktreeUnavailableReason,
 			},
 		});
+		this.updateVisibility();
 		this.revalidate();
 	}
 
