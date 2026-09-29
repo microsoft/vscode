@@ -15,6 +15,7 @@ export interface IOTelPolicyRestartRecord {
 }
 
 export interface IOTelStaleConfigHost {
+	whenPolicySettled(): Promise<void>;
 	getRestartRecord(): IOTelPolicyRestartRecord | undefined;
 	setRestartRecord(record: IOTelPolicyRestartRecord | undefined): Promise<void>;
 	restartExtensionHost(): Promise<void>;
@@ -43,7 +44,12 @@ export class OTelStaleConfigMonitor {
 	}
 
 	private async _check(): Promise<OTelConfigDrift> {
+<<<<<<< HEAD
 		const active = this._resolver.activeResolution;
+=======
+		await this._host.whenPolicySettled();
+		let active = this._baseline;
+>>>>>>> e4f7a6f2f85 (Handle settled blocked policy in Local OTel recovery (#338645))
 		const current = this._resolver.resolve();
 		const drift = classifyOTelConfigDrift(active, current);
 		if (drift === OTelConfigDrift.None) {
@@ -72,7 +78,17 @@ export class OTelStaleConfigMonitor {
 			this._host.promptReload(current);
 			return drift;
 		}
+<<<<<<< HEAD
 		if (active.hasEnterpriseSettings || active.config.enabledExplicitly || !isPolicyEnabledOtlp(current)) {
+=======
+		if (record?.fingerprint === fingerprint && record.reloadAttempted && !record.acknowledged) {
+			this._handledFingerprint = fingerprint;
+			this._logService.warn('[OTel] Telemetry policy is still not applied after reloading. Not prompting for another window reload.');
+			this._warnPolicyNotApplied();
+			return drift;
+		}
+		if ((active.hasEnterpriseSettings && !isRestrictedPolicyConfig(active)) || active.config.enabledExplicitly || !isPolicyEnabledOtlp(current)) {
+>>>>>>> e4f7a6f2f85 (Handle settled blocked policy in Local OTel recovery (#338645))
 			this._handledFingerprint = fingerprint;
 			if (!this._policyNoticeShown) {
 				this._policyNoticeShown = true;
@@ -119,6 +135,16 @@ export class OTelStaleConfigMonitor {
 	}
 }
 
+<<<<<<< HEAD
+=======
+function isRestrictedPolicyConfig(resolution: IResolvedOTelConfig): boolean {
+	// A disabled, restricted startup can recover when managed export is subsequently enabled.
+	return resolution.hasEnterpriseSettings
+		&& resolution.config.enabled === false
+		&& resolution.defaultValues.exporterType === '';
+}
+
+>>>>>>> e4f7a6f2f85 (Handle settled blocked policy in Local OTel recovery (#338645))
 function isPolicyEnabledOtlp(resolution: IResolvedOTelConfig): boolean {
 	const { config, defaultValues } = resolution;
 	if (defaultValues.enabled !== true || !config.enabled || !config.enabledExplicitly

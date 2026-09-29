@@ -124,6 +124,7 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 	private _watchForReloadRequiredChanges(): void {
 		const state = this._extensionContext.workspaceState;
 		const monitor = new OTelStaleConfigMonitor(this._otelConfigResolver, {
+			whenPolicySettled: async () => { await vscode.commands.executeCommand('_workbench.whenAccountPolicySettled'); },
 			getRestartRecord: () => state.get<IOTelPolicyRestartRecord>(POLICY_RESTART_RECORD_KEY),
 			setRestartRecord: async record => state.update(POLICY_RESTART_RECORD_KEY, record),
 			// Unlike ordinary messages, progress notifications close when their host is disposed.
@@ -151,7 +152,7 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 				this._logService.info('[OTel] Extensions were restarted to apply enterprise telemetry policy.');
 			},
 		}, this._logService);
-		// One startup check and configuration-event checks; no polling.
+		// Pending checks resume on gate changes, even when configuration values stay identical.
 		const scheduler = this._register(new RunOnceScheduler(() => {
 			monitor.check().catch(error => this._logService.error(error, '[OTel] Failed to check for stale telemetry configuration'));
 		}, 500));
