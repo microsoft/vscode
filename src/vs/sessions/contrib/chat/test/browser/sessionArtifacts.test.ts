@@ -19,12 +19,14 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { IGitHubService as ISessionsGitHubService } from '../../../github/browser/githubService.js';
 import { getSessionGitHubReferences } from '../../../github/common/sessionGitHubReferences.js';
 
@@ -32,6 +34,7 @@ suite('Session Artifacts', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const actions: ISessionArtifactActions = {
+		recordOpen() { },
 		openExternal() { },
 		openResource() { },
 		openImages() { },
@@ -50,6 +53,7 @@ suite('Session Artifacts', () => {
 		const artifacts = observableValue('artifacts', entries);
 		const removed: string[] = [];
 		const errors: string[] = [];
+		const telemetryEvents: { readonly name: string | undefined; readonly data: unknown }[] = [];
 		let removalError: Error | undefined;
 		const gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', info);
 		const root = URI.file('/repo');
@@ -68,6 +72,7 @@ suite('Session Artifacts', () => {
 			}],
 		});
 		const session = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
+			override readonly sessionId = 'provider:session';
 			override readonly artifacts = artifacts;
 			override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true });
 			override readonly workspace = workspace;
@@ -88,7 +93,9 @@ suite('Session Artifacts', () => {
 			new class extends mock<INotificationService>() {
 				override error(error: string): void { errors.push(error); }
 			}(),
-			new class extends mock<IOpenerService>() { }(),
+			new class extends mock<IOpenerService>() {
+				override async open(): Promise<boolean> { return true; }
+			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
 					removed.push(artifactId);
@@ -103,8 +110,13 @@ suite('Session Artifacts', () => {
 			}(),
 			upcastPartial<ISessionsGitHubService>({ getCommit: getCommit ?? (() => commit ? Promise.resolve(commit) : new Promise(() => { })) }),
 			new NullLogService(),
+			new class extends mock<ITelemetryService>() {
+				override publicLog2(eventName?: string, data?: unknown): void {
+					telemetryEvents.push({ name: eventName, data });
+				}
+			}(),
 		));
-		return { presentation, session, artifacts, workspace, gitHubInfo, removed, errors, setRemovalError: (error: Error | undefined) => { removalError = error; } };
+		return { presentation, session, artifacts, workspace, gitHubInfo, removed, errors, telemetryEvents, setRemovalError: (error: Error | undefined) => { removalError = error; } };
 	}
 
 	function visibleEntries(presentation: SessionArtifacts, reader?: IReader) {
@@ -158,6 +170,38 @@ suite('Session Artifacts', () => {
 			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), hoverClassName: 'chat-pill-location-hover', panelClassName: 'chat-pill-location-hover-panel', tooltip: pullRequestLink.toString(true) },
 			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '~/artifacts/report.md', hoverClassName: 'chat-pill-location-hover', panelClassName: 'chat-pill-location-hover-panel', tooltip: '~/artifacts/report.md' },
 			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), hoverClassName: 'chat-pill-location-hover', panelClassName: 'chat-pill-location-hover-panel', tooltip: resourceUri.toString(true) },
+		]);
+	});
+
+	test('logs artifact and reference entry opens', () => {
+		const { presentation, telemetryEvents } = createPresentation([
+			{ id: 'file', kind: SessionArtifactKind.File, label: 'Report', isArtifact: true, uri: URI.file('/repo/report.md') },
+			{ id: 'website', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: false, link: URI.parse('https://example.com/docs') },
+		]);
+
+		for (const section of [...presentation.sections.get(), ...presentation.referenceSections.get()]) {
+			for (const entry of section.entries) {
+				entry.open();
+			}
+		}
+
+		assert.deepStrictEqual(telemetryEvents, [
+			{
+				name: 'agents/sessionArtifactOpen',
+				data: {
+					agentSessionId: hashSessionIdForTelemetry('provider:session'),
+					itemCategory: 'artifact',
+					itemKind: 'file',
+				},
+			},
+			{
+				name: 'agents/sessionArtifactOpen',
+				data: {
+					agentSessionId: hashSessionIdForTelemetry('provider:session'),
+					itemCategory: 'reference',
+					itemKind: 'website',
+				},
+			},
 		]);
 	});
 
@@ -391,11 +435,12 @@ suite('Session Artifacts', () => {
 
 	test('renders rich GitHub commit metadata with copy hash inside the hover', () => {
 		const copied: string[] = [];
+		const opened: string[] = [];
 		const link = URI.parse('https://github.com/microsoft/vscode/commit/abc123');
 		const artifact: ISessionArtifact = { id: 'commit', kind: SessionArtifactKind.Commit, label: 'Recorded commit', isArtifact: false, link, commitHash: 'abc123' };
 		const sections = buildSessionArtifactSections(
 			[artifact],
-			{ ...actions, copy: text => copied.push(text) },
+			{ ...actions, recordOpen: artifact => opened.push(artifact.id), copy: text => copied.push(text) },
 			labelService,
 			true,
 			new Set(),
@@ -409,6 +454,7 @@ suite('Session Artifacts', () => {
 		);
 		const entry = sections[0].entries[0];
 		const hover = typeof entry.hover?.content === 'function' ? entry.hover.content() : undefined;
+		hover?.querySelector<HTMLElement>('.sessions-commit-hover-reference')?.click();
 		void entry.hoverActions?.[0].run();
 		void entry.toolbarActions?.[0].run();
 
@@ -418,6 +464,7 @@ suite('Session Artifacts', () => {
 			hoverActionLabels: entry.hoverActions?.map(action => action.label),
 			hoverClassName: hover?.className,
 			hoverText: hover?.textContent,
+			opened,
 			copied,
 		}, {
 			label: 'Authoritative subject',
@@ -425,6 +472,7 @@ suite('Session Artifacts', () => {
 			hoverActionLabels: ['Copy Commit Hash'],
 			hoverClassName: 'sessions-commit-hover compact',
 			hoverText: 'microsoft/vscodeon Sep 22Authoritative subject @abc123Detailed commit body@octocat committed this change',
+			opened: ['commit'],
 			copied: ['abc123', link.toString(true)],
 		});
 	});

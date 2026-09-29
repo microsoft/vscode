@@ -96,7 +96,7 @@ export class BaseIssueReporterService extends Disposable {
 	) {
 		super();
 		const targetExtension = data.extensionId ? data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === data.extensionId?.toLocaleLowerCase()) : undefined;
-		this.issueReporterModel = new IssueReporterModel({
+		this.issueReporterModel = this._register(new IssueReporterModel({
 			...data,
 			issueType: data.issueType || IssueType.Bug,
 			versionInfo: {
@@ -106,7 +106,7 @@ export class BaseIssueReporterService extends Disposable {
 			extensionsDisabled: !!this.disableExtensions,
 			fileOnExtension: data.extensionId ? !targetExtension?.isBuiltin : undefined,
 			selectedExtension: targetExtension
-		});
+		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async () => {
 			const previousAuthState = !!this.data.githubAccessToken;

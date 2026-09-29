@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -25,7 +26,7 @@ import { getComputedDefaultSessionType, getDefaultNewChatSessionType } from '../
 import { localChatSessionType, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { storeUserSelectedSessionType } from '../../../../contrib/chat/common/chatSessionTypePreference.js';
 import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
-import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, AccountPolicyService, APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateInfo } from '../../common/accountPolicyService.js';
+import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, AccountPolicyService, APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateInfo, whenAccountPolicySettled } from '../../common/accountPolicyService.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: {
@@ -891,6 +892,138 @@ suite('AccountPolicyService', () => {
 		return { policyService: service, managed };
 	}
 
+	for (const scenario of ['pending', 'unresolved', 'inactive', 'signedOut'] as const) {
+		test(`policy settlement waits for gate initialization: ${scenario}`, async () => {
+			const accountInitialized = new DeferredPromise<IDefaultAccount | null>();
+			const gateUpdateStarted = new DeferredPromise<void>();
+			const gateUpdateCompleted = new DeferredPromise<ManagedSettingsData>();
+			const freshnessChanged = disposables.add(new Emitter<IManagedSettingsFreshness>());
+			const policyDataChanged = disposables.add(new Emitter<IPolicyData | null>());
+			const provider = new class extends DefaultAccountProvider {
+				override readonly onDidChangeManagedSettingsFreshness = freshnessChanged.event;
+				override readonly onDidChangePolicyData = policyDataChanged.event;
+				override managedSettingsFreshness = MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED;
+				override policyData: IPolicyData | null = null;
+				override refresh() { return accountInitialized.p; }
+			}(BASE_DEFAULT_ACCOUNT);
+			const accountService = disposables.add(new DefaultAccountService(TestProductService));
+			accountService.setDefaultAccountProvider(provider);
+			const managed = disposables.add(new FakeManagedPolicyService());
+			if (scenario === 'unresolved' || scenario === 'signedOut') {
+				managed.setPolicy(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, '["*"]');
+			}
+			const native = disposables.add(new class extends FakeNativeManagedSettingsService {
+				holdUpdate = false;
+				override async updatePolicyDefinitions(definitions: Record<string, PolicyDefinition>): Promise<ManagedSettingsData> {
+					if (this.holdUpdate) {
+						await gateUpdateStarted.complete();
+						return gateUpdateCompleted.p;
+					}
+					return super.updatePolicyDefinitions(definitions);
+				}
+			}());
+			const service = disposables.add(new AccountPolicyService(logService, accountService, managed, native));
+			await service.updatePolicyDefinitions({
+				enabled: { type: 'boolean', restrictedValue: false, managedSettings: { enabled: { type: 'boolean' } } },
+				exporterType: { type: 'string', restrictedValue: '' },
+			});
+			const initialGate = service.gateInfo;
+			let gateChanges = 0;
+			disposables.add(service.onDidChangeGateInfo(() => gateChanges++));
+			native.holdUpdate = true;
+			let settled = false;
+			const waiting = whenAccountPolicySettled(service).then(() => { settled = true; });
+			if (scenario === 'pending') {
+				provider.managedSettingsFreshness = { state: ManagedSettingsFreshnessState.Pending, source: 'server' };
+			}
+			await accountInitialized.complete(scenario === 'signedOut' ? null : BASE_DEFAULT_ACCOUNT);
+			await gateUpdateStarted.p;
+			await timeout(0);
+			assert.deepStrictEqual({ settled, gate: service.gateInfo }, { settled: false, gate: initialGate });
+
+			native.holdUpdate = false;
+			if (scenario === 'inactive') {
+				native.setManagedSettings({});
+				await timeout(0);
+				assert.strictEqual(settled, false, 'an overlapping update must not complete gate initialization');
+			}
+			await gateUpdateCompleted.complete({});
+			if (scenario === 'pending' || scenario === 'unresolved') {
+				await timeout(0);
+				assert.strictEqual(settled, false);
+				let policyChanges = 0;
+				disposables.add(service.onDidChange(() => policyChanges++));
+				if (scenario === 'pending') {
+					provider.managedSettingsFreshness = {
+						state: ManagedSettingsFreshnessState.Blocked, source: 'server',
+						failure: ManagedSettingsFreshnessFailure.Network, lastAttemptAt: 42,
+					};
+					freshnessChanged.fire(provider.managedSettingsFreshness);
+				} else {
+					provider.policyData = {};
+					policyDataChanged.fire(provider.policyData);
+				}
+				await waiting;
+				assert.deepStrictEqual({
+					settled, policyChanges,
+					values: [service.getPolicyValue('enabled'), service.getPolicyValue('exporterType')],
+				}, {
+					settled: true, policyChanges: 0,
+					values: scenario === 'pending' ? [false, ''] : [undefined, undefined],
+				});
+			} else {
+				await waiting;
+				assert.deepStrictEqual({ settled, gateChanges, gate: service.gateInfo }, { settled: true, gateChanges: 0, gate: initialGate });
+			}
+		});
+	}
+
+	for (const failingService of ['account', 'managedSettings'] as const) {
+		test(`policy settlement propagates and logs ${failingService} initialization failures`, async () => {
+			const failure = new Error(`${failingService} unavailable`);
+			const loggedErrors: { message: string | Error; error?: Error }[] = [];
+			const logger = new class extends NullLogService {
+				override error(message: string | Error, error?: Error): void {
+					loggedErrors.push({ message, error });
+				}
+			}();
+			const accountInitialized = new DeferredPromise<IDefaultAccount | null>();
+			const accountService = disposables.add(new class extends DefaultAccountService {
+				override async getDefaultAccount(): Promise<IDefaultAccount | null> {
+					const account = await super.getDefaultAccount();
+					if (failingService === 'account') {
+						throw failure;
+					}
+					return account;
+				}
+			}(TestProductService));
+			accountService.setDefaultAccountProvider(new class extends DefaultAccountProvider {
+				override refresh() { return accountInitialized.p; }
+			}(BASE_DEFAULT_ACCOUNT, null));
+			const native = disposables.add(new class extends FakeNativeManagedSettingsService {
+				failUpdate = false;
+				override async updatePolicyDefinitions(definitions: Record<string, PolicyDefinition>): Promise<ManagedSettingsData> {
+					if (this.failUpdate) {
+						throw failure;
+					}
+					return super.updatePolicyDefinitions(definitions);
+				}
+			}());
+			const service = disposables.add(new AccountPolicyService(logger, accountService, undefined, native));
+			await service.updatePolicyDefinitions({
+				enabled: { type: 'boolean', managedSettings: { enabled: { type: 'boolean' } } },
+			});
+			native.failUpdate = true;
+			await accountInitialized.complete(BASE_DEFAULT_ACCOUNT);
+			await timeout(0);
+			await assert.rejects(whenAccountPolicySettled(service), error => error === failure);
+			assert.deepStrictEqual(loggedErrors, [{
+				message: 'AccountPolicyService: Failed to initialize account policy',
+				error: failure,
+			}]);
+		});
+	}
+
 	test('gate inactive (no approved orgs set): behaves identically to today', async () => {
 		const { policyService } = await setupGate({ account: APPROVED_ORG_ACCOUNT, policyData: { chat_preview_features_enabled: false } });
 		assert.strictEqual(policyService.gateInfo.state, AccountPolicyGateState.Inactive);
@@ -916,6 +1049,40 @@ suite('AccountPolicyService', () => {
 			managedSettingsFreshness: freshness,
 		});
 		assert.strictEqual(policyService.getPolicyValueSource('PolicySettingD'), PolicyValueSource.AccountGate);
+	});
+
+	test('policy settlement resumes on Pending to Blocked without changed policy values', async () => {
+		const freshnessChanged = disposables.add(new Emitter<IManagedSettingsFreshness>());
+		const provider = new class extends DefaultAccountProvider {
+			override readonly onDidChangeManagedSettingsFreshness = freshnessChanged.event;
+			override managedSettingsFreshness: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Pending, source: 'server' };
+		}(APPROVED_ORG_ACCOUNT);
+		const accountService = disposables.add(new DefaultAccountService(TestProductService));
+		accountService.setDefaultAccountProvider(provider);
+		await accountService.refresh();
+		const service = disposables.add(new AccountPolicyService(logService, accountService));
+		await service.updatePolicyDefinitions({
+			enabled: { type: 'boolean', restrictedValue: false },
+			exporterType: { type: 'string', restrictedValue: '' },
+		});
+		const valuesBefore = [service.getPolicyValue('enabled'), service.getPolicyValue('exporterType')];
+		let policyChanges = 0;
+		disposables.add(service.onDidChange(() => policyChanges++));
+		let settled = false;
+		const waiting = whenAccountPolicySettled(service).then(() => { settled = true; });
+		await timeout(0);
+		assert.strictEqual(settled, false);
+
+		provider.managedSettingsFreshness = {
+			state: ManagedSettingsFreshnessState.Blocked, source: 'server',
+			failure: ManagedSettingsFreshnessFailure.Network, lastAttemptAt: 42,
+		};
+		freshnessChanged.fire(provider.managedSettingsFreshness);
+		await waiting;
+		assert.deepStrictEqual({
+			settled, policyChanges, valuesBefore,
+			valuesAfter: [service.getPolicyValue('enabled'), service.getPolicyValue('exporterType')],
+		}, { settled: true, policyChanges: 0, valuesBefore: [false, ''], valuesAfter: [false, ''] });
 	});
 
 	test('gate active, no account signed in: restricted', async () => {

@@ -5,37 +5,12 @@
 
 import assert from 'assert';
 import { EventType } from '../../../base/browser/dom.js';
-import { IDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../common/contextkeys.js';
 import { noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
 import { createSessionsPartTestHarness, createTestActiveSession, getSessionPickerVisibility } from './sessionViewTestUtils.js';
-
-interface IViewSize {
-	readonly width: number;
-	readonly height: number;
-}
-
-interface ITestGridSlot {
-	readonly view: TestSessionView;
-	readonly disposables: IDisposable;
-	boundSessionId: string | undefined;
-}
-
-interface ISessionsPartTestHarness {
-	readonly _isPartVisible: boolean;
-	readonly instantiationService: {
-		createInstance(): TestSessionView;
-	};
-	readonly _gridWidget: {
-		getViewSize(view: object): IViewSize;
-		expandView(view: object): void;
-	};
-	readonly _onDidFocusSession: {
-		fire(sessionId: string | undefined): void;
-	};
-}
+import { Direction } from '../../../base/browser/ui/grid/grid.js';
 
 interface ICodiconActivationTestHarness {
 	readonly accessibilityService: {
@@ -47,71 +22,32 @@ interface ICodiconActivationTestHarness {
 	};
 }
 
-class TestSessionView implements IDisposable {
-	readonly element = document.createElement('div');
-	readonly minimumWidth = 200;
-	readonly partVisibility: boolean[] = [];
-
-	setPartVisible(visible: boolean): void {
-		this.partVisibility.push(visible);
-	}
-	dispose(): void { }
-}
-
 suite('Sessions - Sessions Part', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const pickerKeys = new Set([SessionWorkspacePickerVisibleContext.key, SessionHarnessPickerVisibleContext.key, SessionIsolationPickerVisibleContext.key]);
 
-	const createSlot = Reflect.get(SessionsPart.prototype, '_createSlot') as (this: ISessionsPartTestHarness) => ITestGridSlot;
 	const activateCodicon = Reflect.get(SessionsPart.prototype, 'activateCodicon') as (this: ICodiconActivationTestHarness, element: HTMLElement) => void;
 
 	function assertActivation(eventFactory: () => Event): void {
-		const minimizedView = new TestSessionView();
-		const widerView = new TestSessionView();
-		const emptyView = new TestSessionView();
-		const widths = new Map<object, number>([
-			[minimizedView, minimizedView.minimumWidth],
-			[widerView, widerView.minimumWidth + 1],
-			[emptyView, emptyView.minimumWidth + 1],
-		]);
-		const expanded: object[] = [];
+		const { part } = createSessionsPartTestHarness(store);
+		const first = createTestActiveSession('minimized');
+		const second = createTestActiveSession('wider');
+		part.updateVisibleSessions([first, second, undefined], first);
+		part.layout(1202, 802, 0, 0);
+		part.resizeSession('minimized', Direction.Left, 1000);
+		const minimizedView = part.getSessionView('minimized')!;
+		const widerView = part.getSessionView('wider')!;
+		const emptyView = part.getSessionView(undefined)!;
 		const focused: (string | undefined)[] = [];
-		let viewToCreate = minimizedView;
-		const host = {
-			_isPartVisible: true,
-			_contentVisible: true,
-			instantiationService: {
-				createInstance: () => viewToCreate,
-			},
-			_gridWidget: {
-				getViewSize: (view: object) => ({ width: widths.get(view)!, height: 600 }),
-				expandView: (view: object) => expanded.push(view),
-			},
-			_onDidFocusSession: {
-				fire: (sessionId: string | undefined) => focused.push(sessionId),
-			},
-		};
-		Object.setPrototypeOf(host, SessionsPart.prototype);
-
-		const minimizedSlot = createSlot.call(host);
-		minimizedSlot.boundSessionId = 'minimized';
-		store.add(minimizedSlot.disposables);
-
-		viewToCreate = widerView;
-		const widerSlot = createSlot.call(host);
-		widerSlot.boundSessionId = 'wider';
-		store.add(widerSlot.disposables);
-
-		viewToCreate = emptyView;
-		const emptySlot = createSlot.call(host);
-		store.add(emptySlot.disposables);
-
+		store.add(part.onDidFocusSession(id => focused.push(id)));
+		const minimum = minimizedView.element.style.width;
 		minimizedView.element.dispatchEvent(eventFactory());
+		const expanded = Number.parseFloat(minimizedView.element.style.width) > Number.parseFloat(minimum);
 		widerView.element.dispatchEvent(eventFactory());
 		emptyView.element.dispatchEvent(eventFactory());
 
 		assert.deepStrictEqual({ expanded, focused }, {
-			expanded: [minimizedView],
+			expanded: true,
 			focused: ['minimized', 'wider', undefined],
 		});
 	}
@@ -123,6 +59,86 @@ suite('Sessions - Sessions Part', () => {
 	test('pointer activation expands only a minimum-width session', () => {
 		assertActivation(() => new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, button: 0 }));
 	});
+
+	test('reorders and removes created sessions without rebinding surviving chat views', () => {
+		const { part, chatViews } = createSessionsPartTestHarness(store);
+		const [a, b, c] = ['a', 'b', 'c'].map(id => createTestActiveSession(id));
+		part.updateVisibleSessions([a, b, c], b);
+		part.layout(1202, 802, 0, 0);
+		const views = [a, b, c].map(session => part.getSessionView(session.sessionId));
+		const chats = chatViews.filter(view => view.kind === 'chat');
+		chats[1].input.value = 'Keep this draft';
+		part.updateVisibleSessions([c, a, b], b);
+		const reordered = [a, b, c].map((session, index) => part.getSessionView(session.sessionId) === views[index]);
+		part.updateVisibleSessions([c, b], b);
+		part.updateVisibleSessions([c, b], b, undefined, { type: 'arrange' });
+		assert.deepStrictEqual({
+			reordered,
+			retained: [part.getSessionView('c') === views[2], part.getSessionView('b') === views[1]],
+			kinds: chats.map(chat => chat.kind),
+			resources: chats.map(chat => chat.chat?.resource.toString()),
+			disposals: chats.map(chat => chat.disposeCount),
+			created: chatViews.filter(view => view.kind === 'chat').length,
+			draft: chats[1].input.value,
+		}, {
+			reordered: [true, true, true], retained: [true, true], kinds: ['chat', 'chat', 'chat'],
+			resources: [a, b, c].map(session => session.mainChat.get().resource.toString()),
+			disposals: [1, 0, 0], created: 3, draft: 'Keep this draft',
+		});
+	});
+
+	for (const maximized of [false, true]) {
+		test(`removing and disposing a ${maximized ? 'maximized' : 'phone'} projection detaches its outgoing views`, () => {
+			const { part, container, chatViews } = createSessionsPartTestHarness(store);
+			const [a, b] = ['a', 'b'].map(id => createTestActiveSession(id));
+			part.updateVisibleSessions([a, b], b);
+			part.layout(1202, 802, 0, 0);
+			if (maximized) {
+				part.toggleMaximizeSession('b');
+			} else {
+				container.classList.add('phone-layout');
+				part.layout(390, 780, 0, 0);
+			}
+			const outgoing = part.getSessionView('b')!.element;
+			const surviving = part.getSessionView('a')!.element;
+			part.updateVisibleSessions([a], a);
+			const afterRemoval = {
+				outgoingConnected: outgoing.isConnected,
+				visibleSessions: container.querySelectorAll('.session-view').length,
+				height: surviving.getBoundingClientRect().height,
+				disposed: chatViews.filter(view => view.kind === 'chat').map(view => view.disposed),
+			};
+			part.dispose();
+			assert.deepStrictEqual({ afterRemoval, connectedAfterDispose: [outgoing, surviving].map(element => element.isConnected) }, {
+				afterRemoval: { outgoingConnected: false, visibleSessions: 1, height: maximized ? 800 : 780, disposed: [false, true] },
+				connectedAfterDispose: [false, false],
+			});
+		});
+	}
+
+	for (const mobile of [false, true]) {
+		test(`${mobile ? 'phone' : 'desktop'}-born part restores its desktop arrangement across viewport changes`, () => {
+			const { part, container, chatViews } = createSessionsPartTestHarness(store, mobile);
+			const a = createTestActiveSession('a');
+			const b = createTestActiveSession('b');
+			const slots = [{ id: 'a' }, { id: 'b', placement: { reference: 'a', direction: Direction.Down } }];
+			part.updateVisibleSessions([a, b], a, slots);
+			container.classList.remove('phone-layout');
+			part.layout(1202, 802, 0, 0);
+			part.resizeSession('a', Direction.Down, 40);
+			const desktop = part.getGridLayout();
+			container.classList.add('phone-layout');
+			part.layout(390, 780, 0, 0);
+			const phone = part.getGridLayout();
+			part.updateVisibleSessions([a, b], b, slots);
+			const phoneSize = part.getSessionView('b')!.element.style.width;
+			container.classList.remove('phone-layout');
+			part.layout(1202, 802, 0, 0);
+			assert.deepStrictEqual({
+				phone, restored: part.getGridLayout(), phoneSize, created: chatViews.filter(view => view.kind === 'chat').length, disposed: chatViews.filter(view => view.kind === 'chat').map(view => view.disposed),
+			}, { phone: desktop, restored: desktop, phoneSize: '390px', created: 2, disposed: [false, false] });
+		});
+	}
 
 	test('projects only the active view while retaining explicit, independent scoped picker values', () => {
 		const { part, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
@@ -284,22 +300,25 @@ suite('Sessions - Sessions Part', () => {
 	});
 
 	test('combines content and grid visibility for mounted session views', () => {
-		const view = new TestSessionView();
+		const { part, chatViews } = createSessionsPartTestHarness(store);
+		const session = createTestActiveSession('visible');
+		part.updateVisibleSessions([session], session);
+		const chat = chatViews.find(view => view.kind === 'chat')!;
 		const partVisibilityEvents: boolean[] = [];
-		const part: SessionsPart = Object.assign(Object.create(SessionsPart.prototype), {
-			_isPartVisible: true,
-			_contentVisible: true,
-			_slots: [{ view }],
-			_onDidVisibilityChange: { fire: (visible: boolean) => partVisibilityEvents.push(visible) },
-		});
+		store.add(part.onDidVisibilityChange(visible => partVisibilityEvents.push(visible)));
+		const visibility: boolean[] = [];
 
 		part.setVisible(false);
+		visibility.push(chat.visible);
 		part.setContentVisible(false);
+		visibility.push(chat.visible);
 		part.setContentVisible(true);
+		visibility.push(chat.visible);
 		part.setVisible(true);
+		visibility.push(chat.visible);
 
 		assert.deepStrictEqual({
-			sessionView: view.partVisibility,
+			sessionView: visibility,
 			part: partVisibilityEvents,
 		}, {
 			sessionView: [false, false, false, true],

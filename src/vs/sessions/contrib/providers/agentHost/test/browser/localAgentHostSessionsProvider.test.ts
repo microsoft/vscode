@@ -3942,6 +3942,53 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	for (const outcome of ['available', 'unavailable', 'error', 'canceled'] as const) {
+		test(`notifies Dev Container request changes while availability is pending (${outcome})`, async () => {
+			const availability = new DeferredPromise<boolean>();
+			const provider = createProvider(disposables, agentHost, undefined, {
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override isAvailable(): Promise<boolean> { return availability.p; }
+				}(),
+			});
+			const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session.sessionId, config => !!config);
+			const read = () => ({
+				requested: provider.isDevContainerRequested(session.sessionId),
+				enabled: provider.isDevContainerEnabled(session.sessionId),
+			});
+			let observed = read();
+			disposables.add(provider.onDidChangeSessionConfig(sessionId => {
+				if (sessionId === session.sessionId) {
+					observed = read();
+				}
+			}));
+			const states = [observed];
+			provider.preferDevContainer(session.sessionId);
+			states.push(observed);
+			if (outcome === 'canceled') {
+				provider.setDevContainerEnabled(session.sessionId, false);
+				states.push(observed);
+			}
+			if (outcome === 'error') {
+				await availability.error(new Error('Configuration probe failed'));
+			} else {
+				await availability.complete(outcome !== 'unavailable');
+			}
+			await timeout(0);
+			states.push(observed);
+			const settled = { requested: outcome === 'available', enabled: outcome === 'available' };
+			assert.deepStrictEqual({ states, actual: read() }, {
+				states: [
+					{ requested: false, enabled: false },
+					{ requested: true, enabled: false },
+					...(outcome === 'canceled' ? [{ requested: false, enabled: false }] : []),
+					settled,
+				],
+				actual: settled,
+			});
+		});
+	}
+
 	test('enables a preferred Dev Container immediately after availability resolved', async () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
@@ -4150,6 +4197,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		let connectedWorkspace: URI | undefined;
 		let logWorkspace: URI | undefined;
 		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
 				override async isAvailable(): Promise<boolean> { return true; }
 				override async showLog(workspace: URI): Promise<void> {
@@ -4196,6 +4244,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}
 			let connectCalls = 0;
 			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
 					override async isAvailable(): Promise<boolean> { return true; }
 					override async connect(): Promise<never> {
@@ -4318,6 +4367,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}();
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService,
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			setUrisTrust: async uris => {
 				if (uris.some(uri => uri.toString() === remoteWorkspace.toString())) {
 					throw setupError;
@@ -4393,6 +4443,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				deletedTargetDrafts.push(sessionId);
 			}
 			override isSessionConfigResolving() { return constObservable(false); }
+			override async whenSessionConfigResolved() { return this.getSessionConfig(); }
+			override getNewSessionCancellationToken() { return CancellationToken.None; }
 			override getSessionConfig(): ResolveSessionConfigResult {
 				return {
 					schema: {
@@ -4452,6 +4504,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService,
 			sessionsProvidersService,
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			languageModelIds: [sourceModelId],
 			lookupLanguageModel: id => id === sourceModelId
 				? { ...createTestLanguageModel('gpt-5'), targetChatSessionType: 'agent-host-copilotcli' }

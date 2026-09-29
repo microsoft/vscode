@@ -9,6 +9,7 @@ import { getAnchorRect } from '../../../../../base/browser/ui/contextview/contex
 import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
 import { ActionRunner } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -224,7 +225,7 @@ const SETTLE_DELAY = 100;
 /** The sessions list still reads this Copilot-internal service (#320480); fixtures stub it by id instead of importing it. */
 const IFixtureAgentSessionsService = createDecorator<object>('agentSessions');
 
-class FixtureActionViewItemService extends Disposable implements IActionViewItemService {
+export class FixtureActionViewItemService extends Disposable implements IActionViewItemService {
 	declare _serviceBrand: undefined;
 
 	private readonly providers = new Map<string, IActionViewItemFactory>();
@@ -252,7 +253,7 @@ type MenuActionGroups = [string, Array<MenuItemAction | SubmenuItemAction>][];
  * Renders context menus in the fixture with the production menu widget and
  * styles, where the shared fixture services show nothing.
  */
-class FixtureContextMenuService extends Disposable implements IContextMenuService {
+export class FixtureContextMenuService extends Disposable implements IContextMenuService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly shownMenu = this._register(new MutableDisposable());
@@ -304,7 +305,12 @@ class FixtureContextMenuService extends Disposable implements IContextMenuServic
 			getKeyBinding: delegate.getKeyBinding ?? (action => this.keybindingService.lookupKeybinding(action.id)),
 		}, defaultMenuStyles));
 		store.add(menu.onDidCancel(() => this.shownMenu.clear()));
-		store.add(actionRunner.onDidRun(() => this.shownMenu.clear()));
+		store.add(actionRunner.onDidRun(event => {
+			this.shownMenu.clear();
+			if (event.error) {
+				onUnexpectedError(event.error);
+			}
+		}));
 		store.add(toDisposable(() => {
 			delegate.onHide?.(false);
 			this.onDidHideContextMenuEmitter.fire();
@@ -492,7 +498,7 @@ let archiveActions: { readonly contribution: SessionsArchiveActionsContribution;
  * {@link SessionsListFixtureMenuService} shows them in each fixture's wording,
  * which keeps concurrently mounted fixtures independent.
  */
-function acquireArchiveActions(): IDisposable {
+export function acquireArchiveActions(): IDisposable {
 	archiveActions ??= {
 		contribution: new SessionsArchiveActionsContribution(new TestConfigurationService({ [ChatSessionArchiveActionWordingSettingId]: REGISTERED_ARCHIVE_WORDING })),
 		refs: 0,

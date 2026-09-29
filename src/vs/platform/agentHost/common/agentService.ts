@@ -7,6 +7,7 @@ import type { CancellationToken } from '../../../base/common/cancellation.js';
 import type { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
@@ -16,6 +17,7 @@ import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
+import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -440,6 +442,12 @@ export interface IAgentHostOTelSettings {
  */
 export const AgentHostOTelPolicyIpcChannel = 'vscode:agentHostOTelPolicy';
 
+/** Whether the renderer has a settled policy rather than startup/refresh placeholders. */
+export interface IAgentHostOTelPolicyReadiness {
+	isReady(): boolean;
+	readonly onDidChange: Event<void>;
+}
+
 /** Renderer-to-main request to replace the shared local Agent Host process. */
 export const AgentHostRestartIpcChannel = 'vscode:restartAgentHost';
 
@@ -503,6 +511,38 @@ export function sanitizeAgentHostOTelPolicySettings(raw: unknown): IAgentHostOTe
 		serviceName: asString(record.serviceName),
 		resourceAttributes: asStringRecord(record.resourceAttributes),
 	};
+}
+
+/** Tracks renderer-forwarded policy and coalesces restart requests until the host starts. */
+export class AgentHostOTelPolicyState {
+	private _policy: IAgentHostOTelSettings | undefined;
+	private _restartPending = false;
+	private _hasSettledPolicy = false;
+
+	get policy(): IAgentHostOTelSettings | undefined {
+		return this._policy;
+	}
+
+	update(raw: unknown, agentHostRunning: boolean, ready = true): boolean {
+		if (!ready && (agentHostRunning || this._hasSettledPolicy)) {
+			return false;
+		}
+		this._hasSettledPolicy ||= ready;
+		const policy = sanitizeAgentHostOTelPolicySettings(raw);
+		if (equals(this._policy, policy)) {
+			return false;
+		}
+		this._policy = policy;
+		if (!agentHostRunning || this._restartPending) {
+			return false;
+		}
+		this._restartPending = true;
+		return true;
+	}
+
+	didStart(): void {
+		this._restartPending = false;
+	}
 }
 
 /**
@@ -855,7 +895,12 @@ export interface IAgentService {
 	/** Dispose a session in the agent host, freeing SDK resources. */
 	disposeSession(session: URI): Promise<void>;
 
-	createTerminal(params: CreateTerminalParams): Promise<void>;
+	/**
+	 * Create a terminal requested by a protocol client. Terminals created by
+	 * VS Code clients (per `clientType`) receive VS Code's terminal identity
+	 * (`TERM_PROGRAM`).
+	 */
+	createTerminal(params: CreateTerminalParams, clientType?: AgentHostClientType): Promise<void>;
 
 	/** Dispose a terminal and kill its process if still running. */
 	disposeTerminal(terminal: URI): Promise<void>;

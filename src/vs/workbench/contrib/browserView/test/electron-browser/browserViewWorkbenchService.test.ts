@@ -1,0 +1,130 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { BrowserViewEvent, BrowserViewStorageScope, browserZoomDefaultIndex, IBrowserViewInfo, serializeBrowserViewInfo } from '../../../../../platform/browserView/common/browserView.js';
+import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
+import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { INativeWorkbenchEnvironmentService } from '../../../../services/environment/electron-browser/environmentService.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { IBrowserZoomService } from '../../common/browserZoomService.js';
+import { BrowserViewWorkbenchService } from '../../electron-browser/browserViewWorkbenchService.js';
+
+suite('BrowserViewWorkbenchService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createService() {
+		const disposables = store.add(new DisposableStore());
+		const events = store.add(new Emitter<BrowserViewEvent>());
+		class Source {
+			onDynamicBrowserViewEvent(): Event<BrowserViewEvent> { return events.event; }
+			async updateWindowConfiguration(): Promise<void> { }
+			async destroyBrowserView(): Promise<void> { }
+			async setBrowserZoomIndex(): Promise<void> { }
+		}
+		const channel = ProxyChannel.fromService(new Source(), disposables);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IWorkspaceTrustManagementService, 'getTrustedUris', () => []);
+		instantiationService.stub(IMainProcessService, upcastPartial<IMainProcessService>({
+			getChannel: () => ({
+				call: (command, args) => channel.call(undefined, command, args),
+				listen: (event, args) => channel.listen(undefined, event, args),
+			}),
+		}));
+		instantiationService.stub(INativeWorkbenchEnvironmentService, upcastPartial<INativeWorkbenchEnvironmentService>({
+			userHome: URI.file('/home/test'),
+		}));
+		instantiationService.stub(IWorkspaceTrustEnablementService, upcastPartial<IWorkspaceTrustEnablementService>({
+			isWorkspaceTrustEnabled: () => false,
+		}));
+		instantiationService.stub(IBrowserZoomService, upcastPartial<IBrowserZoomService>({
+			getEffectiveZoomIndex: () => browserZoomDefaultIndex,
+			onDidChangeZoom: Event.None,
+		}));
+		instantiationService.stub(IAgentNetworkFilterService, upcastPartial<IAgentNetworkFilterService>({
+			isEnabled: () => false,
+			onDidChange: Event.None,
+		}));
+		const service = store.add(instantiationService.createInstance(BrowserViewWorkbenchService));
+		instantiationService.stub(IBrowserViewWorkbenchService, service);
+		return { service, events };
+	}
+
+	function info(id: string): IBrowserViewInfo {
+		return {
+			id, host: { windowId: 1 }, owner: { type: 'user' },
+			state: {
+				url: '', title: '', canGoBack: false, canGoForward: false,
+				loading: false, focused: false, visible: false, isDevToolsOpen: false,
+				lastScreenshot: undefined, lastFavicon: undefined, lastError: undefined, certificateError: undefined,
+				storageScope: BrowserViewStorageScope.Global, storageKeys: {},
+				permissions: { origins: {} }, browserZoomIndex: browserZoomDefaultIndex,
+				elementSelectionState: { active: false, options: {} },
+				isRemoteSession: false, isAreaSelectionActive: false, device: undefined, audiences: [],
+			}
+		};
+	}
+
+	test('preserves restored metadata on early disposal without overriding fresh native state', async () => {
+		const { service, events } = createService();
+		const results = [];
+		for (const fresh of [false, true]) {
+			const id = `restored-${fresh}`;
+			const input = store.add(service.getOrCreateLazy({
+				id, url: 'https://saved.example/', title: 'Saved title', favicon: 'saved-icon',
+			}));
+			const view = info(id);
+			if (fresh) {
+				view.state.title = 'Fresh title';
+				view.state.lastFavicon = 'fresh-icon';
+			}
+			const [serialized, screenshot] = serializeBrowserViewInfo(view);
+			events.fire([{ type: 'created', windowId: 1, data: { info: serialized, initialUrl: 'https://new.example/' } }, [screenshot]]);
+			input.dispose();
+			const { url, title, favicon } = input.serialize();
+			results.push({ url, title, favicon });
+		}
+		await Promise.resolve();
+		assert.deepStrictEqual(results, [
+			{ url: 'https://new.example/', title: 'Saved title', favicon: 'saved-icon' },
+			{ url: 'https://new.example/', title: 'Fresh title', favicon: 'fresh-icon' },
+		]);
+	});
+
+	test('delivers close to later consumers and retains a replacement with the same ID', async () => {
+		const { service, events } = createService();
+		const [serialized, screenshot] = serializeBrowserViewInfo(info('page'));
+		const create = () => events.fire([{ type: 'created', windowId: 1, data: { info: serialized } }, [screenshot]]);
+		create();
+		const input = store.add(service.getKnownBrowserViews().get('page')!);
+		const received: string[] = [];
+		store.add(input.model!.onDidClose(() => {
+			received.push('closed');
+			create();
+		}));
+		events.fire([{ type: 'changed', windowId: 1, id: 'page', event: 'onDidClose', data: undefined }, []]);
+		const replacement = service.getKnownBrowserViews().get('page');
+		if (replacement) {
+			store.add(replacement);
+		}
+		await Promise.resolve();
+		events.fire([{ type: 'changed', windowId: 1, id: 'page', event: 'onDidChangeTitle', data: { title: 'Replacement' } }, []]);
+		assert.deepStrictEqual({
+			received, oldDisposed: input.isDisposed(), replacementTitle: replacement?.model?.title,
+		}, {
+			received: ['closed'], oldDisposed: true, replacementTitle: 'Replacement',
+		});
+		replacement?.dispose();
+		await Promise.resolve();
+	});
+});
