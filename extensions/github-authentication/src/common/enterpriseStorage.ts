@@ -9,13 +9,6 @@ import { IAccountLink } from './accountLinks';
 export const enterpriseUriSetting = 'github-enterprise.uri';
 
 const tokenSuffix = '.ghes.auth';
-const accountLinksSuffix = '.microsoftAccountLinks';
-
-interface EnterpriseStorage {
-	readonly key: string;
-	readonly tokens: string | undefined;
-	readonly links: readonly IAccountLink[] | undefined;
-}
 
 export function getEnterpriseUriKey(uri: vscode.Uri): string {
 	return uri.with({
@@ -26,6 +19,16 @@ export function getEnterpriseUriKey(uri: vscode.Uri): string {
 
 export function getEnterpriseStorageKey(uri: vscode.Uri): string {
 	return `${getEnterpriseUriKey(uri)}${tokenSuffix}`;
+}
+
+//#region Legacy migration - TODO: delete in 1.144 (four releases after 1.140), including callers and migration tests.
+
+const accountLinksSuffix = '.microsoftAccountLinks';
+
+interface EnterpriseStorage {
+	readonly key: string;
+	readonly tokens: string | undefined;
+	readonly links: readonly IAccountLink[] | undefined;
 }
 
 function getLegacyStorageUri(key: string, scheme: string): vscode.Uri | undefined {
@@ -91,3 +94,5 @@ export async function migrateEnterpriseStorage(context: vscode.ExtensionContext,
 	}
 	await migrateStorage(context, source, target);
 }
+
+//#endregion
