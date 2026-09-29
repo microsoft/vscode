@@ -208,9 +208,9 @@ suite('ChatInputTourTrigger', () => {
 			popupsBeforeOpen: [undefined, undefined, undefined],
 			popupsAreMenu: [true, true, false],
 			steps: [
+				{ targetId: ChatInputTourTarget.ModelPicker, openTarget: undefined },
 				{ targetId: ChatInputTourTarget.AgentMode, openTarget: true },
 				{ targetId: ChatInputTourTarget.Permissions, openTarget: true },
-				{ targetId: ChatInputTourTarget.ModelPicker, openTarget: undefined },
 			],
 		});
 	}));
