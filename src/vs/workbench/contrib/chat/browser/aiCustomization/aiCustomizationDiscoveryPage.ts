@@ -1362,7 +1362,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private getSearchMarketplaceResources(): readonly ICustomizationMarketplaceResource[] {
 		const resources = new Map(this.catalogItems.map(resource => [getCustomizationMarketplaceResourceKey(resource), resource]));
-		for (const resource of this.installService.getRecordedResources()) {
+		for (const { resource } of this.installService.installations.get().installations) {
 			const key = getCustomizationMarketplaceResourceKey(resource);
 			if (!resources.has(key)) {
 				resources.set(key, resource);

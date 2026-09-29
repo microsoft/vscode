@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { autorun, derived, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -18,7 +18,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
-import { ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource } from '../../common/customizationMarketplaceInstallService.js';
+import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
@@ -168,19 +168,12 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 
 		this.itemNormalizer = new AICustomizationItemNormalizer(labelService, productService);
 
-		const marketplaceInstallationsChanged = observableSignalFromEvent(this, this.marketplaceInstallService.onDidChange);
 		for (const section of ITEMS_MODEL_SECTIONS) {
 			const sourceItems = observableValue<readonly IAICustomizationListItem[]>(`aiCustomizationItems:${section}`, []);
 			const items = section === AICustomizationManagementSection.Skills ? derived(reader => {
-				marketplaceInstallationsChanged.read(reader);
-				const marketplaceSkills = new ResourceMap<IRecordedCustomizationMarketplaceResource>();
-				for (const marketplace of this.marketplaceInstallService.getRecordedResourcesWithState()) {
-					if (marketplace.state.target.kind === 'skill' && !marketplaceSkills.has(marketplace.state.target.uri)) {
-						marketplaceSkills.set(marketplace.state.target.uri, marketplace);
-					}
-				}
+				const marketplaceInstallations = this.marketplaceInstallService.installations.read(reader);
 				return sourceItems.read(reader).map(item => {
-					const marketplace = marketplaceSkills.get(item.uri);
+					const marketplace = marketplaceInstallations.findByTarget({ kind: 'skill', uri: item.uri });
 					return marketplace ? { ...item, marketplace } : item;
 				});
 			}) : sourceItems;

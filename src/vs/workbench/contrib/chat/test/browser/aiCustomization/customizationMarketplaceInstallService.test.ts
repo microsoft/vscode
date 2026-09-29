@@ -47,6 +47,7 @@ import { CustomizationMarketplaceInstallationRecordStore } from '../../../browse
 import { CustomizationMarketplaceInstallService } from '../../../browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { getPluginMarketplaceIdentifier } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -225,6 +226,10 @@ class SkillFileSystemProvider extends InMemoryFileSystemProvider {
 
 suite('CustomizationMarketplaceInstallService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function recordedResources(service: ICustomizationMarketplaceInstallService): readonly ICustomizationMarketplaceResource[] {
+		return service.installations.get().installations.map(installation => installation.resource);
+	}
 
 	async function createFixture(options: { enabled?: boolean; otherSourceEnabled?: boolean } = { enabled: true }) {
 		const instantiationService = store.add(new TestInstantiationService());
@@ -647,7 +652,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				state: state.kind,
 				repairUnavailableMessage: state.kind === 'missing' ? state.repairUnavailableMessage : undefined,
 				stateAfterUninstall: fixture.service.getInstallState(candidate).kind,
-				recordedResources: fixture.service.getRecordedResources().length,
+				recordedResources: recordedResources(fixture.service).length,
 			}, {
 				state: 'missing',
 				repairUnavailableMessage: 'Enable the customization marketplace to install this resource.',
@@ -1048,14 +1053,14 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 
 	suite('installation records', () => {
-		test('rejects malformed persisted targets and bounds record count', () => {
+		test('rejects malformed persisted targets and loads records without an arbitrary count or metadata-size cap', () => {
 			const storage = store.add(new TestStorageService());
 			const prefix = 'chat.customizations.marketplace.installationRecord.v1.';
-			const id = 'a'.repeat(64);
-			storage.store(`${prefix}${id}`, JSON.stringify({
+			const malformedId = 'f'.repeat(64);
+			storage.store(`${prefix}${malformedId}`, JSON.stringify({
 				version: 1,
 				record: {
-					id,
+					id: malformedId,
 					sourceId: 'testSource',
 					identifier: 'bad-skill',
 					displayName: 'Bad Skill',
@@ -1065,17 +1070,29 @@ suite('CustomizationMarketplaceInstallService', () => {
 					target: { kind: 'skill', uri: URI.file('/outside/SKILL.md').toString(), files: [SKILL_FILENAME], resolvedRevision: 'a'.repeat(40), source: 'local', harness: 'test-harness', sourceFolder: URI.file('/workspace').toString() },
 				},
 			}), StorageScope.PROFILE, StorageTarget.MACHINE);
-			const malformed = store.add(new CustomizationMarketplaceInstallationRecordStore(storage, store.add(new NullLogService())));
-			for (let index = 0; index < 999; index++) {
-				storage.store(`${prefix}${index.toString(16).padStart(64, '0')}`, '{}', StorageScope.PROFILE, StorageTarget.MACHINE);
+			for (let index = 0; index < 1001; index++) {
+				const id = index.toString(16).padStart(64, '0');
+				storage.store(`${prefix}${id}`, JSON.stringify({
+					version: 1,
+					record: {
+						id,
+						sourceId: 'testSource',
+						identifier: `server-${index}`,
+						displayName: `Server ${index}`,
+						description: index === 0 ? 'x'.repeat(9000) : '',
+						mediaType: CustomizationMarketplaceMediaType.McpServer,
+						installation: { kind: 'mcp', name: `server-${index}`, version: '1.0.0' },
+						target: { kind: 'mcp', id: `mcp-${index}` },
+					},
+				}), StorageScope.PROFILE, StorageTarget.MACHINE);
 			}
-			let bounded = false;
-			try {
-				malformed.ensureCanAdd();
-			} catch (error) {
-				bounded = error instanceof Error && error.message === 'Too many customization marketplace installations are recorded. Uninstall an existing marketplace customization before installing another.';
-			}
-			assert.deepStrictEqual({ records: malformed.records.size, bounded }, { records: 0, bounded: true });
+
+			const records = store.add(new CustomizationMarketplaceInstallationRecordStore(storage, store.add(new NullLogService()))).records;
+
+			assert.deepStrictEqual({ count: records.size, largeDescriptionLength: records.values().next().value?.description.length }, {
+				count: 1001,
+				largeDescriptionLength: 9000,
+			});
 		});
 
 		test('rejects a connector record without a valid account identity', () => {
@@ -1127,8 +1144,8 @@ suite('CustomizationMarketplaceInstallService', () => {
 					resolvedRevision: storedRecord?.target.resolvedRevision,
 				},
 				state: state.kind,
-				target: state.kind === 'missing' && state.target.kind === 'skill' ? state.target.uri : undefined,
-				recordedIcon: restored.getRecordedResources()[0]?.icon?.toString(),
+				target: state.kind === 'missing' && state.target.kind === 'skill' ? state.target.uri.toString() : undefined,
+				recordedIcon: recordedResources(restored)[0]?.icon?.toString(),
 			}, {
 				record: {
 					version: 1,
@@ -1142,7 +1159,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					resolvedRevision: 'a'.repeat(40),
 				},
 				state: 'missing',
-				target: joinPath(skillDestination, SKILL_FILENAME),
+				target: joinPath(skillDestination, SKILL_FILENAME).toString(),
 				recordedIcon: 'https://example.com/review.png',
 			});
 		});
@@ -1157,7 +1174,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			await timeout(0);
 			const state = restored.getInstallState(candidate);
 			assert.deepStrictEqual({
-				recorded: restored.getRecordedResources().map(resource => resource.installation),
+				recorded: recordedResources(restored).map(resource => resource.installation),
 				state: state.kind,
 				target: state.kind === 'installed' ? state.target : undefined,
 			}, {
@@ -1198,7 +1215,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
 			assert.deepStrictEqual({
 				storageKeys: storageKeys.length,
-				recorded: restored.getRecordedResources().map(resource => resource.identifier).sort(),
+				recorded: recordedResources(restored).map(resource => resource.identifier).sort(),
 			}, { storageKeys: 2, recorded: ['mcp-resource', 'plugin-resource'] });
 		});
 
@@ -1287,7 +1304,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				disabled, available, installed,
 				directInstalls: fixture.pluginService.directInstalls,
 				legacyInstalls: fixture.pluginService.calls,
-				recordedInstallations: restored.getRecordedResources().map(resource => resource.installation),
+				recordedInstallations: recordedResources(restored).map(resource => resource.installation),
 			}, {
 				disabled: { kind: 'unavailable', message: 'Enable the customization marketplace to install this resource.' },
 				available: { kind: 'available' },
@@ -1316,7 +1333,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			await assert.rejects(fixture.service.install(candidate), /could not be installed/);
 			assert.deepStrictEqual({
 				directInstalls: fixture.pluginService.directInstalls,
-				records: fixture.service.getRecordedResources(),
+				records: recordedResources(fixture.service),
 			}, {
 				directInstalls: [plugin],
 				records: [],
@@ -2042,7 +2059,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				disconnects: fixture.connectorsService.disconnectCalls,
 				registryLookups: fixture.mcpService.lookups,
 				after: fixture.service.getInstallState(candidate),
-				recordedResources: fixture.service.getRecordedResources(),
+				recordedResources: recordedResources(fixture.service),
 			}, {
 				before: { kind: 'installed', target: connectorInstallationTarget },
 				disconnects: ['mail'],
@@ -2127,7 +2144,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			assert.deepStrictEqual({
 				during,
 				disconnects: fixture.connectorsService.disconnectCalls,
-				recorded: fixture.service.getRecordedResources(),
+				recorded: recordedResources(fixture.service),
 			}, {
 				during: { kind: 'uninstalling', target: connectorInstallationTarget },
 				disconnects: ['mail'],
@@ -2147,7 +2164,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				before,
 				connectCalls: fixture.connectorsService.connectCalls,
 				after: fixture.service.getInstallState(candidate),
-				recordedResources: fixture.service.getRecordedResources().map(resource => ({
+				recordedResources: recordedResources(fixture.service).map(resource => ({
 					sourceId: resource.sourceId,
 					identifier: resource.identifier,
 					installation: resource.installation,
@@ -2177,7 +2194,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			fixture.connectorsService.connectionStateKnownOverride = true;
 			fixture.connectorChanges.fire();
 			await timeout(0);
-			const recorded = fixture.service.getRecordedResources();
+			const recorded = recordedResources(fixture.service);
 			const state = fixture.service.getInstallState(recorded[0]);
 
 			assert.deepStrictEqual({
@@ -2197,13 +2214,13 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		test('records a connector that was already connected outside this workbench', async () => {
 			const fixture = await createFixture();
-			const recorded = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getRecordedResources().some(resource => resource.identifier === 'mail')));
+			const recorded = Event.toPromise(Event.filter(fixture.service.onDidChange, () => recordedResources(fixture.service).some(resource => resource.identifier === 'mail')));
 			fixture.connectedConnectors.add('mail');
 			fixture.connectorChanges.fire();
 			await recorded;
 
 			assert.deepStrictEqual({
-				recorded: fixture.service.getRecordedResources().map(resource => resource.identifier),
+				recorded: recordedResources(fixture.service).map(resource => resource.identifier),
 				state: fixture.service.getInstallState(connectorResource()),
 			}, {
 				recorded: ['mail'],
@@ -2221,7 +2238,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual({
-				recorded: restored.getRecordedResources().map(resource => resource.identifier),
+				recorded: recordedResources(restored).map(resource => resource.identifier),
 				state: restored.getInstallState(candidate),
 			}, {
 				recorded: ['mail'],
@@ -2235,13 +2252,13 @@ suite('CustomizationMarketplaceInstallService', () => {
 			fixture.connectorsService.catalogVisible = false;
 			fixture.connectorChanges.fire();
 			await timeout(0);
-			const recorded = fixture.service.getRecordedResources()[0];
+			const recorded = recordedResources(fixture.service)[0];
 
 			await fixture.service.uninstall(recorded);
 
 			assert.deepStrictEqual({
 				disconnects: fixture.connectorsService.disconnectCalls,
-				recorded: fixture.service.getRecordedResources(),
+				recorded: recordedResources(fixture.service),
 			}, {
 				disconnects: [],
 				recorded: [],
@@ -2256,7 +2273,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 			assert.deepStrictEqual({
 				disconnects: fixture.connectorsService.disconnectCalls,
-				recorded: fixture.service.getRecordedResources(),
+				recorded: recordedResources(fixture.service),
 			}, {
 				disconnects: ['mail'],
 				recorded: [],
@@ -2278,7 +2295,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 			assert.deepStrictEqual({
 				disconnects: fixture.connectorsService.disconnectCalls,
-				recorded: fixture.service.getRecordedResources(),
+				recorded: recordedResources(fixture.service),
 			}, {
 				disconnects: ['mail'],
 				recorded: [],
@@ -2300,7 +2317,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				before,
 				connectCalls: fixture.connectorsService.connectCalls,
 				after: fixture.service.getInstallState(candidate),
-				recorded: fixture.service.getRecordedResources().map(resource => resource.identifier),
+				recorded: recordedResources(fixture.service).map(resource => resource.identifier),
 			}, {
 				before: { kind: 'missing', target: connectorInstallationTarget, repairUnavailableMessage: undefined },
 				connectCalls: ['mail', 'mail'],
@@ -2342,11 +2359,11 @@ suite('CustomizationMarketplaceInstallService', () => {
 		test('shows connector records only for the account that created them', async () => {
 			const fixture = await createFixture();
 			await fixture.service.install(connectorResource());
-			const originalAccount = fixture.service.getRecordedResources().map(resource => resource.identifier);
+			const originalAccount = recordedResources(fixture.service).map(resource => resource.identifier);
 
 			fixture.connectorsService.accountOverride = { providerId: 'github', accountName: 'hubot', enterprise: false };
 			fixture.connectorAccountChanges.fire();
-			const otherAccount = fixture.service.getRecordedResources();
+			const otherAccount = recordedResources(fixture.service);
 
 			fixture.connectorsService.accountOverride = { providerId: 'github', accountName: 'octocat', enterprise: false };
 			fixture.connectorAccountChanges.fire();
@@ -2354,7 +2371,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			assert.deepStrictEqual({
 				originalAccount,
 				otherAccount,
-				restoredAccount: fixture.service.getRecordedResources().map(resource => resource.identifier),
+				restoredAccount: recordedResources(fixture.service).map(resource => resource.identifier),
 			}, {
 				originalAccount: ['mail'],
 				otherAccount: [],
@@ -2370,7 +2387,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
 			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled);
 			const disabled = {
-				recorded: fixture.service.getRecordedResources(),
+				recorded: recordedResources(fixture.service),
 				state: fixture.service.getInstallState(candidate),
 			};
 
@@ -2379,7 +2396,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 			assert.deepStrictEqual({
 				disabled,
-				restoredRecords: fixture.service.getRecordedResources().map(resource => resource.identifier),
+				restoredRecords: recordedResources(fixture.service).map(resource => resource.identifier),
 				restoredState: fixture.service.getInstallState(candidate),
 			}, {
 				disabled: {
@@ -2578,7 +2595,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			assert.deepStrictEqual({
 				before: before.kind,
 				exists: await fixture.fileService.exists(skillDestination),
-				recorded: restored.getRecordedResources().length,
+				recorded: recordedResources(restored).length,
 				deletions: fixture.deletedSkills.map(uri => uri.toString()),
 			}, {
 				before: 'checking',

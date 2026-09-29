@@ -1743,7 +1743,10 @@ export class McpListWidget extends Disposable {
 		this.agentHostCustomizationsChanged = observableSignalFromEvent(this, this.agentHostCustomizationService.onDidChangeCustomizations);
 		this.element = $('.mcp-list-widget.plugin-list-widget');
 		this.create();
-		this._register(this.marketplaceInstallService.onDidChange(() => this.filterServers()));
+		this._register(autorun(reader => {
+			this.marketplaceInstallService.installations.read(reader);
+			this.filterServers();
+		}));
 		const resizeObserver = this._register(new DOM.DisposableResizeObserver(
 			'McpListWidget',
 			() => this.updateResponsiveLayout(this.element.offsetWidth),
@@ -2910,12 +2913,7 @@ export class McpListWidget extends Disposable {
 		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
 		const activeSessionMatcher = new ActiveSessionMcpServerMatcher(this.agentHostCustomizationService.getMcpServers(activeSessionResource));
 		const localServerMatcher = new LocalMcpServerMatcher(this.mcpService.servers.get());
-		const marketplaceMcpServers = new Map<string, IRecordedCustomizationMarketplaceResource>();
-		for (const marketplace of this.marketplaceInstallService.getRecordedResourcesWithState()) {
-			if (marketplace.state.target.kind === 'mcp' && !marketplaceMcpServers.has(marketplace.state.target.id)) {
-				marketplaceMcpServers.set(marketplace.state.target.id, marketplace);
-			}
-		}
+		const marketplaceInstallations = this.marketplaceInstallService.installations.get();
 
 		if (query) {
 			this.filteredServers = this.mcpWorkbenchService.local.filter(server =>
@@ -2943,7 +2941,7 @@ export class McpListWidget extends Disposable {
 			const entry: IMcpServerItemEntry = {
 				type: 'server-item',
 				server,
-				marketplaceRecord: marketplaceMcpServers.get(server.id),
+				marketplaceRecord: marketplaceInstallations.findByTarget({ kind: 'mcp', id: server.id }),
 				activeSessionServer: activeSessionMatcher.take(getWorkbenchServerMatchKeys(server)),
 				localServer: localServerMatcher.find(getWorkbenchServerMatchKeys(server)),
 			};

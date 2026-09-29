@@ -22,7 +22,7 @@ import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCu
 import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORAGE, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
-import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
+import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { IAgentSource, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -35,8 +35,7 @@ suite('AICustomizationItemsModel', () => {
 	function createEmptyMarketplaceInstallService(): ICustomizationMarketplaceInstallService {
 		return new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = Event.None;
-			override getRecordedResources() { return []; }
-			override getRecordedResourcesWithState() { return []; }
+			override readonly installations = observableValue('marketplaceInstallations', emptyCustomizationMarketplaceInstallationSnapshot);
 			override getInstallState(): CustomizationMarketplaceInstallState { return { kind: 'available' }; }
 		}();
 	}
@@ -56,9 +55,8 @@ suite('AICustomizationItemsModel', () => {
 		let plugins: ISettableObservable<readonly IAgentPlugin[]>;
 		let listPromptFilesResult: Awaited<ReturnType<IPromptsService['listPromptFiles']>>;
 		let disabledPromptFilesResult: ResourceSet;
-		let marketplaceChanges: Emitter<void>;
-		let marketplaceResources: ICustomizationMarketplaceResource[];
 		let marketplaceStates: Map<string, RecordedCustomizationMarketplaceInstallState>;
+		let marketplaceInstallations: ISettableObservable<ICustomizationMarketplaceInstallationSnapshot>;
 		let marketplaceInstallStateLookups: number;
 
 		function createDescriptor(id: string, provider: ICustomizationItemProvider | undefined, syncProvider?: ICustomizationSyncProvider): IHarnessDescriptor {
@@ -78,9 +76,8 @@ suite('AICustomizationItemsModel', () => {
 			providerA_items = [];
 			listPromptFilesResult = [];
 			disabledPromptFilesResult = new ResourceSet();
-			marketplaceChanges = disposables.add(new Emitter<void>());
-			marketplaceResources = [];
 			marketplaceStates = new Map();
+			marketplaceInstallations = observableValue('marketplaceInstallations', emptyCustomizationMarketplaceInstallationSnapshot);
 			marketplaceInstallStateLookups = 0;
 
 			const providerA: ICustomizationItemProvider = {
@@ -104,11 +101,8 @@ suite('AICustomizationItemsModel', () => {
 
 			instaService = workbenchInstantiationService({}, disposables);
 			instaService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
-				override readonly onDidChange = marketplaceChanges.event;
-				override getRecordedResources() { return marketplaceResources; }
-				override getRecordedResourcesWithState() {
-					return marketplaceResources.map(resource => ({ resource, state: marketplaceStates.get(getCustomizationMarketplaceResourceKey(resource))! }));
-				}
+				override readonly onDidChange = Event.None;
+				override readonly installations = marketplaceInstallations;
 				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 					marketplaceInstallStateLookups++;
 					return marketplaceStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
@@ -236,16 +230,20 @@ suite('AICustomizationItemsModel', () => {
 				pluginUri: undefined,
 				userInvocable: true,
 			}];
-			marketplaceResources = [resource];
 			const key = getCustomizationMarketplaceResourceKey(resource);
 			marketplaceStates.set(key, { kind: 'installed', target: { kind: 'skill', uri } });
+			marketplaceInstallations.set(createCustomizationMarketplaceInstallationSnapshot([
+				{ resource, state: marketplaceStates.get(key)! },
+			]), undefined);
 			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
 			const items = model.getItems(AICustomizationManagementSection.Skills);
 			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
 			const installed = items.get()[0]?.marketplace;
 
 			marketplaceStates.set(key, { kind: 'uninstalling', target: { kind: 'skill', uri } });
-			marketplaceChanges.fire();
+			marketplaceInstallations.set(createCustomizationMarketplaceInstallationSnapshot([
+				{ resource, state: marketplaceStates.get(key)! },
+			]), undefined);
 			const uninstalling = items.get()[0]?.marketplace;
 
 			assert.deepStrictEqual({

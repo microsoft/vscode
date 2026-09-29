@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
@@ -24,7 +25,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
-import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
+import { createCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 
@@ -59,9 +60,7 @@ suite('AI customization management contribution', () => {
 		const state: RecordedCustomizationMarketplaceInstallState = { kind: 'installed', target: { kind: 'skill', uri } };
 		const installService = new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = Event.None;
-			override getRecordedResources() { return [resource]; }
-			override getRecordedResourcesWithState() { return [{ resource, state }]; }
-			override getInstallState(): CustomizationMarketplaceInstallState { return state; }
+			override readonly installations = constObservable(createCustomizationMarketplaceInstallationSnapshot([{ resource, state }]));
 			override async uninstall(candidate: ICustomizationMarketplaceResource): Promise<void> { uninstallCalls.push(candidate); }
 		}();
 		const instantiationService = workbenchInstantiationService({}, store);

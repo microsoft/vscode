@@ -14,7 +14,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { dirname as dirnameUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -55,7 +55,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
+import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
@@ -943,9 +943,17 @@ const copilotConnectorMarketplaceResource: ICustomizationMarketplaceResource = {
 function createEmptyCustomizationMarketplaceInstallService(): ICustomizationMarketplaceInstallService {
 	return new class extends mock<ICustomizationMarketplaceInstallService>() {
 		override readonly onDidChange = Event.None;
-		override getRecordedResources() { return []; }
-		override getRecordedResourcesWithState() { return []; }
+		override readonly installations = constObservable(emptyCustomizationMarketplaceInstallationSnapshot);
 	}();
+}
+
+function isRecordedCustomizationMarketplaceInstallState(state: CustomizationMarketplaceInstallState | undefined): state is RecordedCustomizationMarketplaceInstallState {
+	return state?.kind === 'checking'
+		|| state?.kind === 'installed'
+		|| state?.kind === 'missing'
+		|| state?.kind === 'repairing'
+		|| state?.kind === 'uninstalling'
+		|| state?.kind === 'error';
 }
 
 function createMockCopilotConnectorsService(enabled: boolean, availableConnectors: readonly ICopilotConnector[] = fixtureCopilotConnectors): ICopilotConnectorsService {
@@ -1117,6 +1125,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[0]), { kind: 'missing', target: getFixtureInstallationTarget(customizationMarketplaceResources[0]) });
 	}
 
+	const getCustomizationMarketplaceInstallations = () => createCustomizationMarketplaceInstallationSnapshot(
+		customizationMarketplaceResources.flatMap(resource => {
+			const state = customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource));
+			return isRecordedCustomizationMarketplaceInstallState(state) ? [{ resource, state }] : [];
+		}),
+	);
+
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
@@ -1184,24 +1199,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 				override readonly onDidChange = customizationMarketplaceInstallChanged.event;
+				override readonly installations = observableFromEvent(customizationMarketplaceInstallChanged.event, getCustomizationMarketplaceInstallations);
 				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 					// The outgoing Discover view may read installation state while the visibility change disposes it.
 					assert(sourceEnabled() || (options.toggleMarketplaceVisibility === true && customizationMarketplaceQueryCount > 0), 'A disabled Marketplace fixture must not request installation state.');
 					return customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
-				}
-				override getRecordedResources(): readonly ICustomizationMarketplaceResource[] {
-					return customizationMarketplaceResources.filter(resource => {
-						const state = customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource));
-						return state?.kind === 'checking' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error';
-					});
-				}
-				override getRecordedResourcesWithState() {
-					return customizationMarketplaceResources.flatMap(resource => {
-						const state = customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource));
-						return state?.kind === 'checking' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error'
-							? [{ resource, state }]
-							: [];
-					});
 				}
 				override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
 					assert(sourceEnabled(), 'A fixture with no enabled sources must not install resources.');

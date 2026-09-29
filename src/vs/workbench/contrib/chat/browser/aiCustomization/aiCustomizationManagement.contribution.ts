@@ -38,7 +38,7 @@ import { IWorkbenchExtensionManagementService } from '../../../../services/exten
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { findRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
+import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -323,7 +323,7 @@ registerAction2(class extends Action2 {
 		const isHook = promptType === PromptsType.hook;
 		if (isSkill && !shouldSkipMarketplaceUninstall(context)) {
 			const marketplaceInstallService = accessor.get(ICustomizationMarketplaceInstallService);
-			const marketplace = findRecordedCustomizationMarketplaceResource(marketplaceInstallService, { kind: 'skill', uri });
+			const marketplace = marketplaceInstallService.installations.get().findByTarget({ kind: 'skill', uri });
 			if (marketplace) {
 				await marketplaceInstallService.uninstall(marketplace.resource);
 				return;
