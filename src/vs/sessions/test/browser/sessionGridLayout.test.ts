@@ -169,9 +169,11 @@ suite('Sessions - Grid Layout', () => {
 		grid.layout(1800, 900, 0, 0, false);
 		grid.toggleMaximized('a');
 		assert.deepStrictEqual({ desktop, phone, restored: [a, b, c].map(entry => entry.view.size), focused: document.activeElement === a.view.element, input: a.view.element.value }, {
-			desktop: { size: { width: 1800, height: 900 }, visibility: [true, false, false], geometry: [
-				{ id: 'a', width: 600, height: 900 }, { id: 'b', width: 1200, height: 570 }, { id: 'c', width: 1200, height: 330 },
-			] },
+			desktop: {
+				size: { width: 1800, height: 900 }, visibility: [true, false, false], geometry: [
+					{ id: 'a', width: 600, height: 900 }, { id: 'b', width: 1200, height: 570 }, { id: 'c', width: 1200, height: 330 },
+				]
+			},
 			phone: { size: { width: 390, height: 780 }, geometry: desktop.geometry },
 			restored: [{ width: 600, height: 900 }, { width: 1200, height: 570 }, { width: 1200, height: 330 }],
 			focused: true, input: 'Keep this input',

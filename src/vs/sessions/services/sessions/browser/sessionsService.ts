@@ -819,8 +819,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 		session = resolved.session;
 		chatUri = resolved.chatUri ?? chatUri;
 		if (options?.source) {
-			await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, telemetryAttempt =>
-				this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt));
+			await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, async telemetryAttempt => {
+				this.sessionOpenTelemetryService.sessionResolved(
+					telemetryAttempt,
+					session.resource,
+					session.providerId,
+					this.activeSession.get()?.sessionId === session.sessionId,
+					session.loading.get(),
+				);
+				await this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt);
+			});
 			return;
 		}
 		await this._openChat(session, chatUri, options?.preserveFocus, token, t0);
@@ -828,13 +836,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt): Promise<void> {
 		if (telemetryAttempt) {
-			this.sessionOpenTelemetryService.sessionResolved(
-				telemetryAttempt,
-				session.resource,
-				session.providerId,
-				this.activeSession.get()?.sessionId === session.sessionId,
-				session.loading.get(),
-			);
 			this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
 		}
 		this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
@@ -1149,6 +1150,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 			});
 			if (splitMainChat) {
 				await this._showChatToSide(primary, primary.mainChat.get().resource, options);
+				if (token.isCancellationRequested) {
+					return;
+				}
 			}
 			if (options?.activate !== false && !options?.preserveFocus) {
 				this.sessionsPartService.focusSession(this.activeSession.get());

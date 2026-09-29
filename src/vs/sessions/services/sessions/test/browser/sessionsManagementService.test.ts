@@ -12,6 +12,7 @@ import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -27,7 +28,7 @@ import { IProgress, IProgressService, IProgressStep } from '../../../../../platf
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatModelReference, IChatRequestSubmittedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -240,6 +241,7 @@ function createSessionsManagementService(
 	configurationService: IConfigurationService = new TestConfigurationService(),
 	partServiceOverride?: TestSessionsPartService,
 	storageOverride?: InMemoryStorageService,
+	openTelemetryService?: ISessionOpenTelemetryService,
 ): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const notifications: (NotificationMessage | NotificationMessage[])[] = [];
@@ -270,7 +272,7 @@ function createSessionsManagementService(
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 	const focusSession = disposables.add(new Emitter<string | undefined>());
 	const sessionsPartService = partServiceOverride ?? new TestSessionsPartService(focusSession.event);
-	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService);
+	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService, openTelemetryService);
 	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, focusSession, sessionsPartService, notifications };
 }
 
@@ -325,12 +327,13 @@ function createView(
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
 	customViewService: ICustomViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService()))),
 	sessionsPartService: ISessionsPartService = new TestSessionsPartService(),
+	openTelemetryService: ISessionOpenTelemetryService = disposables.add(new SessionOpenTelemetryService(NullTelemetryService)),
 ): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
 	instantiationService.stub(ISessionsPartService, sessionsPartService);
 	instantiationService.stub(ICustomViewService, customViewService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	instantiationService.stub(ISessionOpenTelemetryService, disposables.add(new SessionOpenTelemetryService(NullTelemetryService)));
+	instantiationService.stub(ISessionOpenTelemetryService, openTelemetryService);
 	return disposables.add(instantiationService.createInstance(SessionsService));
 }
 
@@ -427,12 +430,14 @@ suite('SessionsManagementService', () => {
 			const [a, b, c] = ['a', 'b', 'c'].map(created);
 			const started = new DeferredPromise<void>();
 			const finish = new DeferredPromise<void>();
-			const { view, part } = harness([a, b, c], { prepare: async session => {
-				if (session === c) {
-					started.complete();
-					await finish.p;
+			const { view, part } = harness([a, b, c], {
+				prepare: async session => {
+					if (session === c) {
+						started.complete();
+						await finish.p;
+					}
 				}
-			} });
+			});
 			await view.openSessionsInGrid([a, b]);
 			const geometry = part.getGridLayout();
 			const pending = view.openSessionsAt([c], 'a', 'up');
@@ -611,10 +616,12 @@ suite('SessionsManagementService', () => {
 					test(`${operation} opening revalidates candidates ${change} during ${phase}`, async () => {
 						const [a, b, baseC, d, e] = ['a', 'b', 'c', 'd', 'e'].map(created);
 						const folder = URI.file('/workspace');
-						const c: ISession = { ...baseC, workspace: constObservable({
-							uri: folder, label: 'Workspace', icon: Codicon.folder, isVirtualWorkspace: false, requiresWorkspaceTrust: true,
-							folders: [{ root: folder, workingDirectory: folder, name: 'Workspace', description: undefined }],
-						}) };
+						const c: ISession = {
+							...baseC, workspace: constObservable({
+								uri: folder, label: 'Workspace', icon: Codicon.folder, isVirtualWorkspace: false, requiresWorkspaceTrust: true,
+								folders: [{ root: folder, workingDirectory: folder, name: 'Workspace', description: undefined }],
+							})
+						};
 						const sessions = [a, b, c, d, e];
 						const started = new DeferredPromise<void>();
 						const finish = new DeferredPromise<void>();
@@ -668,12 +675,14 @@ suite('SessionsManagementService', () => {
 			const sessions = [a, b, c, d];
 			const started = new DeferredPromise<void>();
 			const finish = new DeferredPromise<void>();
-			const { view, sessionsChanged } = harness(sessions, { prepare: async session => {
-				if (session === c) {
-					started.complete();
-					await finish.p;
+			const { view, sessionsChanged } = harness(sessions, {
+				prepare: async session => {
+					if (session === c) {
+						started.complete();
+						await finish.p;
+					}
 				}
-			} });
+			});
 			await view.openSessionsInGrid([a, b]);
 			const opening = view.openSessionsAt([c, d], 'a', 'down');
 			await started.p;
@@ -2644,6 +2653,76 @@ suite('SessionsManagementService', () => {
 			openedToSide: [main.resource.toString()],
 		});
 	});
+
+	test('batch side-opening keeps a visible primary session in place and splits its main chat beside the peer', async () => {
+		const main = { ...stubChat, resource: URI.parse('test:///session/main') };
+		const peer = { ...stubChat, resource: URI.parse('test:///session/peer') };
+		const session = stubSession({ sessionId: 'session', providerId: 'test', mainChat: constObservable(main), chats: constObservable([main, peer]) });
+		const neighbor = stubSession({ sessionId: 'neighbor', providerId: 'test' });
+		const added = stubSession({ sessionId: 'added', providerId: 'test' });
+		const provider = new class extends TestSessionsProvider {
+			override getSessions() { return [session, neighbor, added]; }
+		}(session);
+		const { view, sessionsPartService } = createSessionsManagementService(session, disposables, provider);
+		await view.openSessionsInGrid([session, neighbor]);
+		await view.openChat(session, peer.resource);
+		const openedToSide: string[] = [];
+		sessionsPartService.sessionViews.set(session.sessionId, upcastPartial<SessionView>({
+			openChatToSide: async resource => { openedToSide.push(resource.toString()); },
+		}));
+
+		await view.openSessionsAt([added, session], neighbor.sessionId, 'right', { activate: 'last', forceMainChat: true });
+
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().map(candidate => candidate?.sessionId),
+			active: view.activeSession.get()?.sessionId,
+			activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+			openedToSide,
+		}, {
+			visible: [session.sessionId, neighbor.sessionId, added.sessionId],
+			active: session.sessionId,
+			activeChat: peer.resource.toString(),
+			openedToSide: [main.resource.toString()],
+		});
+	});
+
+	for (const side of [false, true]) {
+		for (const alreadyActive of [false, true]) {
+			test(`${side ? 'side' : 'direct'} chat opening records the initial resolution before activation (already active: ${alreadyActive})`, async () => {
+				await runWithFakedTimers({ useFakeTimers: true, startTime: 1_000 }, async () => {
+					const events: { name: string | undefined; data: unknown }[] = [];
+					const telemetry = new class extends NullTelemetryServiceShape {
+						override publicLog2(name?: string, data?: unknown): void { events.push({ name, data }); }
+					};
+					const openTelemetry = disposables.add(new SessionOpenTelemetryService(telemetry));
+					const active = stubSession({ sessionId: 'active', providerId: 'test' });
+					const peer = { ...stubChat, resource: URI.parse('test:///target/peer') };
+					const target = stubSession({ sessionId: 'target', providerId: 'test', chats: constObservable([stubChat, peer]) });
+					const provider = new class extends TestSessionsProvider {
+						override getSessions() { return [active, target]; }
+					}(active);
+					const { view } = createSessionsManagementService(active, disposables, provider, undefined, undefined, undefined, undefined, undefined, openTelemetry);
+					view.showSession(alreadyActive ? target.resource : active.resource);
+					openTelemetry.modelBound(target.resource, peer.resource);
+
+					if (side) {
+						await view.openSessionToSide(target, { source: 'link', chatResource: peer.resource });
+					} else {
+						await view.openChat(target, peer.resource, { source: 'link' });
+					}
+
+					assert.deepStrictEqual(events, [{
+						name: 'agents/sessionOpen',
+						data: {
+							outcome: 'success', source: 'link', provider: 'other', alreadyActive, sessionWasLoading: false,
+							modelAlreadyBound: true, resourceResolvedDurationMs: 0, sessionLoadedDurationMs: 0,
+							modelBoundDurationMs: 0, totalDurationMs: 0,
+						},
+					}]);
+				});
+			});
+		}
+	}
 
 	test('restoreVisibleSessions lays out the grid atomically without intermediate single-session states', async () => {
 		const sessionA = stubSession({ sessionId: 'a', providerId: 'test' });
