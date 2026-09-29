@@ -75,6 +75,7 @@ suite('Sessions - Chat View', () => {
 	}
 
 	interface IStickyBackgroundChatView {
+		_layoutChatWidget(): void;
 		_layoutStickyScrollBackground(): void;
 		_updateChatBackground(): void;
 	}
@@ -1791,6 +1792,67 @@ suite('Sessions - Chat View', () => {
 		replica.layout();
 
 		assert.deepStrictEqual({ source: sourceBounds.callCount, sticky: stickyBounds.callCount }, { source: 0, sticky: 0 });
+	});
+
+	test('coalesces requested background replica layouts', () => {
+		const background = { kind: 'codicons' } as const;
+		const { store, stickyContainer, source } = createBackgroundReplicaHost(background);
+		let scheduledLayout: (() => void) | undefined;
+		let schedules = 0;
+		const replica = store.add(new SessionsChatBackgroundReplica(source, stickyContainer, callback => {
+			schedules++;
+			scheduledLayout = callback;
+			return toDisposable(() => { });
+		}));
+		replica.setBackground(background);
+		const sourceBounds = sinon.spy(source, 'getBoundingClientRect');
+		const stickyBounds = sinon.spy(stickyContainer, 'getBoundingClientRect');
+
+		replica.scheduleLayout();
+		replica.scheduleLayout();
+		const synchronousMeasurements = { source: sourceBounds.callCount, sticky: stickyBounds.callCount };
+		scheduledLayout?.();
+
+		assert.deepStrictEqual({
+			schedules,
+			synchronousMeasurements,
+			deferredMeasurements: { source: sourceBounds.callCount, sticky: stickyBounds.callCount },
+		}, {
+			schedules: 1,
+			synchronousMeasurements: { source: 0, sticky: 0 },
+			deferredMeasurements: { source: 1, sticky: 1 },
+		});
+	});
+
+	test('only measures the chat widget offset for a visible external-session banner', () => {
+		const widgetContainer = dom.$('.chat-view-widget');
+		let offsetTopReads = 0;
+		Object.defineProperty(widgetContainer, 'offsetTop', {
+			configurable: true,
+			get: () => {
+				offsetTopReads++;
+				return 40;
+			},
+		});
+		const layouts: number[][] = [];
+		const banner = { visible: false };
+		const view = Object.assign(Object.create(ChatView.prototype), {
+			_lastLayout: { width: 300, height: 100 },
+			_externalSessionBanner: banner,
+			_widgetContainer: widgetContainer,
+			_widget: { layout: (...dimensions: number[]) => layouts.push(dimensions) },
+			_layoutStickyScrollBackground: () => { },
+			element: dom.$('.chat-view'),
+		}) as IStickyBackgroundChatView;
+
+		view._layoutChatWidget();
+		banner.visible = true;
+		view._layoutChatWidget();
+
+		assert.deepStrictEqual({ offsetTopReads, layouts }, {
+			offsetTopReads: 1,
+			layouts: [[100, 300], [60, 300]],
+		});
 	});
 
 	test('realigns a background replica before rendering after hidden resizes', () => {

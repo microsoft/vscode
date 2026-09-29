@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { SessionView } from '../../browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { disposableObservableValue, observableValue } from '../../../base/common/observable.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
@@ -81,6 +81,7 @@ suite('Sessions - Session View', () => {
 			_isLeafVisible: true,
 			_isVisibleObs: observableValue('visible', true),
 			_lastLayout: undefined,
+			_pendingChildLayout: disposables.add(new MutableDisposable()),
 			_groupsView: { setSessionVisible: (visible: boolean) => forwarded.push(visible) },
 			_standaloneView: { get: () => undefined },
 		});
@@ -125,6 +126,8 @@ suite('Sessions - Session View', () => {
 		const element = document.createElement('div');
 		const centeredContentContainer = document.createElement('div');
 		const groupsLayout: number[] = [];
+		let scheduledLayout: (() => void) | undefined;
+		let schedules = 0;
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
 			element,
 			_isPartVisible: true,
@@ -133,18 +136,41 @@ suite('Sessions - Session View', () => {
 			_header: { visible: true, height: 35 },
 			_groupsView: { layout: (...dimensions: number[]) => groupsLayout.push(...dimensions) },
 			_standaloneView: { get: () => undefined },
+			_pendingChildLayout: disposables.add(new MutableDisposable()),
+			_scheduleChildLayout: (callback: () => void) => {
+				schedules++;
+				scheduledLayout = callback;
+				return toDisposable(() => { });
+			},
 		});
 
 		view.layout(1200, 800, 10, 20);
+		view.layout(1200, 800, 10, 20);
+		view.layout(1000, 800, 10, 20);
+		view.layout(900, 800, 10, 20);
+		const beforeScheduledLayout = {
+			sessionSize: [element.style.width, element.style.height],
+			headerHostSize: [centeredContentContainer.style.width, centeredContentContainer.style.height],
+			groupsLayout: [...groupsLayout],
+		};
+		scheduledLayout?.();
 
 		assert.deepStrictEqual({
+			schedules,
+			beforeScheduledLayout,
 			sessionSize: [element.style.width, element.style.height],
 			headerHostSize: [centeredContentContainer.style.width, centeredContentContainer.style.height],
 			groupsLayout,
 		}, {
-			sessionSize: ['1200px', '800px'],
-			headerHostSize: ['1200px', '35px'],
-			groupsLayout: [1200, 765, 45, 20],
+			schedules: 1,
+			beforeScheduledLayout: {
+				sessionSize: ['900px', '800px'],
+				headerHostSize: ['1200px', '35px'],
+				groupsLayout: [1200, 765, 45, 20],
+			},
+			sessionSize: ['900px', '800px'],
+			headerHostSize: ['900px', '35px'],
+			groupsLayout: [1200, 765, 45, 20, 900, 765, 45, 20],
 		});
 	});
 
@@ -204,6 +230,7 @@ suite('Sessions - Session View', () => {
 			_isPartVisible: true,
 			_isLeafVisible: true,
 			_lastLayout: undefined,
+			_pendingChildLayout: disposables.add(new MutableDisposable()),
 			_handleContextKeys: () => ({ dispose: () => { } }),
 		});
 
