@@ -102,11 +102,34 @@ suite('ConfigurationModelParser', () => {
 	test('parse configuration model with __proto__ key does not cause prototype pollution', () => {
 		const testObject = new ConfigurationModelParser('', new NullLogService());
 
-		testObject.parse(JSON.stringify({ '__proto__': { 'editor.fontSize': 100 } }));
+		testObject.parse('{ "__proto__": { "editor.fontSize": 100 }, "excluded": true }', { exclude: ['excluded'] });
 
-		assert.strictEqual((Object.prototype as Record<string, unknown>)['editor.fontSize'], undefined, '__proto__ must not pollute Object.prototype');
 		const raw = testObject.configurationModel.getValue('__proto__') as Record<string, unknown>;
-		assert.deepStrictEqual(raw, { 'editor.fontSize': 100 });
+		assert.deepStrictEqual({
+			prototype: Object.getPrototypeOf(raw),
+			fontSize: raw['editor.fontSize'],
+			promotedFontSize: testObject.configurationModel.getValue('editor.fontSize'),
+			objectPrototypeFontSize: (Object.prototype as Record<string, unknown>)['editor.fontSize'],
+		}, {
+			prototype: Object.prototype,
+			fontSize: 100,
+			promotedFontSize: undefined,
+			objectPrototypeFontSize: undefined,
+		});
+	});
+
+	test('parse configuration model ignores inherited configuration schema fields', () => {
+		const testObject = new ConfigurationModelParser('', new NullLogService());
+
+		testObject.parse('{ "constructor": true, "toString": true }', { skipUnregistered: true });
+
+		assert.deepStrictEqual({
+			constructor: testObject.configurationModel.getValue('constructor'),
+			toString: testObject.configurationModel.getValue('toString'),
+		}, {
+			constructor: undefined,
+			toString: undefined,
+		});
 	});
 
 });
