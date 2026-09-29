@@ -10,7 +10,7 @@ import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { toAction } from '../../../../../base/common/actions.js';
+import { IAction, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
@@ -148,15 +148,18 @@ suite('ProjectBoardService', () => {
 		const contextMenu = new class extends mock<IContextMenuService>() {
 			delegate: IContextMenuDelegate | undefined;
 			override showContextMenu(delegate: IContextMenuDelegate): void {
-				this.delegate = {
-					...delegate,
-					getActions: () => delegate.getActions().map(action => toAction({
+				const wrapAction = (action: IAction): IAction => action instanceof SubmenuAction
+					? new SubmenuAction(action.id, action.label, action.actions.map(wrapAction))
+					: toAction({
 						id: action.id, label: action.label, enabled: action.enabled, checked: action.checked,
 						run: async () => {
 							delegate.onHide?.(false);
 							await action.run();
 						},
-					})),
+					});
+				this.delegate = {
+					...delegate,
+					getActions: () => delegate.getActions().map(wrapAction),
 				};
 			}
 		}();
@@ -418,7 +421,7 @@ suite('ProjectBoardService', () => {
 			child.status.set(SessionStatus.NeedsInput, undefined);
 			assert.deepStrictEqual({
 				collapsed, stillHidden: children().hidden, summary: h.container.querySelector('.project-board-child-summary')?.textContent,
-			}, { collapsed: { hidden: true, expanded: 'false', opened: [] }, stillHidden: true, summary: '1 child chat, 1 Needs Input' });
+			}, { collapsed: { hidden: true, expanded: 'false', opened: [] }, stillHidden: true, summary: '1 child chat · 1 Needs Input' });
 			disclosure().click();
 			children().querySelector<HTMLElement>('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
 			assert.deepStrictEqual(h.opened, [child.resource]);
@@ -536,7 +539,7 @@ suite('ProjectBoardService', () => {
 				axis: h.container.querySelector('.project-board-column-heading .project-board-collapsed-summary')?.textContent,
 				cell: h.container.querySelector('[aria-label="General, P0"] .project-board-collapsed-summary')?.textContent,
 				attention: h.container.querySelector('[aria-label="General, P0"] .project-board-attention')?.textContent,
-			}, { axis: '2 sessions · 1 Needs Input', cell: '2 sessions', attention: '1 Needs Input' });
+			}, { axis: '2 sessions · 1 Busy · 1 Needs Input', cell: '2 sessions · 1 Busy · 1 Needs Input', attention: undefined });
 		});
 
 		test('archiving or losing a parent preserves its visible children and folds survive live additions', async () => {
@@ -1449,9 +1452,10 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
 		assert.strictEqual(toggle().getAttribute('aria-controls'), tray().querySelector('.project-board-card-list')!.id);
 		assert.strictEqual(mainWindow.getComputedStyle(tray().querySelector('.project-board-card-list')!).display, 'none');
-		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 sessions');
+		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 sessions · 2 Busy · 1 Draft');
 		chats[1].status.set(SessionStatus.NeedsInput, undefined);
-		assert.strictEqual(tray().querySelector('.project-board-attention')?.textContent, '1 Needs Input');
+		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 sessions · 1 Busy · 1 Needs Input · 1 Draft');
+		assert.strictEqual(tray().querySelector('.project-board-attention'), null);
 		assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
 		toggle().click();
 		assert.strictEqual(tray().querySelector<HTMLElement>('.project-board-card-list')!.hidden, false);
@@ -1480,7 +1484,7 @@ suite('ProjectBoardService', () => {
 		assert.ok(cell('P0').querySelector<HTMLElement>('.project-board-card-list')!.hidden);
 		toggle('column:p1');
 		assert.ok(cell('P1').getBoundingClientRect().width < width);
-		assert.strictEqual(cell('P1').querySelector('.project-board-collapsed-summary')?.textContent, '1 session');
+		assert.strictEqual(cell('P1').querySelector('.project-board-collapsed-summary')?.textContent, '1 session · 1 Busy');
 		toggle('row:general');
 		assert.strictEqual(cell('P0').querySelector<HTMLElement>('.project-board-card-list')!.hidden, false);
 		assert.strictEqual(cell('P1').querySelector<HTMLElement>('.project-board-card-list')!.hidden, true);
@@ -1492,6 +1496,66 @@ suite('ProjectBoardService', () => {
 		toggle('column:p1');
 		assert.strictEqual(cell('P1').querySelector('h4')?.textContent, 'P1 card');
 		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('collapsed state totals include nested and overflow chats, drafts, and unavailable placements', async () => {
+		const chats = ['Busy', 'Input', 'Error', 'Idle', 'Starting', 'Archived'].map(title => new TestChat(title));
+		[SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Completed, SessionStatus.Untitled, SessionStatus.Completed]
+			.forEach((status, index) => chats[index].status.set(status, undefined));
+		chats[5].isArchived.set(true, undefined);
+		const h = createIndependentChatBoard(mainWindow.document, chats);
+		const parent = h.state.sessions[0];
+		const child = new TestChat('Nested error');
+		child.status.set(SessionStatus.Error, undefined);
+		assert.ok(parent instanceof TestBoardSession);
+		parent.chats.set([chats[0], child], undefined);
+		h.drafts.set([
+			{ id: 'draft', resource: URI.parse('test-draft:/summary'), hasContent: true, submitted: false },
+			{ id: 'starting', resource: URI.parse('test-draft:/starting'), hasContent: true, submitted: true },
+		], undefined);
+		await h.service.open();
+		const toggle = (key: string) => h.container.querySelector<HTMLElement>(`[data-board-control="collapse:${key}"]`)!.click();
+		const summary = (selector: string) => h.container.querySelector(`${selector} .project-board-collapsed-summary`)?.textContent;
+		toggle('unassigned');
+		assert.strictEqual(summary('.project-board-unassigned'), '8 sessions · 1 Busy · 1 Needs Input · 2 Error · 1 Idle · 2 Starting · 1 Draft');
+		h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+			...configuration,
+			placements: [
+				...h.state.sessions.map(session => ({ cardId: getProjectBoardCardId(session, session.mainChat.get()), rowId: 'general', columnId: 'p0' })),
+				{ cardId: 'missing', rowId: 'general', columnId: 'p0' },
+			],
+		}));
+		assert.strictEqual(h.container.querySelectorAll('[aria-label="General, P0"] > .project-board-card-list > .project-board-card, [aria-label="General, P0"] > .project-board-card-list > .project-board-card-family').length, 3);
+		toggle('row:general');
+		toggle('column:p0');
+		const expected = '7 sessions · 1 Busy · 1 Needs Input · 2 Error · 1 Idle · 1 Starting · 1 Unavailable';
+		for (const selector of ['.project-board-row-heading', '.project-board-column-heading', '[aria-label="General, P0"]']) {
+			assert.strictEqual(summary(selector), expected);
+		}
+		assert.strictEqual(summary('.project-board-unassigned'), '2 sessions · 1 Starting · 1 Draft');
+		assert.ok(h.service.getAccessibleContent().includes(expected));
+		chats[0].status.set(SessionStatus.Completed, undefined);
+		child.status.set(SessionStatus.Completed, undefined);
+		assert.strictEqual(summary('[aria-label="General, P0"]'), '7 sessions · 1 Needs Input · 1 Error · 3 Idle · 1 Starting · 1 Unavailable');
+		assert.strictEqual(h.container.querySelector('.project-board-child-summary')?.textContent, '1 child chat · 1 Idle');
+		assert.deepStrictEqual(h.opened, []);
+		assert.ok([...chats, child].every(chat => !chat.isRead.get()));
+	});
+
+	test('collapsed list summaries count owning session states instead of nested chat states', () => {
+		const h = createBoard(mainWindow.document, [], store.add(new InMemoryStorageService()), true);
+		const status = observableValue('summaryStatus', SessionStatus.NeedsInput);
+		const chats = [new TestChat('Main'), new TestChat('Child')];
+		h.state.sessions = [{ ...createTestSession('Summary session').session, status, chats: constObservable(chats), mainChat: constObservable(chats[0]) }];
+		store.add(h.service.createView(h.container));
+		h.service.toggleDisplayOption('showSessionList');
+		h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
+		const summary = () => h.container.querySelector('.project-board-unassigned .project-board-collapsed-summary')?.textContent;
+		assert.strictEqual(summary(), '1 session · 1 Needs Input');
+		status.set(SessionStatus.Completed, undefined);
+		assert.strictEqual(summary(), '1 session · 1 Idle');
+		h.service.toggleDisplayOption('showSessionList');
+		assert.strictEqual(summary(), '2 sessions · 2 Busy');
 	});
 
 	test('PB-22 dropping into a collapsed cell expands its axes and returning from chat reveals its card', async () => {
@@ -1590,13 +1654,13 @@ suite('ProjectBoardService', () => {
 		store.add(h.service.createView(h.container));
 		h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
 		const summary = () => h.container.querySelector('.project-board-unassigned .project-board-collapsed-summary')?.textContent;
-		assert.strictEqual(summary(), '2 sessions');
+		assert.strictEqual(summary(), '2 sessions · 1 Busy · 1 Draft');
 		h.service.toggleAutoIncludeSessions();
 		assert.strictEqual(summary(), '0 sessions');
 		assert.strictEqual(h.container.querySelectorAll('.project-board-unassigned .project-board-card').length, 0);
 		assert.strictEqual(h.drafts.get().length, 1);
 		h.service.toggleAutoIncludeSessions();
-		assert.strictEqual(summary(), '2 sessions');
+		assert.strictEqual(summary(), '2 sessions · 1 Busy · 1 Draft');
 		assert.strictEqual(h.container.querySelectorAll('.project-board-unassigned .project-board-card').length, 2);
 		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-unassigned .project-board-card-list')!.hidden, true);
 		assert.deepStrictEqual(h.state.deletedDrafts, []);
@@ -1869,13 +1933,13 @@ suite('ProjectBoardService', () => {
 		}, { cards: 0, ownedDrafts: 0, opened: 0 });
 	});
 
-	test('PB-03 card context menus do not enumerate cells; keyboard movement uses a searchable picker', async () => {
+	test('PB-03 card context menus offer axis moves; keyboard movement retains its searchable picker', async () => {
 		const chat = new TestChat('Keyboard movement');
 		const h = createBoard(mainWindow.document, [chat]);
 		await h.service.open();
 		const event = new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
 		h.container.querySelector('.project-board-card')!.dispatchEvent(event);
-		assert.deepStrictEqual(h.contextMenu.delegate?.getActions().map(action => action.label), ['Mark as Done']);
+		assert.deepStrictEqual(h.contextMenu.delegate?.getActions().map(action => action.label), ['Mark as Done', 'Move to row', 'Move to column']);
 		assert.strictEqual(event.defaultPrevented, true);
 		h.contextMenu.delegate!.onHide?.(true);
 		for (const key of [{ keyCode: 121, shiftKey: true }, { keyCode: 93 }]) {
@@ -1893,6 +1957,184 @@ suite('ProjectBoardService', () => {
 		await h.moveViaPicker('Cancel picker');
 		assert.strictEqual(h.container.querySelector('.project-board-unassigned h4')?.textContent, 'Keyboard movement');
 		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	suite('card axis move menus', () => {
+		function openMenu(h: ReturnType<typeof createBoard>, chat: IChat) {
+			const card = [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === chat.resource.toString())!;
+			card.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			return h.contextMenu.delegate!.getActions();
+		}
+
+		function moveAction(h: ReturnType<typeof createBoard>, chat: IChat, kind: 'row' | 'column', label: string) {
+			const submenu = openMenu(h, chat).find(action => action.id === `projectBoard.card.move.${kind}`);
+			assert.ok(submenu instanceof SubmenuAction);
+			const action = submenu.actions.find(action => action.label === label);
+			assert.ok(action);
+			return action;
+		}
+
+		function addRow(h: ReturnType<typeof createBoard>) {
+			h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+				...configuration, rows: [...configuration.rows, { id: 'backlog', label: 'Backlog' }],
+			}));
+		}
+
+		function placements(h: ReturnType<typeof createBoard>) {
+			return h.catalog.boards.get()[0].configuration.placements.map(({ cardId, rowId, columnId }) => ({ cardId, rowId, columnId }));
+		}
+
+		test('excludes current axes, preserves the other coordinate, expands destinations and restores focus', async () => {
+			const { document } = createBoardDocument();
+			document.hasFocus = () => true;
+			const chat = new TestChat('Move me');
+			const h = createBoard(document, [chat]);
+			addRow(h);
+			await h.service.open();
+			await moveAction(h, chat, 'column', 'P2').run();
+			const menus = openMenu(h, chat).filter((action): action is SubmenuAction => action instanceof SubmenuAction);
+			assert.deepStrictEqual(menus.map(menu => [menu.label, menu.actions.map(action => action.label)]), [
+				['Move to row', ['Backlog']], ['Move to column', ['P0', 'P1', 'P3']],
+			]);
+			h.contextMenu.delegate!.onHide?.(true);
+			h.container.querySelector<HTMLElement>('[data-board-control="collapse:row:backlog"]')!.click();
+			await moveAction(h, chat, 'row', 'Backlog').run();
+			assert.strictEqual(h.container.querySelector('[data-board-control="collapse:row:backlog"]')?.getAttribute('aria-expanded'), 'true');
+			h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p3"]')!.click();
+			await moveAction(h, chat, 'column', 'P3').run();
+			assert.deepStrictEqual(placements(h), [{ cardId: getProjectBoardCardId(h.session, chat), rowId: 'backlog', columnId: 'p3' }]);
+			assert.strictEqual(h.container.querySelector('[data-board-control="collapse:column:p3"]')?.getAttribute('aria-expanded'), 'true');
+			assert.strictEqual(document.activeElement?.getAttribute('data-chat-resource'), chat.resource.toString());
+			assert.deepStrictEqual(h.opened, []);
+			assert.strictEqual(chat.isRead.get(), false);
+		});
+
+		test('an Unassigned row move uses the first column and leaves other boards unchanged', async () => {
+			const chat = new TestChat('Unassigned');
+			const h = createBoard(mainWindow.document, [chat]);
+			addRow(h);
+			const other = h.catalog.createBoard('Other');
+			await h.service.open();
+			await moveAction(h, chat, 'row', 'Backlog').run();
+			assert.deepStrictEqual(placements(h), [{ cardId: getProjectBoardCardId(h.session, chat), rowId: 'backlog', columnId: 'p0' }]);
+			assert.deepStrictEqual(h.catalog.boards.get().find(board => board.id === other)!.configuration.placements, []);
+		});
+
+		test('menu-restored card focus does not remove a header before its incoming click', async () => {
+			const { document } = createBoardDocument();
+			document.hasFocus = () => true;
+			const chat = new TestChat('Move then collapse');
+			const h = createBoard(document, [chat]);
+			await h.service.open();
+			await moveAction(h, chat, 'column', 'P3').run();
+			chat.title.set('Moved', undefined);
+			const card = h.container.querySelector<HTMLElement>('[data-chat-resource]')!;
+			const control = h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p3"]')!;
+			const activeElement = sinon.stub(document, 'activeElement').get(() => document.body);
+			try {
+				card.dispatchEvent(new mainWindow.FocusEvent('focusout', { bubbles: true, relatedTarget: control }));
+				await Promise.resolve();
+				assert.ok(control.isConnected, 'The pending native click must retain its original target');
+			} finally {
+				activeElement.restore();
+			}
+			control.focus();
+			control.click();
+			assert.strictEqual(h.container.querySelector('[data-board-control="collapse:column:p3"]')?.getAttribute('aria-expanded'), 'false');
+		});
+
+		test('child axis moves use inherited coordinates and create only that child override', async () => {
+			const parent = new TestChat('Parent');
+			const child = new TestChat('Child');
+			const h = createBoard(mainWindow.document, [parent, child]);
+			addRow(h);
+			await h.service.open();
+			await moveAction(h, parent, 'column', 'P1').run();
+			await moveAction(h, child, 'row', 'Backlog').run();
+			await moveAction(h, parent, 'column', 'P2').run();
+			assert.deepStrictEqual(placements(h), [
+				{ cardId: getProjectBoardCardId(h.session, child), rowId: 'backlog', columnId: 'p1' },
+				{ cardId: getProjectBoardCardId(h.session, parent), rowId: 'general', columnId: 'p2' },
+			]);
+			assert.strictEqual(h.container.querySelectorAll('.project-board-child-cards').length, 0);
+		});
+
+		test('moves cards without rename or archive actions and disables axes with no alternatives', async () => {
+			const chat = new TestChat('Starting');
+			chat.status.set(SessionStatus.Untitled, undefined);
+			const h = createBoard(mainWindow.document, [chat]);
+			await h.service.open();
+			assert.deepStrictEqual(openMenu(h, chat).map(action => action.label), ['Move to row', 'Move to column']);
+			await moveAction(h, chat, 'column', 'P1').run();
+			assert.strictEqual(openMenu(h, chat).find(action => action.label === 'Move to row')?.enabled, false);
+			h.contextMenu.delegate!.onHide?.(true);
+			h.contextMenu.delegate = undefined;
+			const control = h.container.querySelector('.project-board-card .monaco-button')!;
+			const event = new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+			control.dispatchEvent(event);
+			assert.strictEqual(event.defaultPrevented, false);
+			assert.strictEqual(h.contextMenu.delegate, undefined, 'Nested controls retain their own context menu');
+		});
+
+		test('uses the latest counterpart coordinate when a menu was opened before another move', async () => {
+			const chat = new TestChat('Concurrent move');
+			const h = createBoard(mainWindow.document, [chat]);
+			addRow(h);
+			await h.service.open();
+			const action = moveAction(h, chat, 'row', 'Backlog');
+			h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+				...configuration, placements: [{ cardId: getProjectBoardCardId(h.session, chat), rowId: 'general', columnId: 'p3' }],
+			}));
+			await action.run();
+			assert.deepStrictEqual(placements(h), [{ cardId: getProjectBoardCardId(h.session, chat), rowId: 'backlog', columnId: 'p3' }]);
+		});
+
+		test('reports stale axes and missing chats without creating placements', async () => {
+			const chat = new TestChat('Stale target');
+			const h = createBoard(mainWindow.document, [chat]);
+			addRow(h);
+			const errors: string[] = [];
+			store.add(h.errors.event(error => errors.push(error)));
+			await h.service.open();
+			const rowAction = moveAction(h, chat, 'row', 'Backlog');
+			h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({ ...configuration, rows: configuration.rows.filter(row => row.id !== 'backlog') }));
+			await rowAction.run();
+			assert.deepStrictEqual(placements(h), []);
+			assert.ok(errors.includes('The chat could not be moved in Agents Hub.'));
+			errors.length = 0;
+			const columnAction = moveAction(h, chat, 'column', 'P1');
+			h.state.sessions = [];
+			h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
+			await columnAction.run();
+			assert.deepStrictEqual(placements(h), []);
+			assert.deepStrictEqual(errors, ['This chat is no longer available.']);
+		});
+
+		test('disables moves on read-only boards and ignores actions after view disposal', async () => {
+			const chat = new TestChat('Unavailable move');
+			const h = createBoard(mainWindow.document, [chat]);
+			const errors: string[] = [];
+			store.add(h.errors.event(error => errors.push(error)));
+			await h.service.open();
+			const action = moveAction(h, chat, 'column', 'P1');
+			h.contextMenu.delegate!.onHide?.(true);
+			const editable = sinon.stub(h.catalog, 'canEdit').get(() => false);
+			try {
+				const menus = openMenu(h, chat).filter(action => action.id.startsWith('projectBoard.card.move.'));
+				assert.strictEqual(menus.length, 2);
+				assert.ok(menus.every(action => !action.enabled));
+				h.contextMenu.delegate!.onHide?.(true);
+				await action.run();
+				assert.deepStrictEqual(placements(h), []);
+				assert.deepStrictEqual(errors, ['Board editing is unavailable until the saved board data is recovered.']);
+			} finally {
+				editable.restore();
+			}
+			h.closeBoard();
+			await Promise.resolve();
+			await action.run();
+			assert.deepStrictEqual(placements(h), []);
+		});
 	});
 
 	test('card rename updates the visible chat title without renaming its session or sibling', async () => {
@@ -1913,7 +2155,7 @@ suite('ProjectBoardService', () => {
 		const event = new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
 		card.dispatchEvent(event);
 		assert.strictEqual(event.defaultPrevented, true);
-		assert.deepStrictEqual(h.contextMenu.delegate?.getActions().map(action => action.label), ['Rename...', 'Mark as Done']);
+		assert.deepStrictEqual(h.contextMenu.delegate?.getActions().map(action => action.label), ['Rename...', 'Mark as Done', 'Move to row', 'Move to column']);
 		await h.contextMenu.delegate!.getActions()[0].run();
 		const headings = () => [sibling, chat].map(chat => Array.from(h.currentContainer.querySelectorAll<HTMLElement>('[data-chat-resource]')).find(element => element.dataset.chatResource === chat.resource.toString())?.querySelector('h4')?.textContent);
 		assert.deepStrictEqual({
@@ -1957,7 +2199,7 @@ suite('ProjectBoardService', () => {
 		const event = new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
 		card.dispatchEvent(event);
 		assert.strictEqual(event.defaultPrevented, true);
-		assert.deepStrictEqual(h.contextMenu.delegate?.getActions().map(action => action.label), ['Mark as Done']);
+		assert.deepStrictEqual(h.contextMenu.delegate?.getActions().map(action => action.label), ['Mark as Done', 'Move to row', 'Move to column']);
 		h.contextMenu.delegate!.onHide?.(true);
 		const f2Event = new mainWindow.KeyboardEvent('keydown', { keyCode: 113, bubbles: true, cancelable: true });
 		card.dispatchEvent(f2Event);
