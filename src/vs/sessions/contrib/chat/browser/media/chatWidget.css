@@ -220,6 +220,16 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+/*
+ * The disclosure toggle sets its `hidden` attribute when the experimental composer layout is off
+ * (or a screen reader is active). The base `.monaco-text-button { display: flex }` rule would
+ * otherwise override the user-agent `[hidden]` behavior and keep the chevron visible, changing the
+ * layout when the feature is disabled. Honor `hidden` explicitly.
+ */
+.new-chat-widget-container .monaco-button.new-chat-session-options-toggle[hidden] {
+	display: none;
+}
+
 .new-chat-session-options .monaco-button.new-chat-session-options-toggle:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
