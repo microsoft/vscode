@@ -45,7 +45,7 @@ async function migrateStorage(context: vscode.ExtensionContext, source: Enterpri
 	if (source.links !== undefined && target.links === undefined) {
 		await context.globalState.update(`${target.key}${accountLinksSuffix}`, source.links);
 	}
-	if (source.tokens !== undefined && target.tokens === undefined) {
+	if (source.tokens !== undefined && (await context.secrets.get(target.key)) === undefined) {
 		await context.secrets.store(target.key, source.tokens);
 	}
 	// Keep both legacy stores until both destination writes have succeeded.
@@ -58,7 +58,6 @@ async function migrateStorage(context: vscode.ExtensionContext, source: Enterpri
 }
 
 export async function migrateEnterpriseStorage(context: vscode.ExtensionContext, uri: vscode.Uri): Promise<void> {
-	const target = await readStorage(context, getEnterpriseStorageKey(uri));
 	const keys = new Set([
 		...await context.secrets.keys(),
 		...context.globalState.keys().filter(key => key.endsWith(accountLinksSuffix)).map(key => key.slice(0, -accountLinksSuffix.length))
@@ -73,6 +72,7 @@ export async function migrateEnterpriseStorage(context: vscode.ExtensionContext,
 			}
 		}
 	}
+	const target = await readStorage(context, getEnterpriseStorageKey(uri));
 	if (!sources.length) {
 		return;
 	}

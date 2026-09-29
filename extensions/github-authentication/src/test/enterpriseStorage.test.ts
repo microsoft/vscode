@@ -148,6 +148,38 @@ suite('GitHub Enterprise storage migration', () => {
 		});
 	});
 
+	test('canonical credentials created during legacy lookup are not overwritten', async () => {
+		await seed();
+		const newerTokens = tokens.replace('fake-token', 'newer-token');
+		const newerLinks = [{ ...links[0], microsoftAccountLabel: 'newer@example.com' }];
+		sinon.stub(secrets, 'get').callThrough().withArgs(legacyKey).callsFake(async () => {
+			await secrets.store(canonicalKey, newerTokens);
+			await state.update(`${canonicalKey}${linksSuffix}`, newerLinks);
+			return tokens;
+		});
+		await migrateEnterpriseStorage(context, original);
+		assert.deepStrictEqual(await snapshot(), {
+			secrets: { [canonicalKey]: newerTokens },
+			state: { [`${canonicalKey}${linksSuffix}`]: newerLinks }
+		});
+	});
+
+	test('a canonical token written while account links are copied is not overwritten', async () => {
+		await seed();
+		const newerTokens = tokens.replace('fake-token', 'newer-token');
+		const update = sinon.stub(state, 'update').callThrough();
+		update.withArgs(`${canonicalKey}${linksSuffix}`, links).callsFake(async () => {
+			update.restore();
+			await state.update(`${canonicalKey}${linksSuffix}`, links);
+			await secrets.store(canonicalKey, newerTokens);
+		});
+		await migrateEnterpriseStorage(context, original);
+		assert.deepStrictEqual(await snapshot(), {
+			secrets: { [canonicalKey]: newerTokens },
+			state: { [`${canonicalKey}${linksSuffix}`]: links }
+		});
+	});
+
 	for (const failure of ['link write', 'token write', 'token cleanup', 'link cleanup'] as const) {
 		test(`a failed ${failure} retains credentials and can be retried`, async () => {
 			await seed();
@@ -167,10 +199,16 @@ suite('GitHub Enterprise storage migration', () => {
 					break;
 			}
 			await assert.rejects(migrateEnterpriseStorage(context, original), /Storage is unavailable/);
-			assert.deepStrictEqual({
-				tokens: await secrets.get(legacyKey) ?? await secrets.get(canonicalKey),
-				links: state.get(`${legacyKey}${linksSuffix}`) ?? state.get(`${canonicalKey}${linksSuffix}`)
-			}, { tokens, links });
+			assert.deepStrictEqual(await snapshot(), {
+				secrets: {
+					...(failure === 'link cleanup' ? {} : { [legacyKey]: tokens }),
+					...(failure === 'token cleanup' || failure === 'link cleanup' ? { [canonicalKey]: tokens } : {})
+				},
+				state: {
+					[`${legacyKey}${linksSuffix}`]: links,
+					...(failure === 'link write' ? {} : { [`${canonicalKey}${linksSuffix}`]: links })
+				}
+			});
 			sinon.restore();
 			await migrateEnterpriseStorage(context, canonical);
 			assert.deepStrictEqual(await snapshot(), {
