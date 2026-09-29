@@ -134,17 +134,7 @@
 	min-width: 0;
 }
 
-/*
- * Titlebar background matches the dialog body so the header reads as
- * part of the modal, with no contrasting stripe. Both are anchored to
- * `editorWidget.background`, the dialog widget's own native background
- * (see defaultDialogStyles), so the header and body are always the same
- * color in every theme. Set explicitly (not transparent) because the
- * titlebar is sticky. A transparent background would let scrolled form
- * content show through. No `border-bottom`. Sticky so the title stays
- * in view as the form scrolls (the dialog's message-container is the
- * scroll host).
- */
+/* Keep the sticky titlebar solid so scrolled form content cannot show through. */
 .automation-titlebar {
 	position: sticky;
 	top: 0;
@@ -155,7 +145,7 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: var(--vscode-fontSize-heading2);
 	color: var(--vscode-editorWidget-foreground);
-	background-color: var(--vscode-editorWidget-background);
+	background-color: var(--modern-ui-solid-dialog-background, var(--vscode-editorWidget-background));
 }
 
 .automation-description {

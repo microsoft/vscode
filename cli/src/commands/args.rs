@@ -308,9 +308,12 @@ pub struct AgentHostArgs {
 	/// Automatically terminate this supervisor once no client has been
 	/// connected for this many seconds. The idle timer starts once the
 	/// supervisor is ready, is cancelled/paused for as long as at least
-	/// one client is connected, and restarts from the full duration each
-	/// time the last client disconnects. Unset (the default) means
-	/// unlimited: a manually started local host never self-terminates.
+	/// one client is connected or the agent host server is running, and
+	/// restarts from the full duration each time the last of those goes
+	/// away. The server only stops itself after it has had no running
+	/// agent sessions and no clients for a while, so in-progress sessions
+	/// are never cut short. Unset (the default) means unlimited: a
+	/// manually started local host never self-terminates.
 	#[clap(long)]
 	pub idle_timeout: Option<u64>,
 

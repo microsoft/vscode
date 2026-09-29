@@ -1150,10 +1150,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					const createCursor = (offset: number) => ({ token: String(offset) });
 					switch (options.customizationMarketplaceState) {
 						case 'loading': return new DeferredPromise<ICustomizationMarketplacePage>().p;
-						case 'loadingMore':
+						case 'loadingMore': {
+							const resources = options.discoveryQuery?.includes('@type:plugin')
+								? marketplaceResources.filter(resource => resource.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin || resource.mediaType === CustomizationMarketplaceMediaType.ClaudePlugin)
+								: marketplaceResources;
 							return query.cursor
 								? new DeferredPromise<ICustomizationMarketplacePage>().p
-								: { items: marketplaceResources.slice(0, 2), total: marketplaceResources.length, nextCursor: createCursor(2) };
+								: { items: resources.slice(0, 2), total: resources.length, nextCursor: createCursor(2) };
+						}
 						case 'error': throw new Error('The catalog is temporarily unavailable. Try again later.');
 						case 'empty': return { items: [], total: 0 };
 					}
@@ -1819,12 +1823,28 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			list.scrollTop = list.scrollHeight;
 			await new Promise(resolve => setTimeout(resolve, 0));
 			assert(customizationMarketplaceQueryCount >= 3, 'Scrolling near the end of Discover results must request the next catalog page.');
+			list.scrollTop = list.scrollHeight;
+			assert(resultList.querySelector('.customization-discovery-result-content.loading') !== null, 'Continuation must render a trailing Marketplace loading placeholder.');
+			assert(ctx.container.querySelector('.monaco-progress-container.active') === null, 'Continuation must not show the initial-loading progress bar.');
 		}
 		if (options.clearDiscoveryQuery) {
 			editor.getWelcomePage()?.setSearchQuery('');
 			await Promise.resolve();
 			assert(resultList.hidden, 'Clearing Discover search must hide the results list.');
 			assert(ctx.container.querySelector('.customization-discovery-section.featured') !== null, 'Clearing Discover search must restore featured items immediately.');
+		}
+	}
+
+	if (options.customizationMarketplaceState === 'loading' || options.customizationMarketplaceState === 'loadingMore') {
+		const progress = ctx.container.querySelector<HTMLElement>('.customization-discovery-progress');
+		assert(progress !== null && progress.offsetHeight > 0, 'Discover must always reserve space for its progress bar.');
+		assert([...ctx.container.querySelectorAll('.customization-discovery-state')].every(state => state.textContent === ''), 'Loading must not insert status text above Discover content.');
+		if (options.customizationMarketplaceState === 'loading') {
+			assert(progress.querySelector('.monaco-progress-container.active') !== null, 'Initial loading must show the shared progress bar.');
+			const track = progress.querySelector<HTMLElement>('.monaco-progress-container');
+			const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
+			assert(track !== null && searchRow !== null && Math.abs(track.getBoundingClientRect().width - searchRow.getBoundingClientRect().width) <= 1, 'The loading indicator travel area must span the entire search row.');
+			assert(ctx.container.querySelector('.customization-discovery-result-content.loading') === null, 'Initial loading must not show row placeholders.');
 		}
 	}
 
@@ -3328,11 +3348,22 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverInfiniteScroll: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The flat virtualized Discover results list keeps loaded rows visible while the next marketplace page loads automatically near the scroll boundary, without a Load More footer.'],
+		expectedVisualDescriptions: ['The flat Discover results list keeps loaded rows visible with a trailing Marketplace loading placeholder, no loading text, and an inactive reserved progress slot above search.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'review',
+			customizationMarketplaceState: 'loadingMore',
+		}),
+	}),
+
+	DiscoverPluginsLoadingMore: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Plugins-filtered Discover results show a trailing Marketplace loading placeholder without loading text or an active horizontal bar.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: '@type:plugin',
 			customizationMarketplaceState: 'loadingMore',
 		}),
 	}),
@@ -3357,9 +3388,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverLoading: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Initial Discover loading shows the shared moving progress bar traveling across the full search-row width in reserved space, without loading text or row placeholders.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
+			customizationMarketplaceState: 'loading',
+		}),
+	}),
+
+	DiscoverSearchLoading: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: '@type:plugin review',
 			customizationMarketplaceState: 'loading',
 		}),
 	}),
