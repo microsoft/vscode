@@ -60,6 +60,7 @@ import { readChatChangesStats } from '../../../../services/sessions/common/sessi
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -1102,6 +1103,12 @@ class SessionItemActionRunner extends ActionRunner {
 const SESSION_TITLE_SHIMMER_ANIMATION_NAME = 'session-title-shimmer';
 const SESSION_TITLE_SHIMMER_ANIMATION_NAMES = new Set([SESSION_TITLE_SHIMMER_ANIMATION_NAME]);
 const SESSION_TITLE_SHIMMER_PAUSED_CLASS = 'session-title-shimmer-paused';
+const comparisonArchiveButtonStyles = {
+	...defaultButtonStyles,
+	buttonSecondaryBackground: 'transparent',
+	buttonSecondaryBorder: 'transparent',
+};
+
 function renderInlineRenameInput(
 	container: HTMLElement,
 	contextViewService: IContextViewService,
@@ -2400,6 +2407,7 @@ interface ISessionGroupTemplate extends ISessionHeaderTemplate {
 	readonly description: HTMLElement;
 	readonly inputContainer: HTMLElement;
 	readonly chevron: HTMLElement;
+	readonly comparisonArchive: Button;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 }
@@ -2429,6 +2437,10 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		private readonly headerStatusTrigger: ISessionHeaderStatusTrigger,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
+		private readonly hoverService: IHoverService,
+		private readonly sessionsManagementService: ISessionsManagementService,
+		private readonly sessionGroupsService: ISessionGroupsService,
+		private readonly sessionComparisonService: ISessionComparisonService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionGroupTemplate {
@@ -2444,6 +2456,25 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		const description = DOM.append(labelContainer, $('span.session-group-description'));
 		const inputContainer = DOM.append(container, $('.session-group-input'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
+		const comparisonArchive = disposables.add(new Button(toolbarContainer, {
+			...comparisonArchiveButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			title: false,
+			ariaLabel: localize('comparisonArchive', "Archive Comparison"),
+		}));
+		comparisonArchive.element.classList.add('session-comparison-archive');
+		comparisonArchive.label = '$(check)';
+		comparisonArchive.element.hidden = true;
+		disposables.add(this.hoverService.setupManagedHover(
+			getDefaultHoverDelegate('element'),
+			comparisonArchive.element,
+			localize('comparisonArchive', "Archive Comparison"),
+		));
+		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
+			disposables.add(DOM.addDisposableListener(comparisonArchive.element, eventType, event => event.stopPropagation()));
+		}
+		disposables.add(Gesture.ignoreTarget(comparisonArchive.element));
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
@@ -2452,7 +2483,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			telemetrySource: 'sessionsList.group',
 		}));
 
-		return { container, icon, collapsed: observableValue(this, false), labelContainer, label, description, inputContainer, toolbarContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+		return { container, icon, collapsed: observableValue(this, false), labelContainer, label, description, inputContainer, toolbarContainer, toolbar, chevron, comparisonArchive, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
@@ -2461,6 +2492,8 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			return;
 		}
 		template.elementDisposables.clear();
+		template.comparisonArchive.enabled = true;
+		template.comparisonArchive.element.hidden = true;
 		renderSessionHeaderToolbar(template, element, this.delegate.select);
 		this.templatesByElement.set(element, template);
 		this.templatesById.set(element.group.id, template);
@@ -2473,8 +2506,35 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		template.label.textContent = element.comparison?.title ?? element.group.name;
 		const comparison = element.comparison;
 		if (comparison) {
+			const getCurrentComparisonSessions = () => {
+				const comparisonRecord = this.sessionComparisonService.getComparison(comparison.id);
+				return comparisonRecord ? getComparisonSessions(comparisonRecord, this.sessionsManagementService) : [];
+			};
 			template.elementDisposables.add(autorun(reader => {
 				template.description.textContent = comparison.summary(reader);
+			}));
+			template.elementDisposables.add(autorun(reader => {
+				const comparisonSessions = getCurrentComparisonSessions();
+				template.comparisonArchive.element.hidden = comparisonSessions.length === 0
+					|| comparisonSessions.some(session => isSessionActive(session, reader));
+			}));
+			template.elementDisposables.add(template.comparisonArchive.onDidClick(async () => {
+				const comparisonSessions = getCurrentComparisonSessions();
+				if (comparisonSessions.length === 0 || comparisonSessions.some(session => isSessionActive(session, undefined))) {
+					return;
+				}
+				template.comparisonArchive.enabled = false;
+				try {
+					for (const session of comparisonSessions) {
+						await this.sessionsManagementService.archiveSession(session);
+					}
+					this.sessionComparisonService.archiveComparison(comparison.id);
+					this.sessionGroupsService.deleteGroup(element.group.id);
+					status(localize('comparisonArchived', "Comparison archived"));
+				} catch (error) {
+					template.comparisonArchive.enabled = true;
+					onUnexpectedError(error);
+				}
 			}));
 		} else {
 			template.description.textContent = '';
@@ -3710,7 +3770,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			cancelEdit: group => this.cancelGroupEdit(group),
 			select: selectHeader,
 			toggleCollapsed: element => this.tree.toggleCollapsed(element),
-		}, showUnreadInCollapsedSections, sessionsWithFailingCI, headerStatusTrigger, instantiationService, contextKeyService);
+		}, showUnreadInCollapsedSections, sessionsWithFailingCI, headerStatusTrigger, instantiationService, contextKeyService, hoverService, this._sessionsManagementService, this._sessionGroupsService, this.sessionComparisonService);
 		this._groupRenderer = groupRenderer;
 
 		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we

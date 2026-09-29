@@ -2707,10 +2707,12 @@ suite('Sessions - SessionsList', () => {
 					.map(row => row.classList.contains('session-comparison-attempt')),
 				statusIconDisplays: [...container.querySelectorAll<HTMLElement>('.session-item .session-icon > .codicon')]
 					.map(icon => mainWindow.getComputedStyle(icon).display),
+				comparisonControlDisplay: mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.session-comparison-archive')!).display,
 			}, {
 				connectors: [undefined, undefined, undefined],
 				comparisonAttempts: [false, false, false],
 				statusIconDisplays: ['flex', 'flex', 'flex'],
+				comparisonControlDisplay: 'none',
 			});
 		});
 
@@ -3101,6 +3103,52 @@ suite('Sessions - SessionsList', () => {
 				attempts: 1,
 				attemptClasses: [false, false, true],
 				connectors: [null, null, null],
+			});
+		});
+
+		test('archives complete comparison membership including pinned and filtered input waits', async () => {
+			const { attempt1, attempt2, judge, synthesis, container, harness, list } = renderComparison(undefined, 'all', new Set(['attempt-2']));
+			attempt1.status.set(SessionStatus.Completed, undefined);
+			attempt2.status.set(SessionStatus.NeedsInput, undefined);
+			judge.status.set(SessionStatus.NeedsInput, undefined);
+			synthesis.status.set(SessionStatus.Completed, undefined);
+			list.setStatusExcluded(SessionStatus.NeedsInput, true);
+			const archive = container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-archive');
+			assert.deepStrictEqual({
+				hidden: archive?.hidden,
+				display: archive ? mainWindow.getComputedStyle(archive).display : undefined,
+				ariaLabel: archive?.getAttribute('aria-label'),
+				checkIcon: archive?.querySelector('.codicon-check') !== null,
+				stopButtons: container.querySelectorAll('.session-comparison-stop-all, .session-comparison-participant-stop').length,
+			}, {
+				hidden: true,
+				display: 'none',
+				ariaLabel: 'Archive Comparison',
+				checkIcon: true,
+				stopButtons: 0,
+			});
+
+			attempt2.status.set(SessionStatus.Completed, undefined);
+			judge.status.set(SessionStatus.Completed, undefined);
+
+			assert.deepStrictEqual({
+				archiveHidden: archive?.hidden,
+				display: archive ? mainWindow.getComputedStyle(archive).display : undefined,
+			}, {
+				archiveHidden: false,
+				display: 'flex',
+			});
+
+			archive?.click();
+			await timeout(0);
+			assert.deepStrictEqual({
+				archived: harness.managementService.archived.map(session => session.sessionId).sort(),
+				archivedComparisonIds: harness.archivedComparisonIds,
+				deletedGroupIds: harness.deletedGroupIds,
+			}, {
+				archived: ['attempt-1', 'attempt-2', 'judge', 'synthesis'],
+				archivedComparisonIds: ['comparison-1'],
+				deletedGroupIds: [group.id],
 			});
 		});
 
