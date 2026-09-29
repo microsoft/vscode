@@ -225,6 +225,8 @@ schema-default values from no policy.
 There is no periodic polling or restart loop. A startup check and configuration events trigger
 checks, coalesced by a 500 ms debounce. Each check waits for account-policy settlement through
 the private `_workbench.whenAccountPolicySettled` command before reading the current configuration.
+The command waits for the gate's own post-account initialization update, including native
+managed-settings processing, even when that update does not change the gate state.
 Pending refreshes defer the check; settled blocked refreshes are authoritative restrictions,
 not placeholders. The wait resumes on gate changes even if the effective settings are unchanged,
 so a failed refresh still surfaces required reloads.
