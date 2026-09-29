@@ -43,7 +43,7 @@ import { INewChatWidgetHost, NewChatWidget } from '../../../chat/browser/newChat
 import { INewSessionComposer, INewSessionComposerService, NewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 import { ProjectBoardNewSessionDialog } from '../../browser/projectBoardNewSessionDialog.js';
 import { ProjectBoardState } from '../../browser/projectBoardState.js';
-import { defaultConfiguration } from '../../common/projectBoardConfiguration.js';
+import { defaultConfiguration, IProjectBoardPlacement } from '../../common/projectBoardConfiguration.js';
 
 suite('ProjectBoardNewSessionDialog', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -75,7 +75,7 @@ suite('ProjectBoardNewSessionDialog', () => {
 		}();
 	}
 
-	function setup(options: { document?: Document; autoInclude?: boolean; boardId?: string } = {}) {
+	function setup(options: { document?: Document; autoInclude?: boolean; boardId?: string; initialPlacement?: IProjectBoardPlacement } = {}) {
 		const document = options.document ?? mainWindow.document;
 		const container = dom.append(document.body, dom.$('.monaco-workbench'));
 		const elsewhere = dom.append(document.body, dom.$('.monaco-workbench'));
@@ -200,7 +200,7 @@ suite('ProjectBoardNewSessionDialog', () => {
 		const dialog = store.add(instantiation.createInstance(ProjectBoardNewSessionDialog));
 		const onDidCreate = sinon.stub();
 		const onDidResolve = sinon.stub();
-		const showing = dialog.show({ container, boardState, onDidCreate, onDidResolve });
+		const showing = dialog.show({ container, boardState, initialPlacement: options.initialPlacement, onDidCreate, onDidResolve });
 		const widgetCreation = creations?.getCalls().find(call => call.args[0] === NewChatWidget);
 		assert.ok(widgetCreation, 'instantiate the real shared NewChatWidget class, not a native chat editor');
 		const host: INewChatWidgetHost = (widgetCreation.args[1] as ConstructorParameters<typeof NewChatWidget>[0]).host!;
@@ -212,8 +212,32 @@ suite('ProjectBoardNewSessionDialog', () => {
 			destination.dispatchEvent(new (dom.getWindow(container).Event)('change', { bubbles: true }));
 		};
 		const error = () => container.querySelector('[role="alert"]')?.textContent;
-		return { container, elsewhere, editor, dialog, showing, host, widget, state, configuration, available, select, cancel, destination, selectDestination, error, draft, draftDispose, draftSession, draftStatus, canonical, send, createDraft, createMain, createAutomation, trust, resolveWorkspace, targetAvailable, onDidCreate, onDidResolve, notifyError, logError, softDispatch, createScoped, contextDispose, focusedEditor, mainComposerService, mainComposer, modalComposerService: modalComposerService!, modalComposer, mainContext, scopedContext, providersChanged, draftWorkspace };
+		return { container, elsewhere, editor, dialog, showing, host, widget, state, boardState, configuration, available, select, cancel, destination, selectDestination, error, draft, draftDispose, draftSession, draftStatus, canonical, send, createDraft, createMain, createAutomation, trust, resolveWorkspace, targetAvailable, onDidCreate, onDidResolve, notifyError, logError, softDispatch, createScoped, contextDispose, focusedEditor, mainComposerService, mainComposer, modalComposerService: modalComposerService!, modalComposer, mainContext, scopedContext, providersChanged, draftWorkspace };
 	}
+
+	for (const autoInclude of [true, false]) {
+		test(`preselects and submits the originating cell with auto-inclusion ${autoInclude ? 'on' : 'off'}`, async () => {
+			const placement = { rowId: 'general', columnId: 'p2' };
+			const h = setup({ autoInclude, initialPlacement: placement });
+			assert.strictEqual(h.destination.selectedOptions[0].text, 'General / P2');
+			assert.strictEqual(h.container.querySelector('.project-board-new-session-body')?.getAttribute('data-column-id'), 'p2');
+			await h.select();
+			await h.widget.submitInput();
+			assert.strictEqual(await h.showing, h.canonical);
+			assert.deepStrictEqual(h.onDidCreate.firstCall.args, [h.canonical, placement]);
+		});
+	}
+
+	test('rejects a missing initial cell rather than silently changing the destination', async () => {
+		const h = setup();
+		h.cancel();
+		await h.showing;
+		await assert.rejects(h.dialog.show({
+			container: h.container, boardState: h.boardState,
+			initialPlacement: { rowId: 'missing', columnId: 'p2' }, onDidCreate: h.onDidCreate,
+		}), /selected board cell is no longer available/);
+		assert.strictEqual(h.onDidCreate.called, false);
+	});
 
 	test('hands off the existing provisional session without waiting for canonical discovery', async () => {
 		const h = setup({ autoInclude: false });
