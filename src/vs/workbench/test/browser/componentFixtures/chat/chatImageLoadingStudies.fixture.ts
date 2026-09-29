@@ -1469,7 +1469,7 @@ function renderStudy(context: ComponentFixtureContext, parent: HTMLElement, id: 
 	dom.append(card, dom.$('p.image-loading-study-description', undefined, study.description));
 }
 
-function renderGallery(context: ComponentFixtureContext, options: { reducedMotion?: boolean; narrow?: boolean; study?: StudyId; collection?: keyof typeof studyCollections } = {}): void {
+function renderGallery(context: ComponentFixtureContext, options: { reducedMotion?: boolean; narrow?: boolean; startPaused?: boolean; study?: StudyId; collection?: keyof typeof studyCollections } = {}): void {
 	const painting = options.collection === 'painting' || paintingStudyIds.some(study => study === options.study);
 	const pencil = options.collection === 'pencil' || pencilStudyIds.some(study => study === options.study);
 	const comparison = options.collection === 'comparison';
@@ -1512,15 +1512,19 @@ function renderGallery(context: ComponentFixtureContext, options: { reducedMotio
 				: localize('imageStudy.imageMakingDescription', "Photography, drawing, materials, and pixels. The small illustrations are symbolic, not previews of your generated image.")));
 		const controls = dom.append(header, dom.$('.image-loading-studies-controls'));
 		const pauseButton = context.disposableStore.add(new Button(controls, { ...defaultButtonStyles, secondary: true }));
-		let paused = false;
-		pauseButton.label = localize('imageStudy.pause', "Pause Animations");
-		pauseButton.enabled = enableAnimations && !reducedMotion && !options.reducedMotion;
-		pauseButton.element.setAttribute('aria-pressed', 'false');
-		context.disposableStore.add(pauseButton.onDidClick(() => {
-			paused = !paused;
+		let paused = !!options.startPaused;
+		context.container.classList.toggle('image-loading-studies-still', paused);
+		const updatePauseButton = () => {
 			context.container.classList.toggle('image-loading-studies-paused', paused);
 			pauseButton.element.setAttribute('aria-pressed', String(paused));
 			pauseButton.label = paused ? localize('imageStudy.resume', "Resume Animations") : localize('imageStudy.pause', "Pause Animations");
+		};
+		pauseButton.enabled = enableAnimations && !reducedMotion && !options.reducedMotion;
+		updatePauseButton();
+		context.disposableStore.add(pauseButton.onDidClick(() => {
+			context.container.classList.remove('image-loading-studies-still');
+			paused = !paused;
+			updatePauseButton();
 		}));
 		const paletteButton = context.disposableStore.add(new Button(controls, { ...defaultButtonStyles, secondary: true }));
 		const updatePaletteLabel = () => {
@@ -1687,7 +1691,8 @@ export default defineThemedFixtureGroup({ path: 'chat/imageLoadingStudies/' }, {
 		virtualTime: { enabled: false },
 		labels: { kind: 'animated' },
 		inputSchema: galleryInput,
-		render: context => renderGallery(context, { collection: 'all' }),
+		// Keep thousands of simultaneous SVG animations from starving screenshot capture.
+		render: context => renderGallery(context, { collection: 'all', startPaused: true }),
 	}),
 	MoreReducedMotion: defineComponentFixture({
 		virtualTime: { enabled: false },

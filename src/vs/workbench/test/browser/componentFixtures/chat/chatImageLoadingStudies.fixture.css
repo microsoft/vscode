@@ -294,11 +294,6 @@
 	fill: var(--vscode-editor-background);
 }
 
-.image-loading-studies-paused .image-loading-study-shape,
-.image-loading-studies-paused .image-loading-study-wave {
-	animation-play-state: paused;
-}
-
 .image-loading-studies:not(.image-loading-studies-prism) .image-loading-study-waves {
 	stroke: var(--vscode-foreground);
 }
@@ -323,6 +318,11 @@
 
 .monaco-enable-motion .image-loading-study-wave {
 	animation: image-study-wave 5s ease-in-out infinite;
+}
+
+.image-loading-studies-paused .image-loading-study-shape,
+.image-loading-studies-paused .image-loading-study-wave {
+	animation-play-state: paused;
 }
 
 @keyframes image-study-wave {
@@ -1036,10 +1036,12 @@
 
 .monaco-reduce-motion .image-loading-study-shape,
 .disable-animations .image-loading-study-shape,
+.image-loading-studies-still .image-loading-study-shape,
 .hc-black .image-loading-study-shape,
 .hc-light .image-loading-study-shape,
 .monaco-reduce-motion .image-loading-study-wave,
 .disable-animations .image-loading-study-wave,
+.image-loading-studies-still .image-loading-study-wave,
 .hc-black .image-loading-study-wave,
 .hc-light .image-loading-study-wave {
 	animation: none;
