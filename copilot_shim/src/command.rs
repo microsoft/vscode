@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-#[cfg(any(windows, test))]
 use std::ffi::OsString;
 use std::path::PathBuf;
 
 use crate::model::{
-	Candidate, CandidateKind, CommandArguments, CommandBuildError, CommandIntent, CommandSpec,
+	Candidate, CandidateKind, CommandArguments, CommandBuildError, CommandSpec,
 	DiscoveredCandidate, DiscoveredFileKind, LaunchAdapter, ResolvedCandidate,
 };
 #[cfg(any(windows, test))]
@@ -78,8 +77,11 @@ pub(crate) fn resolve_candidate(
 }
 
 impl Candidate {
-	pub(crate) fn command(&self, intent: CommandIntent) -> Result<CommandSpec, CommandBuildError> {
-		let forwarded_arguments = intent.arguments();
+	/// The command that launches this candidate with the arguments forwarded to the Copilot CLI.
+	pub(crate) fn command(
+		&self,
+		forwarded_arguments: Vec<OsString>,
+	) -> Result<CommandSpec, CommandBuildError> {
 		match self.kind() {
 			#[cfg(any(not(windows), test))]
 			CandidateKind::UnixExecutable => Ok(CommandSpec::new(
@@ -154,8 +156,8 @@ mod tests {
 
 	use super::{resolve_candidate, InterpreterInventory};
 	use crate::model::{
-		Candidate, CommandArguments, CommandIntent, DiscoveredCandidate, DiscoveredFileKind,
-		FileIdentityState, LaunchAdapter, PowerShellHost, ResolutionFailure, ResolvedCandidate,
+		Candidate, CommandArguments, DiscoveredCandidate, DiscoveredFileKind, FileIdentityState,
+		LaunchAdapter, PowerShellHost, ResolutionFailure, ResolvedCandidate,
 	};
 
 	fn discovered(path: &str, kind: DiscoveredFileKind) -> DiscoveredCandidate {
@@ -187,11 +189,8 @@ mod tests {
 	fn assert_native_round_trip(candidate: &Candidate, expected_prefix: &[&str]) {
 		let forwarded = arguments();
 		let final_command = candidate
-			.command(CommandIntent::FinalCli(forwarded.clone()))
+			.command(forwarded.clone())
 			.expect("build final command");
-		let probe = candidate
-			.command(CommandIntent::VersionProbe)
-			.expect("build probe command");
 
 		let CommandArguments::Native(final_arguments) = final_command.arguments() else {
 			panic!("expected native arguments");
@@ -201,26 +200,7 @@ mod tests {
 			.map(OsString::from)
 			.chain(forwarded)
 			.collect();
-		assert_eq!(
-			(
-				final_arguments.as_slice(),
-				probe.program(),
-				probe.arguments(),
-				probe.adapter(),
-			),
-			(
-				expected.as_slice(),
-				final_command.program(),
-				&CommandArguments::Native(
-					expected_prefix
-						.iter()
-						.map(OsString::from)
-						.chain([OsString::from("--version")])
-						.collect()
-				),
-				final_command.adapter(),
-			)
-		);
+		assert_eq!(final_arguments.as_slice(), expected.as_slice());
 	}
 
 	/// cmd treats `&|<>()^` as syntax only outside quotes, so every one of them must be inside a quoted argument.
@@ -263,7 +243,7 @@ mod tests {
 		assert_native_round_trip(&direct, &[]);
 		assert_eq!(
 			direct
-				.command(CommandIntent::FinalCli(Vec::new()))
+				.command(Vec::new())
 				.expect("build empty direct command")
 				.arguments(),
 			&CommandArguments::Native(Vec::new())
@@ -292,9 +272,7 @@ mod tests {
 			let ResolvedCandidate::Usable(candidate) = resolved else {
 				panic!("cmd candidate should resolve");
 			};
-			let command = candidate
-				.command(CommandIntent::FinalCli(arguments()))
-				.expect("build cmd command");
+			let command = candidate.command(arguments()).expect("build cmd command");
 			let CommandArguments::WindowsCommand {
 				switches,
 				raw_command_tail,
@@ -319,23 +297,6 @@ mod tests {
 						.chain(arguments())
 						.collect(),
 				)
-			);
-			let probe = candidate
-				.command(CommandIntent::VersionProbe)
-				.expect("build cmd probe");
-			let CommandArguments::WindowsCommand {
-				raw_command_tail, ..
-			} = probe.arguments()
-			else {
-				panic!("expected raw Windows command tail");
-			};
-			assert_eq!(
-				platform::decode_windows_command_tail(raw_command_tail)
-					.expect("decode probe command tail"),
-				[
-					OsString::from(r"C:\hostile & script\copilot.cmd"),
-					OsString::from("--version")
-				]
 			);
 		}
 
@@ -372,7 +333,7 @@ mod tests {
 				],
 			);
 			let command = candidate
-				.command(CommandIntent::FinalCli(Vec::new()))
+				.command(Vec::new())
 				.expect("build PowerShell command without forwarded arguments");
 			assert!(matches!(
 				command.adapter(),

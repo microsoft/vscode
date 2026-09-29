@@ -14,6 +14,10 @@ use crate::legacy::{classify_wrapper, LegacyClassification, LEGACY_INSPECTION_LI
 use crate::model::{DiscoveredCandidate, DiscoveredFileKind, SystemError};
 use crate::runtime::{EnvironmentEffects, FileSystemEffects, InspectedFileType, PathInspection};
 
+/// The shim binary is about 1 MB, so its marker is always within this prefix. Bounding the search keeps discovery
+/// from reading all of a large Copilot CLI executable (about 150 MB) on every launch.
+const SHIM_MARKER_SEARCH_LIMIT: u64 = 16 * 1024 * 1024;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DiscoveryOperation {
 	CurrentExecutable,
@@ -271,7 +275,7 @@ fn inspect_candidate<R: FileSystemEffects>(
 			return;
 		}
 	};
-	match contains_marker(reader, shim_marker) {
+	match contains_marker(reader.take(SHIM_MARKER_SEARCH_LIMIT), shim_marker) {
 		Ok(true) => {
 			push_exclusion(result, path, DiscoveryExclusion::RustShimMarker);
 			return;

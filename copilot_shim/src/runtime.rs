@@ -19,7 +19,7 @@ use crate::model::{
 	CommandSpec, FileIdentity, FileIdentityState, ProcessDiagnostic, ProcessError,
 	ProcessOperation, ProcessOutcome, SupervisionMode, SystemError,
 };
-pub(crate) use prompt::{PromptKind, PromptResponse};
+pub(crate) use prompt::PromptResponse;
 use supervisor::{CancellationToken, ProcessSupervisor};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -58,7 +58,8 @@ pub(crate) trait UserInteractionEffects {
 	fn clear_terminal(&self) -> io::Result<()>;
 	/// Whether a user can answer a prompt: stdin and stderr, which shows the prompt, are both terminals.
 	fn can_prompt(&self) -> bool;
-	fn prompt(&self, kind: PromptKind<'_>) -> io::Result<PromptResponse>;
+	/// Offers to install GitHub Copilot CLI.
+	fn prompt(&self) -> io::Result<PromptResponse>;
 
 	fn write_diagnostic(&self, _message: &str) {}
 }
@@ -246,8 +247,8 @@ impl UserInteractionEffects for NativeRuntime {
 		prompt::native_can_prompt()
 	}
 
-	fn prompt(&self, kind: PromptKind<'_>) -> io::Result<PromptResponse> {
-		prompt::native_prompt(kind)
+	fn prompt(&self) -> io::Result<PromptResponse> {
+		prompt::native_prompt()
 	}
 
 	fn write_diagnostic(&self, message: &str) {
@@ -342,7 +343,7 @@ impl UserInteractionEffects for TestRuntime {
 		true
 	}
 
-	fn prompt(&self, _kind: PromptKind<'_>) -> io::Result<PromptResponse> {
+	fn prompt(&self) -> io::Result<PromptResponse> {
 		Ok(PromptResponse::Declined)
 	}
 }

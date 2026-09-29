@@ -28,10 +28,11 @@ The shim is invoked from a terminal. It finds and launches a real
 GitHub Copilot CLI already available through `PATH`, while preventing recursion
 through itself or the legacy VS Code shims.
 
-When no usable CLI is available, or the first usable CLI has an old parsed
-version, the shim offers interactive installation or update on supported
-installer targets. It then repeats discovery before launching. Other targets
-receive manual-install or upstream-support guidance.
+When no usable CLI is available, the shim offers interactive installation on
+supported installer targets. It then repeats discovery before launching. Other
+targets receive manual-install or upstream-support guidance. The shim never
+runs a candidate except to launch it: there is no minimum version, because the
+Copilot CLI keeps itself up to date.
 
 ## Scope
 
@@ -40,9 +41,8 @@ The implementation includes:
 - Cross-platform Copilot CLI discovery through `PATH`.
 - Self, copy, symlink, hard-link, and legacy-shim exclusion.
 - Windows native and script-wrapper support.
-- Minimum-version validation.
-- Interactive installation and update, using GitHub's per-user MSI on Windows.
-- Recursive post-install/post-update discovery and validation.
+- Interactive installation, using GitHub's per-user MSI on Windows.
+- Post-install discovery.
 - Argument, terminal I/O, and exit-status forwarding.
 - The `--vscode-shim` option namespace, including the setup commands that the
   Windows installer runs.
@@ -98,27 +98,22 @@ One invocation follows this sequence:
 2. Resolve and identify the running shim executable.
 3. Discover eligible Copilot CLI candidates from the current `PATH`.
 4. Reject the running shim, other Rust-shim copies, and legacy VS Code shims.
-5. Select the first eligible candidate using the deterministic platform rules
-   in this document.
-6. Run that exact candidate with `--version`.
-7. If no usable candidate exists, offer installation on a supported installer
+5. Select the first eligible candidate whose interpreter is available, using
+   the deterministic platform rules in this document. Selection MUST NOT run
+   any candidate.
+6. If no usable candidate exists, offer installation on a supported installer
    target; otherwise report the manual-install or upstream-support limitation.
-8. If a parsed version is below `1.0.82`, offer an update on a supported
-   installer target; otherwise report the manual-update limitation.
-9. After a successful install or update, discard all prior discovery results
-   and restart discovery and version validation from the current process
-   environment.
-10. Launch the same candidate that passed validation, forwarding the original
-    arguments and terminal I/O.
-11. Propagate the real CLI's exit result.
+7. After a successful install, discard all prior discovery results and restart
+   discovery from the current process environment.
+8. Launch the selected candidate, forwarding the original arguments and
+   terminal I/O.
+9. Propagate the real CLI's exit result.
 
-Installation and update cause a logical recursive re-entry into discovery.
-Implementation with a loop or state machine is preferred over unbounded call
-stack recursion.
+Installation causes a logical recursive re-entry into discovery. Implementation
+with a loop or state machine is preferred over unbounded call stack recursion.
 
-The first usable candidate keeps PATH precedence even when its parsed version
-is too old. Failed version probes may be skipped, but a usable old candidate
-MUST NOT be skipped merely to select a newer version later in PATH.
+The shim adds as little startup time as possible. It doesn't check the CLI's
+version, and it runs PowerShell only to find a host for a `.ps1` candidate.
 
 ## Argument handling
 
@@ -174,12 +169,12 @@ The final Copilot CLI process MUST inherit the shim's stdin, stdout, and stderr.
 Interactive Copilot prompts must behave as if the real CLI had been invoked
 directly.
 
-Installer and updater processes that may prompt the user MUST also inherit
-stdin, stdout, and stderr. Output MUST remain visible in the current terminal.
+Installer processes that may prompt the user MUST also inherit stdin, stdout,
+and stderr. Output MUST remain visible in the current terminal.
 
-Version probes are the exception: they capture stdout for parsing and stderr
-for diagnostics, within the limits specified below. Their stdin MUST be
-disconnected from interactive input.
+PowerShell host version probes are the exception: they capture stdout for
+parsing and stderr for diagnostics, within the limits specified below. Their
+stdin MUST be disconnected from interactive input.
 
 ## PATH handling
 
@@ -246,16 +241,16 @@ installed it.
 
 ### Windows execution adapters
 
-The same adapter MUST be used for the version probe and the final launch.
-
 | Candidate | Execution |
 |---|---|
 | `.exe` | Execute the discovered path directly. |
 | `.cmd` or `.bat` | Execute through `%ComSpec% /E:ON /V:OFF /D /S /C` with unquoted switches and explicit Windows command-line quoting of the script path and arguments. `/E:ON` enables the `%` escaping, and `/V:OFF` keeps `!` literal. |
 | `.ps1` | Prefer an available PowerShell 7.3+ `pwsh.exe` host with modern native argument passing; otherwise use Windows PowerShell 5.1 (`powershell.exe`) with legacy forwarding. Use `-NoLogo`, `-NoProfile`, and an execution-policy bypass where supported. Do not use `-NonInteractive` for final CLI execution. |
 
-If the required interpreter is unavailable or cannot start, the candidate is
-unusable. Discovery continues with the next candidate.
+If the required interpreter is unavailable, the candidate is unusable and
+discovery continues with the next candidate. The shim locates PowerShell,
+which means running each host to check its version, only when it reaches a
+`.ps1` candidate; `.exe`, `.cmd`, and `.bat` candidates never start PowerShell.
 
 Except for the Windows PowerShell 5.1 compatibility exception, the interpreter
 invocation MUST preserve empty arguments, quotes, Unicode, trailing
@@ -281,8 +276,8 @@ Lack of PowerShell 7.3+ alone MUST NOT exclude a `.ps1` candidate when the 5.1
 fallback is available. If neither host is available, continue candidate
 discovery. The shim does not install PowerShell automatically.
 
-Discovery, version checking, prompting, inherited terminal I/O, and child exit
-handling remain required under both host modes.
+Discovery, prompting, inherited terminal I/O, and child exit handling remain
+required under both host modes.
 
 ## Self and recursion exclusion
 
@@ -323,8 +318,8 @@ fallback. Report the error and skip that candidate. Such an error identifying
 the running executable is fatal.
 
 The originally discovered absolute path, not the canonical target path, is used
-for version probing and launch after the candidate passes exclusion. This
-preserves legitimate symlink invocation behavior.
+to launch a candidate that passes exclusion. This preserves legitimate symlink
+invocation behavior.
 
 ### Distinct copies of the Rust shim
 
@@ -338,7 +333,9 @@ VSCODE_COPILOT_RUST_SHIM_V1
 
 Native candidates MUST be inspected for this marker using a bounded-memory
 streaming search. A candidate containing it is another shim copy and MUST be
-skipped.
+skipped. The search covers only the first 16 MiB: a shim is about 1 MB, and a
+full Copilot CLI executable (about 150 MB) would otherwise be read on every
+launch.
 
 Recursion exclusion uses canonical paths, supported file identities, the binary
 marker, and legacy-wrapper signatures. The shim MUST NOT set or require a
@@ -390,44 +387,24 @@ eligible when they do not satisfy a complete legacy signature.
 Positive fixtures for every legacy row and negative npm-wrapper fixtures are
 required.
 
-## Candidate version validation
+## No Copilot CLI version check
 
-### Required version
+The shim MUST NOT run a candidate before launching it, and there is no minimum
+Copilot CLI version. The Copilot CLI keeps itself up to date (`copilot update`
+and automatic updates), and running `copilot --version` before every launch
+cost 0.15 to 1 second, and several seconds the first time antivirus scanned a
+new release of the roughly 150 MB executable. An old CLI is launched like any
+other.
 
-The minimum compatible Copilot CLI version is:
+## PowerShell host probes
 
-```text
-1.0.82
-```
+To choose a host for a `.ps1` candidate, the shim runs each `pwsh.exe`, and
+then each `powershell.exe`, found on `PATH` with
+`-NoLogo -NoProfile -NonInteractive -Command $PSVersionTable.PSVersion.ToString()`
+and takes the first `major.minor.patch` in its output. It does this at most once
+per invocation, and only when discovery reaches a `.ps1` candidate.
 
-This value MUST have one authoritative definition in the Rust package.
-
-### Probe
-
-The shim runs the exact selected candidate through its platform execution
-adapter with:
-
-```text
---version
-```
-
-Within one discovery cycle, the candidate used for the version probe MUST be
-the candidate path used for final launch. The shim MUST retain and launch the
-originally discovered absolute path; it MUST NOT resolve `copilot` by name
-again after validation.
-
-Concurrent replacement, in-place rewriting, or symlink retargeting after the
-version probe is outside scope. The shim does not revalidate candidate identity
-or content immediately before launch and does not claim an atomic same-file
-guarantee across probe and process creation.
-
-If a candidate or required interpreter cannot start, or the version command
-returns nonzero, that candidate is unusable and discovery continues with the
-next candidate. Report the rejected path and reason.
-
-### Probe limits
-
-Every version probe MUST have:
+Every PowerShell probe MUST have:
 
 - a 30-second timeout;
 - a maximum of 256 KiB (262,144 bytes) of combined stdout and stderr; and
@@ -435,62 +412,18 @@ Every version probe MUST have:
 
 Capture must be bounded while the process runs, not truncated only after
 unbounded buffering. If a probe times out or exceeds its output limit,
-terminate its process group or job, reap every child process owned by the shim,
-verify that no descendant in that group/job remains, report the rejected
-candidate and reason, and continue PATH discovery.
+terminate its job, reap the child process owned by the shim, verify that no
+descendant in the job remains, report the rejected host and reason, and try the
+next host.
 
-On Windows, process creation and Job Object assignment MUST be race-free:
-create the probe suspended and assign it to a kill-on-close Job Object before
-resuming it, or use an equivalent mechanism that prevents descendants from
-escaping before assignment.
+Process creation and Job Object assignment MUST be race-free: create the probe
+suspended and assign it to a kill-on-close Job Object before resuming it, or use
+an equivalent mechanism that prevents descendants from escaping before
+assignment.
 
-On Unix, process-group termination does not make grandchildren waitable
-children. The shim MUST reap the direct child it owns and verify that the
-process group no longer exists; it MUST NOT claim to reap processes the
-operating system has not made its children.
-
-A limit violation is an unusable candidate, not a successful-but-unparseable
-version. User cancellation stops the workflow rather than continuing discovery.
-
-These limits apply only to version probes. Interactive installers, updates,
-and the final CLI have no corresponding duration or output limit.
-
-### Parsing
-
-For a successful version command:
-
-- Search stdout for the first ASCII decimal `major.minor.patch` triple.
-- A leading `v`, surrounding text, prerelease suffix, or fourth component does
-  not prevent the first triple from being parsed.
-- Components are unsigned integers.
-- Overflow makes the version unparseable.
-- Stderr is not part of version parsing.
-
-If the command succeeds but no version is parseable, preserve the old shim
-behavior: treat the candidate as installed and launch it without an update
-prompt.
-
-### Comparison and update prompt
-
-Parsed versions are compared numerically by major, minor, and patch.
-
-When the version is below `1.0.82`, display the installed and required versions
-and, on a supported automatic-install target, prompt:
-
-```text
-Update GitHub Copilot CLI? [y/N]
-```
-
-Only a response whose first non-whitespace character is `y` or `Y` is
-affirmative. No response or EOF means No.
-
-Declining an update exits successfully without launching the incompatible CLI.
-On ARMhf and Alpine/musl, report manual-update or upstream-support guidance
-instead of offering an unsupported automatic update.
-
-Without a terminal (see [Prompts without a terminal](#prompts-without-a-terminal)),
-the shim doesn't prompt. It prints a warning to stderr and launches the old CLI,
-because a script can't answer the prompt.
+User cancellation stops the workflow rather than trying the next host. These
+limits apply only to PowerShell probes. Interactive installers and the final CLI
+have no corresponding duration or output limit.
 
 ## Missing CLI prompt
 
@@ -518,27 +451,20 @@ https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/instal
 
 Prompts are written to stderr, so they stay visible, and out of the output, when
 stdout is redirected. The shim prompts only when stdin and stderr are both
-terminals. Otherwise, as in scripts and CI:
+terminals. Otherwise, as in scripts and CI, a missing CLI prints a one-line
+message with the documentation URL to stderr and exits with `127`, the code a
+shell uses for a command it can't find, on every target.
 
-- a missing CLI prints a one-line message with the documentation URL to stderr
-  and exits with `127`, the code a shell uses for a command it can't find, on
-  every target; and
-- an old CLI is launched with a warning on stderr.
+A disabled `CopilotCliCommand` policy takes precedence (exit `10`).
 
-A disabled `CopilotCliCommand` policy takes precedence for a missing CLI (exit
-`10`).
-
-## Installation and update commands
-
-Updates deliberately reuse the installation commands, matching the old shim's
-behavior.
+## Installation commands
 
 ### Automatic-install support
 
 Shim build coverage is distinct from upstream installer coverage. Keep all nine
 build targets, but use the following automatic-install policy:
 
-| Target | Installation and update |
+| Target | Installation |
 |---|---|
 | Windows x64/arm64 | GitHub's per-user MSI, downloaded and verified by the shim. |
 | macOS x64/arm64 | Homebrew cask, then curl/wget official script. |
@@ -546,8 +472,7 @@ build targets, but use the following automatic-install policy:
 | Linux GNU armhf | Manual-install/upstream-support guidance; no automatic installer attempt. |
 | Alpine/musl x64/arm64 | Manual-install guidance for an upstream musl release; no automatic installer attempt. |
 
-Existing CLI discovery, version probing, and launching remain supported on
-every target.
+Existing CLI discovery and launching remain supported on every target.
 
 The current official script accepts x64/arm64 architectures and selects the
 `copilot-linux-*` archives for Linux; it does not select the separately
@@ -579,7 +504,7 @@ install option, MUST:
 Progress goes to stderr. The MSI adds its folder to the user `PATH`, and
 Windows discovery searches that folder even when the terminal's `PATH` predates
 the installation. `VSCODE_COPILOT_SHIM_RELEASES_URL` replaces the releases URL
-for tests; the signer requirement still applies. Updates run the same install.
+for tests; the signer requirement still applies.
 Installation does not use PowerShell or winget.
 
 ### macOS
@@ -660,42 +585,21 @@ temporary script file. Cleanup is guaranteed for normal exits, reported
 failures, and handled cancellation, not SIGKILL, abrupt OS termination,
 crashes, or power loss.
 
-## Recursive post-install and post-update validation
+## Post-install discovery
 
 An installer returning zero is not sufficient evidence that Copilot CLI is
 ready.
 
-After a successful install or update, the shim MUST:
+After a successful install, the shim MUST restart `PATH` discovery from the
+beginning, reapply all self and legacy exclusions, and launch only a candidate
+found by that second discovery. It MUST NOT launch a path remembered from
+before the install.
 
-1. Discard the previous candidate and version.
-2. Restart PATH discovery from the beginning.
-3. Reapply all self and legacy exclusions.
-4. Probe the newly selected candidate with `--version`.
-5. Reapply the `1.0.82` compatibility check.
-6. Launch only a candidate that passes this second discovery cycle, or a
-   successful candidate with unparseable version output.
-
-This is the required recursive install check.
-
-The flow MUST be bounded to one accepted install or update action per shim
-invocation:
-
-- If installation returns success but no candidate is visible in the current
-  `PATH`, explain that the install completed but the current terminal cannot
-  resolve `copilot`; instruct the user to restart the terminal or update
-  `PATH`; exit nonzero.
-- If update returns success but the first usable PATH candidate remains
-  below `1.0.82`, explain that the update did not produce a compatible
-  first-in-PATH CLI and may be shadowed by an older installation; exit
-  nonzero.
-- Do not prompt for the same install or update repeatedly in one invocation.
-- Do not launch a cached pre-install or pre-update path.
-
-For example, if `/old/bin` precedes `/new/bin` in PATH and the update creates a
-compatible `/new/bin/copilot` while `/old/bin/copilot` remains usable but old,
-the shim MUST report the older installation shadowing the new one. It MUST NOT
-silently bypass that PATH ordering. Explain that the user can reorder PATH,
-remove the old installation, or invoke the new installation explicitly.
+The flow MUST be bounded to one accepted install per shim invocation. If
+installation returns success but no candidate is visible in the current `PATH`,
+explain that the install completed but the current terminal cannot resolve
+`copilot`, instruct the user to restart the terminal or update `PATH`, and exit
+nonzero, without prompting again.
 
 ## Final launch
 
@@ -720,17 +624,14 @@ outcome table.
 | Real CLI or required interpreter cannot start | Print the failing path and OS error; exit `1`. |
 | Current executable cannot be identified | Print a diagnostic; exit `1`. |
 | All candidates are unusable and installation is unavailable or fails | Print an actionable diagnostic; exit `1`. |
-| Installer or updater returns zero but re-discovery fails | Print the PATH/restart guidance; exit `1`. |
-| Update leaves the visible CLI below `1.0.82` | Print shadowing/update guidance; exit `1`. |
-| Automatic installation/update is unsupported for the target | Print manual-install or upstream-support guidance; exit `1` without an installer attempt. |
+| Installer returns zero but re-discovery fails | Print the PATH/restart guidance; exit `1`. |
+| Automatic installation is unsupported for the target | Print manual-install or upstream-support guidance; exit `1` without an installer attempt. |
 | Bootstrap or installer operation is canceled | Stop without fallback, reap the child and clean up owned temporary files; return a nonzero cancellation result (`128 + signal` on Unix). |
 | User declines installation | Exit `0` without launching. |
-| User declines update | Exit `0` without launching. |
 | Prompt receives EOF | Treat as No and exit `0`. |
 | No terminal (stdin or stderr isn't a terminal) and no usable CLI | Print a message to stderr; exit `127` without prompting. |
-| No terminal and the first usable CLI is below `1.0.82` | Print a warning to stderr and launch that CLI. |
 | A `--vscode-shim` option is unknown or malformed | Print a diagnostic; exit `2` without launching. |
-| Installation or update is needed, but the `CopilotCliCommand` policy is disabled | Print the policy diagnostic; exit `10` without launching. |
+| Installation is needed, but the `CopilotCliCommand` policy is disabled | Print the policy diagnostic; exit `10` without launching. |
 
 Shim-owned diagnostics go to stderr. Prompts and normal installer/CLI output
 remain visible in the terminal.
@@ -741,8 +642,8 @@ The VS Code policy `CopilotCliCommand` controls the core setting
 `chat.copilotCliCommand.enabled`. When it is disabled:
 
 - the shim still launches a Copilot CLI that is already installed, but never
-  installs or updates one. It prints a diagnostic that names the policy and
-  exits with `10`;
+  installs one. It prints a diagnostic that names the policy and exits with
+  `10`;
 - `probe` reports `policy=disabled` and skips its network check, and `install`
   reports the `policy` status;
 - VS Code setup on Windows doesn't show its Copilot CLI page, doesn't publish
@@ -806,7 +707,7 @@ copilot --vscode-shim install --non-interactive --consent=installer
 ```
 
 `install` runs the Windows installation described under
-[Installation and update commands](#installation-and-update-commands). Other
+[Installation commands](#installation-commands). Other
 platforms report that it is unsupported.
 
 `--non-interactive` requires `--consent=installer`, the consent that setup
@@ -964,51 +865,42 @@ fixtures.
 - Legitimate npm `.cmd` and `.ps1` negative fixtures.
 - Windows extension ordering and case-insensitive names.
 
-### Version behavior
+### Candidate selection and PowerShell hosts
 
-- Versions below, equal to, and above `1.0.82`.
-- Leading `v`, surrounding text, prerelease suffix, and fourth component.
-- Unparseable successful output.
-- Numeric overflow.
-- Nonzero version command.
-- Candidate/interpreter spawn failure followed by a later candidate.
-- Probe timeout and combined-output limits, tested with injected budgets and
-  assertions for the production values of 30 seconds and 262,144 bytes.
-- Probe process-group/Job Object termination, owned-child reaping, and
-  no-surviving-descendant verification before moving to the next candidate.
-- Race-free Windows Job Object assignment before a probe can create
-  descendants.
-- Probe cancellation stops the workflow; timeout/output-limit failures do not
-  qualify for the successful-but-unparseable exception.
+- The first usable candidate is launched without being run first.
+- A candidate whose interpreter is unavailable is skipped.
+- PowerShell is located only for a `.ps1` candidate, at most once per
+  invocation.
+- PowerShell host versions: the first `major.minor.patch`, with prefixes,
+  suffixes, fourth components, and numeric overflow.
+- PowerShell probe timeout and combined-output limits, tested with injected
+  budgets and assertions for the production values of 30 seconds and 262,144
+  bytes.
+- Probe Job Object termination, owned-child reaping, and
+  no-surviving-descendant verification before trying the next host.
+- Race-free Job Object assignment before a probe can create descendants.
+- Probe cancellation stops the workflow.
 
-### Prompts and mutation flow
+### Prompts and install flow
 
 - Default No for blank input.
 - `y` and `Y`.
 - EOF.
-- Without a terminal: no prompt, exit `127` for a missing CLI, and a warning and
-  launch for an old CLI.
+- Without a terminal: no prompt, and exit `127` for a missing CLI.
 - User declines install.
-- User declines update.
 - Each automatic-install platform policy: Windows MSI, macOS
   Homebrew/script, and GNU Linux x64/arm64 script.
-- ARMhf and musl missing/old CLI cases show guidance without running an
-  installer; existing compatible CLI candidates remain launchable.
+- ARMhf and musl missing-CLI cases show guidance without running an installer;
+  existing CLI candidates remain launchable.
 - Linux GNU x64/arm64 does not attempt a Homebrew cask.
 - Fallback after an available installer fails without cancellation.
 - Missing bash, brew, curl, and wget.
-- Installer and updater receive inherited terminal streams through the Windows
-  MSI install command, brew, curl/bash, and wget/bash.
-- Successful install followed by compatible re-discovery and launch.
-- Successful update where the original candidate disappears/becomes unusable,
-  or a compatible candidate appears earlier in PATH. The test must prove that
-  enumeration restarts at the first entry, the newly selected absolute
-  candidate is probed, and that exact candidate is launched.
-- An old but usable candidate still first in PATH shadows a newer later
-  installation: report guidance instead of launching the later candidate.
+- Installers receive inherited terminal streams through the Windows MSI install
+  command, brew, curl/bash, and wget/bash.
+- Successful install followed by re-discovery from the first `PATH` entry and
+  launch of the newly found candidate.
 - Successful install not visible in current PATH.
-- Successful update that remains below `1.0.82`.
-- No repeated mutation prompt in one invocation.
+- No repeated install prompt in one invocation.
 - Ctrl+C/handled termination during installation cancels without fallback,
   another prompt, or final CLI launch.
 - Temporary-script cleanup occurs after child reaping on success, failure, and
@@ -1026,9 +918,9 @@ fixtures.
 - Result files are UTF-16LE single-line INI files replaced atomically.
 - Install statuses map to the documented exit codes.
 - Unsigned files have no Authenticode signer.
-- With the `CopilotCliCommand` policy disabled, a missing or old CLI produces
-  the policy diagnostic and exit code `10` without a prompt, and an installed
-  compatible CLI still launches.
+- With the `CopilotCliCommand` policy disabled, a missing CLI produces the
+  policy diagnostic and exit code `10` without a prompt, and an installed CLI
+  still launches.
 - Policy registry values are read only from `REG_DWORD` values.
 
 ### Launch behavior
@@ -1077,21 +969,19 @@ The work is complete only when:
 5. Self aliases, copied Rust shims, and all specified legacy shims are skipped.
 6. A missing CLI follows the default-No installation flow on supported
    automatic-install targets; other targets receive actionable guidance.
-7. Installer and updater prompts are usable in the current terminal.
-8. A successful install or update is followed by fresh PATH discovery and
-   version validation.
-9. A candidate with a parsed version below `1.0.82` is not launched, including
-   after an update that leaves it unchanged. Successful probes without a
-   parseable version retain the explicitly approved exception.
+7. Installer prompts are usable in the current terminal.
+8. A successful install is followed by fresh PATH discovery.
+9. Selecting a candidate never runs it, and PowerShell runs only when a `.ps1`
+   candidate needs a host.
 10. The real CLI's arguments follow the preservation contract and its accepted
     Windows PowerShell 5.1 exception; terminal I/O and exit results are preserved.
 11. The setup commands follow the documented result-file contract.
 12. All required automated tests and artifact validations pass.
-13. Version probes enforce the approved time/output bounds and clean up their
-    processes on failure.
+13. PowerShell probes enforce the approved time/output bounds and clean up
+    their processes on failure.
 14. Handled cancellation stops bootstrap installation without fallback and
     cleans temporary files after child reaping.
-15. Initial and post-update discovery both respect first-usable-candidate PATH
+15. Initial and post-install discovery both respect first-usable-candidate PATH
     precedence.
 
 ## Source references

@@ -165,21 +165,6 @@ impl Candidate {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum CommandIntent {
-	VersionProbe,
-	FinalCli(Vec<OsString>),
-}
-
-impl CommandIntent {
-	pub(crate) fn arguments(self) -> Vec<OsString> {
-		match self {
-			Self::VersionProbe => vec![OsString::from("--version")],
-			Self::FinalCli(arguments) => arguments,
-		}
-	}
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum CommandArguments {
 	Native(Vec<OsString>),
 	#[cfg(any(windows, test))]
@@ -277,6 +262,8 @@ pub(crate) struct ProbeLimits {
 }
 
 impl ProbeLimits {
+	// Captured probes only locate PowerShell hosts for `.ps1` candidates on Windows.
+	#[cfg_attr(not(windows), allow(dead_code))]
 	pub(crate) const PRODUCTION: Self = Self {
 		timeout: ProbeTimeout(Duration::from_secs(30)),
 		output: OutputBudget(262_144),
@@ -285,6 +272,7 @@ impl ProbeLimits {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SupervisionMode {
+	#[cfg_attr(not(windows), allow(dead_code))]
 	CapturedVersionProbe(ProbeLimits),
 	InteractiveBootstrap,
 	FinalInteractiveCli,

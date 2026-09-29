@@ -125,20 +125,6 @@ pub(crate) enum InstallerPlanError {
 	MissingPrerequisites(Vec<Tool>),
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum MutationKind {
-	Install,
-	Update,
-}
-
-pub(crate) fn mutation_plan(
-	_kind: MutationKind,
-	target: HostTarget,
-	tools: &ToolInventory,
-) -> Result<Vec<InstallerRoute>, InstallerPlanError> {
-	installer_plan(target, tools)
-}
-
 pub(crate) fn installer_plan(
 	target: HostTarget,
 	tools: &ToolInventory,
@@ -563,7 +549,7 @@ fn native_command(program: &OsStr, arguments: Vec<OsString>) -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-	use crate::{install, model, runtime, version};
+	use crate::{install, model, runtime};
 	use std::cell::RefCell;
 	use std::collections::{HashMap, VecDeque};
 	use std::ffi::{OsStr, OsString};
@@ -572,21 +558,19 @@ mod tests {
 	use std::rc::Rc;
 
 	use install::{
-		discover_tools, installer_plan, mutation_plan, run_installer_with, HostTarget,
-		InstallerPlanError, InstallerResult, InstallerRoute, InstallerStage, MutationKind,
-		TemporaryScript, TemporaryScriptFactory, Tool, ToolInventory, UnsupportedTarget,
-		OFFICIAL_INSTALLER_URL,
+		discover_tools, installer_plan, run_installer_with, HostTarget, InstallerPlanError,
+		InstallerResult, InstallerRoute, InstallerStage, TemporaryScript, TemporaryScriptFactory,
+		Tool, ToolInventory, UnsupportedTarget, OFFICIAL_INSTALLER_URL,
 	};
 	use model::{
 		Cancellation, CommandArguments, CommandSpec, FileIdentityState, ProcessError,
 		ProcessOutcome, ProcessTermination, SupervisionMode,
 	};
-	use prompt::{PromptKind, PromptResponse};
+	use prompt::PromptResponse;
 	use runtime::{
 		prompt, EnvironmentEffects, FileSystemEffects, InspectedFileType, PathInspection,
 		ProcessEffects,
 	};
-	use version::{evaluate_successful_stdout, CliVersion, SuccessfulVersion, MINIMUM_VERSION};
 
 	fn path(name: &str) -> Option<PathBuf> {
 		Some(PathBuf::from(name))
@@ -657,7 +641,7 @@ mod tests {
 	}
 
 	#[test]
-	fn missing_capabilities_are_typed_and_update_reuses_install_policy() {
+	fn missing_capabilities_are_typed() {
 		let no_tools = ToolInventory::default();
 		let tools = all_tools();
 		let mut no_brew = tools.clone();
@@ -677,8 +661,6 @@ mod tests {
 				installer_plan(HostTarget::MacosX64, &no_wget),
 				installer_plan(HostTarget::LinuxGnuX64, &no_curl),
 				installer_plan(HostTarget::LinuxGnuX64, &no_wget),
-				mutation_plan(MutationKind::Install, HostTarget::MacosArm64, &tools),
-				mutation_plan(MutationKind::Update, HostTarget::MacosArm64, &tools),
 			),
 			(
 				Err(InstallerPlanError::MissingPrerequisites(vec![Tool::Shim])),
@@ -696,74 +678,7 @@ mod tests {
 				Ok(vec![InstallerRoute::Homebrew, InstallerRoute::Curl]),
 				Ok(vec![InstallerRoute::Wget]),
 				Ok(vec![InstallerRoute::Curl]),
-				Ok(vec![
-					InstallerRoute::Homebrew,
-					InstallerRoute::Curl,
-					InstallerRoute::Wget,
-				]),
-				Ok(vec![
-					InstallerRoute::Homebrew,
-					InstallerRoute::Curl,
-					InstallerRoute::Wget,
-				]),
 			)
-		);
-	}
-
-	#[test]
-	fn successful_version_grammar_and_comparison() {
-		assert_eq!(
-			[
-				evaluate_successful_stdout(b"0.99.999"),
-				evaluate_successful_stdout(b"1.0.82"),
-				evaluate_successful_stdout(b"2.0.0"),
-				evaluate_successful_stdout(b"copilot v1.2.3-beta is installed"),
-				evaluate_successful_stdout(b"release 4.5.6.7"),
-				evaluate_successful_stdout(b"noise"),
-			],
-			[
-				SuccessfulVersion::Old(CliVersion {
-					major: 0,
-					minor: 99,
-					patch: 999,
-				}),
-				SuccessfulVersion::Compatible(MINIMUM_VERSION),
-				SuccessfulVersion::Compatible(CliVersion {
-					major: 2,
-					minor: 0,
-					patch: 0,
-				}),
-				SuccessfulVersion::Compatible(CliVersion {
-					major: 1,
-					minor: 2,
-					patch: 3,
-				}),
-				SuccessfulVersion::Compatible(CliVersion {
-					major: 4,
-					minor: 5,
-					patch: 6,
-				}),
-				SuccessfulVersion::Unparseable,
-			]
-		);
-		assert_eq!(MINIMUM_VERSION.to_string(), "1.0.82");
-	}
-
-	#[test]
-	fn first_syntactic_version_overflow_is_terminally_unparseable() {
-		assert_eq!(
-			[
-				evaluate_successful_stdout(b"18446744073709551616.1.2 then 9.9.9"),
-				evaluate_successful_stdout(b"prefix 18446744073709551616 then 1.0.82"),
-				evaluate_successful_stdout(b"1.18446744073709551616.2 then 9.9.9"),
-				evaluate_successful_stdout(b"1.2.18446744073709551616 then 9.9.9"),
-			],
-			[
-				SuccessfulVersion::Unparseable,
-				SuccessfulVersion::Compatible(MINIMUM_VERSION),
-				SuccessfulVersion::Unparseable,
-				SuccessfulVersion::Unparseable,
-			]
 		);
 	}
 
@@ -793,43 +708,25 @@ mod tests {
 	fn prompts_emit_required_text_flush_and_default_no_for_eof_or_noninteractive_input() {
 		let mut install_input = Cursor::new(Vec::<u8>::new());
 		let mut install_output = FlushRecordingWriter::default();
-		let install = prompt::prompt_with_io(
-			&mut install_input,
-			&mut install_output,
-			true,
-			PromptKind::Install,
-		)
-		.expect("prompt at EOF");
-		let mut update_input = Cursor::new(b" Y\n");
-		let mut update_output = FlushRecordingWriter::default();
-		let update = prompt::prompt_with_io(
-			&mut update_input,
-			&mut update_output,
-			true,
-			PromptKind::Update {
-				installed_version: "1.0.1",
-				required_version: "1.0.82",
-			},
-		)
-		.expect("update prompt");
+		let install = prompt::prompt_with_io(&mut install_input, &mut install_output, true)
+			.expect("prompt at EOF");
+		let mut accepted_input = Cursor::new(b" Y\n");
+		let mut accepted_output = FlushRecordingWriter::default();
+		let accepted = prompt::prompt_with_io(&mut accepted_input, &mut accepted_output, true)
+			.expect("accepted prompt");
 		let mut noninteractive_input = FailingReader;
 		let mut noninteractive_output = FlushRecordingWriter::default();
-		let noninteractive = prompt::prompt_with_io(
-			&mut noninteractive_input,
-			&mut noninteractive_output,
-			false,
-			PromptKind::Install,
-		)
-		.expect("noninteractive prompt");
+		let noninteractive =
+			prompt::prompt_with_io(&mut noninteractive_input, &mut noninteractive_output, false)
+				.expect("noninteractive prompt");
 
 		assert_eq!(
 			(
 				install,
 				String::from_utf8(install_output.bytes).unwrap(),
 				install_output.flushes,
-				update,
-				String::from_utf8(update_output.bytes).unwrap(),
-				update_output.flushes,
+				accepted,
+				accepted_output.flushes,
 				noninteractive,
 				noninteractive_output.flushes,
 			),
@@ -841,7 +738,6 @@ mod tests {
 				),
 				1,
 				PromptResponse::Accepted,
-				"Installed GitHub Copilot CLI version 1.0.1 is below the required version 1.0.82.\nUpdate GitHub Copilot CLI? [y/N] ".to_owned(),
 				1,
 				PromptResponse::Declined,
 				1,
@@ -856,14 +752,12 @@ mod tests {
 			&mut Cursor::new(b"y"),
 			&mut FailingWriter { fail_flush: false },
 			true,
-			PromptKind::Install,
 		)
 		.unwrap_err();
 		let flush_error = prompt::prompt_with_io(
 			&mut Cursor::new(b"y"),
 			&mut FailingWriter { fail_flush: true },
 			true,
-			PromptKind::Install,
 		)
 		.unwrap_err();
 		let clear_error =
@@ -873,7 +767,6 @@ mod tests {
 			&mut FailingReader,
 			&mut FlushRecordingWriter::default(),
 			true,
-			PromptKind::Install,
 		)
 		.unwrap_err();
 
