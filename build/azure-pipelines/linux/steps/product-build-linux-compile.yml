@@ -416,7 +416,7 @@ steps:
             command: login
           displayName: Login to Container Registry
 
-        - script: sudo -E docker run --rm --privileged --platform linux/amd64 vscodehub.azurecr.io/multiarch/qemu-user-static:latest --reset -p yes
+        - script: sudo -E docker run --rm --privileged --platform linux/amd64 vscodehub.azurecr.io/multiarch/qemu-user-static@sha256:fe60359c92e86a43cc87b3d906006245f77bfc0565676b80004cc666e4feb9f0 --reset -p yes
           displayName: Register ARM64 Docker emulation
 
       - script: |

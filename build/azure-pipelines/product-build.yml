@@ -188,7 +188,7 @@ variables:
   - name: VSCODE_BUILD_STAGE_WINDOWS_ARM64
     value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_PUBLISH
-    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false), or(eq(parameters.VSCODE_BUILD_LINUX_SNAP, false), eq(parameters.VSCODE_SNAP_BASE, 'core24'))) }}
   - name: VSCODE_USE_PUBLISHING_POOLS
     value: ${{ and(eq(variables.VSCODE_PUBLISH, true), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}
   - name: VSCODE_WINDOWS_POOL
@@ -330,6 +330,14 @@ extends:
           name: ${{ variables.VSCODE_UBUNTU_POOL }}
           os: linux
         jobs:
+          - ${{ if and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true), ne(parameters.VSCODE_SNAP_BASE, 'core24'), or(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RELEASE, true))) }}:
+            - job: ValidateSnapBase
+              displayName: Prevent publishing an unvalidated Snap base
+              steps:
+                - bash: |
+                    echo "##vso[task.logissue type=error]Core22 Snap builds require VSCODE_PUBLISH=false and VSCODE_RELEASE=false."
+                    exit 1
+                  displayName: Validate Snap Base
           - template: build/azure-pipelines/product-quality-checks.yml@self
 
       - stage: Copilot
@@ -341,7 +349,7 @@ extends:
           - template: build/azure-pipelines/product-copilot.yml@self
             parameters:
               VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
+              VSCODE_RELEASE: ${{ and(eq(parameters.VSCODE_RELEASE, true), eq(variables.VSCODE_PUBLISH, true)) }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows

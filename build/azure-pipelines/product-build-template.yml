@@ -105,6 +105,14 @@ stages:
           name: 1es-ubuntu-22.04-x64
           os: linux
         jobs:
+          - ${{ if and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true), ne(parameters.VSCODE_SNAP_BASE, 'core24'), or(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RELEASE, true))) }}:
+            - job: ValidateSnapBase
+              displayName: Prevent publishing an unvalidated Snap base
+              steps:
+                - bash: |
+                    echo "##vso[task.logissue type=error]Core22 Snap builds require VSCODE_PUBLISH=false and VSCODE_RELEASE=false."
+                    exit 1
+                  displayName: Validate Snap Base
           - template: product-quality-checks.yml@self
 
       - stage: Copilot
@@ -115,8 +123,8 @@ stages:
         jobs:
           - template: product-copilot.yml@self
             parameters:
-              VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
-              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
+              VSCODE_PUBLISH: ${{ and(eq(variables.VSCODE_PUBLISH, true), or(eq(parameters.VSCODE_BUILD_LINUX_SNAP, false), eq(parameters.VSCODE_SNAP_BASE, 'core24'))) }}
+              VSCODE_RELEASE: ${{ and(eq(parameters.VSCODE_RELEASE, true), eq(variables.VSCODE_PUBLISH, true), or(eq(parameters.VSCODE_BUILD_LINUX_SNAP, false), eq(parameters.VSCODE_SNAP_BASE, 'core24'))) }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -335,7 +343,7 @@ stages:
           jobs:
             - template: web/product-build-web.yml@self
 
-      - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
+      - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), or(eq(parameters.VSCODE_BUILD_LINUX_SNAP, false), eq(parameters.VSCODE_SNAP_BASE, 'core24'))) }}:
         - stage: Publish
           dependsOn: []
           jobs:
@@ -344,7 +352,7 @@ stages:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
 
-      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false)) }}:
+      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false), or(eq(parameters.VSCODE_BUILD_LINUX_SNAP, false), eq(parameters.VSCODE_SNAP_BASE, 'core24'))) }}:
         - stage: SanityTests
           displayName: Sanity Tests
           dependsOn:
@@ -635,7 +643,7 @@ stages:
                   container: ubuntu-24
                   arch: arm64
 
-        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
+        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables.VSCODE_PUBLISH, true), or(eq(parameters.VSCODE_BUILD_LINUX_SNAP, false), eq(parameters.VSCODE_SNAP_BASE, 'core24')), eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
           - stage: ApproveRelease
             dependsOn: [] # run in parallel to compile stage
             pool:

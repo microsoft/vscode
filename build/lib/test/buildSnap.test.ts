@@ -9,11 +9,13 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, suite, test } from 'node:test';
+import { copyrightFilter } from '../../filters.ts';
 import { getSnapBase, getSnapcraftConfig } from '../../linux/snapcraftConfig.ts';
 
 const buildScript = path.resolve(import.meta.dirname, '../../azure-pipelines/linux/build-snap.sh');
 const launcherScript = path.resolve(import.meta.dirname, '../../../resources/linux/snap/electron-launch');
 const snapcraftTemplate = path.resolve(import.meta.dirname, '../../../resources/linux/snap/snapcraft.yaml');
+const compileTemplate = path.resolve(import.meta.dirname, '../../azure-pipelines/linux/steps/product-build-linux-compile.yml');
 
 suite('Linux Snap packaging', { skip: process.platform !== 'linux' }, () => {
 	let root: string;
@@ -194,6 +196,45 @@ echo "Packed snap"
 		assert.strictEqual(getSnapBase(undefined), 'core24');
 		assert.throws(() => getSnapBase('core20'), /Unsupported Snap base: core20/);
 		assert.throws(() => getSnapcraftConfig('riscv64', 'core24'), /Unsupported Snap architecture: riscv64/);
+	});
+
+	test('pins the privileged ARM64 emulation image', () => {
+		const template = fs.readFileSync(compileTemplate, 'utf8');
+		assert.deepStrictEqual({
+			pinned: template.includes('vscodehub.azurecr.io/multiarch/qemu-user-static@sha256:fe60359c92e86a43cc87b3d906006245f77bfc0565676b80004cc666e4feb9f0'),
+			mutableTag: template.includes('qemu-user-static:latest')
+		}, { pinned: true, mutableTag: false });
+	});
+
+	test('excludes Apt sources from the TypeScript copyright header check', () => {
+		assert.deepStrictEqual([
+			'!build/azure-pipelines/linux/snapcraft-apt-retries.conf',
+			'!build/azure-pipelines/linux/snapcraft-ubuntu-*.list',
+			'!build/azure-pipelines/linux/snapcraft-ubuntu-*.sources'
+		].filter(pattern => !copyrightFilter.includes(pattern)), []);
+	});
+
+	test('prevents publishing and releasing core22 product builds', () => {
+		const root = fs.readFileSync(path.resolve(import.meta.dirname, '../../azure-pipelines/product-build.yml'), 'utf8');
+		const sharedVariables = fs.readFileSync(path.resolve(import.meta.dirname, '../../azure-pipelines/product-build-variables.yml'), 'utf8');
+		const template = fs.readFileSync(path.resolve(import.meta.dirname, '../../azure-pipelines/product-build-template.yml'), 'utf8');
+		const gate = "or(eq(parameters.VSCODE_BUILD_LINUX_SNAP, false), eq(parameters.VSCODE_SNAP_BASE, 'core24'))";
+
+		assert.deepStrictEqual({
+			productPublish: root.includes(`value: \${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false), ${gate}) }}`),
+			sharedPublish: sharedVariables.includes(`value: \${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false), ${gate}) }}`),
+			rejectProductPublish: root.includes('Core22 Snap builds require VSCODE_PUBLISH=false and VSCODE_RELEASE=false.'),
+			rejectTemplatePublish: template.includes('Core22 Snap builds require VSCODE_PUBLISH=false and VSCODE_RELEASE=false.'),
+			templatePublish: template.includes(`if and(eq(variables['VSCODE_PUBLISH'], true), ${gate})`),
+			templateRelease: template.includes(`if and(parameters.VSCODE_RELEASE, eq(variables.VSCODE_PUBLISH, true), ${gate}`)
+		}, {
+			productPublish: true,
+			sharedPublish: true,
+			rejectProductPublish: true,
+			rejectTemplatePublish: true,
+			templatePublish: true,
+			templateRelease: true
+		});
 	});
 
 	test('selects staged desktop libraries for each Ubuntu base', () => {
