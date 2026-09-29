@@ -15968,41 +15968,43 @@ Use the attached image as context.
 			assert.deepStrictEqual(serverToolHost.definitionRequests, [{ sessionUri: sessionUri.toString(), chatUri: chatChannelUri.toString() }]);
 		});
 
-		test('rejects inherited main-chat-only tools from native workers and unknown origins', async () => {
-			const serverToolHost = new FakeServerToolHost([{ name: 'mainOnly', mainChatOnly: true }]);
-			const { session, runtime, mockSession } = await createAgentSession(disposables, { serverToolHost });
-			session.resetTurnState('turn-main-only');
-			const tool = runtime.createServerSdkTools()[0];
-			mockSession.fire('subagent.started', {
-				toolCallId: 'worker-task',
-				agentName: 'helper',
-				agentDisplayName: 'Helper',
-				agentDescription: 'Helps',
-			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'worker-agent' });
-			for (const [toolCallId, agentId] of [['worker-tool', 'worker-agent'], ['unknown-worker-tool', 'unmapped-agent']]) {
+		for (const restriction of ['mainChatOnly', 'topLevelChatOnly'] as const) {
+			test(`rejects inherited ${restriction} tools from native workers and unknown origins`, async () => {
+				const serverToolHost = new FakeServerToolHost([{ name: 'mainOnly', [restriction]: true }]);
+				const { session, runtime, mockSession } = await createAgentSession(disposables, { serverToolHost });
+				session.resetTurnState('turn-main-only');
+				const tool = runtime.createServerSdkTools()[0];
+				mockSession.fire('subagent.started', {
+					toolCallId: 'worker-task',
+					agentName: 'helper',
+					agentDisplayName: 'Helper',
+					agentDescription: 'Helps',
+				} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'worker-agent' });
+				for (const [toolCallId, agentId] of [['worker-tool', 'worker-agent'], ['unknown-worker-tool', 'unmapped-agent']]) {
+					mockSession.fire('tool.execution_start', {
+						toolCallId, toolName: 'mainOnly', arguments: {},
+					} as SessionEventPayload<'tool.execution_start'>['data'], { agentId });
+				}
+				const results = await Promise.all(['worker-tool', 'unknown-worker-tool', 'missing-origin'].map(toolCallId => invokeClientToolHandler(tool, toolCallId)));
 				mockSession.fire('tool.execution_start', {
-					toolCallId, toolName: 'mainOnly', arguments: {},
-				} as SessionEventPayload<'tool.execution_start'>['data'], { agentId });
-			}
-			const results = await Promise.all(['worker-tool', 'unknown-worker-tool', 'missing-origin'].map(toolCallId => invokeClientToolHandler(tool, toolCallId)));
-			mockSession.fire('tool.execution_start', {
-				toolCallId: 'root-tool', toolName: 'mainOnly', arguments: {},
-			} as SessionEventPayload<'tool.execution_start'>['data']);
-			const rootResult = await invokeClientToolHandler(tool, 'root-tool');
-			assert.deepStrictEqual({
-				workerResults: results.map(result => result.resultType),
-				rootResult: rootResult.resultType,
-				executions: serverToolHost.executions,
-			}, {
-				workerResults: ['failure', 'failure', 'failure'],
-				rootResult: 'success',
-				executions: [{
-					sessionUri: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')),
-					toolName: 'mainOnly',
-					rawArgs: {},
-				}],
+					toolCallId: 'root-tool', toolName: 'mainOnly', arguments: {},
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+				const rootResult = await invokeClientToolHandler(tool, 'root-tool');
+				assert.deepStrictEqual({
+					workerResults: results.map(result => result.resultType),
+					rootResult: rootResult.resultType,
+					executions: serverToolHost.executions,
+				}, {
+					workerResults: ['failure', 'failure', 'failure'],
+					rootResult: 'success',
+					executions: [{
+						sessionUri: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')),
+						toolName: 'mainOnly',
+						rawArgs: {},
+					}],
+				});
 			});
-		});
+		}
 
 		test('server tool handler routes to the host and returns a success result', async () => {
 			const serverToolHost = new FakeServerToolHost();

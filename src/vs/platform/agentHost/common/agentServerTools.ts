@@ -17,6 +17,8 @@ export interface IAgentServerToolDefinition extends ToolDefinition {
 	readonly enabledForEphemeralSessions?: boolean;
 	/** Only the owning session's default chat may discover or execute this tool. */
 	readonly mainChatOnly?: boolean;
+	/** Available to owning chats, but not their native or protocol subagents. */
+	readonly topLevelChatOnly?: boolean;
 	/** Defers the tool behind discovery when supported; `false` keeps it eager. Omit to preserve provider defaults. */
 	readonly deferLoading?: boolean;
 }

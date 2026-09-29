@@ -39,30 +39,33 @@ suite('Session isolation tool', () => {
 		return { stateManager, host, group, session, main, peer, calls, disable: () => { enabled = false; } };
 	}
 
-	test('only advertises to the owning main chat and rejects peer and subagent calls', () => {
+	test('advertises to main and peer chats but rejects subagent calls', () => {
 		const { host, session, main, peer } = createHarness();
 		const childSession = buildSubagentSessionUri(URI.parse(session), 'worker').toString();
 		const child = buildDefaultChatUri(childSession);
 		assert.deepStrictEqual({
 			main: host.getDefinitionsForSession(session, main).map(tool => tool.name),
-			peer: host.getDefinitionsForSession(session, peer),
+			peer: host.getDefinitionsForSession(session, peer).map(tool => tool.name),
 			child: host.getDefinitionsForSession(childSession, child),
-		}, { main: [SessionServerToolName.IsolateSession], peer: [], child: [] });
-		assert.throws(() => host.executeTool(peer, SessionServerToolName.IsolateSession, {}), /disabled/);
+		}, { main: [SessionServerToolName.IsolateSession], peer: [SessionServerToolName.IsolateSession], child: [] });
 		assert.throws(() => host.executeTool(child, SessionServerToolName.IsolateSession, {}), /disabled/);
 	});
 
-	test('requests isolation from an active main-chat turn with no workspace arguments', () => {
-		const { stateManager, host, main, calls } = createHarness();
-		stateManager.dispatchServerAction(main, {
-			type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(),
-			message: { text: 'Continue in isolation', origin: { kind: MessageKind.User } },
+	for (const target of ['main', 'peer'] as const) {
+		test(`requests isolation from an active ${target} turn with no workspace arguments`, () => {
+			const harness = createHarness();
+			const { stateManager, host, calls } = harness;
+			const chat = harness[target];
+			stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(),
+				message: { text: 'Continue in isolation', origin: { kind: MessageKind.User } },
+			});
+			assert.throws(() => host.executeTool(chat, SessionServerToolName.IsolateSession, { workspace: '/other' }), /no arguments/);
+			const result = host.executeTool(chat, SessionServerToolName.IsolateSession, {});
+			assert.deepStrictEqual(calls, [{ chat, turnId: 'turn-1' }]);
+			assert.match(String(result), /End this turn.*only this chat.*automatically/);
 		});
-		assert.throws(() => host.executeTool(main, SessionServerToolName.IsolateSession, { workspace: '/other' }), /no arguments/);
-		const result = host.executeTool(main, SessionServerToolName.IsolateSession, {});
-		assert.deepStrictEqual(calls, [{ chat: main, turnId: 'turn-1' }]);
-		assert.match(String(result), /End this turn.*all active chats.*entire session.*automatically/);
-	});
+	}
 
 	test('does not execute outside a turn or after isolation is no longer available', () => {
 		const { host, session, main, disable } = createHarness();
@@ -80,7 +83,7 @@ suite('Session isolation tool', () => {
 		assert.deepStrictEqual(stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name), [SessionServerToolName.IsolateSession]);
 	});
 
-	test('requires confirmation and explains session-wide effects and turn ordering', () => {
+	test('requires confirmation and explains chat-only effects and turn ordering', () => {
 		const { host, group, main } = createHarness();
 		const tool = group.definitions[0];
 		assert.deepStrictEqual({
@@ -89,11 +92,11 @@ suite('Session isolation tool', () => {
 			parameters: tool.inputSchema,
 			display: getServerToolDisplay(tool.name, {})?.displayName,
 		}, {
-			canConfirm: true, confirms: true, parameters: { type: 'object', properties: {} }, display: 'Isolate Session',
+			canConfirm: true, confirms: true, parameters: { type: 'object', properties: {} }, display: 'Isolate Chat',
 		});
-		assert.match(tool.description!, /current session and all its chats/);
+		assert.match(tool.description!, /only the current chat/);
 		assert.match(tool.description!, /original folder is unchanged/);
-		assert.match(tool.description!, /blocks new turns.*waits for all active chats/);
+		assert.match(tool.description!, /does not.*move other chats/);
 		assert.match(tool.description!, /final tool call.*end the turn/);
 	});
 });

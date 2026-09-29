@@ -1259,6 +1259,9 @@ export interface IAgent {
 	 */
 	setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void>;
 
+	/** Changes only the addressed chat's backing, leaving other chats and shared configuration unchanged. */
+	setChatWorkingDirectory?(chat: URI, context: IAgentChatContext, workingDirectory: URI): Promise<void>;
+
 	/** Changes every backing in a session without sending turns; callers must gate workspaceConversion and drain/block all session turns and chat creation. */
 	setSessionWorkingDirectory?(session: URI, workingDirectory: URI): Promise<void>;
 

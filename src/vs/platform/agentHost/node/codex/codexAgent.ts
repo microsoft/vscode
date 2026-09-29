@@ -2895,7 +2895,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _buildDynamicTools(session: ICodexSession): DynamicToolSpec[] | undefined {
 		const serverTools = (this._serverToolHost?.getDefinitionsForSession(session.configurationResource.toString(), session.chatChannel?.toString()) ?? [])
-			.filter(tool => !tool.mainChatOnly || !!session.chatChannel);
+			.filter(tool => !(tool.mainChatOnly || tool.topLevelChatOnly) || !!session.chatChannel);
 		const clientTools = session.clientToolSet.merged();
 		// Server tools first; a server tool name shadows a colliding client tool
 		// (the agent host owns those names) and matches the routing order below.
@@ -2939,7 +2939,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (host && params.namespace === null && host.toolNames.includes(params.tool)) {
 			try {
 				const definition = host.definitions.find(tool => tool.name === params.tool);
-				if (definition?.mainChatOnly && (session.threadId !== params.threadId
+				if ((definition?.mainChatOnly || definition?.topLevelChatOnly) && (session.threadId !== params.threadId
 					|| this._subagentsByThreadId.has(params.threadId)
 					|| !host.getDefinitionsForSession(session.configurationResource.toString(), session.chatChannel?.toString()).some(tool => tool.name === params.tool))) {
 					return { result: this._toolFailure(`Server tool ${params.tool} is only available to the main chat`) };
@@ -4422,7 +4422,15 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void> {
-		const session = this._resolveWorkingDirectoryChangeSession(chat, context);
+		return this._setWorkingDirectory(chat, context, workingDirectory, false);
+	}
+
+	async setChatWorkingDirectory(chat: URI, context: IAgentChatContext, workingDirectory: URI): Promise<void> {
+		return this._setWorkingDirectory(chat, context, workingDirectory, true);
+	}
+
+	private async _setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI, chatOnly: boolean): Promise<void> {
+		const session = this._resolveWorkingDirectoryChangeSession(chat, context, chatOnly);
 		this._assertSessionWorkingDirectoryAvailable(session.configurationResource);
 		if (this._workingDirectoryMutations.has(session)) {
 			throw new Error(`Cannot change the working directory for chat '${chat.toString()}' while another working-directory change is active`);
@@ -4447,7 +4455,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					throw new Error(`Cannot change the working directory because '${workingDirectory.fsPath}' is not an existing directory`);
 				}
 				const { threadId, connection } = await this._ensureThreadConnection(session);
-				if (change.updated.isSettled || this._resolveWorkingDirectoryChangeSession(chat, context) !== session || threadId !== change.threadId) {
+				if (change.updated.isSettled || this._resolveWorkingDirectoryChangeSession(chat, context, chatOnly) !== session || threadId !== change.threadId) {
 					throw new CancellationError();
 				}
 				change.requested = true;
@@ -4482,7 +4490,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				workingDirectories: session.workingDirectories,
 				managedWorkingDirectory: null,
 				ownsManagedWorkingDirectory: false,
-			});
+			}, chatOnly);
 			await this._refreshSessionMcpDiscovery(session);
 			if (!isEqual(appliedDirectory, workingDirectory)) {
 				throw new Error(`Codex applied '${appliedDirectory.fsPath}' instead of '${workingDirectory.fsPath}'`);
@@ -4495,6 +4503,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (change.requested && !change.updated.value && !session.disposed) {
 				this._markSessionForReload(session);
 			}
+			if (chatOnly && change.requested) {
+				throw new AgentWorkingDirectoryChangedError(workingDirectory, `The Codex working directory update could not be confirmed: ${error instanceof Error ? error.message : String(error)}`);
+			}
 			throw error;
 		} finally {
 			this._workingDirectoryMutations.delete(session);
@@ -4502,7 +4513,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _resolveWorkingDirectoryChangeSession(chat: URI, context: URI | IAgentChatContext): ICodexSession {
+	private _resolveWorkingDirectoryChangeSession(chat: URI, context: URI | IAgentChatContext, chatOnly = false): ICodexSession {
 		const resolved = resolveAgentChatContext(context, chat);
 		const runtime = this._resolveConversationSession(chat, resolved);
 		const session = runtime ? this._sessions.get(AgentSession.id(runtime)) : undefined;
@@ -4513,7 +4524,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.currentTurnId || session.currentAppTurnId || session.materializePromise || session.resumePromise) {
 			throw new Error(`Cannot change the working directory while Codex chat '${chat.toString()}' is active`);
 		}
-		if (this._workingDirectories(session).length !== 1 || this._configScopeChats.get(session.configurationResource.toString())?.size !== 1) {
+		if (this._workingDirectories(session).length !== 1 || (!chatOnly && this._configScopeChats.get(session.configurationResource.toString())?.size !== 1)) {
 			throw new Error(`Cannot change the working directory for a multi-root or shared Codex configuration '${session.configurationResource.toString()}'`);
 		}
 		return session;

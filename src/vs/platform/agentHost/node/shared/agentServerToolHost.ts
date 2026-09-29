@@ -211,7 +211,8 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 				.filter(definition => group.isEnabled(definition.name, sessionUri) && group.isEnabledForSession(definition.name, sessionUri))
 				.map(definition => group.getDefinitionForSession?.(definition, sessionUri) ?? definition);
 			return isEphemeral ? definitions.filter(definition => definition.enabledForEphemeralSessions) : definitions;
-		}).filter(definition => !definition.mainChatOnly || this._isOwningChat(sessionUri, chatUri));
+		}).filter(definition => (!definition.mainChatOnly || this._isOwningChat(sessionUri, chatUri))
+			&& (!definition.topLevelChatOnly || !isSubagentSession(sessionUri)));
 	}
 
 	get toolNames(): readonly string[] {
@@ -274,7 +275,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 	}
 
 	private _toProtocolDefinitions(definitions: readonly IAgentServerToolDefinition[]): ToolDefinition[] {
-		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, mainChatOnly: _mainChatOnly, deferLoading: _deferLoading, ...definition }) => definition);
+		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, mainChatOnly: _mainChatOnly, topLevelChatOnly: _topLevelChatOnly, deferLoading: _deferLoading, ...definition }) => definition);
 	}
 
 	private _isOwningChat(sessionUri: URI, chatUri: URI): boolean {
@@ -284,6 +285,9 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string, requestedToolName = toolName): boolean {
 		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
 		if (group.definitions.find(definition => definition.name === toolName)?.mainChatOnly && !this._isOwningChat(sessionUri, chatUri)) {
+			return false;
+		}
+		if (group.definitions.find(definition => definition.name === toolName)?.topLevelChatOnly && isSubagentSession(sessionUri)) {
 			return false;
 		}
 		if (!group.isEnabledForSession(toolName, sessionUri)) {

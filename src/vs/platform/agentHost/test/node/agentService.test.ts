@@ -5061,6 +5061,47 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('additional chat working directories', () => {
+		for (const isolateMain of [false, true]) {
+			test(`persists and publishes only the ${isolateMain ? 'main' : 'peer'} chat's replacement workspace`, async () => {
+				class MultiChatAgent extends MockAgent {
+					override async createChat(_session: URI, chat: URI): Promise<IAgentCreateChatResult> {
+						return { providerData: `backing:${chat.path}` };
+					}
+				}
+				const perSession = createPerSessionDataService();
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new MultiChatAgent('copilot', {
+					multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true },
+				}));
+				registerTestAgentProvider(svc, agent);
+				const original = URI.file('/workspace/original');
+				const worktree = URI.file('/workspace/original.worktrees/isolated');
+				const session = await svc.createSession({ provider: agent.id, workingDirectories: [original] });
+				const main = URI.parse(buildDefaultChatUri(session));
+				const peer = URI.parse(buildChatUri(session, 'peer'));
+				await svc.createChat(session, peer);
+				await svc.addSessionWorkingDirectoryForChat(session, worktree, { isolation: 'folder' });
+				const target = isolateMain ? main : peer;
+				const other = isolateMain ? peer : main;
+				await svc.setChatWorkingDirectory(session, target, worktree);
+				const state = getStateManager(svc);
+				assert.deepStrictEqual({
+					aggregate: state.getSessionSummary(session.toString())?.workingDirectories,
+					target: state.getChatState(target.toString())?.workingDirectories,
+					other: state.getChatState(other.toString())?.workingDirectories,
+					summaries: state.getSessionState(session.toString())?.chats.map(chat => [chat.resource, chat.workingDirectories]),
+					persistedTarget: await perSession.database(target).getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
+					persistedOther: await perSession.database(other).getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
+				}, {
+					aggregate: [original.toString(), worktree.toString()],
+					target: [worktree.toString()], other: [original.toString()],
+					summaries: [main, peer].map(chat => [chat.toString(), [chat.toString() === target.toString() ? worktree.toString() : original.toString()]]),
+					persistedTarget: JSON.stringify([worktree.toString()]),
+					persistedOther: JSON.stringify([original.toString()]),
+				});
+			});
+		}
+
 		test('adds a folder to the session before assigning it to a new chat', async () => {
 			class MultiChatAgent extends MockAgent {
 				override async createChat(_session: URI, chat: URI): Promise<IAgentCreateChatResult> {

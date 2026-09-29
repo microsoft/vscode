@@ -163,6 +163,7 @@ suite('AgentHostChangesetStrategy', () => {
 			refreshSessionGitState: async () => { },
 			getSessionGitState: () => undefined,
 			getMaterializedWorktreeMeta: () => undefined,
+			setFolderGitState: async () => { },
 			resolveSessionBaseBranchName: async () => undefined,
 			setSessionGitHubState: async () => { },
 			recordSessionMerge: async () => { },

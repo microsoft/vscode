@@ -113,15 +113,15 @@ Existing-session requests route by the provider resource and chat resource. Host
 
 ### Folder-to-worktree conversion
 
-The Agent Host exposes `isolate_session` only to a supported folder session's main chat. It has no workspace argument: isolation changes where the same project is worked on, not the session's project or identity. Peer and subagent chats cannot request isolation.
+The Agent Host exposes `isolate_session` to supported main and peer chats. Despite its historical name, the operation isolates only the calling chat. It has no workspace argument and requires that chat to work in one local Git folder. Other chats remain in their existing folders, including chats sharing the caller's original folder.
 
-Peer-chat tool discovery omits the tool. Copilot SDK-native workers can still inherit its definition because the SDK does not expose per-worker tool filtering; execution is rejected for worker and unknown tool-call origins.
+Subagents cannot invoke the tool. Copilot SDK-native workers can still inherit its definition because the SDK does not expose per-worker tool filtering; execution is rejected for worker and unknown tool-call origins.
 
-The host blocks new turns and peer-chat creation after the request, lets all active chats finish, and then applies one worktree to the whole session. Existing chat identities and histories are preserved, and future chats inherit the isolated directory. The main chat automatically continues the original task after conversion; queued peer messages resume once the transition finishes.
+The host blocks new turns only for the calling chat, waits for that chat's requesting turn to finish, then creates a fresh session-owned worktree. Other chats can continue running and new chats can be created. The calling chat retains its identity and history and automatically continues its original task in the worktree.
 
-Copilot and Codex implement the session-wide working-directory operation. Codex preserves each backing thread and confirms live directory changes through the app-server settings update; restored and not-yet-started chats must use the same destination on their next turn. A provider reports uncertain partial application as unsafe so the host retains the worktree and quarantines the session rather than allowing chats to run in different directories.
+Copilot and Codex update the exact chat backing and its durable working-directory metadata without changing shared configuration or other backings. Codex confirms live directory changes through the app-server settings update. An uncertain provider update retains the worktree and quarantines only the affected chat, including after restoration.
 
-Host state updates rebind the existing session facade, workspace, configuration, and Git state. The original folder is not modified; file inclusion follows ordinary worktree creation. Failures retain the folder session or quarantine an unsafe partial mutation.
+The aggregate session workspace includes the new checkout. Inheriting chats are pinned to their previous directories before it is added; the caller's chat state, catalog summary, persisted scope, and folder Git state then identify its new worktree. Session-wide isolation configuration remains unchanged. The original folder is not modified; file inclusion follows ordinary worktree creation.
 
 ## Persistence and discovery
 

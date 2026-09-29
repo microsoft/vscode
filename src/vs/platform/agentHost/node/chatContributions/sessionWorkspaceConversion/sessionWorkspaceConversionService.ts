@@ -29,11 +29,21 @@ import { IAgentHostProviderService } from '../../agentHostProviderService.js';
 import { IAgentHostTurnService, type IDeferredAgentHostTurn } from '../../agentHostTurnService.js';
 import { IAgentHostServerToolService } from '../../shared/agentServerToolHost.js';
 import { IAgentHostWorktreeIsolation, type IIsolationConfigContribution } from '../../shared/worktreeIsolation.js';
+import type { IAgentServiceSessionServerToolAccessor } from '../../shared/sessionServerTools.js';
+
+const CHAT_ISOLATION_DIRECTORY_KEY = 'agentHost.chatIsolationDirectory';
+const CHAT_ISOLATION_QUARANTINED_KEY = 'agentHost.chatIsolationQuarantined';
+
+export interface IChatIsolationHost {
+	readonly prepareChatWorkingDirectory: IAgentServiceSessionServerToolAccessor['prepareChatWorkingDirectory'];
+	setChatWorkingDirectory(session: URI, chat: URI, directory: URI): Promise<void>;
+}
 
 interface IPendingSessionWorkspaceConversion {
 	readonly chat: URI;
 	readonly turnId: string;
 	readonly convertFolder?: boolean;
+	readonly chatOnly?: boolean;
 	readonly workspaceFolder: URI;
 	readonly isolation: boolean;
 	readonly initiatingClientId: string;
@@ -64,9 +74,12 @@ export interface ISessionWorkspaceConversionService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangePendingSession: Event<ProtocolURI>;
 	canIsolateSession(session: URI): boolean;
+	canIsolateChat(chat: URI): boolean;
+	requestChatIsolation(chat: URI, turnId: string, initiatingClientId: string): void;
+	restoreChatIsolation(chat: ProtocolURI): Promise<void>;
 	requestSessionIsolation(chat: URI, turnId: string, initiatingClientId: string): void;
 	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId: string): void;
-	isPending(chat: ProtocolURI): boolean;
+	isPending(chat: ProtocolURI, sessionWide?: boolean): boolean;
 	cancel(chat: ProtocolURI, turnId: string | undefined): void;
 	updateSessionWorkspace(chat: ProtocolURI, turnId: string | undefined): Promise<void>;
 }
@@ -78,10 +91,13 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 
 	private readonly _pending = new Map<string, IPendingSessionWorkspaceConversion>();
 	private readonly _quarantined = new Set<string>();
+	private readonly _quarantinedChats = new Set<string>();
+	private readonly _isolatedChats = new Set<string>();
 	private readonly _onDidChangePendingSession = this._register(new Emitter<ProtocolURI>());
 	readonly onDidChangePendingSession = this._onDidChangePendingSession.event;
 
 	constructor(
+		private readonly _chatIsolationHost: IChatIsolationHost | undefined,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -98,7 +114,69 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			const chat = buildDefaultChatUri(session);
 			this._pending.delete(chat);
 			this._quarantined.delete(chat);
+			for (const key of new Set([...this._pending.keys(), ...this._quarantinedChats, ...this._isolatedChats])) {
+				if (parseChatUri(key)?.session === session) {
+					this._pending.delete(key);
+					this._quarantinedChats.delete(key);
+					this._isolatedChats.delete(key);
+				}
+			}
 		}));
+	}
+
+	canIsolateChat(chat: URI): boolean {
+		const parsed = parseChatUri(chat);
+		const state = parsed && this._stateManager.getSessionState(parsed.session);
+		const summary = state?.chats.find(candidate => candidate.resource === chat.toString());
+		const directories = summary?.workingDirectories ?? state?.workingDirectories;
+		const provider = parsed && this._providerService.getProviderForSession(URI.parse(parsed.session));
+		return !!this._chatIsolationHost && !!parsed && !isSubagentSession(parsed.session) && !!summary
+			&& state?.lifecycle === SessionLifecycle.Ready
+			&& !readSessionWorkspaceless(state._meta) && !readSessionExternal(state._meta)
+			&& (state.status & SessionStatus.IsArchived) !== SessionStatus.IsArchived
+			&& directories?.length === 1 && URI.parse(directories[0]).scheme === Schemas.file
+			&& !(state.config?.values[SessionConfigKey.Isolation] === 'worktree' && directories[0] === state.workingDirectories?.[0])
+			&& this._worktreeIsolation.supported && provider?.agentHostCapabilities.workspaceConversion === true
+			&& !!provider.setChatWorkingDirectory
+			&& !!provider.getDescriptor().capabilities?.multipleWorkingDirectories
+			&& !this._isolatedChats.has(chat.toString()) && !this.isPending(chat.toString());
+	}
+
+	requestChatIsolation(chat: URI, turnId: string, initiatingClientId: string): void {
+		if (!initiatingClientId || this._stateManager.getActiveTurnId(chat.toString()) !== turnId) {
+			throw new Error('Chat isolation requires an active turn initiated by a connected client.');
+		}
+		if (!this.canIsolateChat(chat)) {
+			throw new Error('This chat cannot be isolated. It must work in one local folder and must not already be isolated or changing workspace.');
+		}
+		const state = this._stateManager.getSessionState(parseChatUri(chat)!.session)!;
+		const summary = state.chats.find(candidate => candidate.resource === chat.toString())!;
+		this._pending.set(chat.toString(), {
+			chat, turnId, convertFolder: true, chatOnly: true,
+			workspaceFolder: URI.parse((summary.workingDirectories ?? state.workingDirectories)![0]),
+			isolation: true, initiatingClientId,
+			prompt: this._stateManager.getChatState(chat.toString())?.activeTurn?.message.text,
+			showTransition: true, phase: 'requested',
+		});
+	}
+
+	async restoreChatIsolation(chat: ProtocolURI): Promise<void> {
+		const storage = chatStorageUri(chat);
+		if (!storage) {
+			return;
+		}
+		this._quarantinedChats.add(chat);
+		const database = await this._sessionDataService.tryOpenDatabase(storage);
+		try {
+			if (await database?.object.getMetadata(CHAT_ISOLATION_DIRECTORY_KEY)) {
+				this._isolatedChats.add(chat);
+			}
+			if (await database?.object.getMetadata(CHAT_ISOLATION_QUARANTINED_KEY) !== 'true') {
+				this._quarantinedChats.delete(chat);
+			}
+		} finally {
+			database?.dispose();
+		}
 	}
 
 	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId: string): void {
@@ -167,12 +245,17 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		this._onDidChangePendingSession.fire(session.toString());
 	}
 
-	isPending(chat: ProtocolURI): boolean {
+	isPending(chat: ProtocolURI, sessionWide = false): boolean {
 		const key = this._pendingKey(chat);
-		return this._pending.has(key) || this._quarantined.has(key);
+		const pending = this._pending.get(key);
+		return (!!pending && (!pending.chatOnly || (!sessionWide && pending.chat.toString() === chat)))
+			|| this._quarantined.has(key) || (!sessionWide && this._quarantinedChats.has(chat));
 	}
 
 	private _pendingKey(chat: ProtocolURI): string {
+		if (this._pending.get(chat)?.chatOnly) {
+			return chat;
+		}
 		let session = parseChatUri(chat)?.session ?? chat;
 		let parent;
 		while ((parent = parseSubagentSessionUri(session))) {
@@ -194,7 +277,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	async updateSessionWorkspace(chat: ProtocolURI, turnId: string | undefined): Promise<void> {
 		const key = this._pendingKey(chat);
 		const pending = this._pending.get(key);
-		if (!pending || pending.phase === 'converting') {
+		if (!pending || pending.phase === 'converting' || (pending.chatOnly && pending.chat.toString() !== chat)) {
 			return;
 		}
 		if (pending.convertFolder) {
@@ -204,7 +287,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				}
 				pending.phase = 'waiting';
 			}
-			if (this._hasActiveChats(parseChatUri(pending.chat)!.session)) {
+			if (!pending.chatOnly && this._hasActiveChats(parseChatUri(pending.chat)!.session)) {
 				return;
 			}
 		} else if (pending.turnId !== turnId || pending.chat.toString() !== chat) {
@@ -218,7 +301,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			if (pending.showTransition) {
 				pending.transition = this._createWorkspaceTransition(pending);
 			}
-			pending.resolvedWorkingDirectory = await this._convert(pending, continuation);
+			pending.resolvedWorkingDirectory = pending.chatOnly ? await this._convertChat(pending, continuation) : await this._convert(pending, continuation);
 			this._pending.delete(key);
 			await this._continueConversion(continuation, pending, true);
 		} catch (error) {
@@ -233,16 +316,86 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			this._logService.error(`[SessionWorkspaceConversionService] Failed to convert ${pending.chat.toString()}: ${toErrorMessage(conversionError)}`);
 			if (conversionError instanceof UnsafeProviderWorkingDirectoryError) {
 				this._pending.delete(key);
-				this._quarantined.add(key);
+				(pending.chatOnly ? this._quarantinedChats : this._quarantined).add(key);
 				this._failConversion(continuation, pending, conversionError);
 			} else {
 				this._pending.delete(key);
 				await this._continueConversion(continuation, pending, false, conversionError);
 			}
+
 		} finally {
 			if (pending.convertFolder) {
 				this._onDidChangePendingSession.fire(parseChatUri(pending.chat)!.session);
 			}
+		}
+	}
+
+	private async _convertChat(pending: IPendingSessionWorkspaceConversion, continuation: IDeferredAgentHostTurn): Promise<URI> {
+		const host = this._chatIsolationHost!;
+		const { chat, workspaceFolder, initiatingClientId } = pending;
+		const session = URI.parse(parseChatUri(chat)!.session);
+		const storage = chatStorageUri(chat)!;
+		const provider = this._providerService.getProviderForSession(session)!;
+		const assertWorkspace = (expected = workspaceFolder) => {
+			const state = this._stateManager.getSessionState(session.toString());
+			const summary = state?.chats.find(candidate => candidate.resource === chat.toString());
+			const directories = summary?.workingDirectories ?? state?.workingDirectories;
+			if (!summary || state?.lifecycle !== SessionLifecycle.Ready
+				|| (state.status & SessionStatus.IsArchived) === SessionStatus.IsArchived
+				|| directories?.length !== 1 || !isEqual(URI.parse(directories[0]), expected)
+				|| this._stateManager.getActiveTurnId(chat.toString()) !== continuation.turnId) {
+				throw new Error('The chat changed while preparing isolation.');
+			}
+		};
+		const trustRequired = this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) !== true
+			&& (this._configurationService.getEffectiveValue(session.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default') !== 'autoApprove';
+		await this._requireWorkspaceTrust(trustRequired, initiatingClientId, workspaceFolder);
+		assertWorkspace();
+		const database = this._sessionDataService.openDatabase(storage);
+		let providerChanged = false;
+		let prepared: Awaited<ReturnType<IChatIsolationHost['prepareChatWorkingDirectory']>> | undefined;
+		try {
+			prepared = await host.prepareChatWorkingDirectory(session, workspaceFolder, { isolation: 'worktree', forceNewWorktree: true, prompt: pending.prompt ?? '' });
+			await this._requireWorkspaceTrust(trustRequired, initiatingClientId, prepared.directory, workspaceFolder);
+			assertWorkspace();
+			await database.object.setMetadata(CHAT_ISOLATION_QUARANTINED_KEY, 'true');
+			await provider.setChatWorkingDirectory!(chat, { configurationResource: session, resource: storage }, prepared.directory);
+			providerChanged = true;
+			assertWorkspace();
+			await host.setChatWorkingDirectory(session, chat, prepared.directory);
+			assertWorkspace(prepared.directory);
+			await this._gitStateService.refreshSessionGitState(chat.toString(), prepared.directory);
+			assertWorkspace(prepared.directory);
+			await database.object.setWorkspaceConversion(continuation.turnId, serializeAgentWorkspaceTransition(pending.transition!), {
+				[CHAT_ISOLATION_DIRECTORY_KEY]: prepared.directory.toString(),
+				[CHAT_ISOLATION_QUARANTINED_KEY]: 'false',
+			});
+			pending.transitionPersisted = true;
+			assertWorkspace(prepared.directory);
+			this._isolatedChats.add(chat.toString());
+			if (isDefaultChatUri(chat)) {
+				this._stateManager.setSessionMeta(session.toString(), withSessionHasWorkspaceTransitions(this._stateManager.getSessionState(session.toString())?._meta, true));
+			}
+			this._serverToolHost.advertise(session.toString());
+			return prepared.directory;
+		} catch (error) {
+			if (providerChanged || error instanceof AgentWorkingDirectoryChangedError) {
+				try {
+					await database.object.setMetadata(CHAT_ISOLATION_QUARANTINED_KEY, 'true');
+				} catch (persistenceError) {
+					throw new UnsafeProviderWorkingDirectoryError(`Chat isolation could not be finalized: ${toErrorMessage(error)}; failed to persist quarantine: ${toErrorMessage(persistenceError)}`);
+				}
+				throw new UnsafeProviderWorkingDirectoryError(`Chat isolation could not be finalized: ${toErrorMessage(error)}`);
+			}
+			try {
+				await database.object.deleteMetadata([CHAT_ISOLATION_QUARANTINED_KEY]);
+			} catch (persistenceError) {
+				throw new UnsafeProviderWorkingDirectoryError(`Chat isolation failed: ${toErrorMessage(error)}; failed to clear quarantine: ${toErrorMessage(persistenceError)}`);
+			}
+			await prepared?.release();
+			throw error;
+		} finally {
+			database.dispose();
 		}
 	}
 
@@ -676,7 +829,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const workspaceName = basename(pending.workspaceFolder) || pending.workspaceFolder.path;
 		return {
 			content: pending.convertFolder
-				? localize('agentHost.isolationTransitionLabel', "Session isolated")
+				? pending.chatOnly ? localize('agentHost.chatIsolationTransitionLabel', "Chat isolated") : localize('agentHost.isolationTransitionLabel', "Session isolated")
 				: localize('agentHost.workspaceTransitionLabel', "Now working in {0}", workspaceName),
 			workspaceKind: pending.isolation ? AgentSystemNotificationWorkspaceKind.Worktree : AgentSystemNotificationWorkspaceKind.Folder,
 			workspaceName,
@@ -691,7 +844,9 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const errorMessage = error === undefined ? undefined : toErrorMessage(error).replace(/\.+$/, '');
 		const text = converted
 			? pending.convertFolder
-				? `The current session and all its chats are now isolated in ${(pending.resolvedWorkingDirectory ?? pending.workspaceFolder).fsPath}. The project and conversation histories are unchanged. Continue the user's original task in this worktree. Do not request isolation again.`
+				? pending.chatOnly
+					? `Only this chat is now isolated in ${pending.resolvedWorkingDirectory!.fsPath}. Other chats and their folders are unchanged. The session workspace includes this worktree. Continue the user's original task here without requesting isolation again.`
+					: `The current session and all its chats are now isolated in ${(pending.resolvedWorkingDirectory ?? pending.workspaceFolder).fsPath}. The project and conversation histories are unchanged. Continue the user's original task in this worktree. Do not request isolation again.`
 				: `The current session is now attached to ${(pending.resolvedWorkingDirectory ?? pending.workspaceFolder).fsPath}${pending.isolation ? ' in an isolated worktree' : ''}. Continue the user's original task in this workspace. Do not request another session or workspace conversion.`
 			: `The requested workspace setup did not complete successfully: ${errorMessage}. Do not run the user's task. Tell the user that workspace setup failed and include this error.`;
 		const label = converted
@@ -749,7 +904,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			await database.object.deleteTurnWorkspaceTransition(turnId);
 			const hasTransitions = await database.object.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY) === 'true';
 			const session = parseChatUri(chat)?.session;
-			if (session) {
+			if (session && isDefaultChatUri(chat)) {
 				const state = this._stateManager.getSessionState(session);
 				this._stateManager.setSessionMeta(session, withSessionHasWorkspaceTransitions(state?._meta, hasTransitions));
 			}
@@ -792,6 +947,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	override dispose(): void {
 		this._pending.clear();
 		this._quarantined.clear();
+		this._quarantinedChats.clear();
+		this._isolatedChats.clear();
 		super.dispose();
 	}
 }

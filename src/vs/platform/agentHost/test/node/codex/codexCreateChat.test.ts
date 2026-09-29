@@ -2245,6 +2245,27 @@ suite('CodexAgent workspace conversion', () => {
 		harness.notifyDirectory(URI.file(request.params.cwd!), request.params.threadId);
 	}
 
+	test('chat isolation changes only the addressed thread even when a sibling is active', async () => {
+		const harness = await createWorkspaceHarness();
+		const { agent, peer, session, folder, scratch, entry } = harness;
+		const target = await addIsolationPeer(harness, 'isolating-peer');
+		entry.currentTurnId = 'busy-main';
+		const history = [...target.entry.codexTurnIdByHostTurnId];
+		const changing = agent.setChatWorkingDirectory(target.chat, { configurationResource: session, resource: target.chat }, folder);
+		const request = await readNextRequest(peer.outbound);
+		confirmIsolationUpdate(harness, request);
+		await changing;
+		assert.deepStrictEqual({
+			request: request.params,
+			roots: [entry.workingDirectory?.fsPath, target.entry.workingDirectory?.fsPath],
+			history: [...target.entry.codexTurnIdByHostTurnId],
+			scopeOverride: (await agent['_metadataStore'].read(session)).sessionWorkingDirectory,
+		}, {
+			request: { threadId: target.entry.threadId, cwd: folder.fsPath },
+			roots: [scratch.fsPath, folder.fsPath], history, scopeOverride: undefined,
+		});
+	});
+
 	test('session isolation preserves the main and multiple peer threads, histories, and metadata', async () => {
 		const harness = await createWorkspaceHarness();
 		const { agent, peer, session, folder, entry } = harness;
@@ -2456,22 +2477,24 @@ suite('CodexAgent workspace conversion', () => {
 		await assert.rejects(agent.setSessionWorkingDirectory(session, scratch), /native workers/);
 	});
 
-	test('native worker root routing cannot execute a main-chat-only server tool', async () => {
-		const { agent, session, entry } = await createWorkspaceHarness();
-		let calls = 0;
-		const definition: IAgentServerToolDefinition = { name: 'main_only', mainChatOnly: true, inputSchema: { type: 'object' } };
-		agent.setServerToolHost({
-			...createRecordingServerToolHost([]),
-			definitions: [definition],
-			toolNames: [definition.name],
-			getDefinitionsForSession: () => [definition],
-			executeTool: () => { calls++; return ''; },
+	for (const restriction of ['mainChatOnly', 'topLevelChatOnly'] as const) {
+		test(`native worker root routing cannot execute a ${restriction} server tool`, async () => {
+			const { agent, session, entry } = await createWorkspaceHarness();
+			let calls = 0;
+			const definition: IAgentServerToolDefinition = { name: 'main_only', [restriction]: true, inputSchema: { type: 'object' } };
+			agent.setServerToolHost({
+				...createRecordingServerToolHost([]),
+				definitions: [definition],
+				toolNames: [definition.name],
+				getDefinitionsForSession: () => [definition],
+				executeTool: () => { calls++; return ''; },
+			});
+			agent['_sessionIdByThreadId'].set('native-child', entry.sessionId);
+			const response = await agent['_handleDynamicToolCallRpc']({ threadId: 'native-child', turnId: 'child-turn', callId: 'child-call', tool: definition.name, namespace: null, arguments: {} });
+			assert.deepStrictEqual({ calls, success: response.result?.success }, { calls: 0, success: false });
+			assert.strictEqual((await agent['_metadataStore'].read(session)).sessionWorkingDirectory, undefined);
 		});
-		agent['_sessionIdByThreadId'].set('native-child', entry.sessionId);
-		const response = await agent['_handleDynamicToolCallRpc']({ threadId: 'native-child', turnId: 'child-turn', callId: 'child-call', tool: definition.name, namespace: null, arguments: {} });
-		assert.deepStrictEqual({ calls, success: response.result?.success }, { calls: 0, success: false });
-		assert.strictEqual((await agent['_metadataStore'].read(session)).sessionWorkingDirectory, undefined);
-	});
+	}
 
 	for (const notificationFirst of [false, true]) {
 		test(`preserves the thread and history when settings arrive ${notificationFirst ? 'before' : 'after'} acknowledgement`, async () => {

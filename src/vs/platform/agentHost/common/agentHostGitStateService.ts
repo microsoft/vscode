@@ -54,6 +54,9 @@ export interface IAgentHostGitStateService {
 	/** Merges the branch identity known when an isolated worktree materializes into session metadata. */
 	getMaterializedWorktreeMeta(sessionKey: string, branchName: string): SessionSummaryMeta | undefined;
 
+	/** Publishes and persists Git state for a chat's destination before its workspace changes. */
+	setFolderGitState(sessionKey: string, workingDirectories: readonly string[], gitState: ISessionGitState | undefined): Promise<void>;
+
 	/** Resolves the canonical base branch selected for a session. */
 	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;
 

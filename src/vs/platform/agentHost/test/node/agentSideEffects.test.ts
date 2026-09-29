@@ -129,6 +129,7 @@ class NoopGitStateService implements IAgentHostGitStateService {
 
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
+	async setFolderGitState(): Promise<void> { }
 	async resolveSessionBaseBranchName(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
@@ -203,6 +204,9 @@ function createTestSideEffects(
 		_serviceBrand: undefined,
 		onDidChangePendingSession: Event.None,
 		canIsolateSession: () => false,
+		canIsolateChat: () => false,
+		requestChatIsolation: () => { },
+		restoreChatIsolation: async () => { },
 		requestSessionIsolation: () => { },
 		requestSessionWorkspaceUpdate: () => { },
 		isPending: () => false,

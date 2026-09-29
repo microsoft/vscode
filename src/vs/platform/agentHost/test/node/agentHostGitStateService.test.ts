@@ -312,6 +312,27 @@ suite('AgentHostGitStateService', () => {
 		}
 	}
 
+	test('isolated main-chat Git state does not replace the aggregate original folder branch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+		const worktree = 'file:///wd.worktrees/isolated';
+		const main = buildDefaultChatUri(SESSION);
+		await h.service.setFolderGitState(SESSION, [worktree], { branchName: 'isolated' });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: worktree });
+		h.stateManager.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: worktree });
+		h.setGitResult({ branchName: 'isolated', uncommittedChanges: 1 });
+		await h.service.refreshSessionGitState(main, URI.parse(worktree));
+		assert.deepStrictEqual({
+			aggregate: readSessionGitState(h.stateManager.getSessionSummary(SESSION)?._meta),
+			chat: h.service.getSessionGitState(main),
+			persisted: JSON.parse((await h.db.getMetadata(META_GIT_DATA_STATE))!)[getWorkingDirectoryScopeId([worktree])],
+		}, {
+			aggregate: { branchName: 'main' },
+			chat: { branchName: 'isolated', uncommittedChanges: 1 },
+			persisted: { branchName: 'isolated', uncommittedChanges: 1 },
+		});
+	}));
+
 	test('seeds the materialized worktree branch while preserving known git state', () => {
 		const h = createHarness();
 		seedSession(h.stateManager, {

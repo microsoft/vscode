@@ -468,33 +468,33 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 	openDatabase(session: URI): IReference<SessionDatabase> {
 		const sessionId = AgentSession.id(session);
 		this.openedSessions.push(sessionId);
-		let db = this._databases.get(sessionId);
+		let db = this._databases.get(session.toString());
 		if (!db) {
 			db = this._register(new TestSessionDatabase(':memory:'));
-			this._databases.set(sessionId, db);
+			this._databases.set(session.toString(), db);
 		}
 		return { object: db, dispose: () => { } };
 	}
 
 	async tryOpenDatabase(session: URI): Promise<IReference<SessionDatabase> | undefined> {
-		const db = this._databases.get(AgentSession.id(session));
+		const db = this._databases.get(session.toString());
 		return db ? { object: db, dispose: () => { } } : undefined;
 	}
 
 	failNextMetadataWrite(session: URI, key: string, error: Error): void {
-		const db = this._databases.get(AgentSession.id(session));
+		const db = this._databases.get(session.toString());
 		assert.ok(db, `No database exists for ${session.toString()}`);
 		db.failNextMetadataWrite(key, error);
 	}
 
 	gateNextMetadataWrite(session: URI, key: string, wait: Promise<void>, entered: DeferredPromise<void>): void {
-		const db = this._databases.get(AgentSession.id(session));
+		const db = this._databases.get(session.toString());
 		assert.ok(db, `No database exists for ${session.toString()}`);
 		db.gateNextMetadataWrite(key, wait, entered);
 	}
 
 	metadataWrites(session: URI): readonly { readonly key: string; readonly value: string }[] {
-		const db = this._databases.get(AgentSession.id(session));
+		const db = this._databases.get(session.toString());
 		assert.ok(db, `No database exists for ${session.toString()}`);
 		return db.metadataWrites;
 	}
@@ -4976,6 +4976,31 @@ suite('CopilotAgent', () => {
 					},
 				};
 			}
+
+			test('isolates a live peer without changing the main or cold peer metadata or shared discovery anchor', async () => {
+				const fixture = await createFixture();
+				try {
+					const before = await fixture.metadata();
+					await fixture.agent.setChatWorkingDirectory(fixture.chats[1], exactChatContext(fixture.session, fixture.chats[1], fixture.resources[1]), fixture.next);
+					assert.deepStrictEqual({
+						calls: fixture.sdkSessions.map(sdk => sdk.workingDirectoryCalls),
+						metadata: await fixture.metadata(),
+						anchor: fixture.pluginDirectory(),
+						reanchors: fixture.reanchors(),
+						sends: fixture.sends(),
+					}, {
+						calls: [[], [fixture.next.fsPath], []],
+						metadata: [before[0], {
+							'copilot.workingDirectory': fixture.next.toString(),
+							'copilot.workingDirectories': JSON.stringify([fixture.next.toString()]),
+							'copilot.customizationDirectory': fixture.next.toString(),
+						}, before[2]],
+						anchor: fixture.previous.toString(), reanchors: [], sends: 0,
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
 
 			test('source-disappearance guard rejects a missing original folder before cold resume', async () => {
 				const fixture = await createFixture();

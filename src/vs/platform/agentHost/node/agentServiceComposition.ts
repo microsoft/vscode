@@ -6,6 +6,7 @@
 import type { Event } from '../../../base/common/event.js';
 import { DisposableStore, type IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
+import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
@@ -167,18 +168,21 @@ export function createAgentServiceComposition(
 		const serverToolHost = new AgentServerToolHost(
 			stateManager,
 			buildServerToolGroups(sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor, {
-				canIsolateSession: session => workspaceConversionService.value?.canIsolateSession(session) === true,
+				canIsolateSession: session => stateManager.getSessionState(session.toString())?.chats.some(chat => workspaceConversionService.value?.canIsolateChat(URI.parse(chat.resource))) === true,
 				requestSessionIsolation: (chat, turnId) => {
 					const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
 					if (!initiatingClientId || !workspaceConversionService.value) {
 						throw new Error('Session isolation requires a turn initiated by a connected client.');
 					}
-					workspaceConversionService.value.requestSessionIsolation(chat, turnId, initiatingClientId);
+					workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId);
 				},
 			}),
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);
-		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService));
+		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService, {
+			prepareChatWorkingDirectory: callbackAdapter.sessionServerToolAccessor.prepareChatWorkingDirectory,
+			setChatWorkingDirectory: (session, chat, directory) => agentService!.setChatWorkingDirectory(session, chat, directory),
+		}));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
 
 		const collaborators: IAgentServiceCollaborators = {

@@ -30,7 +30,7 @@ import type { IAgentHostTurnService, IDeferredAgentHostTurn } from '../../node/a
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { SessionWorkspaceConversionContribution } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
-import { SessionWorkspaceConversionService, type ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { SessionWorkspaceConversionService, type IChatIsolationHost, type ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { AgentServerToolHost, type IAgentHostServerToolService } from '../../node/shared/agentServerToolHost.js';
 import { createSessionIsolationToolGroup } from '../../node/shared/sessionIsolationTools.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
@@ -150,12 +150,13 @@ suite('SessionWorkspaceConversionService', () => {
 		requestWorkspaceTrust: IAgentHostClientConnectionService['requestWorkspaceTrust'] = async () => true,
 		database: ISessionDatabase = new TestSessionDatabase(),
 		providerId = 'copilot',
+		chatIsolationHost?: IChatIsolationHost,
 	) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const sessionDataService = createSessionDataService(database);
-		const agent = new MockAgent(providerId, { multipleChats: { fork: true } }, { workspaceConversion: true });
+		const agent = new MockAgent(providerId, { multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true } }, { workspaceConversion: true });
 		disposables.add({ dispose: () => agent.dispose() });
 		const providerService = createTestAgentHostProviderService(() => agent);
 		const trustRequests: { clientId: string; workspace: string; trustedParent?: string }[] = [];
@@ -224,7 +225,7 @@ suite('SessionWorkspaceConversionService', () => {
 				gitRefreshes.push(directory!.toString());
 			}
 		}();
-		const service = disposables.add(new SessionWorkspaceConversionService(stateManager, providerService, sessionDataService, worktreeIsolation, configurationService, clientConnections, turnService, serverToolHost, logService, gitStateService));
+		const service = disposables.add(new SessionWorkspaceConversionService(chatIsolationHost, stateManager, providerService, sessionDataService, worktreeIsolation, configurationService, clientConnections, turnService, serverToolHost, logService, gitStateService));
 		const session = URI.from({ scheme: providerId, path: '/workspace-less' });
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const scratch = URI.file('/tmp/copilot-scratch/workspace-less');
@@ -283,6 +284,163 @@ suite('SessionWorkspaceConversionService', () => {
 			[SessionConfigKey.Isolation]: 'folder',
 			[SessionConfigKey.AutoApprove]: 'default',
 			[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+		});
+	}
+
+	for (const target of ['main', 'peer'] as const) {
+		for (const sharedFolder of [false, true]) {
+			test(`isolates only the ${target} chat with ${sharedFolder ? 'shared' : 'different'} folders while another chat is active`, async () => {
+				const worktree = URI.file('/workspace/project.worktrees/chat');
+				const isolation = new TestWorktreeIsolation(worktree);
+				const host: IChatIsolationHost = {
+					prepareChatWorkingDirectory: async (session, source, options) => {
+						assert.deepStrictEqual({ source: source.toString(), forceNew: options.isolation === 'worktree' && options.forceNewWorktree }, {
+							source: (target === 'main' || sharedFolder ? harness.scratch : otherFolder).toString(), forceNew: true,
+						});
+						for (const chat of harness.stateManager.getSessionState(session.toString())!.chats) {
+							const roots = chat.workingDirectories ?? [harness.scratch.toString()];
+							harness.stateManager.dispatchServerAction(session.toString(), {
+								type: ActionType.SessionChatUpdated, chat: chat.resource, changes: { workingDirectories: [...roots] },
+							});
+						}
+						harness.stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: worktree.toString() });
+						return { directory: worktree, release: async () => { throw new Error('Successful isolation must retain its worktree'); } };
+					},
+					setChatWorkingDirectory: async (session, chat, directory) => {
+						harness.stateManager.dispatchServerAction(session.toString(), {
+							type: ActionType.SessionChatUpdated, chat: chat.toString(), changes: { workingDirectories: [directory.toString()] },
+						});
+					},
+				};
+				const harness = createHarness(isolation, async () => true, new TestSessionDatabase(), 'copilot', host);
+				makeFolderSession(harness);
+				const otherFolder = URI.file('/workspace/other');
+				const peer = URI.parse(buildChatUri(harness.session, 'peer'));
+				if (!sharedFolder) {
+					harness.stateManager.dispatchServerAction(harness.session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: otherFolder.toString() });
+				}
+				harness.stateManager.addChat(harness.session.toString(), peer.toString(), { workingDirectories: [(sharedFolder ? harness.scratch : otherFolder).toString()] });
+				harness.stateManager.dispatchServerAction(harness.session.toString(), {
+					type: ActionType.SessionChatUpdated, chat: harness.chat.toString(), changes: { workingDirectories: [harness.scratch.toString()] },
+				});
+				const callingChat = target === 'main' ? harness.chat : peer;
+				const otherChat = target === 'main' ? peer : harness.chat;
+				const calls: { chat: string; directory: string }[] = [];
+				const provider: IAgent = harness.agent;
+				provider.setChatWorkingDirectory = async (chat, _context, directory) => { calls.push({ chat: chat.toString(), directory: directory.toString() }); };
+				completePriorTurn(harness.stateManager, callingChat);
+				startTurn(harness.stateManager, callingChat);
+				startTurn(harness.stateManager, otherChat, 'other-turn');
+				const previous = harness.stateManager.getSessionState(harness.session.toString())!;
+				harness.service.requestChatIsolation(callingChat, 'turn-1', 'client-1');
+				assert.deepStrictEqual([harness.service.isPending(callingChat.toString()), harness.service.isPending(otherChat.toString()), harness.service.isPending(callingChat.toString(), true)], [true, false, false]);
+				completeTurn(harness.stateManager, callingChat);
+				await harness.service.updateSessionWorkspace(callingChat.toString(), 'turn-1');
+				assert.match(harness.continuations[0]?.message.text ?? '', /Only this chat is now isolated/);
+				const state = harness.stateManager.getSessionState(harness.session.toString())!;
+				assert.deepStrictEqual({
+					calls, sessionRoots: harness.stateManager.getSessionSummary(harness.session.toString())?.workingDirectories, config: state.config,
+					roots: state.chats.map(chat => [chat.resource, chat.workingDirectories]),
+					otherTurn: harness.stateManager.getActiveTurnId(otherChat.toString()),
+					continuations: harness.continuations.map(entry => entry.chat),
+					available: harness.service.canIsolateChat(callingChat),
+					persisted: await harness.database.getMetadata('agentHost.chatIsolationDirectory'),
+				}, {
+					calls: [{ chat: callingChat.toString(), directory: worktree.toString() }],
+					sessionRoots: [harness.scratch.toString(), ...sharedFolder ? [] : [otherFolder.toString()], worktree.toString()], config: previous.config,
+					roots: previous.chats.map(chat => [chat.resource, chat.resource === callingChat.toString() ? [worktree.toString()] : chat.workingDirectories]),
+					otherTurn: 'other-turn', continuations: [callingChat.toString()], available: false, persisted: worktree.toString(),
+				});
+			});
+		}
+	}
+
+	for (const restoredState of ['isolated', 'quarantined', 'cancelled'] as const) {
+		test(`restores or cancels ${restoredState} chat isolation without blocking another chat`, async () => {
+			const worktree = URI.file('/workspace/project.worktrees/chat');
+			const host: IChatIsolationHost = {
+				prepareChatWorkingDirectory: async () => { throw new Error('No worktree should be prepared'); },
+				setChatWorkingDirectory: async () => { throw new Error('No workspace should change'); },
+			};
+			const harness = createHarness(new TestWorktreeIsolation(worktree), async () => true, new TestSessionDatabase(), 'copilot', host);
+			makeFolderSession(harness);
+			const peer = URI.parse(buildChatUri(harness.session, 'peer'));
+			harness.stateManager.addChat(harness.session.toString(), peer.toString(), { workingDirectories: [harness.scratch.toString()] });
+			const provider: IAgent = harness.agent;
+			provider.setChatWorkingDirectory = async () => { throw new Error('No provider directory should change'); };
+			assert.deepStrictEqual([harness.service.canIsolateChat(peer), harness.service.canIsolateChat(harness.chat)], [true, true]);
+			if (restoredState === 'cancelled') {
+				startTurn(harness.stateManager, peer);
+				harness.service.requestChatIsolation(peer, 'turn-1', 'client-1');
+				harness.service.cancel(peer.toString(), 'turn-1');
+				completeTurn(harness.stateManager, peer);
+				await harness.service.updateSessionWorkspace(peer.toString(), 'turn-1');
+			} else {
+				await harness.database.setMetadata(
+					restoredState === 'isolated' ? 'agentHost.chatIsolationDirectory' : 'agentHost.chatIsolationQuarantined',
+					restoredState === 'isolated' ? worktree.toString() : 'true',
+				);
+				await harness.service.restoreChatIsolation(peer.toString());
+			}
+			assert.deepStrictEqual({
+				peerAvailable: harness.service.canIsolateChat(peer),
+				mainAvailable: harness.service.canIsolateChat(harness.chat),
+				blocked: harness.service.isPending(peer.toString()),
+				sessionBlocked: harness.service.isPending(peer.toString(), true),
+				continuations: harness.continuations,
+			}, {
+				peerAvailable: restoredState === 'cancelled', mainAvailable: true,
+				blocked: restoredState === 'quarantined', sessionBlocked: false, continuations: [],
+			});
+		});
+	}
+
+	for (const failure of ['trust', 'destinationTrust', 'provider', 'uncertain', 'commit'] as const) {
+		test(`chat isolation ${failure} failure does not block unrelated chats and preserves restart safety`, async () => {
+			const worktree = URI.file('/workspace/project.worktrees/chat');
+			const isolation = new TestWorktreeIsolation(worktree);
+			let releases = 0;
+			let providerCalls = 0;
+			const host: IChatIsolationHost = {
+				prepareChatWorkingDirectory: async () => ({ directory: worktree, release: async () => { releases++; } }),
+				setChatWorkingDirectory: async () => { throw new Error('commit failed'); },
+			};
+			const database = new TestSessionDatabase();
+			const harness = createHarness(isolation, async (_client, request) =>
+				failure !== 'trust' && (failure !== 'destinationTrust' || request.workspace !== worktree.toString()), database, 'copilot', host);
+			makeFolderSession(harness);
+			const peer = URI.parse(buildChatUri(harness.session, 'peer'));
+			harness.stateManager.addChat(harness.session.toString(), peer.toString(), { workingDirectories: [harness.scratch.toString()] });
+			const provider: IAgent = harness.agent;
+			provider.setChatWorkingDirectory = async () => {
+				providerCalls++;
+				if (failure === 'provider') {
+					throw new Error('provider rejected before mutation');
+				}
+				if (failure === 'uncertain') {
+					throw new AgentWorkingDirectoryChangedError(worktree, 'update could not be confirmed');
+				}
+			};
+			startTurn(harness.stateManager, peer);
+			harness.service.requestChatIsolation(peer, 'turn-1', 'client-1');
+			completeTurn(harness.stateManager, peer);
+			await harness.service.updateSessionWorkspace(peer.toString(), 'turn-1');
+			const restored = createHarness(isolation, async () => true, database, 'copilot', host);
+			await restored.service.restoreChatIsolation(peer.toString());
+			const unsafe = failure === 'uncertain' || failure === 'commit';
+			assert.deepStrictEqual({
+				releases, providerCalls,
+				blocked: harness.service.isPending(peer.toString()),
+				otherBlocked: harness.service.isPending(harness.chat.toString()),
+				restoredBlocked: restored.service.isPending(peer.toString()),
+				sessionQuarantine: await database.getMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY),
+				failedTurns: harness.failedContinuations.length,
+			}, {
+				releases: failure === 'provider' || failure === 'destinationTrust' ? 1 : 0,
+				providerCalls: failure === 'trust' || failure === 'destinationTrust' ? 0 : 1,
+				blocked: unsafe, otherBlocked: false, restoredBlocked: unsafe,
+				sessionQuarantine: undefined, failedTurns: unsafe ? 1 : 0,
+			});
 		});
 	}
 
@@ -361,7 +519,7 @@ suite('SessionWorkspaceConversionService', () => {
 		assert.deepStrictEqual({
 			mainTools: host.getDefinitionsForSession(session, main).map(tool => tool.name),
 			peerTools: host.getDefinitionsForSession(session, peer).map(tool => tool.name),
-		}, { mainTools: [SessionServerToolName.IsolateSession], peerTools: [] });
+		}, { mainTools: [SessionServerToolName.IsolateSession], peerTools: [SessionServerToolName.IsolateSession] });
 		const calls: string[] = [];
 		const provider: IAgent = harness.agent;
 		provider.setSessionWorkingDirectory = async resource => { calls.push(resource.toString()); };

@@ -4524,7 +4524,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		const sessionKey = session.toString();
-		if (this._workspaceConversionService.isPending(buildDefaultChatUri(session))) {
+		if (this._workspaceConversionService.isPending(buildDefaultChatUri(session), true)) {
 			throw new Error('Wait for workspace setup to finish before creating another chat.');
 		}
 		const provider = this._providerService.getProviderForSession(session);
@@ -6714,6 +6714,31 @@ export class AgentService extends Disposable implements IAgentService {
 			directory: prepared.directory,
 			release: () => prepared.added ? this._releaseChatWorkingDirectory(session, prepared.directory, prepared.createdWorktree) : Promise.resolve(),
 		};
+	}
+
+	async setChatWorkingDirectory(session: URI, chat: URI, directory: URI): Promise<void> {
+		const directories = [directory.toString()];
+		const state = this._stateManager.getSessionState(session.toString());
+		const summary = state?.chats.find(candidate => candidate.resource === chat.toString());
+		if (!state || !summary || !this._stateManager.getSessionSummary(session.toString())?.workingDirectories?.includes(directories[0])) {
+			throw new Error(`Cannot assign an unattached working directory to chat ${chat.toString()}.`);
+		}
+		const gitState = await this._gitService.getSessionGitState(directory);
+		if (isDefaultChatUri(chat)) {
+			await persistSessionMetadataValues(this._sessionDataService, chat.toString(), {
+				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(directories),
+			});
+		} else {
+			await this._peerChatStore.updateWorkingDirectories(session, chat, directories);
+		}
+		await this._gitStateService.setFolderGitState(session.toString(), directories, gitState);
+		for (const previous of summary.workingDirectories ?? state.workingDirectories ?? []) {
+			this._stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatWorkingDirectoryRemoved, directory: previous });
+		}
+		this._stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatWorkingDirectorySet, directory: directories[0] });
+		this._stateManager.dispatchServerAction(session.toString(), {
+			type: ActionType.SessionChatUpdated, chat: chat.toString(), changes: { workingDirectories: directories },
+		});
 	}
 
 	private async _prepareChatWorkingDirectory(session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions): Promise<{ readonly directory: URI; readonly added: boolean; readonly createdWorktree?: ISessionAdditionalWorktree }> {

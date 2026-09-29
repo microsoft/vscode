@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IIncomingRequest, IncomingRequestDisposition, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IIncomingRequest, IncomingRequestDisposition, IRestoredChat, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { parseAgentWorkspaceTransition, AgentSystemNotificationKind, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ResponsePartKind, withMessageRequestHiddenFromTranscript, type Turn } from '../../../common/state/sessionState.js';
@@ -39,6 +39,7 @@ export class SessionWorkspaceConversionContribution extends Disposable implement
 		if (!this._conversionService.isPending(request.chat)) {
 			return undefined;
 		}
+
 		return {
 			kind: 'reject',
 			error: {
@@ -47,6 +48,11 @@ export class SessionWorkspaceConversionContribution extends Disposable implement
 			},
 			stage: 'validation',
 		};
+	}
+
+	async onHydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
+		await this._conversionService.restoreChatIsolation(context.chat);
+		return restored;
 	}
 
 	onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
