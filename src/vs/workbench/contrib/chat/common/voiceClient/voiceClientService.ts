@@ -625,6 +625,7 @@ export interface IVoiceClientService {
 	readonly _serviceBrand: undefined;
 
 	// --- Connection lifecycle ---
+	hasGptLiveByok(): Promise<boolean>;
 	connect(window: Window & typeof globalThis, authToken?: string): Promise<void>;
 	disconnect(): void;
 

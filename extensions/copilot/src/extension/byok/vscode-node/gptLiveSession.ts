@@ -8,7 +8,7 @@ import { IFetcherService } from '../../../platform/networking/common/fetcherServ
 
 const GPT_LIVE_SESSIONS_URL = 'https://api.openai.com/v1/live/sessions';
 
-export const CREATE_GPT_LIVE_SESSION_COMMAND = '_github.copilot.chat.createGptLiveSession';
+export const GPT_LIVE_SESSION_PROVIDER_ID = 'github.copilot.gptLive';
 
 export interface GptLiveSession {
 	readonly sessionId: string;

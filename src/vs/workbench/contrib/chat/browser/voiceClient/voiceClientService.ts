@@ -10,7 +10,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Language } from '../../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import {
@@ -43,8 +43,9 @@ import { isTerminalCloseCode, voiceCloseCodeInfo } from '../../common/voiceClien
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { getVoiceWebSocketUrl } from './voiceEndpoint.js';
 import { IMicCaptureService } from './micCaptureService.js';
+import { ISpeechService } from '../../../speech/common/speechService.js';
 
-const CREATE_GPT_LIVE_SESSION_COMMAND = '_github.copilot.chat.createGptLiveSession';
+const GPT_LIVE_SESSION_PROVIDER_ID = 'github.copilot.gptLive';
 
 const PING_INTERVAL_MS = 25_000;
 const PONG_TIMEOUT_MS = 10_000;
@@ -162,6 +163,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _gptLiveOutputStarted = false;
 	private _gptLiveOutputTimer: ReturnType<typeof setTimeout> | undefined;
 	private _usingGptLive = false;
+	private _connectionAttempt = 0;
 	private _intentionalDisconnect = false;
 	private _reconnectAttempts = 0;
 	private _reconnectStartedAt: number | undefined;
@@ -257,8 +259,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IMicCaptureService private readonly _micCaptureService: IMicCaptureService,
+		@ISpeechService private readonly _speechService: ISpeechService,
 	) {
 		super();
 
@@ -280,7 +282,16 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			if (e.affectsConfiguration('agents.voice.language')) {
 				this._sendSetLanguage();
 			}
+			if (e.affectsConfiguration('agents.voice.speakResponses')) {
+				this._updateGptLiveAudioMuted();
+			}
 		}));
+	}
+
+	private _updateGptLiveAudioMuted(): void {
+		if (this._gptLiveAudio) {
+			this._gptLiveAudio.muted = this._configurationService.getValue<boolean>('agents.voice.speakResponses') === false;
+		}
 	}
 
 	private _getVoice(): string {
@@ -380,24 +391,33 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	async connect(window: Window & typeof globalThis, authToken?: string): Promise<void> {
+		const connectionAttempt = ++this._connectionAttempt;
 		this._window = window;
 		this._authToken = authToken;
 		this._resetReconnectBudget();
 		this._intentionalDisconnect = false;
-		if (await this._connectGptLive(window)) {
+		if (await this._connectGptLive(window, connectionAttempt) || !this._isActiveConnectionAttempt(connectionAttempt)) {
 			return;
 		}
 		this._connectWebSocket();
 	}
 
-	private async _connectGptLive(window: Window & typeof globalThis): Promise<boolean> {
+	async hasGptLiveByok(): Promise<boolean> {
+		const availability = await this._executeGptLiveSessionCommand();
+		return availability?.status === 'available' || availability?.status === 'ready';
+	}
+
+	private _isActiveConnectionAttempt(connectionAttempt: number): boolean {
+		return this._connectionAttempt === connectionAttempt && !this._intentionalDisconnect;
+	}
+
+	private async _connectGptLive(window: Window & typeof globalThis, connectionAttempt: number): Promise<boolean> {
 		let availability: GptLiveSessionCommandResult | undefined;
 		try {
 			availability = await this._executeGptLiveSessionCommand();
 		} catch (error) {
-			if (error instanceof Error && /command ['"]?.+['"]? not found/i.test(error.message)) {
-				this._logService.debug('[voice] GPT-Live BYOK bridge is unavailable', error);
-				return false;
+			if (!this._isActiveConnectionAttempt(connectionAttempt)) {
+				return true;
 			}
 			const reason = error instanceof Error ? error.message : String(error);
 			this._logService.error('[voice] Failed to check OpenAI GPT-Live availability', error);
@@ -406,12 +426,19 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._cleanup();
 			return true;
 		}
+		if (!this._isActiveConnectionAttempt(connectionAttempt)) {
+			return true;
+		}
 		if (!availability || availability.status === 'unavailable') {
 			return false;
 		}
 
 		try {
+			this._usingGptLive = true;
 			await this._micCaptureService.startCapture(window);
+			if (!this._isActiveConnectionAttempt(connectionAttempt)) {
+				return true;
+			}
 			const stream = this._micCaptureService.mediaStream;
 			if (!stream) {
 				throw new Error(localize('voice.gptLive.noMediaStream', "Microphone capture did not provide a media stream."));
@@ -419,16 +446,16 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 			const peer = this._createPeerConnection(window);
 			this._gptLivePeer = peer;
-			this._usingGptLive = true;
 			for (const track of stream.getAudioTracks()) {
 				track.enabled = false;
 				peer.addTrack(track, stream);
 			}
 
 			peer.ontrack = event => {
-				const audio = mainWindow.document.createElement('audio');
+				const audio = this._createGptLiveAudioElement();
 				audio.autoplay = true;
-				audio.srcObject = new window.MediaStream([event.track]);
+				audio.srcObject = this._createGptLiveRemoteStream(window, event.track);
+				audio.muted = this._configurationService.getValue<boolean>('agents.voice.speakResponses') === false;
 				this._gptLiveAudio?.pause();
 				this._gptLiveAudio = audio;
 				void audio.play().catch(error => this._logService.warn('[voice] GPT-Live audio playback did not start', error));
@@ -449,21 +476,39 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			};
 
 			const offer = await peer.createOffer();
+			if (!this._isActiveConnectionAttempt(connectionAttempt)) {
+				return true;
+			}
 			await peer.setLocalDescription(offer);
+			if (!this._isActiveConnectionAttempt(connectionAttempt)) {
+				return true;
+			}
 			await this._waitForIceGathering(peer);
+			if (!this._isActiveConnectionAttempt(connectionAttempt)) {
+				return true;
+			}
 			const sdp = peer.localDescription?.sdp;
 			if (!sdp) {
 				throw new Error(localize('voice.gptLive.noSdpOffer', "OpenAI GPT-Live connection did not produce an SDP offer."));
 			}
 			const result = await this._executeGptLiveSessionCommand(sdp);
+			if (!this._isActiveConnectionAttempt(connectionAttempt)) {
+				return true;
+			}
 			if (!result || result.status !== 'ready' || !result.session) {
 				throw new Error(localize('voice.gptLive.unavailable', "OpenAI GPT-Live became unavailable while creating the session."));
 			}
 
 			this._lastSessionId = result.session.sessionId;
 			await peer.setRemoteDescription({ type: 'answer', sdp: result.session.sdp });
+			if (!this._isActiveConnectionAttempt(connectionAttempt)) {
+				return true;
+			}
 			return true;
 		} catch (error) {
+			if (!this._isActiveConnectionAttempt(connectionAttempt)) {
+				return true;
+			}
 			this._logService.error('[voice] Failed to connect to OpenAI GPT-Live', error);
 			this._onError.fire(error instanceof Error ? error.message : String(error));
 			this._onFatalDisconnect.fire({ code: 0, reason: error instanceof Error ? error.message : String(error), kind: 'fatal', clientSide: true });
@@ -473,11 +518,23 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	protected _executeGptLiveSessionCommand(sdp?: string): Promise<GptLiveSessionCommandResult | undefined> {
-		return this._commandService.executeCommand<GptLiveSessionCommandResult>(CREATE_GPT_LIVE_SESSION_COMMAND, sdp);
+		const extensionId = this._productService.defaultChatAgent?.chatExtensionId;
+		if (!extensionId) {
+			return Promise.resolve(undefined);
+		}
+		return this._speechService.createVoiceLiveSession(GPT_LIVE_SESSION_PROVIDER_ID, new ExtensionIdentifier(extensionId), sdp);
 	}
 
 	protected _createPeerConnection(window: Window & typeof globalThis): IGptLivePeerConnection {
 		return new window.RTCPeerConnection();
+	}
+
+	protected _createGptLiveAudioElement(): HTMLAudioElement {
+		return mainWindow.document.createElement('audio');
+	}
+
+	protected _createGptLiveRemoteStream(window: Window & typeof globalThis, track: MediaStreamTrack): MediaStream {
+		return new window.MediaStream([track]);
 	}
 
 	private async _waitForIceGathering(peer: IGptLivePeerConnection): Promise<void> {
@@ -853,6 +910,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	disconnect(): void {
 		this._logService.trace('[voice] disconnect() called');
+		this._connectionAttempt++;
 		this._intentionalDisconnect = true;
 		if (this._gptLiveEvents?.readyState === 'open') {
 			this._gptLiveEvents.send(JSON.stringify({ type: 'session.close' }));
@@ -864,6 +922,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	private _cleanup(): void {
+		this._connectionAttempt++;
 		this._resetReconnectBudget();
 		this._stopPing();
 		if (this._reconnectTimer) {

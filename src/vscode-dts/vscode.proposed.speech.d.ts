@@ -67,8 +67,23 @@ declare module 'vscode' {
 		provideKeywordRecognitionSession(token: CancellationToken): ProviderResult<KeywordRecognitionSession>;
 	}
 
+	export interface VoiceLiveSession {
+		readonly sessionId: string;
+		readonly sdp: string;
+	}
+
+	export type VoiceLiveSessionResult =
+		| { readonly status: 'unavailable' }
+		| { readonly status: 'available' }
+		| { readonly status: 'ready'; readonly session: VoiceLiveSession };
+
+	export interface VoiceLiveSessionProvider {
+		provideVoiceLiveSession(sdp?: string): ProviderResult<VoiceLiveSessionResult>;
+	}
+
 	export namespace speech {
 
 		export function registerSpeechProvider(id: string, provider: SpeechProvider): Disposable;
+		export function registerVoiceLiveSessionProvider(id: string, provider: VoiceLiveSessionProvider): Disposable;
 	}
 }

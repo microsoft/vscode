@@ -16,6 +16,7 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 	private readonly proxy: MainThreadSpeechShape;
 
 	private readonly providers = new Map<number, vscode.SpeechProvider>();
+	private readonly voiceLiveSessionProviders = new Map<number, vscode.VoiceLiveSessionProvider>();
 	private readonly sessions = new Map<number, CancellationTokenSource>();
 	private readonly synthesizers = new Map<number, vscode.TextToSpeechSession>();
 
@@ -127,6 +128,10 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		this.sessions.delete(session);
 	}
 
+	async $createVoiceLiveSession(handle: number, sdp?: string): Promise<vscode.VoiceLiveSessionResult | undefined> {
+		return await this.voiceLiveSessionProviders.get(handle)?.provideVoiceLiveSession(sdp) ?? undefined;
+	}
+
 	registerProvider(extension: ExtensionIdentifier, identifier: string, provider: vscode.SpeechProvider): IDisposable {
 		const handle = ExtHostSpeech.ID_POOL++;
 
@@ -136,6 +141,18 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		return toDisposable(() => {
 			this.proxy.$unregisterProvider(handle);
 			this.providers.delete(handle);
+		});
+	}
+
+	registerVoiceLiveSessionProvider(extension: ExtensionIdentifier, identifier: string, provider: vscode.VoiceLiveSessionProvider): IDisposable {
+		const handle = ExtHostSpeech.ID_POOL++;
+
+		this.voiceLiveSessionProviders.set(handle, provider);
+		this.proxy.$registerVoiceLiveSessionProvider(handle, identifier, { extension, displayName: extension.value });
+
+		return toDisposable(() => {
+			this.proxy.$unregisterProvider(handle);
+			this.voiceLiveSessionProviders.delete(handle);
 		});
 	}
 }

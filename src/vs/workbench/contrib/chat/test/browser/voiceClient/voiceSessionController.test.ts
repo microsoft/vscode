@@ -129,6 +129,7 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	override get isConnected(): boolean { return this.connected; }
 	override get isResuming(): boolean { return this.resuming; }
 	override get willReconnect(): boolean { return this.reconnecting; }
+	override hasGptLiveByok(): Promise<boolean> { return Promise.resolve(false); }
 	override disconnect(): void { this.connected = false; }
 	override async connect(): Promise<void> { }
 	readonly wireEvents: ({ type: 'session_context'; context: IVoiceSessionContext } | { type: 'request_narration'; kind: VoiceNarrationKind; text: string; confirmationType?: VoiceConfirmationType })[] = [];

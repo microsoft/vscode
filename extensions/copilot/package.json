@@ -83,7 +83,7 @@
     "onUri",
     "onCommand:_github.copilot.chat.reportHarnessSwitchFeedbackSurvey",
     "onCommand:_github.copilot.chat.reportModelFeedbackSurvey",
-    "onCommand:_github.copilot.chat.createGptLiveSession",
+    "onSpeech",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
   ],
@@ -91,6 +91,7 @@
   "l10n": "./l10n",
   "enabledApiProposals": [
     "agentSessionsWorkspace",
+    "speech",
     "agentsWindowConfiguration",
     "chatDebug",
     "chatHooks",

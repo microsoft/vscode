@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { commands, LanguageModelChatInformation, LanguageModelChatProvider, lm } from 'vscode';
+import { LanguageModelChatInformation, LanguageModelChatProvider, lm, speech } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -18,7 +18,7 @@ import { BYOKStorageService, IBYOKStorageService } from './byokStorageService';
 import { CustomEndpointBYOKModelProvider } from './customEndpointProvider';
 import { CustomOAIBYOKModelProvider } from './customOAIProvider';
 import { GeminiNativeBYOKLMProvider } from './geminiNativeProvider';
-import { CREATE_GPT_LIVE_SESSION_COMMAND, createGptLiveSession, GptLiveSessionResult } from './gptLiveSession';
+import { createGptLiveSession, GPT_LIVE_SESSION_PROVIDER_ID, GptLiveSessionResult } from './gptLiveSession';
 import { OllamaLMProvider } from './ollamaProvider';
 import { OAIBYOKLMProvider } from './openAIProvider';
 import { OpenRouterLMProvider } from './openRouterProvider';
@@ -42,24 +42,28 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	) {
 		super();
 		this._byokStorageService = new BYOKStorageService(extensionContext);
-		this._register(commands.registerCommand(CREATE_GPT_LIVE_SESSION_COMMAND, async (sdp?: string): Promise<GptLiveSessionResult> => {
-			if (!isClientBYOKAllowed(!!this._authService.anyGitHubSession, this._authService.copilotToken)) {
-				return { status: 'unavailable' };
-			}
-			const apiKey = await this._byokStorageService.getAPIKey(OAIBYOKLMProvider.providerName);
-			if (!apiKey) {
-				return { status: 'unavailable' };
-			}
-			if (sdp === undefined) {
-				return { status: 'available' };
-			}
-			return {
-				status: 'ready',
-				session: await createGptLiveSession(this._fetcherService, apiKey, sdp),
-			};
+		this._register(speech.registerVoiceLiveSessionProvider(GPT_LIVE_SESSION_PROVIDER_ID, {
+			provideVoiceLiveSession: sdp => this._provideGptLiveSession(sdp),
 		}));
 		this._applyPolicy();
 		this._register(this._authService.onDidAuthenticationChange(() => this._applyPolicy()));
+	}
+
+	private async _provideGptLiveSession(sdp?: string): Promise<GptLiveSessionResult> {
+		if (!isClientBYOKAllowed(!!this._authService.anyGitHubSession, this._authService.copilotToken)) {
+			return { status: 'unavailable' };
+		}
+		const apiKey = await this._byokStorageService.getAPIKey(OAIBYOKLMProvider.providerName);
+		if (!apiKey) {
+			return { status: 'unavailable' };
+		}
+		if (sdp === undefined) {
+			return { status: 'available' };
+		}
+		return {
+			status: 'ready',
+			session: await createGptLiveSession(this._fetcherService, apiKey, sdp),
+		};
 	}
 
 	private _buildProviders(): void {

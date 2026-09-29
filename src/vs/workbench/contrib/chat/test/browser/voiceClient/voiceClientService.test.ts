@@ -5,10 +5,9 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { Event as BaseEvent } from '../../../../../../base/common/event.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -17,6 +16,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { GptLiveSessionCommandResult, IGptLiveDataChannel, IGptLivePeerConnection, resolveAutomaticVoiceLanguage, VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceConnectionIssue, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceTranscription, normalizeAgentsVoiceId } from '../../../common/voiceClient/voiceClientService.js';
+import { ISpeechService } from '../../../../speech/common/speechService.js';
 
 class TestWebSocket {
 	static instance: TestWebSocket | undefined;
@@ -41,12 +41,9 @@ class TestWebSocket {
 	}
 }
 
-class TestCommandService extends mock<ICommandService>() {
-	override readonly onWillExecuteCommand = BaseEvent.None;
-	override readonly onDidExecuteCommand = BaseEvent.None;
-
-	override async executeCommand<T>(): Promise<T | undefined> {
-		return undefined;
+class TestSpeechService extends mock<ISpeechService>() {
+	override createVoiceLiveSession(): Promise<undefined> {
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -64,13 +61,43 @@ class TestMediaStream extends mock<MediaStream>() {
 	}
 }
 
+class TestRtcTrackEvent extends mock<RTCTrackEvent>() {
+	constructor(override readonly track: MediaStreamTrack) {
+		super();
+	}
+}
+
+class TestAudioElement extends mock<HTMLAudioElement>() {
+	override autoplay = false;
+	override muted = false;
+	override srcObject: MediaProvider | null = null;
+
+	override play(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	override pause(): void { }
+}
+
 class TestMicCaptureService extends mock<IMicCaptureService>() {
+	stopCaptureCalls = 0;
+
 	constructor(override readonly mediaStream: MediaStream | undefined = undefined) {
 		super();
 	}
 
 	override async startCapture(): Promise<void> { }
-	override stopCapture(): void { }
+	override stopCapture(): void { this.stopCaptureCalls++; }
+}
+
+class DeferredTestMicCaptureService extends TestMicCaptureService {
+	readonly startCaptureStarted = new DeferredPromise<void>();
+	readonly allowStartCapture = new DeferredPromise<void>();
+
+	override async startCapture(): Promise<void> {
+		this.startCaptureStarted.complete();
+		await this.allowStartCapture.p;
+	}
 }
 
 class TestRtcDataChannel extends mock<IGptLiveDataChannel>() {
@@ -121,12 +148,18 @@ class TestRtcPeerConnection extends mock<IGptLivePeerConnection>() {
 }
 
 class TestGptLiveVoiceClientService extends VoiceClientService {
+	readonly audio = new TestAudioElement();
+	readonly configurationService: TestConfigurationService;
+
 	constructor(
 		private readonly peer: TestRtcPeerConnection,
 		micCaptureService: IMicCaptureService,
 		productService: IProductService,
+		configuration: Record<string, unknown> = {},
 	) {
-		super(new TestConfigurationService(), new NullLogService(), productService, new TestCommandService(), micCaptureService);
+		const configurationService = new TestConfigurationService(configuration);
+		super(configurationService, new NullLogService(), productService, micCaptureService, new TestSpeechService());
+		this.configurationService = configurationService;
 	}
 
 	protected override _executeGptLiveSessionCommand(sdp?: string): Promise<GptLiveSessionCommandResult> {
@@ -137,6 +170,14 @@ class TestGptLiveVoiceClientService extends VoiceClientService {
 
 	protected override _createPeerConnection(): IGptLivePeerConnection {
 		return this.peer;
+	}
+
+	protected override _createGptLiveAudioElement(): HTMLAudioElement {
+		return this.audio;
+	}
+
+	protected override _createGptLiveRemoteStream(_window: Window & typeof globalThis, track: MediaStreamTrack): MediaStream {
+		return new TestMediaStream(track);
 	}
 }
 
@@ -184,8 +225,8 @@ suite('VoiceClientService', () => {
 			configurationService,
 			new NullLogService(),
 			productService,
-			new TestCommandService(),
 			new TestMicCaptureService(),
+			new TestSpeechService(),
 		));
 		return { service, configurationService };
 	}
@@ -282,6 +323,54 @@ suite('VoiceClientService', () => {
 		});
 	});
 
+	test('cancels pending GPT-Live setup when disconnected', async () => {
+		const track = new TestMediaStreamTrack();
+		const micCaptureService = new DeferredTestMicCaptureService(new TestMediaStream(track));
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, micCaptureService, productService));
+
+		const connectPromise = service.connect(createTestWindow());
+		await micCaptureService.startCaptureStarted.p;
+		service.disconnect();
+		micCaptureService.allowStartCapture.complete();
+		await connectPromise;
+
+		assert.deepStrictEqual({
+			remoteDescription: peer.remoteDescription,
+			stopCaptureCalls: micCaptureService.stopCaptureCalls,
+			trackEnabled: track.enabled,
+		}, {
+			remoteDescription: undefined,
+			stopCaptureCalls: 1,
+			trackEnabled: true,
+		});
+	});
+
+	test('keeps GPT-Live audio synchronized with the speak responses setting', async () => {
+		const track = new TestMediaStreamTrack();
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(
+			peer,
+			new TestMicCaptureService(new TestMediaStream(track)),
+			productService,
+			{ 'agents.voice.speakResponses': false },
+		));
+
+		await service.connect(createTestWindow());
+		peer.ontrack?.(new TestRtcTrackEvent(track));
+		const initiallyMuted = service.audio.muted;
+		await service.configurationService.setUserConfiguration('agents.voice.speakResponses', true);
+		fireConfigurationChange(service.configurationService, 'agents.voice.speakResponses');
+
+		assert.deepStrictEqual({
+			initiallyMuted,
+			mutedAfterEnabling: service.audio.muted,
+		}, {
+			initiallyMuted: true,
+			mutedAfterEnabling: false,
+		});
+	});
+
 	test('preserves the turn ID on speech-started events', async () => {
 		const { service } = createService();
 		const events: IVoiceSpeechStarted[] = [];
@@ -374,8 +463,8 @@ suite('VoiceClientService', () => {
 			new TestConfigurationService(),
 			new NullLogService(),
 			productService,
-			new TestCommandService(),
 			new TestMicCaptureService(),
+			new TestSpeechService(),
 		));
 		const events: IVoiceTranscription[] = [];
 		store.add(service.onTranscription(event => events.push(event)));
@@ -415,8 +504,8 @@ suite('VoiceClientService', () => {
 			new TestConfigurationService(),
 			new NullLogService(),
 			productService,
-			new TestCommandService(),
 			new TestMicCaptureService(),
+			new TestSpeechService(),
 		));
 		const events: IVoiceTranscription[] = [];
 		store.add(service.onTranscription(event => events.push(event)));
@@ -1078,7 +1167,7 @@ suite('VoiceClientService', () => {
 	test('reports a missing backend URL instead of failing silently', async () => {
 		const productWithoutUrl: IProductService = { _serviceBrand: undefined, ...product, voiceWsUrl: '' };
 		const configurationService = new TestConfigurationService({});
-		const service = store.add(new VoiceClientService(configurationService, new NullLogService(), productWithoutUrl, new TestCommandService(), new TestMicCaptureService()));
+		const service = store.add(new VoiceClientService(configurationService, new NullLogService(), productWithoutUrl, new TestMicCaptureService(), new TestSpeechService()));
 		const fatal: IVoiceFatalDisconnect[] = [];
 		store.add(service.onFatalDisconnect(event => fatal.push(event)));
 

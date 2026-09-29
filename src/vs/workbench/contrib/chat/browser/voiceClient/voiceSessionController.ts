@@ -1079,14 +1079,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		let hasGptLiveByok = false;
 		try {
-			const result = await this.commandService.executeCommand<{ status?: string }>('_github.copilot.chat.createGptLiveSession');
-			hasGptLiveByok = result?.status === 'available' || result?.status === 'ready';
+			hasGptLiveByok = await this.voiceClientService.hasGptLiveByok();
 		} catch (error) {
 			this.logService.debug('[voice] GPT-Live BYOK availability check failed', error);
-			if (!(error instanceof Error && /command ['"]?.+['"]? not found/i.test(error.message))) {
-				this.notificationService.error(localize('voiceMode.gptLiveAvailabilityFailed', "Unable to check the OpenAI GPT-Live configuration."));
-				return;
-			}
+			this.notificationService.error(localize('voiceMode.gptLiveAvailabilityFailed', "Unable to check the OpenAI GPT-Live configuration."));
+			return;
 		}
 		if (!hasGptLiveByok && !isVoiceEntitled(this.chatEntitlementService)) {
 			this.notificationService.warn(this.chatEntitlementService.entitlement === ChatEntitlement.Business || this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise

@@ -11,11 +11,12 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, KeywordRecognitionStatus, SpeechToTextStatus, speechLanguageConfigToLanguage, SPEECH_LANGUAGE_CONFIG, ITextToSpeechSession, TextToSpeechInProgress, TextToSpeechStatus } from '../common/speechService.js';
+import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, KeywordRecognitionStatus, SpeechToTextStatus, speechLanguageConfigToLanguage, SPEECH_LANGUAGE_CONFIG, ITextToSpeechSession, TextToSpeechInProgress, TextToSpeechStatus, IVoiceLiveSessionProvider, IVoiceLiveSessionResult } from '../common/speechService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 
 export interface ISpeechProviderDescriptor {
 	readonly name: string;
@@ -56,6 +57,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 	get hasSpeechProvider() { return this.providerDescriptors.size > 0 || this.providers.size > 0; }
 
 	private readonly providers = new Map<string, ISpeechProvider>();
+	private readonly voiceLiveSessionProviders = new Map<string, IVoiceLiveSessionProvider>();
 	private readonly providerDescriptors = new Map<string, ISpeechProviderDescriptor>();
 
 	private readonly hasSpeechProviderContext: IContextKey<boolean>;
@@ -121,6 +123,26 @@ export class SpeechService extends Disposable implements ISpeechService {
 				this.handleHasSpeechProviderChange();
 			}
 		});
+	}
+
+	registerVoiceLiveSessionProvider(identifier: string, provider: IVoiceLiveSessionProvider): IDisposable {
+		if (this.voiceLiveSessionProviders.has(identifier)) {
+			throw new Error(`Voice live session provider with identifier ${identifier} is already registered.`);
+		}
+
+		this.voiceLiveSessionProviders.set(identifier, provider);
+		return toDisposable(() => this.voiceLiveSessionProviders.delete(identifier));
+	}
+
+	async createVoiceLiveSession(identifier: string, extension: ExtensionIdentifier, sdp?: string): Promise<IVoiceLiveSessionResult | undefined> {
+		await this.extensionService.activateByEvent('onSpeech');
+
+		const provider = this.voiceLiveSessionProviders.get(identifier);
+		if (!provider || !ExtensionIdentifier.equals(provider.metadata.extension, extension)) {
+			return undefined;
+		}
+
+		return provider.createVoiceLiveSession(sdp);
 	}
 
 	private handleHasSpeechProviderChange(): void {

@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextStatus } from '../../../speech/common/speechService.js';
+import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, ITextToSpeechSession, IVoiceLiveSessionProvider, IVoiceLiveSessionResult, KeywordRecognitionStatus, SpeechToTextStatus } from '../../../speech/common/speechService.js';
 import { IChatAgent, IChatAgentCommand, IChatAgentCompletionItem, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatParticipantDetectionProvider, UserSelectedTools } from '../../common/participants/chatAgents.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatFollowup, IChatProgress } from '../../common/chatService/chatService.js';
@@ -112,6 +112,8 @@ suite('VoiceChat', () => {
 		readonly hasActiveKeywordRecognition = false;
 
 		registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable { throw new Error('Method not implemented.'); }
+		registerVoiceLiveSessionProvider(identifier: string, provider: IVoiceLiveSessionProvider): IDisposable { throw new Error('Method not implemented.'); }
+		createVoiceLiveSession(): Promise<IVoiceLiveSessionResult | undefined> { throw new Error('Method not implemented.'); }
 		onDidStartSpeechToTextSession = Event.None;
 		onDidEndSpeechToTextSession = Event.None;
 

@@ -78,7 +78,7 @@ import { ISCMHistoryOptions } from '../../contrib/scm/common/history.js';
 import { InputValidationType } from '../../contrib/scm/common/scm.js';
 import { IWorkspaceSymbol, NotebookPriorityInfo } from '../../contrib/search/common/search.js';
 import { IRawClosedNotebookFileMatch } from '../../contrib/search/common/searchNotebookHelpers.js';
-import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechToTextEvent, ITextToSpeechEvent } from '../../contrib/speech/common/speechService.js';
+import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechToTextEvent, ITextToSpeechEvent, IVoiceLiveSessionResult } from '../../contrib/speech/common/speechService.js';
 import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestControllerCapability, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestsDiffOp } from '../../contrib/testing/common/testTypes.js';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from '../../contrib/timeline/common/timeline.js';
 import { TypeHierarchyItem } from '../../contrib/typeHierarchy/common/typeHierarchy.js';
@@ -1402,6 +1402,7 @@ export interface MainThreadInteractiveShape extends IDisposable {
 
 export interface MainThreadSpeechShape extends IDisposable {
 	$registerProvider(handle: number, identifier: string, metadata: ISpeechProviderMetadata): void;
+	$registerVoiceLiveSessionProvider(handle: number, identifier: string, metadata: ISpeechProviderMetadata): void;
 	$unregisterProvider(handle: number): void;
 
 	$emitSpeechToTextEvent(session: number, event: ISpeechToTextEvent): void;
@@ -1419,6 +1420,7 @@ export interface ExtHostSpeechShape {
 
 	$createKeywordRecognitionSession(handle: number, session: number): Promise<void>;
 	$cancelKeywordRecognitionSession(session: number): Promise<void>;
+	$createVoiceLiveSession(handle: number, sdp?: string): Promise<IVoiceLiveSessionResult | undefined>;
 }
 
 export interface BrowserTabDto {
