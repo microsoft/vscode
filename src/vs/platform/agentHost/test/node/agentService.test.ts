@@ -13,6 +13,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../../base/common/async.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -26,9 +27,10 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
-import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TestAgentHostStartupTelemetryService } from './testAgentHostStartupTelemetryService.js';
-import type { IAgentHostStartupMetrics } from '../../node/agentHostStartupPerformance.js';
+import { AgentHostStartupPerformance, type IAgentHostStartupPerformance, type IAgentHostStartupMetrics } from '../../node/agentHostStartupPerformance.js';
+import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
@@ -6531,6 +6533,7 @@ suite('AgentService (node dispatcher)', () => {
 			orchestratorDatabase: IAgentHostDatabase,
 			telemetryService: ITelemetryService = NullTelemetryService,
 			logService = new NullLogService(),
+			startupPerformance?: IAgentHostStartupPerformance,
 		): AgentService {
 			return disposables.add(createTestAgentService(
 				logService,
@@ -6547,6 +6550,10 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				undefined,
 				orchestratorDatabase,
+				undefined,
+				undefined,
+				undefined,
+				startupPerformance,
 			));
 		}
 
@@ -6556,8 +6563,348 @@ suite('AgentService (node dispatcher)', () => {
 				_migrateLegacyEnabledSnapshot: boolean | undefined;
 				_computeSessions(mode: AgentHostExternalSessionsMode, epoch?: number, collectMetrics?: (metrics: IAgentHostStartupMetrics) => void): Promise<readonly IAgentSessionMetadata[]>;
 				_ensureSessionsV2Imported(provider: IAgent, force?: boolean): Promise<void>;
+				_providerDiscoveryRegistrations: ReadonlyMap<string, Promise<void>>;
+				_getDiscoveryRegistrationMetrics(chats: readonly IAgentDiscoveredChat[]): IAgentHostStartupMetrics;
+				_runSessionListReconciliation(): Promise<void>;
 			};
 		}
+
+		function createDiscoveryTelemetryContext(sessionDataService = createSessionDataService(), database: IAgentHostDatabase = new TestAgentHostOrchestratorDatabase(), level = TelemetryLevel.USAGE) {
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			telemetry.telemetryLevel = level;
+			const clock = { now: 10 };
+			const startup = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => clock.now));
+			const service = createCentralCatalogService(sessionDataService, database, telemetry, new NullLogService(), startup);
+			return { service, telemetry, startup, clock };
+		}
+
+		async function finishDiscoveryRegistration(service: AgentService, provider: IAgent): Promise<void> {
+			await getStartupTestInternals(service)._providerDiscoveryRegistrations.get(provider.id);
+		}
+
+		for (const provider of ['copilotcli', 'claude', 'codex']) {
+			test(`startup telemetry measures queued ${provider} registration separately from scanning and publication`, async () => {
+				const entered = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				const database = new class extends TestAgentHostOrchestratorDatabase {
+					block = false;
+					override async listRuntimeCompatibleSessionKeys(): Promise<readonly string[]> {
+						if (this.block) {
+							this.block = false;
+							entered.complete();
+							await release.p;
+						}
+						return super.listRuntimeCompatibleSessionKeys();
+					}
+				};
+				const { service, telemetry, startup, clock } = createDiscoveryTelemetryContext(undefined, database);
+				const agent = disposables.add(new MockAgent(provider, undefined, undefined, false));
+				registerTestAgentProvider(service, agent);
+				await waitForInitialProviderMigration(service, agent);
+				const publication = new DeferredPromise<void>();
+				getStartupTestInternals(service)._runSessionListReconciliation = () => publication.p;
+				database.block = true;
+				clock.now = 20;
+				agent.fireDiscoveredChats([{ ...discoveredChat(AgentSession.uri(provider, 'private-session')), summary: 'Private title' }]);
+				await entered.p;
+				const before = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryRegistration').length;
+				clock.now = 25;
+				startup.start('sessionDiscoveryScan', provider)?.complete('success', { scannedSessionCount: 999 });
+				clock.now = 40;
+				release.complete();
+				await finishDiscoveryRegistration(service, agent);
+				const metrics = { candidateSessionCount: 1, externalSessionCount: 1, registeredSessionCount: 1, filteredSessionCount: 0, failedSessionCount: 0, incompleteSessionCount: 0 };
+				const common = { agentHostSessionId: startup.agentHostSessionId, hostLaunchKind: AgentHostLaunchKind.Unknown, schemaVersion: 1, provider, attempt: 1 };
+				try {
+					assert.deepStrictEqual({
+						before,
+						publicationFinished: publication.isSettled,
+						markers: telemetry.events.filter(event => ['sessionDiscoveryRegistrationStart', 'sessionDiscoveryRegistration', 'firstSessionDiscoveryRegistration'].includes(String(event.data?.name))).map(event => event.data),
+					}, {
+						before: 0,
+						publicationFinished: false,
+						markers: [
+							{ ...common, name: 'sessionDiscoveryRegistrationStart', timestampMs: 20 },
+							{ ...common, ...metrics, name: 'sessionDiscoveryRegistration', timestampMs: 40, since: 'sessionDiscoveryRegistrationStart', durationMs: 20, outcome: 'success' },
+							{ ...common, ...metrics, name: 'firstSessionDiscoveryRegistration', timestampMs: 40, since: 'processStart', durationMs: 40 },
+						],
+					});
+				} finally {
+					publication.complete();
+					await waitForSessionListReconciliation(service);
+				}
+			});
+		}
+
+		test('startup telemetry records an observed empty registration batch once, not an absent discovery', async () => {
+			const { service, telemetry } = createDiscoveryTelemetryContext();
+			const agent = disposables.add(new MockAgent('claude', undefined, undefined, false));
+			registerTestAgentProvider(service, agent);
+			await waitForInitialProviderMigration(service, agent);
+			const before = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryRegistration').length;
+			for (let i = 0; i < 2; i++) {
+				agent.fireDiscoveredChats([]);
+				await finishDiscoveryRegistration(service, agent);
+			}
+			assert.deepStrictEqual({
+				before,
+				markers: telemetry.events.filter(event => ['sessionDiscoveryRegistration', 'firstSessionDiscoveryRegistration'].includes(String(event.data?.name))).map(({ data }) => [
+					data?.name, data?.outcome, data?.candidateSessionCount, data?.externalSessionCount, data?.registeredSessionCount, data?.filteredSessionCount, data?.failedSessionCount,
+				]),
+			}, {
+				before: 0,
+				markers: [
+					['sessionDiscoveryRegistration', 'success', 0, 0, 0, 0, 0],
+					['firstSessionDiscoveryRegistration', undefined, 0, 0, 0, 0, 0],
+				],
+			});
+		});
+
+		test('startup telemetry reports partial registration and takes first-success counts from its own later batch', async () => {
+			const base = createSessionDataService();
+			const { service, telemetry } = createDiscoveryTelemetryContext({
+				...base,
+				tryOpenDatabase: session => {
+					if (AgentSession.id(session) === 'failed') {
+						throw new Error('unreadable registration metadata');
+					}
+					return base.tryOpenDatabase(session);
+				},
+			});
+			const agent = disposables.add(new MockAgent('codex', undefined, undefined, false));
+			registerTestAgentProvider(service, agent);
+			await waitForInitialProviderMigration(service, agent);
+			const healthy = { ...discoveredChat(AgentSession.uri(agent.id, 'healthy')), summary: 'Healthy' };
+			agent.fireDiscoveredChats([healthy, discoveredChat(AgentSession.uri(agent.id, 'failed'))]);
+			await finishDiscoveryRegistration(service, agent);
+			const beforeSuccess = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryRegistration').length;
+			agent.fireDiscoveredChats([healthy]);
+			await finishDiscoveryRegistration(service, agent);
+			await waitForSessionListReconciliation(service);
+			assert.deepStrictEqual({
+				beforeSuccess,
+				markers: telemetry.events.filter(event => ['sessionDiscoveryRegistration', 'firstSessionDiscoveryRegistration'].includes(String(event.data?.name))).map(({ data }) => [
+					data?.name, data?.attempt, data?.outcome, data?.candidateSessionCount, data?.registeredSessionCount, data?.filteredSessionCount, data?.failedSessionCount,
+				]),
+			}, {
+				beforeSuccess: 0,
+				markers: [
+					['sessionDiscoveryRegistration', 1, 'partial', 2, 1, 0, 1],
+					['sessionDiscoveryRegistration', 2, 'success', 1, 0, 1, 0],
+					['firstSessionDiscoveryRegistration', 1, undefined, 1, 0, 1, 0],
+				],
+			});
+		});
+
+		test('startup telemetry reports pending catalog synchronization after an accepted registration as partial', async () => {
+			const database = new class extends TestAgentHostOrchestratorDatabase {
+				override async upsertSessionV2(): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+					throw new Error('catalog write unavailable');
+				}
+			};
+			const { service, telemetry } = createDiscoveryTelemetryContext(undefined, database);
+			const agent = disposables.add(new MockAgent('codex', undefined, undefined, false));
+			registerTestAgentProvider(service, agent);
+			await waitForInitialProviderMigration(service, agent);
+			agent.fireDiscoveredChats([{ ...discoveredChat(AgentSession.uri(agent.id, 'pending')), summary: 'Pending' }]);
+			await finishDiscoveryRegistration(service, agent);
+			await waitForSessionListReconciliation(service);
+			assert.deepStrictEqual(telemetry.events.filter(event => ['sessionDiscoveryRegistration', 'firstSessionDiscoveryRegistration'].includes(String(event.data?.name))).map(({ data }) => [
+				data?.name, data?.outcome, data?.registeredSessionCount, data?.incompleteSessionCount, data?.failedSessionCount,
+			]), [['sessionDiscoveryRegistration', 'partial', 1, 1, 0]]);
+		});
+
+		test('startup telemetry keeps a first registration completion after errors exhaust the operation cap', async () => {
+			const database = new class extends TestAgentHostOrchestratorDatabase {
+				fail = false;
+				override async listRuntimeCompatibleSessionKeys(): Promise<readonly string[]> {
+					if (this.fail) {
+						throw new Error('registry snapshot unavailable');
+					}
+					return super.listRuntimeCompatibleSessionKeys();
+				}
+			};
+			const { service, telemetry, clock } = createDiscoveryTelemetryContext(undefined, database);
+			const agent = disposables.add(new MockAgent('codex', undefined, undefined, false));
+			registerTestAgentProvider(service, agent);
+			await waitForInitialProviderMigration(service, agent);
+			database.fail = true;
+			for (let i = 0; i < 4; i++) {
+				agent.fireDiscoveredChats([]);
+				await finishDiscoveryRegistration(service, agent);
+			}
+			const beforeSuccess = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryRegistration').length;
+			database.fail = false;
+			clock.now = 50;
+			agent.fireDiscoveredChats([]);
+			await finishDiscoveryRegistration(service, agent);
+			let lateAggregations = 0;
+			getStartupTestInternals(service)._getDiscoveryRegistrationMetrics = () => {
+				lateAggregations++;
+				throw new Error('must stop aggregating after first success');
+			};
+			agent.fireDiscoveredChats([]);
+			await finishDiscoveryRegistration(service, agent);
+			assert.deepStrictEqual({
+				beforeSuccess,
+				lateAggregations,
+				attempts: telemetry.events.filter(event => event.data?.name === 'sessionDiscoveryRegistration').map(({ data }) => [data?.attempt, data?.outcome]),
+				first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryRegistration').map(({ data }) => [data?.durationMs, data?.candidateSessionCount]),
+			}, { beforeSuccess: 0, lateAggregations: 0, attempts: [[1, 'error'], [2, 'error'], [3, 'error']], first: [[50, 0]] });
+		});
+
+		test('startup telemetry reports caught discovery post-processing failures as partial, not per-candidate failures', async () => {
+			const database = new class extends TestAgentHostOrchestratorDatabase {
+				fail = true;
+				async markSessionsV2ExcludedBatch(): Promise<void> {
+					if (this.fail) {
+						throw new Error('exclusion write unavailable');
+					}
+				}
+			};
+			const { service, telemetry } = createDiscoveryTelemetryContext(undefined, database);
+			const agent = disposables.add(new MockAgent('codex', undefined, undefined, false));
+			registerTestAgentProvider(service, agent);
+			await waitForInitialProviderMigration(service, agent);
+			agent.fireDiscoveredChats([]);
+			await finishDiscoveryRegistration(service, agent);
+			const beforeSuccess = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryRegistration').length;
+			database.fail = false;
+			agent.fireDiscoveredChats([]);
+			await finishDiscoveryRegistration(service, agent);
+			assert.deepStrictEqual({
+				beforeSuccess,
+				outcomes: telemetry.events.filter(event => event.data?.name === 'sessionDiscoveryRegistration').map(({ data }) => [data?.outcome, data?.candidateSessionCount, data?.failedSessionCount]),
+				first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryRegistration').length,
+			}, { beforeSuccess: 0, outcomes: [['partial', 0, 0], ['success', 0, 0]], first: 1 });
+		});
+
+		test('startup telemetry starts registration after the existing forced migration, without adding enumeration', async () => {
+			const entered = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const { service, telemetry, clock } = createDiscoveryTelemetryContext();
+			const agent = disposables.add(new class extends MockAgent {
+				scans = 0;
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
+					if (++this.scans === 1) {
+						return AgentChatMigrationDeferred;
+					}
+					entered.complete();
+					await release.p;
+					return [];
+				}
+			}('codex', undefined, undefined, false));
+			registerTestAgentProvider(service, agent);
+			await waitForInitialProviderMigration(service, agent);
+			clock.now = 20;
+			agent.fireDiscoveredChats([]);
+			await entered.p;
+			const before = telemetry.events.filter(event => event.data?.name === 'sessionDiscoveryRegistrationStart').length;
+			clock.now = 60;
+			release.complete();
+			await finishDiscoveryRegistration(service, agent);
+			await waitForSessionListReconciliation(service);
+			assert.deepStrictEqual({
+				before,
+				scans: agent.scans,
+				registration: telemetry.events.filter(event => ['sessionDiscoveryRegistrationStart', 'sessionDiscoveryRegistration', 'firstSessionDiscoveryRegistration'].includes(String(event.data?.name))).map(({ data }) => [data?.name, data?.timestampMs, data?.durationMs]),
+			}, {
+				before: 0,
+				scans: 2,
+				registration: [['sessionDiscoveryRegistrationStart', 60, undefined], ['sessionDiscoveryRegistration', 60, 0], ['firstSessionDiscoveryRegistration', 60, 60]],
+			});
+		});
+
+		test('startup telemetry preserves queued batch order and cancellation without using a later scan as predecessor', async () => {
+			const entered = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const database = new class extends TestAgentHostOrchestratorDatabase {
+				cancel = false;
+				override async listRuntimeCompatibleSessionKeys(): Promise<readonly string[]> {
+					if (this.cancel) {
+						this.cancel = false;
+						entered.complete();
+						await release.p;
+						throw new CancellationError();
+					}
+					return super.listRuntimeCompatibleSessionKeys();
+				}
+			};
+			const { service, telemetry, clock, startup } = createDiscoveryTelemetryContext(undefined, database);
+			const agent = disposables.add(new MockAgent('codex', undefined, undefined, false));
+			registerTestAgentProvider(service, agent);
+			await waitForInitialProviderMigration(service, agent);
+			database.cancel = true;
+			clock.now = 20;
+			agent.fireDiscoveredChats([discoveredChat(AgentSession.uri(agent.id, 'cancelled'))]);
+			agent.fireDiscoveredChats([]);
+			await entered.p;
+			const before = telemetry.events.filter(event => event.data?.name === 'sessionDiscoveryRegistrationStart').map(event => event.data?.attempt);
+			clock.now = 25;
+			startup.start('sessionDiscoveryScan', agent.id)?.complete('success');
+			clock.now = 40;
+			release.complete();
+			await finishDiscoveryRegistration(service, agent);
+			assert.deepStrictEqual({
+				before,
+				ends: telemetry.events.filter(event => event.data?.name === 'sessionDiscoveryRegistration').map(({ data }) => [
+					data?.attempt, data?.outcome, data?.since, data?.durationMs, data?.candidateSessionCount,
+				]),
+				first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryRegistration').map(({ data }) => [data?.timestampMs, data?.candidateSessionCount]),
+			}, {
+				before: [1],
+				ends: [[1, 'cancelled', 'sessionDiscoveryRegistrationStart', 20, 1], [2, 'success', 'sessionDiscoveryRegistrationStart', 0, 0]],
+				first: [[40, 0]],
+			});
+		});
+
+		test('startup telemetry does not mark late registration completion after host disposal', async () => {
+			const entered = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const database = new class extends TestAgentHostOrchestratorDatabase {
+				block = false;
+				override async listRuntimeCompatibleSessionKeys(): Promise<readonly string[]> {
+					if (this.block) {
+						entered.complete();
+						await release.p;
+					}
+					return [];
+				}
+			};
+			const { service, telemetry, clock } = createDiscoveryTelemetryContext(undefined, database);
+			const agent = disposables.add(new MockAgent('codex', undefined, undefined, false));
+			registerTestAgentProvider(service, agent);
+			await waitForInitialProviderMigration(service, agent);
+			database.block = true;
+			agent.fireDiscoveredChats([]);
+			const pending = finishDiscoveryRegistration(service, agent);
+			await entered.p;
+			clock.now = 30;
+			service.dispose();
+			release.complete();
+			await pending;
+			assert.deepStrictEqual(telemetry.events.filter(event => ['sessionDiscoveryRegistration', 'firstSessionDiscoveryRegistration'].includes(String(event.data?.name))).map(({ data }) => [
+				data?.name, data?.outcome, data?.durationMs,
+			]), [['sessionDiscoveryRegistration', 'cancelled', 20]]);
+		});
+
+		test('startup telemetry does not aggregate disabled discovery or replay it after opt-in', async () => {
+			const { service, telemetry } = createDiscoveryTelemetryContext(undefined, undefined, TelemetryLevel.NONE);
+			const agent = disposables.add(new MockAgent('codex', undefined, undefined, false));
+			registerTestAgentProvider(service, agent);
+			await waitForInitialProviderMigration(service, agent);
+			let aggregations = 0;
+			getStartupTestInternals(service)._getDiscoveryRegistrationMetrics = () => {
+				aggregations++;
+				throw new Error('disabled discovery must not aggregate');
+			};
+			agent.fireDiscoveredChats([]);
+			await finishDiscoveryRegistration(service, agent);
+			telemetry.telemetryLevel = TelemetryLevel.USAGE;
+			agent.fireDiscoveredChats([]);
+			await finishDiscoveryRegistration(service, agent);
+			assert.deepStrictEqual({ aggregations, events: telemetry.events }, { aggregations: 0, events: [] });
+		});
 
 		test('startup telemetry counts registrations before visibility filtering and does not add database work', async () => {
 			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
@@ -6832,7 +7179,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const telemetry = new TestAgentHostStartupTelemetryService();
 			const svc = createCentralCatalogService(createSessionDataService(), new TestAgentHostOrchestratorDatabase(), telemetry);
-			const agent = disposables.add(new DeferredStartupAgent('codex'));
+			const agent = disposables.add(new DeferredStartupAgent('codex', undefined, undefined, false));
 			registerTestAgentProvider(svc, agent);
 			await waitForInitialProviderMigration(svc, agent);
 			assert.deepStrictEqual(telemetry.events.filter(event => event.eventName === 'agentHost.startupMark' && event.data?.outcome).map(({ data }) => ({
