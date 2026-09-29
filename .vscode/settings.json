@@ -188,7 +188,8 @@
 	"emmet.excludeLanguages": [],
 	"gulp.autoDetect": "off",
 	"rust-analyzer.linkedProjects": [
-		"cli/Cargo.toml"
+		"cli/Cargo.toml",
+		"copilot_shim/Cargo.toml"
 	],
 	"conventionalCommits.scopes": [
 		"tree",

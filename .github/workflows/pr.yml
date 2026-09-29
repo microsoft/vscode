@@ -117,6 +117,17 @@ jobs:
       job_name: CLI
       rustup_toolchain: 1.88
 
+  linux-copilot-shim-tests:
+    name: Linux Copilot Shim
+    uses: ./.github/workflows/pr-linux-cli-test.yml
+    with:
+      job_name: Copilot-Shim
+      rustup_toolchain: 1.88
+      working_directory: copilot_shim
+      format: true
+      locked: true
+      all_targets: true
+
   linux-electron-unit-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
