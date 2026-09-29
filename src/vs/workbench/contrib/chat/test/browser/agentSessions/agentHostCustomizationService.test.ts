@@ -833,6 +833,31 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		});
 	});
 
+	test('unsent editor chat exposes discovered MCP rows and preserves their identity on live updates', async () => {
+		const { service, subscription, sessionResource, stateWithDirectory } = createReadinessSut('conforming-provider');
+		const server: McpServerCustomization = {
+			type: CustomizationType.McpServer,
+			id: 'opaque-discovered-server-id',
+			uri: 'file:///home/.copilot/mcp-config.json',
+			name: 'personal',
+			state: { kind: McpServerStatus.Stopped },
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			_meta: withMcpServerSourceMeta(undefined, 'user'),
+		};
+		subscription.setSnapshot({ ...stateWithDirectory, customizations: [server] });
+		await service.whenCustomizationsReady(sessionResource);
+		const [before] = service.getMcpServers(sessionResource);
+		subscription.setSnapshot({ ...stateWithDirectory, customizations: [{ ...server, state: { kind: McpServerStatus.Ready } }] });
+		const after = service.getMcpServers(sessionResource);
+		assert.deepStrictEqual({
+			before: { name: before.name, status: before.status, source: before.source, uri: before.sourceUri?.toString(), enabled: before.enabled },
+			after: after.map(row => ({ sameId: row.id === before.id, status: row.status })),
+		}, {
+			before: { name: 'personal', status: McpServerStatus.Stopped, source: 'user', uri: server.uri, enabled: false },
+			after: [{ sameId: true, status: McpServerStatus.Ready }],
+		});
+	});
+
 	test('whenCustomizationsReady stops waiting when the subscription fails', async () => {
 		const { service, subscription, sessionResource } = createReadinessSut();
 

@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { CustomizationType, McpServerStatus, type Customization, type McpServerCustomization, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type Customization, type McpServerCustomization, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { withMcpServerSourceMeta } from '../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILoggerService, NullLoggerService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IOutputService } from '../../../../../workbench/services/output/common/output.js';
@@ -168,6 +169,44 @@ suite('AgentHostCustomizationService', () => {
 		const [mcpServer] = service.getMcpServers(sessionResource);
 
 		assert.deepStrictEqual({ isClientBundled: mcpServer.isClientBundled }, { isClientBundled: true });
+	});
+
+	test('agents window exposes a discovered catalog before any session runtime exists', () => {
+		const changed = store.add(new Emitter<void>());
+		let customizations: Customization[] = [];
+		const resourceUris = createAgentHostResourceUriMapper('remote-test');
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = 'agenthost-remote-test';
+			override readonly onDidChangeCustomAgents = Event.None;
+			override readonly onDidChangeCustomizations = changed.event;
+			override getCustomizations(): Customization[] { return customizations; }
+			override getWorkingDirectory() { return undefined; }
+			override getWorkingDirectories(): readonly string[] { return []; }
+			override getRootConfig() { return undefined; }
+			override mapAgentHostResource(resource: URI) { return resourceUris.fromAgentHost(resource); }
+		}();
+		const { service, sessionResource } = createSut(provider);
+		assert.deepStrictEqual(service.getMcpServers(sessionResource), []);
+		let updates = 0;
+		store.add(service.onDidChangeCustomizations(() => updates++));
+		const sourceUri = URI.file('/home/.copilot/mcp-config.json');
+		customizations = [{
+			type: CustomizationType.McpServer,
+			id: 'opaque-runtime-declaration',
+			uri: sourceUri.toString(),
+			name: 'personal',
+			state: { kind: McpServerStatus.Stopped },
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			_meta: withMcpServerSourceMeta(undefined, 'user'),
+		}];
+		changed.fire();
+		assert.deepStrictEqual({
+			updates,
+			rows: service.getMcpServers(sessionResource).map(row => ({ name: row.name, enabled: row.enabled, source: row.source, uri: row.sourceUri?.toString(), status: row.status })),
+		}, {
+			updates: 1,
+			rows: [{ name: 'personal', enabled: false, source: 'user', uri: resourceUris.fromAgentHost(sourceUri).toString(), status: McpServerStatus.Stopped }],
+		});
 	});
 
 	for (const authority of ['local', 'remote-test']) {

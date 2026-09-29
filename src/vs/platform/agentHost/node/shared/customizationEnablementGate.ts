@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
+import { readMcpServerDiscoveryEnabled } from '../../common/meta/mcpCustomizationMeta.js';
 import { CustomizationEnablementKind, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../agentHostCustomizationEnablementService.js';
 
@@ -31,6 +32,7 @@ export function targetForMcpServer(server: McpServerCustomization, owningPluginU
 		name: server.name,
 		source: URI.parse(server.uri),
 		isClientBundled,
+		defaultEnabled: readMcpServerDiscoveryEnabled(server),
 		...(owningPluginUri ? { owningPluginSource: URI.parse(owningPluginUri) } : {}),
 	};
 }

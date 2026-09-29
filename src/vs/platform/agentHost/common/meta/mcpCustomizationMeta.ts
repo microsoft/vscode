@@ -6,6 +6,23 @@
 import type { McpServerCustomization } from '../state/protocol/state.js';
 
 const sourceKey = 'agentHost.mcpServerSource';
+const discoveryEnabledKey = 'agentHost.mcpServerDiscoveryEnabled';
+
+/** Runtime discovery's default is metadata, not a host-owned enablement decision. */
+export function readMcpServerDiscoveryEnabled(customization: McpServerCustomization): boolean | undefined {
+	const value = customization._meta?.[discoveryEnabledKey];
+	return typeof value === 'boolean' ? value : undefined;
+}
+
+export function withMcpServerDiscoveryMeta(customization: McpServerCustomization, source: McpServerSource, enabled: boolean | undefined): McpServerCustomization {
+	const meta = { ...withMcpServerSourceMeta(customization._meta, source) };
+	if (enabled === undefined) {
+		delete meta[discoveryEnabledKey];
+	} else {
+		meta[discoveryEnabledKey] = enabled;
+	}
+	return { ...customization, _meta: meta };
+}
 
 export type McpServerSource =
 	| 'user' // Defined in user-level configuration.

@@ -19,13 +19,14 @@ import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, observableValue, observableValueOpts, type IObservable, type IReader, type ISettableObservable } from '../../../../base/common/observable.js';
 import { delimiter, dirname, isAbsolute, join } from '../../../../base/common/path.js';
-import { basename as resourceBasename, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
+import { basename as resourceBasename, dirname as resourceDirname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
-import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parsePlugin, PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, makeMcpServerCustomization, parsePlugin, PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
@@ -73,10 +74,12 @@ import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointServi
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
-import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, mergeMcpServerCustomizations, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, getMcpServerCustomizations, mergeMcpServerCustomizations, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 import { McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { withMcpServerDiscoveryMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { CopilotMcpDiscovery, type ICopilotDiscoveredMcpServer } from './copilotMcpDiscovery.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
@@ -667,7 +670,10 @@ class CopilotChatEntry extends Disposable {
 		this._register(chatSession);
 		this._register(chatSession.onMcpNotification(notification => onMcpNotification.fire(notification)));
 		this._register(chatSession.onDidRequireAuth(onDidRequireAuth));
-		this._register(autorun(reader => activeClient.pluginController.mcpServerStates.set(chatSession.mcpServerStates.read(reader), undefined)));
+		this._register(autorun(reader => {
+			activeClient.pluginController.mcpServerStates.set(chatSession.mcpServerStates.read(reader), undefined);
+			activeClient.pluginController.liveMcpCustomizations = chatSession.topLevelMcpCustomizations();
+		}));
 	}
 }
 
@@ -1606,7 +1612,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			sessionChat?.mcpServerOwners?.(),
 		);
 		const customizations = mergeMcpServerCustomizations(fromPlugins, topLevelMcp);
-		return applyMcpServerEnablement(customizations, this._retainedHostCustomizations(session));
+		const resolved = activeClient.pluginController.resolveTopLevelMcpCustomizations(customizations, sessionChat?.mcpServerOwners?.());
+		this._logService.debug(`[Copilot:McpDiscovery] Customization snapshot ready: session=${session.toString()}, mcpServers=${getMcpServerCustomizations(resolved).length}, materialized=${sessionChat !== undefined}`);
+		return resolved;
 	}
 
 	async setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void> {
@@ -6647,6 +6655,7 @@ class PluginController extends Disposable {
 	private _hostSync: Promise<readonly IResolvedCustomization[]> = Promise.resolve([]);
 	private _hostRevision = 0;
 	private _lastAppliedRefs: readonly Customization[] = [];
+	private readonly _mcpDiscovery = this._register(new MutableDisposable<CopilotMcpDiscovery>());
 
 	constructor(
 		private readonly _getClient: () => Promise<CopilotClient>,
@@ -6693,6 +6702,10 @@ class PluginController extends Disposable {
 
 	public async getClient(): Promise<CopilotClient> {
 		return this._getClient();
+	}
+
+	public get mcpDiscovery(): CopilotMcpDiscovery {
+		return this._mcpDiscovery.value ??= new CopilotMcpDiscovery(() => this.getClient(), this.getUserHome(), this._fileService, this._logService);
 	}
 
 	/** Creates a per-session controller that reads host-customization state lazily. */
@@ -6823,11 +6836,16 @@ class SessionPluginController extends Disposable {
 	private readonly _desiredCustomizationById = new Map<string, Customization | ChildCustomization>();
 	/** Live MCP server runtime state overlaid onto published customizations across re-syncs. */
 	public readonly mcpServerStates: ISettableObservable<ReadonlyMap<string, IMcpServerRuntimeState>> = observableValue(this, new Map());
+	public liveMcpCustomizations: readonly McpServerCustomization[] = [];
 	/** Per-client customization state; published customizations are the stable first-wins union of these entries. */
 	private readonly _clients = new Map<string, IClientCustomizationState>();
 
 	private readonly _sessionDiscovered: MutableDisposable<SessionDiscoveredEntry> = this._register(new MutableDisposable());
 	private readonly _sessionMcpDiscovery = this._register(new MutableDisposable<{ readonly discovery: SessionMcpDiscovery; dispose(): void }>());
+	private _runtimeMcp: readonly ICopilotDiscoveredMcpServer[] = [];
+	private _runtimeMcpRefresh: Promise<void> | undefined;
+	private _runtimeMcpRevision = 0;
+	private readonly _runtimeMcpWatchers = this._register(new DisposableStore());
 
 	/** Additional multi-root workspace folders (roots 1..N); the primary root is tracked separately. */
 	private _additionalDirectories: readonly URI[] = [];
@@ -6847,6 +6865,7 @@ class SessionPluginController extends Disposable {
 		this._enablementReady = this._customizationEnablementService.initializeSession(this._session.toString()).then(() => {
 			this._isEnablementReady = true;
 		});
+		this._register(this._parent.mcpDiscovery.onDidChange(() => this._invalidateRuntimeMcp('userConfigChanged')));
 	}
 
 	public get directory(): URI | undefined {
@@ -6869,6 +6888,7 @@ class SessionPluginController extends Disposable {
 			return;
 		}
 		this._directory = directory;
+		this._invalidateRuntimeMcp('workingDirectoryChanged');
 	}
 
 	/**
@@ -6885,6 +6905,7 @@ class SessionPluginController extends Disposable {
 		this._additionalDirectories = directories;
 		this._sessionDiscovered.clear();
 		this._sessionMcpDiscovery.clear();
+		this._invalidateRuntimeMcp('additionalDirectoriesChanged');
 	}
 
 	/**
@@ -6900,6 +6921,8 @@ class SessionPluginController extends Disposable {
 		this._directory = directory;
 		this._sessionDiscovered.clear();
 		this._sessionMcpDiscovery.clear();
+		this._runtimeMcp = [];
+		this._invalidateRuntimeMcp('workingDirectoryChanged');
 		if (previous && !this._previousDirectories.some(candidate => isEqual(candidate, previous))) {
 			this._previousDirectories.push(previous);
 		}
@@ -6935,7 +6958,59 @@ class SessionPluginController extends Disposable {
 		for (const definition of this._mcpDiscoveryEntry()?.definitions ?? []) {
 			result.push(this._projectForPublish(definition.customization));
 		}
-		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, result, this._clientChildEnablement(), this._clientPlugins());
+		const names = new Set(getMcpServerCustomizations(result).map(server => server.name));
+		const rootServerNames = new Set(Object.keys(this._parent.configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey) ?? {}));
+		for (const server of this._runtimeMcp) {
+			if (names.has(server.name) || rootServerNames.has(server.name)) {
+				continue;
+			}
+			names.add(server.name);
+			const id = buildMcpTopLevelCustomizationId(this._session.scheme, AgentSession.id(this._session), server.name);
+			const customization = this._projectForPublish(server.uri ? makeMcpServerCustomization(server.uri, server.name) : {
+				type: CustomizationType.McpServer,
+				id,
+				uri: id,
+				name: server.name,
+				state: { kind: McpServerStatus.Stopped },
+			});
+			if (server.pluginUri) {
+				const pluginIndex = result.findIndex(item => item.type === CustomizationType.Plugin && isEqual(URI.parse(item.uri), server.pluginUri));
+				const plugin = result[pluginIndex];
+				if (plugin?.type === CustomizationType.Plugin) {
+					result[pluginIndex] = { ...plugin, children: [...(plugin.children ?? []), customization] };
+				} else {
+					result.push({
+						type: CustomizationType.Plugin,
+						id: customizationId(server.pluginUri.toString()),
+						uri: server.pluginUri.toString(),
+						name: server.pluginName ?? resourceBasename(server.pluginUri),
+						load: { kind: CustomizationLoadStatus.Loaded },
+						children: [customization],
+					});
+				}
+			} else {
+				result.push(customization);
+			}
+		}
+		const runtimeByName = new Map(this._runtimeMcp.map(server => [server.name, server]));
+		const liveByName = new Map(this.liveMcpCustomizations.map(server => [server.name, server]));
+		const projectMcp = (server: McpServerCustomization): McpServerCustomization => {
+			const live = liveByName.get(server.name);
+			const runtime = runtimeByName.get(server.name);
+			const current = live ?? server;
+			return runtime && (!runtime.uri || isEqual(runtime.uri, URI.parse(server.uri)))
+				? withMcpServerDiscoveryMeta(current, runtime.source, runtime.enabled)
+				: current;
+		};
+		const customizations = result.map(customization => customization.type === CustomizationType.McpServer
+			? projectMcp(customization)
+			: { ...customization, children: customization.children?.map(child => child.type === CustomizationType.McpServer ? projectMcp(child) : child) });
+		for (const live of this.liveMcpCustomizations) {
+			if (!names.has(live.name)) {
+				customizations.push(live);
+			}
+		}
+		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, customizations, this._clientChildEnablement(), this._clientPlugins());
 	}
 
 	/**
@@ -6969,13 +7044,20 @@ class SessionPluginController extends Disposable {
 	 */
 	public async getCustomizationsSettled(): Promise<readonly Customization[]> {
 		await this._enablementReady;
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
 		const entry = this._discoveredEntry();
 		await Promise.all([
 			this._parent.hostSync().catch(err => this._logService.warn('[Copilot:SessionPluginController] Host customization update failed', err)),
 			...[...this._clients.values()].map(client => client.sync.catch(err => this._logService.warn('[Copilot:SessionPluginController] Client customization sync failed', err))),
 			entry?.whenSettled(),
 			this._mcpDiscoveryEntry()?.refresh(),
+			this._refreshRuntimeMcp(),
 		]);
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
 		return this.getCustomizations();
 	}
 
@@ -6995,6 +7077,7 @@ class SessionPluginController extends Disposable {
 			})),
 			entry?.whenSettled(),
 			mcpDiscovery?.refresh(),
+			this._refreshRuntimeMcp(),
 		]);
 
 		const resolved = this._resolveCustomizationEnablement();
@@ -7033,11 +7116,12 @@ class SessionPluginController extends Disposable {
 		};
 		const allWorkspaceDefinitions = mcpDiscovery?.definitions ?? [];
 		const workspaceDefinitions = allWorkspaceDefinitions.filter(definition => isEnabledForSdk(definition.customization));
-		const workspaceMcp = allWorkspaceDefinitions.length ? [{
+		const disabledRuntimeMcp = getMcpServerCustomizations(resolved.customizations).filter(server => mcpEnablement.get(server.id) !== true).map(server => server.name);
+		const workspaceMcp = allWorkspaceDefinitions.length || disabledRuntimeMcp.length ? [{
 			format: PluginFormat.Copilot,
 			hooks: [],
 			mcpServers: workspaceDefinitions.map(definition => resolveCopilotMcpServerInfo(definition, undefined)),
-			disabledMcpServers: allWorkspaceDefinitions.filter(definition => !isEnabledForSdk(definition.customization)).map(definition => definition.name),
+			disabledMcpServers: [...new Set([...allWorkspaceDefinitions.filter(definition => !isEnabledForSdk(definition.customization)).map(definition => definition.name), ...disabledRuntimeMcp])],
 			skills: [],
 			agents: [],
 			instructions: [],
@@ -7212,10 +7296,13 @@ class SessionPluginController extends Disposable {
 				this._workspaceCustomizationDirectories(),
 				this._parent.getUserHome(),
 				() => this._parent.getClient(),
-				() => this._publish(() => ({
-					type: ActionType.SessionCustomizationsChanged,
-					customizations: [...this.getCustomizations()],
-				}))
+				() => {
+					this._invalidateRuntimeMcp('customizationsChanged');
+					this._publish(() => ({
+						type: ActionType.SessionCustomizationsChanged,
+						customizations: [...this.getCustomizations()],
+					}));
+				}
 			);
 		}
 		return this._sessionDiscovered.value;
@@ -7229,13 +7316,89 @@ class SessionPluginController extends Disposable {
 		if (!this._sessionMcpDiscovery.value) {
 			const store = new DisposableStore();
 			const discovery = store.add(new SessionMcpDiscovery(workingDirectories, this._fileService));
-			store.add(discovery.onDidChange(() => this._publish(() => ({
-				type: ActionType.SessionCustomizationsChanged,
-				customizations: [...this.getCustomizations()],
-			}))));
+			store.add(discovery.onDidChange(() => {
+				this._invalidateRuntimeMcp('workspaceMcpChanged');
+				this._publish(() => ({
+					type: ActionType.SessionCustomizationsChanged,
+					customizations: [...this.getCustomizations()],
+				}));
+			}));
 			this._sessionMcpDiscovery.value = { discovery, dispose: () => store.dispose() };
 		}
 		return this._sessionMcpDiscovery.value.discovery;
+	}
+
+	private _invalidateRuntimeMcp(reason: string): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._runtimeMcpRevision++;
+		this._runtimeMcpRefresh = undefined;
+		this._logService.debug(`[Copilot:McpDiscovery] Refresh requested: session=${this._session.toString()}, revision=${this._runtimeMcpRevision}, reason=${reason}`);
+		void this._refreshRuntimeMcp().catch(() => { /* Logged by the discovery boundary. */ });
+	}
+
+	private _refreshRuntimeMcp(): Promise<void> {
+		if (!this._runtimeMcpRefresh) {
+			const revision = this._runtimeMcpRevision;
+			const directories = this._workspaceCustomizationDirectories();
+			const context = `session=${this._session.toString()}, revision=${revision}, mode=${directories.length ? 'workspace' : 'user'}, roots=${directories.length}`;
+			const stopwatch = StopWatch.create();
+			this._logService.debug(`[Copilot:McpDiscovery] Starting discovery: ${context}`);
+			this._runtimeMcpRefresh = this._parent.mcpDiscovery.discover(directories[0]).then(servers => {
+				if (this._store.isDisposed || revision !== this._runtimeMcpRevision) {
+					this._logService.debug(`[Copilot:McpDiscovery] Ignoring discovery result: ${context}, reason=${this._store.isDisposed ? 'disposed' : 'scopeChanged'}`);
+					return;
+				}
+				const changed = !equals(this._runtimeMcp, servers);
+				const disabled = directories.length ? servers.filter(server => server.enabled === false).length : 'unknown';
+				this._logService.debug(`[Copilot:McpDiscovery] Discovery completed: ${context}, servers=${servers.length}, disabled=${disabled}, changed=${changed}, durationMs=${Math.round(stopwatch.elapsed())}`);
+				if (changed) {
+					this._runtimeMcp = servers;
+					this._publish(() => {
+						const customizations = [...this.getCustomizations()];
+						this._logService.debug(`[Copilot:McpDiscovery] Publishing customization snapshot: ${context}, mcpServers=${getMcpServerCustomizations(customizations).length}`);
+						return { type: ActionType.SessionCustomizationsChanged, customizations };
+					});
+				}
+				this._runtimeMcpWatchers.clear();
+				const roots = this._workspaceCustomizationDirectories();
+				const watched = new ResourceMap<URI[]>();
+				for (const server of servers) {
+					if (!server.uri || server.source === 'user' || roots.some(root => isEqual(URI.joinPath(root, '.mcp.json'), server.uri))) {
+						continue;
+					}
+					const directory = resourceDirname(server.uri);
+					const files = watched.get(directory) ?? [];
+					files.push(server.uri);
+					watched.set(directory, files);
+				}
+				for (const [directory, files] of watched) {
+					const watcher = this._runtimeMcpWatchers.add(this._fileService.createWatcher(directory, { recursive: false, excludes: [] }));
+					this._runtimeMcpWatchers.add(watcher.onDidChange(event => {
+						if (files.some(file => event.affects(file))) {
+							this._invalidateRuntimeMcp('sourceFileChanged');
+						}
+					}));
+				}
+			}, error => {
+				if (this._store.isDisposed || revision !== this._runtimeMcpRevision) {
+					this._logService.debug(`[Copilot:McpDiscovery] Ignoring discovery failure: ${context}, reason=${this._store.isDisposed ? 'disposed' : 'scopeChanged'}`);
+					return;
+				}
+				this._runtimeMcpRefresh = undefined;
+				const code = typeof error === 'object' && error !== null && hasKey(error, { code: true }) && typeof error.code === 'number' ? error.code : 'unknown';
+				this._logService.warn(`[Copilot:McpDiscovery] Discovery failed: ${context}, code=${code}, durationMs=${Math.round(stopwatch.elapsed())}`);
+				throw error;
+			});
+		}
+		const refresh = this._runtimeMcpRefresh;
+		return refresh.then(() => {
+			if (!this._store.isDisposed && refresh !== this._runtimeMcpRefresh) {
+				return this._refreshRuntimeMcp();
+			}
+			return undefined;
+		});
 	}
 
 	private _workspaceCustomizationDirectories(): readonly URI[] {

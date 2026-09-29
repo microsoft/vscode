@@ -121,6 +121,26 @@ function throwIfCancelled(token: CancellationToken): void {
 	}
 }
 
+/** Resolves a plugin-owned file using the same manifest anchors as customization discovery. */
+export async function findCopilotPluginRoot(file: URI, fileService: IFileService, token: CancellationToken): Promise<URI | undefined> {
+	let current = uriDirname(file);
+	while (true) {
+		throwIfCancelled(token);
+		if (
+			await fileService.exists(joinPath(current, '.plugin', 'plugin.json'))
+			|| await fileService.exists(joinPath(current, '.claude-plugin', 'plugin.json'))
+			|| await fileService.exists(joinPath(current, 'plugin.json'))
+		) {
+			return current;
+		}
+		const parent = uriDirname(current);
+		if (extUriBiasedIgnorePathCase.isEqual(parent, current)) {
+			return undefined;
+		}
+		current = parent;
+	}
+}
+
 interface IWatchSpec {
 	readonly recursive: boolean;
 	readonly resourcesToWatch: ResourceSet;
@@ -685,13 +705,12 @@ export class SessionCustomizationDiscovery extends Disposable {
 	 * part of any SDK contract. `plugins.list()` cannot stand in for this: it
 	 * reports name/marketplace/version/enabled, but no installed root.
 	 *
-	 * Consequence: a plugin that contributes *only* hooks or MCP servers has
-	 * no SDK-reported file to anchor on and is therefore not projected here.
+	 * MCP-only plugins are projected separately from the MCP discovery RPC's source files.
 	 */
 	private async toPluginCustomizations(pluginFiles: ResourceSet, token: CancellationToken): Promise<PluginCustomization[]> {
 		const pluginRoots = new ResourceSet();
 		for (const file of pluginFiles) {
-			const root = await this.findPluginRoot(file, token);
+			const root = await findCopilotPluginRoot(file, this._fileService, token);
 			if (root) {
 				pluginRoots.add(root);
 			} else {
@@ -729,25 +748,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 			}
 		}
 		return result;
-	}
-
-	private async findPluginRoot(file: URI, token: CancellationToken): Promise<URI | undefined> {
-		let current = uriDirname(file);
-		while (true) {
-			throwIfCancelled(token);
-			if (
-				await this._fileService.exists(joinPath(current, '.plugin', 'plugin.json'))
-				|| await this._fileService.exists(joinPath(current, '.claude-plugin', 'plugin.json'))
-				|| await this._fileService.exists(joinPath(current, 'plugin.json'))
-			) {
-				return current;
-			}
-			const parent = uriDirname(current);
-			if (parent.toString() === current.toString()) {
-				return undefined;
-			}
-			current = parent;
-		}
 	}
 
 	private async discoverHooks(token: CancellationToken): Promise<HookCustomization[]> {

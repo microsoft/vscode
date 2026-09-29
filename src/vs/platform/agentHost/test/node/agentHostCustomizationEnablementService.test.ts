@@ -183,6 +183,31 @@ suite('AgentHostCustomizationEnablementService', () => {
 		}
 	});
 
+	test('scoped enabling of a runtime-disabled declaration compares against its discovery default', () => {
+		const target: ICustomizationEnablementTarget = {
+			id: 'runtime-server',
+			type: CustomizationType.McpServer,
+			name: 'runtime-server',
+			source: URI.file('/home/.copilot/mcp-config.json'),
+			defaultEnabled: false,
+		};
+		const outcomes = [];
+		for (const scope of [CustomizationEnablementKind.Global, CustomizationEnablementKind.Workspace, CustomizationEnablementKind.Session]) {
+			const enabled = service.setEnablement(session, target, scope, true);
+			const disabled = service.setEnablement(session, target, scope, false);
+			outcomes.push({
+				scope,
+				enabled: enabled.kind === 'resolved' && enabled.enabled,
+				disabled: disabled.kind === 'resolved' && disabled.enabled,
+			});
+		}
+		assert.deepStrictEqual(outcomes, [
+			{ scope: CustomizationEnablementKind.Global, enabled: true, disabled: false },
+			{ scope: CustomizationEnablementKind.Workspace, enabled: true, disabled: false },
+			{ scope: CustomizationEnablementKind.Session, enabled: true, disabled: false },
+		]);
+	});
+
 	test('resolves a workspace decision for a newly registered session', async () => {
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, false);
 		const newSession = 'ahp://copilot/session-2';

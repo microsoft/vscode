@@ -8,6 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isCustomizationEnabled, sortCustomizationEnablement } from '../../../common/customizationEnablement.js';
+import { withMcpServerDiscoveryMeta } from '../../../common/meta/mcpCustomizationMeta.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget, type WorkingDirectoryState } from '../../../node/agentHostCustomizationEnablementService.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, recordClientPluginEnablement, resolveCustomizationEnablement } from '../../../node/shared/customizationEnablementGate.js';
@@ -43,7 +44,7 @@ class TestEnablementService implements IAgentHostCustomizationEnablementService 
 		if (this._pending !== undefined) {
 			return { kind: 'pending', reason: this._pending };
 		}
-		return this._resolved(this._enablement.get(target.id) ?? this._enablementByDurableKey.get(this._key(target)) ?? []);
+		return this._resolved(this._enablement.get(target.id) ?? this._enablementByDurableKey.get(this._key(target)) ?? (target.defaultEnabled === undefined ? [] : [{ kind: CustomizationEnablementKind.Global, enabled: target.defaultEnabled }]));
 	}
 
 	applyClientGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution {
@@ -145,6 +146,24 @@ function firstChildEnablement(customizations: readonly Customization[]): readonl
 suite('CustomizationEnablementGate', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('runtime discovery defaults survive publication and SDK resolution without overriding scoped decisions or pending', () => {
+		const service = new TestEnablementService();
+		const session = URI.parse('copilot:/test');
+		const discovered = withMcpServerDiscoveryMeta(server(), 'user', false);
+		const first = resolveCustomizationEnablement(service, session, [discovered]);
+		const republished = resolveCustomizationEnablement(service, session, first.customizations);
+		service.setEnablementFor(discovered.id, [{ kind: CustomizationEnablementKind.Session, enabled: true }]);
+		const enabled = resolveCustomizationEnablement(service, session, republished.customizations);
+		service.setPending('workingDirectory');
+		const pending = resolveCustomizationEnablement(service, session, enabled.customizations);
+		assert.deepStrictEqual({
+			initial: getSdkMcpServerEnablement(first).get(discovered.id),
+			republished: getSdkMcpServerEnablement(republished).get(discovered.id),
+			explicit: getSdkMcpServerEnablement(enabled).get(discovered.id),
+			pending: getSdkMcpServerEnablement(pending).get(discovered.id),
+		}, { initial: false, republished: false, explicit: true, pending: false });
+	});
 
 	test('does not fabricate enablement while a resolution is pending and excludes it from the SDK', () => {
 		const service = new TestEnablementService();
