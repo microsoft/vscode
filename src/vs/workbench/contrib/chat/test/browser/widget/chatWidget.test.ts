@@ -32,6 +32,7 @@ import { IChatAttachmentResolveService } from '../../../browser/attachments/chat
 import { IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitRequestHandlerService.js';
 import { IChatTipService } from '../../../browser/chatTipService.js';
 import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../../browser/chatUserInteractionTelemetry.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
@@ -1154,7 +1155,7 @@ suite('ChatWidget - acceptInput submission', () => {
 				begin: () => ({ rendererId: 'test', interactionOrdinal: 1 }),
 				report: () => { },
 				flush: async () => ({ schemaVersion: 1, started: 0, completed: 0, failed: 0 }),
-			})) : parser);
+			}, upcastPartial<ILanguageModelsService>({ lookupLanguageModel: () => undefined }))) : parser);
 		const viewOptions: IChatWidgetViewOptions = {};
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
 		Object.defineProperties(widget, {
