@@ -17,7 +17,7 @@ function createShellDetails() {
 	const element = $('.chat-pill-location-hover');
 	return {
 		element,
-		status: append(element, $('div')),
+		summary: append(element, $('div')),
 		command: append(element, $('div')),
 		shellId: append(element, $('div')),
 		startedAt: append(element, $('div')),
@@ -70,9 +70,6 @@ export class SessionBackgroundShellsControl extends Disposable {
 
 	private _entry(shell: IChatBackgroundShell, now: number): IChatPillEntry {
 		const name = shell.description.trim() || shell.command;
-		const activity = shell.status === 'running'
-			? localize('backgroundShells.running', "Running")
-			: localize('backgroundShells.waiting', "Waiting");
 		const attachment = shell.attachmentMode === 'detached'
 			? localize('backgroundShells.detached', "Detached")
 			: shell.attachmentMode === 'attached'
@@ -80,21 +77,15 @@ export class SessionBackgroundShellsControl extends Disposable {
 				: undefined;
 		const startedAt = Date.parse(shell.startedAt);
 		const duration = Number.isFinite(startedAt) ? getDurationString(Math.max(0, Math.floor((now - startedAt) / 1000) * 1000)) : undefined;
-		let badge: string;
-		if (attachment && duration) {
-			badge = localize('backgroundShells.statusWithDuration', "{0}, {1}, {2}", activity, attachment, duration);
-		} else if (attachment) {
-			badge = localize('backgroundShells.status', "{0}, {1}", activity, attachment);
-		} else if (duration) {
-			badge = localize('backgroundShells.activityWithDuration', "{0}, {1}", activity, duration);
-		} else {
-			badge = activity;
-		}
-		const detail = localize('backgroundShells.details', "{0}\n\nCommand: {1}\nShell ID: {2}\nStarted: {3}", badge, shell.command, shell.id, shell.startedAt);
+		const badge = attachment && duration
+			? localize('backgroundShells.attachmentWithDuration', "{0}, {1}", attachment, duration)
+			: attachment ?? duration;
+		const facts = localize('backgroundShells.facts', "Command: {0}\nShell ID: {1}\nStarted: {2}", shell.command, shell.id, shell.startedAt);
+		const detail = badge ? localize('backgroundShells.details', "{0}\n\n{1}", badge, facts) : facts;
 		const content = this._details.get(shell.id) ?? createShellDetails();
 		this._details.set(shell.id, content);
 		for (const [element, text] of [
-			[content.status, badge],
+			[content.summary, badge ?? ''],
 			[content.command, localize('backgroundShells.command', "Command: {0}", shell.command)],
 			[content.shellId, localize('backgroundShells.id', "Shell ID: {0}", shell.id)],
 			[content.startedAt, localize('backgroundShells.startedAt', "Started: {0}", shell.startedAt)],

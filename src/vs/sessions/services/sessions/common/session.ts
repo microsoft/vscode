@@ -663,7 +663,6 @@ export interface IChatBackgroundShell {
 	readonly id: string;
 	readonly description: string;
 	readonly command: string;
-	readonly status: 'running' | 'idle';
 	readonly startedAt: string;
 	/** Whether the shell is tied to its agent's lifetime, when the agent reports it. */
 	readonly attachmentMode?: 'attached' | 'detached';

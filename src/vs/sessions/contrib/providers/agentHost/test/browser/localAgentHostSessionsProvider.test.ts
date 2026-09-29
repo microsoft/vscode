@@ -26,7 +26,7 @@ import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import { BackgroundWorkKind, BackgroundWorkStatus, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -6655,11 +6655,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const startedAt = new Date(0).toISOString();
 			const copilotShell: BackgroundShellWork = {
 				kind: BackgroundWorkKind.Shell, id: 'shell:same-id', label: 'Run tests', command: 'npm test',
-				status: BackgroundWorkStatus.Running, startedAt, _meta: toCopilotBackgroundShellMeta('same-id', 'attached'),
+				startedAt, _meta: toCopilotBackgroundShellMeta('same-id', 'attached'),
 			};
 			const plainShell: BackgroundShellWork = {
 				kind: BackgroundWorkKind.Shell, id: 'same-id', label: 'Build', command: 'npm run build',
-				status: BackgroundWorkStatus.Idle, startedAt,
+				startedAt,
 			};
 			agentHost.setSessionState(rawId, 'copilotcli', makeState([
 				{ ...makeChatSummary(main, 'Main'), backgroundWork: [copilotShell] },
@@ -6671,12 +6671,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 				{ ...makeChatSummary(peer, 'Peer'), backgroundWork: [plainShell] },
 			], { defaultChat: main }));
 
-			const peerShell = { id: 'same-id', description: 'Build', command: 'npm run build', status: 'idle', startedAt };
+			const peerShell = { id: 'same-id', description: 'Build', command: 'npm run build', startedAt };
 			assert.deepStrictEqual({
 				before,
 				after: session.chats.get().map(chat => chat.backgroundShells?.get()),
 			}, {
-				before: [[{ id: 'same-id', description: 'Run tests', command: 'npm test', status: 'running', startedAt, attachmentMode: 'attached' }], [peerShell]],
+				before: [[{ id: 'same-id', description: 'Run tests', command: 'npm test', startedAt, attachmentMode: 'attached' }], [peerShell]],
 				after: [[], [peerShell]],
 			});
 		});

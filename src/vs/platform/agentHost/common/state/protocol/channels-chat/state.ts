@@ -171,18 +171,6 @@ export const enum BackgroundWorkKind {
 }
 
 /**
- * Activity of background work that has not finished.
- *
- * @category Background Work
- * @nonexhaustive
- */
-export const enum BackgroundWorkStatus {
-	Running = 'running',
-	/** Not making progress on its own, for example a shell waiting for input. */
-	Idle = 'idle',
-}
-
-/**
  * Fields common to every {@link BackgroundWork} variant.
  *
  * @category Background Work
@@ -198,8 +186,6 @@ interface BackgroundWorkBase {
 	id: string;
 	/** Human-readable label, such as the command's purpose. */
 	label: string;
-	/** Current activity of the unfinished work. */
-	status: BackgroundWorkStatus;
 	/** ISO 8601 timestamp when the work started. */
 	startedAt: string;
 	/** Provider-specific metadata, such as how a shell's lifetime is tied to its agent. */
