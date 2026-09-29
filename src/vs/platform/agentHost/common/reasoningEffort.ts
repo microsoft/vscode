@@ -32,6 +32,15 @@ export const reasoningEffortLevels = ['none', 'minimal', 'low', 'medium', 'high'
 export type ReasoningEffortLevel = typeof reasoningEffortLevels[number];
 
 /**
+ * Narrows an arbitrary string to a recognized {@link ReasoningEffortLevel}.
+ * Derives from {@link reasoningEffortLevels} so newly-added tiers are never
+ * silently dropped by a private allowlist.
+ */
+export function isReasoningEffortLevel(value: string | undefined): value is ReasoningEffortLevel {
+	return value !== undefined && (reasoningEffortLevels as readonly string[]).includes(value);
+}
+
+/**
  * Localized, title-cased picker label for a reasoning-effort value.
  * Falls back to capitalizing an unrecognized value so a newly-introduced
  * effort tier never surfaces raw (e.g. lowercase `'max'`).

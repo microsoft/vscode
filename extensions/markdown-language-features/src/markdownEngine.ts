@@ -30,9 +30,9 @@ const pluginSourceMap: MarkdownIt.PluginSimple = (md): void => {
 	});
 
 	// The 'html_block' renderer doesn't respect `attrs`. We need to insert a marker.
-	const originalHtmlBlockRenderer = md.renderer.rules['html_block'];
+	const originalHtmlBlockRenderer = md.renderer.rules.html_block;
 	if (originalHtmlBlockRenderer) {
-		md.renderer.rules['html_block'] = (tokens, idx, options, env, self) => (
+		md.renderer.rules.html_block = (tokens, idx, options, env, self) => (
 			`<div ${self.renderAttrs(tokens[idx])} ></div>\n` +
 			originalHtmlBlockRenderer(tokens, idx, options, env, self)
 		);
@@ -261,8 +261,8 @@ export class MarkdownItEngine implements IMdParser {
 	}
 
 	#addFencedRenderer(md: MarkdownIt): void {
-		const original = md.renderer.rules['fenced'];
-		md.renderer.rules['fenced'] = (tokens: MarkdownIt.Token[], idx: number, options, env, self) => {
+		const original = md.renderer.rules.fenced;
+		md.renderer.rules.fenced = (tokens: MarkdownIt.Token[], idx: number, options, env, self) => {
 			const token = tokens[idx];
 			if (token.map?.length) {
 				token.attrJoin('class', 'hljs');

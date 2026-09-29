@@ -23,7 +23,6 @@ import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, Work
 import { IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
 import { IPathService } from '../../path/common/pathService.js';
 import { ExcludeGlobPattern, getExcludes, IAITextQuery, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from './search.js';
-import { GlobPattern } from './searchExtTypes.js';
 
 /**
  * One folder to search and a glob expression that should be applied.
@@ -50,20 +49,6 @@ export interface ISearchPatternBuilder<U extends UriComponents> {
 
 export function isISearchPatternBuilder<U extends UriComponents>(object: ISearchPatternBuilder<U> | ISearchPathPatternBuilder): object is ISearchPatternBuilder<U> {
 	return (typeof object === 'object' && 'uri' in object && 'pattern' in object);
-}
-
-export function globPatternToISearchPatternBuilder(globPattern: GlobPattern): ISearchPatternBuilder<URI> {
-
-	if (typeof globPattern === 'string') {
-		return {
-			pattern: globPattern
-		};
-	}
-
-	return {
-		pattern: globPattern.pattern,
-		uri: globPattern.baseUri
-	};
 }
 
 /**

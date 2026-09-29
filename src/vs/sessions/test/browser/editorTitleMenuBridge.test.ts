@@ -24,19 +24,19 @@ suite('Sessions - Editor Title Menu Bridge', () => {
 		return { isSinglePaneLayoutEnabled: singlePane } as IAgentWorkbenchLayoutService;
 	}
 
-	function sessionsEditorHeaderCommands(): { id: string; group: string | undefined }[] {
-		return MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+	function sessionsEditorTitleCommands(): { id: string; group: string | undefined }[] {
+		return MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.map(item => ({ id: item.command.id, group: item.group }));
 	}
 
-	function sessionsEditorHeaderSubmenus(): { id: string; group: string | undefined }[] {
-		return MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+	function sessionsEditorTitleSubmenus(): { id: string; group: string | undefined }[] {
+		return MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isISubmenuItem)
 			.map(item => ({ id: item.submenu.id, group: item.group }));
 	}
 
-	test('mirrors only extension-contributed editor/title items into the right editor header menu', () => {
+	test('mirrors only extension-contributed editor/title items into the Sessions editor title menu', () => {
 		const local = store.add(new DisposableStore());
 
 		local.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -50,34 +50,34 @@ suite('Sessions - Editor Title Menu Bridge', () => {
 
 		store.add(new EditorTitleMenuBridgeContribution(createLayoutService(true)));
 
-		const mirrored = sessionsEditorHeaderCommands();
+		const mirrored = sessionsEditorTitleCommands();
 		assert.deepStrictEqual(
 			mirrored.find(item => item.id === 'test.ext.editorTitleAction'),
-			{ id: 'test.ext.editorTitleAction', group: 'extension/navigation' },
+			{ id: 'test.ext.editorTitleAction', group: 'navigation' },
 		);
 		assert.ok(!mirrored.some(item => item.id === 'test.core.editorTitleAction'), 'core action should not be bridged');
 
 		local.dispose();
 	});
 
-	test('keeps the right editor header menu in sync as extensions register/unregister', async () => {
+	test('keeps the Sessions editor title menu in sync as extensions register/unregister', async () => {
 		store.add(new EditorTitleMenuBridgeContribution(createLayoutService(true)));
 
-		assert.ok(!sessionsEditorHeaderCommands().some(item => item.id === 'test.ext.dynamic'), 'not present before registration');
+		assert.ok(!sessionsEditorTitleCommands().some(item => item.id === 'test.ext.dynamic'), 'not present before registration');
 
 		const registration = MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 			command: { id: 'test.ext.dynamic', title: 'Dynamic Extension Action', source: { id: 'pub.ext', title: 'My Extension' } },
 			group: 'navigation'
 		});
 		await Promise.resolve();
-		assert.ok(sessionsEditorHeaderCommands().some(item => item.id === 'test.ext.dynamic'), 'present after registration');
+		assert.ok(sessionsEditorTitleCommands().some(item => item.id === 'test.ext.dynamic'), 'present after registration');
 
 		registration.dispose();
 		await Promise.resolve();
-		assert.ok(!sessionsEditorHeaderCommands().some(item => item.id === 'test.ext.dynamic'), 'removed after unregistration');
+		assert.ok(!sessionsEditorTitleCommands().some(item => item.id === 'test.ext.dynamic'), 'removed after unregistration');
 	});
 
-	test('mirrors only extension-contributed submenus into the right editor header menu', () => {
+	test('mirrors only extension-contributed submenus into the Sessions editor title menu', () => {
 		const local = store.add(new DisposableStore());
 
 		// Extension submenus are registered with an `api:` menu id; core submenus are not.
@@ -90,10 +90,10 @@ suite('Sessions - Editor Title Menu Bridge', () => {
 
 		store.add(new EditorTitleMenuBridgeContribution(createLayoutService(true)));
 
-		const mirrored = sessionsEditorHeaderSubmenus();
+		const mirrored = sessionsEditorTitleSubmenus();
 		assert.deepStrictEqual(
 			mirrored.find(item => item.id === 'api:test.ext.submenu'),
-			{ id: 'api:test.ext.submenu', group: 'secondary/extension/1_extension' },
+			{ id: 'api:test.ext.submenu', group: '1_extension' },
 		);
 		assert.ok(!mirrored.some(item => item.id === 'test.core.submenu'), 'core submenu should not be bridged');
 
@@ -109,7 +109,7 @@ suite('Sessions - Editor Title Menu Bridge', () => {
 
 		store.add(new EditorTitleMenuBridgeContribution(createLayoutService(false)));
 
-		assert.ok(!sessionsEditorHeaderCommands().some(item => item.id === 'test.ext.disabledLayout'), 'nothing bridged when disabled');
+		assert.ok(!sessionsEditorTitleCommands().some(item => item.id === 'test.ext.disabledLayout'), 'nothing bridged when disabled');
 
 		local.dispose();
 	});

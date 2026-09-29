@@ -137,7 +137,8 @@ export class PromptFilesLocator {
 		let current = folderUri;
 		while (true) {
 			try {
-				const isRepoRoot = await this.fileService.exists(joinPath(current, '.git'));
+				const gitStat = await this.fileService.stat(joinPath(current, '.git')).then(stat => stat, () => undefined);
+				const isRepoRoot = gitStat?.isDirectory === true;
 				if (isRepoRoot) {
 					if ((await this.workspaceTrustManagementService.getUriTrustInfo(current)).trusted) {
 						candidates.push(current);

@@ -101,7 +101,7 @@ export interface IChatDebugFileLoggerService {
 
 	/**
 	 * Check whether a URI is under the debug-logs storage directory.
-	 * Used by {@link assertFileOkForTool} to allowlist tool reads.
+	 * Used by file access checks to allowlist tool reads.
 	 */
 	isDebugLogUri(uri: URI): boolean;
 

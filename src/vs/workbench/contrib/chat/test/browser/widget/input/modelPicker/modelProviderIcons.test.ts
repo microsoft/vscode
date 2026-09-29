@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
-import { getModelPickerIcon, getModelProviderIcon } from '../../../../../browser/widget/input/modelPicker/modelProviderIcons.js';
+import { getCompactModelPickerIcon, getModelPickerIcon, getModelProviderIcon } from '../../../../../browser/widget/input/modelPicker/modelProviderIcons.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 
 function createModel(id: string, name: string, vendor = 'copilot', metadata?: Partial<ILanguageModelChatMetadata>): ILanguageModelChatMetadataAndIdentifier {
@@ -43,6 +43,7 @@ suite('ModelProviderIcons', () => {
 			getModelProviderIcon(createModel('deepseek-v4-pro', 'DeepSeek V4 Pro')).id,
 			getModelProviderIcon(createModel('auto', 'Auto')).id,
 			getModelProviderIcon(createModel('auto', 'Auto', 'anthropic')).id,
+			getModelProviderIcon(createModel('hydrafusion', 'HydraFusion', 'agent-host-copilot')).id,
 			getModelProviderIcon(createModel('custom', 'Custom Model', 'third-party')).id,
 			getModelProviderIcon(createModel('claude-sonnet-5', 'Claude Sonnet 5', 'anthropic', { isBYOK: true })).id,
 			getModelProviderIcon(createModel('gemini-3.1-pro', 'Gemini 3.1 Pro', 'google', { isBYOK: true })).id,
@@ -57,6 +58,7 @@ suite('ModelProviderIcons', () => {
 			'chat-model-provider-xai',
 			'chat-model-provider-microsoft',
 			'chat-model-provider-generic',
+			'chat-model-provider-copilot',
 			'chat-model-provider-copilot',
 			'chat-model-provider-copilot',
 			'chat-model-provider-generic',
@@ -80,6 +82,22 @@ suite('ModelProviderIcons', () => {
 			Codicon.info.id,
 			getModelProviderIcon(model).id,
 			getModelProviderIcon(model).id,
+		]);
+	});
+
+	test('uses compact variants in the picker trigger', () => {
+		const genericModel = createModel('custom', 'Custom Model', 'third-party');
+		const modelWithWarning = createModel('custom', 'Custom Model', 'third-party', { statusIcon: Codicon.warning });
+		const modelWithInfo = createModel('custom', 'Custom Model', 'third-party', { statusIcon: Codicon.info });
+
+		assert.deepStrictEqual([
+			getCompactModelPickerIcon(genericModel).id,
+			getCompactModelPickerIcon(modelWithWarning).id,
+			getCompactModelPickerIcon(modelWithInfo).id,
+		], [
+			'chat-model-provider-generic-compact',
+			Codicon.warningCompact.id,
+			Codicon.info.id,
 		]);
 	});
 });

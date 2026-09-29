@@ -11,8 +11,13 @@ import { hasKey } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	GitHubChangedFile,
+	GitHubCommit,
+	GitHubCommitRef,
+	GitHubCommitResource,
+	GitHubCommitSubscription,
 	GitHubComparison,
 	GitHubComparisonCommit,
+	GitHubHydratableResourceRef,
 	GitHubIssue,
 	GitHubIssueRef,
 	GitHubIssueResource,
@@ -38,6 +43,7 @@ import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } fr
 import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
+import { GitHubBackoffPolicy, gitHubBackoffDelay } from './githubBackoff.js';
 import { IGitHubEndpointProvider } from './githubTypes.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
 
@@ -50,6 +56,7 @@ export interface GitHubEntityPollingPolicy {
 	readonly maximumDormantEntries: number;
 	readonly visible: number;
 	readonly background: number;
+	readonly failureBackoff: GitHubBackoffPolicy;
 	readonly jitter: number;
 }
 
@@ -58,10 +65,41 @@ const defaultPollingPolicy: GitHubEntityPollingPolicy = {
 	maximumDormantEntries: 50,
 	visible: 60_000,
 	background: 300_000,
+	failureBackoff: { immediateRetries: 0, base: 60_000, maximum: 900_000, jitter: 5_000 },
 	jitter: 5_000,
 };
 
 const maximumPaginationPages = 100;
+const maximumHydrationBatchSize = 25;
+const repositoryHydrationFields = `
+	id
+	owner { id login }
+	name
+	nameWithOwner
+	primaryLanguage { name }
+	stargazerCount
+	defaultBranchRef { name }
+	isPrivate
+	description
+	url
+	isArchived
+	isFork
+`;
+const issueHydrationFields = `
+	id
+	number
+	title
+	body
+	url
+	state
+	stateReason
+	author { id login }
+	assignees(first: 100) { nodes { id login } }
+	labels(first: 100) { nodes { name } }
+	createdAt
+	updatedAt
+	closedAt
+`;
 const maximumCommitPullRequests = 100;
 const maximumIssueLinkageBatchSize = 20;
 
@@ -119,9 +157,9 @@ const reviewThreadSummaryQuery = `query AgentHostPullRequestReviewThreadSummary(
 	rateLimit { limit remaining used resetAt }
 }`;
 
-type EntityKind = 'repository' | 'issue';
-type EntityRef = GitHubRepositoryRef | GitHubIssueRef;
-type EntityValue = GitHubRepository | GitHubIssue;
+type EntityKind = 'repository' | 'issue' | 'commit';
+type EntityRef = GitHubRepositoryRef | GitHubIssueRef | GitHubCommitRef;
+type EntityValue = GitHubRepository | GitHubIssue | GitHubCommit;
 
 interface IEntityOperation {
 	readonly controller: AbortController;
@@ -131,11 +169,14 @@ interface IEntityOperation {
 class EntityEntry<TRef extends EntityRef, TValue extends EntityValue> {
 
 	readonly state: ISettableObservable<FragmentState<TValue>>;
-	readonly resource: GitHubRepositoryResource | GitHubIssueResource;
+	readonly resource: GitHubRepositoryResource | GitHubIssueResource | GitHubCommitResource;
 	readonly subscriptions = new Set<EntitySubscription<TRef, TValue>>();
 	readonly keys = new Set<string>();
 	operation: IEntityOperation | undefined;
 	dormantAt: number | undefined;
+	/** Consecutive refresh failures, so repeated trouble is retried further apart. */
+	failureCount = 0;
+	generation = 0;
 	disposed = false;
 
 	constructor(
@@ -147,7 +188,28 @@ class EntityEntry<TRef extends EntityRef, TValue extends EntityValue> {
 		this.state = observableValue(this, { status: 'missing', complete: false });
 		this.resource = kind === 'repository'
 			? new RepositoryResourceImpl(this as EntityEntry<GitHubRepositoryRef, GitHubRepository>)
-			: new IssueResourceImpl(this as EntityEntry<GitHubIssueRef, GitHubIssue>);
+			: kind === 'issue'
+				? new IssueResourceImpl(this as EntityEntry<GitHubIssueRef, GitHubIssue>)
+				: new CommitResourceImpl(this as EntityEntry<GitHubCommitRef, GitHubCommit>);
+	}
+
+	setLoading(attemptedAt: string): void {
+		this.state.set({
+			...this.state.get(),
+			status: 'loading',
+			complete: false,
+			attemptedAt,
+			error: undefined,
+		}, undefined);
+	}
+
+	setError(error: NonNullable<FragmentState<TValue>['error']>): void {
+		this.state.set({
+			...this.state.get(),
+			status: 'error',
+			complete: false,
+			error,
+		}, undefined);
 	}
 
 	ref: TRef;
@@ -179,12 +241,25 @@ class IssueResourceImpl implements GitHubIssueResource {
 	}
 }
 
+class CommitResourceImpl implements GitHubCommitResource {
+
+	constructor(private readonly _entry: EntityEntry<GitHubCommitRef, GitHubCommit>) { }
+
+	get ref(): GitHubCommitRef {
+		return this._entry.ref;
+	}
+
+	get state(): ISettableObservable<FragmentState<GitHubCommit>> {
+		return this._entry.state;
+	}
+}
+
 class EntitySubscription<TRef extends EntityRef, TValue extends EntityValue> {
 
 	private _disposed = false;
 
 	constructor(
-		readonly resource: TRef extends GitHubIssueRef ? GitHubIssueResource : GitHubRepositoryResource,
+		readonly resource: TRef extends GitHubIssueRef ? GitHubIssueResource : TRef extends GitHubCommitRef ? GitHubCommitResource : GitHubRepositoryResource,
 		readonly entry: EntityEntry<TRef, TValue>,
 		private readonly _service: GitHubQueryService,
 		options: GitHubResourceSubscriptionOptions,
@@ -253,12 +328,163 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		return subscription;
 	}
 
+	async hydrateResources(refs: readonly GitHubHydratableResourceRef[], signal: AbortSignal): Promise<void> {
+		for (let index = 0; index < refs.length; index += maximumHydrationBatchSize) {
+			await this._hydrateResourceBatch(refs.slice(index, index + maximumHydrationBatchSize), signal);
+		}
+	}
+
+	private async _hydrateResourceBatch(refs: readonly GitHubHydratableResourceRef[], signal: AbortSignal): Promise<void> {
+		if (refs.length === 0) {
+			return;
+		}
+		const resources = refs.map(item => ({
+			item,
+			entry: item.kind === 'repository'
+				? this._getOrCreateEntity<GitHubRepositoryRef, GitHubRepository>('repository', normalizeRepositoryRef(item.ref))
+				: this._getOrCreateEntity<GitHubIssueRef, GitHubIssue>('issue', normalizeIssueRef(item.ref)),
+		})).filter(resource => {
+			const status = resource.entry.state.get().status;
+			return status !== 'ready' && status !== 'loading';
+		}).map(resource => ({ ...resource, generation: ++resource.entry.generation }));
+		if (resources.length === 0) {
+			return;
+		}
+		const firstRef = resources[0].item.ref;
+		if (resources.some(resource => !sameAccount(resource.item.ref, { account: firstRef }))) {
+			throw new GitHubRequestError('GitHub hydration batch spans multiple accounts', 'validation');
+		}
+
+		const attemptedAt = new Date(this._clock.now()).toISOString();
+		for (const { entry } of resources) {
+			this._scheduler.cancel(this._entityTaskKey(entry));
+			entry.setLoading(attemptedAt);
+		}
+
+		const definitions: string[] = [];
+		const selections: string[] = [];
+		const variables: Record<string, unknown> = {};
+		for (let index = 0; index < resources.length; index++) {
+			const item = resources[index].item;
+			definitions.push(`$owner${index}: String!`, `$repo${index}: String!`);
+			variables[`owner${index}`] = item.ref.owner;
+			variables[`repo${index}`] = item.ref.repo;
+			if (item.kind === 'repository') {
+				selections.push(`r${index}: repository(owner: $owner${index}, name: $repo${index}) { ${repositoryHydrationFields} }`);
+			} else {
+				definitions.push(`$number${index}: Int!`);
+				variables[`number${index}`] = item.ref.number;
+				selections.push(`r${index}: repository(owner: $owner${index}, name: $repo${index}) { issue(number: $number${index}) { ${issueHydrationFields} } }`);
+			}
+		}
+		const query = `query HydrateGitHubResources(${definitions.join(', ')}) { ${selections.join('\n')} rateLimit { limit remaining used resetAt } }`;
+		let data: object;
+		try {
+			data = asObject(await this._graphqlRaw(firstRef, query, variables, signal), 'GitHub hydration response was malformed');
+		} catch (error) {
+			for (const { entry, generation } of resources) {
+				if (entry.disposed || entry.generation !== generation) {
+					continue;
+				}
+				entry.setError(toFragmentError(error));
+				if (entry.subscriptions.size > 0) {
+					this._scheduleEntity(entry, this._clock.now());
+				} else {
+					this._makeEntityDormant(entry);
+				}
+			}
+			throw error;
+		}
+		const observedAt = new Date(this._clock.now()).toISOString();
+		let hydratedCount = 0;
+
+		for (let index = 0; index < resources.length; index++) {
+			const { item, entry, generation } = resources[index];
+			if (entry.disposed || entry.generation !== generation) {
+				continue;
+			}
+			const repositoryValue = optionalObjectProperty(data, `r${index}`);
+			try {
+				if (item.kind === 'repository') {
+					if (!repositoryValue) {
+						this._handleMissingHydrationResult(entry);
+						continue;
+					}
+					const value = toGraphQLRepository(repositoryValue);
+					const repositoryEntry = this._getOrCreateEntity<GitHubRepositoryRef, GitHubRepository>('repository', normalizeRepositoryRef(item.ref));
+					repositoryEntry.state.set({ value, status: 'ready', complete: true, observedAt, attemptedAt: observedAt }, undefined);
+					this._canonicalizeRepository(repositoryEntry, value);
+					if (repositoryEntry.subscriptions.size === 0) {
+						this._makeEntityDormant(repositoryEntry);
+					} else {
+						this._scheduleEntity(repositoryEntry, this._clock.now() + this._pollDelay(repositoryEntry));
+					}
+					hydratedCount++;
+				} else {
+					const issueValue = repositoryValue ? optionalObjectProperty(repositoryValue, 'issue') : undefined;
+					if (!issueValue) {
+						this._handleMissingHydrationResult(entry);
+						continue;
+					}
+					const value = toGraphQLIssue(issueValue);
+					const issueEntry = this._getOrCreateEntity<GitHubIssueRef, GitHubIssue>('issue', normalizeIssueRef(item.ref));
+					issueEntry.state.set({ value, status: 'ready', complete: true, observedAt, attemptedAt: observedAt }, undefined);
+					if (issueEntry.subscriptions.size === 0) {
+						this._makeEntityDormant(issueEntry);
+					} else if (this._shouldPollEntity(issueEntry)) {
+						this._scheduleEntity(issueEntry, this._clock.now() + this._pollDelay(issueEntry));
+					}
+					hydratedCount++;
+				}
+			} catch (error) {
+				this._handleHydrationError(entry, error);
+			}
+		}
+		this._logService.trace(`[GitHubQueryService] Hydrated ${hydratedCount} of ${resources.length} resource(s) in one GraphQL request`);
+	}
+
+	private _handleHydrationError(entry: EntityEntry<EntityRef, EntityValue>, error: unknown): void {
+		entry.state.set({
+			...entry.state.get(),
+			status: 'error',
+			complete: false,
+			error: toFragmentError(error),
+		}, undefined);
+		if (entry.subscriptions.size > 0) {
+			this._scheduleEntity(entry, this._clock.now());
+		} else {
+			this._makeEntityDormant(entry);
+		}
+	}
+
+	private _handleMissingHydrationResult(entry: EntityEntry<EntityRef, EntityValue>): void {
+		entry.state.set({
+			...entry.state.get(),
+			status: 'error',
+			complete: false,
+			error: { kind: 'notFound', message: 'GitHub resource was not found' },
+		}, undefined);
+		if (entry.subscriptions.size === 0) {
+			this._makeEntityDormant(entry);
+		}
+	}
+
 	subscribeIssue(ref: GitHubIssueRef, options: GitHubResourceSubscriptionOptions): GitHubIssueSubscription {
 		const normalized = normalizeIssueRef(ref);
 		const entry = this._getOrCreateEntity<GitHubIssueRef, GitHubIssue>('issue', normalized);
 		const subscription = new EntitySubscription(entry.resource as GitHubIssueResource, entry, this, options);
 		entry.subscriptions.add(subscription);
 		this._logService.trace(`[GitHubQueryService] Added issue subscription for ${formatEntityRef(entry.ref)} (entry ${entry.id}, subscriptions: ${entry.subscriptions.size})`);
+		this._activateEntity(entry);
+		return subscription;
+	}
+
+	subscribeCommit(ref: GitHubCommitRef, options: GitHubResourceSubscriptionOptions): GitHubCommitSubscription {
+		const normalized = normalizeCommitRef(ref);
+		const entry = this._getOrCreateEntity<GitHubCommitRef, GitHubCommit>('commit', normalized);
+		const subscription = new EntitySubscription(entry.resource as GitHubCommitResource, entry, this, options);
+		entry.subscriptions.add(subscription);
+		this._logService.trace(`[GitHubQueryService] Added commit subscription for ${formatEntityRef(entry.ref)} (entry ${entry.id}, subscriptions: ${entry.subscriptions.size})`);
 		this._activateEntity(entry);
 		return subscription;
 	}
@@ -514,6 +740,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			return;
 		}
 		const controller = new AbortController();
+		entry.generation++;
 		const operation: IEntityOperation = {
 			controller,
 			promise: this._runEntityFetch(entry, controller).finally(() => {
@@ -535,6 +762,10 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			this.updateEntitySubscription(entry);
 			return;
 		}
+		this._makeEntityDormant(entry);
+	}
+
+	private _makeEntityDormant(entry: EntityEntry<EntityRef, EntityValue>): void {
 		entry.dormantAt = this._clock.now();
 		this._logService.trace(`[GitHubQueryService] ${entry.kind} ${formatEntityRef(entry.ref)} became dormant (entry ${entry.id})`);
 		this._scheduler.cancel(this._entityTaskKey(entry));
@@ -612,11 +843,14 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			if (!sameAccount(entry.ref, credential)) {
 				throw new GitHubRequestError('GitHub resource account does not match the current credential', 'authentication');
 			}
+			const route = entry.kind === 'repository'
+				? ''
+				: entry.kind === 'issue'
+					? `issues/${(entry.ref as GitHubIssueRef).number}`
+					: `commits/${encodeURIComponent((entry.ref as GitHubCommitRef).sha)}`;
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
 				method: 'GET',
-				url: entry.kind === 'repository'
-					? this._restUrl(entry.ref, '')
-					: this._restUrl(entry.ref, `issues/${(entry.ref as GitHubIssueRef).number}`),
+				url: this._restUrl(entry.ref, route),
 				etag: true,
 				priority: toRequestPriority(this._effectivePriority(entry)),
 			}, AbortSignal.any([controller.signal, credential.signal]));
@@ -625,7 +859,9 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			}
 			const value = entry.kind === 'repository'
 				? toRepository(response.data)
-				: toIssue(response.data);
+				: entry.kind === 'issue'
+					? toIssue(response.data)
+					: toCommit(response.data);
 			entry.state.set({
 				value,
 				status: 'ready',
@@ -637,6 +873,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 				this._canonicalizeRepository(entry as EntityEntry<GitHubRepositoryRef, GitHubRepository>, value as GitHubRepository);
 			}
 			this._logService.trace(`[GitHubQueryService] Refreshed ${entry.kind} ${formatEntityRef(entry.ref)} in ${this._clock.now() - startedAt}ms (entry ${entry.id})`);
+			entry.failureCount = 0;
 			if (this._shouldPollEntity(entry)) {
 				this._scheduleEntity(entry, this._clock.now() + this._pollDelay(entry) + this._clock.jitter(this._policy.jitter));
 			}
@@ -657,7 +894,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 					error: toFragmentError(error),
 				}, undefined);
 				if (!(error instanceof GitHubRequestError) || error.kind !== 'authentication') {
-					this._scheduleEntity(entry, this._clock.now() + this._pollDelay(entry) + this._clock.jitter(this._policy.jitter));
+					this._scheduleAfterFailure(entry);
 				}
 			}
 			this._logService.debug(`[GitHubQueryService] Refresh ${entry.kind} ${formatEntityRef(entry.ref)} ${controller.signal.aborted ? 'cancelled' : 'failed'} after ${this._clock.now() - startedAt}ms (${queryErrorKind(error)})`);
@@ -865,9 +1102,23 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		return this._effectivePriority(entry) === 'background' ? this._policy.background : this._policy.visible;
 	}
 
+	/**
+	 * Retries a failed refresh no sooner than its poll cadence and further apart
+	 * the longer the trouble lasts, so a GitHub outage is not met with the same
+	 * request rate from every subscriber for its whole duration.
+	 */
+	private _scheduleAfterFailure(entry: EntityEntry<EntityRef, EntityValue>): void {
+		entry.failureCount++;
+		const delay = gitHubBackoffDelay(this._policy.failureBackoff, this._clock, entry.failureCount, this._pollDelay(entry));
+		this._scheduleEntity(entry, this._clock.now() + delay);
+	}
+
 	private _shouldPollEntity(entry: EntityEntry<EntityRef, EntityValue>): boolean {
 		if (entry.kind === 'repository') {
 			return true;
+		}
+		if (entry.kind === 'commit') {
+			return entry.state.get().status !== 'ready';
 		}
 		const state = entry.state.get();
 		return state.status !== 'ready' || (state.value as GitHubIssue | undefined)?.state === 'open';
@@ -906,6 +1157,15 @@ function normalizeIssueRef(ref: GitHubIssueRef): GitHubIssueRef {
 	return { ...repository, number: ref.number };
 }
 
+function normalizeCommitRef(ref: GitHubCommitRef): GitHubCommitRef {
+	const repository = normalizeRepositoryRef(ref);
+	const sha = ref.sha.trim();
+	if (!sha) {
+		throw new Error('GitHub commit reference requires a SHA');
+	}
+	return { ...repository, sha };
+}
+
 function entityKey(kind: EntityKind, ref: EntityRef): string {
 	return [
 		kind,
@@ -914,6 +1174,7 @@ function entityKey(kind: EntityKind, ref: EntityRef): string {
 		ref.owner.toLowerCase(),
 		ref.repo.toLowerCase(),
 		hasKey(ref, { number: true }) ? ref.number : '',
+		hasKey(ref, { sha: true }) ? ref.sha.toLowerCase() : '',
 	].join('\x00');
 }
 
@@ -931,11 +1192,15 @@ function toRequestPriority(priority: GitHubResourcePriority): 'interactive' | 'v
 function toRepository(value: unknown): GitHubRepository {
 	const item = asObject(value, 'GitHub repository response was malformed');
 	const owner = objectProperty(item, 'owner');
+	const language = nullableStringProperty(item, 'language');
+	const stars = numberProperty(item, 'stargazers_count');
 	return {
 		id: idProperty(item, 'node_id') ?? idProperty(item, 'id'),
 		owner: requiredActor(owner),
 		name: requiredString(item, 'name'),
 		nameWithOwner: requiredString(item, 'full_name'),
+		...(language !== undefined ? { language } : {}),
+		...(stars !== undefined ? { stars } : {}),
 		defaultBranch: requiredString(item, 'default_branch'),
 		private: booleanProperty(item, 'private') ?? false,
 		description: nullableStringProperty(item, 'description') ?? '',
@@ -945,11 +1210,57 @@ function toRepository(value: unknown): GitHubRepository {
 	};
 }
 
+function toGraphQLRepository(value: object): GitHubRepository {
+	const owner = objectProperty(value, 'owner');
+	const primaryLanguage = optionalObjectProperty(value, 'primaryLanguage');
+	const defaultBranch = optionalObjectProperty(value, 'defaultBranchRef');
+	const stars = numberProperty(value, 'stargazerCount');
+	return {
+		id: idProperty(value, 'id'),
+		owner: requiredActor(owner),
+		name: requiredString(value, 'name'),
+		nameWithOwner: requiredString(value, 'nameWithOwner'),
+		...(primaryLanguage ? { language: requiredString(primaryLanguage, 'name') } : {}),
+		...(stars !== undefined ? { stars } : {}),
+		defaultBranch: defaultBranch ? requiredString(defaultBranch, 'name') : '',
+		private: booleanProperty(value, 'isPrivate') ?? false,
+		description: nullableStringProperty(value, 'description') ?? '',
+		url: requiredString(value, 'url'),
+		archived: booleanProperty(value, 'isArchived') ?? false,
+		fork: booleanProperty(value, 'isFork') ?? false,
+	};
+}
+
+function toGraphQLIssue(value: object): GitHubIssue {
+	const author = optionalObjectProperty(value, 'author');
+	const assignees = objectProperty(value, 'assignees');
+	const labels = objectProperty(value, 'labels');
+	const stateReason = nullableStringProperty(value, 'stateReason')?.toLowerCase();
+	return {
+		id: idProperty(value, 'id'),
+		number: requiredNumber(value, 'number'),
+		title: requiredString(value, 'title'),
+		body: nullableStringProperty(value, 'body') ?? '',
+		url: requiredString(value, 'url'),
+		state: requiredString(value, 'state') === 'CLOSED' ? 'closed' : 'open',
+		stateReason: stateReason === 'completed' || stateReason === 'not_planned' || stateReason === 'duplicate' || stateReason === 'reopened'
+			? stateReason
+			: undefined,
+		author: author ? requiredActor(author) : { login: 'ghost' },
+		assignees: arrayProperty(assignees, 'nodes').filter(isObject).map(requiredActor),
+		labels: arrayProperty(labels, 'nodes').filter(isObject).map(label => requiredString(label, 'name')),
+		createdAt: requiredString(value, 'createdAt'),
+		updatedAt: requiredString(value, 'updatedAt'),
+		closedAt: nullableStringProperty(value, 'closedAt'),
+	};
+}
+
 function toIssue(value: unknown): GitHubIssue {
 	const item = asObject(value, 'GitHub issue response was malformed');
 	if (Reflect.has(item, 'pull_request')) {
 		throw new GitHubRequestError('Requested GitHub issue is a pull request', 'validation');
 	}
+	const author = optionalObjectProperty(item, 'user');
 	return {
 		id: idProperty(item, 'node_id') ?? idProperty(item, 'id'),
 		number: requiredNumber(item, 'number'),
@@ -958,7 +1269,7 @@ function toIssue(value: unknown): GitHubIssue {
 		url: requiredString(item, 'html_url'),
 		state: stringProperty(item, 'state') === 'closed' ? 'closed' : 'open',
 		stateReason: enumProperty(item, 'state_reason', ['completed', 'not_planned', 'duplicate', 'reopened'], undefined),
-		author: requiredActor(objectProperty(item, 'user')),
+		author: author ? requiredActor(author) : { login: 'ghost' },
 		assignees: arrayProperty(item, 'assignees').filter(isObject).map(requiredActor),
 		labels: arrayProperty(item, 'labels').flatMap(label => {
 			if (typeof label === 'string') {
@@ -973,6 +1284,20 @@ function toIssue(value: unknown): GitHubIssue {
 		createdAt: requiredString(item, 'created_at'),
 		updatedAt: requiredString(item, 'updated_at'),
 		closedAt: nullableStringProperty(item, 'closed_at'),
+	};
+}
+
+function toCommit(value: unknown): GitHubCommit {
+	const item = asObject(value, 'GitHub commit response was malformed');
+	const commit = objectProperty(item, 'commit');
+	const author = optionalObjectProperty(item, 'author');
+	const commitAuthor = objectProperty(commit, 'author');
+	return {
+		sha: requiredString(item, 'sha'),
+		message: requiredString(commit, 'message'),
+		url: requiredString(item, 'html_url'),
+		author: author ? requiredActor(author) : { login: requiredString(commitAuthor, 'name') },
+		committedAt: requiredString(commitAuthor, 'date'),
 	};
 }
 
@@ -1235,7 +1560,7 @@ function toFragmentError(error: unknown): { readonly message: string; readonly k
 }
 
 function formatEntityRef(ref: EntityRef): string {
-	return `${ref.host}/${ref.owner}/${ref.repo}${hasKey(ref, { number: true }) ? `#${ref.number}` : ''}`;
+	return `${ref.host}/${ref.owner}/${ref.repo}${hasKey(ref, { number: true }) ? `#${ref.number}` : ''}${hasKey(ref, { sha: true }) ? `@${ref.sha}` : ''}`;
 }
 
 function queryErrorKind(error: unknown): string {

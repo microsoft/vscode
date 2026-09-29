@@ -28,6 +28,7 @@ import {
 	PullRequestSubscriptionOptions,
 } from './githubPullRequestService.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
+import { GitHubBackoffPolicy, gitHubBackoffDelay } from './githubBackoff.js';
 import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubRequestError } from './githubTransport.js';
 import { EffectivePullRequestFragmentInterest, pullRequestOptionsForFragment, unionPullRequestInterests } from './pullRequestInterests.js';
@@ -71,8 +72,7 @@ export interface PullRequestPollingPolicy {
 	readonly mergeabilityVisible: number;
 	readonly mergeabilityBackground: number;
 	readonly participants: number;
-	readonly failureRetryBase: number;
-	readonly failureRetryMaximum: number;
+	readonly failureBackoff: GitHubBackoffPolicy;
 	readonly jitter: number;
 }
 
@@ -90,8 +90,7 @@ const defaultPollingPolicy: PullRequestPollingPolicy = {
 	mergeabilityVisible: 30_000,
 	mergeabilityBackground: 120_000,
 	participants: 300_000,
-	failureRetryBase: 30_000,
-	failureRetryMaximum: 300_000,
+	failureBackoff: { immediateRetries: 0, base: 30_000, maximum: 300_000, jitter: 5_000 },
 	jitter: 5_000,
 };
 
@@ -667,14 +666,13 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			return;
 		}
 		if (error instanceof GitHubRequestError
-			&& (error.kind === 'authorization' || error.kind === 'notFound' || error.kind === 'validation' || error.kind === 'schema' || error.kind === 'rateLimit')) {
+			&& (error.kind === 'notFound' || error.kind === 'validation' || error.kind === 'schema' || error.kind === 'rateLimit')) {
 			this._scheduleNext(entry, fragment, interest);
 			return;
 		}
 		const failures = (entry.failureCounts.get(fragment) ?? 0) + 1;
 		entry.failureCounts.set(fragment, failures);
-		const delay = Math.min(this._policy.failureRetryBase * 2 ** (failures - 1), this._policy.failureRetryMaximum);
-		this._scheduleFragment(entry, fragment, this._clock.now() + delay + this._clock.jitter(this._policy.jitter));
+		this._scheduleFragment(entry, fragment, this._clock.now() + gitHubBackoffDelay(this._policy.failureBackoff, this._clock, failures));
 	}
 
 	private _pollDelay(entry: PullRequestEntry, fragment: PullRequestFragment, interest: EffectivePullRequestFragmentInterest): number | undefined {
@@ -690,10 +688,13 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			case 'inlineComments':
 			case 'reviewThreads':
 				return visible ? this._policy.conversationVisible : this._policy.conversationBackground;
-			case 'checks':
-				return checksPending(entry.snapshot.get().checks.value)
+			case 'checks': {
+				// An errored fragment carries no trustworthy pending signal.
+				const checks = entry.snapshot.get().checks;
+				return checks.status !== 'error' && checksPending(checks.value)
 					? visible ? this._policy.checksPendingVisible : this._policy.checksPendingBackground
 					: this._policy.checksBackstop;
+			}
 			case 'mergeability':
 				return visible ? this._policy.mergeabilityVisible : this._policy.mergeabilityBackground;
 			case 'participants':

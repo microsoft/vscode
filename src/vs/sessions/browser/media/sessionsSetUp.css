@@ -58,8 +58,8 @@
 	border-radius: var(--vscode-cornerRadius-small);
 	background-color: transparent;
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-body2);
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-size: var(--vscode-fontSize-body2);
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 .chat-setup-dialog.sessions-welcome-dialog .chat-setup-dialog-footer > .sessions-sign-in-dialog-action.monaco-text-button:hover {

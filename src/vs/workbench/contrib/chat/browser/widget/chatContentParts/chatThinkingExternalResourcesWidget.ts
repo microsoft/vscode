@@ -78,7 +78,7 @@ export class ChatThinkingExternalResourceWidget extends Disposable {
 			return;
 		}
 
-		const widget = this.instantiationService.createInstance(ChatResourceGroupWidget, allParts);
+		const widget = this.instantiationService.createInstance(ChatResourceGroupWidget, allParts, undefined);
 		this.resourceGroupWidgetHeightListener.value = widget.onDidChangeHeight(() => this._onDidChangeHeight.fire());
 		this.resourceGroupWidget.value = widget;
 		this.domNode.appendChild(widget.domNode);

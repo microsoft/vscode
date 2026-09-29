@@ -6,9 +6,13 @@
 .chat-mcp-servers-message {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--vscode-spacing-size80);
 	font-style: italic;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 	opacity: 0.8;
+}
+
+.chat-mcp-servers-icon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }

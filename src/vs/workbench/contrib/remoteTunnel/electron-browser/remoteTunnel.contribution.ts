@@ -14,6 +14,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -26,7 +27,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, IRemoteTunnelSession, LOGGER_NAME, LOG_ID, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
+import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, IRemoteTunnelSession, LOGGER_NAME, LOG_ID, MAX_TUNNEL_NAME_LENGTH, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, isUntitledWorkspace } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
@@ -58,16 +59,26 @@ type ExistingSessionItem = { session: AuthenticationSession; providerId: string;
 type IAuthenticationProvider = { id: string; scopes: string[] };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
 
-enum RemoteTunnelCommandIds {
-	turnOn = 'workbench.remoteTunnel.actions.turnOn',
-	turnOff = 'workbench.remoteTunnel.actions.turnOff',
-	connecting = 'workbench.remoteTunnel.actions.connecting',
-	manage = 'workbench.remoteTunnel.actions.manage',
-	showLog = 'workbench.remoteTunnel.actions.showLog',
-	configure = 'workbench.remoteTunnel.actions.configure',
-	copyToClipboard = 'workbench.remoteTunnel.actions.copyToClipboard',
-	learnMore = 'workbench.remoteTunnel.actions.learnMore',
+export interface IRemoteTunnelStartOptions {
+	readonly authenticationProviderId?: 'github';
+	readonly showServiceOption?: boolean;
+	readonly showSuccessNotification?: boolean;
 }
+
+/** Matches `is_valid_name` in the CLI's `cli/src/tunnels/dev_tunnels.rs`. */
+const TUNNEL_NAME_REGEX = /^[\w-]+$/;
+
+export const RemoteTunnelCommandIds = {
+	turnOn: 'workbench.remoteTunnel.actions.turnOn',
+	turnOff: 'workbench.remoteTunnel.actions.turnOff',
+	connecting: 'workbench.remoteTunnel.actions.connecting',
+	manage: 'workbench.remoteTunnel.actions.manage',
+	showLog: 'workbench.remoteTunnel.actions.showLog',
+	configure: 'workbench.remoteTunnel.actions.configure',
+	rename: 'workbench.remoteTunnel.actions.rename',
+	copyToClipboard: 'workbench.remoteTunnel.actions.copyToClipboard',
+	learnMore: 'workbench.remoteTunnel.actions.learnMore',
+} as const;
 
 // name shown in nofications
 namespace RemoteTunnelCommandLabels {
@@ -77,6 +88,35 @@ namespace RemoteTunnelCommandLabels {
 	export const configure = localize('remoteTunnel.actions.configure', 'Configure Tunnel Name...');
 	export const copyToClipboard = localize('remoteTunnel.actions.copyToClipboard', 'Copy Browser URI to Clipboard');
 	export const learnMore = localize('remoteTunnel.actions.learnMore', 'Get Started with Tunnels');
+}
+
+export async function promptToRenameRemoteTunnel(
+	quickInputService: IQuickInputService,
+	configurationService: IConfigurationService,
+	currentName: string | undefined,
+): Promise<void> {
+	const name = await quickInputService.input({
+		title: localize('renameTunnel.title', "Rename Tunnel"),
+		prompt: localize('renameTunnel.prompt', "Enter a name for this tunnel."),
+		value: currentName,
+		placeHolder: localize('renameTunnel.placeholder', "Leave blank to use this machine's host name."),
+		validateInput: async input => {
+			if (input.length === 0) {
+				return undefined;
+			}
+			if (input.length > MAX_TUNNEL_NAME_LENGTH) {
+				return localize('renameTunnel.maxLength', "The name must not be longer than {0} characters.", MAX_TUNNEL_NAME_LENGTH);
+			}
+			if (!TUNNEL_NAME_REGEX.test(input) || input.startsWith('-')) {
+				return localize('renameTunnel.invalidName', "The name must only consist of letters, numbers, underscore and dash. It must not start with a dash.");
+			}
+			return undefined;
+		},
+	});
+
+	if (name !== undefined) {
+		await configurationService.updateValue(CONFIGURATION_KEY_HOST_NAME, name || undefined, ConfigurationTarget.USER);
+	}
 }
 
 
@@ -290,7 +330,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		return session.session.accessToken || session.session.idToken;
 	}
 
-	private async startTunnel(asService: boolean): Promise<ConnectionInfo | undefined> {
+	private async startTunnel(asService: boolean, authenticationProviderId?: 'github'): Promise<ConnectionInfo | undefined> {
 		if (this.connectionInfo) {
 			return this.connectionInfo;
 		}
@@ -301,7 +341,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		for (let i = 0; i < INVALID_TOKEN_RETRIES; i++) {
 			tokenProblems = false;
 
-			const authenticationSession = await this.getAuthenticationSession();
+			const authenticationSession = await this.getAuthenticationSession(authenticationProviderId);
 			if (authenticationSession === undefined) {
 				this.logger.info('No authentication session available, not starting tunnel');
 				return undefined;
@@ -371,14 +411,19 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		return undefined;
 	}
 
-	private async getAuthenticationSession(): Promise<ExistingSessionItem | undefined> {
-		const sessions = await this.getAllSessions();
+	private async getAuthenticationSession(authenticationProviderId?: 'github'): Promise<ExistingSessionItem | undefined> {
+		if (authenticationProviderId) {
+			return this.getAuthenticationSessionForProvider(authenticationProviderId);
+		}
+
+		const authenticationProviders = await this.getAuthenticationProviders();
+		const sessions = await this.getAllSessions(authenticationProviders);
 		const disposables = new DisposableStore();
 		const quickpick = disposables.add(this.quickInputService.createQuickPick<ExistingSessionItem | AuthenticationProviderOption | IQuickPickItem>({ useSeparators: true }));
 		quickpick.ok = false;
 		quickpick.placeholder = localize('accountPreference.placeholder', "Sign in to an account to enable remote access");
 		quickpick.ignoreFocusOut = true;
-		quickpick.items = await this.createQuickpickItems(sessions);
+		quickpick.items = await this.createQuickpickItems(sessions, authenticationProviders);
 
 		return new Promise((resolve, reject) => {
 			disposables.add(quickpick.onDidHide((e) => {
@@ -403,6 +448,23 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		});
 	}
 
+	private async getAuthenticationSessionForProvider(providerId: 'github'): Promise<ExistingSessionItem | undefined> {
+		const provider = (await this.getAuthenticationProviders()).find(provider => provider.id === providerId);
+		if (!provider) {
+			return undefined;
+		}
+
+		const session = (await this.getAllSessions([provider]))[0];
+		if (session) {
+			return session;
+		}
+
+		return this.createExistingSessionItem(
+			await this.authenticationService.createSession(provider.id, provider.scopes),
+			provider.id
+		);
+	}
+
 	private createExistingSessionItem(session: AuthenticationSession, providerId: string): ExistingSessionItem {
 		return {
 			label: session.account.label,
@@ -412,7 +474,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		};
 	}
 
-	private async createQuickpickItems(sessions: ExistingSessionItem[]): Promise<(ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[]> {
+	private async createQuickpickItems(sessions: ExistingSessionItem[], authenticationProviders: readonly IAuthenticationProvider[]): Promise<(ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[]> {
 		const options: (ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[] = [];
 
 		if (sessions.length) {
@@ -421,7 +483,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			options.push({ type: 'separator', label: localize('others', "Others") });
 		}
 
-		for (const authenticationProvider of (await this.getAuthenticationProviders())) {
+		for (const authenticationProvider of authenticationProviders) {
 			const signedInForProvider = sessions.some(account => account.providerId === authenticationProvider.id);
 			const provider = this.authenticationService.getProvider(authenticationProvider.id);
 			if (!signedInForProvider || provider.supportsMultipleAccounts) {
@@ -435,13 +497,12 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	/**
 	 * Returns all authentication sessions available from {@link getAuthenticationProviders}.
 	 */
-	private async getAllSessions(): Promise<ExistingSessionItem[]> {
-		const authenticationProviders = await this.getAuthenticationProviders();
+	private async getAllSessions(authenticationProviders?: readonly IAuthenticationProvider[]): Promise<ExistingSessionItem[]> {
 		const accounts = new Map<string, ExistingSessionItem>();
 		const currentAccount = await this.remoteTunnelService.getMode();
 		let currentSession: ExistingSessionItem | undefined;
 
-		for (const provider of authenticationProviders) {
+		for (const provider of authenticationProviders ?? await this.getAuthenticationProviders()) {
 			const sessions = await this.authenticationService.getSessions(provider.id, provider.scopes);
 
 			for (const session of sessions) {
@@ -512,7 +573,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 
-			async run(accessor: ServicesAccessor) {
+			async run(accessor: ServicesAccessor, options?: IRemoteTunnelStartOptions) {
 				const notificationService = accessor.get(INotificationService);
 				const clipboardService = accessor.get(IClipboardService);
 				const commandService = accessor.get(ICommandService);
@@ -534,60 +595,67 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					storageService.store(REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 
-				const disposables = new DisposableStore();
-				const quickPick = quickInputService.createQuickPick<IQuickPickItem & { service: boolean }>();
-				quickPick.placeholder = localize('tunnel.enable.placeholder', 'Select how you want to enable access');
-				quickPick.items = [
-					{ service: false, label: localize('tunnel.enable.session', 'Turn on for this session'), description: localize('tunnel.enable.session.description', 'Run whenever {0} is open', productService.nameShort) },
-					{ service: true, label: localize('tunnel.enable.service', 'Install as a service'), description: localize('tunnel.enable.service.description', 'Run whenever you\'re logged in') }
-				];
-
-				const asService = await new Promise<boolean | undefined>(resolve => {
-					disposables.add(quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0]?.service)));
-					disposables.add(quickPick.onDidHide(() => resolve(undefined)));
-					quickPick.show();
-				});
-
-				quickPick.dispose();
+				const asService = options?.showServiceOption === false
+					? false
+					: await new Promise<boolean | undefined>(resolve => {
+						const disposables = new DisposableStore();
+						const quickPick = disposables.add(quickInputService.createQuickPick<IQuickPickItem & { service: boolean }>());
+						quickPick.placeholder = localize('tunnel.enable.placeholder', 'Select how you want to enable access');
+						quickPick.items = [
+							{ service: false, label: localize('tunnel.enable.session', 'Turn on for this session'), description: localize('tunnel.enable.session.description', 'Run whenever {0} is open', productService.nameShort) },
+							{ service: true, label: localize('tunnel.enable.service', 'Install as a service'), description: localize('tunnel.enable.service.description', 'Run whenever you\'re logged in') }
+						];
+						disposables.add(quickPick.onDidAccept(() => {
+							resolve(quickPick.selectedItems[0]?.service);
+							quickPick.hide();
+						}));
+						disposables.add(quickPick.onDidHide(() => {
+							disposables.dispose();
+							resolve(undefined);
+						}));
+						quickPick.show();
+					});
 
 				if (asService === undefined) {
 					return; // no-op
 				}
 
-				const connectionInfo = await that.startTunnel(/* installAsService= */ asService);
+				const connectionInfo = await that.startTunnel(/* installAsService= */ asService, options?.authenticationProviderId);
 
 				if (connectionInfo) {
-					const remoteExtension = that.serverConfiguration.extension;
-					if (connectionInfo.link && connectionInfo.domain) {
-						const linkToOpen = that.getLinkToOpen(connectionInfo.link);
-						const linkToOpenForMarkdown = linkToOpen.toString(false).replace(/\)/g, '%29');
-						notificationService.notify({
-							severity: Severity.Info,
-							message:
-								localize(
-									{
-										key: 'progress.turnOn.final',
-										comment: ['{0} will be the tunnel name, {1} will the link address to the web UI, {6} an extension name, {7} a link to the extension documentation. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
-									},
-									"You can now access this machine anywhere via the secure tunnel [{0}](command:{4}). To connect via a different machine, use the generated [{1}]({2}) link or use the [{6}]({7}) extension in the desktop or web. You can [configure](command:{3}) or [turn off](command:{5}) this access via the VS Code Accounts menu.",
-									connectionInfo.tunnelName, connectionInfo.domain, linkToOpenForMarkdown, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff, remoteExtension.friendlyName, 'https://code.visualstudio.com/docs/remote/tunnels'
-								),
-							actions: {
-								primary: [
-									toAction({ id: 'copyToClipboard', label: localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), run: () => clipboardService.writeText(linkToOpen.toString(true)) }),
-									toAction({
-										id: 'showExtension', label: localize('action.showExtension', "Show Extension"), run: () => {
-											return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', [remoteExtension.extensionId]);
-										}
-									})
-								]
-							}
-						});
-					} else {
-						notificationService.notify({
-							severity: Severity.Info,
-							message: localize('progress.turnOn.final.noLink', "Remote Tunnel Access is enabled for {0}. You can [configure](command:{1}) or [turn off](command:{2}) this access via the VS Code Accounts menu.", connectionInfo.tunnelName, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff),
-						});
+					if (options?.showSuccessNotification !== false) {
+						const remoteExtension = that.serverConfiguration.extension;
+						if (connectionInfo.link && connectionInfo.domain) {
+							const linkToOpen = that.getLinkToOpen(connectionInfo.link);
+							const linkToOpenForMarkdown = linkToOpen.toString(false).replace(/\)/g, '%29');
+							notificationService.notify({
+								severity: Severity.Info,
+								message:
+									localize(
+										{
+											key: 'progress.turnOn.final',
+											comment: ['{0} will be the tunnel name, {1} will the link address to the web UI, {6} an extension name, {7} a link to the extension documentation. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
+										},
+										"You can now access this machine anywhere via the secure tunnel [{0}](command:{4}). To connect via a different machine, use the generated [{1}]({2}) link or use the [{6}]({7}) extension in the desktop or web. You can [configure](command:{3}) or [turn off](command:{5}) this access via the VS Code Accounts menu.",
+										connectionInfo.tunnelName, connectionInfo.domain, linkToOpenForMarkdown, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff, remoteExtension.friendlyName, 'https://code.visualstudio.com/docs/remote/tunnels'
+									),
+								actions: {
+									primary: [
+										toAction({ id: 'copyToClipboard', label: localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), run: () => clipboardService.writeText(linkToOpen.toString(true)) }),
+										toAction({
+											id: 'showExtension', label: localize('action.showExtension', "Show Extension"), run: () => {
+												return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', [remoteExtension.extensionId]);
+											}
+										})
+									]
+								}
+							});
+						} else {
+							notificationService.notify({
+								severity: Severity.Info,
+								message: localize('progress.turnOn.final.noLink', "Remote Tunnel Access is enabled for {0}. You can [configure](command:{1}) or [turn off](command:{2}) this access via the VS Code Accounts menu.", connectionInfo.tunnelName, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff),
+							});
+						}
 					}
 					const usedOnHostMessage: UsedOnHostMessage = { hostName: connectionInfo.tunnelName, timeStamp: new Date().getTime() };
 					storageService.store(REMOTE_TUNNEL_USED_STORAGE_KEY, JSON.stringify(usedOnHostMessage), StorageScope.APPLICATION, StorageTarget.USER);
@@ -619,6 +687,28 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 			async run() {
 				that.showManageOptions();
+			}
+		}));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: RemoteTunnelCommandIds.rename,
+					title: localize2('remoteTunnel.actions.rename', 'Rename Tunnel'),
+					category: REMOTE_TUNNEL_CATEGORY,
+					menu: [{
+						id: MenuId.CommandPalette,
+						when: ContextKeyExpr.notEquals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, ''),
+					}]
+				});
+			}
+
+			async run(accessor: ServicesAccessor) {
+				await promptToRenameRemoteTunnel(
+					accessor.get(IQuickInputService),
+					accessor.get(IConfigurationService),
+					that.connectionInfo?.tunnelName ?? await that.remoteTunnelService.getTunnelName(),
+				);
 			}
 		}));
 

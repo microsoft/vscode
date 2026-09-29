@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, notStrictEqual, ok, strictEqual } from 'assert';
-import { mkdtemp, rm } from 'fs/promises';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
 import type * as http from 'http';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
@@ -268,6 +268,45 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		}
 	});
 
+	for (const protocol of ['http/json', 'http/protobuf', 'grpc'] as const) {
+		test(`native SDK config resolves trace endpoints without changing other signals (${protocol})`, async () => {
+			const saved = saveEnv();
+			try {
+				process.env.OTEL_EXPORTER_OTLP_PROTOCOL = protocol;
+				process.env.OTEL_EXPORTER_OTLP_HEADERS = 'Authorization=Bearer%20test-token';
+				const di = store.add(new TestInstantiationService());
+				di.set(ILogService, new NullLogService());
+				di.set(INativeEnvironmentService, makeEnvService(tmpdir()));
+
+				const endpoints = [
+					['http://collector:4318', 'http://collector:4318/v1/traces'],
+					['http://collector:4318/', 'http://collector:4318/v1/traces'],
+					['https://collector/?tenant=test', 'https://collector/v1/traces?tenant=test'],
+					['http://collector:4318/v1/traces', 'http://collector:4318/v1/traces'],
+					['http://collector:4318/custom/path', 'http://collector:4318/custom/path'],
+					['not a url', 'not a url'],
+				];
+				const actual = [];
+				const expected = [];
+				for (const [endpoint, tracesEndpoint] of endpoints) {
+					process.env.OTEL_EXPORTER_OTLP_ENDPOINT = endpoint;
+					const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+					const native = await svc.getNativeSdkTelemetryConfig();
+					const sdk = await svc.getSdkTelemetryConfig();
+					actual.push({ traces: native?.traces, external: native?.external, sdkEndpoint: sdk?.otlpEndpoint });
+					expected.push({
+						traces: { endpoint: protocol === 'grpc' ? endpoint : tracesEndpoint, protocol, headers: { Authorization: 'Bearer test-token' } },
+						external: { endpoint, protocol, headers: { Authorization: 'Bearer test-token' } },
+						sdkEndpoint: endpoint,
+					});
+				}
+				deepStrictEqual(actual, expected);
+			} finally {
+				restoreEnv(saved);
+			}
+		});
+	}
+
 	test('external-only unsupported synthetic protocols do not propagate a missing anchor', async () => {
 		const saved = saveEnv();
 		try {
@@ -331,6 +370,30 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			strictEqual(context.traceparent, `00-${context.traceId}-${context.spanId}-01`);
 			strictEqual(svc.withTraceContext(context, () => svc.getCurrentTraceContext()), context);
 			strictEqual(svc.getCurrentTraceContext(), undefined);
+		} finally {
+			restoreEnv(saved);
+		}
+	});
+
+	test('DB startup failure falls back to a signal-specific native trace endpoint', async () => {
+		const saved = saveEnv();
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+		store.add({ dispose: () => void rm(tmp, { recursive: true, force: true }).catch(() => undefined) });
+		try {
+			const userDataPath = join(tmp, 'not-a-directory');
+			await writeFile(userDataPath, '');
+			process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
+			process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector:4318';
+			const di = store.add(new TestInstantiationService());
+			di.set(ILogService, new NullLogService());
+			di.set(INativeEnvironmentService, makeEnvService(userDataPath));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+
+			const config = await svc.getNativeSdkTelemetryConfig();
+			deepStrictEqual({ traces: config?.traces, external: config?.external }, {
+				traces: { endpoint: 'http://collector:4318/v1/traces', protocol: 'http/json' },
+				external: { endpoint: 'http://collector:4318', protocol: 'http/json' },
+			});
 		} finally {
 			restoreEnv(saved);
 		}

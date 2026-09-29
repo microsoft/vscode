@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingEditorVerticalMargins, getFloatingOuterEdgeOwners, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins, getFloatingSidebarSiblingToEditorStatus, isFloatingTopEdgeExposed, type PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
+import { COMPACT_FLOATING_PANEL_MARGIN, COMPACT_FLOATING_PANEL_OUTER_MARGIN, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingEditorVerticalMargins, getFloatingOuterEdgeOwners, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins, getFloatingPanelMargin, getFloatingPanelOuterMargin, getFloatingSidebarSiblingToEditorStatus, isFloatingTopEdgeExposed, type PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('LayoutService - isFloatingTopEdgeExposed', () => {
@@ -46,15 +46,24 @@ suite('LayoutService - floating panel spacing', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses a 4px inter-card gap', () => {
+	test('uses density-specific inter-card and perimeter gaps', () => {
+		const compactLayoutService = new TestLayoutService();
+		compactLayoutService.isModernUICompact = () => true;
+
 		assert.deepStrictEqual({
 			leadingMargin: FLOATING_PANEL_MARGIN,
 			trailingMargin: FLOATING_PANEL_INNER_MARGIN,
 			gap: FLOATING_PANEL_MARGIN + FLOATING_PANEL_INNER_MARGIN,
+			outerMargin: getFloatingPanelOuterMargin(new TestLayoutService()),
+			compactMargin: getFloatingPanelMargin(compactLayoutService),
+			compactOuterMargin: getFloatingPanelOuterMargin(compactLayoutService),
 		}, {
 			leadingMargin: 4,
 			trailingMargin: 0,
 			gap: 4,
+			outerMargin: 4,
+			compactMargin: 0,
+			compactOuterMargin: 0,
 		});
 	});
 });
@@ -65,11 +74,13 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 
 	class ConfigurableLayoutService extends TestLayoutService {
 		floatingPanelsEnabled = true;
+		modernUICompact = false;
 		sideBarPosition = Position.LEFT;
 		panelPosition = Position.BOTTOM;
 		visibleParts = new Set<Parts>();
 
 		override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
+		override isModernUICompact(): boolean { return this.modernUICompact; }
 		override getSideBarPosition(): Position { return this.sideBarPosition; }
 		override getPanelPosition(): Position { return this.panelPosition; }
 		override isVisible(part: Parts): boolean { return this.visibleParts.has(part); }
@@ -86,12 +97,17 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			// Experiment disabled: no owners regardless of layout.
 			disabled: owners(s => { s.floatingPanelsEnabled = false; s.visibleParts = new Set([Parts.AUXILIARYBAR_PART]); }),
 
-			// Default full layout (side bar left): activity bar hugs the left edge (no owner),
-			// the secondary side bar owns the right edge.
+			// Default full layout (side bar left): the activity bar is the outermost card of the
+			// side bar cluster and owns the left edge, the secondary side bar owns the right edge.
 			defaultFull: owners(s => { s.visibleParts = new Set([Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]); }),
+			defaultFullSideBarRight: owners(s => { s.sideBarPosition = Position.RIGHT; s.visibleParts = new Set([Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]); }),
+
+			// Compact density resolves ownership identically.
+			compactFull: owners(s => { s.modernUICompact = true; s.visibleParts = new Set([Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]); }),
+			compactFullSideBarRight: owners(s => { s.modernUICompact = true; s.sideBarPosition = Position.RIGHT; s.visibleParts = new Set([Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]); }),
 
 			// Maximized aux bar with the activity bar in its default (visible) position: the
-			// activity bar still hugs the left edge, the aux bar owns the right edge.
+			// activity bar owns the left edge, the aux bar owns the right edge.
 			maximizedAuxWithActivityBar: owners(s => { s.visibleParts = new Set([Parts.ACTIVITYBAR_PART, Parts.AUXILIARYBAR_PART]); }),
 
 			// Maximized aux bar with the activity bar not in its default position (hidden from
@@ -120,12 +136,15 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 
 		assert.deepStrictEqual(actual, {
 			disabled: { left: undefined, right: undefined },
-			defaultFull: { left: undefined, right: Parts.AUXILIARYBAR_PART },
-			maximizedAuxWithActivityBar: { left: undefined, right: Parts.AUXILIARYBAR_PART },
+			defaultFull: { left: Parts.ACTIVITYBAR_PART, right: Parts.AUXILIARYBAR_PART },
+			defaultFullSideBarRight: { left: Parts.AUXILIARYBAR_PART, right: Parts.ACTIVITYBAR_PART },
+			compactFull: { left: Parts.ACTIVITYBAR_PART, right: Parts.AUXILIARYBAR_PART },
+			compactFullSideBarRight: { left: Parts.AUXILIARYBAR_PART, right: Parts.ACTIVITYBAR_PART },
+			maximizedAuxWithActivityBar: { left: Parts.ACTIVITYBAR_PART, right: Parts.AUXILIARYBAR_PART },
 			maximizedAuxNoActivityBar: { left: Parts.AUXILIARYBAR_PART, right: Parts.AUXILIARYBAR_PART },
 			maximizedAuxNoActivityBarSideBarRight: { left: Parts.AUXILIARYBAR_PART, right: Parts.AUXILIARYBAR_PART },
 			editorOnly: { left: Parts.EDITOR_PART, right: Parts.EDITOR_PART },
-			verticalPanelFull: { left: undefined, right: Parts.AUXILIARYBAR_PART },
+			verticalPanelFull: { left: Parts.ACTIVITYBAR_PART, right: Parts.AUXILIARYBAR_PART },
 			maximizedVerticalPanel: { left: Parts.PANEL_PART, right: Parts.PANEL_PART },
 			horizontalPanelVisible: { left: Parts.SIDEBAR_PART, right: Parts.AUXILIARYBAR_PART },
 		});
@@ -138,30 +157,67 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 
 	class HorizontalMarginLayoutService extends TestLayoutService {
 		floatingPanelsEnabled = true;
+		modernUICompact = false;
 		sideBarPosition = Position.LEFT;
+		panelPosition = Position.BOTTOM;
+		panelAlignment: PanelAlignment = 'center';
 		visibleParts = new Set<Parts>();
 
 		override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
+		override isModernUICompact(): boolean { return this.modernUICompact; }
 		override getSideBarPosition(): Position { return this.sideBarPosition; }
+		override getPanelPosition(): Position { return this.panelPosition; }
+		override getPanelAlignment(): PanelAlignment { return this.panelAlignment; }
 		override isVisible(part: Parts): boolean { return this.visibleParts.has(part); }
 	}
 
-	function margins(partId: Parts, visibleParts: Parts[], sideBarPosition = Position.LEFT): { left: number; right: number } {
+	function margins(partId: Parts, visibleParts: Parts[], sideBarPosition = Position.LEFT, compact = false, panelAlignment: PanelAlignment = 'center'): { left: number; right: number } {
 		const service = new HorizontalMarginLayoutService();
 		service.sideBarPosition = sideBarPosition;
 		service.visibleParts = new Set(visibleParts);
+		service.modernUICompact = compact;
+		service.panelAlignment = panelAlignment;
 		return getFloatingPaneCompositeHorizontalMargins(service, partId);
 	}
 
-	test('secondary side bar uses an 8px gutter opposite the activity bar', () => {
+	test('horizontal margins across densities and side bar positions', () => {
 		assert.deepStrictEqual({
 			activityBarLeft: margins(Parts.AUXILIARYBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]),
 			activityBarRight: margins(Parts.AUXILIARYBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT),
 			secondarySideBarOnly: margins(Parts.AUXILIARYBAR_PART, [Parts.AUXILIARYBAR_PART]),
+
+			// Default density: the primary side bar meets the activity bar rail flush on the
+			// facing edge, and falls back to the outer gutter when the rail is hidden.
+			primarySideBarLeft: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.LEFT),
+			primarySideBarRight: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.RIGHT),
+			primarySideBarLeftNoActivityBar: margins(Parts.SIDEBAR_PART, [Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.LEFT),
+
+			compactSecondarySideBarOnly: margins(Parts.AUXILIARYBAR_PART, [Parts.AUXILIARYBAR_PART], Position.LEFT, true),
+			compactPrimarySideBarLeft: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.LEFT, true),
+			compactPrimarySideBarRight: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.RIGHT, true),
+			justifiedPanelSideBarRight: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, false, 'justify'),
+			rightAlignedPanelSideBarRight: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, false, 'right'),
+			leftAlignedPanelSideBarRight: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, false, 'left'),
+			justifiedPanelSideBarHidden: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, false, 'justify'),
+			compactJustifiedPanel: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.LEFT, true, 'justify'),
+			compactJustifiedPanelSideBarRight: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, true, 'justify'),
 		}, {
-			activityBarLeft: { left: 4, right: 8 },
-			activityBarRight: { left: 8, right: 0 },
-			secondarySideBarOnly: { left: 8, right: 8 },
+			// The default density keeps its 4px perimeter and inter-card gaps.
+			activityBarLeft: { left: 4, right: 4 },
+			activityBarRight: { left: 4, right: 0 },
+			secondarySideBarOnly: { left: 4, right: 4 },
+			primarySideBarLeft: { left: FLOATING_PANEL_INNER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			primarySideBarRight: { left: 4, right: FLOATING_PANEL_INNER_MARGIN },
+			primarySideBarLeftNoActivityBar: { left: 4, right: FLOATING_PANEL_INNER_MARGIN },
+			compactSecondarySideBarOnly: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			compactPrimarySideBarLeft: { left: COMPACT_FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			compactPrimarySideBarRight: { left: COMPACT_FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			justifiedPanelSideBarRight: { left: FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_MARGIN },
+			rightAlignedPanelSideBarRight: { left: FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_MARGIN },
+			leftAlignedPanelSideBarRight: { left: FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			justifiedPanelSideBarHidden: { left: FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			compactJustifiedPanel: { left: COMPACT_FLOATING_PANEL_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			compactJustifiedPanelSideBarRight: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 		});
 	});
 });
@@ -221,11 +277,13 @@ suite('LayoutService - getFloatingSidebarSiblingToEditorStatus', () => {
  */
 class VerticalMarginLayoutService extends TestLayoutService {
 	floatingPanelsEnabled = true;
+	modernUICompact = false;
 	panelPosition = Position.BOTTOM;
 	panelAlignment: PanelAlignment = 'center';
 	visibleParts = new Set<Parts>([Parts.TITLEBAR_PART, Parts.STATUSBAR_PART, Parts.EDITOR_PART]);
 
 	override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
+	override isModernUICompact(): boolean { return this.modernUICompact; }
 	override getPanelPosition(): Position { return this.panelPosition; }
 	override getPanelAlignment(): PanelAlignment { return this.panelAlignment; }
 	override isVisible(part: Parts): boolean { return this.visibleParts.has(part); }
@@ -243,7 +301,8 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 
 	const inner = FLOATING_PANEL_INNER_MARGIN;
 	const margin = FLOATING_PANEL_MARGIN;
-	const outer = FLOATING_PANEL_MARGIN * 2;
+	// The window-edge perimeter matches the inter-card gap at the default density.
+	const outer = FLOATING_PANEL_MARGIN;
 
 	test('bottom panel top margin across editor visibility and top edge', () => {
 		const bottomPanel = (configure: (s: VerticalMarginLayoutService) => void) => margins(Parts.PANEL_PART, s => { s.visibleParts.add(Parts.PANEL_PART); configure(s); });
@@ -289,18 +348,48 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 			// Full-height bar with the status bar hidden: it does reach the window bottom.
 			sideBarBottomPanelCentered: margins(Parts.SIDEBAR_PART, s => { s.visibleParts.add(Parts.PANEL_PART); s.visibleParts.delete(Parts.STATUSBAR_PART); }),
 
+			// Maximized top panel: the editor it normally faces is hidden, so the panel now owns
+			// the cluster's bottom edge and takes the perimeter gutter there.
+			topPanelMaximized: margins(Parts.PANEL_PART, s => { s.panelPosition = Position.TOP; s.visibleParts.add(Parts.PANEL_PART); s.visibleParts.delete(Parts.EDITOR_PART); s.visibleParts.delete(Parts.STATUSBAR_PART); }),
+
 			// Experiment off: the parts are not cards at all.
 			disabled: margins(Parts.SIDEBAR_PART, s => { s.floatingPanelsEnabled = false; s.visibleParts.clear(); }),
 		};
 
 		assert.deepStrictEqual(actual, {
 			topPanelStatusBarHidden: { top: inner, bottom: inner },
+			topPanelMaximized: { top: inner, bottom: outer },
 			leftPanelAtBothEdges: { top: outer, bottom: outer },
 			sideBarTopPanelCentered: { top: outer, bottom: margin },
 			sideBarTopPanelJustified: { top: margin, bottom: margin },
 			sideBarBottomPanelJustified: { top: inner, bottom: inner },
 			sideBarBottomPanelCentered: { top: inner, bottom: outer },
 			disabled: { top: 0, bottom: 0 },
+		});
+	});
+
+	test('compact density keeps internal seams and window edges flush', () => {
+		assert.deepStrictEqual({
+			atWindowEdges: margins(Parts.PANEL_PART, service => {
+				service.modernUICompact = true;
+				service.panelPosition = Position.LEFT;
+				service.visibleParts.add(Parts.PANEL_PART);
+				service.visibleParts.delete(Parts.TITLEBAR_PART);
+				service.visibleParts.delete(Parts.STATUSBAR_PART);
+			}),
+			betweenTitleAndStatusBars: margins(Parts.PANEL_PART, service => {
+				service.modernUICompact = true;
+				service.panelPosition = Position.LEFT;
+				service.visibleParts.add(Parts.PANEL_PART);
+			}),
+			betweenEditorAndStatusBar: margins(Parts.PANEL_PART, service => {
+				service.modernUICompact = true;
+				service.visibleParts.add(Parts.PANEL_PART);
+			}),
+		}, {
+			atWindowEdges: { top: 0, bottom: 0 },
+			betweenTitleAndStatusBars: { top: 0, bottom: 0 },
+			betweenEditorAndStatusBar: { top: 0, bottom: 0 },
 		});
 	});
 });
@@ -317,7 +406,8 @@ suite('LayoutService - getFloatingEditorVerticalMargins', () => {
 
 	const inner = FLOATING_PANEL_INNER_MARGIN;
 	const margin = FLOATING_PANEL_MARGIN;
-	const outer = FLOATING_PANEL_MARGIN * 2;
+	// The window-edge perimeter matches the inter-card gap at the default density.
+	const outer = FLOATING_PANEL_MARGIN;
 
 	test('margins across panel positions, title bar, banner and status bar', () => {
 		const actual = {
@@ -351,6 +441,22 @@ suite('LayoutService - getFloatingEditorVerticalMargins', () => {
 			statusBarHidden: { top: inner, bottom: outer },
 			bottomPanelStatusBarHidden: { top: inner, bottom: inner },
 			disabled: { top: 0, bottom: 0 },
+		});
+	});
+
+	test('compact density sits flush against window chrome', () => {
+		assert.deepStrictEqual({
+			betweenTitleAndStatusBars: margins(service => {
+				service.modernUICompact = true;
+			}),
+			atWindowEdges: margins(service => {
+				service.modernUICompact = true;
+				service.visibleParts.delete(Parts.TITLEBAR_PART);
+				service.visibleParts.delete(Parts.STATUSBAR_PART);
+			}),
+		}, {
+			betweenTitleAndStatusBars: { top: 0, bottom: 0 },
+			atWindowEdges: { top: 0, bottom: 0 },
 		});
 	});
 });

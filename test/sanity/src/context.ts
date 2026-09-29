@@ -450,7 +450,7 @@ export class TestContext {
 		}
 
 		const files: string[] = [];
-		this.collectFiles(artifactDir, files);
+		this.collectFiles(artifactDir, files, true);
 		if (files.length !== 1) {
 			this.error(`Expected exactly one file in artifact ${artifact}, found ${files.length}: ${files.join(', ')}`);
 		}
@@ -460,15 +460,14 @@ export class TestContext {
 	}
 
 	/**
-	 * Collects all files from the specified directory recursively, skipping the SBOM manifest
-	 * that 1ES injects into every published artifact.
+	 * Collects all files from the specified directory recursively.
 	 */
-	private collectFiles(dir: string, files: string[]): void {
+	private collectFiles(dir: string, files: string[], skipInjectedManifest = false): void {
 		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
 			const filePath = path.join(dir, entry.name);
 			if (entry.isDirectory()) {
-				if (entry.name !== '_manifest') {
-					this.collectFiles(filePath, files);
+				if (!skipInjectedManifest || entry.name !== '_manifest') {
+					this.collectFiles(filePath, files, skipInjectedManifest);
 				}
 			} else {
 				files.push(filePath);
@@ -897,9 +896,9 @@ export class TestContext {
 	private getWindowsInstallDir(type: 'user' | 'system'): string {
 		let parentDir: string;
 		if (type === 'system') {
-			parentDir = process.env['ProgramW6432'] || process.env['PROGRAMFILES'] || '';
+			parentDir = process.env.ProgramW6432 || process.env.PROGRAMFILES || '';
 		} else {
-			parentDir = path.join(process.env['LOCALAPPDATA'] || '', 'Programs');
+			parentDir = path.join(process.env.LOCALAPPDATA || '', 'Programs');
 		}
 
 		switch (this.options.quality) {
@@ -961,7 +960,10 @@ export class TestContext {
 
 		await this.timeout(2000);
 		if (fs.existsSync(appDir)) {
-			this.error(`Installation directory still exists after uninstall: ${appDir}`);
+			const remainingFiles: string[] = [];
+			this.collectFiles(appDir, remainingFiles);
+			const remainingFileList = remainingFiles.map(file => path.relative(appDir, file)).sort().join('\n') || '(no files)';
+			this.error(`Installation directory still exists after uninstall: ${appDir}\nRemaining files:\n${remainingFileList}`);
 		}
 	}
 
@@ -1282,13 +1284,13 @@ export class TestContext {
 				return await webkit.launch({ headless });
 			}
 			case 'win32': {
-				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+				const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 				this.log(`Using Chromium executable at: ${executablePath}`);
 				return await chromium.launch({ headless, executablePath });
 			}
 			case 'linux':
 			default: {
-				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? '/usr/bin/chromium-browser';
+				const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? '/usr/bin/chromium-browser';
 				this.log(`Using Chromium executable at: ${executablePath}`);
 				return await chromium.launch({
 					headless,

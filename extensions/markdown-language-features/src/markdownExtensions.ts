@@ -48,6 +48,7 @@ export interface MarkdownCodeBlockEditorProvider {
 	readonly providerId: string;
 	readonly extension: vscode.Extension<unknown>;
 	readonly extensionVersion: string;
+	readonly runtimeKey?: string;
 	readonly selector: MarkdownCodeBlockEditorSelector;
 	readonly source: MarkdownCodeBlockEditorSource;
 	readonly contentType: 'text' | 'json';
@@ -100,6 +101,7 @@ export namespace MarkdownContributions {
 				&& x.providerId === y.providerId
 				&& x.extension.id === y.extension.id
 				&& x.extensionVersion === y.extensionVersion
+				&& x.runtimeKey === y.runtimeKey
 				&& selectorEqual(x.selector, y.selector)
 				&& sourceEqual(x.source, y.source)
 				&& x.contentType === y.contentType
@@ -179,6 +181,7 @@ export namespace MarkdownContributions {
 				typeof provider.id !== 'string'
 				|| !selector
 				|| !source
+				|| (provider.runtimeKey !== undefined && (typeof provider.runtimeKey !== 'string' || provider.runtimeKey.length === 0 || provider.runtimeKey.length > 256))
 				|| (provider.contentType !== undefined && provider.contentType !== 'text' && provider.contentType !== 'json')
 				|| (provider.initialHeight !== undefined && !isPositiveNumber(provider.initialHeight))
 			) {
@@ -189,6 +192,7 @@ export namespace MarkdownContributions {
 				providerId: provider.id,
 				extension,
 				extensionVersion: typeof extension.packageJSON?.version === 'string' ? extension.packageJSON.version : '',
+				runtimeKey: provider.runtimeKey as string | undefined,
 				selector,
 				source,
 				contentType: provider.contentType ?? 'text',

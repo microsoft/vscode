@@ -3,6 +3,16 @@ parameters:
     type: string # linux, darwin, win32
 
 steps:
+  - script: git lfs install --local
+    condition: and(succeeded(), eq(variables['Build.Repository.Provider'], 'TfsGit'))
+    displayName: Initialize Git LFS for Azure Repos
+
+  - script: git --config-env=http.extraheader=GIT_AUTH_HEADER lfs pull --include="extensions/copilot/test/simulation/cache/**"
+    condition: and(succeeded(), eq(variables['Build.Repository.Provider'], 'TfsGit'))
+    displayName: Pull Copilot test cache from Azure Repos
+    env:
+      GIT_AUTH_HEADER: "AUTHORIZATION: bearer $(System.AccessToken)"
+
   # Setup copilot test environment (tokens, env vars)
   - task: AzureCLI@2
     inputs:
@@ -94,25 +104,38 @@ steps:
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
+  # The Windows test tasks record checkpoints, see ../common/test-checkpoints.md
   - ${{ if eq(parameters.OS, 'win32') }}:
-    - powershell: npm run test:extension
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot extension tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-extension
+        testStep:
+          powershell: npm run test:extension
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot extension tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
     # MAYBE https://dev.azure.com/monacotools/Monaco/_build/results?buildId=426316&view=logs&j=573fdb8c-432d-57b7-addd-e5c3edb6227f&t=6fad2a73-ceba-567d-939f-7bd557eba1dc&s=40b405d8-d9ea-5f38-8ab3-8db0b216e2d0
-    - powershell: npm run test:completions-core
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot completions core tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-completions-core
+        testStep:
+          powershell: npm run test:completions-core
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot completions core tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
-    - powershell: npm run test:sanity
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot sanity tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-sanity
+        testStep:
+          powershell: npm run test:sanity
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot sanity tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)

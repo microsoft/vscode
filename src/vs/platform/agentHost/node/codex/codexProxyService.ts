@@ -6,10 +6,12 @@
 import type * as http from 'http';
 import * as fs from 'fs';
 import { join } from '../../../../base/common/path.js';
+import { SSEParser } from '../../../../base/common/sseParser.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { CopilotApiError, ICopilotApiService } from '../shared/copilotApiService.js';
 import { buildForwardedChatError, encodeForwardedChatError } from '../shared/proxyChatError.js';
+import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 import {
 	ILoopbackProxyHandle,
 	ILoopbackProxyRuntime,
@@ -62,6 +64,8 @@ export interface ICodexProxyService {
 
 export const ICodexProxyService = createDecorator<ICodexProxyService>('codexProxyService');
 
+export const CODEX_PORTABLE_HISTORY_HEADER = 'x-vscode-codex-portable-history';
+
 /** Subclass-owned per-bind mutable state: the active outbound CAPI token. */
 interface ICodexProxyState {
 	/** Token cell — read fresh on each outbound request. */
@@ -104,6 +108,7 @@ const CODEX_AUTO_REVIEW_MODEL = 'codex-auto-review';
 type ICodexProxyRuntime = ILoopbackProxyRuntime<ICodexProxyState>;
 
 const PROXY_USER_FACING_NAME = 'CodexProxyService';
+const PORTABLE_HISTORY_HEARTBEAT_INTERVAL_MS = 15_000;
 
 /**
  * User-agent prefix applied to outbound CAPI requests so the codex proxy's
@@ -162,6 +167,7 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
+		private readonly _now: () => number = () => performance.now(),
 		@ILogService logService: ILogService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 	) {
@@ -268,7 +274,8 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 		if (remap.remappedFrom) {
 			this._logService.info(`[${PROXY_USER_FACING_NAME}] remapped unsupported reviewer model '${remap.remappedFrom}' -> '${remap.remappedTo}'`);
 		}
-		body = remap.body;
+		const portableHistory = req.headers[CODEX_PORTABLE_HISTORY_HEADER] === 'true';
+		body = portableHistory ? makeCodexHistoryPortable(remap.body) : remap.body;
 
 		const dumpDir = getDumpDir();
 		const dumpSeq = dumpDir ? nextDumpSeq() : undefined;
@@ -350,12 +357,31 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 				res.end();
 				return;
 			}
+			if (portableHistory && contentType.startsWith('application/json')) {
+				res.end(makeCodexHistoryPortable(await upstream.text()));
+				return;
+			}
 			const reader = upstream.body.getReader();
 			const resDumpStream = dumpDir && dumpSeq
 				? fs.createWriteStream(join(dumpDir, `res-${dumpSeq}-${Date.now()}.txt`))
 				: undefined;
-			let sseBuf = '';
 			const eventCounts: Record<string, number> = {};
+			let lastWriteTime = this._now();
+			const parser = contentType.startsWith('text/event-stream') ? new SSEParser(event => {
+				eventCounts[event.type] = (eventCounts[event.type] ?? 0) + 1;
+				if (portableHistory) {
+					const fields = [`event: ${event.type}`];
+					if (event.id !== undefined) {
+						fields.push(`id: ${event.id}`);
+					}
+					if (event.retry !== undefined) {
+						fields.push(`retry: ${event.retry}`);
+					}
+					fields.push(...makeCodexHistoryPortable(event.data).split('\n').map(line => `data: ${line}`));
+					res.write(`${fields.join('\n')}\n\n`);
+					lastWriteTime = this._now();
+				}
+			}) : undefined;
 			try {
 				while (true) {
 					const { done, value } = await reader.read();
@@ -367,19 +393,16 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 					}
 					if (value && value.byteLength > 0) {
 						const buf = Buffer.from(value);
-						res.write(buf);
+						if (!portableHistory || !parser) {
+							res.write(buf);
+						}
 						if (resDumpStream) {
 							resDumpStream.write(buf);
 						}
-						sseBuf += buf.toString('utf8');
-						let nl: number;
-						while ((nl = sseBuf.indexOf('\n')) >= 0) {
-							const line = sseBuf.slice(0, nl).trimEnd();
-							sseBuf = sseBuf.slice(nl + 1);
-							if (line.startsWith('event:')) {
-								const ev = line.slice('event:'.length).trim();
-								eventCounts[ev] = (eventCounts[ev] ?? 0) + 1;
-							}
+						parser?.feed(value);
+						if (portableHistory && parser && this._now() - lastWriteTime >= PORTABLE_HISTORY_HEARTBEAT_INTERVAL_MS) {
+							res.write(': keep-alive\n\n');
+							lastWriteTime = this._now();
 						}
 					}
 				}
@@ -410,6 +433,44 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 			runtime.inFlight.delete(entry);
 		}
 	}
+}
+
+function makeCodexHistoryPortable(body: string): string {
+	let value: JsonValue;
+	try {
+		value = JSON.parse(body);
+	} catch {
+		return body;
+	}
+	if (!isResponseObject(value)) {
+		return body;
+	}
+	let changed = false;
+	const normalizeItem = (item: JsonValue | undefined) => {
+		if (isResponseObject(item) && item.type === 'reasoning' && item.encrypted_content !== undefined) {
+			delete item.encrypted_content;
+			changed = true;
+		}
+	};
+	if (Array.isArray(value.include) && value.include.includes('reasoning.encrypted_content')) {
+		value.include = value.include.filter(field => field !== 'reasoning.encrypted_content');
+		changed = true;
+	}
+	normalizeItem(value.item);
+	for (const container of [value, value.response]) {
+		if (isResponseObject(container)) {
+			for (const items of [container.input, container.output]) {
+				if (Array.isArray(items)) {
+					items.forEach(normalizeItem);
+				}
+			}
+		}
+	}
+	return changed ? JSON.stringify(value) : body;
+}
+
+function isResponseObject(value: JsonValue | undefined): value is { [key: string]: JsonValue | undefined } {
+	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 /**

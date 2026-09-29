@@ -22,7 +22,6 @@ export function getBrowserViewAttachmentMetadata(attachment: MessageAttachment):
 	if (!isBrowserViewAttachment(attachment)) {
 		return undefined;
 	}
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the namespaced browser view slot; validated below.
 	const metadata = attachment._meta?.[BrowserViewAttachmentMetadataKey];
 	if (!isRecord(metadata) || !isString(metadata.browserId) || !isString(metadata.browserUri)) {
 		return undefined;
