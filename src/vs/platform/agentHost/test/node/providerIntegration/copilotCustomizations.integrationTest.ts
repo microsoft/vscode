@@ -14,6 +14,7 @@ import { CopilotClient } from '@github/copilot-sdk';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
 import { customizationId, CustomizationType, ISessionWithDefaultChat, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
@@ -57,6 +58,11 @@ const TEST_TIMEOUT_MS = getAgentHostE2ETestTimeout(90_000, 180_000);
 const NOTIFICATION_TIMEOUT_MS = getAgentHostE2ETestTimeout(10_000, 30_000);
 const WATCH_ASSERT_TIMEOUT_MS = getAgentHostE2ETestTimeout(30_000, 90_000);
 const WATCH_ASSERT_POLL_INTERVAL_MS = 100;
+
+function quoteShellArgument(value: string): string {
+	return isWindows ? `"${value.replaceAll('"', '""')}"` : `'${value.replaceAll('\'', `'\\''`)}'`;
+}
+
 /**
  * Cadence at which {@link applyAndWaitForAssert} re-applies its mutation.
  *
@@ -717,7 +723,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			mkdir(join(pluginSourceDir, 'skills', 'installed-skill'), { recursive: true }),
 			mkdir(join(pluginSourceDir, 'rules'), { recursive: true }),
 		]);
-		const hookCommand = [process.execPath, hookScript, hookLog].map(value => JSON.stringify(value)).join(' ');
+		const hookCommand = [process.execPath, hookScript, hookLog].map(quoteShellArgument).join(' ');
 		await Promise.all([
 			writeFile(join(pluginSourceDir, 'plugin.json'), JSON.stringify({ name: 'SDK Installed Plugin', version: '1.0.0' }, undefined, 2)),
 			writeFile(join(pluginSourceDir, 'agents', 'installed.agent.md'), [
