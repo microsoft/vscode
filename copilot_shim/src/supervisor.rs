@@ -414,11 +414,14 @@ mod tests {
 
 	#[cfg(windows)]
 	fn unique_windows_path(name: &str, extension: &str) -> PathBuf {
+		// Test thread names contain `::`, which is not valid in Windows file names.
+		let thread = std::thread::current().name().unwrap_or("test").replace(
+			|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_',
+			"_",
+		);
 		std::env::temp_dir().join(format!(
-			"copilot-shim-{name}-{}-{}.{}",
+			"copilot-shim-{name}-{}-{thread}.{extension}",
 			std::process::id(),
-			std::thread::current().name().unwrap_or("test"),
-			extension
 		))
 	}
 

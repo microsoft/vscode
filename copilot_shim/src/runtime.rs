@@ -158,13 +158,20 @@ fn file_identity(_path: &Path, metadata: &std::fs::Metadata) -> io::Result<FileI
 
 #[cfg(windows)]
 fn file_identity(path: &Path, _metadata: &std::fs::Metadata) -> io::Result<FileIdentityState> {
+	use std::os::windows::fs::OpenOptionsExt;
 	use std::os::windows::io::AsRawHandle;
 
 	use windows_sys::Win32::Storage::FileSystem::{
-		GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+		GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_FLAG_BACKUP_SEMANTICS,
+		FILE_READ_ATTRIBUTES,
 	};
 
-	let file = File::open(path)?;
+	// Directories (PATH entries) can only be opened with FILE_FLAG_BACKUP_SEMANTICS, and attribute-only access
+	// avoids sharing conflicts with running executables.
+	let file = std::fs::OpenOptions::new()
+		.access_mode(FILE_READ_ATTRIBUTES)
+		.custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+		.open(path)?;
 	let mut information = BY_HANDLE_FILE_INFORMATION::default();
 	if unsafe { GetFileInformationByHandle(file.as_raw_handle(), &mut information) } == 0 {
 		let error = io::Error::last_os_error();
