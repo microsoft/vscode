@@ -311,11 +311,13 @@ suite('AgentFinderRestProvider', () => {
 		}
 
 		test('derives observed skill, standalone plugin, and marketplace plugin roots without exposing Cursor plugins', async () => {
+			const marketplacePluginSha = '0123456789abcdef0123456789abcdef01234567';
 			const result = await resources([
 				skill,
 				copilotPlugin,
 				claudePlugin,
 				marketplacePlugin,
+				{ ...marketplacePlugin, url: marketplacePlugin.url.replace('/main/', `/${marketplacePluginSha}/`) },
 				{
 					...skill,
 					type: CustomizationMarketplaceMediaType.CursorPlugin,
@@ -330,6 +332,7 @@ suite('AgentFinderRestProvider', () => {
 				{ kind: 'plugin', repository: 'github/awesome-copilot', ref: 'main', path: 'plugins/accessibility-kanban' },
 				{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'main', path: 'claude/modern-go-guidelines' },
 				{ kind: 'plugin', repository: 'github/copilot-plugins', ref: 'main', path: 'plugins/spark' },
+				{ kind: 'plugin', repository: 'github/copilot-plugins', ref: marketplacePluginSha, path: 'plugins/spark' },
 			]);
 		});
 
@@ -340,6 +343,7 @@ suite('AgentFinderRestProvider', () => {
 				{ ...marketplacePlugin, url: 'https://github.com/github/copilot-plugins/blob/main' },
 				{ ...marketplacePlugin, url: 'https://github.com/github/copilot-plugins/blob/main/plugins/.git' },
 				{ ...marketplacePlugin, url: 'https://github.com/github/copilot-plugins/blob/main/plugins%2Fspark' },
+				{ ...marketplacePlugin, url: 'https://github.com/github/copilot-plugins/blob/feature/catalog/plugins/spark' },
 			];
 			const result = await resources(variants);
 

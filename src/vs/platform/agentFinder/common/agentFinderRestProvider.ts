@@ -361,7 +361,7 @@ function parseInstallation(mediaType: string, metadata: Record<string, unknown> 
 	if (isMarketplacePlugin) {
 		const [ref, ...pathSegments] = parts;
 		const path = pathSegments.join('/');
-		return isSafeGitRef(ref) && isSafeSourcePath(path)
+		return isSupportedMarketplaceRef(ref) && isSafeSourcePath(path)
 			? { kind: 'plugin', repository: sourceSet, ref, path }
 			: undefined;
 	}
@@ -390,6 +390,10 @@ function isSafeSourcePath(path: string): boolean {
 function isSafeGitRef(ref: string): boolean {
 	return ref.length <= maxGitRefLength && isSafeSourcePath(ref) && !ref.includes('..') &&
 		ref.split('/').every(part => !part.startsWith('.') && !part.toLowerCase().endsWith('.lock'));
+}
+
+function isSupportedMarketplaceRef(ref: string): boolean {
+	return ref === 'main' || ref === 'master' || /^[0-9a-f]{40}$/i.test(ref);
 }
 
 function parseHttpUri(value: unknown): URI | undefined {

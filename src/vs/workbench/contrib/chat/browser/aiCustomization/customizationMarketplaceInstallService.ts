@@ -66,11 +66,13 @@ function matchesPluginInstallation(plugin: IMarketplacePlugin, source: PluginIns
 	if (descriptor.kind === PluginSourceKind.GitHub) {
 		return descriptor.repo.toLowerCase() === source.repository.toLowerCase() &&
 			(descriptor.path ?? '') === source.path &&
-			(descriptor.ref === source.ref || descriptor.sha === source.ref || descriptor.ref === resolvedRevision || descriptor.sha === resolvedRevision);
+			(descriptor.ref === source.ref || descriptor.sha === source.ref ||
+				resolvedRevision !== undefined && (descriptor.ref === resolvedRevision || descriptor.sha === resolvedRevision));
 	}
 	return descriptor.kind === PluginSourceKind.RelativePath &&
 		plugin.marketplaceReference.githubRepo?.toLowerCase() === source.repository.toLowerCase() &&
-		(plugin.marketplaceReference.ref === source.ref || plugin.marketplaceReference.ref === resolvedRevision) &&
+		(plugin.marketplaceReference.ref === source.ref ||
+			resolvedRevision !== undefined && plugin.marketplaceReference.ref === resolvedRevision) &&
 		plugin.source.replace(/^\.\//, '').replace(/\/$/, '') === source.path;
 }
 
@@ -1096,8 +1098,12 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			if (!matchesPluginInstallation(result.matchedPlugin, source)) {
 				throw new Error(localize('customizationMarketplace.pluginInstallIncomplete', "The plugin could not be installed. Review the installation error and try again."));
 			}
-			const repositoryDescriptor = { kind: PluginSourceKind.GitHub, repo: source.repository, ref: source.ref } as const;
-			const repository = this.repositoryService.getPluginSource(repositoryDescriptor.kind).getCleanupTarget(this.repositoryService.agentPluginsHome, repositoryDescriptor);
+			const descriptor = result.matchedPlugin.sourceDescriptor;
+			const repository = descriptor.kind === PluginSourceKind.RelativePath
+				? this.repositoryService.getRepositoryUri(result.matchedPlugin.marketplaceReference, result.matchedPlugin.marketplaceType)
+				: descriptor.kind === PluginSourceKind.GitHub
+					? this.repositoryService.getPluginSource(descriptor.kind).getCleanupTarget(this.repositoryService.agentPluginsHome, descriptor)
+					: undefined;
 			if (!repository) {
 				throw new Error(localize('customizationMarketplace.pluginInstallIncomplete', "The plugin could not be installed. Review the installation error and try again."));
 			}
