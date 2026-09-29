@@ -379,7 +379,7 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 		const fallback = DOM.append(templateData.icon, $('.codicon'));
 		fallback.classList.add(...ThemeIcon.asClassNameArray(type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : type === 'skill' ? Codicon.lightbulb : Codicon.file));
 		fallback.setAttribute('aria-hidden', 'true');
-		templateData.icon.classList.add('is-fallback');
+		templateData.icon.classList.toggle('is-fallback', !resource?.icon);
 		if (resource?.icon) {
 			const image = DOM.append(templateData.icon, $('img')) as HTMLImageElement;
 			image.alt = '';
@@ -1511,7 +1511,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const fallback = DOM.append(icon, $('.codicon'));
 		fallback.classList.add(...ThemeIcon.asClassNameArray(type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : Codicon.lightbulb));
 		fallback.setAttribute('aria-hidden', 'true');
-		icon.classList.add('is-fallback');
+		icon.classList.toggle('is-fallback', !item.icon);
 		if (item.icon) {
 			const image = DOM.append(icon, $('img')) as HTMLImageElement;
 			image.alt = '';

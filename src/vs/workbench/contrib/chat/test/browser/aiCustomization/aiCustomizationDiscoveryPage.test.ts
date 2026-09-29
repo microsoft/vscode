@@ -52,7 +52,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		configurationDependencies: [ChatConfiguration.StrictMarketplaces],
 	};
 	const sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed, CustomizationMarketplaceSources.CopilotConnectors, secondSource, pluginSource];
-	const testIcon = URI.parse('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==');
+	const testIcon = URI.parse('https://example.invalid/icon.png');
 
 	function resource(identifier: string, overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 		return {
@@ -263,6 +263,11 @@ suite('AICustomizationDiscoveryPage', () => {
 		assert.ok(image);
 		assert.ok(fallback);
 
+		const initial = {
+			isFallback: icon.classList.contains('is-fallback'),
+			fallbackHidden: mainWindow.getComputedStyle(fallback).display === 'none',
+			imagePresent: icon.contains(image),
+		};
 		image.dispatchEvent(new mainWindow.Event(DOM.EventType.LOAD));
 		const loaded = {
 			isFallback: icon.classList.contains('is-fallback'),
@@ -276,7 +281,8 @@ suite('AICustomizationDiscoveryPage', () => {
 			imagePresent: icon.contains(image),
 		};
 
-		assert.deepStrictEqual({ loaded, failed }, {
+		assert.deepStrictEqual({ initial, loaded, failed }, {
+			initial: { isFallback: false, fallbackHidden: true, imagePresent: true },
 			loaded: { isFallback: false, fallbackHidden: true, imagePresent: true },
 			failed: { isFallback: true, fallbackHidden: false, imagePresent: false },
 		});
@@ -342,6 +348,7 @@ suite('AICustomizationDiscoveryPage', () => {
 
 	test('browse card images replace fallback icons and restore them on error', async () => {
 		const fixture = createPage(['agentFinder']);
+		fixture.container.style.display = 'none';
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
 			items: [resource('with-icon', { publisher: 'GitHub', icon: testIcon })],
@@ -704,6 +711,7 @@ suite('AICustomizationDiscoveryPage', () => {
 
 	test('search result images replace fallback icons and restore them on error', async () => {
 		const fixture = createPage(['agentFinder']);
+		fixture.container.style.display = 'none';
 		fixture.page.setSearchQuery('icon');
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
