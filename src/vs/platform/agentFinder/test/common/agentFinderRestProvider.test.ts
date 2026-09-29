@@ -295,17 +295,27 @@ suite('AgentFinderRestProvider', () => {
 			url: 'https://github.com/JetBrains/go-modern-guidelines/blob/main/claude/modern-go-guidelines',
 			metadata: { sourceSet: 'JetBrains/go-modern-guidelines', repoPath: 'claude/modern-go-guidelines/.claude-plugin/plugin.json' },
 		};
+		const marketplacePlugin = {
+			...skill,
+			identifier: 'urn:air:github.com:github:copilot-plugins:spark',
+			displayName: 'Spark',
+			type: CustomizationMarketplaceMediaType.CopilotPlugin,
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			url: 'https://github.com/github/copilot-plugins/blob/main/plugins/spark',
+			metadata: { sourceSet: 'github/copilot-plugins', repoPath: '.github/plugin/marketplace.json' },
+		};
 
 		async function resources(values: readonly object[]): Promise<readonly ICustomizationMarketplaceEntry[]> {
 			const { service } = createService({ results: values, total: values.length, offset: 0, pageSize: 100 });
 			return (await service.query({ pageSize: 100 }, CancellationToken.None)).items;
 		}
 
-		test('derives observed skill and supported plugin roots without exposing Cursor plugins', async () => {
+		test('derives observed skill, standalone plugin, and marketplace plugin roots without exposing Cursor plugins', async () => {
 			const result = await resources([
 				skill,
 				copilotPlugin,
 				claudePlugin,
+				marketplacePlugin,
 				{
 					...skill,
 					type: CustomizationMarketplaceMediaType.CursorPlugin,
@@ -319,7 +329,22 @@ suite('AgentFinderRestProvider', () => {
 				{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' },
 				{ kind: 'plugin', repository: 'github/awesome-copilot', ref: 'main', path: 'plugins/accessibility-kanban' },
 				{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'main', path: 'claude/modern-go-guidelines' },
+				{ kind: 'plugin', repository: 'github/copilot-plugins', ref: 'main', path: 'plugins/spark' },
 			]);
+		});
+
+		test('rejects invalid marketplace plugin provenance while retaining display metadata', async () => {
+			const variants = [
+				{ ...marketplacePlugin, metadata: { ...marketplacePlugin.metadata, repoPath: '.github/plugin/other.json' } },
+				{ ...marketplacePlugin, metadata: { ...marketplacePlugin.metadata, sourceSet: 'other/repository' } },
+				{ ...marketplacePlugin, url: 'https://github.com/github/copilot-plugins/blob/main' },
+				{ ...marketplacePlugin, url: 'https://github.com/github/copilot-plugins/blob/main/plugins/.git' },
+				{ ...marketplacePlugin, url: 'https://github.com/github/copilot-plugins/blob/main/plugins%2Fspark' },
+			];
+			const result = await resources(variants);
+
+			assert.deepStrictEqual(result.map(item => ({ displayName: item.displayName, installation: item.installation })),
+				variants.map(() => ({ displayName: marketplacePlugin.displayName, installation: undefined })));
 		});
 
 		test('supports repository-root skills and plugins without guessing a default branch', async () => {

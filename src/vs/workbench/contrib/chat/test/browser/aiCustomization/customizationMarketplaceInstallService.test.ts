@@ -130,8 +130,8 @@ function galleryMcpResource(): ICustomizationMarketplaceResource {
 	});
 }
 
-function installedPlugin(sourceDescriptor: IPluginSourceDescriptor, source = 'plugins/demo', version = '1.0.0', pluginUri = URI.file('/cache/installed-plugin')): IMarketplaceInstalledPlugin {
-	const reference = parseMarketplaceReference('owner/catalog#release');
+function installedPlugin(sourceDescriptor: IPluginSourceDescriptor, source = 'plugins/demo', version = '1.0.0', pluginUri = URI.file('/cache/installed-plugin'), marketplace = 'owner/catalog#release'): IMarketplaceInstalledPlugin {
+	const reference = parseMarketplaceReference(marketplace);
 	assert.ok(reference);
 	return {
 		pluginUri,
@@ -1628,6 +1628,45 @@ suite('CustomizationMarketplaceInstallService', () => {
 			assert.deepStrictEqual({ states, installedV2: fixture.service.getInstallState(v2).kind, installs: fixture.pluginService.calls }, {
 				states: ['available', 'available', 'available'], installedV2: 'installed',
 				installs: [{ source: 'owner/catalog#v2', options: { path: 'plugins/demo' } }],
+			});
+		});
+
+		test('installs and repairs a marketplace-declared relative plugin at its recorded revision', async () => {
+			const fixture = await createFixture();
+			const candidate = pluginResource();
+			const resolvedRevision = 'a'.repeat(40);
+			fixture.pluginService.autoMatch = false;
+			fixture.pluginService.onInstall = async () => {
+				const source = fixture.pluginService.calls.at(-1)!.source;
+				const installed = installedPlugin(
+					{ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' },
+					'plugins/demo',
+					'1.0.0',
+					URI.file(`/cache/installed-plugin-${source.split('#')[1]}`),
+					source,
+				);
+				fixture.installedPlugins.set([installed], undefined);
+				return { success: true, matchedPlugin: installed.plugin };
+			};
+
+			await fixture.service.install(candidate);
+			const installedState = fixture.service.getInstallState(candidate).kind;
+			const missing = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'missing'));
+			fixture.installedPlugins.set([], undefined);
+			await missing;
+			await fixture.service.repair(candidate);
+
+			assert.deepStrictEqual({
+				installedState,
+				repairedState: fixture.service.getInstallState(candidate).kind,
+				calls: fixture.pluginService.calls,
+			}, {
+				installedState: 'installed',
+				repairedState: 'installed',
+				calls: [
+					{ source: 'owner/catalog#release', options: { path: 'plugins/demo' } },
+					{ source: `owner/catalog#${resolvedRevision}`, options: { path: 'plugins/demo' } },
+				],
 			});
 		});
 
