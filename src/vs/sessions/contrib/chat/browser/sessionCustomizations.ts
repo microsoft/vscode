@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -127,7 +128,9 @@ export class SessionCustomizations extends Disposable {
 			label: localize('sessionCustomizations.openCustomizations', "Open Customizations"),
 			icon: Codicon.extensions,
 			open: () => {
-				void this._commandService.executeCommand(AICustomizationManagementCommands.OpenEditor);
+				void this._commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
+					sessionResource: session.get()?.resource,
+				}).catch(onUnexpectedError);
 			},
 		}];
 	}
