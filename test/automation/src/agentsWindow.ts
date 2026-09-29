@@ -13,7 +13,8 @@ const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
 const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger > .action-label`;
-const WORKSPACE_PICKER_DEV_CONTAINER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"]):not([aria-label="Chat"])';
+const WORKSPACE_PICKER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action';
+const WORKSPACE_PICKER_DEV_CONTAINER_ROW = `${WORKSPACE_PICKER_ROW}:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"]):not([aria-label="Chat"])`;
 const WORKSPACE_PICKER_SUBMENU_ROW = '.action-list-submenu-panel .monaco-list-row.action';
 const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
@@ -119,10 +120,11 @@ export class AgentsWindow {
 		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
 	}
 
-	async waitForSessionPreparation(): Promise<void> {
+	async waitForSessionPreparation(prompt: string): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const progress = page.locator(`${ACTIVE_SESSION} .chat-transcript-progress:not([hidden])`);
-		await progress.getByText('Starting Dev Container...', { exact: false }).waitFor({ state: 'visible', timeout: 30_000 });
+		const progress = page.locator(`${ACTIVE_SESSION} .interactive-response .progress-container`).filter({ has: page.getByRole('button', { name: 'Show Log', exact: true }) });
+		await page.locator(`${ACTIVE_SESSION} .interactive-response`).getByText('Starting Dev Container', { exact: false }).waitFor({ state: 'visible', timeout: 30_000 });
+		await page.locator(`${ACTIVE_SESSION} .interactive-request .rendered-markdown`).getByText(prompt, { exact: true }).waitFor({ state: 'visible' });
 		await progress.getByRole('button', { name: 'Show Log', exact: true }).waitFor({ state: 'visible' });
 		if (await progress.locator('.xterm-screen').count()) {
 			throw new Error('Startup logs must remain in the output channel, not the transcript');
@@ -138,7 +140,7 @@ export class AgentsWindow {
 
 	async showSessionPreparationLog(): Promise<void> {
 		const page = this.code.driver.currentPage;
-		await page.locator(`${ACTIVE_SESSION} .chat-transcript-progress`).getByRole('button', { name: 'Show Log', exact: true }).click();
+		await page.locator(`${ACTIVE_SESSION} .interactive-response`).getByRole('button', { name: 'Show Log', exact: true }).click();
 		await page.locator('.output-view .monaco-editor').waitFor({ state: 'visible' });
 		await this.code.waitForTextContent('.output-view .view-lines', undefined, text => /Starting Dev Container|Dev Containers|Start:/.test(text.replace(/\u00a0/g, ' ')));
 		await this.quickaccess.runCommand('workbench.action.closePanel');
@@ -296,6 +298,9 @@ export class AgentsWindow {
 		const page = this.code.driver.currentPage;
 		const picker = page.locator(WORKSPACE_PICKER).first();
 		const devContainerRow = page.locator(WORKSPACE_PICKER_SUBMENU_ROW, { hasText: 'Use Dev Container' }).first();
+		const recentDevContainerRow = page.locator(WORKSPACE_PICKER_ROW).filter({
+			has: page.locator('.title', { hasText: / Dev Container$/ }),
+		}).first();
 		const deadline = Date.now() + 120_000;
 		let lastError: unknown;
 
@@ -314,10 +319,17 @@ export class AgentsWindow {
 				const workspaceRow = workspaceLabel
 					? page.locator('.action-widget .monaco-list-row.action, .action-list-submenu-panel .monaco-list-row.action').filter({ has: page.getByText(workspaceLabel, { exact: true }) }).first()
 					: page.locator(WORKSPACE_PICKER_DEV_CONTAINER_ROW).first();
-				await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
-				await workspaceRow.locator('.action-list-submenu-indicator.has-submenu').click();
-				await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
-				await devContainerRow.click();
+				try {
+					await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
+					await workspaceRow.locator('.action-list-submenu-indicator.has-submenu').click();
+					await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
+					await devContainerRow.click();
+				} catch (error) {
+					if (workspaceLabel || !await recentDevContainerRow.isVisible()) {
+						throw error;
+					}
+					await recentDevContainerRow.click();
+				}
 				await page.waitForFunction(
 					selector => document.querySelector(selector)?.textContent?.includes('Dev Container') === true,
 					WORKSPACE_PICKER,

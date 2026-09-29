@@ -7,10 +7,11 @@ import assert from 'assert';
 import type { PermissionRequest } from '@github/copilot-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
+type CopilotWorkflowPermissionRequest = Extract<PermissionRequest, { kind: 'workflow' }>;
 
 function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: boolean): CopilotShellPermissionRequest {
 	return {
@@ -108,6 +109,25 @@ suite('copilotToolDisplay — friendly tool names', () => {
 
 	test('falls back to the raw tool name for unknown tools', () => {
 		assert.strictEqual(getToolDisplayName('some_new_tool'), 'some_new_tool');
+	});
+
+	test('prefers canonical tool titles and falls back to original MCP tool names', () => {
+		const toolName = 'io-github-github-github-mcp-server-issue_read';
+		assert.deepStrictEqual({
+			title: getToolDisplayName(toolName, { toolTitle: 'Read issue', mcpToolName: 'issue_read' }),
+			shortName: getToolDisplayName(toolName, { mcpToolName: 'issue_read' }),
+			blankTitle: getToolDisplayName(toolName, { toolTitle: '  ', mcpToolName: 'issue_read' }),
+			trimmedTitle: getToolDisplayName(toolName, { toolTitle: ' Read issue ' }),
+			blankMetadata: getToolDisplayName(toolName, { toolTitle: '', mcpToolName: '  ' }),
+			builtIn: getToolDisplayName('bash', { toolTitle: 'SDK shell title' }),
+		}, {
+			title: 'Read issue',
+			shortName: 'issue_read',
+			blankTitle: 'issue_read',
+			trimmedTitle: 'Read issue',
+			blankMetadata: toolName,
+			builtIn: 'Run Shell Command',
+		});
 	});
 });
 
@@ -229,6 +249,56 @@ suite('getPermissionDisplay — server tool confirmation', () => {
 				permissionPath: undefined,
 			},
 		);
+	});
+});
+
+suite('getPermissionDisplay — MCP tool confirmation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the canonical tool title without changing the permission request', () => {
+		const request: PermissionRequest = {
+			kind: 'mcp',
+			serverName: 'GitHub',
+			toolName: 'issue_read',
+			toolTitle: 'Read issue',
+			readOnly: true,
+			args: { issue_number: 123 },
+		};
+		assert.deepStrictEqual({
+			display: getPermissionDisplay(request),
+			fallback: getPermissionDisplay({ ...request, toolTitle: '' }).invocationMessage,
+			toolName: request.toolName,
+		}, {
+			display: {
+				confirmationTitle: 'Allow tool from GitHub?',
+				invocationMessage: 'GitHub: Read issue',
+				toolInput: '{"serverName":"GitHub","toolName":"issue_read"}',
+				permissionKind: 'mcp',
+				permissionPath: undefined,
+			},
+			fallback: 'GitHub: issue_read',
+			toolName: 'issue_read',
+		});
+	});
+});
+
+suite('getPermissionDisplay — workflow confirmation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves the workflow permission kind for auto-approval routing', () => {
+		const request: CopilotWorkflowPermissionRequest = {
+			approvalKey: 'review-changes',
+			canPersistApproval: true,
+			description: 'Review the current changes',
+			kind: 'workflow',
+			name: 'review-changes',
+			operation: 'run',
+			phases: [{ title: 'Review' }],
+		};
+
+		assert.strictEqual(getPermissionDisplay(request).permissionKind, 'workflow');
 	});
 });
 
@@ -440,10 +510,10 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 	});
 
 	for (const [toolName, verb] of [['read_agent', 'Read agent'], ['write_agent', 'Write to agent']]) {
-		test(`uses the canonical agent name in streaming, ready, and completed ${toolName} messages`, () => {
+		test(`uses the subagent chat title in streaming, ready, and completed ${toolName} messages`, () => {
 			const agentId = '37241a58-7d95-4763-a3fb-2494dcfcf540';
 			const parameters = { agent_id: agentId };
-			const resolveAgentName = (id: string) => id === agentId ? 'catalog-perf' : undefined;
+			const resolveAgentName = (id: string) => id === agentId ? 'Profile catalog rendering' : undefined;
 			const displayName = getToolDisplayName(toolName);
 			const messages = [
 				getStreamingInvocationMessage(toolName, displayName, parameters, undefined, resolveAgentName),
@@ -452,7 +522,7 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 			].map(message => typeof message === 'string' ? message : message.markdown);
 
 			assert.deepStrictEqual({ messages, parameters }, {
-				messages: Array(3).fill(`${verb} \`catalog-perf\``),
+				messages: Array(3).fill(`${verb} \`Profile catalog rendering\``),
 				parameters: { agent_id: agentId },
 			});
 		});
@@ -467,6 +537,51 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 			unknown: { markdown: 'Read agent `unknown-agent`' },
 			blank: { markdown: 'Read agent `blank-agent`' },
 		});
+	});
+
+	test('extracts subagent task metadata from valid SDK arguments only', () => {
+		assert.deepStrictEqual([
+			getSubagentMetadata({ agent_type: 'research', name: 'catalog-perf', description: 'Profile catalog rendering' }),
+			getSubagentMetadata({ agent_type: false, description: 123 }),
+			...[undefined, null, [], 'task', 123].map(getSubagentMetadata),
+		], [
+			{ agentName: 'research', description: 'Profile catalog rendering' },
+			{ agentName: undefined, description: undefined },
+			{}, {}, {}, {}, {},
+		]);
+	});
+
+	test('names each recipient of a multi-agent write without changing routing arguments', () => {
+		const names = new Map([['agent-1', 'Renderer reviewer'], ['agent-2', 'Review `permissions`']]);
+		const parameters = { agent_ids: ['agent-1', 'agent-2', 'unknown-agent'], message: 'Follow up' };
+		const resolveAgentName = (id: string) => names.get(id);
+		const messages = [
+			getStreamingInvocationMessage('write_agent', 'Write to Agent', parameters, undefined, resolveAgentName),
+			getInvocationMessage('write_agent', 'Write to Agent', parameters, undefined, resolveAgentName),
+			getPastTenseMessage('write_agent', 'Write to Agent', parameters, true, undefined, undefined, resolveAgentName),
+		];
+		assert.deepStrictEqual({ messages, parameters }, {
+			messages: Array(3).fill({ markdown: 'Write to agents `Renderer reviewer`, `` Review `permissions` ``, `unknown-agent`' }),
+			parameters: { agent_ids: ['agent-1', 'agent-2', 'unknown-agent'], message: 'Follow up' },
+		});
+	});
+
+	test('describes scoped writes and tolerates incomplete streaming recipients', () => {
+		assert.deepStrictEqual([
+			invocation('write_agent', { scope: 'children' }),
+			pastTense('write_agent', { scope: 'siblings' }),
+			invocation('write_agent', { agent_ids: ['agent-1'] }),
+			invocation('write_agent', { agent_ids: ['', 123, null] }),
+			invocation('write_agent', { agent_ids: 'agent-1' }),
+			invocation('write_agent', { scope: 'invalid' }),
+		], [
+			'Write to child agents',
+			'Write to sibling agents',
+			'Write to agent `agent-1`',
+			'Write to agent',
+			'Write to agent',
+			'Write to agent',
+		]);
 	});
 
 	test('agent tools fall back to a generic phrase without an agent id', () => {

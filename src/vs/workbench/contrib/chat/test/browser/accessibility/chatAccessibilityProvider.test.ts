@@ -13,7 +13,9 @@ import { IAccessibleViewService } from '../../../../../../platform/accessibility
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ChatAccessibilityProvider } from '../../../browser/accessibility/chatAccessibilityProvider.js';
 import { Response } from '../../../common/model/chatModel.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
+import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 
 suite('ChatAccessibilityProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -65,6 +67,32 @@ suite('ChatAccessibilityProvider', () => {
 
 			assert.deepStrictEqual([withoutHint, provider.getAriaLabel(element)], labels);
 		});
+	}
+
+	for (const terminal of [false, true]) {
+		for (const restored of [false, true]) {
+			test(`announces failure in the response label (terminal: ${terminal}, restored: ${restored})`, async () => {
+				const invocation = new ChatToolInvocation({
+					invocationMessage: 'Read issue',
+					toolSpecificData: terminal ? {
+						kind: 'terminal',
+						commandLine: { original: 'npm test' },
+						language: 'bash',
+						terminalCommandState: { exitCode: 2 },
+					} : undefined,
+				}, {
+					id: 'read', displayName: 'Read', modelDescription: 'Read an issue', source: ToolDataSource.Internal,
+				}, 'read', undefined, {});
+				await invocation.didExecuteTool(terminal ? undefined : { content: [], toolResultError: 'Connection refused' });
+				const response = store.add(new Response(restored ? [invocation.toJSON()] : []));
+				if (!restored) {
+					response.updateContent(invocation);
+				}
+				assert.strictEqual(provider.getAriaLabel(createViewModel(response)).trim(), terminal
+					? 'Ran terminal command: npm test\nTool execution failed with exit code 2'
+					: 'Read issue\nTool execution failed: Connection refused');
+			});
+		}
 	}
 
 	test('updates labels when the response content and accessibility hint change', () => {

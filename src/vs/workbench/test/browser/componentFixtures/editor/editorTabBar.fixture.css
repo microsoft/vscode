@@ -20,6 +20,10 @@
 	background-color: var(--modern-ui-editor-tab-active-hover-background);
 }
 
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-label.fixture-action-hover:not(.disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.fixture-hover:not(.close-action-off) > .tab-actions {
 	background-color: var(--modern-ui-editor-tab-action-active-hover-background);
 }

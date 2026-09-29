@@ -10,9 +10,11 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, thenRegisterOrDispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -86,7 +88,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { IChatInputNotificationContext, IChatInputNotificationService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
@@ -130,7 +132,7 @@ import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agent
 import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
 import { PromptTemplatePlaceholderController } from './promptTemplatePlaceholder.js';
-import { INewSessionComposer, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
+import { INewSessionComposer, INewSessionComposerPicker, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
 import { NewSessionPromptOptionsWidget } from './newSessionPromptOptions.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
@@ -368,6 +370,7 @@ export interface INewChatInputSendRequest {
 	readonly query: string;
 	readonly attachments?: IChatRequestVariableEntry[];
 	readonly background?: boolean;
+	readonly userInteraction?: NewChatUserInteraction;
 }
 
 /**
@@ -441,6 +444,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** The current model-selection state. Exposed so host widgets can react to model changes. */
 	get selectedModelState() { return this._modelSelection.state; }
 
+	get modelPicker(): INewSessionComposerPicker | undefined {
+		return this._newChatModelPickerService.activePicker;
+	}
+
 	get workspacePreselectionSource(): NewSessionWorkspacePreselectionSource | undefined {
 		return this.options.getWorkspacePreselectionSource?.();
 	}
@@ -449,13 +456,83 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		return this.options.getWorkspaceSelection?.();
 	}
 
+	placeRepositoryControls(container?: HTMLElement): void {
+		const repositoryControls = this._repositoryControlsContainer;
+		const repositoryControlsHome = this._repositoryControlsHome;
+		if (!repositoryControls || !repositoryControlsHome) {
+			return;
+		}
+		if (container) {
+			const harnessPicker = Array.from(container.children).find(element => element.classList.contains('sessions-chat-session-type-picker'));
+			harnessPicker?.before(repositoryControls);
+			if (!harnessPicker) {
+				container.append(repositoryControls);
+			}
+		} else {
+			repositoryControlsHome.prepend(repositoryControls);
+		}
+		this._updateBottomContainerVisibility?.();
+		this._secondaryPickerResponsiveLayout?.layout();
+	}
+
+	private _navigateRepositionedRepositoryControls(event: KeyboardEvent): void {
+		const repositoryControls = this._repositoryControlsContainer;
+		const repositoryControlsHome = this._repositoryControlsHome;
+		if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey || !repositoryControls || !repositoryControlsHome || repositoryControls.parentElement === repositoryControlsHome) {
+			return;
+		}
+
+		const currentSlot = dom.isHTMLElement(event.target) ? dom.findParentWithClass(event.target, 'sessions-chat-picker-slot') : undefined;
+		const slots: HTMLElement[] = [];
+		const collectSlots = (element: HTMLElement): void => {
+			if (element.classList.contains('sessions-chat-picker-slot')) {
+				slots.push(element);
+				return;
+			}
+			for (const child of element.children) {
+				if (dom.isHTMLElement(child)) {
+					collectSlots(child);
+				}
+			}
+		};
+		collectSlots(repositoryControls);
+		const findControl = (element: HTMLElement): HTMLElement | undefined => {
+			if (element.hasAttribute('tabindex')) {
+				return element;
+			}
+			for (const child of element.children) {
+				if (dom.isHTMLElement(child)) {
+					const control = findControl(child);
+					if (control) {
+						return control;
+					}
+				}
+			}
+			return undefined;
+		};
+		const controls = slots.flatMap(slot => {
+			const control = findControl(slot);
+			return control && control.getAttribute('aria-disabled') !== 'true' ? [{ slot, control }] : [];
+		});
+		const currentIndex = controls.findIndex(entry => entry.slot === currentSlot);
+		const nextIndex = currentIndex + (event.shiftKey ? -1 : 1);
+		if (currentIndex < 0 || nextIndex < 0 || nextIndex >= controls.length) {
+			return;
+		}
+
+		dom.EventHelper.stop(event, true);
+		controls[nextIndex].control.focus();
+	}
+
 	get onDidChangeWorkspaceSelection(): Event<void> {
 		return this.options.onDidChangeWorkspaceSelection ?? Event.None;
 	}
 
 	get hasInput(): boolean {
-		return !!this._editor?.getValue() || this._contextAttachments.attachments.length > 0;
+		return !!this._editor?.getValue() || this._contextAttachments.attachments.length > 0 || !!this.options.hasAdditionalSendContent?.get();
 	}
+
+	readonly sessionResource = derived(this, reader => this.options.session.read(reader)?.resource);
 
 	get isInputReady(): boolean {
 		return !!this._editor?.getModel();
@@ -468,18 +545,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** Opens the model picker dropdown. */
 	openModelPicker(): void { this._newChatModelPickerService.openModelPicker(); }
 
-	/** Moves the provider-contributed session controls into the given container. */
-	renderSessionControls(container: HTMLElement): void {
-		if (!this._sessionControlsContainer) {
-			throw new Error('NewChatInputWidget must be rendered before its session controls.');
-		}
-		container.appendChild(this._sessionControlsContainer);
-	}
-
 	// Input
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
-	private _sessionControlsContainer: HTMLElement | undefined;
+	private _repositoryControlsContainer: HTMLElement | undefined;
+	private _repositoryControlsHome: HTMLElement | undefined;
+	private _updateBottomContainerVisibility: (() => void) | undefined;
 	private readonly _promptTemplatePlaceholder = this._register(new MutableDisposable<PromptTemplatePlaceholderController>());
 	private readonly _promptOptionsWidget = this._register(new MutableDisposable<NewSessionPromptOptionsWidget>());
 	private readonly _promptOptionsRefresh = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -492,6 +563,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _sendButtonContainer: HTMLElement | undefined;
 	private _sendButton: Button | undefined;
 	private _sending = false;
+	private readonly _userInteractionSource = this._register(new MutableDisposable());
 
 	// Loading state
 	private _initializationLoadingSpinner: HTMLElement | undefined;
@@ -536,6 +608,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			onDidChangeWorkspaceSelection?: Event<void>;
 			canApplyWorkspaceDefault?: () => boolean;
 			sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;
+			inputVisible?: IObservable<boolean>;
+			hostVisible?: IObservable<boolean>;
 			canSendRequest: IObservable<boolean>;
 			canSubmitWithoutSession?: IObservable<boolean>;
 			hasAdditionalSendContent?: IObservable<boolean>;
@@ -634,6 +708,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this.options.hasAdditionalSendContent?.read(reader);
 			this._updateSendButtonState();
 		}));
+		if (this.options.hasAdditionalSendContent) {
+			this._register(runOnChange(this.options.hasAdditionalSendContent, () => this._onDidChangeInput.fire()));
+		}
 	}
 
 	private _setHistoryKey(historyKey: string | undefined): void {
@@ -779,6 +856,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			parent: chatInputContainer,
 			dragBounds: inputArea,
 			movementBounds: root,
+			transition: 'teleport',
 			model: constObservable(undefined),
 			hasInput: inputHasContent,
 			inputChanged: this._editor.onDidChangeModelContent,
@@ -807,15 +885,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
 		const newChatControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-controls-container'));
-		const sessionControlsContainer = this._sessionControlsContainer = dom.append(newChatControlsContainer, dom.$('.new-chat-session-controls'));
-		this._register(createNewSessionControlToolbar(sessionControlsContainer, this._scopedInstantiationService));
-		this._register({ dispose: () => sessionControlsContainer.remove() });
+		const sessionControlsContainer = dom.append(newChatControlsContainer, dom.$('.new-chat-session-controls'));
+		const sessionControlsToolbar = this._register(createNewSessionControlToolbar(sessionControlsContainer, this._scopedInstantiationService));
 
 		const secondaryControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-secondary-controls-container'));
-		const repoConfigContainer = dom.append(secondaryControlsContainer, dom.$('.new-chat-repo-config-container'));
+		this._repositoryControlsHome = secondaryControlsContainer;
+		const repoConfigContainer = this._repositoryControlsContainer = dom.append(secondaryControlsContainer, dom.$('.new-chat-repo-config-container'));
+		this._register(dom.addDisposableListener(repoConfigContainer, dom.EventType.KEY_DOWN, event => this._navigateRepositionedRepositoryControls(event)));
+		let repoConfigToolbar: MenuWorkbenchToolBar | undefined;
 		if (this.options.renderRepositoryControls !== false) {
 			const session = this.options.session;
-			this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
+			repoConfigToolbar = this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				toolbarOptions: {
 					primaryGroup: group => group.startsWith('navigation'),
@@ -842,7 +922,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		// Generic extension point for status indicators in the new-session view.
 		const statusContainer = dom.append(secondaryControlsContainer, dom.$('.new-chat-status-toolbar'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, statusContainer, MenuId.ChatInputStatus, {
+		const statusToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, statusContainer, MenuId.ChatInputStatus, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
 			actionViewItemProvider: (action, options) => {
@@ -852,6 +932,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				return undefined;
 			},
 		}));
+		const updateBottomContainerVisibility = () => {
+			const sessionControlCount = sessionControlsToolbar.getItemsLength();
+			const repositoryControlCount = repoConfigContainer.parentElement === secondaryControlsContainer ? repoConfigToolbar?.getItemsLength() ?? 0 : 0;
+			newChatBottomContainer.classList.toggle('empty', sessionControlCount + repositoryControlCount + statusToolbar.getItemsLength() === 0);
+		};
+		this._updateBottomContainerVisibility = updateBottomContainerVisibility;
+		if (repoConfigToolbar) {
+			this._register(repoConfigToolbar.onDidChangeMenuItems(updateBottomContainerVisibility));
+		}
+		this._register(statusToolbar.onDidChangeMenuItems(updateBottomContainerVisibility));
+		this._register(sessionControlsToolbar.onDidChangeMenuItems(updateBottomContainerVisibility));
+		updateBottomContainerVisibility();
 
 		this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.secondaryPicker', newChatBottomContainer, {
 			getItems: () => getLabeledPickerResponsiveItems(newChatBottomContainer),
@@ -1147,7 +1239,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		));
 
 		this._agentHostInputCompletionHandler = this._register(this._scopedInstantiationService.createInstance(
-			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
+			AgentHostInputCompletionHandler, this._editor, this._contextAttachments, () => this.submit(),
 		));
 
 		this._register(this.chatPasteTargetService.registerTarget(textModel.uri, new NewChatInputPasteTarget(
@@ -1636,33 +1728,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return false;
 		}
 
-		// Measure any pending dictation accuracy against the text being sent,
-		// before the editor is cleared below.
-		notifyDictationSubmitted(this._editor);
-
-		const session = this.options.session.get();
-		if (!hasAdditionalSendContent && session && await this.chatSubmitRequestHandlerService.tryHandle({
-			sessionResource: session.resource,
-			providerId: session.providerId,
-			sessionId: session.sessionId,
-			input: query,
-		})) {
-			this._editor.getModel()?.setValue('');
-			return true;
-		}
-
-		const attachments = this._agentHostInputCompletionHandler?.getAttachmentsForSend(query, queryOffset) ?? [...this._contextAttachments.attachments];
-		const attachedContext = attachments.length > 0
-			? attachments
-			: undefined;
-		const request = query;
-		const notificationContext = this._getNotificationContext();
-
-		if (this._draftState) {
-			this._history.append(this._toHistoryEntry(this._draftState));
-		}
-		this._clearDraftState();
-
+		const userInteraction = background ? undefined : this.instantiationService.createInstance(NewChatUserInteraction, {
+			window: dom.getWindow(this._editorContainer),
+			visible: this.options.inputVisible ?? constObservable(true),
+			hostVisible: this.options.hostVisible,
+		});
+		this._userInteractionSource.value = toDisposable(() => userInteraction?.disposeSource());
 		this._sending = true;
 		this._editor.updateOptions({ readOnly: true });
 		this._updateSendButtonState();
@@ -1670,17 +1741,43 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		let sent = false;
 		try {
-			sent = await this.options.sendRequest({ query: request, attachments: attachedContext, background });
+			// Measure any pending dictation accuracy before the editor is cleared.
+			notifyDictationSubmitted(this._editor);
+
+			const session = this.options.session.get();
+			if (!hasAdditionalSendContent && session && await this.chatSubmitRequestHandlerService.tryHandle({
+				sessionResource: session.resource,
+				providerId: session.providerId,
+				sessionId: session.sessionId,
+				input: query,
+			})) {
+				userInteraction?.cancel('notDispatched');
+				this._editor.getModel()?.setValue('');
+				return true;
+			}
+
+			const attachments = this._agentHostInputCompletionHandler?.getAttachmentsForSend(query, queryOffset) ?? [...this._contextAttachments.attachments];
+			const attachedContext = attachments.length > 0 ? attachments : undefined;
+			const notificationContext = this._getNotificationContext();
+			if (this._draftState) {
+				this._history.append(this._toHistoryEntry(this._draftState));
+			}
+			this._clearDraftState();
+
+			sent = await this.options.sendRequest({ query, attachments: attachedContext, background, userInteraction });
 			if (!sent) {
+				userInteraction?.cancel('notDispatched');
 				return false;
 			}
 			this.chatInputNotificationService.handleMessageSent(notificationContext);
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
 		} catch (e) {
+			userInteraction?.cancel(isCancellationError(e) ? 'cancelled' : 'error');
 			this.logService.error('Failed to send request:', e);
 			return false;
 		} finally {
+			this._userInteractionSource.clear();
 			this._sending = false;
 			this._editor.updateOptions({ readOnly: false });
 			this._updateDraftState();

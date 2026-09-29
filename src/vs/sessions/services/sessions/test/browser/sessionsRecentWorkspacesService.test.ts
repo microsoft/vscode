@@ -19,7 +19,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IFileContent, IFileService, IFileSystemProviderRegistrationEvent } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IRecentlyOpened, isRecentFolder, IWorkspacesService } from '../../../../../platform/workspaces/common/workspaces.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
@@ -42,6 +42,7 @@ suite('SessionsRecentWorkspacesService', () => {
 		files: ReadonlyMap<string, string | DeferredPromise<string>> = new Map(),
 		storage: IStorageService = disposables.add(new TestStorageService()),
 		initialLookup?: () => Promise<IRecentlyOpened>,
+		providedProviders?: readonly ISessionsProvider[],
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const changed = disposables.add(new Emitter<void>());
@@ -60,11 +61,12 @@ suite('SessionsRecentWorkspacesService', () => {
 				requiresWorkspaceTrust: true, isVirtualWorkspace: false,
 			}),
 		});
+		const providers = providedProviders ?? [provider];
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
-			getProvider: () => undefined,
-			getProviders: () => [provider],
+			getProvider: <T extends ISessionsProvider>(id: string) => providers.find(provider => provider.id === id) as T | undefined,
+			getProviders: () => [...providers],
 		}));
 		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: message => warnings.push(message) }));
 		instantiationService.stub(IFileService, upcastPartial<IFileService>({
@@ -137,6 +139,50 @@ suite('SessionsRecentWorkspacesService', () => {
 			ownOnly: [secondFolder],
 			state: 'loaded',
 		});
+	});
+
+	test('collapses Dev Container recents onto their source workspace', async () => {
+		const sourceUri = URI.parse('vscode-agent-host://wsl__Ubuntu/home/test/vscode-remote-try-node');
+		const firstContainerUri = URI.parse('vscode-agent-host://devcontainer__first/workspaces/vscode-remote-try-node');
+		const secondContainerUri = URI.parse('vscode-agent-host://devcontainer__second/workspaces/vscode-remote-try-node');
+		const createProvider = (id: string, workspaceUri: URI, canonicalWorkspaceUri?: URI) => upcastPartial<ISessionsProvider>({
+			id,
+			...(canonicalWorkspaceUri ? { canonicalizeWorkspaceUri: () => canonicalWorkspaceUri } : {}),
+			resolveWorkspace: uri => extUri.isEqual(uri, workspaceUri) ? {
+				uri,
+				label: 'workspace',
+				icon: Codicon.folder,
+				folders: [{ root: uri, workingDirectory: uri, name: 'folder', description: undefined }],
+				requiresWorkspaceTrust: true,
+				isVirtualWorkspace: false,
+			} : undefined,
+		});
+		const sourceProvider = createProvider('agenthost-wsl__Ubuntu', sourceUri);
+		const firstContainerProvider = createProvider('agenthost-devcontainer__first', firstContainerUri, sourceUri);
+		const secondContainerProvider = createProvider('agenthost-devcontainer__second', secondContainerUri, sourceUri);
+		const storage = disposables.add(new TestStorageService());
+		storage.store('sessions.recentlyPickedWorkspaces', JSON.stringify([
+			{ uri: secondContainerUri.toJSON(), providerId: secondContainerProvider.id, checked: true },
+			{ uri: firstContainerUri.toJSON(), providerId: firstContainerProvider.id, checked: false },
+			{ uri: sourceUri.toJSON(), providerId: sourceProvider.id, checked: false },
+		]), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const harness = createHarness([], undefined, storage, undefined, [
+			firstContainerProvider,
+			secondContainerProvider,
+			sourceProvider,
+		]);
+		await harness.ready();
+
+		assert.deepStrictEqual(harness.service.getRecentWorkspaces().map(entry => ({
+			uri: entry.workspace.uri.toString(),
+			providerId: entry.providerId,
+			checked: entry.checked,
+		})), [{
+			uri: sourceUri.toString(),
+			providerId: sourceProvider.id,
+			checked: true,
+		}]);
 	});
 
 	test('bounds workspace-file reads and file size while retaining later standalone folders', async () => {
@@ -258,6 +304,8 @@ suite('SessionsRecentWorkspacesService', () => {
 		const files = new Map([[extUri.getComparisonKey(workspaceFile), '{"folders":[{"path":"../first"},{"path":"../second"}]}']]);
 		const harness = createHarness([recentWorkspace()], files);
 		await harness.ready();
+		const removedEvents: string[][] = [];
+		disposables.add(harness.service.onDidRemoveRecentWorkspaces(uris => removedEvents.push(uris.map(uri => uri.toString()))));
 		harness.service.checkNoWorkspace();
 		harness.service.removeRecentWorkspace(firstFolder);
 		await harness.ready();
@@ -269,10 +317,11 @@ suite('SessionsRecentWorkspacesService', () => {
 		restored.refresh();
 		await restored.ready();
 		assert.deepStrictEqual({
-			removed: harness.removed, afterRestore,
+			removed: harness.removed, removedEvents, afterRestore,
 			afterRepick: snapshot(restored.service), noWorkspaceAfterRepick: restored.service.isNoWorkspaceChecked(),
 		}, {
 			removed: [[firstFolder, firstFolder]],
+			removedEvents: [[firstFolder.toString()]],
 			afterRestore: { entries: [{ uri: secondFolder.toString(), source: 'vscodeWorkspace', checked: false }], noWorkspace: true },
 			afterRepick: [
 				{ uri: firstFolder.toString(), source: 'agents', checked: true },

@@ -167,6 +167,10 @@ suite('SSH Config Parsing', () => {
 			assert.strictEqual(parseSSHGOutput(output).identityAgent, '//./pipe/pageant.user.1234');
 		});
 
+		test('parses HostKeyAlias', () => {
+			assert.strictEqual(parseSSHGOutput('hostkeyalias trusted.example').hostKeyAlias, 'trusted.example');
+		});
+
 		test('preserves ProxyCommand tokens and quoted executables', () => {
 			assert.deepStrictEqual([
 				parseSSHGOutput('proxycommand "/opt/docker tools/sbx" ssh proxy %n').proxyCommand,

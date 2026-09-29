@@ -47,7 +47,7 @@ export interface IAgentsBannerOptions {
 	/** Dot-separated CSS classes for the banner container (e.g. 'my-banner' or 'foo.bar'). */
 	readonly cssClass: string;
 	/** Identifies where the banner is displayed (e.g. 'welcomePage', 'agentSessionsWelcome'). */
-	readonly source: string;
+	readonly source: 'welcomePage' | 'agentSessionsWelcome';
 	/** Override the default button label. */
 	readonly label?: string;
 	/** Optional callback invoked when the banner opens the Agents window. */
@@ -122,7 +122,8 @@ export function createAgentsBanner(
 
 		options.onButtonClick?.();
 		telemetryService.publicLog2<AgentsBannerClickedEvent, AgentsBannerClickedClassification>('agentsBanner.clicked', { source: options.source, action: 'openAgentsWindow' });
-		commandService.executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.Banner }).catch(onUnexpectedError);
+		const source = options.source === 'welcomePage' ? AgentsWindowOpenSource.WelcomeTryOut : AgentsWindowOpenSource.WelcomeViewAll;
+		commandService.executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source }).catch(onUnexpectedError);
 	}));
 
 	return { element, disposables };

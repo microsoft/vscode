@@ -9,6 +9,7 @@ import { localize } from '../../../../../../../nls.js';
 import { registerIcon } from '../../../../../../../platform/theme/common/iconRegistry.js';
 import { ILanguageModelChatMetadataAndIdentifier, isAutoLanguageModel } from '../../../../common/languageModels.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
+import { isHydraFusionModel } from './modelPickerPresentation.js';
 
 const copilotModelProviderIcon = registerIcon('chat-model-provider-copilot', Codicon.copilotCompact, localize('chatModelProviderCopilotIcon', "Icon for Copilot models."));
 const openAIModelProviderIcon = registerIcon('chat-model-provider-openai', Codicon.openai, localize('chatModelProviderOpenAIIcon', "Icon for OpenAI models."));
@@ -59,7 +60,7 @@ export function getModelProviderIcon(model: ILanguageModelChatMetadataAndIdentif
 	if (model.metadata.isBYOK) {
 		return genericModelProviderIcon;
 	}
-	if (isAutoLanguageModel(model)) {
+	if (isAutoLanguageModel(model) || isHydraFusionModel(model)) {
 		return copilotModelProviderIcon;
 	}
 	// The Copilot fallback reads the model's own name only: the vendor is `copilot` for
