@@ -4,18 +4,116 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, append } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatExternalSessionsMode } from '../../../../../platform/chat/common/chatSettings.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ExternalSessionBanner, getExternalSessionBannerSelectedMode, getExternalSessionVisibilityConfirmation, shouldConfirmExternalSessionVisibilityChange } from '../../browser/externalSessionBanner.js';
 
 suite('Sessions - External Session Banner', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function externalSession(sessionType: string): ISession {
+		return new class extends mock<ISession>() {
+			override readonly resource = URI.parse(`test://${sessionType}`);
+			override readonly sessionType = sessionType;
+			override readonly isExternal = constObservable(true);
+			override readonly updatedAt = constObservable(new Date());
+		};
+	}
+
+	test('explains continuation and subscriptions without visibility controls when sectioning is enabled', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, $('div'), {}));
+		const descriptions = ['codex', 'copilot', 'claude'].map(sessionType => {
+			banner.setSession(externalSession(sessionType));
+			return {
+				visible: banner.visible,
+				description: banner.domNode.querySelector('.external-session-banner-description')?.textContent,
+				controlsDisplay: banner.domNode.querySelector<HTMLElement>('.external-session-banner-controls')?.style.display,
+			};
+		});
+		assert.deepStrictEqual(descriptions, [
+			{
+				visible: true,
+				description: 'You can continue this session here with your ChatGPT or Copilot subscription. Choose your subscription in the model picker.',
+				controlsDisplay: 'none',
+			},
+			{
+				visible: true,
+				description: 'You can continue this session here.',
+				controlsDisplay: 'none',
+			},
+			{
+				visible: true,
+				description: 'You can continue this session here with your Copilot subscription.',
+				controlsDisplay: 'none',
+			},
+		]);
+	});
+
+	test('switches between continuation and visibility controls when sectioning changes', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService({ [SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false });
+		instantiationService.stub(IConfigurationService, configurationService);
+		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, $('div'), {}));
+		banner.setSession(externalSession('codex'));
+		const snapshot = () => ({
+			controlsDisplay: banner.domNode.querySelector<HTMLElement>('.external-session-banner-controls')?.style.display,
+			label: banner.domNode.getAttribute('aria-label'),
+		});
+		const before = snapshot();
+		await configurationService.setUserConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, true);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING,
+			affectedKeys: new Set([SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]),
+			change: { keys: [SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING], overrides: [] },
+			source: ConfigurationTarget.USER,
+		});
+		assert.deepStrictEqual({ before, after: snapshot() }, {
+			before: { controlsDisplay: '', label: 'External session visibility' },
+			after: { controlsDisplay: 'none', label: 'External session' },
+		});
+	});
+
+	test('closing permanently dismisses every external session banner and restores focus', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const container = append(mainWindow.document.body, $('div'));
+		disposables.add(toDisposable(() => container.remove()));
+		let focusRestored = false;
+		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, container, {
+			onDidDismissWithFocus: () => { focusRestored = true; },
+		}));
+		banner.setSession(externalSession('codex'));
+		const otherBanner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, container, {}));
+		otherBanner.setSession(externalSession('claude'));
+		const close = banner.domNode.querySelector<HTMLElement>('.action-label')!;
+		close.focus();
+		close.click();
+		banner.setSession(externalSession('copilot'));
+		const restoredBanner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, container, {}));
+		restoredBanner.setSession(externalSession('codex'));
+		assert.deepStrictEqual({
+			visible: banner.visible,
+			otherVisible: otherBanner.visible,
+			restoredVisible: restoredBanner.visible,
+			focusRestored,
+		}, {
+			visible: false,
+			otherVisible: false,
+			restoredVisible: false,
+			focusRestored: true,
+		});
+	});
 
 	test('hides immediately when the current external session is adopted', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);

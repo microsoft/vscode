@@ -791,6 +791,8 @@ export interface IAgentHostAdapterOptions {
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
 	/** Keeps reported activity separate from connection availability for remotely discoverable sessions. */
 	readonly preserveStatusWhenDisconnected?: boolean;
+	/** Overrides host provenance when a provider tracks external sessions locally. */
+	readonly externalSessionState?: (resource: URI, store: DisposableStore) => IObservable<boolean>;
 }
 
 /**
@@ -1325,7 +1327,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
-		this.isExternal = derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
+		this.isExternal = _options.externalSessionState?.(this.resource, this._store)
+			?? derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
 		const connectionStatus = _options.connectionStatus;
 		this.remoteConnectionStatus = toSessionRemoteConnectionStatus(this, connectionStatus);
 		this.createdBySession = derived(this, reader => {
@@ -3630,7 +3633,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected'>;
+	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or
