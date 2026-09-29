@@ -492,11 +492,12 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			mkdirSync(hooksDirectory, { recursive: true });
 			writeFileSync(join(manifestDirectory, 'plugin.json'), JSON.stringify({ name: 'Non-File Hook Plugin' }));
 			const hookCommand = (tag: string, output: object) => {
-				const script = [
+				const scriptPath = join(hostPlugin, `${tag}.cjs`);
+				writeFileSync(scriptPath, [
 					`require('fs').appendFileSync(${JSON.stringify(hookLog)}, ${JSON.stringify(`${tag}\n`)});`,
 					`process.stdout.write(Buffer.from('${Buffer.from(JSON.stringify(output)).toString('base64')}', 'base64').toString());`,
-				].join('');
-				return [process.execPath, '-e', script].map(value => JSON.stringify(value)).join(' ');
+				].join(''));
+				return `node ${scriptPath}`;
 			};
 			writeFileSync(join(hooksDirectory, 'hooks.json'), JSON.stringify({
 				hooks: {
