@@ -127,7 +127,7 @@ suite('GitHub authentication activation', () => {
 		}, { samePublicProvider: true, issuers: ['https://tenant.example/Team/login/oauth'], errorCount: 1, attempts: 2 });
 	});
 
-	for (const failure of ['secret read', 'mapping write'] as const) {
+	for (const failure of ['secret read', 'account link migration'] as const) {
 		test(`enterprise ${failure} failure leaves public GitHub active and registers an actionable enterprise error`, async () => {
 			const secrets = new TestSecretStorage();
 			disposables.push(secrets);
@@ -135,9 +135,12 @@ suite('GitHub authentication activation', () => {
 			const state = new TestMemento();
 			configure('https://tenant.example/Team');
 			if (failure === 'secret read') {
-				sinon.stub(secrets, 'get').callThrough().withArgs('tenant.example/Team.ghes.auth').rejects(new Error('Secret storage is unavailable'));
+				sinon.stub(secrets, 'get').callThrough().withArgs('https://tenant.example/Team.ghes.auth').rejects(new Error('Secret storage is unavailable'));
 			} else {
-				state.updateError = new Error('Namespace mapping is unavailable');
+				await state.update('tenant.example/Team.ghes.auth.microsoftAccountLinks', [{
+					gitHubAccountId: '42', gitHubAccountLabel: 'octocat', microsoftAccountLabel: 'mona@example.com'
+				}]);
+				state.updateError = new Error('Account link storage is unavailable');
 			}
 
 			await activate(context(secrets, state));
@@ -145,7 +148,7 @@ suite('GitHub authentication activation', () => {
 			const publicProvider = providers.get('github');
 			const enterpriseProvider = providers.get('github-enterprise');
 			assert.ok(publicProvider && enterpriseProvider);
-			const message = failure === 'secret read' ? /Secret storage is unavailable/ : /Namespace mapping is unavailable/;
+			const message = failure === 'secret read' ? /Secret storage is unavailable/ : /Account link storage is unavailable/;
 			assert.match(errors.firstCall.args[0], message);
 			await assert.rejects(Promise.resolve(enterpriseProvider.createSession(['repo'], {})), message);
 			assert.deepStrictEqual({
@@ -161,7 +164,7 @@ suite('GitHub authentication activation', () => {
 		const secrets = new TestSecretStorage();
 		disposables.push(secrets);
 		configure('https://tenant.example/Team');
-		const read = sinon.stub(secrets, 'get').callThrough().withArgs('tenant.example/Team.ghes.auth').rejects(new Error('Secret storage is unavailable'));
+		const read = sinon.stub(secrets, 'get').callThrough().withArgs('https://tenant.example/Team.ghes.auth').rejects(new Error('Secret storage is unavailable'));
 		const update = sinon.spy(GitHubEnterpriseAuthenticationProvider.prototype, 'update');
 		await activate(context(secrets, new TestMemento()));
 		const publicProvider = providers.get('github');

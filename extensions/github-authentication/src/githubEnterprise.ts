@@ -5,17 +5,15 @@
 
 import * as vscode from 'vscode';
 import { GitHubSessionEngine, UriEventHandler } from './github';
-import { IAccountLink } from './common/accountLinks';
 import { getEnterpriseUriKey } from './common/enterpriseConfiguration';
-import { EnterpriseHostConfiguration, EnterpriseHostDescriptor, getEnterpriseHostConfigurations, getEnterpriseStorageCandidates, planEnterpriseHosts } from './common/enterpriseHosts';
+import { getEnterpriseStorageKey, migrateEnterpriseStorage } from './common/enterpriseStorage';
 
-interface EnterpriseHost extends EnterpriseHostDescriptor {
+interface EnterpriseHost {
+	readonly uri: vscode.Uri;
 	readonly engine: GitHubSessionEngine;
 	readonly listener: vscode.Disposable;
 	readonly initialChanges: Map<string, vscode.AuthenticationSession | undefined>;
 }
-
-const storageKeysKey = 'github-enterprise.storageKeys';
 
 function disposeHost(host: EnterpriseHost | undefined): void {
 	host?.listener.dispose();
@@ -75,13 +73,17 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 
 	private async applyConfiguration(uri: vscode.Uri | undefined, error: string | undefined): Promise<void> {
 		this.throwIfDisposed();
-		const descriptor = await this.resolveHost(uri);
-		this.throwIfDisposed();
+		const key = uri && getEnterpriseUriKey(uri);
+		const currentKey = this._host && getEnterpriseUriKey(this._host.uri);
 		this._configurationError = error ?? vscode.l10n.t('Configure github-enterprise.uri before signing in to GitHub Enterprise.');
-		if (this._registration && this._host?.key === descriptor?.key && this._host?.storageKey === descriptor?.storageKey) {
+		if (this._registration && currentKey === key) {
 			return;
 		}
-		const next = descriptor && this.createHost(descriptor);
+		if (uri) {
+			await migrateEnterpriseStorage(this._context, uri);
+		}
+		this.throwIfDisposed();
+		const next = key ? this.createHost(vscode.Uri.parse(key)) : undefined;
 		const cancellation = this._disposeCancellation.token.onCancellationRequested(() => disposeHost(next));
 		try {
 			const initialSessions = next ? await next.engine.getSessions(undefined, {}) : [];
@@ -104,33 +106,11 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 		}
 	}
 
-	private async resolveHost(uri: vscode.Uri | undefined): Promise<EnterpriseHostDescriptor | undefined> {
-		const configured = getEnterpriseHostConfigurations(uri ? [uri] : [], uri);
-		const mappings = this._context.globalState.get<Record<string, string>>(storageKeysKey, {});
-		const populated = await this.findPopulatedStorage(configured, mappings);
-		const plan = planEnterpriseHosts(configured, this._host ? [this._host] : [], mappings, populated);
-		this.throwIfDisposed();
-		if (plan.storageChanged) {
-			await this._context.globalState.update(storageKeysKey, plan.storageKeys);
-		}
-		return uri ? plan.hosts.find(host => host.key === getEnterpriseUriKey(uri)) : undefined;
-	}
-
-	private async findPopulatedStorage(configured: readonly EnterpriseHostConfiguration[], mappings: Readonly<Record<string, string>>): Promise<ReadonlySet<string>> {
-		const keys = [...new Set(configured.flatMap(host => getEnterpriseStorageCandidates(host, mappings[host.key])))];
-		const occupied = await Promise.all(keys.map(async key => {
-			const token = await this._context.secrets.get(key);
-			const links = this._context.globalState.get<readonly IAccountLink[]>(`${key}.microsoftAccountLinks`, []);
-			return (token && token !== '[]') || links.length ? key : undefined;
-		}));
-		return new Set(occupied.filter((key): key is string => key !== undefined));
-	}
-
-	private createHost(descriptor: EnterpriseHostDescriptor): EnterpriseHost {
-		const engine = new GitHubSessionEngine(this._context, this._uriHandler, descriptor.uri, descriptor.storageKey);
+	private createHost(uri: vscode.Uri): EnterpriseHost {
+		const engine = new GitHubSessionEngine(this._context, this._uriHandler, uri, getEnterpriseStorageKey(uri));
 		const initialChanges = new Map<string, vscode.AuthenticationSession | undefined>();
 		return {
-			...descriptor,
+			uri,
 			engine,
 			initialChanges,
 			listener: engine.onDidChangeSessions(event => {

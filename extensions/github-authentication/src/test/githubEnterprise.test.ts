@@ -123,7 +123,7 @@ suite('GitHub Enterprise provider lifecycle', () => {
 			options: factory.engines[0].creations,
 			servers: registration.firstCall.args[3].supportedAuthorizationServers.map((uri: vscode.Uri) => uri.toString()),
 			storageKey: factory.engines[0].storageKey
-		}, { sessions: [native], created: native, options: [options], servers: ['https://b.example/Deployment/login/oauth'], storageKey: 'b.example/Deployment.ghes.auth' });
+		}, { sessions: [native], created: native, options: [options], servers: ['https://b.example/Deployment/login/oauth'], storageKey: 'https://b.example/Deployment.ghes.auth' });
 	});
 
 	test('removing and restoring a host announces sessions without a client read', async () => {
@@ -145,13 +145,14 @@ suite('GitHub Enterprise provider lifecycle', () => {
 		assert.deepStrictEqual({ engines: factory.engines.length, registrations: registration.callCount }, { engines: 1, registrations: 1 });
 	});
 
-	test('equivalent URI edits retain the engine and its original token and account-link namespace', async () => {
+	test('equivalent URI edits and restarts use the same canonical credentials', async () => {
 		const original = vscode.Uri.parse('https://TENANT.example/Team/');
 		const normalized = vscode.Uri.parse('https://tenant.example/Team');
 		const state = new TestMemento();
 		const secrets = new TestSecretStorage();
 		disposables.push(secrets);
 		const storageKey = 'TENANT.example/Team/.ghes.auth';
+		const canonicalKey = 'https://tenant.example/Team.ghes.auth';
 		await secrets.store(storageKey, 'fake-saved-token');
 		const links = [{ gitHubAccountId: '42', gitHubAccountLabel: 'octocat', microsoftAccountLabel: 'mona@example.com' }];
 		await state.update(`${storageKey}.microsoftAccountLinks`, links);
@@ -163,14 +164,15 @@ suite('GitHub Enterprise provider lifecycle', () => {
 		assert.deepStrictEqual({
 			created: factory.engines.length,
 			storage: [factory.engines[0].storageKey, restarted.factory.engines[0].storageKey],
-			saved: await secrets.get(storageKey),
+			saved: await secrets.get(canonicalKey),
+			legacy: await secrets.get(storageKey),
 			links: new AccountLinks(state, `${restarted.factory.engines[0].storageKey}.microsoftAccountLinks`, logger).linkedAccounts()
-		}, { created: 1, storage: [storageKey, storageKey], saved: 'fake-saved-token', links });
+		}, { created: 1, storage: [canonicalKey, canonicalKey], saved: 'fake-saved-token', legacy: undefined, links });
 	});
 
 	test('storage failures leave the live host usable without creating replacement engines', async () => {
 		const { provider, factory, secrets } = await create(a);
-		sinon.stub(secrets, 'get').callThrough().withArgs('b.example/Deployment.ghes.auth').rejects(new Error('Secret storage is unavailable'));
+		sinon.stub(secrets, 'get').callThrough().withArgs('https://b.example/Deployment.ghes.auth').rejects(new Error('Secret storage is unavailable'));
 		await assert.rejects(provider.update(b), /Secret storage is unavailable/);
 		assert.deepStrictEqual({ sessions: await provider.getSessions(), engines: factory.engines.length }, { sessions: factory.engines[0].sessions, engines: 1 });
 	});
@@ -179,8 +181,8 @@ suite('GitHub Enterprise provider lifecycle', () => {
 		const { provider, factory } = await create(vscode.Uri.parse('https://a.example'));
 		await provider.update(vscode.Uri.parse('http://a.example'));
 		assert.deepStrictEqual(factory.engines.map(engine => engine.storageKey), [
-			'a.example/.ghes.auth',
-			'http%3A%2F%2Fa.example%2F.ghes.auth'
+			'https://a.example/.ghes.auth',
+			'http://a.example/.ghes.auth'
 		]);
 	});
 
