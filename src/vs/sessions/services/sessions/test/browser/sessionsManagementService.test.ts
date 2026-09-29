@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -578,7 +578,7 @@ suite('SessionsManagementService', () => {
 				const sessions = [a];
 				const second = harness(sessions, { storage });
 				const restored = second.view.restoreVisibleSessions();
-				await timeout(0);
+				await waitForState(second.view.visibleSessions, sessions => sessions.some(session => session?.sessionId === 'a'));
 				const aView = second.part.getSessionView('a');
 				if (cancel) {
 					second.view.arrangeSessions();
@@ -723,13 +723,14 @@ suite('SessionsManagementService', () => {
 				const storage = disposables.add(new InMemoryStorageService());
 				const first = harness([a, b], { storage });
 				await first.view.openSessionsInGrid([a, b]);
-				first.part.toggleMaximizeSession('b');
+				first.view.setActive(first.view.visibleSessions.get()[0]);
+				first.part.toggleMaximizeSession('a');
 				await storage.flush();
 				first.view.dispose();
 				const saved = storage.get('agentSessions.gridState', StorageScope.WORKSPACE);
 				const second = harness([a], { storage });
 				const restoring = second.view.restoreVisibleSessions();
-				await timeout(0);
+				await waitForState(second.view.visibleSessions, sessions => sessions.some(session => session?.sessionId === 'a'));
 				if (cancel) {
 					second.view.arrangeSessions();
 				}
@@ -743,7 +744,7 @@ suite('SessionsManagementService', () => {
 				assert.deepStrictEqual({
 					retained: partial === saved,
 					visible: third.view.visibleSessions.get().map(session => session?.sessionId),
-					wasMaximized: third.part.toggleMaximizeSession('b') === false,
+					wasMaximized: third.part.toggleMaximizeSession('a') === false,
 				}, { retained: !cancel, visible: cancel ? ['a'] : ['a', 'b'], wasMaximized: !cancel });
 			});
 		}
