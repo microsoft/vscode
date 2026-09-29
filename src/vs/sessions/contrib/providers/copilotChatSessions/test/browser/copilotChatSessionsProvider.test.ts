@@ -34,7 +34,7 @@ import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/
 import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -1413,6 +1413,32 @@ suite('CopilotChatSessionsProvider', () => {
 			creationAfterResolve: ['synthetic-cloud-model'],
 			maxContextWindowTokens: 100_000,
 		});
+	});
+
+	test('cloud models are Copilot models, whoever made them', () => {
+		const provider = createProvider(disposables, model, {
+			getOptionGroups: () => [{
+				id: 'models',
+				name: 'Models',
+				items: [
+					{ id: 'auto', name: 'Auto', modelMetadata: { id: 'auto', name: 'Auto' } },
+					{ id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', modelMetadata: { id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', vendor: 'Anthropic' } },
+					{ id: 'gpt-5', name: 'GPT-5', modelMetadata: { id: 'gpt-5', name: 'GPT-5', vendor: 'OpenAI' } },
+				],
+			}],
+		});
+		const session = provider.createNewSession(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repository' }), CopilotCloudSessionType.id);
+		const languageModelsService = upcastPartial<ILanguageModelsService>({ getVendors: () => [] });
+
+		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId).models.map(cloudModel => ({
+			identifier: cloudModel.identifier,
+			vendor: cloudModel.metadata.vendor,
+			userProvided: isUserProvidedModel(cloudModel, languageModelsService),
+		})), [
+			{ identifier: 'auto', vendor: 'copilot', userProvided: false },
+			{ identifier: 'claude-sonnet-4.5', vendor: 'copilot', userProvided: false },
+			{ identifier: 'gpt-5', vendor: 'copilot', userProvided: false },
+		]);
 	});
 
 	test('committed sessions keep an empty Copilot catalog pending until live models arrive', () => {

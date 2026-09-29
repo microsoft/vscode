@@ -3012,6 +3012,26 @@ suite('CopilotAgent', () => {
 		);
 	});
 
+	test('bypasses loopback addresses for managed settings queries with a proxy', async () => {
+		let noProxy: string | undefined;
+		const runtimeSdk = {
+			getManagedSettings: async () => {
+				noProxy = process.env['NO_PROXY'];
+				return { resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] } };
+			},
+		};
+
+		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.com', new AbortController().signal, 3500, 'http://proxy.example.com:8080');
+
+		assert.deepStrictEqual({
+			noProxy,
+			restoredNoProxy: process.env['NO_PROXY'],
+		}, {
+			noProxy: 'localhost,127.0.0.1,::1,::ffff:127.0.0.1',
+			restoredNoProxy: undefined,
+		});
+	});
+
 	test('returns empty models and lists sessions before authentication', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const ownedSession = AgentSession.uri('copilotcli', 'owned-before-auth');
@@ -6494,6 +6514,8 @@ suite('CopilotAgent', () => {
 						https_proxy: createdEnv?.['https_proxy'],
 						ALL_PROXY: createdEnv?.['ALL_PROXY'],
 						all_proxy: createdEnv?.['all_proxy'],
+						NO_PROXY: createdEnv?.['NO_PROXY'],
+						no_proxy: createdEnv?.['no_proxy'],
 					},
 					resolveProxyCalls: proxyResolver.resolveProxyCalls,
 				}, {
@@ -6506,6 +6528,8 @@ suite('CopilotAgent', () => {
 						https_proxy: undefined,
 						ALL_PROXY: undefined,
 						all_proxy: undefined,
+						NO_PROXY: 'localhost,127.0.0.1,::1,::ffff:127.0.0.1',
+						no_proxy: undefined,
 					},
 					resolveProxyCalls: 0,
 				});
@@ -6513,6 +6537,38 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		for (const noProxyKey of ['NO_PROXY', 'no_proxy']) {
+			for (const proxy of [undefined, 'http://configured-proxy.example:8080']) {
+				test(`preserves ${noProxyKey} exclusions ${proxy ? 'with' : 'without'} an injected proxy`, async () => {
+					process.env[noProxyKey] = 'example.com, localhost';
+					const { agent } = createTestAgentContext(disposables, {
+						copilotClient: new TestCopilotClient([]),
+						rootConfig: { [AgentHostProxyConfigKey.Proxy]: proxy },
+					});
+					try {
+						await agent.listChatsToMigrate();
+						const env = getCreatedClientOptions(agent).at(-1)?.env;
+
+						assert.deepStrictEqual({
+							httpProxy: env?.['HTTP_PROXY'],
+							httpsProxy: env?.['HTTPS_PROXY'],
+							noProxy: env?.['NO_PROXY'],
+							lowercaseNoProxy: env?.['no_proxy'],
+							inheritedNoProxy: process.env[noProxyKey],
+						}, {
+							httpProxy: proxy,
+							httpsProxy: proxy,
+							noProxy: 'example.com, localhost',
+							lowercaseNoProxy: undefined,
+							inheritedNoProxy: 'example.com, localhost',
+						});
+					} finally {
+						await disposeAgent(agent);
+					}
+				});
+			}
+		}
 
 		(process.platform === 'win32' ? test : test.skip)('omits environment keys case-insensitively on Windows', () => {
 			const env = createCopilotCliEnvironment({
@@ -6584,10 +6640,12 @@ suite('CopilotAgent', () => {
 					startCallCount: client.startCallCount,
 					resolveProxyCalls: proxyResolver.resolveProxyCalls,
 					httpProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTP_PROXY'],
+					noProxy: getCreatedClientOptions(agent).at(-1)?.env?.['NO_PROXY'],
 				}, {
 					startCallCount: 1,
 					resolveProxyCalls: 1,
 					httpProxy: undefined,
+					noProxy: undefined,
 				});
 
 				resolveProxyGate.complete();
@@ -6603,12 +6661,14 @@ suite('CopilotAgent', () => {
 					resolveProxyCalls: proxyResolver.resolveProxyCalls,
 					httpProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTP_PROXY'],
 					httpsProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTPS_PROXY'],
+					noProxy: getCreatedClientOptions(agent).at(-1)?.env?.['NO_PROXY'],
 				}, {
 					startCallCount: 2,
 					stopCallCount: 1,
 					resolveProxyCalls: 2,
 					httpProxy: proxyResolver.resolvedProxy,
 					httpsProxy: proxyResolver.resolvedProxy,
+					noProxy: 'localhost,127.0.0.1,::1,::ffff:127.0.0.1',
 				});
 			} finally {
 				if (!proxyResolutionCompleted) {
@@ -6688,7 +6748,7 @@ suite('CopilotAgent', () => {
 			const { agent } = createTestAgentContext(disposables, {
 				copilotClient: client,
 				proxyResolver,
-				rootConfig: { [AgentHostProxyConfigKey.NoProxy]: [' 127.0.0.1 ', '', 'localhost'] },
+				rootConfig: { [AgentHostProxyConfigKey.NoProxy]: [' 127.0.0.1 ', '', 'localhost', 'example.com'] },
 			});
 			try {
 				disposables.add(proxyResolver.register('test', {
@@ -6711,7 +6771,7 @@ suite('CopilotAgent', () => {
 					resolveProxyCalls: 2,
 					httpProxy: proxyResolver.resolvedProxy,
 					httpsProxy: proxyResolver.resolvedProxy,
-					noProxy: '127.0.0.1,localhost',
+					noProxy: '127.0.0.1,localhost,example.com',
 					lowercaseNoProxy: undefined,
 				});
 			} finally {
