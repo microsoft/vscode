@@ -1353,41 +1353,52 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		});
 	});
 
-	test('uses the turn-owning chat workspace when filtering response edits', () => {
-		const ds = store.add(new DisposableStore());
-		const conn = new FakeAgentConnection();
-		const peerChatUri = URI.parse('ahp-chat:/peer');
-		const peerChat = createChatState({
-			resource: peerChatUri.toString(),
-			title: 'Peer',
-			status: SessionStatus.Idle,
-			modifiedAt: new Date(0).toISOString(),
-			workingDirectories: [URI.file('/peer').toString()],
+	for (const { scope, workingDirectories, expected } of [
+		{ scope: 'a subset', workingDirectories: [URI.file('/peer').toString()], expected: ['/peer/app.ts'] },
+		{ scope: 'no working-directory access', workingDirectories: [], expected: [] },
+	]) {
+		test(`uses the turn-owning chat workspace when filtering response edits for ${scope}`, () => {
+			const ds = store.add(new DisposableStore());
+			const conn = new FakeAgentConnection();
+			const peerChatUri = URI.parse('ahp-chat:/peer');
+			const peerChat = createChatState({
+				resource: peerChatUri.toString(),
+				title: 'Peer',
+				status: SessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+				workingDirectories,
+			});
+			const provider = ds.add(createProvider(conn, () => backendSession, () => peerChatUri));
+
+			conn.setState(backendSession.toString(), {
+				workingDirectories: [URI.file('/repo').toString()],
+				chats: [peerChat],
+				defaultChat: defaultChatUri.toString(),
+			} as unknown as SessionState);
+			conn.setState(turnChangesetUri('t1', peerChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+			conn.setState(peerChatUri.toString(), {
+				...peerChat,
+				changesets: turnChangesetCatalog(peerChatUri),
+				turns: [{
+					id: 't1',
+					responseParts: [
+						toolCallPart(fileEdit('/peer/app.ts'), 'peer'),
+						toolCallPart(fileEdit('/repo/parent.ts'), 'parent'),
+					],
+				}],
+			} as unknown as ChatState);
+
+			const observed = observe(provider, ds);
+
+			assert.deepStrictEqual({
+				files: observed.latest().map(diff => fromAgentHostUri(diff.modifiedURI).path),
+				isAuthoritativeEmpty: observed.latest() === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES,
+			}, {
+				files: expected,
+				isAuthoritativeEmpty: expected.length === 0,
+			});
 		});
-		const provider = ds.add(createProvider(conn, () => backendSession, () => peerChatUri));
-
-		conn.setState(backendSession.toString(), {
-			workingDirectories: [URI.file('/repo').toString()],
-			chats: [peerChat],
-			defaultChat: defaultChatUri.toString(),
-		} as unknown as SessionState);
-		conn.setState(turnChangesetUri('t1', peerChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
-		conn.setState(peerChatUri.toString(), {
-			...peerChat,
-			changesets: turnChangesetCatalog(peerChatUri),
-			turns: [{
-				id: 't1',
-				responseParts: [
-					toolCallPart(fileEdit('/peer/app.ts'), 'peer'),
-					toolCallPart(fileEdit('/repo/parent.ts'), 'parent'),
-				],
-			}],
-		} as unknown as ChatState);
-
-		const observed = observe(provider, ds);
-
-		assert.deepStrictEqual(observed.latest().map(diff => fromAgentHostUri(diff.modifiedURI).path), ['/peer/app.ts']);
-	});
+	}
 
 	test('the recorded migrated turn falls back to the branch changeset when its turn changeset is empty', () => {
 		// #333642: migrated legacy Copilot CLI sessions have no per-turn

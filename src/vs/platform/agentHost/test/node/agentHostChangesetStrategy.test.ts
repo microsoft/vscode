@@ -683,6 +683,38 @@ suite('AgentHostChangesetStrategy', () => {
 		assert.deepStrictEqual(snapshot(fixture.state, turnChangeset), ready([trackedDiff('/session-state/plan.md')]));
 	});
 
+	for (const strategy of ['fileEditTracker', 'auto'] as const) {
+		test(`${strategy} tracked edits exclude every file for a peer chat without working-directory access`, async () => {
+			const peer = buildChatUri(session, 'peer');
+			const peerDb = new TestSessionDatabase();
+			const fixture = createFixture({ peer: { resource: peer, db: peerDb, turnId: 'peer-turn', workingDirectories: [] } });
+			// Without checkpoints, `auto` falls back to tracked edits.
+			fixture.results.pair = undefined;
+			addEdit(peerDb, '/repo/peer.txt', 'peer-turn', 'peer-edit');
+			addEdit(peerDb, '/session-state/plan.md', 'peer-turn', 'plan-edit');
+			const uri = await fixture.service.computeTurnChangeset(session, 'peer-turn', strategy);
+			assert.deepStrictEqual(snapshot(fixture.state, uri), ready([]));
+		});
+	}
+
+	test('tracker excludes every file when the default chat has no working-directory access', async () => {
+		const fixture = createFixture();
+		const defaultChat = buildDefaultChatUri(session);
+		fixture.state.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///repo' });
+		fixture.state.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///repo' });
+		addEdit(fixture.db);
+		addEdit(fixture.db, '/session-state/plan.md', turnId, 'edit-2');
+		// Refreshes skip sessions without a working directory; turn completion still recomputes.
+		const published = nextPublication(fixture.state, sessionChangeset);
+		fixture.service.onTurnComplete(session, turnId);
+		await published;
+		await fixture.service.computeTurnChangeset(session, turnId, 'fileEditTracker');
+		assert.deepStrictEqual({
+			session: snapshot(fixture.state, sessionChangeset),
+			turn: snapshot(fixture.state, turnChangeset),
+		}, { session: ready([]), turn: ready([]) });
+	});
+
 	for (const failure of ['non-git root', 'missing checkpoint', 'unavailable diff', 'thrown diff'] as const) {
 		test(`strict multi-root Git rejects ${failure} rather than publishing partial success`, async () => {
 			const fixture = createFixture({ workingDirectories: ['file:///repo', 'file:///second'] });

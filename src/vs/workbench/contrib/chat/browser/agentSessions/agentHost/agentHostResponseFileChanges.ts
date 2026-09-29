@@ -194,6 +194,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		const turnSource = this._createTurnSourceObservable(source, backendChat, requestId);
 		const turn = turnSource.map(source => source.turn);
 		const workspaceRoots = this._createWorkspaceRootsObservable(source, turnSource);
+		const hasChatWorkingDirectoriesObs = turnSource.map(source => source.workingDirectories !== undefined);
 		const isHostNoticeObs = turn.map(isHostNotice);
 
 		const turnChangesetUriObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
@@ -261,9 +262,10 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			if (!responseFileEdits.hasValidEdits) {
 				return select('retained', retained, changesetStatus);
 			}
-			// Match the host's turn changeset, which only covers the workspace once it is known.
-			const hasWorkspace = workspaceRoots.read(reader).length > 0;
-			const responseDiffs = hasWorkspace && responseFileEdits.diffs.some(diff => diff.isOutsideWorkspace)
+			// Match the host's turn changeset: a chat's own working directories always scope it, even
+			// when empty (no working-directory access), while a session without a workspace is unscoped.
+			const isScoped = hasChatWorkingDirectoriesObs.read(reader) || workspaceRoots.read(reader).length > 0;
+			const responseDiffs = isScoped && responseFileEdits.diffs.some(diff => diff.isOutsideWorkspace)
 				? responseFileEdits.diffs.filter(diff => !diff.isOutsideWorkspace)
 				: responseFileEdits.diffs;
 			return select('response', responseDiffs.length > 0 ? responseDiffs : AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changesetStatus);

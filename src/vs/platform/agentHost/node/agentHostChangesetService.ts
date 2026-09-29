@@ -955,8 +955,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			// Expected for a non-git folder; otherwise checkpoint capture failed.
 			this._logService.debug(`[AgentHostChangesetService] Turn ${session}/${turnId}: no checkpoint pair; falling back to tracked file edits, which cannot see terminal-tool edits`);
 		}
-		// Fallback: SDK-tracked file_edits aggregator, scoped to the working directory.
-		return computeTurnDiffs(source.trackedSession, source.db, this._diffComputeService, turnId, workingDir ? [workingDir] : undefined);
+		// Fallback: SDK-tracked file_edits aggregator, scoped to the owning chat's working directories.
+		const folderScope = this._getTrackedEditFolderScope(source.trackedSession, this._configurationService.getEffectiveWorkingDirectories(source.trackedSession));
+		return computeTurnDiffs(source.trackedSession, source.db, this._diffComputeService, turnId, folderScope);
 	}
 
 	private _openTrackedTurnSource(session: ProtocolURI, defaultDatabase: ISessionDatabase, turnId: string): { readonly sessionUri: ProtocolURI | undefined; readonly db: ISessionDatabase; dispose(): void } {
@@ -1160,14 +1161,30 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
-	 * Returns the roots that tracked file edits are scoped to. The edit tracker
-	 * records every file the agent edits, including files outside the session
-	 * workspace (e.g. in the agent's session-state folder), which must not be
-	 * reported as session changes. Returns `undefined` — leaving tracked edits
-	 * unscoped — when no working directory is known.
+	 * Returns the roots that `owner`'s tracked file edits are scoped to. The
+	 * edit tracker records every file the agent edits, including files outside
+	 * the session workspace (e.g. in the agent's session-state folder), which
+	 * must not be reported as session changes.
+	 *
+	 * Returns `undefined` — leaving tracked edits unscoped — only for a
+	 * workspace-less owner. A chat that explicitly sets an empty
+	 * `workingDirectories` has no working-directory access, so it gets an empty
+	 * scope that excludes every tracked edit.
 	 */
-	private _getTrackedEditFolderScope(session: ProtocolURI, workingDirectories: readonly string[] | undefined): readonly URI[] | undefined {
-		return workingDirectories?.length ? this._parseWorkingDirectoryUris(session, workingDirectories) : undefined;
+	private _getTrackedEditFolderScope(owner: ProtocolURI, workingDirectories: readonly string[] | undefined): readonly URI[] | undefined {
+		if (!workingDirectories?.length && !this._hasChatWorkingDirectoriesOverride(owner)) {
+			return undefined;
+		}
+		return this._parseWorkingDirectoryUris(owner, workingDirectories ?? []);
+	}
+
+	/**
+	 * Whether the chat backing `owner` sets its own `workingDirectories`, which
+	 * takes precedence over the session's even when empty.
+	 */
+	private _hasChatWorkingDirectoriesOverride(owner: ProtocolURI): boolean {
+		const chat = isAhpChatChannel(owner) ? owner : buildDefaultChatUri(owner);
+		return this._stateManager.getChatState(chat)?.workingDirectories !== undefined;
 	}
 
 	/** Computes a complete session delta across repositories and tracked-only folders. */
