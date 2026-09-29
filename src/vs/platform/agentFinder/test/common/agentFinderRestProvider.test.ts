@@ -12,9 +12,12 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceSourceQuery } from '../../../customizationMarketplace/common/customizationMarketplaceService.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { IGalleryMcpServer, IMcpGalleryService } from '../../../mcp/common/mcpManagement.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { AgentFinderRestProvider } from '../../common/agentFinderRestProvider.js';
 
@@ -100,9 +103,17 @@ suite('AgentFinderRestProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	function createService(body: unknown, statusCode = 200) {
+	const emptyMcpGalleryService = upcastPartial<IMcpGalleryService>({
+		getMcpServer: async () => undefined,
+	});
+
+	function createProvider(requests: IRequestService, mcpGalleryService: IMcpGalleryService = emptyMcpGalleryService, logService: ILogService = new NullLogService()) {
+		return new AgentFinderRestProvider(requests, mcpGalleryService, logService);
+	}
+
+	function createService(body: unknown, statusCode = 200, mcpGalleryService?: IMcpGalleryService, logService?: ILogService) {
 		const requests = new TestRequestService(async () => response(body, statusCode));
-		return { service: new AgentFinderRestProvider(requests), requests };
+		return { service: createProvider(requests, mcpGalleryService, logService), requests };
 	}
 
 	test('parses an observed skill browse response and derives the repository owner avatar', async () => {
@@ -148,32 +159,102 @@ suite('AgentFinderRestProvider', () => {
 		});
 	});
 
-	test('preserves MCP metadata without guessing a repository from serverName', async () => {
-		const { service } = createService({ results: [mcpServer], total: 1, offset: 0, pageSize: 30 });
+	test('resolves an MCP registry icon through the fixed Agent Finder registry', async () => {
+		const lookups: { url: string; manifestUrl: string | undefined; manifestVersion: string | undefined; cancelled: boolean }[] = [];
+		const mcpGalleryService = upcastPartial<IMcpGalleryService>({
+			getMcpServer: async (url, manifest, token) => {
+				lookups.push({
+					url,
+					manifestUrl: manifest?.url,
+					manifestVersion: manifest?.version,
+					cancelled: token?.isCancellationRequested ?? false,
+				});
+				return upcastPartial<IGalleryMcpServer>({
+					icon: {
+						light: 'https://avatars.githubusercontent.com/u/213697801',
+						dark: 'https://avatars.githubusercontent.com/u/213697801',
+					},
+				});
+			},
+		});
+		const { service } = createService({ results: [mcpServer], total: 1, offset: 0, pageSize: 30 }, 200, mcpGalleryService);
 		const page = await service.query({}, CancellationToken.None);
 
-		assert.deepStrictEqual(page.items.map(item => ({
-			displayName: item.displayName,
-			mediaType: item.mediaType,
-			version: item.version,
-			url: item.url?.toString(),
-			externalUrl: item.externalUrl,
-			repository: item.repository,
-			publisher: item.publisher,
-			icon: item.icon,
-			stars: item.stars,
-		})), [{
-			displayName: 'pgEdge Postgres',
-			mediaType: CustomizationMarketplaceMediaType.McpServer,
-			version: '1.0.0',
-			url: 'https://api.mcp.github.com/oss/v0.1/servers/io.github.pgEdge/postgres-mcp/versions/latest',
-			externalUrl: mcpServer.url,
-			repository: undefined,
-			publisher: undefined,
-			icon: undefined,
-			stars: undefined,
-		}]);
+		assert.deepStrictEqual({
+			item: {
+				displayName: page.items[0].displayName,
+				mediaType: page.items[0].mediaType,
+				version: page.items[0].version,
+				url: page.items[0].url?.toString(),
+				externalUrl: page.items[0].externalUrl,
+				repository: page.items[0].repository,
+				publisher: page.items[0].publisher,
+				icon: page.items[0].icon?.toString(),
+				stars: page.items[0].stars,
+			},
+			lookups,
+		}, {
+			item: {
+				displayName: 'pgEdge Postgres',
+				mediaType: CustomizationMarketplaceMediaType.McpServer,
+				version: '1.0.0',
+				url: 'https://api.mcp.github.com/oss/v0.1/servers/io.github.pgEdge/postgres-mcp/versions/latest',
+				externalUrl: mcpServer.url,
+				repository: undefined,
+				publisher: undefined,
+				icon: 'https://avatars.githubusercontent.com/u/213697801',
+				stars: undefined,
+			},
+			lookups: [{
+				url: mcpServer.url,
+				manifestUrl: 'https://api.mcp.github.com/oss/v0.1/servers',
+				manifestVersion: 'v0.1',
+				cancelled: false,
+			}],
+		});
 	});
+
+	test('keeps the MCP result and logs when registry icon resolution fails', async () => {
+		const mcpGalleryService = upcastPartial<IMcpGalleryService>({
+			getMcpServer: async () => { throw new Error('offline'); },
+		});
+		const logService = new NullLogService();
+		const warning = sinon.spy(logService, 'warn');
+		const { service } = createService({ results: [mcpServer], total: 1, offset: 0, pageSize: 30 }, 200, mcpGalleryService, logService);
+		const page = await service.query({}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			icon: page.items[0].icon,
+			warnings: warning.args.map(args => args[0]),
+		}, {
+			icon: undefined,
+			warnings: ['[AgentFinderRestProvider] Failed to resolve the MCP catalog icon for \'io.github.pgEdge/postgres-mcp\'.'],
+		});
+	});
+
+	test('bounds MCP icon resolution when the gallery ignores cancellation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let iconToken: CancellationToken | undefined;
+		const mcpGalleryService = upcastPartial<IMcpGalleryService>({
+			getMcpServer: async (_url, _manifest, token) => {
+				iconToken = token;
+				return new Promise(() => { });
+			},
+		});
+		const logService = new NullLogService();
+		const warning = sinon.spy(logService, 'warn');
+		const { service } = createService({ results: [mcpServer], total: 1, offset: 0, pageSize: 30 }, 200, mcpGalleryService, logService);
+		const page = await service.query({}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			icon: page.items[0].icon,
+			iconCancelled: iconToken?.isCancellationRequested,
+			warnings: warning.args.map(args => args[0]),
+		}, {
+			icon: undefined,
+			iconCancelled: true,
+			warnings: ['[AgentFinderRestProvider] Timed out resolving MCP catalog icons.'],
+		});
+	}));
 
 	test('parses observed metadata for supported plugin media types', async () => {
 		const plugins = [
@@ -405,7 +486,7 @@ suite('AgentFinderRestProvider', () => {
 
 	test('uses a default page size of 30 and caps requested pages at 100', async () => {
 		const requests = new TestRequestService(async options => response({ results: [], total: 0, offset: 0, pageSize: options.url?.includes('pageSize=100') ? 100 : 30 }));
-		const service = new AgentFinderRestProvider(requests);
+		const service = createProvider(requests);
 		await service.query({ query: '   ' }, CancellationToken.None);
 		await service.query({ pageSize: 500 }, CancellationToken.None);
 
@@ -431,7 +512,7 @@ suite('AgentFinderRestProvider', () => {
 			{ results: [skill], total: 3, offset: 2, pageSize: 2 },
 		];
 		const requests = new TestRequestService(async () => response(responses.shift()));
-		const service = new AgentFinderRestProvider(requests);
+		const service = createProvider(requests);
 		const first = await service.query({ pageSize: 2 }, CancellationToken.None);
 		const second = await service.query({ pageSize: 2, cursor: first.nextCursor }, CancellationToken.None);
 
@@ -445,7 +526,7 @@ suite('AgentFinderRestProvider', () => {
 			const offset = options.url?.includes('offset=1') ? 1 : 0;
 			return response({ results: [offset ? skill : cursorPlugin], total: 2, offset, pageSize: 1 });
 		});
-		const page = await new AgentFinderRestProvider(requests).query({ pageSize: 1 }, CancellationToken.None);
+		const page = await createProvider(requests).query({ pageSize: 1 }, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			ids: page.items.map(item => item.identifier),
@@ -469,7 +550,7 @@ suite('AgentFinderRestProvider', () => {
 			{ results: [{ ...skill, identifier: 'another-skill' }], total: 3, offset: 2, pageSize: 2 },
 		];
 		const requests = new TestRequestService(async () => response(responses.shift()));
-		const service = new AgentFinderRestProvider(requests);
+		const service = createProvider(requests);
 		const first = await service.query({ pageSize: 2 }, CancellationToken.None);
 		const second = await service.query({ pageSize: 2, cursor: first.nextCursor }, CancellationToken.None);
 
@@ -494,7 +575,7 @@ suite('AgentFinderRestProvider', () => {
 		const requests = new TestRequestService(async () => response({
 			results: [cursorPlugin], total: 100, offset: requests.requests.length - 1, pageSize: 1,
 		}));
-		await assert.rejects(new AgentFinderRestProvider(requests).query({ pageSize: 1 }, CancellationToken.None), /too many unsupported entries/);
+		await assert.rejects(createProvider(requests).query({ pageSize: 1 }, CancellationToken.None), /too many unsupported entries/);
 		assert.strictEqual(requests.requests.length, 33);
 	});
 
@@ -505,7 +586,7 @@ suite('AgentFinderRestProvider', () => {
 			{ results: [{ ...skill, score: 80 }], previousPageToken: 'previous' },
 		];
 		const requests = new TestRequestService(async () => response(responses.shift()));
-		const service = new AgentFinderRestProvider(requests);
+		const service = createProvider(requests);
 		const options = { query: ' postgres + "JSON" & café ', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 2 };
 		const first = await service.query(options, CancellationToken.None);
 		const second = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
@@ -530,7 +611,7 @@ suite('AgentFinderRestProvider', () => {
 			{ results: [{ ...skill, score: 50 }] },
 		];
 		const requests = new TestRequestService(async () => response(responses.shift()));
-		const page = await new AgentFinderRestProvider(requests).query({ query: 'plugin', pageSize: 1 }, CancellationToken.None);
+		const page = await createProvider(requests).query({ query: 'plugin', pageSize: 1 }, CancellationToken.None);
 		assert.deepStrictEqual({
 			ids: page.items.map(item => item.identifier),
 			total: page.total,
@@ -750,14 +831,14 @@ suite('AgentFinderRestProvider', () => {
 			res: { statusCode: 200, headers: {} },
 			stream: bufferToStream(VSBuffer.fromString('<html>private upstream details</html>')),
 		}));
-		await assert.rejects(new AgentFinderRestProvider(requests).query({}, CancellationToken.None), {
+		await assert.rejects(createProvider(requests).query({}, CancellationToken.None), {
 			message: 'The customization catalog returned invalid JSON. Try again later.',
 		});
 	});
 
 	test('reports transport and stream failures without exposing underlying details', async () => {
 		const requests = new TestRequestService(async () => { throw new Error('private transport details'); });
-		await assert.rejects(new AgentFinderRestProvider(requests).query({}, CancellationToken.None), {
+		await assert.rejects(createProvider(requests).query({}, CancellationToken.None), {
 			message: 'Unable to reach the customization catalog. Check your connection and try again.',
 		});
 
@@ -765,7 +846,7 @@ suite('AgentFinderRestProvider', () => {
 		disposables.add(toDisposable(() => stream.destroy()));
 		stream.error(new Error('private stream details'));
 		const streamRequests = new TestRequestService(async () => ({ res: { statusCode: 200, headers: {} }, stream }));
-		await assert.rejects(new AgentFinderRestProvider(streamRequests).query({}, CancellationToken.None), {
+		await assert.rejects(createProvider(streamRequests).query({}, CancellationToken.None), {
 			message: 'Unable to reach the customization catalog. Check your connection and try again.',
 		});
 	});
@@ -774,7 +855,7 @@ suite('AgentFinderRestProvider', () => {
 		const stream = bufferToStream(VSBuffer.alloc(5 * 1024 * 1024 + 1));
 		const destroyed = sinon.spy(stream, 'destroy');
 		const requests = new TestRequestService(async () => ({ res: { statusCode: 200, headers: {} }, stream }));
-		await assert.rejects(new AgentFinderRestProvider(requests).query({}, CancellationToken.None), /response is too large/);
+		await assert.rejects(createProvider(requests).query({}, CancellationToken.None), /response is too large/);
 		assert.strictEqual(destroyed.called, true);
 	});
 
@@ -787,7 +868,7 @@ suite('AgentFinderRestProvider', () => {
 	test('cancels a pending request even when the transport does not reject', async () => {
 		const source = disposables.add(new CancellationTokenSource());
 		const requests = new TestRequestService(() => new Promise(() => { }));
-		const pending = new AgentFinderRestProvider(requests).query({}, source.token);
+		const pending = createProvider(requests).query({}, source.token);
 		source.cancel();
 		await assert.rejects(pending, isCancellationError);
 		assert.strictEqual(requests.tokens[0].isCancellationRequested, true);
@@ -799,7 +880,7 @@ suite('AgentFinderRestProvider', () => {
 		disposables.add(toDisposable(() => stream.destroy()));
 		const destroyed = sinon.spy(stream, 'destroy');
 		const requests = new TestRequestService(async () => ({ res: { statusCode: 200, headers: {} }, stream }));
-		const pending = new AgentFinderRestProvider(requests).query({}, source.token);
+		const pending = createProvider(requests).query({}, source.token);
 		await timeout(0);
 		source.cancel();
 		await assert.rejects(pending, isCancellationError);
@@ -808,7 +889,7 @@ suite('AgentFinderRestProvider', () => {
 
 	test('times out and cancels a request that never resolves', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const requests = new TestRequestService(() => new Promise(() => { }));
-		await assert.rejects(new AgentFinderRestProvider(requests).query({}, CancellationToken.None), {
+		await assert.rejects(createProvider(requests).query({}, CancellationToken.None), {
 			message: 'The customization catalog took too long to respond. Try again.',
 		});
 		assert.strictEqual(requests.tokens[0].isCancellationRequested, true);
@@ -819,7 +900,7 @@ suite('AgentFinderRestProvider', () => {
 		disposables.add(toDisposable(() => stream.destroy()));
 		const destroyed = sinon.spy(stream, 'destroy');
 		const requests = new TestRequestService(async () => ({ res: { statusCode: 200, headers: {} }, stream }));
-		await assert.rejects(new AgentFinderRestProvider(requests).query({}, CancellationToken.None), /took too long/);
+		await assert.rejects(createProvider(requests).query({}, CancellationToken.None), /took too long/);
 		assert.strictEqual(destroyed.called, true);
 	}));
 });
