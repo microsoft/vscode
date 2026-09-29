@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use crate::candidate::{discover, DiscoveryDiagnosticKind, DiscoveryError, DiscoveryOperation};
@@ -12,12 +12,14 @@ use crate::install::{
 	discover_tools, mutation_plan, run_installer, HostTarget, InstallerAttempt,
 	InstallerAttemptResult, InstallerPlanError, InstallerResult, MutationKind, UnsupportedTarget,
 };
+use crate::invocation::{self, Invocation};
 use crate::model::{
 	Cancellation, Candidate, CommandArguments, CommandIntent, CommandSpec, LaunchAdapter,
 	ProbeLimits, ProcessError, ProcessOutcome, ProcessTermination, ResolvedCandidate,
 	SupervisionMode,
 };
 use crate::runtime::{InspectedFileType, PromptKind, PromptResponse, Runtime};
+use crate::setup;
 use crate::version::{evaluate_successful_stdout, CliVersion, SuccessfulVersion, MINIMUM_VERSION};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -360,13 +362,7 @@ fn prepare_workflow<R: Runtime>(
 				return Ok(WorkflowAction::Launch(candidate));
 			}
 			(DiscoveryCycle::Initial, CandidateSelection::Old { version, .. }) => {
-				match request_mutation(
-					runtime,
-					target,
-					interpreters,
-					MutationKind::Update,
-					Some(version),
-				)? {
+				match request_mutation(runtime, target, MutationKind::Update, Some(version))? {
 					PromptResponse::Declined => return Ok(WorkflowAction::Exit(0)),
 					PromptResponse::Accepted => {
 						cycle = DiscoveryCycle::AfterMutation(MutationKind::Update);
@@ -374,8 +370,7 @@ fn prepare_workflow<R: Runtime>(
 				}
 			}
 			(DiscoveryCycle::Initial, CandidateSelection::Missing) => {
-				match request_mutation(runtime, target, interpreters, MutationKind::Install, None)?
-				{
+				match request_mutation(runtime, target, MutationKind::Install, None)? {
 					PromptResponse::Declined => return Ok(WorkflowAction::Exit(0)),
 					PromptResponse::Accepted => {
 						cycle = DiscoveryCycle::AfterMutation(MutationKind::Install);
@@ -410,14 +405,21 @@ fn prepare_workflow<R: Runtime>(
 
 pub(crate) fn run<R: Runtime>(
 	runtime: &R,
-	mut arguments: Vec<OsString>,
+	arguments: Vec<OsString>,
 	target: Option<HostTarget>,
 ) -> i32 {
-	if arguments
-		.first()
-		.is_some_and(|argument| argument == OsStr::new("--clear"))
-	{
-		arguments.remove(0);
+	let (clear, arguments) = match invocation::parse(arguments) {
+		Ok(Invocation::Launch { clear, arguments }) => (clear, arguments),
+		// Commands for VS Code report and exit; they never launch the Copilot CLI.
+		Ok(Invocation::Info) => return setup::info(),
+		Ok(Invocation::Probe(options)) => return setup::probe(runtime, target, &options),
+		Ok(Invocation::Install(options)) => return setup::install(runtime, target, &options),
+		Err(error) => {
+			runtime.write_diagnostic(&error.to_string());
+			return invocation::USAGE_EXIT_CODE;
+		}
+	};
+	if clear {
 		if let Err(error) = runtime.clear_terminal() {
 			runtime.write_diagnostic(&format!("failed to clear the terminal: {error}"));
 			return ApplicationExit::InternalFailure.code();
@@ -476,7 +478,6 @@ fn launch_candidate<R: Runtime>(
 fn request_mutation<R: Runtime>(
 	runtime: &R,
 	target: Option<HostTarget>,
-	interpreters: &InterpreterInventory,
 	kind: MutationKind,
 	installed_version: Option<CliVersion>,
 ) -> Result<PromptResponse, ApplicationExit> {
@@ -513,7 +514,7 @@ fn request_mutation<R: Runtime>(
 		return Ok(response);
 	}
 
-	let mut tools = discover_tools(runtime, target).map_err(|error| {
+	let tools = discover_tools(runtime, target).map_err(|error| {
 		runtime.write_diagnostic(&format!(
 			"failed to discover installer tools at {:?}: {}",
 			error.path,
@@ -521,9 +522,6 @@ fn request_mutation<R: Runtime>(
 		));
 		ApplicationExit::InternalFailure
 	})?;
-	if matches!(target, HostTarget::WindowsX64 | HostTarget::WindowsArm64) {
-		tools.power_shell = selected_power_shell(interpreters);
-	}
 	let routes = mutation_plan(kind, target, &tools).map_err(|error| {
 		report_installer_plan_error(runtime, kind, &error);
 		ApplicationExit::InternalFailure
@@ -569,13 +567,6 @@ fn unsupported_target(target: HostTarget) -> Option<UnsupportedTarget> {
 		| HostTarget::LinuxGnuX64
 		| HostTarget::LinuxGnuArm64 => None,
 	}
-}
-
-fn selected_power_shell(interpreters: &InterpreterInventory) -> Option<PathBuf> {
-	interpreters
-		.powershell_7_3_or_newer
-		.clone()
-		.or_else(|| interpreters.windows_powershell_5_1.clone())
 }
 
 fn report_unsupported_target<R: Runtime>(

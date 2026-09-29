@@ -1,3 +1,8 @@
+# Builds the native Copilot CLI shim in a VS Code CLI job, after cli-compile.yml has installed Rust and sccache, and
+# stages it as <COPILOT_SHIM_ARTIFACT>.zip (Windows, macOS) or .tar.gz (Linux, Alpine). The shim is published
+# unsigned; the product build places it in bin/copilot-shim of the client and server builds before signing them.
+# The build shares the CLI's sccache directory and cache, because the sccache server that the CLI build started keeps
+# serving its own directory for the rest of the job.
 parameters:
   - name: COPILOT_SHIM_TARGET
     type: string
@@ -11,51 +16,11 @@ parameters:
     default: false
 
 steps:
-  - task: Cache@2
-    displayName: Restore Copilot shim sccache cache
-    inputs:
-      key: '"copilot-shim-sccache" | "$(Agent.OS)" | "${{ parameters.COPILOT_SHIM_TARGET }}" | "${{ parameters.COPILOT_SHIM_CHECK_ONLY }}" | $(Build.SourcesDirectory)/copilot_shim/Cargo.toml | $(Build.SourcesDirectory)/copilot_shim/Cargo.lock | $(Build.SourcesDirectory)/build/.cachesalt'
-      path: $(Pipeline.Workspace)/copilot-shim-sccache
-
-  - ${{ if contains(parameters.COPILOT_SHIM_TARGET, '-windows-') }}:
-    - pwsh: |
-        $version = "0.14.0"
-        $url = "https://github.com/mozilla/sccache/releases/download/v$version/sccache-v$version-x86_64-pc-windows-msvc.zip"
-        Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\sccache.zip"
-        Expand-Archive -Path "$env:TEMP\sccache.zip" -DestinationPath "$env:TEMP\sccache" -Force
-        $sccacheDir = Get-ChildItem -Path "$env:TEMP\sccache" -Directory | Select-Object -First 1
-        Copy-Item "$($sccacheDir.FullName)\sccache.exe" -Destination "$env:USERPROFILE\.cargo\bin\sccache.exe"
-        sccache --version
-      displayName: Install sccache
-  - ${{ else }}:
-    - script: |
-        set -e
-        SCCACHE_VERSION="0.14.0"
-        ARCH=$(uname -m)
-        OS=$(uname -s)
-        if [ "$OS" = "Darwin" ]; then
-          TARGET="aarch64-apple-darwin"
-        elif [ "$OS" = "Linux" ]; then
-          if [ "$ARCH" = "aarch64" ]; then
-            TARGET="aarch64-unknown-linux-musl"
-          else
-            TARGET="x86_64-unknown-linux-musl"
-          fi
-        fi
-        FILENAME="sccache-v${SCCACHE_VERSION}-${TARGET}"
-        URL="https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/${FILENAME}.tar.gz"
-        curl -fsSL "$URL" -o /tmp/copilot-shim-sccache.tar.gz
-        tar -xzf /tmp/copilot-shim-sccache.tar.gz -C /tmp
-        sudo cp "/tmp/${FILENAME}/sccache" /usr/local/bin/sccache
-        sudo chmod +x /usr/local/bin/sccache
-        sccache --version
-      displayName: Install sccache
-
   - ${{ if contains(parameters.COPILOT_SHIM_TARGET, '-linux-') }}:
     - script: |
         set -e
         if [ -n "$SYSROOT_ARCH" ]; then
-          export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/copilot-shim-sysroots
+          export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
           node -e 'import { getVSCodeSysroot } from "../build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"], process.env["IS_MUSL"] === "1"); })()'
           if [ "$SYSROOT_ARCH" = "arm64" ]; then
             if [ "$IS_MUSL" = "1" ]; then
@@ -110,7 +75,7 @@ steps:
       workingDirectory: $(Build.SourcesDirectory)/copilot_shim
       env:
         RUSTC_WRAPPER: sccache
-        SCCACHE_DIR: $(Pipeline.Workspace)/copilot-shim-sccache
+        SCCACHE_DIR: $(Pipeline.Workspace)/sccache
         ${{ each pair in parameters.COPILOT_SHIM_ENV }}:
           ${{ pair.key }}: ${{ pair.value }}
 
@@ -120,7 +85,7 @@ steps:
       workingDirectory: $(Build.SourcesDirectory)/copilot_shim
       env:
         RUSTC_WRAPPER: sccache
-        SCCACHE_DIR: $(Pipeline.Workspace)/copilot-shim-sccache
+        SCCACHE_DIR: $(Pipeline.Workspace)/sccache
         ${{ each pair in parameters.COPILOT_SHIM_ENV }}:
           ${{ pair.key }}: ${{ pair.value }}
 
@@ -199,4 +164,4 @@ steps:
     displayName: Copilot shim sccache stats
     condition: succeededOrFailed()
     env:
-      SCCACHE_DIR: $(Pipeline.Workspace)/copilot-shim-sccache
+      SCCACHE_DIR: $(Pipeline.Workspace)/sccache

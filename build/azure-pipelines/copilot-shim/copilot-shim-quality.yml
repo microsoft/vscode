@@ -1,4 +1,8 @@
 steps:
+  - script: rustup component add rustfmt clippy
+    displayName: Install Rust quality components
+    condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
+
   - script: cargo fmt --check
     displayName: Check Copilot shim formatting
     workingDirectory: $(Build.SourcesDirectory)/copilot_shim

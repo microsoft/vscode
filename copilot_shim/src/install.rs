@@ -76,8 +76,8 @@ impl HostTarget {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct ToolInventory {
-	pub(crate) power_shell: Option<PathBuf>,
-	pub(crate) winget: Option<PathBuf>,
+	/// The running shim, which installs GitHub's MSI on Windows through `--vscode-shim install --interactive`.
+	pub(crate) shim: Option<PathBuf>,
 	pub(crate) brew: Option<PathBuf>,
 	pub(crate) curl: Option<PathBuf>,
 	pub(crate) wget: Option<PathBuf>,
@@ -86,8 +86,7 @@ pub(crate) struct ToolInventory {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Tool {
-	PowerShell,
-	Winget,
+	Shim,
 	Brew,
 	Curl,
 	Wget,
@@ -95,7 +94,7 @@ pub(crate) enum Tool {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum InstallerRoute {
-	Winget,
+	Msi,
 	Homebrew,
 	Curl,
 	Wget,
@@ -146,17 +145,10 @@ pub(crate) fn installer_plan(
 ) -> Result<Vec<InstallerRoute>, InstallerPlanError> {
 	match target {
 		HostTarget::WindowsX64 | HostTarget::WindowsArm64 => {
-			let mut missing = Vec::new();
-			if tools.power_shell.is_none() {
-				missing.push(Tool::PowerShell);
-			}
-			if tools.winget.is_none() {
-				missing.push(Tool::Winget);
-			}
-			if missing.is_empty() {
-				Ok(vec![InstallerRoute::Winget])
+			if tools.shim.is_some() {
+				Ok(vec![InstallerRoute::Msi])
 			} else {
-				Err(InstallerPlanError::MissingPrerequisites(missing))
+				Err(InstallerPlanError::MissingPrerequisites(vec![Tool::Shim]))
 			}
 		}
 		HostTarget::MacosX64 | HostTarget::MacosArm64 => downloader_plan(tools, true),
@@ -233,8 +225,7 @@ where
 
 	let mut inventory = ToolInventory::default();
 	if windows {
-		inventory.power_shell = find_first(runtime, &directories, &["pwsh.exe", "powershell.exe"])?;
-		inventory.winget = find_first(runtime, &directories, &["winget.exe"])?;
+		inventory.shim = runtime.current_executable().ok();
 	} else {
 		inventory.bash = find_first(runtime, &directories, &["bash"])?;
 		inventory.curl = find_first(runtime, &directories, &["curl"])?;
@@ -371,11 +362,11 @@ where
 	let mut attempts = Vec::new();
 	for route in routes {
 		let outcome = match route {
-			InstallerRoute::Winget => run_command(
+			InstallerRoute::Msi => run_command(
 				runtime,
 				*route,
 				InstallerStage::Install,
-				winget_command(tools),
+				msi_command(tools),
 				&mut attempts,
 			),
 			InstallerRoute::Homebrew => run_command(
@@ -503,22 +494,16 @@ fn run_command<R: ProcessEffects>(
 	}
 }
 
-fn winget_command(tools: &ToolInventory) -> Option<CommandSpec> {
-	let power_shell = tools.power_shell.as_ref()?;
-	let winget = tools.winget.as_ref()?;
-	Some(native_command(
-		power_shell.as_os_str(),
-		[
-			"-NoLogo",
-			"-NoProfile",
-			"-Command",
-			"& $args[0] install GitHub.Copilot",
-		]
-		.into_iter()
-		.map(OsString::from)
-		.chain([winget.as_os_str().to_os_string()])
-		.collect(),
-	))
+fn msi_command(tools: &ToolInventory) -> Option<CommandSpec> {
+	tools.shim.as_ref().map(|shim| {
+		native_command(
+			shim.as_os_str(),
+			["--vscode-shim", "install", "--interactive"]
+				.into_iter()
+				.map(OsString::from)
+				.collect(),
+		)
+	})
 }
 
 fn homebrew_command(tools: &ToolInventory) -> Option<CommandSpec> {
@@ -564,7 +549,7 @@ fn downloader_command(
 				.collect(),
 			)
 		}),
-		InstallerRoute::Winget | InstallerRoute::Homebrew => None,
+		InstallerRoute::Msi | InstallerRoute::Homebrew => None,
 	}
 }
 
@@ -609,8 +594,7 @@ mod tests {
 
 	fn all_tools() -> ToolInventory {
 		ToolInventory {
-			power_shell: path("powershell"),
-			winget: path("winget"),
+			shim: path("copilot.exe"),
 			brew: path("brew"),
 			curl: path("curl"),
 			wget: path("wget"),
@@ -635,8 +619,8 @@ mod tests {
 				installer_plan(HostTarget::LinuxMuslArm64, &tools),
 			],
 			[
-				Ok(vec![InstallerRoute::Winget]),
-				Ok(vec![InstallerRoute::Winget]),
+				Ok(vec![InstallerRoute::Msi]),
+				Ok(vec![InstallerRoute::Msi]),
 				Ok(vec![
 					InstallerRoute::Homebrew,
 					InstallerRoute::Curl,
@@ -676,10 +660,6 @@ mod tests {
 	fn missing_capabilities_are_typed_and_update_reuses_install_policy() {
 		let no_tools = ToolInventory::default();
 		let tools = all_tools();
-		let mut no_power_shell = tools.clone();
-		no_power_shell.power_shell = None;
-		let mut no_winget = tools.clone();
-		no_winget.winget = None;
 		let mut no_brew = tools.clone();
 		no_brew.brew = None;
 		let mut no_curl = tools.clone();
@@ -692,8 +672,6 @@ mod tests {
 				installer_plan(HostTarget::WindowsX64, &no_tools),
 				installer_plan(HostTarget::MacosX64, &no_tools),
 				installer_plan(HostTarget::LinuxGnuX64, &no_tools),
-				installer_plan(HostTarget::WindowsX64, &no_power_shell),
-				installer_plan(HostTarget::WindowsX64, &no_winget),
 				installer_plan(HostTarget::MacosX64, &no_brew),
 				installer_plan(HostTarget::MacosX64, &no_curl),
 				installer_plan(HostTarget::MacosX64, &no_wget),
@@ -703,10 +681,7 @@ mod tests {
 				mutation_plan(MutationKind::Update, HostTarget::MacosArm64, &tools),
 			),
 			(
-				Err(InstallerPlanError::MissingPrerequisites(vec![
-					Tool::PowerShell,
-					Tool::Winget,
-				])),
+				Err(InstallerPlanError::MissingPrerequisites(vec![Tool::Shim])),
 				Err(InstallerPlanError::MissingPrerequisites(vec![
 					Tool::Brew,
 					Tool::Curl,
@@ -716,12 +691,6 @@ mod tests {
 					Tool::Curl,
 					Tool::Wget,
 				])),
-				Err(InstallerPlanError::MissingPrerequisites(vec![
-					Tool::PowerShell,
-				])),
-				Err(InstallerPlanError::MissingPrerequisites(
-					vec![Tool::Winget,]
-				)),
 				Ok(vec![InstallerRoute::Curl, InstallerRoute::Wget]),
 				Ok(vec![InstallerRoute::Homebrew, InstallerRoute::Wget]),
 				Ok(vec![InstallerRoute::Homebrew, InstallerRoute::Curl]),
@@ -1292,13 +1261,10 @@ mod tests {
 	}
 
 	#[test]
-	fn windows_command_is_fixed_powershell_winget_shape() {
+	fn windows_command_runs_the_shim_msi_install() {
 		let tools = all_tools();
-		let (result, processes) = run_fake(
-			[FakeProcessResult::Exit(0)],
-			&[InstallerRoute::Winget],
-			&tools,
-		);
+		let (result, processes) =
+			run_fake([FakeProcessResult::Exit(0)], &[InstallerRoute::Msi], &tools);
 		let commands = processes.commands.borrow();
 
 		assert!(matches!(result, InstallerResult::Succeeded { .. }));
@@ -1309,17 +1275,11 @@ mod tests {
 				commands[0].1,
 			),
 			(
-				OsStr::new("powershell"),
-				[
-					"-NoLogo",
-					"-NoProfile",
-					"-Command",
-					"& $args[0] install GitHub.Copilot",
-					"winget",
-				]
-				.into_iter()
-				.map(OsString::from)
-				.collect(),
+				OsStr::new("copilot.exe"),
+				["--vscode-shim", "install", "--interactive"]
+					.into_iter()
+					.map(OsString::from)
+					.collect(),
 				SupervisionMode::InteractiveBootstrap,
 			)
 		);

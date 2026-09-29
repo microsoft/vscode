@@ -107,7 +107,10 @@ impl Candidate {
 				Ok(CommandSpec::new(
 					interpreter.as_os_str().to_os_string(),
 					CommandArguments::WindowsCommand {
-						switches: ["/D", "/S", "/C"].into_iter().map(OsString::from).collect(),
+						switches: platform::WINDOWS_COMMAND_SWITCHES
+							.into_iter()
+							.map(OsString::from)
+							.collect(),
 						raw_command_tail,
 					},
 					LaunchAdapter::WindowsCommandScript {
@@ -220,25 +223,21 @@ mod tests {
 		);
 	}
 
-	fn assert_cmd_metacharacters_are_escaped(raw_command_tail: &std::ffi::OsStr) {
+	/// cmd treats `&|<>()^` as syntax only outside quotes, so every one of them must be inside a quoted argument.
+	fn assert_cmd_metacharacters_are_quoted(raw_command_tail: &std::ffi::OsStr) {
 		let command_tail = raw_command_tail
 			.to_str()
 			.expect("test command tail should be Unicode");
-		let units: Vec<char> = command_tail.chars().collect();
-		for (index, unit) in units.iter().enumerate().skip(1).take(units.len() - 2) {
-			if !r#"()[]%!"`<>&|;,*?"#.contains(*unit) {
-				continue;
+		let inner = &command_tail[1..command_tail.len() - 1];
+		let mut quoted = false;
+		for character in inner.chars() {
+			if character == '"' {
+				quoted = !quoted;
+			} else if !quoted && "&|<>()^".contains(character) {
+				panic!("unquoted cmd metacharacter in {command_tail:?}");
 			}
-			let preceding_carets = units[..index]
-				.iter()
-				.rev()
-				.take_while(|unit| **unit == '^')
-				.count();
-			assert!(
-				preceding_carets >= 3 && preceding_carets % 2 == 1,
-				"unescaped cmd metacharacter in {command_tail:?}"
-			);
 		}
+		assert!(!quoted, "unbalanced quotes in {command_tail:?}");
 	}
 
 	#[test]
@@ -303,7 +302,7 @@ mod tests {
 			else {
 				panic!("expected raw Windows command tail");
 			};
-			assert_cmd_metacharacters_are_escaped(raw_command_tail);
+			assert_cmd_metacharacters_are_quoted(raw_command_tail);
 			assert_eq!(
 				(
 					command.program(),
@@ -313,12 +312,9 @@ mod tests {
 				),
 				(
 					inventory.command_shell.as_ref().unwrap().as_os_str(),
-					[
-						OsString::from("/D"),
-						OsString::from("/S"),
-						OsString::from("/C")
-					]
-					.as_slice(),
+					platform::WINDOWS_COMMAND_SWITCHES
+						.map(OsString::from)
+						.as_slice(),
 					std::iter::once(OsString::from(r"C:\hostile & script\copilot.cmd"))
 						.chain(arguments())
 						.collect(),
