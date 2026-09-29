@@ -8,6 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isCustomizationEnabled, sortCustomizationEnablement } from '../../../common/customizationEnablement.js';
+import { AutomationCapturedPluginMetaKey } from '../../../common/meta/clientPluginCustomizationMeta.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget, type WorkingDirectoryState } from '../../../node/agentHostCustomizationEnablementService.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, recordClientPluginEnablement, resolveCustomizationEnablement } from '../../../node/shared/customizationEnablementGate.js';
@@ -145,6 +146,30 @@ function firstChildEnablement(customizations: readonly Customization[]): readonl
 suite('CustomizationEnablementGate', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps disabled captured MCP children excluded without a live client overlay', () => {
+		const service = new TestEnablementService();
+		const customization: PluginCustomization = {
+			...plugin([{
+				...server(),
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			}, agent()]),
+			_meta: { [AutomationCapturedPluginMetaKey]: true },
+		};
+		service.setEnablementFor('server-id', [{ kind: CustomizationEnablementKind.Session, enabled: true }]);
+		const resolved = resolveCustomizationEnablement(service, URI.parse('ahp://copilot/session-1'), [customization]);
+		service.setPending('session');
+		const pending = resolveCustomizationEnablement(service, URI.parse('ahp://copilot/session-1'), [customization]);
+		assert.deepStrictEqual({
+			mcp: [...getSdkMcpServerEnablement(resolved)],
+			agents: sdkAgentNames(resolved.customizations),
+			pendingPluginEligible: isCustomizationSdkEligible(pending, customization),
+		}, {
+			mcp: [['server-id', false]],
+			agents: ['agent'],
+			pendingPluginEligible: false,
+		});
+	});
 
 	test('does not fabricate enablement while a resolution is pending and excludes it from the SDK', () => {
 		const service = new TestEnablementService();

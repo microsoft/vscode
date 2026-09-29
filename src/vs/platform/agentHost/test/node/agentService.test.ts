@@ -4632,6 +4632,34 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(AgentSession.provider(session), 'copilot');
 		});
 
+		test('prepares Automation customizations before returning a created session', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const captured = {
+				type: CustomizationType.Plugin,
+				id: 'automation-plugin',
+				uri: 'file:///captured/automation/revision',
+				name: 'Automation Plugin',
+			} as const;
+			await service.createSession({
+				provider: 'copilot',
+				automationCustomizations: [captured],
+			});
+
+			assert.deepStrictEqual(copilotAgent.sessionCustomizationsCalls.at(-1)?.hostCustomizations, [captured]);
+		});
+
+		test('rejects Automation session creation when captured customization preparation fails', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			copilotAgent.getChatCustomizations = async () => { throw new Error('capture unavailable'); };
+			await assert.rejects(
+				service.createSession({
+					provider: 'copilot',
+					automationCustomizations: [],
+				}),
+				/capture unavailable/,
+			);
+		});
+
 		test('accepts customization updates while creating a provisional session', async () => {
 			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin' } as const;
 			class ProvisionalCustomizationAgent extends MockAgent {

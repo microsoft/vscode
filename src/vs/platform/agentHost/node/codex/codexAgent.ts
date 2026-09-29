@@ -2070,7 +2070,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		const plugins = session.clientCustomizations.plugins();
 		const candidates = plugins.map(plugin => ({
 			...plugin.synced.customization,
-			...(plugin.parsed ? { children: parsedPluginChildren(plugin.parsed) } : {}),
+			...(plugin.customization?.children
+				? { children: plugin.customization.children }
+				: plugin.parsed ? { children: parsedPluginChildren(plugin.parsed) } : {}),
 		}));
 		const clientPlugins = new Map<string, ClientPluginCustomization>();
 		const childEnablement = new Map<string, NonNullable<ClientPluginCustomization['childEnablement']>>();
@@ -7419,9 +7421,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * chat-array membership or sibling inference; Agent Host calls this once
 	 * per addressed chat. `context` only resolves the chat's backing runtime
 	 * when it has no live binding yet, mirroring
-	 * {@link _resolveConversationSession}. `hostCustomizations` is unused:
-	 * Codex reconciles pushed plugin customizations via
-	 * {@link _syncClientCustomizations}.
+	 * {@link _resolveConversationSession}. Host-owned captured plugin
+	 * customizations are parsed from their immutable local copies by the
+	 * awaited {@link getChatCustomizations} preparation path before Codex
+	 * materializes the thread.
 	 */
 	getOrCreateActiveClient(chat: URI, context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, _hostCustomizations?: readonly Customization[]): CodexActiveClientHandle {
 		const key = `${chat.toString()}\u0000${client.clientId}`;
@@ -7470,6 +7473,19 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	// ---- Client-pushed plugin customizations -------------------------------
+
+	private async _syncHostCustomizations(session: ICodexSession, customizations: readonly Customization[]): Promise<void> {
+		const hostPlugins = customizations.filter((customization): customization is PluginCustomization =>
+			customization.type === CustomizationType.Plugin
+			&& this._pluginManager.getCapturedPluginDir(customization.uri) !== undefined
+		);
+		const plugins = await Promise.all(hostPlugins.map(customization => this._parseHostPlugin(session, customization)));
+		if (session.disposed) {
+			return;
+		}
+		session.clientCustomizations.setHost(plugins);
+		await this._reconcileMaterializedCustomizations(session);
+	}
 
 	/**
 	 * Materialize + parse a client's pushed plugin customizations and store
@@ -7566,16 +7582,35 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	/** Parse one synced plugin directory into its components (best-effort). */
-	private async _parseClientPlugin(session: ICodexSession, synced: ISyncedCustomization, input: ClientPluginCustomization | undefined): Promise<ICodexClientPlugin> {
+	/** Parse an immutable host-owned plugin without involving client sync. */
+	private async _parseHostPlugin(session: ICodexSession, customization: PluginCustomization): Promise<ICodexClientPlugin> {
+		const pluginDir = URI.parse(customization.uri);
+		return this._parseClientPlugin(session, { customization, pluginDir }, undefined, true);
+	}
+
+	private async _parseClientPlugin(session: ICodexSession, synced: ISyncedCustomization, input: ClientPluginCustomization | undefined, strict = false): Promise<ICodexClientPlugin> {
 		if (!synced.pluginDir) {
+			if (strict) {
+				throw new Error(`Captured plugin ${synced.customization.uri} has no local directory`);
+			}
 			return { synced, parsed: undefined, input };
 		}
 		try {
+			if (strict && !(await this._fileService.stat(synced.pluginDir)).isDirectory) {
+				throw new Error(`Captured plugin ${synced.customization.uri} is not a directory`);
+			}
 			const parsed = await parsePlugin(synced.pluginDir, this._fileService, session.workingDirectory, this._environmentService.userHome, synced.pluginDir);
-			const candidate = { ...synced.customization, children: parsedPluginChildren(parsed) };
+			const storedChildren = new Map((synced.customization.children ?? []).map(child => [child.id, child]));
+			const candidate = {
+				...synced.customization,
+				children: parsedPluginChildren(parsed).map(child => {
+					const stored = storedChildren.get(child.id);
+					return stored?.type === CustomizationType.McpServer && stored.enablement ? { ...child, enablement: stored.enablement } : child;
+				}),
+			};
 			const clientPlugins = input ? new Map([[input.uri, input]]) : undefined;
-			const resolution = resolveCustomizationEnablement(this._customizationEnablementService, session.configurationResource, [candidate], input?.childEnablement ? new Map([[input.uri, input.childEnablement]]) : undefined, clientPlugins);
+			const childEnablement = input?.childEnablement;
+			const resolution = resolveCustomizationEnablement(this._customizationEnablementService, session.configurationResource, [candidate], childEnablement ? new Map([[synced.customization.uri, childEnablement]]) : undefined, clientPlugins);
 			const resolved = resolution.customizations[0];
 			return {
 				synced,
@@ -7584,7 +7619,10 @@ export class CodexAgent extends Disposable implements IAgent {
 				customization: resolved.type === CustomizationType.Plugin ? resolved : candidate,
 			};
 		} catch (err) {
-			this._logService.warn(`[Codex] failed to parse client plugin ${synced.customization.uri}: ${err instanceof Error ? err.message : String(err)}`);
+			this._logService.warn(`[Codex] failed to parse plugin ${synced.customization.uri}: ${err instanceof Error ? err.message : String(err)}`);
+			if (strict) {
+				throw new Error(`Captured plugin ${synced.customization.uri} is unavailable: ${err instanceof Error ? err.message : String(err)}`);
+			}
 			return { synced, parsed: undefined, input };
 		}
 	}
@@ -7659,11 +7697,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * returned snapshot reflects the current connection-global inventory;
 	 * subsequent lifecycle transitions arrive as customization actions
 	 * emitted by the session's {@link McpCustomizationController}.
-	 * `hostCustomizations` is unused: codex reconciles a client's pushed
-	 * plugin customizations directly (see {@link _syncClientCustomizations}),
-	 * so the host's copy carries nothing this method needs.
+	 * Captured host plugin customizations are parsed from their immutable local
+	 * directories before publishing the combined customization surface.
 	 */
-	async getChatCustomizations(chat: URI, context: URI | IAgentChatContext, _hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]> {
+	async getChatCustomizations(chat: URI, context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]> {
 		const sessionUri = this._resolveConversationSession(chat, context);
 		if (!sessionUri) {
 			return [];
@@ -7671,6 +7708,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		const session = this._sessions.get(AgentSession.id(sessionUri));
 		if (!session) {
 			return [];
+		}
+		if (hostCustomizations) {
+			await this._syncHostCustomizations(session, hostCustomizations);
 		}
 		return this._queueDirectoryCustomizationOperation(session, async () => {
 			if (session.disposed) {

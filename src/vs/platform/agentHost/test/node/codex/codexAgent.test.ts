@@ -9,10 +9,11 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext } from '../../../common/agent.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type Customization, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildDefaultChatUri, parseRequiredSessionUriFromChatUri, ResponsePartKind, MessageAttachmentKind, MessageKind, type MessageAttachment, type PendingMessage } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getCustomizationEnablementKey, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../../node/agentHostCustomizationEnablementService.js';
@@ -101,6 +102,15 @@ interface ICodexGuardianReviewSession {
 	readonly handledGuardianReviews: Set<string>;
 }
 
+interface ICodexHostCustomizationHarness {
+	readonly _sessions: Map<string, { readonly disposed: boolean }>;
+	_resolveConversationSession(chat: URI, context: URI | IAgentChatContext): URI | undefined;
+	_fileService: FileService;
+	_environmentService: { readonly userHome: URI };
+	_logService: NullLogService;
+	_pluginManager: { getCapturedPluginDir(capturedUri: string): URI | undefined };
+}
+
 interface ICodexGuardianReviewHarness {
 	readonly _logService: NullLogService;
 	readonly _sessionIdByThreadId: Map<string, string>;
@@ -149,6 +159,55 @@ function emptyHarness(): ICodexConversationResolverHarness {
 }
 
 suite('CodexAgent', () => {
+
+	test('rejects host customization preparation failures before reading the Codex catalog', async () => {
+		const sessionUri = AgentSession.uri(CODEX_AGENT_PROVIDER_ID, 'host-capture');
+		const session = { disposed: false };
+		const fileService = new FileService(new NullLogService());
+		const harness = Object.assign(Object.create(CodexAgent.prototype), {
+			_sessions: new Map([[AgentSession.id(sessionUri), session]]),
+			_resolveConversationSession: () => sessionUri,
+			_fileService: fileService,
+			_environmentService: { userHome: URI.file('/home/user') },
+			_logService: new NullLogService(),
+			_pluginManager: { getCapturedPluginDir: () => URI.file('/missing') },
+		}) as ICodexHostCustomizationHarness;
+		const getChatCustomizations = (CodexAgent.prototype as unknown as {
+			getChatCustomizations(this: ICodexHostCustomizationHarness, chat: URI, context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]>;
+		}).getChatCustomizations;
+
+		await assert.rejects(
+			() => getChatCustomizations.call(harness, URI.parse('codex://chat'), URI.file('/workspace'), [{
+				type: CustomizationType.Plugin,
+				id: 'host-capture',
+				uri: 'file:///missing',
+				name: 'host-capture',
+			}]),
+			/Captured plugin .* unavailable/,
+		);
+		fileService.dispose();
+	});
+
+	test('does not parse a mirrored active-client plugin as a captured host plugin', async () => {
+		const store = new CodexClientCustomizationStore();
+		const session = { disposed: false, clientCustomizations: store };
+		const harness = Object.assign(Object.create(CodexAgent.prototype), {
+			_pluginManager: { getCapturedPluginDir: () => undefined },
+			_reconcileMaterializedCustomizations: async () => { },
+		});
+		const syncHostCustomizations = (CodexAgent.prototype as unknown as {
+			_syncHostCustomizations(this: typeof harness, value: typeof session, customizations: readonly Customization[]): Promise<void>;
+		})._syncHostCustomizations;
+
+		await syncHostCustomizations.call(harness, session, [{
+			type: CustomizationType.Plugin,
+			id: 'mirrored-client-plugin',
+			uri: URI.file('/client/plugin').toString(),
+			name: 'Mirrored Client Plugin',
+		}]);
+
+		assert.deepStrictEqual(store.plugins(), []);
+	});
 
 	suite('steering input correlation', () => {
 		function createHarness() {

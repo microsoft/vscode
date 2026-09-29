@@ -9,17 +9,19 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
 import { derived, type IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostActiveClientService, type IAgentCustomizationSnapshot } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, StateComponents, type ClientPluginCustomization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { assertAutomationSessionTemplate, type AutomationTarget, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -45,6 +47,12 @@ export type IAgentHostAutomationConnection = Pick<IAgentConnection,
 
 interface ISerializedArchivedRun extends Omit<IAutomationRun, 'sessionResource'> {
 	readonly sessionResource?: string;
+}
+
+interface IAutomationCustomizationCapture {
+	readonly customizations: ClientPluginCustomization[];
+	readonly rewriteUri: (uri: string) => string;
+	dispose(): void;
 }
 
 /** Translation between host-local resources and editor-facing provider identities. */
@@ -85,6 +93,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		private readonly _boundaryMapper: IAgentHostAutomationBoundaryMapper | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 	) {
 		super();
 		this._archiveKey = `agentHostAutomation.legacyRunArchive.${_providerId}`;
@@ -394,16 +403,21 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	private async _createDescriptor(resource: string, descriptor: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<AutomationEntry> {
-		const definition = this._definitionFromDescriptor(descriptor);
-		const state = await this._dispatchAndWait(
-			{ type: ActionType.AutomationCreateRequested, resource, definition },
-			catalog => catalog.entries.some(automation => automation.resource === resource),
-			mutationGuard,
-		);
-		if (!state) {
-			throw new Error(`Automation create completed without authoritative state: ${resource}`);
+		const capture = await this._captureCustomizations(descriptor);
+		try {
+			const definition = this._definitionFromDescriptor(descriptor, undefined, false, capture);
+			const state = await this._dispatchAndWait(
+				{ type: ActionType.AutomationCreateRequested, resource, definition },
+				catalog => catalog.entries.some(automation => automation.resource === resource),
+				mutationGuard,
+			);
+			if (!state) {
+				throw new Error(`Automation create completed without authoritative state: ${resource}`);
+			}
+			return state;
+		} finally {
+			capture?.dispose();
 		}
-		return state;
 	}
 
 	private async _replaceDescriptor(descriptor: IAutomationDescriptor, resetSessionTemplate = false, mutationGuard?: AutomationMutationGuard): Promise<AutomationEntry> {
@@ -412,39 +426,47 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			throw new Error(`Automation does not exist: ${descriptor.id}`);
 		}
 		const resource = current.resource;
-		const definition = this._definitionFromDescriptor(descriptor, current.definition, resetSessionTemplate);
-		const expected = this._requireProjectedAutomation({ ...current, definition });
-		const state = await this._dispatchAndWait(
-			{
-				type: ActionType.AutomationUpdateRequested,
-				resource,
-				changes: {
-					title: definition.title,
-					message: definition.message,
-					session: definition.session,
-					enabled: definition.enabled,
-					triggers: definition.triggers,
-					_meta: definition._meta,
+		const currentDescriptor = this._requireProjectedAutomation(current);
+		const capture = this._targetChanged(currentDescriptor.target, descriptor.target)
+			? await this._captureCustomizations(descriptor)
+			: undefined;
+		try {
+			const definition = this._definitionFromDescriptor(descriptor, current.definition, resetSessionTemplate, capture);
+			const expected = this._requireProjectedAutomation({ ...current, definition });
+			const state = await this._dispatchAndWait(
+				{
+					type: ActionType.AutomationUpdateRequested,
+					resource,
+					changes: {
+						title: definition.title,
+						message: definition.message,
+						session: definition.session,
+						enabled: definition.enabled,
+						triggers: definition.triggers,
+						_meta: definition._meta,
+					},
 				},
-			},
-			catalog => {
-				const state = catalog.entries.find(automation => automation.resource === resource);
-				const projected = this._projectAutomation(state);
-				if (projected === undefined
-					|| serializeAutomationEditableState(projected) !== serializeAutomationEditableState(expected)) {
-					return false;
-				}
-				return true;
-			},
-			mutationGuard,
-		);
-		if (!state) {
-			throw new Error(`Automation update completed without authoritative state: ${resource}`);
+				catalog => {
+					const state = catalog.entries.find(automation => automation.resource === resource);
+					const projected = this._projectAutomation(state);
+					if (projected === undefined
+						|| serializeAutomationEditableState(projected) !== serializeAutomationEditableState(expected)) {
+						return false;
+					}
+					return true;
+				},
+				mutationGuard,
+			);
+			if (!state) {
+				throw new Error(`Automation update completed without authoritative state: ${resource}`);
+			}
+			return state;
+		} finally {
+			capture?.dispose();
 		}
-		return state;
 	}
 
-	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, resetSessionTemplate = false): AutomationDefinition {
+	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, resetSessionTemplate = false, capture?: IAutomationCustomizationCapture): AutomationDefinition {
 		if (descriptor.target.providerId !== this._providerId) {
 			throw new AutomationUnavailableError(localize('agentHostAutomation.wrongHost', "The automation target must belong to this Agent Host."));
 		}
@@ -478,6 +500,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			setOptional(config, SessionConfigKey.Branch, undefined);
 		}
 		const meta = existing?._meta ?? {};
+		const customizations = this._connection.initializeResult.get()?.automations?.customizations
+			? capture?.customizations ?? existingSession?.customizations
+			: undefined;
 		return {
 			title: descriptor.name,
 			message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation } },
@@ -487,16 +512,59 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 					id: this._toHostModelId(modelId, provider),
 					...(sessionTemplate?.modelConfiguration !== undefined ? { config: sessionTemplate.modelConfiguration } : {}),
 				} : undefined,
-				agent: resetSessionTemplate ? undefined : sessionTemplate ? sessionTemplate.agent : existingSession?.agent,
+				agent: resetSessionTemplate ? undefined : sessionTemplate?.agent ? {
+					...sessionTemplate.agent,
+					uri: capture?.rewriteUri(sessionTemplate.agent.uri) ?? sessionTemplate.agent.uri,
+				} : sessionTemplate ? undefined : existingSession?.agent,
 				workingDirectories: descriptor.target.kind === 'workspace'
 					? [(this._boundaryMapper?.toHost(descriptor.target.folderUri) ?? descriptor.target.folderUri).toString()]
 					: undefined,
 				config: Object.keys(config).length > 0 ? config : undefined,
+				...(customizations !== undefined ? { customizations } : {}),
 			},
 			enabled: descriptor.enabled,
 			triggers: scheduleTrigger(descriptor.schedule),
 			_meta: Object.keys(meta).length > 0 ? meta : undefined,
 		};
+	}
+
+	private async _captureCustomizations(descriptor: IAutomationDescriptor): Promise<IAutomationCustomizationCapture | undefined> {
+		if (!this._connection.initializeResult.get()?.automations?.customizations) {
+			return undefined;
+		}
+		const target = descriptor.target;
+		const modelId = descriptor.sessionTemplate?.modelId ?? descriptor.modelId;
+		const provider = target.sessionTypeId ?? this._providerFromModelId(modelId);
+		if (!provider) {
+			throw new AutomationUnavailableError(localize('agentHostAutomation.missingSnapshotProvider', "The automation target must identify an Agent Host session type to capture customizations."));
+		}
+		const sessionType = this._boundaryMapper?.resourceSchemeForProvider(provider) ?? provider;
+		const roots = target.kind === 'workspace' ? [target.folderUri] : [];
+		const scope = this._activeClientService.acquireScope(sessionType, roots);
+		let snapshot: IAgentCustomizationSnapshot | undefined;
+		try {
+			snapshot = await scope.acquireResolvedSnapshot();
+			return {
+				customizations: [...snapshot.customizations],
+				rewriteUri: snapshot.rewriteUri,
+				dispose: () => {
+					snapshot?.dispose();
+					scope.dispose();
+				},
+			};
+		} catch (error) {
+			snapshot?.dispose();
+			scope.dispose();
+			throw error;
+		}
+	}
+
+	private _targetChanged(current: AutomationTarget, next: AutomationTarget): boolean {
+		if (current.providerId !== next.providerId || current.sessionTypeId !== next.sessionTypeId || current.kind !== next.kind) {
+			return true;
+		}
+		return current.kind === 'workspace' && next.kind === 'workspace'
+			&& !isEqual(current.folderUri, next.folderUri);
 	}
 
 	private _toHostModelId(modelId: string, provider: string | undefined): string {

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -96,6 +96,7 @@ suite('AgentHostClientTools', () => {
 		tools: IObservable<readonly IToolData[]> = constObservable([]),
 		toolSets: IObservable<Iterable<IToolSet>> = constObservable([]),
 		mcpOptions?: { remoteAuthority?: string; servers: readonly IMcpServer[] },
+		promptsService?: IPromptsService,
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		let semanticSearchEnabled = false;
@@ -118,7 +119,7 @@ suite('AgentHostClientTools', () => {
 		} as Partial<IConfigurationService> as IConfigurationService);
 		instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
 		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: mcpOptions?.remoteAuthority });
-		instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
+		instantiationService.stub(IPromptsService, promptsService ?? new class extends mock<IPromptsService>() {
 			override readonly onDidChangeCustomAgents = Event.None;
 			override readonly onDidChangeSlashCommands = Event.None;
 			override readonly onDidChangeSkills = Event.None;
@@ -207,6 +208,105 @@ suite('AgentHostClientTools', () => {
 			syncProviderIsStable: true,
 			scopeAfterReleaseIsResolved: true,
 		});
+	});
+
+	test('waits for a refresh queued while the initial customization resolution is in flight', async () => {
+		const onDidChangeInstructions = disposables.add(new Emitter<void>());
+		const firstResolution = new DeferredPromise<never[]>();
+		const refreshedResolution = new DeferredPromise<never[]>();
+		const firstStarted = new DeferredPromise<void>();
+		const refreshStarted = new DeferredPromise<void>();
+		let phase = 1;
+		const promptsService = new class extends mock<IPromptsService>() {
+			override readonly onDidChangeCustomAgents = Event.None;
+			override readonly onDidChangeSlashCommands = Event.None;
+			override readonly onDidChangeSkills = Event.None;
+			override readonly onDidChangeInstructions = onDidChangeInstructions.event;
+			override getDisabledPromptFiles() { return new ResourceSet(); }
+			override async listPromptFilesForStorage() {
+				if (phase === 1) {
+					firstStarted.complete();
+					return firstResolution.p;
+				}
+				refreshStarted.complete();
+				return refreshedResolution.p;
+			}
+		}();
+		const { service } = createActiveClientService(undefined, undefined, undefined, promptsService);
+		const scope = disposables.add(service.acquireScope('agent-host-copilotcli', []));
+
+		await firstStarted.p;
+		phase = 2;
+		onDidChangeInstructions.fire();
+		const snapshot = scope.acquireResolvedSnapshot();
+		await firstResolution.complete([]);
+		await refreshStarted.p;
+		let settled = false;
+		void snapshot.then(() => settled = true);
+		assert.strictEqual(settled, false);
+
+		await refreshedResolution.complete([]);
+		const acquired = await snapshot;
+		acquired.dispose();
+	});
+
+	test('rejects the latest customization failure and recovers after a later successful refresh', async () => {
+		const onDidChangeInstructions = disposables.add(new Emitter<void>());
+		const initialResolution = new DeferredPromise<never[]>();
+		const failedResolution = new DeferredPromise<never[]>();
+		const recoveredResolution = new DeferredPromise<never[]>();
+		const initialStarted = new DeferredPromise<void>();
+		const failedStarted = new DeferredPromise<void>();
+		const recoveredStarted = new DeferredPromise<void>();
+		let phase = 1;
+		const promptsService = new class extends mock<IPromptsService>() {
+			override readonly onDidChangeCustomAgents = Event.None;
+			override readonly onDidChangeSlashCommands = Event.None;
+			override readonly onDidChangeSkills = Event.None;
+			override readonly onDidChangeInstructions = onDidChangeInstructions.event;
+			override getDisabledPromptFiles() { return new ResourceSet(); }
+			override async listPromptFilesForStorage() {
+				switch (phase) {
+					case 1:
+						initialStarted.complete();
+						return initialResolution.p;
+					case 2:
+						failedStarted.complete();
+						return failedResolution.p;
+					default:
+						recoveredStarted.complete();
+						return recoveredResolution.p;
+				}
+			}
+		}();
+		const { service } = createActiveClientService(undefined, undefined, undefined, promptsService);
+		const scope = disposables.add(service.acquireScope('agent-host-copilotcli', []));
+
+		await initialStarted.p;
+		await initialResolution.complete([]);
+		await scope.whenResolved();
+
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(() => { /* Expected resolution failure. */ });
+		try {
+			phase = 2;
+			onDidChangeInstructions.fire();
+			const failedSnapshot = scope.acquireResolvedSnapshot();
+			await failedStarted.p;
+			const failure = new Error('refresh failed');
+			void failedResolution.error(failure);
+			await assert.rejects(failedSnapshot, failure);
+
+			phase = 3;
+			onDidChangeInstructions.fire();
+			const recoveredSnapshot = scope.acquireResolvedSnapshot();
+			await recoveredStarted.p;
+			await recoveredResolution.complete([]);
+			const acquired = await recoveredSnapshot;
+			acquired.dispose();
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
 	});
 
 	test('provides MCP support before a session and keeps unavailable roots distinct from no roots', async () => {

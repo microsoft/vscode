@@ -615,6 +615,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 			tools: constObservable(options?.activeClient?.tools ?? []),
 			isResolved: constObservable(true),
 			whenResolved: () => Promise.resolve(),
+			acquireResolvedSnapshot: async () => ({ customizations: [], rewriteUri: uri => uri, dispose: () => { } }),
 			activeClient: (clientId: string) => constObservable({ clientId, ...(options?.activeClient ?? { tools: [], customizations: [] }) }),
 			dispose: () => { },
 		});
@@ -3213,6 +3214,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			tools,
 			isResolved,
 			whenResolved: () => Promise.resolve(),
+			acquireResolvedSnapshot: async () => ({ customizations: [], rewriteUri: uri => uri, dispose: () => { } }),
 			activeClient: clientId => derived(reader => {
 				customAgents.read(reader);
 				return {
@@ -6107,6 +6109,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			tools: constObservable(activeClient.tools),
 			isResolved: constObservable(true),
 			whenResolved: () => resolution.p,
+			acquireResolvedSnapshot: async () => ({ customizations: [], rewriteUri: uri => uri, dispose: () => { } }),
 			activeClient: clientId => {
 				activeClientReads++;
 				return constObservable({ clientId, ...activeClient });

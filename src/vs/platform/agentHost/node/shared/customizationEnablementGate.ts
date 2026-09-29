@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
+import { isAutomationCapturedPlugin } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { CustomizationEnablementKind, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../agentHostCustomizationEnablementService.js';
 
@@ -104,6 +105,9 @@ export function resolveCustomizationEnablement(
 		if (customization.type !== CustomizationType.Plugin) {
 			return customization;
 		}
+		if (isAutomationCapturedPlugin(customization) && !isCustomizationEnabled(customization)) {
+			return customization;
+		}
 		const pluginResolution = applyResolution(customization, applyClientGlobal(service, session, targetForPlugin(customization), clientPlugins?.get(customization.uri)?.enablement));
 		pending ||= pluginResolution.pending;
 		if (pluginResolution.pending) {
@@ -113,6 +117,10 @@ export function resolveCustomizationEnablement(
 		const childEnablement = clientChildEnablement?.get(customization.uri);
 		const children = pluginResolution.customization.children?.map(child => {
 			if (child.type !== CustomizationType.McpServer) {
+				return child;
+			}
+			// A disabled captured child is never made available by a later live overlay.
+			if (isAutomationCapturedPlugin(customization) && !isCustomizationEnabled(child)) {
 				return child;
 			}
 			const isClientBundled = isClientBundledMcpServer(childEnablement, child.name);

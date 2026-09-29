@@ -76,7 +76,13 @@ export interface ICodexCustomizationConfig {
 export class CodexClientCustomizationStore {
 
 	private readonly _byClient = new Map<string, readonly ICodexClientPlugin[]>();
+	private _host: readonly ICodexClientPlugin[] = [];
 	private readonly _enablement = new Map<string, boolean>();
+
+	/** Replace the host-owned captured plugins for this session. */
+	setHost(plugins: readonly ICodexClientPlugin[]): void {
+		this._host = plugins;
+	}
 
 	/** Replace one client's synced+parsed plugin set. */
 	setClient(clientId: string, plugins: readonly ICodexClientPlugin[]): void {
@@ -111,7 +117,7 @@ export class CodexClientCustomizationStore {
 	private _merged(): readonly ICodexClientPlugin[] {
 		const seen = new Set<string>();
 		const out: ICodexClientPlugin[] = [];
-		for (const plugins of this._byClient.values()) {
+		for (const plugins of [this._host, ...this._byClient.values()]) {
 			for (const plugin of plugins) {
 				const id = plugin.synced.customization.id;
 				if (seen.has(id)) {

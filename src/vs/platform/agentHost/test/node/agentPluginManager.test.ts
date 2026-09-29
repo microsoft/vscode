@@ -11,23 +11,34 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { IFileDeleteOptions } from '../../../files/common/files.js';
+import { FileSystemProviderCapabilities, IFileDeleteOptions, IFileWriteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
+import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
-import { CustomizationType } from '../../common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType } from '../../common/state/protocol/state.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
+import { parseCapturedPluginCustomization } from '../../node/shared/automationCustomizations.js';
 
 /**
  * In-memory provider that can simulate a locked (undeletable) resource, like a
  * directory still held by a running session, so eviction fails with an error.
  */
 class LockableInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
+	override get capabilities(): FileSystemProviderCapabilities {
+		return super.capabilities | FileSystemProviderCapabilities.FileAtomicWrite;
+	}
+
 	readonly lockedPaths = new Set<string>();
 	readonly cacheReadStarted = new DeferredPromise<void>();
 	readonly operationLog: string[] = [];
 	cacheReadBarrier: DeferredPromise<void> | undefined;
+	failStagedWriteAfter: number | undefined;
+	failCacheWrite = false;
+	failCacheWrites = 0;
+	readonly cacheWriteAtomicOptions: IFileWriteOptions['atomic'][] = [];
+	private _stagedWriteCount = 0;
 
 	override async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		for (const locked of this.lockedPaths) {
@@ -53,6 +64,31 @@ class LockableInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 			this.operationLog.push('plugin-materialize');
 		}
 		return super.mkdir(resource);
+	}
+
+	override async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+		if (resource.path.endsWith('/agentPlugins/cache.json')) {
+			this.cacheWriteAtomicOptions.push(opts.atomic);
+			if (this.failCacheWrite || this.failCacheWrites > 0) {
+				if (this.failCacheWrites > 0) {
+					this.failCacheWrites--;
+				}
+				throw new Error('simulated cache persistence failure');
+			}
+		}
+		if (this.failStagedWriteAfter !== undefined) {
+			if (this._stagedWriteCount++ >= this.failStagedWriteAfter) {
+				throw new Error('simulated staged copy failure');
+			}
+		}
+		return super.writeFile(resource, content, opts);
+	}
+
+	override async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		if (this.failStagedWriteAfter !== undefined && this._stagedWriteCount++ >= this.failStagedWriteAfter) {
+			throw new Error('simulated staged copy failure');
+		}
+		return super.write(fd, pos, data, offset, length);
 	}
 }
 
@@ -104,6 +140,13 @@ suite('AgentPluginManager', () => {
 		const content = await fileService.readFile(cachePath);
 		const entries: { uri: string; nonce: string }[] = JSON.parse(content.value.toString());
 		return new Set(entries.map(entry => entry.nonce));
+	}
+
+	async function readCacheHolders(): Promise<Set<string>> {
+		const cachePath = URI.joinPath(basePath, 'agentPlugins', 'cache.json');
+		const content = await fileService.readFile(cachePath);
+		const entries: { holders?: string[] }[] = JSON.parse(content.value.toString());
+		return new Set(entries.flatMap(entry => entry.holders ?? []));
 	}
 
 	// ---- syncCustomizations -------------------------------------------------
@@ -302,6 +345,470 @@ suite('AgentPluginManager', () => {
 			await Promise.all([firstSync, secondSync]);
 
 			assert.strictEqual(provider.operationLog[0], 'cache-read-complete');
+		});
+
+		test('fails closed without overwriting a malformed cache manifest', async () => {
+			const cachePath = URI.joinPath(basePath, 'agentPlugins', 'cache.json');
+			const malformedManifest = '{not valid json';
+			await fileService.createFolder(URI.joinPath(basePath, 'agentPlugins'));
+			await fileService.writeFile(cachePath, VSBuffer.fromString(malformedManifest));
+			await seedPluginDir('malformed-cache', { 'index.js': 'content' });
+
+			const restarted = new AgentPluginManager(basePath, fileService, new NullLogService());
+			await assert.rejects(() => restarted.syncCustomizations('test-client', [makeRef('malformed-cache', 'nonce')]));
+
+			assert.strictEqual((await fileService.readFile(cachePath)).value.toString(), malformedManifest);
+		});
+	});
+
+	// ---- captureCustomizations ----------------------------------------------
+
+	suite('captureCustomizations', () => {
+
+		test('throws when a capture source is missing', async () => {
+			await assert.rejects(() => manager.captureCustomizations('test-client', [makeRef('missing')]));
+		});
+
+		test('captures each nonce-less plugin revision immutably in a host-owned directory', async () => {
+			await seedPluginDir('immutable', { 'index.js': 'v1' });
+			const ref = { ...makeRef('immutable'), clientId: 'test-client' };
+			const first = await manager.captureCustomizations('test-client', [ref]);
+			const captured = first.customizations[0];
+			const pluginDir = manager.getCapturedPluginDir(captured.uri);
+
+			await seedPluginDir('immutable', { 'index.js': 'v2' });
+			const second = await manager.captureCustomizations('test-client', [ref]);
+			const secondDir = manager.getCapturedPluginDir(second.customizations[0].uri)!;
+
+			assert.deepStrictEqual(
+				{
+					id: captured.id,
+					uri: captured.uri,
+					hasClientId: Object.hasOwn(captured, 'clientId'),
+					firstContent: pluginDir && (await fileService.readFile(URI.joinPath(pluginDir, 'index.js'))).value.toString(),
+					secondContent: (await fileService.readFile(URI.joinPath(secondDir, 'index.js'))).value.toString(),
+					secondUri: second.customizations[0].uri,
+				},
+				{
+					id: ref.id,
+					uri: pluginDir?.toString(),
+					hasClientId: false,
+					firstContent: 'v1',
+					secondContent: 'v2',
+					secondUri: secondDir.toString(),
+				},
+			);
+			assert.notStrictEqual(second.customizations[0].uri, captured.uri);
+
+			first.dispose();
+			second.dispose();
+		});
+
+		test('parses captured plugin contents without trusting client children or load state', async () => {
+			await seedPluginDir('parsed', {
+				'.mcp.json': '{"mcpServers":{"captured":{"command":"node"}}}',
+			});
+			const source: ClientPluginCustomization = {
+				...makeRef('parsed', 'nonce'),
+				children: [],
+				load: { kind: CustomizationLoadStatus.Error, message: 'forged' },
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				childEnablement: { captured: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+				_meta: toClientPluginMcpDefaultCwdsMeta({ captured: null }),
+			};
+			const capture = await manager.captureCustomizations('test-client', [source]);
+			const captured = capture.customizations[0];
+			const parsed = await parseCapturedPluginCustomization(
+				captured,
+				source,
+				manager.getCapturedPluginDir(captured.uri)!,
+				URI.file('/workspace'),
+				URI.file('/home/user'),
+				fileService,
+			);
+
+			assert.deepStrictEqual(
+				{
+					load: parsed.load,
+					children: parsed.children?.map(child => ({
+						type: child.type,
+						name: child.type === CustomizationType.McpServer ? child.name : undefined,
+						enablement: child.type === CustomizationType.McpServer ? child.enablement : undefined,
+					})),
+					meta: parsed._meta,
+				},
+				{
+					load: { kind: CustomizationLoadStatus.Loaded },
+					children: [{
+						type: CustomizationType.McpServer,
+						name: 'captured',
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+					}],
+					meta: {
+						...toClientPluginMcpDefaultCwdsMeta({ captured: null }),
+					},
+				},
+			);
+
+			capture.dispose();
+		});
+
+		test('removes an incomplete staged capture before retrying', async () => {
+			await seedPluginDir('retry', { 'one.js': 'one', 'two.js': 'two' });
+			provider.failStagedWriteAfter = 1;
+			await assert.rejects(() => manager.captureCustomizations('test-client', [makeRef('retry', 'nonce')]));
+
+			provider.failStagedWriteAfter = undefined;
+			const capture = await manager.captureCustomizations('test-client', [makeRef('retry', 'nonce')]);
+			const pluginDir = manager.getCapturedPluginDir(capture.customizations[0].uri)!;
+
+			assert.deepStrictEqual(
+				{
+					one: (await fileService.readFile(URI.joinPath(pluginDir, 'one.js'))).value.toString(),
+					two: (await fileService.readFile(URI.joinPath(pluginDir, 'two.js'))).value.toString(),
+				},
+				{ one: 'one', two: 'two' },
+			);
+
+			capture.dispose();
+		});
+
+		test('keeps concurrently staged captures through serialized cache cleanup', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			await seedPluginDir('concurrent-capture', { 'index.js': 'content' });
+
+			const [first, second] = await Promise.all([
+				smallManager.captureCustomizations('test-client', [makeRef('concurrent-capture', 'one')]),
+				smallManager.captureCustomizations('test-client', [makeRef('concurrent-capture', 'two')]),
+			]);
+			const firstDir = smallManager.getCapturedPluginDir(first.customizations[0].uri)!;
+			const secondDir = smallManager.getCapturedPluginDir(second.customizations[0].uri)!;
+
+			assert.deepStrictEqual(
+				{
+					first: await fileService.exists(firstDir),
+					second: await fileService.exists(secondDir),
+				},
+				{ first: true, second: true },
+			);
+
+			first.dispose();
+			second.dispose();
+		});
+
+		test('uses collision-free host directories for durable captures', async () => {
+			await seedPluginDir('a-b', { 'index.js': 'first' });
+			await seedPluginDir('a_b', { 'index.js': 'second' });
+
+			const first = await manager.captureCustomizations('test-client', [makeRef('a-b', 'x-y')]);
+			const second = await manager.captureCustomizations('test-client', [makeRef('a_b', 'x_y')]);
+			const firstDir = manager.getCapturedPluginDir(first.customizations[0].uri)!;
+			const secondDir = manager.getCapturedPluginDir(second.customizations[0].uri)!;
+
+			assert.deepStrictEqual(
+				{
+					differentDirectories: firstDir.toString() !== secondDir.toString(),
+					first: (await fileService.readFile(URI.joinPath(firstDir, 'index.js'))).value.toString(),
+					second: (await fileService.readFile(URI.joinPath(secondDir, 'index.js'))).value.toString(),
+				},
+				{ differentDirectories: true, first: 'first', second: 'second' },
+			);
+
+			first.dispose();
+			second.dispose();
+		});
+
+		test('does not trust client-provided parsed contents or metadata', async () => {
+			await seedPluginDir('metadata', { 'index.js': 'content' });
+			const ref: ClientPluginCustomization = {
+				...makeRef('metadata', 'nonce'),
+				clientId: 'test-client',
+				load: { kind: CustomizationLoadStatus.Degraded, message: 'Parsed with a warning' },
+				childEnablement: { server: [] },
+				_meta: { defaultCwd: '/workspace' },
+				children: [],
+			};
+
+			const capture = await manager.captureCustomizations('test-client', [ref]);
+			const captured = capture.customizations[0] as ClientPluginCustomization;
+
+			assert.deepStrictEqual(
+				{
+					load: captured.load,
+					childEnablement: captured.childEnablement,
+					meta: captured._meta,
+					children: captured.children,
+					hasClientId: Object.hasOwn(captured, 'clientId'),
+				},
+				{
+					load: undefined,
+					childEnablement: undefined,
+					meta: undefined,
+					children: undefined,
+					hasClientId: false,
+				},
+			);
+
+			capture.dispose();
+		});
+
+		test('keeps durable holders through startup global and per-plugin cleanup', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			await seedPluginDir('retained', { 'index.js': 'v1' });
+			const retained = await smallManager.captureCustomizations('test-client', [makeRef('retained', 'one')]);
+			const retainedDir = smallManager.getCapturedPluginDir(retained.customizations[0].uri)!;
+			retained.dispose();
+			await smallManager.retainCustomizationHolders(new Map([['automation:one', retained.customizations]]));
+
+			const restarted = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			for (let i = 2; i <= 9; i++) {
+				await seedPluginDir('retained', { 'index.js': `v${i}` });
+				const capture = await restarted.captureCustomizations('test-client', [makeRef('retained', `${i}`)]);
+				capture.dispose();
+			}
+
+			assert.strictEqual(await fileService.exists(retainedDir), true);
+		});
+
+		test('preserves durable holders while replacing a captured revision and syncing its unchanged source', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			const ref = makeRef('holder-update', 'nonce');
+			await seedPluginDir('holder-update', { 'index.js': 'v1' });
+			const initial = await smallManager.captureCustomizations('test-client', [ref]);
+			const capturedDir = smallManager.getCapturedPluginDir(initial.customizations[0].uri)!;
+			initial.dispose();
+			await smallManager.retainCustomizationHolders(new Map([['automation:holder-update', initial.customizations]]));
+
+			await fileService.del(capturedDir, { recursive: true });
+			const replacement = await smallManager.captureCustomizations('test-client', [ref]);
+			replacement.dispose();
+			await smallManager.syncCustomizations('test-client', [ref]);
+
+			assert.deepStrictEqual(
+				{
+					exists: await fileService.exists(capturedDir),
+					holders: await readCacheHolders(),
+				},
+				{ exists: true, holders: new Set(['automation:holder-update']) },
+			);
+		});
+
+		test('reconciles multiple holders independently', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			await seedPluginDir('holders', { 'index.js': 'one' });
+			const first = await smallManager.captureCustomizations('test-client', [makeRef('holders', 'one')]);
+			const firstDir = smallManager.getCapturedPluginDir(first.customizations[0].uri)!;
+			first.dispose();
+			await smallManager.retainCustomizationHolders(new Map([
+				['automation:first', first.customizations],
+				['automation:second', first.customizations],
+			]));
+
+			await smallManager.reconcileCustomizationHolders('automation:', new Map([
+				['automation:first', first.customizations],
+			]));
+			await seedPluginDir('holders', { 'index.js': 'two' });
+			const second = await smallManager.captureCustomizations('test-client', [makeRef('holders', 'two')]);
+			second.dispose();
+
+			assert.deepStrictEqual(
+				{
+					exists: await fileService.exists(firstDir),
+					holders: await readCacheHolders(),
+				},
+				{ exists: true, holders: new Set(['automation:first']) },
+			);
+		});
+
+		test('forgets captured directory lookups after eviction', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			await seedPluginDir('lookup', { 'index.js': 'v1' });
+			const first = await smallManager.captureCustomizations('test-client', [makeRef('lookup', 'one')]);
+			const firstUri = first.customizations[0].uri;
+			first.dispose();
+
+			await seedPluginDir('lookup', { 'index.js': 'v2' });
+			const second = await smallManager.captureCustomizations('test-client', [makeRef('lookup', 'two')]);
+
+			assert.strictEqual(smallManager.getCapturedPluginDir(firstUri), undefined);
+
+			second.dispose();
+		});
+
+		test('releases a rolled-back capture lease without adding durable holders', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			await seedPluginDir('restart', { 'index.js': 'v1' });
+			const retained = await smallManager.captureCustomizations('test-client', [makeRef('restart', 'one')]);
+			const retainedDir = smallManager.getCapturedPluginDir(retained.customizations[0].uri)!;
+			retained.dispose();
+			await smallManager.retainCustomizationHolders(new Map([['automation:retained', retained.customizations]]));
+
+			await seedPluginDir('restart', { 'index.js': 'v2' });
+			const rollback = await smallManager.captureCustomizations('test-client', [makeRef('restart', 'two')]);
+			const rollbackDir = smallManager.getCapturedPluginDir(rollback.customizations[0].uri)!;
+			rollback.dispose();
+
+			const restarted = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			await seedPluginDir('restart', { 'index.js': 'v3' });
+			const latest = await restarted.captureCustomizations('test-client', [makeRef('restart', 'three')]);
+
+			assert.deepStrictEqual(
+				{
+					retained: await fileService.exists(retainedDir),
+					rolledBack: await fileService.exists(rollbackDir),
+				},
+				{ retained: true, rolledBack: false },
+			);
+
+			latest.dispose();
+		});
+
+		test('preserves an adopted retained capture when recapturing its original source', async () => {
+			await seedPluginDir('cache-loss', { 'index.js': 'v1' });
+			const captured = await manager.captureCustomizations('test-client', [makeRef('cache-loss', 'nonce')]);
+			const capturedDir = manager.getCapturedPluginDir(captured.customizations[0].uri)!;
+			captured.dispose();
+			await manager.retainCustomizationHolders(new Map([['automation:cache-loss', captured.customizations]]));
+
+			await fileService.del(URI.joinPath(basePath, 'agentPlugins', 'cache.json'));
+			const restarted = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			await restarted.retainCustomizationHolders(new Map([['automation:cache-loss', captured.customizations]]));
+			const recaptured = await restarted.captureCustomizations('test-client', [makeRef('cache-loss', 'nonce')]);
+			recaptured.dispose();
+
+			await seedPluginDir('eviction-pressure', { 'index.js': 'v2' });
+			const pressure = await restarted.captureCustomizations('test-client', [makeRef('eviction-pressure', 'nonce')]);
+			const pressureDir = restarted.getCapturedPluginDir(pressure.customizations[0].uri)!;
+			pressure.dispose();
+			const morePressure = await restarted.captureCustomizations('test-client', [makeRef('eviction-pressure', 'nonce-2')]);
+			morePressure.dispose();
+
+			const restartedAgain = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			await restartedAgain.retainCustomizationHolders(new Map([['automation:cache-loss', captured.customizations]]));
+			const cachePath = URI.joinPath(basePath, 'agentPlugins', 'cache.json');
+			const cacheEntries: { capturedUri?: string }[] = JSON.parse((await fileService.readFile(cachePath)).value.toString());
+
+			assert.deepStrictEqual(
+				{
+					uri: restartedAgain.getCapturedPluginDir(captured.customizations[0].uri)?.toString(),
+					content: (await fileService.readFile(URI.joinPath(capturedDir, 'index.js'))).value.toString(),
+					holders: await readCacheHolders(),
+					matchingCacheEntries: cacheEntries.filter(entry => entry.capturedUri === captured.customizations[0].uri).length,
+					pressureEvicted: !(await fileService.exists(pressureDir)),
+				},
+				{ uri: captured.customizations[0].uri, content: 'v1', holders: new Set(['automation:cache-loss']), matchingCacheEntries: 1, pressureEvicted: true },
+			);
+		});
+
+		test('keeps durable cache content when an atomic holder reconciliation write fails', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			await seedPluginDir('durable', { 'index.js': 'one' });
+			const retained = await smallManager.captureCustomizations('test-client', [makeRef('durable', 'one')]);
+			const retainedDir = smallManager.getCapturedPluginDir(retained.customizations[0].uri)!;
+			retained.dispose();
+			await smallManager.retainCustomizationHolders(new Map([['automation:durable', retained.customizations]]));
+			const cachePath = URI.joinPath(basePath, 'agentPlugins', 'cache.json');
+			const cacheContent = (await fileService.readFile(cachePath)).value.toString();
+
+			provider.cacheWriteAtomicOptions.length = 0;
+			provider.failCacheWrite = true;
+			await assert.rejects(() => smallManager.reconcileCustomizationHolders('automation:', new Map()));
+			provider.failCacheWrite = false;
+
+			assert.deepStrictEqual(
+				{
+					atomicOptions: provider.cacheWriteAtomicOptions,
+					cacheContent: (await fileService.readFile(cachePath)).value.toString(),
+				},
+				{
+					atomicOptions: [{ postfix: '.tmp' }],
+					cacheContent,
+				},
+			);
+
+			const restarted = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			await seedPluginDir('durable', { 'index.js': 'two' });
+			const replacement = await restarted.captureCustomizations('test-client', [makeRef('durable', 'two')]);
+			replacement.dispose();
+
+			assert.strictEqual(await fileService.exists(retainedDir), true);
+		});
+
+		test('keeps a queued holder registration after an overlapping registration fails', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			await seedPluginDir('overlapping-holders', { 'index.js': 'one' });
+			const captured = await smallManager.captureCustomizations('test-client', [makeRef('overlapping-holders', 'one')]);
+			const capturedDir = smallManager.getCapturedPluginDir(captured.customizations[0].uri)!;
+			captured.dispose();
+
+			provider.failCacheWrites = 1;
+			const [first, second] = await Promise.allSettled([
+				smallManager.retainCustomizationHolders(new Map([['automation:first', captured.customizations]])),
+				smallManager.retainCustomizationHolders(new Map([['automation:second', captured.customizations]])),
+			]);
+
+			assert.deepStrictEqual(
+				{
+					first: first.status,
+					second: second.status,
+					holders: await readCacheHolders(),
+					captured: await fileService.exists(capturedDir),
+				},
+				{
+					first: 'rejected',
+					second: 'fulfilled',
+					holders: new Set(['automation:second']),
+					captured: true,
+				},
+			);
+		});
+
+		test('rejects holder reconciliation outside its prefix without changing durable holders', async () => {
+			await seedPluginDir('holder-prefix', { 'index.js': 'one' });
+			const captured = await manager.captureCustomizations('test-client', [makeRef('holder-prefix', 'one')]);
+			captured.dispose();
+			await manager.retainCustomizationHolders(new Map([['automation:preserved', captured.customizations]]));
+
+			await assert.rejects(
+				() => manager.reconcileCustomizationHolders('automation:', new Map([['other:invalid', captured.customizations]])),
+				/does not belong/,
+			);
+
+			assert.deepStrictEqual(await readCacheHolders(), new Set(['automation:preserved']));
+		});
+
+		test('removes stale holders only after authoritative reconciliation', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			await seedPluginDir('stale', { 'index.js': 'one' });
+			const stale = await smallManager.captureCustomizations('test-client', [makeRef('stale', 'one')]);
+			const staleDir = smallManager.getCapturedPluginDir(stale.customizations[0].uri)!;
+			stale.dispose();
+			await smallManager.retainCustomizationHolders(new Map([['automation:stale', stale.customizations]]));
+
+			await seedPluginDir('stale', { 'index.js': 'two' });
+			const beforeReconcile = await smallManager.captureCustomizations('test-client', [makeRef('stale', 'two')]);
+			beforeReconcile.dispose();
+			assert.strictEqual(await fileService.exists(staleDir), true);
+
+			await smallManager.reconcileCustomizationHolders('automation:', new Map());
+			await seedPluginDir('stale', { 'index.js': 'three' });
+			const afterReconcile = await smallManager.captureCustomizations('test-client', [makeRef('stale', 'three')]);
+			afterReconcile.dispose();
+			assert.strictEqual(await fileService.exists(staleDir), false);
+		});
+
+		test('loads legacy cache entries without durable holders', async () => {
+			await seedPluginDir('legacy', { 'index.js': 'one' });
+			const first = await manager.captureCustomizations('test-client', [makeRef('legacy', 'one')]);
+			const firstDir = manager.getCapturedPluginDir(first.customizations[0].uri)!;
+			first.dispose();
+
+			const restarted = new AgentPluginManager(basePath, fileService, new NullLogService(), 1);
+			await seedPluginDir('legacy', { 'index.js': 'two' });
+			const second = await restarted.captureCustomizations('test-client', [makeRef('legacy', 'two')]);
+			second.dispose();
+
+			assert.strictEqual(await fileService.exists(firstDir), false);
 		});
 	});
 

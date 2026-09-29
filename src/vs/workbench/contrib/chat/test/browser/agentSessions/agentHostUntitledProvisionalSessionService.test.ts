@@ -265,6 +265,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 					tools: constObservable([]),
 					isResolved: constObservable(true),
 					whenResolved: () => Promise.resolve(),
+					acquireResolvedSnapshot: async () => ({ customizations: [], rewriteUri: (uri: string) => uri, dispose: () => { } }),
 					activeClient: clientId => derived(reader => ({ clientId, tools: [], customizations: [...customizations.read(reader)] })),
 					dispose: () => { },
 				};

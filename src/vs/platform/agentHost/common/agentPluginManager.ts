@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import type { IDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ClientPluginCustomization, PluginCustomization } from './state/sessionState.js';
 
@@ -17,6 +18,16 @@ export interface ISyncedCustomization {
 	readonly customization: PluginCustomization;
 	/** Local plugin directory URI, defined when the sync was successful. */
 	readonly pluginDir?: URI;
+}
+
+/**
+ * Holds captured customizations while an automation mutation is being committed.
+ *
+ * The customizations identify immutable host directories only. Callers must
+ * parse those directories before persisting host-discovered children and load state.
+ */
+export interface ICustomizationCaptureLease extends IDisposable {
+	readonly customizations: readonly PluginCustomization[];
 }
 
 /**
@@ -52,4 +63,24 @@ export interface IAgentPluginManager {
 	 * defined when the sync was successful.
 	 */
 	syncCustomizations(clientId: string, customizations: ClientPluginCustomization[], progress?: (status: PluginCustomization) => void): Promise<ISyncedCustomization[]>;
+
+	/**
+	 * Captures client customizations into immutable host-owned directories.
+	 *
+	 * Unlike ordinary synchronization, any capture failure rejects the operation.
+	 * The returned customizations do not trust client-provided parsed contents.
+	 */
+	captureCustomizations(clientId: string, customizations: ClientPluginCustomization[]): Promise<ICustomizationCaptureLease>;
+
+	/** Adds durable holders for captured customizations without removing existing holders. */
+	retainCustomizationHolders(holders: ReadonlyMap<string, readonly PluginCustomization[]>): Promise<void>;
+
+	/**
+	 * Replaces the durable holders in one namespace while preserving all other
+	 * holders.
+	 */
+	reconcileCustomizationHolders(holderPrefix: string, holders: ReadonlyMap<string, readonly PluginCustomization[]>): Promise<void>;
+
+	/** Returns the host directory for a captured customization URI. */
+	getCapturedPluginDir(capturedUri: string): URI | undefined;
 }

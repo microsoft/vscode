@@ -951,6 +951,55 @@ suite('SyncedCustomizationBundler', () => {
 		assert.ok(threw, 'dropped file should be removed when the file set changes');
 	});
 
+	test('keeps an acquired snapshot readable while rebuilding the active bundle', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/reviewer.agent.md', 'before');
+		const first = await bundler.bundle([{ uri, type: PromptsType.agent }]);
+		assert.ok(first);
+		const snapshot = await bundler.acquireSnapshot([first.ref]);
+
+		await fileService.writeFile(uri, VSBuffer.fromString('after'));
+		await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		const snapshotRef = snapshot.customizations[0];
+		const snapshotUri = URI.parse(snapshotRef.uri);
+		const selectedAgentUri = uri.toString();
+		assert.deepStrictEqual({
+			content: (await fileService.readFile(URI.joinPath(snapshotUri, 'agents', 'reviewer.agent.md'))).value.toString(),
+			selectedAgentUri: snapshot.rewriteUri(selectedAgentUri),
+		}, {
+			content: 'before',
+			selectedAgentUri: URI.joinPath(snapshotUri, 'agents', 'reviewer.agent.md').toString(),
+		});
+		snapshot.dispose();
+	});
+
+	test('rejects a snapshot if a queued rebundle changes its source revision', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/snapshot-race.md', 'before');
+		const first = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(first);
+		await fileService.writeFile(uri, VSBuffer.fromString('after'));
+
+		const originalReadFile = fileService.readFile.bind(fileService);
+		const started = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		sinon.stub(fileService, 'readFile').callsFake(async resource => {
+			if (resource.toString() === uri.toString()) {
+				started.complete();
+				await resume.p;
+			}
+			return originalReadFile(resource);
+		});
+		const rebundle = bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		await started.p;
+		const snapshot = bundler.acquireSnapshot([first.ref]);
+		resume.complete();
+		await rebundle;
+
+		await assert.rejects(snapshot, /bundle changed/);
+	});
+
 	test('changed MCP-only rebundle rewrites .mcp.json', async () => {
 		const bundler = createBundler();
 		const mcpUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.mcp.json' });

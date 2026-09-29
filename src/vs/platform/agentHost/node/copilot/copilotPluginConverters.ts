@@ -13,7 +13,7 @@ import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
-import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
+import { type AgentCustomization } from '../../common/state/protocol/state.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
@@ -238,22 +238,7 @@ export function toAgentCustomizations(agents: readonly IParsedAgent[]): AgentCus
  * array — every projector that produced an SDK config above derives its
  * matching protocol child from the same parsed primitive.
  */
-export function toChildCustomizations(plugins: readonly IParsedPlugin[]): ChildCustomization[] {
-	const byId = new Map<string, ChildCustomization>();
-	const add = (c: ChildCustomization) => {
-		if (!byId.has(c.id)) {
-			byId.set(c.id, c);
-		}
-	};
-	for (const plugin of plugins) {
-		for (const a of plugin.agents) { add(a.customization); }
-		for (const s of plugin.skills) { add(s.customization); }
-		for (const r of plugin.instructions) { add(r.customization); }
-		for (const h of plugin.hooks) { add(h.customization); }
-		for (const m of plugin.mcpServers) { add(m.customization); }
-	}
-	return [...byId.values()];
-}
+export { toChildCustomizations } from '../shared/automationCustomizations.js';
 
 // ---------------------------------------------------------------------------
 // Skill directories

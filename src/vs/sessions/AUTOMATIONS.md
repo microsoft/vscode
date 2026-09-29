@@ -60,6 +60,22 @@ Saved configuration is a preference, not a durable permission grant. Providers r
 
 Compatibility decoding for configuration values in existing AHP definitions is separate from definition ownership. Flat configuration input aliases may be translated at the provider boundary but cannot override an explicit session template.
 
+### Captured customizations
+
+When the host advertises `automations.customizations`, creation resolves client plugins through the same harness- and workspace-scoped customization service used by interactive sessions. The client holds a stable snapshot until the host accepts or rejects the mutation. It sends plugin references in the AHP session template, not a persistent active client or client tools.
+
+Ordinary definition edits preserve the saved references, including edits from another client that cannot serve their contents. Changing the target workspace or harness captures the new target's customizations. Existing definitions without captured customizations are not backfilled by unrelated edits.
+
+The host captures enabled plugin references before accepting the definition. Entries with unchanged `id`, `uri`, and `nonce` reuse their existing snapshot. Disabled plugins are not captured; disabled MCP children within an enabled plugin stay excluded. There is no live client enablement overlay for an automation capture. Capture or persistence failure rejects the mutation without replacing the previous definition. The catalogue exposes host-owned copies with the template entry IDs, browsable captured URIs, and no client owner.
+
+Runs consume the captured plugins without contacting the originating client. Captures supplement normal host/workspace discovery and remain subject to current customization enablement and runtime policy. They do not grant persistent tool permissions or provide disconnected client tools.
+
+Each captured revision's plugin-cache entry persists its holder IDs, derived from the automation or run resource. Cache cleanup respects these holders independently of automation startup. Disabled definitions retain their copies; a definition edit cannot invalidate a prior run's snapshot, and disposing a service does not release persistent holders.
+
+The host persists new holders before saving definitions or admitting runs, then removes obsolete holders only after the automation state is saved. A crash between these writes can leave extra holders, but cannot leave a committed reference unprotected. After successfully loading automation storage, the host reconciles its holder namespace to remove stale registrations. If automation storage is unavailable, existing holders remain untouched. Run holders are released when their session is permanently deleted, not when it is unloaded.
+
+The saved run definition supplies source references for mapping a selected custom agent to its captured URI. Session creation receives only the resulting automation-specific snapshots; it does not own source mapping or persist a second copy of the source references.
+
 ### Blueprints and templates
 
 `IAutomationBlueprint` is a versioned portable name, prompt, and schedule. It excludes runtime identity, target provider, workspace, session configuration, enabled state, timestamps, and history.

@@ -50,7 +50,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRoot
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
-import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { AutomationCapturedPluginMetaKey, toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
@@ -69,7 +69,7 @@ import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from 
 import { IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
-import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { IAgentPluginManager, ICustomizationCaptureLease, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
@@ -326,6 +326,18 @@ class FakeAgentPluginManager implements IAgentPluginManager {
 			return [...this.syncResult];
 		}
 		return [];
+	}
+
+	async captureCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]): Promise<ICustomizationCaptureLease> {
+		return { customizations: [], dispose: () => { } };
+	}
+
+	async retainCustomizationHolders(_holders: ReadonlyMap<string, readonly PluginCustomization[]>): Promise<void> { }
+
+	async reconcileCustomizationHolders(_holderPrefix: string, _holders: ReadonlyMap<string, readonly PluginCustomization[]>): Promise<void> { }
+
+	getCapturedPluginDir(_capturedUri: string): URI | undefined {
+		return undefined;
 	}
 }
 
@@ -9195,6 +9207,67 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			'file:///mock-home/.claude/rules',
 			'agent-builtin:/skills',
 		]);
+	});
+
+	test('getChatCustomizations publishes captured Automation plugins without their client source duplicates', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, fileService, sdk, stateManager } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const sourceUri = 'vscode-remote://source/.automation-snapshots/revision';
+		const source = makeClientCustomization(sourceUri, 'Source Plugin');
+		pm.syncResult = [makeSyncedRef(sourceUri, '/client/source')];
+		for (const enabled of [true, false]) {
+			const created = await createSession(agent, { workingDirectories: [URI.file(`/work/${enabled}`)] });
+			const capturedDir = URI.file(`/captured/automation/${enabled}`);
+			await syncClientCustomizations(agent, stateManager, created.session, 'client', [source]);
+			await fileService.createFolder(capturedDir);
+			const captured: PluginCustomization = {
+				type: CustomizationType.Plugin,
+				id: source.id,
+				uri: capturedDir.toString(),
+				name: 'Captured Plugin',
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled }],
+				_meta: {
+					[AutomationCapturedPluginMetaKey]: true,
+				},
+			};
+
+			const customizations = await agent.getChatCustomizations!(
+				defaultChatUri(created.session),
+				chatContext(defaultChatUri(created.session)),
+				[captured],
+			);
+			const capturedPlugins = customizations.filter((customization): customization is PluginCustomization => customization.type === CustomizationType.Plugin && customization.id === source.id);
+			assert.deepStrictEqual(capturedPlugins.map(plugin => ({ uri: plugin.uri, enabled: isCustomizationEnabled(plugin) })), [{
+				uri: capturedDir.toString(),
+				enabled,
+			}]);
+
+			sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+			await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, `turn-${enabled}`, undefined, undefined, chatContext(defaultChatUri(created.session)));
+			assert.deepStrictEqual(sdk.capturedStartupOptions.at(-1)?.plugins, enabled ? [{
+				type: 'local',
+				path: capturedDir.fsPath,
+				skipMcpDiscovery: false,
+			}] : undefined);
+		}
+	});
+
+	test('getChatCustomizations rejects missing captured Automation plugin directories before SDK startup', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const captured: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'captured-plugin',
+			uri: URI.file('/missing/captured-plugin').toString(),
+			name: 'Captured Plugin',
+			_meta: { [AutomationCapturedPluginMetaKey]: true },
+		};
+
+		await assert.rejects(agent.getChatCustomizations!(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), [captured]));
+		assert.strictEqual(sdk.startupCallCount, 0);
 	});
 
 	test('getChatCustomizations overlays the enablement state onto client-pushed entries', async () => {

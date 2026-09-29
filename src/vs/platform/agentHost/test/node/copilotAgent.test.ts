@@ -51,7 +51,7 @@ import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenT
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
-import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { IAgentPluginManager, ICustomizationCaptureLease, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentModelInfo, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -275,6 +275,18 @@ class TestAgentPluginManager implements IAgentPluginManager {
 
 	async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[], _progress?: (status: PluginCustomization) => void): Promise<ISyncedCustomization[]> {
 		return [];
+	}
+
+	async captureCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]): Promise<ICustomizationCaptureLease> {
+		return { customizations: [], dispose: () => { } };
+	}
+
+	async retainCustomizationHolders(_holders: ReadonlyMap<string, readonly PluginCustomization[]>): Promise<void> { }
+
+	async reconcileCustomizationHolders(_holderPrefix: string, _holders: ReadonlyMap<string, readonly PluginCustomization[]>): Promise<void> { }
+
+	getCapturedPluginDir(_capturedUri: string): URI | undefined {
+		return undefined;
 	}
 }
 

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import type { ClientPluginCustomization } from '../state/sessionState.js';
+import type { PluginCustomization } from '../state/sessionState.js';
 
 const mcpDefaultCwdsKey = 'mcpDefaultCwds';
+export const AutomationCapturedPluginMetaKey = 'vscode.automationCaptured';
 
 export type ClientPluginMcpDefaultCwds = Readonly<Record<string, URI | null>>;
 
@@ -16,15 +17,19 @@ export function toClientPluginMcpDefaultCwdsMeta(defaultCwds: ClientPluginMcpDef
 	};
 }
 
-function readClientPluginMcpDefaultCwds(customization: ClientPluginCustomization): Record<string, unknown> | undefined {
+export function isAutomationCapturedPlugin(customization: PluginCustomization): boolean {
+	return customization._meta?.[AutomationCapturedPluginMetaKey] === true;
+}
+
+function readClientPluginMcpDefaultCwdValues(customization: PluginCustomization): Record<string, unknown> | undefined {
 	const value = customization._meta?.[mcpDefaultCwdsKey];
 	return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 }
 
 type ClientPluginMcpDefaultCwd = { readonly kind: 'primary' } | { readonly kind: 'uri'; readonly uri: URI };
 
-function readClientPluginMcpDefaultCwdEntry(customization: ClientPluginCustomization, serverName: string): ClientPluginMcpDefaultCwd | undefined {
-	const value = readClientPluginMcpDefaultCwds(customization);
+function readClientPluginMcpDefaultCwdEntry(customization: PluginCustomization, serverName: string): ClientPluginMcpDefaultCwd | undefined {
+	const value = readClientPluginMcpDefaultCwdValues(customization);
 	if (!value || !Object.hasOwn(value, serverName)) {
 		return undefined;
 	}
@@ -42,15 +47,24 @@ function readClientPluginMcpDefaultCwdEntry(customization: ClientPluginCustomiza
 	}
 }
 
-export function hasClientPluginMcpDefaultCwds(customization: ClientPluginCustomization): boolean {
-	return readClientPluginMcpDefaultCwds(customization) !== undefined;
+export function hasClientPluginMcpDefaultCwds(customization: PluginCustomization): boolean {
+	return readClientPluginMcpDefaultCwdValues(customization) !== undefined;
 }
 
-export function hasClientPluginMcpDefaultCwd(customization: ClientPluginCustomization, serverName: string): boolean {
+export function hasClientPluginMcpDefaultCwd(customization: PluginCustomization, serverName: string): boolean {
 	return readClientPluginMcpDefaultCwdEntry(customization, serverName) !== undefined;
 }
 
-export function readClientPluginMcpDefaultCwd(customization: ClientPluginCustomization, serverName: string, primaryCwd: URI | undefined): URI | undefined {
+/**
+ * Returns a validated default-CWD override while preserving the `null`
+ * primary-workspace sentinel for durable host-owned snapshots.
+ */
+export function readClientPluginMcpDefaultCwdOverride(customization: PluginCustomization, serverName: string): URI | null | undefined {
+	const value = readClientPluginMcpDefaultCwdEntry(customization, serverName);
+	return value?.kind === 'primary' ? null : value?.uri;
+}
+
+export function readClientPluginMcpDefaultCwd(customization: PluginCustomization, serverName: string, primaryCwd: URI | undefined): URI | undefined {
 	const value = readClientPluginMcpDefaultCwdEntry(customization, serverName);
 	return value?.kind === 'primary' ? primaryCwd : value?.uri;
 }

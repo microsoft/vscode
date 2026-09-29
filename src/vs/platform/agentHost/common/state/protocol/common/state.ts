@@ -253,6 +253,20 @@ export interface ContentRef {
 
 // ─── File Edit ───────────────────────────────────────────────────────────────
 
+export interface FileEditSide {
+	/** URI of the file on this side of the edit */
+	uri: URI;
+	/** Reference to the file content on this side of the edit */
+	content: ContentRef;
+}
+
+export interface FileEditDiffStats {
+	/** Number of items added (e.g., lines for text files, cells for notebooks) */
+	added?: number;
+	/** Number of items removed (e.g., lines for text files, cells for notebooks) */
+	removed?: number;
+}
+
 /**
  * Describes a file modification with before/after state and diff metadata.
  *
@@ -263,26 +277,15 @@ export interface ContentRef {
  */
 export interface FileEdit {
 	/** The file state before the edit. Absent for file creations or for in-place file edits. */
-	before?: {
-		/** URI of the file before the edit */
-		uri: URI;
-		/** Reference to the file content before the edit */
-		content: ContentRef;
-	};
+	before?: FileEditSide;
 	/** The file state after the edit. Absent for file deletions. */
-	after?: {
-		/** URI of the file after the edit */
-		uri: URI;
-		/** Reference to the file content after the edit */
-		content: ContentRef;
-	};
+	after?: FileEditSide;
 	/** Optional diff display metadata */
-	diff?: {
-		/** Number of items added (e.g., lines for text files, cells for notebooks) */
-		added?: number;
-		/** Number of items removed (e.g., lines for text files, cells for notebooks) */
-		removed?: number;
-	};
+	diff?: FileEditDiffStats;
+}
+
+export interface FileEditCollection {
+	items: FileEdit[];
 }
 
 // ─── Common Types ────────────────────────────────────────────────────────────

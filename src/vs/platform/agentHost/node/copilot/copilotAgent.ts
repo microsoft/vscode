@@ -306,7 +306,7 @@ export type ICopilotPluginInfo = Omit<IParsedPlugin, 'mcpServers'> & {
 /**
  * Resolves a parsed MCP child into its Copilot launch contract. Client default-CWD metadata identifies servers synthesized outside the plugin, so they are projected through session config independently of the resolved CWD value.
  */
-export function resolveCopilotMcpServerInfo(definition: IMcpServerDefinition, pluginDir: URI | undefined, input?: ClientPluginCustomization, primaryCwd?: URI): ICopilotMcpServerInfo {
+export function resolveCopilotMcpServerInfo(definition: IMcpServerDefinition, pluginDir: URI | undefined, input?: ClientPluginCustomization | PluginCustomization, primaryCwd?: URI): ICopilotMcpServerInfo {
 	const clientDefaultCwd = input ? readClientPluginMcpDefaultCwd(input, definition.name, primaryCwd) : undefined;
 	return {
 		...definition,
@@ -6512,6 +6512,15 @@ class PluginController extends Disposable {
 
 	public async resolveConfiguredCustomization(customization: PluginCustomization): Promise<IResolvedCustomization> {
 		const pluginDir = URI.parse(customization.uri);
+		if (this.pluginManager.getCapturedPluginDir(customization.uri) !== undefined) {
+			try {
+				if (!(await this._fileService.stat(pluginDir)).isDirectory) {
+					throw new Error('not a directory');
+				}
+			} catch (error) {
+				throw new Error(`Captured plugin ${customization.uri} is unavailable: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
 		const parsed = await this.tryParsePlugin(pluginDir);
 		if (!parsed) {
 			return {
@@ -6691,14 +6700,20 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _resolveCustomizationEnablement() {
-		const hostCustomizations = this._parent.hostCustomizations();
+		const configuredHostCustomizations = this._parent.hostCustomizations();
+		const sessionHostCustomizations = this._hostCustomizations().filter((customization): customization is PluginCustomization =>
+			customization.type === CustomizationType.Plugin
+			&& this._parent.pluginManager.getCapturedPluginDir(customization.uri) !== undefined
+		);
 		const clientCustomizations = this._flattenClientCustomizations();
 		const explicitPluginIds = new Set([
-			...hostCustomizations,
+			...configuredHostCustomizations,
 			...clientCustomizations,
+			...sessionHostCustomizations.map(customization => ({ customization })),
 		].map(item => item.customization.id));
 		const result: Customization[] = [
-			...hostCustomizations.map(item => this._projectForPublish(item.customization)),
+			...configuredHostCustomizations.map(item => this._projectForPublish(item.customization)),
+			...sessionHostCustomizations.map(customization => this._projectForPublish(customization)),
 			...clientCustomizations.map(item => this._projectForPublish(item.customization)),
 		];
 		const entry = this._discoveredEntry();
@@ -6761,11 +6776,21 @@ class SessionPluginController extends Disposable {
 		await this._customizationEnablementService.initializeSession(this._session.toString());
 		const entry = this._discoveredEntry();
 		const mcpDiscovery = this._mcpDiscoveryEntry();
-		const [host] = await Promise.all([
+		const [host, sessionHost] = await Promise.all([
 			this._parent.hostSync().catch(err => {
 				this._logService.warn('[Copilot:SessionPluginController] Host customization update failed', err);
 				return this._parent.hostCustomizations();
 			}),
+			Promise.all(this._hostCustomizations()
+				.filter((customization): customization is PluginCustomization => customization.type === CustomizationType.Plugin)
+				.filter(customization => this._parent.pluginManager.getCapturedPluginDir(customization.uri) !== undefined)
+				.map(async customization => {
+					const resolved = await this._parent.resolveConfiguredCustomization(customization);
+					if (resolved.customization.load?.kind === CustomizationLoadStatus.Error) {
+						throw new Error(`Failed to load required captured plugin '${customization.id}'.`);
+					}
+					return resolved;
+				})),
 			...[...this._clients.values()].map(client => client.sync.catch(err => {
 				this._logService.warn('[Copilot:SessionPluginController] Client customization sync failed', err);
 				return client.customizations;
@@ -6792,10 +6817,10 @@ class SessionPluginController extends Disposable {
 		const discovered = entry?.currentCustomizations() ?? [];
 		const discoveredDirectories = discovered.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory);
 		const sessionPlugin = discoveredDirectories.some(isEnabledForSdk) ? mapToParsedPlugin(discoveredDirectories) : undefined;
-		const withSdkRegistration = (plugin: IParsedPlugin, pluginDir: URI | undefined): ICopilotPluginInfo => ({
+		const withSdkRegistration = (plugin: IParsedPlugin, pluginDir: URI | undefined, input?: ClientPluginCustomization | PluginCustomization): ICopilotPluginInfo => ({
 			...plugin,
 			pluginDir,
-			mcpServers: plugin.mcpServers.map(definition => resolveCopilotMcpServerInfo(definition, pluginDir)),
+			mcpServers: plugin.mcpServers.map(definition => resolveCopilotMcpServerInfo(definition, pluginDir, input, primaryCwd)),
 		});
 		const sessionPlugins: ICopilotPluginInfo[] = sessionPlugin ? [withSdkRegistration(sessionPlugin, undefined)] : [];
 
@@ -6823,6 +6848,8 @@ class SessionPluginController extends Disposable {
 			...workspaceMcp,
 			...host.filter(item => !!item.plugin && isEnabledForSdk(item.customization))
 				.map(item => ({ ...withSdkRegistration(item.plugin!, item.pluginDir), sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
+			...sessionHost.filter(item => !!item.plugin && isEnabledForSdk(item.customization))
+				.map(item => ({ ...withSdkRegistration(item.plugin!, item.pluginDir, item.customization), sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
 			...this._flattenClientCustomizations().filter(item => !!item.plugin && isEnabledForSdk(item.customization))
 				.map(item => ({ ...withClientDefaults(item), sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
 			...sessionPlugins,

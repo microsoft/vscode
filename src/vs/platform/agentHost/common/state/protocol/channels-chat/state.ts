@@ -9,7 +9,7 @@
 import type { ModelSelection } from '../channels-root/state.js';
 import type { AgentSelection, McpAuthRequirement, SessionStatus } from '../channels-session/state.js';
 import type { Changeset } from '../channels-changeset/state.js';
-import type { ContentRef, ErrorInfo, FileEdit, StringOrMarkdown, TextRange, TextSelection, URI, UsageInfo } from '../common/state.js';
+import type { ContentRef, ErrorInfo, FileEdit, FileEditCollection, StringOrMarkdown, TextRange, TextSelection, URI, UsageInfo } from '../common/state.js';
 
 // ─── Chat State ──────────────────────────────────────────────────────────────
 
@@ -1307,7 +1307,7 @@ export interface ToolCallPendingConfirmationState extends ToolCallBase, ToolCall
 	/** Risk assessment that informed the confirmation requirement. */
 	riskAssessment?: ToolCallRiskAssessment;
 	/** File edits that this tool call will perform, for preview before confirmation */
-	edits?: { items: FileEdit[] };
+	edits?: FileEditCollection;
 	/** Whether the agent host allows the client to edit the tool's input parameters before confirming */
 	editable?: boolean;
 	/**

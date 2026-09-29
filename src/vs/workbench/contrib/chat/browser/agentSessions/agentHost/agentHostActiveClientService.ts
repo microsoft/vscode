@@ -57,6 +57,17 @@ export interface IAgentCustomizationScope extends IDisposable {
 	readonly isResolved: IObservable<boolean>;
 	/** Resolves once the scope's initial customization resolution has completed. */
 	whenResolved(): Promise<void>;
+	/**
+	 * Captures the fully resolved client customizations as an immutable,
+	 * short-lived snapshot. Rejects when the latest resolution failed.
+	 */
+	acquireResolvedSnapshot(): Promise<IAgentCustomizationSnapshot>;
+}
+
+export interface IAgentCustomizationSnapshot extends IDisposable {
+	readonly customizations: readonly ClientPluginCustomization[];
+	/** Rewrites a bundled resource URI to its immutable snapshot location. */
+	readonly rewriteUri: (uri: string) => string;
 }
 
 export interface IAgentHostActiveClientService {
@@ -85,6 +96,8 @@ class AgentCustomizationScope extends Disposable {
 	private readonly _customAgents = observableValue<readonly AgentCustomization[]>('agentCustomAgents', []);
 	private readonly _isResolved = observableValue('agentCustomizationsResolved', false);
 	private readonly _initialResolution = new DeferredPromise<void>();
+	private _latestResolution = new DeferredPromise<void>();
+	private _resolutionPending = true;
 	private readonly _activeClients = new Map<string, IObservable<SessionActiveClient>>();
 	private _refCount = 0;
 	private _updateSeq = 0;
@@ -126,8 +139,7 @@ class AgentCustomizationScope extends Disposable {
 		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, scopeKey)));
 		this._updateDelayer = this._register(new Delayer<void>(CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY));
 
-		const updateCustomizations = async () => {
-			const seq = ++this._updateSeq;
+		const updateCustomizations = async (seq: number) => {
 			let completedInitialResolution = false;
 			try {
 				const [refs, agents] = await Promise.all([
@@ -159,11 +171,17 @@ class AgentCustomizationScope extends Disposable {
 					this._isResolved.set(true, tx);
 				});
 				completedInitialResolution = true;
+				if (seq === this._updateSeq) {
+					this._latestResolution.complete();
+					this._resolutionPending = false;
+				}
 			} catch (err) {
 				onUnexpectedError(err);
 				if (seq === this._updateSeq) {
 					transaction(tx => this._isResolved.set(true, tx));
 					completedInitialResolution = true;
+					void this._latestResolution.error(err);
+					this._resolutionPending = false;
 				}
 			} finally {
 				if (completedInitialResolution && !this._initialResolution.isSettled) {
@@ -171,8 +189,15 @@ class AgentCustomizationScope extends Disposable {
 				}
 			}
 		};
+		void this._latestResolution.p.catch(() => { });
 		const scheduleUpdate = () => {
-			this._updateDelayer.trigger(() => updateCustomizations()).catch(() => { /* delayer disposed */ });
+			const seq = ++this._updateSeq;
+			if (!this._resolutionPending) {
+				this._latestResolution = new DeferredPromise<void>();
+				void this._latestResolution.p.catch(() => { });
+				this._resolutionPending = true;
+			}
+			this._updateDelayer.trigger(() => updateCustomizations(seq)).catch(() => { /* delayer disposed */ });
 		};
 
 		this._register(this._syncProvider.onDidChange(() => scheduleUpdate()));
@@ -212,6 +237,7 @@ class AgentCustomizationScope extends Disposable {
 			tools: this.tools,
 			isResolved: this.isResolved,
 			whenResolved: () => this._initialResolution.p,
+			acquireResolvedSnapshot: () => this.acquireResolvedSnapshot(),
 			activeClient: clientId => this.activeClient(clientId),
 			dispose: () => {
 				if (!released) {
@@ -219,6 +245,22 @@ class AgentCustomizationScope extends Disposable {
 					this._release();
 				}
 			},
+		};
+	}
+
+	private async acquireResolvedSnapshot(): Promise<IAgentCustomizationSnapshot> {
+		while (true) {
+			const resolution = this._latestResolution;
+			await resolution.p;
+			if (resolution === this._latestResolution) {
+				break;
+			}
+		}
+		const snapshot = await this._bundler.acquireSnapshot(this._customizations.get());
+		return {
+			customizations: snapshot.customizations,
+			rewriteUri: snapshot.rewriteUri,
+			dispose: () => snapshot.dispose(),
 		};
 	}
 
@@ -256,6 +298,9 @@ class AgentCustomizationScope extends Disposable {
 		this._updateSeq++;
 		if (!this._initialResolution.isSettled) {
 			this._initialResolution.complete();
+		}
+		if (!this._latestResolution.isSettled) {
+			void this._latestResolution.error(new Error('Customization scope was disposed before its customization resolution completed.'));
 		}
 		super.dispose();
 		this._onDispose();

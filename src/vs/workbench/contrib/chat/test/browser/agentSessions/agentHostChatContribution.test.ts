@@ -1024,6 +1024,11 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			tools: entry.tools,
 			isResolved: entry.isResolved,
 			whenResolved: () => entry.whenResolved,
+			acquireResolvedSnapshot: async () => ({
+				customizations: [...entry.customizations.get()],
+				rewriteUri: (uri: string) => uri,
+				dispose: () => { },
+			}),
 			activeClient: (clientId: string) => derived(reader => {
 				entry.customAgents.read(reader);
 				return { clientId, tools: [...entry.tools.read(reader)], customizations: [...entry.customizations.read(reader)] };

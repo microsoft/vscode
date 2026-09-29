@@ -7,9 +7,11 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { autorun, derived, disposableObservableValue, observableSignalFromEvent, observableValue, transaction, type IObservable } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { supportsAgentHostAutonomousAutomations } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import type { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationUnavailableError, type AutomationCatalogueState, type AutomationMutationGuard, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -55,8 +57,10 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 	constructor(
 		private readonly providerId: string,
 		private readonly boundaryMapper: IAgentHostAutomationBoundaryMapper | undefined,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IAgentHostActiveClientService private readonly activeClientService: IAgentHostActiveClientService,
 	) {
 		super();
 		this.configurationChanged = observableSignalFromEvent(this, this.configurationService.onDidChangeConfiguration);
@@ -87,7 +91,7 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 				if (state !== 'connected') {
 					this.currentStore.set(undefined, tx);
 				} else if (!current) {
-					this.currentStore.set(this.instantiationService.createInstance(AgentHostAutomationStore, this.providerId, connection, this.boundaryMapper), tx);
+					this.currentStore.set(new AgentHostAutomationStore(this.providerId, connection, this.boundaryMapper, this.logService, this.storageService, this.activeClientService), tx);
 				}
 			});
 		}));
@@ -131,8 +135,8 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 		return this.requireStore().createAutomation(options, mutationGuard);
 	}
 
-	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor> {
-		return this.requireStore().updateAutomation(id, patch);
+	updateAutomation(id: string, patch: IUpdateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
+		return this.requireStore().updateAutomation(id, patch, mutationGuard);
 	}
 
 	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {

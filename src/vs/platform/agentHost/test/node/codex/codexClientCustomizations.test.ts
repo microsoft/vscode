@@ -123,6 +123,20 @@ suite('codexClientCustomizations', () => {
 		});
 	});
 
+	test('codexMcpServersFromPlugins uses validated default CWD metadata from a host capture', () => {
+		const sessionCwd = URI.file('/automation-worktree');
+		const hostPlugin = plugin('host', '/cache/automation/host', parsed({
+			mcpServers: [mcpDef('captured', { type: McpServerType.LOCAL, command: 'run' })],
+		}));
+		hostPlugin.synced.customization._meta = toClientPluginMcpDefaultCwdsMeta({ captured: null });
+		const store = new CodexClientCustomizationStore();
+		store.setHost([hostPlugin]);
+
+		assert.deepStrictEqual(codexMcpServersFromPlugins(store.enabledPlugins(), sessionCwd), {
+			captured: { command: 'run', cwd: sessionCwd.fsPath },
+		});
+	});
+
 	test('codexMcpServersFromPlugins de-duplicates server names (first wins) and omits empties', () => {
 		const plugins = [
 			plugin('a', '/plugins/a', parsed({ mcpServers: [mcpDef('dup', { type: McpServerType.LOCAL, command: 'first', args: [], env: {} })] })),

@@ -320,6 +320,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 			tools: constObservable([]),
 			isResolved: constObservable(true),
 			whenResolved: () => Promise.resolve(),
+			acquireResolvedSnapshot: async () => ({ customizations: [], rewriteUri: (uri: string) => uri, dispose: () => { } }),
 			activeClient: (clientId: string) => constObservable({ clientId, tools: [], customizations: [] }),
 			dispose: () => { },
 		});

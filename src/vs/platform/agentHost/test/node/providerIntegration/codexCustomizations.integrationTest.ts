@@ -16,11 +16,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ActionType, type RootAgentsChangedAction } from '../../../common/state/sessionActions.js';
 import { AgentHostCodexEnabledConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../../common/automationConfig.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../common/agent.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { type SubscribeResult } from '../../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { type RunAutomationResult, type SubscribeResult } from '../../../common/state/protocol/commands.js';
+import { AutomationRunStatus, CustomizationEnablementKind, type AutomationDefinition } from '../../../common/state/protocol/state.js';
+import type { RootState } from '../../../common/state/protocol/channels-root/state.js';
+import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, AUTOMATION_CATALOG_URI, type AutomationRunState, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 import { CODEX_SDK_ROOT } from '../e2e/providers/codexTestConfiguration.js';
 import { driveTurnToCompletion } from '../e2e/harness/agentHostE2ETestHarness.js';
@@ -34,6 +37,7 @@ const NATIVE_SKILL_MARKER = 'CODEX_NATIVE_SKILL_DESCRIPTION_MARKER';
 const NATIVE_EXECUTION_MARKER = 'CODEX_NATIVE_SHELL_EXECUTED';
 const MCP_MARKER = 'CODEX_PLUGIN_MCP_TOOL_MARKER';
 const HOOK_MARKER = 'CODEX_WORKSPACE_HOOK_MARKER';
+const AUTOMATION_CAPTURE_MARKER = 'CODEX_AUTOMATION_CAPTURE_MARKER';
 const nodeRequire = createRequire(import.meta.url);
 
 interface ICapturedRequest {
@@ -318,6 +322,113 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		assert.ok(requestText.includes(SKILL_MARKER), 'plugin skills must be advertised in the Codex model request');
 		assert.ok(requestText.includes(MCP_MARKER), 'plugin MCP tools must be advertised in the Codex model request');
 	});
+
+	for (const enabled of [true, false]) {
+		test(`automation ${enabled ? 'includes' : 'excludes'} a captured plugin when ${enabled ? 'enabled' : 'disabled'}`, async function () {
+			this.timeout(180_000);
+			const workspaceDir = await mkdtemp(join(tmpdir(), 'codex-automation-capture-workspace-'));
+			const pluginDir = await mkdtemp(join(tmpdir(), 'codex-automation-capture-plugin-'));
+			tempDirs.push(workspaceDir, pluginDir);
+			await Promise.all([
+				mkdir(join(pluginDir, '.plugin'), { recursive: true }),
+				mkdir(join(pluginDir, 'rules'), { recursive: true }),
+			]);
+			await Promise.all([
+				writeFile(join(pluginDir, '.plugin', 'plugin.json'), JSON.stringify({ name: 'automation-capture' })),
+				writeFile(join(pluginDir, 'rules', 'captured.instructions.md'), `---\nname: Captured Automation Rule\napplyTo:\n  - "**/*"\n---\n${AUTOMATION_CAPTURE_MARKER}`),
+			]);
+			const clientId = 'codex-automation-capture-client';
+			const pluginUri = URI.file(pluginDir).toString();
+			const plugin: ClientPluginCustomization = {
+				type: CustomizationType.Plugin,
+				id: customizationId(pluginUri),
+				uri: pluginUri as ProtocolURI,
+				name: 'automation-capture',
+				nonce: '1',
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled }],
+			};
+			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
+			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: 'not-a-real-token' }, 30_000);
+			const root = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+			const automationsEnabled = (root.snapshot?.state as RootState | undefined)?.config?.values[AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY] === true;
+			if (!automationsEnabled) {
+				const rootConfigChanged = client.waitForNotification(notification =>
+					isActionNotification(notification, ActionType.RootConfigChanged)
+					&& getActionEnvelope(notification).channel === ROOT_STATE_URI
+					&& getActionEnvelope(notification).origin?.clientSeq === 1,
+					30_000,
+				);
+				client.dispatch({
+					channel: ROOT_STATE_URI,
+					clientSeq: 1,
+					action: { type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true } },
+				});
+				await rootConfigChanged;
+			}
+			await client.call<SubscribeResult>('subscribe', { channel: AUTOMATION_CATALOG_URI });
+			const resource = `ahp-automation:/codex-capture-${generateUuid()}`;
+			const definition: AutomationDefinition = {
+				title: 'Captured Codex Plugin',
+				message: { text: 'Reply exactly CAPTURED_AUTOMATION_OK.', origin: { kind: MessageKind.Automation } },
+				session: {
+					provider: 'codex',
+					workingDirectories: [URI.file(workspaceDir).toString()],
+					config: { isolation: 'folder' },
+					customizations: [plugin],
+				},
+				enabled: true,
+				triggers: [],
+			};
+			const automationCreated = client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.AutomationSet)
+				&& getActionEnvelope(notification).channel === AUTOMATION_CATALOG_URI
+				&& (getActionEnvelope(notification).action as { automation?: { resource?: string } }).automation?.resource === resource,
+				30_000,
+			);
+			client.dispatch({
+				channel: AUTOMATION_CATALOG_URI,
+				clientSeq: 2,
+				action: { type: ActionType.AutomationCreateRequested, resource, definition },
+			});
+			await automationCreated;
+			await rm(pluginDir, { recursive: true, force: true });
+			const requestCountBeforeRun = (server.mockLlm?.getRequests?.() ?? []).length;
+			const run = await client.call<RunAutomationResult>('runAutomation', {
+				channel: AUTOMATION_CATALOG_URI,
+				automation: resource,
+				requestId: `capture-${generateUuid()}`,
+			}, 30_000);
+			let lastRun: AutomationRunState | undefined;
+			const primarySession = await waitForValue(async () => {
+				const snapshot = await client.call<SubscribeResult>('subscribe', { channel: run.resource });
+				lastRun = snapshot.snapshot?.state as AutomationRunState | undefined;
+				if (lastRun?.lifecycle.status === AutomationRunStatus.Failed || lastRun?.lifecycle.status === AutomationRunStatus.Cancelled) {
+					throw new Error(`Automation run terminated before creating a Codex session: ${JSON.stringify(lastRun.lifecycle)}`);
+				}
+				return lastRun?.primarySession;
+			}, 30_000, () => `Timed out waiting for automation primary session; last run: ${JSON.stringify(lastRun)}`);
+			assert.ok(primarySession, 'automation run should create a primary Codex session');
+			createdSessions.push(primarySession);
+			await client.call<SubscribeResult>('subscribe', { channel: primarySession });
+			await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(primarySession) });
+			await client.waitForNotification(notification =>
+				isActionNotification(notification, 'chat/turnComplete')
+				&& getActionEnvelope(notification).channel === buildDefaultChatUri(primarySession),
+				120_000,
+			);
+			await waitForValue(async () => {
+				const snapshot = await client.call<SubscribeResult>('subscribe', { channel: run.resource });
+				const lifecycle = (snapshot.snapshot?.state as AutomationRunState | undefined)?.lifecycle;
+				if (lifecycle?.status === AutomationRunStatus.Failed || lifecycle?.status === AutomationRunStatus.Cancelled) {
+					throw new Error(`Automation run did not complete: ${JSON.stringify(lifecycle)}`);
+				}
+				return lifecycle?.status === AutomationRunStatus.Completed ? true : undefined;
+			}, 30_000, () => `Automation run did not complete: ${run.resource}`);
+			const requests = ((server.mockLlm?.getRequests?.() ?? []) as readonly ICapturedRequest[]).slice(requestCountBeforeRun);
+			const hasMarker = requests.some(request => request.path.includes('/responses') && developerInputText(request.body).includes(AUTOMATION_CAPTURE_MARKER));
+			assert.strictEqual(hasMarker, enabled, `the Codex automation request must ${enabled ? 'contain' : 'not contain'} the captured plugin instruction`);
+		});
+	}
 
 	test('client skill additions and removals after the first turn stay isolated from other sessions', async function () {
 		this.timeout(180_000);

@@ -14,6 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { type IFileService } from '../../../files/common/files.js';
+import { type INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { hashAutomationTelemetryId } from '../../node/agentHostAutomationTelemetry.js';
 import { NullTelemetryServiceShape, TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type IAgent, type IAgentModelInfo } from '../../common/agent.js';
@@ -26,12 +28,15 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { type IAgentPluginManager } from '../../common/agentPluginManager.js';
+import { AutomationCapturedPluginMetaKey } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { CustomizationEnablementKind } from '../../common/state/protocol/state.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -48,6 +53,7 @@ suite('AgentHostAutomationService', () => {
 	let storageService: AgentHostStorageService;
 	let writeFailures: number;
 	let writeAttempts: number;
+	let storageEvents: string[] | undefined;
 	let telemetry: RecordingAutomationTelemetry;
 
 	setup(() => {
@@ -59,11 +65,13 @@ suite('AgentHostAutomationService', () => {
 		});
 		writeFailures = 0;
 		writeAttempts = 0;
+		storageEvents = undefined;
 		telemetry = new RecordingAutomationTelemetry();
 		const writer: IAgentHostStorageWriter = {
 			mkdir: async () => { },
 			writeFile: async () => {
 				writeAttempts++;
+				storageEvents?.push('flush');
 				if (writeFailures > 0) {
 					writeFailures--;
 					throw new Error('storage unavailable');
@@ -98,7 +106,7 @@ suite('AgentHostAutomationService', () => {
 		} as const;
 	}
 
-	function createService(execution?: Partial<IAgentHostAutomationExecution>): AgentHostAutomationService {
+	function createService(execution?: Partial<IAgentHostAutomationExecution>, pluginManager?: IAgentPluginManager): AgentHostAutomationService {
 		const models: IAgentModelInfo[] = [
 			{ provider: 'copilotcli', id: 'catalog-model', name: 'Catalog model', supportsVision: false },
 			{ provider: 'copilotcli', id: 'private-byok-model', name: 'Private model', supportsVision: false, _meta: createAgentModelByokMeta('private/vendor/model') },
@@ -109,12 +117,19 @@ suite('AgentHostAutomationService', () => {
 				return provider === undefined || provider === agent.id ? agent : undefined;
 			}
 		}();
+		const plugins = pluginManager ?? upcastPartial<IAgentPluginManager>({
+			captureCustomizations: async () => ({ customizations: [], dispose: () => { } }),
+			retainCustomizationHolders: async () => { },
+			reconcileCustomizationHolders: async () => { },
+		});
+		const fileService = upcastPartial<IFileService>({});
+		const environmentService = upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/') });
 		const service = new AgentHostAutomationService({
 			isSessionTemplateAvailable: execution?.isSessionTemplateAvailable ?? (() => true),
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
-		}, stateManager, storageService, new NullLogService(), telemetry, providers);
+		}, stateManager, storageService, new NullLogService(), telemetry, providers, plugins, fileService, environmentService);
 		return disposables.add(service);
 	}
 
@@ -381,17 +396,25 @@ suite('AgentHostAutomationService', () => {
 			catalog: { automations: [] },
 		});
 		await storageService.whenIdle();
-		const service = createService();
+		let reconcileCalls = 0;
+		const service = createService(undefined, upcastPartial<IAgentPluginManager>({
+			reconcileCustomizationHolders: async () => {
+				reconcileCalls++;
+			},
+		}));
+		await timeout(0);
 
 		await assert.rejects(service.handleCreate(createAction()), /storage is unavailable/);
 		assert.deepStrictEqual({
 			isAvailable: service.isAvailable,
 			capabilities: service.capabilities,
 			storedVersion: storageService.get<{ version: number }>('automations')?.version,
+			reconcileCalls,
 		}, {
 			isAvailable: false,
 			capabilities: undefined,
 			storedVersion: 2,
+			reconcileCalls: 0,
 		});
 	});
 
@@ -530,6 +553,680 @@ suite('AgentHostAutomationService', () => {
 		}]);
 	});
 
+	test('captures plugin revisions transactionally and reuses an unchanged revision', async () => {
+		const captures: ClientPluginCustomization[][] = [];
+		const retained: PluginCustomization[][] = [];
+		const plugins = upcastPartial<IAgentPluginManager>({
+			captureCustomizations: async (_clientId, customizations) => {
+				captures.push(customizations);
+				return {
+					customizations: customizations.map(customization => ({
+						type: CustomizationType.Plugin,
+						id: customization.id,
+						name: 'Plugin',
+						uri: `file:///captured/${customization.id}/${customization.nonce}`,
+						children: [],
+						load: { kind: CustomizationLoadStatus.Loaded },
+					})),
+					dispose: () => { },
+				};
+			},
+			retainCustomizationHolders: async holders => {
+				retained.push([...holders.get('automation:ahp-automation:/review-changes') ?? []]);
+			},
+			reconcileCustomizationHolders: async () => { },
+		});
+		const service = createService(undefined, plugins);
+		const plugin: ClientPluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			name: 'Plugin',
+			uri: 'vscode-agent-client://client/plugin',
+			nonce: 'revision-1',
+		};
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), session: { provider: 'mock', customizations: [plugin] } },
+		}, 'client');
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested,
+			resource: 'ahp-automation:/review-changes',
+			changes: { title: 'Renamed' },
+		}, 'other-client');
+
+		assert.deepStrictEqual({
+			captures,
+			published: stateManager.getAutomationCatalogState()?.entries[0].customizations,
+			retained: retained.at(-1),
+		}, {
+			captures: [[plugin]],
+			published: [{
+				type: CustomizationType.Plugin,
+				id: 'plugin',
+				name: 'Plugin',
+				uri: 'file:///captured/plugin/revision-1',
+				children: [],
+				load: { kind: CustomizationLoadStatus.Loaded },
+				_meta: { [AutomationCapturedPluginMetaKey]: true },
+			}],
+			retained: [{
+				type: CustomizationType.Plugin,
+				id: 'plugin',
+				name: 'Plugin',
+				uri: 'file:///captured/plugin/revision-1',
+				children: [],
+				load: { kind: CustomizationLoadStatus.Loaded },
+				_meta: { [AutomationCapturedPluginMetaKey]: true },
+			}],
+		});
+	});
+
+	test('retains before storage flush, reconciles after it, and restores committed holders after a failed write', async () => {
+		const calls: string[] = [];
+		const plugins = upcastPartial<IAgentPluginManager>({
+			captureCustomizations: async (_clientId, customizations) => ({
+				customizations: customizations.map(customization => ({
+					type: CustomizationType.Plugin,
+					id: customization.id,
+					name: customization.name,
+					uri: `file:///captured/${customization.nonce}`,
+					children: [],
+					load: { kind: CustomizationLoadStatus.Loaded },
+				})),
+				dispose: () => { },
+			}),
+			retainCustomizationHolders: async holders => {
+				calls.push(`retain:${[...holders.values()].flat().map(customization => customization.uri).join(',')}`);
+			},
+			reconcileCustomizationHolders: async (_prefix, holders) => {
+				calls.push(`reconcile:${[...holders.values()].flat().map(customization => customization.uri).join(',')}`);
+			},
+		});
+		const service = createService(undefined, plugins);
+		const plugin: ClientPluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			name: 'Plugin',
+			uri: 'vscode-agent-client://client/plugin',
+			nonce: 'revision-1',
+		};
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), session: { provider: 'mock', customizations: [plugin] } },
+		}, 'client');
+		calls.length = 0;
+		storageEvents = calls;
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested,
+			resource: createAction().resource,
+			changes: { session: { provider: 'mock', customizations: [{ ...plugin, nonce: 'revision-2' }] } },
+		}, 'client');
+		assert.deepStrictEqual(calls, [
+			'retain:file:///captured/revision-2',
+			'flush',
+			'reconcile:file:///captured/revision-2',
+		]);
+
+		calls.length = 0;
+		writeFailures = 1;
+
+		await assert.rejects(service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested,
+			resource: createAction().resource,
+			changes: { session: { provider: 'mock', customizations: [{ ...plugin, nonce: 'revision-3' }] } },
+		}, 'client'), /storage unavailable/);
+
+		assert.strictEqual(calls[0], 'retain:file:///captured/revision-3');
+		assert.strictEqual(calls.find(call => call === 'reconcile:file:///captured/revision-2') !== undefined, true);
+	});
+
+	test('does not flush storage when precommit holder retention fails and restores prior references', async () => {
+		let failRetention = false;
+		const holders = new Map<string, readonly PluginCustomization[]>();
+		const plugins = upcastPartial<IAgentPluginManager>({
+			captureCustomizations: async (_clientId, customizations) => ({
+				customizations: customizations.map(customization => ({
+					type: CustomizationType.Plugin,
+					id: customization.id,
+					name: customization.name,
+					uri: `file:///captured/${customization.nonce}`,
+					children: [],
+					load: { kind: CustomizationLoadStatus.Loaded },
+				})),
+				dispose: () => { },
+			}),
+			retainCustomizationHolders: async additions => {
+				if (failRetention) {
+					throw new Error('retention unavailable');
+				}
+				for (const [holder, customizations] of additions) {
+					holders.set(holder, customizations);
+				}
+			},
+			reconcileCustomizationHolders: async (_prefix, authoritative) => {
+				holders.clear();
+				for (const [holder, customizations] of authoritative) {
+					holders.set(holder, customizations);
+				}
+			},
+		});
+		const service = createService(undefined, plugins);
+		const plugin: ClientPluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			name: 'Plugin',
+			uri: 'vscode-agent-client://client/plugin',
+			nonce: 'revision-1',
+		};
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), session: { provider: 'mock', customizations: [plugin] } },
+		}, 'client');
+		const writesBeforeFailure = writeAttempts;
+		failRetention = true;
+
+		await assert.rejects(service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested,
+			resource: createAction().resource,
+			changes: { session: { provider: 'mock', customizations: [{ ...plugin, nonce: 'revision-2' }] } },
+		}, 'client'), /retention unavailable/);
+
+		assert.deepStrictEqual({
+			writes: writeAttempts - writesBeforeFailure,
+			catalog: stateManager.getAutomationCatalogState()?.entries[0].customizations?.map(customization => customization.uri),
+			holders: [...holders.values()].flat().map(customization => customization.uri),
+		}, {
+			writes: 0,
+			catalog: ['file:///captured/revision-1'],
+			holders: ['file:///captured/revision-1'],
+		});
+	});
+
+	test('reconciles retained automation holders on disabled startup and preserves them when disposed', async () => {
+		const resource = 'ahp-automation:/retained';
+		const captured: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			name: 'Plugin',
+			uri: 'file:///captured/revision-1',
+		};
+		storageService.set('automations', {
+			version: 1,
+			catalog: {
+				automations: [{
+					resource,
+					definition: { ...definition(), enabled: false },
+					runs: [],
+					operations: [AutomationOperation.Update, AutomationOperation.Remove],
+					customizations: [captured],
+					createdAt: '2026-01-01T00:00:00Z',
+					modifiedAt: '2026-01-01T00:00:00Z',
+				}],
+			},
+		});
+		await storageService.whenIdle();
+		stateManager.dispatchServerAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: false },
+		});
+		const holders = new Map<string, readonly PluginCustomization[]>();
+		const plugins = upcastPartial<IAgentPluginManager>({
+			reconcileCustomizationHolders: async (_prefix, authoritative) => {
+				holders.clear();
+				for (const [holder, customizations] of authoritative) {
+					holders.set(holder, customizations);
+				}
+			},
+		});
+		const service = createService(undefined, plugins);
+		await timeout(0);
+		service.dispose();
+
+		assert.deepStrictEqual([...holders], [['automation:ahp-automation:/retained', [captured]]]);
+	});
+
+	test('keeps committed automation state when post-commit holder cleanup fails', async () => {
+		let failCleanup = false;
+		const plugins = upcastPartial<IAgentPluginManager>({
+			retainCustomizationHolders: async () => { },
+			reconcileCustomizationHolders: async () => {
+				if (failCleanup) {
+					throw new Error('cleanup unavailable');
+				}
+			},
+		});
+		const service = createService(undefined, plugins);
+		await enableAndCreate(service);
+		failCleanup = true;
+
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested,
+			resource: createAction().resource,
+			changes: { title: 'Persisted despite cleanup failure' },
+		});
+
+		assert.strictEqual(stateManager.getAutomationCatalogState()?.entries[0].definition.title, 'Persisted despite cleanup failure');
+	});
+
+	test('blocks mutations when persisted holder initialization fails', async () => {
+		const plugins = upcastPartial<IAgentPluginManager>({
+			reconcileCustomizationHolders: async () => {
+				throw new Error('holder storage unavailable');
+			},
+		});
+		const service = createService(undefined, plugins);
+		await timeout(0);
+
+		await assert.rejects(service.handleCreate(createAction()), /customization retention could not be initialized/);
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState(), { entries: [] });
+	});
+
+	test('does not publish or retain a customization when capture fails', async () => {
+		const plugins = upcastPartial<IAgentPluginManager>({
+			captureCustomizations: async () => { throw new Error('capture failed'); },
+			retainCustomizationHolders: async () => { },
+			reconcileCustomizationHolders: async () => { },
+		});
+		const service = createService(undefined, plugins);
+		const plugin: ClientPluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			name: 'Plugin',
+			uri: 'vscode-agent-client://client/plugin',
+			nonce: 'revision-1',
+		};
+
+		await assert.rejects(service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), session: { provider: 'mock', customizations: [plugin] } },
+		}, 'client'), /capture failed/);
+
+		assert.deepStrictEqual({
+			catalog: stateManager.getAutomationCatalogState(),
+		}, {
+			catalog: { entries: [] },
+		});
+	});
+
+	test('captures only enabled plugins and drops disabled plugins on recapture', async () => {
+		let captureCalls = 0;
+		const plugins = upcastPartial<IAgentPluginManager>({
+			captureCustomizations: async (_clientId, customizations) => {
+				captureCalls++;
+				return {
+					customizations: customizations.map(source => ({
+						type: CustomizationType.Plugin,
+						id: source.id,
+						name: source.name,
+						uri: 'file:///captured/plugin',
+						children: [],
+						load: { kind: CustomizationLoadStatus.Loaded },
+					})),
+					dispose: () => { },
+				};
+			},
+			retainCustomizationHolders: async () => { },
+			reconcileCustomizationHolders: async () => { },
+		});
+		const source: ClientPluginCustomization = {
+			type: CustomizationType.Plugin, id: 'plugin', name: 'Plugin',
+			uri: 'vscode-agent-client://client/plugin', nonce: 'revision',
+		};
+		const service = createService(undefined, plugins);
+		await service.handleCreate({
+			...createAction(),
+			definition: {
+				...definition(), session: {
+					provider: 'mock', customizations: [
+						source,
+						{ ...source, id: 'disabled', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+					]
+				}
+			},
+		}, 'client');
+		const capturedIds = stateManager.getAutomationCatalogState()!.entries[0].customizations?.map(plugin => plugin.id);
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested,
+			resource: createAction().resource,
+			changes: {
+				session: {
+					provider: 'mock',
+					customizations: [{ ...source, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }],
+				},
+			},
+		});
+		assert.deepStrictEqual({
+			captureCalls,
+			capturedIds,
+			afterDisable: stateManager.getAutomationCatalogState()!.entries[0].customizations,
+		}, {
+			captureCalls: 1,
+			capturedIds: ['plugin'],
+			afterDisable: undefined,
+		});
+	});
+
+	for (const hasAgent of [true, false]) {
+		test(`resolves the selected automation agent from the capture (present: ${hasAgent})`, async () => {
+			const source: ClientPluginCustomization = {
+				type: CustomizationType.Plugin, id: 'plugin', name: 'Plugin',
+				uri: 'vscode-remote://source/plugin', nonce: 'revision',
+			};
+			const capturedAgentUri = 'file:///captured/plugin/agents/reviewer.agent.md';
+			const plugins = upcastPartial<IAgentPluginManager>({
+				captureCustomizations: async () => ({
+					customizations: [{
+						type: CustomizationType.Plugin, id: source.id, name: source.name, uri: 'file:///captured/plugin',
+						children: hasAgent ? [{ type: CustomizationType.Agent, id: 'reviewer', name: 'Reviewer', uri: capturedAgentUri }] : [],
+						load: { kind: CustomizationLoadStatus.Loaded },
+					}],
+					dispose: () => { },
+				}),
+				retainCustomizationHolders: async () => { },
+				reconcileCustomizationHolders: async () => { },
+			});
+			const started = new DeferredPromise<void>();
+			let selectedAgent: string | undefined;
+			const service = createService({
+				createSession: async template => {
+					selectedAgent = template.agent?.uri;
+					return URI.parse('mock:/captured-agent');
+				},
+				startSession: async () => { await started.complete(); },
+			}, plugins);
+			await service.handleCreate({
+				...createAction(),
+				definition: {
+					...definition(),
+					session: {
+						provider: 'mock',
+						agent: { uri: `${source.uri}/agents/reviewer.agent.md` },
+						customizations: [source],
+					},
+				},
+			}, 'client');
+			const run = await service.runAutomation({ channel: 'ahp-automations://', automation: createAction().resource, requestId: 'selected-agent' });
+			if (hasAgent) {
+				await started.p;
+			} else {
+				await terminalRun(run.resource);
+			}
+			assert.deepStrictEqual({
+				selectedAgent,
+				status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status,
+			}, {
+				selectedAgent: hasAgent ? capturedAgentUri : undefined,
+				status: hasAgent ? AutomationRunStatus.Running : AutomationRunStatus.Failed,
+			});
+		});
+	}
+
+	test('runs retain the captured customization revision after the automation is edited', async () => {
+		let available = false;
+		const sessionCreated = new DeferredPromise<void>();
+		const sessionStarted = new DeferredPromise<void>();
+		let received: readonly PluginCustomization[] | undefined;
+		let startedMessage: string | undefined;
+		const plugins = upcastPartial<IAgentPluginManager>({
+			captureCustomizations: async (_clientId, customizations) => ({
+				customizations: customizations.map(customization => ({
+					type: CustomizationType.Plugin,
+					id: customization.id,
+					name: 'Plugin',
+					uri: `file:///captured/${customization.nonce}`,
+					children: [],
+					load: { kind: CustomizationLoadStatus.Loaded },
+				})),
+				dispose: () => { },
+			}),
+			retainCustomizationHolders: async () => { },
+			reconcileCustomizationHolders: async () => { },
+		});
+		const service = createService({
+			isSessionTemplateAvailable: () => available,
+			createSession: async (_template, _run, customizations) => {
+				received = customizations;
+				sessionCreated.complete();
+				return URI.parse('mock:/automation-session');
+			},
+			startSession: async (_session, message) => {
+				startedMessage = message.text;
+				sessionStarted.complete();
+			},
+		}, plugins);
+		const revision1: ClientPluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			name: 'Plugin',
+			uri: 'vscode-agent-client://client/plugin',
+			nonce: 'revision-1',
+		};
+		const revision2 = { ...revision1, nonce: 'revision-2' };
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), session: { provider: 'mock', customizations: [revision1] } },
+		}, 'client');
+		await service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/review-changes',
+			requestId: 'run-request',
+		});
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested,
+			resource: 'ahp-automation:/review-changes',
+			changes: {
+				session: { provider: 'mock', customizations: [revision2] },
+				message: { text: 'Use the updated prompt.', origin: { kind: MessageKind.Automation } },
+			},
+		}, 'client');
+		available = true;
+		service.handleAgentsChanged();
+		await sessionCreated.p;
+		await sessionStarted.p;
+
+		assert.deepStrictEqual({
+			customizations: received,
+			startedMessage,
+		}, {
+			customizations: [{
+				type: CustomizationType.Plugin,
+				id: 'plugin',
+				name: 'Plugin',
+				uri: 'file:///captured/revision-1',
+				children: [],
+				load: { kind: CustomizationLoadStatus.Loaded },
+				_meta: { [AutomationCapturedPluginMetaKey]: true },
+			}],
+			startedMessage: 'Review the current changes.',
+		});
+	});
+
+	test('releases a deleted session run capture durably before restart', async () => {
+		const holders = new Map<string, readonly PluginCustomization[]>();
+		const started = new DeferredPromise<void>();
+		const plugins = upcastPartial<IAgentPluginManager>({
+			captureCustomizations: async (_clientId, customizations) => ({
+				customizations: customizations.map(customization => ({
+					type: CustomizationType.Plugin,
+					id: customization.id,
+					name: 'Plugin',
+					uri: `file:///captured/${customization.nonce}`,
+					children: [],
+					load: { kind: CustomizationLoadStatus.Loaded },
+				})),
+				dispose: () => { },
+			}),
+			retainCustomizationHolders: async additions => {
+				for (const [holder, customizations] of additions) {
+					holders.set(holder, customizations);
+				}
+			},
+			reconcileCustomizationHolders: async (_prefix, authoritative) => {
+				holders.clear();
+				for (const [holder, customizations] of authoritative) {
+					holders.set(holder, customizations);
+				}
+			},
+		});
+		const session = URI.parse('mock:/deleted-automation-session');
+		const service = createService({
+			createSession: async () => session,
+			startSession: async () => { await started.complete(); },
+		}, plugins);
+		const customization: ClientPluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			name: 'Plugin',
+			uri: 'vscode-agent-client://client/plugin',
+			nonce: 'revision-1',
+		};
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), session: { provider: 'mock', customizations: [customization] } },
+		}, 'client');
+		const run = await service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/review-changes',
+			requestId: 'deleted-session-capture',
+		});
+		await started.p;
+		await service.handleSessionDeleted(session);
+		service.dispose();
+
+		createService(undefined, plugins);
+		const stored = storageService.get<{
+			readonly runCustomizations: readonly { readonly run: string }[];
+			readonly runDefinitions: readonly { readonly run: string }[];
+		}>('automations');
+		assert.deepStrictEqual({
+			runOwnerRetained: holders.has(`automation:${run.resource}`),
+			storedRunInputs: [
+				stored?.runCustomizations.some(entry => entry.run === run.resource),
+				stored?.runDefinitions.some(entry => entry.run === run.resource),
+			],
+		}, {
+			runOwnerRetained: false,
+			storedRunInputs: [false, false],
+		});
+	});
+
+	test('restores an admitted capture after its Automation is removed', async () => {
+		let available = false;
+		const started = new DeferredPromise<void>();
+		const plugins = upcastPartial<IAgentPluginManager>({
+			captureCustomizations: async (_clientId, customizations) => ({
+				customizations: customizations.map(customization => ({
+					type: CustomizationType.Plugin,
+					id: customization.id,
+					name: 'Plugin',
+					uri: `file:///captured/${customization.nonce}`,
+					children: [],
+					load: { kind: CustomizationLoadStatus.Loaded },
+				})),
+				dispose: () => { },
+			}),
+			retainCustomizationHolders: async () => { },
+			reconcileCustomizationHolders: async () => { },
+		});
+		const session = URI.parse('mock:/restored-automation-session');
+		const service = createService({
+			isSessionTemplateAvailable: () => available,
+			createSession: async () => session,
+			startSession: async () => { await started.complete(); },
+		}, plugins);
+		const revision1: ClientPluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			name: 'Plugin',
+			uri: 'vscode-agent-client://client/plugin',
+			nonce: 'revision-1',
+		};
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), session: { provider: 'mock', customizations: [revision1] } },
+		}, 'client');
+		const run = await service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/review-changes',
+			requestId: 'restore-admitted-capture',
+		});
+		available = true;
+		service.handleAgentsChanged();
+		await started.p;
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'completed-turn',
+			startedAt: new Date().toISOString(),
+			message: { text: 'Review the current changes.', origin: { kind: MessageKind.Automation } },
+		});
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'completed-turn',
+			duration: 0,
+		});
+		await terminalRun(run.resource);
+		await service.handleRemove({ type: ActionType.AutomationRemoved, resource: 'ahp-automation:/review-changes' });
+		service.dispose();
+
+		const restored = createService(undefined, plugins);
+		assert.deepStrictEqual(restored.getSessionCustomizations(session), [{
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			name: 'Plugin',
+			uri: 'file:///captured/revision-1',
+			children: [],
+			load: { kind: CustomizationLoadStatus.Loaded },
+			_meta: { [AutomationCapturedPluginMetaKey]: true },
+		}]);
+	});
+
+	test('migrates and starts legacy pending runs without admitted customization inputs', async () => {
+		const unavailable = createService({
+			isSessionTemplateAvailable: () => false,
+		});
+		await enableAndCreate(unavailable);
+		const run = await unavailable.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/review-changes',
+			requestId: 'legacy-pending',
+		});
+		unavailable.dispose();
+		const stored = storageService.get<{
+			readonly catalog: object;
+			readonly runs: readonly AutomationRunState[];
+			readonly manualRunRequests: readonly object[];
+		}>('automations');
+		storageService.set('automations', {
+			catalog: stored!.catalog,
+			runs: stored!.runs,
+			manualRunRequests: stored!.manualRunRequests,
+		});
+		await storageService.whenIdle();
+
+		const started = new DeferredPromise<void>();
+		const restored = createService({
+			createSession: async () => URI.parse('mock:/legacy-pending-session'),
+			startSession: async () => { await started.complete(); },
+		});
+		await started.p;
+		const migrated = storageService.get<{
+			readonly runCustomizations: readonly { readonly run: string; readonly customizations: readonly PluginCustomization[] }[];
+			readonly runDefinitions: readonly { readonly run: string }[];
+		}>('automations');
+		assert.deepStrictEqual({
+			status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status,
+			migratedInputs: [
+				migrated?.runCustomizations.find(entry => entry.run === run.resource)?.customizations,
+				migrated?.runDefinitions.some(entry => entry.run === run.resource),
+			],
+			legacyCaptureLookup: restored.getSessionCustomizations(URI.parse('mock:/legacy-pending-session')),
+		}, {
+			status: AutomationRunStatus.Running,
+			migratedInputs: [[], true],
+			legacyCaptureLookup: [],
+		});
+	});
+
 	test('feature disablement removes run permission and blocks execution in the host', async () => {
 		const service = createService();
 		await enableAndCreate(service);
@@ -560,6 +1257,132 @@ suite('AgentHostAutomationService', () => {
 			AutomationOperation.Run,
 		]);
 	});
+
+	test('restores run captures after definition deletion and durably releases them with the session', async () => {
+		const resource = 'ahp-automation:/review-changes';
+		const session = URI.parse('mock:/captured-session');
+		const run: AutomationRunState = {
+			resource: 'ahp-automation-run:/captured-run',
+			automation: resource,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: '2026-01-01T00:00:00Z', startedAt: '2026-01-01T00:00:00Z', completedAt: '2026-01-01T00:01:00Z' },
+			sessions: [session.toString()],
+			primarySession: session.toString(),
+		};
+		const captured: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'plugin', name: 'Plugin', uri: 'file:///captured/old-revision',
+		};
+		storageService.set('automations', {
+			version: 1,
+			catalog: {
+				automations: [{
+					resource, definition: definition(), runs: [], operations: [],
+					customizations: [{ ...captured, uri: 'file:///captured/new-revision' }],
+					createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:02:00Z',
+				}],
+			},
+			runs: [run],
+			runCustomizations: [{ run: run.resource, customizations: [captured] }],
+			runDefinitions: [{ run: run.resource, definition: definition() }],
+		});
+		await storageService.whenIdle();
+		const holders = new Map<string, readonly PluginCustomization[]>();
+		const plugins = upcastPartial<IAgentPluginManager>({
+			retainCustomizationHolders: async additions => {
+				for (const [holder, customizations] of additions) {
+					holders.set(holder, customizations);
+				}
+			},
+			reconcileCustomizationHolders: async (_prefix, authoritative) => {
+				holders.clear();
+				for (const [holder, customizations] of authoritative) {
+					holders.set(holder, customizations);
+				}
+			},
+		});
+		const service = createService(undefined, plugins);
+		const afterEdit = service.getSessionCustomizations(session);
+		await service.handleRemove({ type: ActionType.AutomationRemoved, resource });
+		service.dispose();
+		const restored = createService(undefined, plugins);
+		const afterDeletionAndRestart = restored.getSessionCustomizations(session);
+		const retained = holders.get(`automation:${run.resource}`);
+		stateManager.dispatchServerAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: false },
+		});
+		await restored.handleConfigurationChanged();
+		await restored.handleSessionDeleted(session);
+		restored.dispose();
+		createService(undefined, plugins);
+
+		assert.deepStrictEqual({
+			afterEdit,
+			afterDeletionAndRestart,
+			retained,
+			retainedAfterSessionDeletionAndRestart: [...holders.values()].flat(),
+			persisted: storageService.get<{ runCustomizations: object[]; runDefinitions: object[] }>('automations'),
+		}, {
+			afterEdit: [captured],
+			afterDeletionAndRestart: [captured],
+			retained: [captured],
+			retainedAfterSessionDeletionAndRestart: [],
+			persisted: {
+				version: 1,
+				catalog: { automations: [] },
+				runs: [run],
+				manualRunRequests: [],
+				runCustomizations: [],
+				runDefinitions: [],
+			},
+		});
+	});
+
+	for (const requiresCapture of [false, true]) {
+		test(requiresCapture ? 'rejects a pending capture run whose admitted inputs are missing' : 'migrates a legacy pending run without captures before starting it', async () => {
+			const resource = 'ahp-automation:/legacy';
+			const run: AutomationRunState = {
+				resource: 'ahp-automation-run:/legacy',
+				automation: resource,
+				origin: { kind: AutomationRunOriginKind.Manual },
+				lifecycle: { status: AutomationRunStatus.Pending, createdAt: '2026-01-01T00:00:00Z' },
+				sessions: [],
+			};
+			storageService.set('automations', {
+				version: 1,
+				catalog: {
+					automations: [{
+						resource,
+						definition: { ...definition(), session: { provider: 'mock', ...(requiresCapture ? { customizations: [] } : {}) } },
+						runs: [], operations: [],
+						createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+					}],
+				},
+				runs: [run],
+			});
+			await storageService.whenIdle();
+			const started = new DeferredPromise<void>();
+			const received: (readonly PluginCustomization[])[] = [];
+			const service = createService({
+				createSession: async (_template, _run, customizations) => {
+					received.push(customizations);
+					return URI.parse('mock:/legacy-session');
+				},
+				startSession: async () => { started.complete(); },
+			});
+			service.handleAgentsChanged();
+			await (requiresCapture ? terminalRun(run.resource) : started.p);
+			assert.deepStrictEqual({
+				received,
+				admitted: storageService.get<{ runCustomizations: object[] }>('automations')?.runCustomizations,
+				status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status,
+			}, {
+				received: requiresCapture ? [] : [[]],
+				admitted: requiresCapture ? [] : [{ run: run.resource, customizations: [] }],
+				status: requiresCapture ? AutomationRunStatus.Failed : AutomationRunStatus.Running,
+			});
+		});
+	}
 
 	test('manual run is durable, idempotent, linked before send, and completed from chat state', async () => {
 		const session = URI.parse('mock:/automation-session');
