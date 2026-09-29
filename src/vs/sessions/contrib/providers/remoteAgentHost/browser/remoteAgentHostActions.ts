@@ -21,19 +21,19 @@ import { ICodeEditor, isCodeEditor } from '../../../../../editor/browser/editorB
 import { EndOfLinePreference } from '../../../../../editor/common/model.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { SnippetController2 } from '../../../../../editor/contrib/snippet/browser/snippetController2.js';
-import { ITunnelHostService } from '../../../../../workbench/contrib/chat/common/tunnelHost.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { computeSSHConnectionKey, ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -45,6 +45,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { runServerUpgrade } from './remoteHostOptions.js';
+import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 
@@ -406,11 +407,11 @@ async function connectToConfiguredSSHHost(
 			name: suggestedName,
 			sshConfigHost: hostAlias,
 		};
-		const connection = await instantiationService.invokeFunction(accessor =>
+		const connectionAddress = await instantiationService.invokeFunction(accessor =>
 			connectWithProgress(accessor, config, suggestedName)
 		);
-		if (connection) {
-			await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connection));
+		if (connectionAddress) {
+			await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connectionAddress));
 		}
 		return;
 	}
@@ -468,6 +469,7 @@ async function promptForCredentialsAndConnect(
 	const authPicked = await quickInputService.pick(authPicks, {
 		title: localize('sshAuthTitle', "Authentication Method"),
 		placeHolder: localize('sshAuthPlaceholder', "Choose how to authenticate with {0}", host),
+		ignoreFocusLost: true,
 	});
 	if (!authPicked) {
 		return;
@@ -529,23 +531,29 @@ async function promptForCredentialsAndConnect(
 		name: name.trim(),
 	};
 
-	const connection = await instantiationService.invokeFunction(accessor =>
+	const connectionAddress = await instantiationService.invokeFunction(accessor =>
 		connectWithProgress(accessor, config, host)
 	);
-	if (connection) {
-		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connection));
+	if (connectionAddress) {
+		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connectionAddress));
 	}
 }
 
-async function connectWithProgress(
+export async function connectWithProgress(
 	accessor: ServicesAccessor,
 	config: ISSHAgentHostConfig,
 	displayHost: string,
-): Promise<ISSHAgentHostConnection | undefined> {
+): Promise<string | undefined> {
 	const sshService = accessor.get(ISSHRemoteAgentHostService);
+	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const notificationService = accessor.get(INotificationService);
 	const telemetryService = accessor.get(ITelemetryService);
 	const stopwatch = StopWatch.create(false);
+
+	const address = computeSSHConnectionKey(config);
+	if (remoteAgentHostService.connections.some(connection => connection.address === address && RemoteAgentHostConnectionStatus.isConnected(connection.status))) {
+		return address;
+	}
 
 	const handle = notificationService.notify({
 		severity: Severity.Info,
@@ -553,14 +561,8 @@ async function connectWithProgress(
 		progress: { infinite: true },
 	});
 
-	// Build the expected connection key to filter progress events.
-	// Must match the key logic in the shared process service.
-	const expectedKey = config.sshConfigHost
-		? `ssh:${config.sshConfigHost}`
-		: `${config.username}@${config.host}:${config.port ?? 22}`;
-
 	const progressListener = sshService.onDidReportConnectProgress?.(progress => {
-		if (progress.connectionKey === expectedKey) {
+		if (progress.connectionKey === address) {
 			handle.updateMessage(progress.message);
 		}
 	});
@@ -576,7 +578,7 @@ async function connectWithProgress(
 			willRetry: false,
 		});
 		handle.close();
-		return connection;
+		return connection.localAddress;
 	} catch (err) {
 		logSSHConnectAttempt(telemetryService, {
 			operation: 'connect',
@@ -607,15 +609,14 @@ async function connectWithProgress(
  */
 async function promptForRemoteFolder(
 	accessor: ServicesAccessor,
-	connection: ISSHAgentHostConnection,
+	address: string,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
-	// The provider is created synchronously during addManagedConnection's
-	// onDidChangeConnections event, so it should exist by now.
-	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === connection.localAddress);
+	// The factory-backed entry fires onDidChangeConnections before its handshake completes, so the provider should exist by now.
+	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === address);
 	if (!provider) {
 		return;
 	}
@@ -644,7 +645,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: RemoteAgentHostCommandIds.connectViaSSH,
 			title: localize2('connectViaSSH', "Connect to Remote Agent Host via SSH"),
-			shortTitle: localize2('connectViaSSHShort', "SSH..."),
+			shortTitle: localize2('connectViaSSHShort', "SSH"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.remote,
@@ -841,18 +842,58 @@ interface ITunnelPickItem extends IQuickPickItem {
 	readonly tunnel: ITunnelInfo;
 }
 
+function sortTunnelsByName(tunnels: readonly ITunnelInfo[]): ITunnelInfo[] {
+	return [...tunnels].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 async function promptToConnectViaTunnel(
 	accessor: ServicesAccessor,
 	options: { showBackButton?: boolean } = {},
 ): Promise<'back' | void> {
 	const tunnelService = accessor.get(ITunnelAgentHostService);
+	const diagnosticsService = accessor.get(IConnectionDiagnosticsService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const notificationService = accessor.get(INotificationService);
 	const authenticationService = accessor.get(IAuthenticationService);
 	const instantiationService = accessor.get(IInstantiationService);
 	const productService = accessor.get(IProductService);
 	const dialogService = accessor.get(IDialogService);
-	const tunnelHostService = accessor.get(ITunnelHostService);
+	const remoteTunnelService = accessor.get(IRemoteTunnelService);
+	const store = new DisposableStore();
+	let remoteTunnelStatus: TunnelStatus = { type: 'uninitialized' };
+	let hasReceivedRemoteTunnelStatus = false;
+	let tunnels: ITunnelInfo[] = [];
+	// eslint-disable-next-line prefer-const
+	let tunnelPicker: IQuickPick<ITunnelPickItem> | undefined;
+	const deleteTunnelButton: IQuickInputButton = {
+		iconClass: ThemeIcon.asClassName(Codicon.trash),
+		tooltip: localize('tunnelDeleteTooltip', "Delete Dev Tunnel"),
+	};
+	const isHostedTunnel = (tunnel: ITunnelInfo): boolean => isTunnelHosted(remoteTunnelStatus.type === 'connected' ? remoteTunnelStatus.info : undefined, tunnel);
+	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => sortTunnelsByName(tunnelInfos)
+		.filter(tunnel => !isHostedTunnel(tunnel))
+		.map(tunnel => ({
+			label: tunnel.name,
+			description: tunnel.hostConnectionCount > 0
+				? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
+				: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
+			buttons: tunnelService.canDeleteTunnels ? [deleteTunnelButton] : undefined,
+			tunnel,
+		}));
+	const updateTunnelPickerItems = () => {
+		if (tunnelPicker) {
+			tunnelPicker.items = toTunnelPickItems(tunnels);
+		}
+	};
+	store.add(remoteTunnelService.onDidChangeTunnelStatus(status => {
+		hasReceivedRemoteTunnelStatus = true;
+		remoteTunnelStatus = status;
+		updateTunnelPickerItems();
+	}));
+	const initialRemoteTunnelStatus = await remoteTunnelService.getTunnelStatus();
+	if (!hasReceivedRemoteTunnelStatus) {
+		remoteTunnelStatus = initialRemoteTunnelStatus;
+	}
 
 	// Step 1: Determine auth provider — try cached sessions first, then prompt
 	// This used to call tunnelService.getAuthProvider, but for now we're Github-
@@ -866,13 +907,13 @@ async function promptToConnectViaTunnel(
 			await authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
 		}
 	} catch {
+		store.dispose();
 		notificationService.error(localize('tunnelAuthFailed', "Authentication failed. Please try again."));
 		return;
 	}
 
 	// Step 2: Show tunnel picker immediately in busy state while enumerating
-	const store = new DisposableStore();
-	const tunnelPicker = store.add(quickInputService.createQuickPick<ITunnelPickItem>());
+	tunnelPicker = store.add(quickInputService.createQuickPick<ITunnelPickItem>());
 	tunnelPicker.title = localize('tunnelPickTitle', "Connect via Dev Tunnel");
 	tunnelPicker.placeholder = localize('tunnelPickPlaceholder', "Select a dev tunnel to connect to");
 	tunnelPicker.busy = true;
@@ -881,9 +922,8 @@ async function promptToConnectViaTunnel(
 	}
 	tunnelPicker.show();
 
-	let tunnels: ITunnelInfo[];
 	try {
-		tunnels = await tunnelService.listTunnels();
+		tunnels = await diagnosticsService.trackDiscovery('interactive', onDiagnostic => tunnelService.listTunnels({ authProvider, onDiagnostic }));
 	} catch (err) {
 		store.dispose();
 		notificationService.error(localize('tunnelListFailed', "Failed to list dev tunnels: {0}", err instanceof Error ? err.message : String(err)));
@@ -896,25 +936,6 @@ async function promptToConnectViaTunnel(
 		return;
 	}
 
-	const deleteTunnelButton: IQuickInputButton = {
-		iconClass: ThemeIcon.asClassName(Codicon.trash),
-		tooltip: localize('tunnelDeleteTooltip', "Delete Dev Tunnel"),
-	};
-	const isHostedTunnel = (tunnel: ITunnelInfo): boolean => isTunnelHosted(tunnelHostService.sharingInfo, tunnel);
-	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => tunnelInfos
-		.filter(tunnel => !isHostedTunnel(tunnel))
-		.map(tunnel => ({
-			label: tunnel.name,
-			description: tunnel.hostConnectionCount > 0
-				? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
-				: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
-			buttons: tunnelService.canDeleteTunnels ? [deleteTunnelButton] : undefined,
-			tunnel,
-		}));
-
-	const updateTunnelPickerItems = () => {
-		tunnelPicker.items = toTunnelPickItems(tunnels);
-	};
 	if (toTunnelPickItems(tunnels).length === 0) {
 		store.dispose();
 		notificationService.info(localize('tunnelOnlyLocalFound', "This machine is already hosting the only available dev tunnel."));
@@ -922,7 +943,6 @@ async function promptToConnectViaTunnel(
 	}
 
 	updateTunnelPickerItems();
-	store.add(tunnelHostService.onDidChangeStatus(updateTunnelPickerItems));
 	tunnelPicker.busy = false;
 
 	// Step 3: Wait for user selection
@@ -954,6 +974,10 @@ async function promptToConnectViaTunnel(
 			if (event.button !== deleteTunnelButton || isDeleting) {
 				return;
 			}
+			if (isHostedTunnel(event.item.tunnel)) {
+				updateTunnelPickerItems();
+				return;
+			}
 
 			const previousIgnoreFocusOut = tunnelPicker.ignoreFocusOut;
 			isDeleting = true;
@@ -969,10 +993,21 @@ async function promptToConnectViaTunnel(
 				if (!confirmation.confirmed) {
 					return;
 				}
+				if (isHostedTunnel(event.item.tunnel)) {
+					updateTunnelPickerItems();
+					return;
+				}
 
 				tunnelPicker.busy = true;
-				await tunnelService.deleteTunnel(event.item.tunnel);
-				tunnels = await tunnelService.listTunnels();
+				await tunnelService.deleteTunnel(event.item.tunnel, authProvider);
+				tunnels = tunnels.filter(tunnel => tunnel.tunnelId !== event.item.tunnel.tunnelId);
+				updateTunnelPickerItems();
+				try {
+					tunnels = await diagnosticsService.trackDiscovery('afterDelete', onDiagnostic => tunnelService.listTunnels({ authProvider, onDiagnostic }));
+				} catch (err) {
+					notificationService.error(localize('tunnelRefreshAfterDeleteFailed', "Deleted dev tunnel '{0}', but failed to refresh dev tunnels: {1}", event.item.tunnel.name, err instanceof Error ? err.message : String(err)));
+					return;
+				}
 				if (toTunnelPickItems(tunnels).length === 0) {
 					keepOpen = false;
 					notificationService.info(localize('tunnelNoneFoundAfterDelete', "No dev tunnels with agent host support were found. Start a tunnel with 'code tunnel' on another machine."));
@@ -1024,7 +1059,8 @@ async function promptToConnectViaTunnel(
 	try {
 		// `connect` caches the tunnel internally before wiring the live
 		// connection — no separate `cacheTunnel` call needed here.
-		await tunnelService.connect(picked.tunnel, authProvider);
+		tunnelService.clearTunnelDismissal(picked.tunnel.tunnelId);
+		await tunnelService.connect(picked.tunnel, authProvider, { userInitiated: true });
 		handle.close();
 	} catch (err) {
 		handle.close();
@@ -1073,7 +1109,7 @@ async function promptForTunnelFolder(
 	}
 
 	sessionsService.openNewSession();
-	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
 }
 
 registerAction2(class extends Action2 {
@@ -1081,7 +1117,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: RemoteAgentHostCommandIds.connectViaTunnel,
 			title: localize2('connectViaTunnel', "Connect to Remote Agent Host via Dev Tunnel"),
-			shortTitle: localize2('connectViaTunnelShort', "Tunnels..."),
+			shortTitle: localize2('connectViaTunnelShort', "Tunnels"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.cloud,
@@ -1264,7 +1300,7 @@ async function promptForWSLFolder(
 	}
 
 	sessionsService.openNewSession();
-	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
 }
 
 registerAction2(class extends Action2 {

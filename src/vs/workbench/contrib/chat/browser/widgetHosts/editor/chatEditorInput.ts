@@ -25,6 +25,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../../../common/editor/editorInput.js';
+import { IEditorGroup } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, isNewChatSessionTypeUsable } from '../../../common/constants.js';
@@ -53,6 +54,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	public get sessionResource(): URI | undefined { return this._sessionResource; }
 
 	private didTransferOutEditingSession = false;
+	private movesInProgress = 0;
 	private cachedIcon: ThemeIcon | URI | undefined;
 
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
@@ -103,7 +105,17 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	override closeHandler = this;
 
 	showConfirm(): boolean {
-		return !!(this.model && shouldShowClearEditingSessionConfirmation(this.model));
+		return this.movesInProgress === 0 && !!(this.model && shouldShowClearEditingSessionConfirmation(this.model));
+	}
+
+	/** Close this editor without ending the editing session retained by the move's caller. */
+	async closeForMove(group: IEditorGroup): Promise<boolean> {
+		this.movesInProgress++;
+		try {
+			return await group.closeEditor(this, { preserveFocus: true });
+		} finally {
+			this.movesInProgress--;
+		}
 	}
 
 	transferOutEditingSession(): IChatEditingSession | undefined {
@@ -112,7 +124,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	async confirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
-		if (!this.model?.editingSession || this.didTransferOutEditingSession || this.getSessionType() !== localChatSessionType) {
+		if (!this.model?.editingSession || this.movesInProgress > 0 || this.didTransferOutEditingSession || this.getSessionType() !== localChatSessionType) {
 			return ConfirmResult.SAVE;
 		}
 

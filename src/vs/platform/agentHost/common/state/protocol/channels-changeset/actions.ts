@@ -14,8 +14,9 @@ import { ChangesetStatus, type ChangesetFile, type ChangesetOperation, type Chan
 
 /**
  * The {@link ChangesetState.status} for this changeset transitioned (e.g.
- * `computing → ready`). The error payload is set together with `status`
- * whenever it transitions to {@link ChangesetStatus.Error | Error}.
+ * `computing → ready` or `recomputing → ready`). The error payload is set
+ * together with `status` whenever it transitions to
+ * {@link ChangesetStatus.Error | Error}.
  *
  * @category Changeset Actions
  * @version 2

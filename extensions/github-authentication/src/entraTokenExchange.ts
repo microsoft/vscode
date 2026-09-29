@@ -59,8 +59,8 @@ export class EntraTokenExchangeError extends Error {
  */
 export interface IEntraExchangedToken {
 	readonly token: string;
-	/** How long the token lasts, in seconds, exactly as GitHub reported it. */
-	readonly expiresIn: number;
+	/** How many milliseconds pass before the token expires. */
+	readonly expiresAfter: number;
 	/** The GitHub account the Microsoft identity mapped onto. */
 	readonly account: IGitHubUserInfo;
 }
@@ -95,8 +95,8 @@ export interface IEntraRenewal {
 /** A GitHub token minted to replace one a session no longer has. */
 export interface IEntraRenewedToken {
 	readonly token: string;
-	/** How long the token lasts, in seconds, exactly as GitHub reported it. */
-	readonly expiresIn: number;
+	/** How many milliseconds pass before the token expires. */
+	readonly expiresAfter: number;
 	/**
 	 * The GitHub account the token belongs to, checked rather than assumed. A renewal that resolved
 	 * a different account than the one asked for is refused, so this is always that account.
@@ -135,16 +135,10 @@ export class ModalConfirmationDialog implements IConfirmationDialog {
 	}
 }
 
-/** Everything an exchange request needs that comes from configuration rather than from the user. */
-interface IExchangeEndpoint {
-	readonly url: string;
-	readonly clientSecret: string;
-}
-
 /** What one exchange came back with, before anyone decides what to do with it. */
 interface IExchangedToken {
 	readonly token: string;
-	readonly expiresIn: number;
+	readonly expiresAfter: number;
 	/** The scopes GitHub said it granted, when it said anything at all. */
 	readonly grantedScopes: string[] | undefined;
 }
@@ -216,7 +210,7 @@ export class EntraTokenExchange {
 			const verified = await this.verifyAccount(granted.token, account.id);
 			await this.linkAccounts(microsoft.account.label, verified);
 
-			return { token: granted.token, expiresIn: granted.expiresIn, account: verified };
+			return { token: granted.token, expiresAfter: granted.expiresAfter, account: verified };
 		}
 	}
 
@@ -248,7 +242,7 @@ export class EntraTokenExchange {
 		const account = await this.verifyAccount(renewed.token, gitHubAccountId);
 		return {
 			token: renewed.token,
-			expiresIn: renewed.expiresIn,
+			expiresAfter: renewed.expiresAfter,
 			account,
 			// A caller that named its scopes gets those back, so the session it builds is labelled
 			// with what it asked for and is findable by the same lookup that asked for it. Only a
@@ -283,10 +277,9 @@ export class EntraTokenExchange {
 	}
 
 	/**
-	 * Everything the exchange needs from configuration rather than from the user. Both halves fail
-	 * the same way: nothing the user does next can make them work.
+	 * Resolves the exchange endpoint before asking the user to sign in.
 	 */
-	private resolveEndpoint(): IExchangeEndpoint {
+	private resolveEndpoint(): string {
 		// The Entra to GitHub identity mapping is a service GitHub runs, so a self-hosted GitHub
 		// Enterprise Server has no endpoint to exchange against.
 		const url = this._endpoints.tokenExchange;
@@ -296,17 +289,7 @@ export class EntraTokenExchange {
 				EntraTokenExchangeFailure.Configuration,
 				vscode.l10n.t('This GitHub host does not support signing in with Microsoft.'));
 		}
-		// The endpoint authenticates the client the same way the authorization code flow does, so a
-		// build without the mixin cannot exchange anything. Fail before the token is put on the wire
-		// rather than letting GitHub answer with a confusing `invalid_request`.
-		const clientSecret = Config.gitHubClientSecret;
-		if (!clientSecret) {
-			this._logger.error('No client secret is configured, so the Microsoft token cannot be exchanged.');
-			throw new EntraTokenExchangeError(
-				EntraTokenExchangeFailure.Configuration,
-				vscode.l10n.t('This build of {0} is not configured to sign in to GitHub with Microsoft.', vscode.env.appName));
-		}
-		return { url, clientSecret };
+		return url;
 	}
 
 	private async getMicrosoftToken(
@@ -375,14 +358,13 @@ export class EntraTokenExchange {
 	 * did not name any: RFC 8693 leaves the grant up to the server in that case, and the response
 	 * says what was granted.
 	 */
-	private async exchange(endpoint: IExchangeEndpoint, subjectToken: string, scopes: readonly string[] | undefined): Promise<IExchangedToken> {
+	private async exchange(endpoint: string, subjectToken: string, scopes: readonly string[] | undefined): Promise<IExchangedToken> {
 		const requestedScopes = scopes && [...scopes];
 
 		// Only the fields this grant needs. No `audience`, `resource`, `requested_token_type` or
 		// actor fields, and nothing in the query string.
 		const body = new URLSearchParams({
 			client_id: Config.gitHubClientId,
-			client_secret: endpoint.clientSecret,
 			grant_type: TOKEN_EXCHANGE_GRANT_TYPE,
 			subject_token: subjectToken,
 			subject_token_type: ACCESS_TOKEN_TYPE,
@@ -395,7 +377,7 @@ export class EntraTokenExchange {
 		let response: IHttpResponse;
 		try {
 			response = await this._http.send({
-				url: endpoint.url,
+				url: endpoint,
 				method: 'POST',
 				// `shouldNotRetry` does not cover 400, so leaving fallbacks on would re-send the
 				// subject token to every fetcher in turn after GitHub has already rejected it. A
@@ -474,7 +456,7 @@ export class EntraTokenExchange {
 
 		return {
 			token: access_token,
-			expiresIn: expires_in,
+			expiresAfter: expires_in * 1000,
 			grantedScopes
 		};
 	}

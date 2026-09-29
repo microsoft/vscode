@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { constObservable } from '../../../base/common/observable.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../common/sessionsTelemetry.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionArtifactOpen, logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
+import { ISession, SessionArtifactKind } from '../../services/sessions/common/session.js';
 
 suite('sessionsTelemetry helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,6 +57,67 @@ suite('sessionsTelemetry helpers', () => {
 			'4f42482f1374bb5f11b7f1c0abbc96954bddd505',
 			'4f42482f1374bb5f11b7f1c0abbc96954bddd505',
 			'51f47747e460010ae1c437b9a269e980137d96ec',
+		]);
+	});
+
+	test('counts only non-archived sessions shown in the primary Sessions list', () => {
+		const createSession = (isArchived: boolean, isAutomation?: boolean): ISession => upcastPartial<ISession>({
+			isArchived: constObservable(isArchived),
+			isAutomation: isAutomation === undefined ? undefined : constObservable(isAutomation),
+		});
+
+		assert.strictEqual(getNonArchivedSessionListCount([
+			createSession(false),
+			createSession(false, false),
+			createSession(true),
+			createSession(false, true),
+		]), 2);
+	});
+
+	test('logs the compact Sessions list preference', () => {
+		const events: { name: string | undefined; data: unknown }[] = [];
+		const telemetryService = new class extends mock<ITelemetryService>() {
+			override publicLog2(eventName?: string, data?: unknown): void {
+				events.push({ name: eventName, data });
+			}
+		}();
+
+		logSessionsListCompactViewState(telemetryService, true);
+
+		assert.deepStrictEqual(events, [{
+			name: 'vscodeAgents.sessionsList/compactViewState',
+			data: { enabled: true },
+		}]);
+	});
+
+	test('logs artifact and reference opens with bounded kinds and a hashed session ID', () => {
+		const events: { name: string | undefined; data: unknown }[] = [];
+		const telemetryService = new class extends mock<ITelemetryService>() {
+			override publicLog2(eventName?: string, data?: unknown): void {
+				events.push({ name: eventName, data });
+			}
+		}();
+
+		logSessionArtifactOpen(telemetryService, 'provider:session', SessionArtifactKind.File, true);
+		logSessionArtifactOpen(telemetryService, 'provider:session', SessionArtifactKind.Website, false);
+
+		assert.deepStrictEqual(events, [
+			{
+				name: 'agents/sessionArtifactOpen',
+				data: {
+					agentSessionId: hashSessionIdForTelemetry('provider:session'),
+					itemCategory: 'artifact',
+					itemKind: 'file',
+				},
+			},
+			{
+				name: 'agents/sessionArtifactOpen',
+				data: {
+					agentSessionId: hashSessionIdForTelemetry('provider:session'),
+					itemCategory: 'reference',
+					itemKind: 'website',
+				},
+			},
 		]);
 	});
 });

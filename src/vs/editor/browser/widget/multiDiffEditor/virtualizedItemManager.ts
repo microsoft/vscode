@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, ITransaction, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
@@ -131,6 +131,7 @@ export class ManagedVirtualizedItem<TItem, TBinding extends IVirtualizedItemBind
 	private readonly _templateReference = observableValue<IReference<TTemplate> | undefined>(this, undefined);
 	private readonly _isHidden = observableValue(this, false);
 	private _lastRender: { renderedRange: OffsetRange; scrollOffset: number; width: number; renderedViewport: OffsetRange; context: ICompressedVirtualizedScrollItemContext | undefined } | undefined;
+	private _didRenderFail = false;
 	readonly template = derived(this, reader => this._templateReference.read(reader)?.object);
 	readonly binding = derived(this, reader => this.template.read(reader)?.currentBinding.read(reader));
 	readonly size;
@@ -157,6 +158,18 @@ export class ManagedVirtualizedItem<TItem, TBinding extends IVirtualizedItemBind
 	render(renderedRange: OffsetRange, scrollOffset: number, width: number, renderedViewport: OffsetRange, context?: ICompressedVirtualizedScrollItemContext): void {
 		this._lastRender = { renderedRange, scrollOffset, width, renderedViewport, context };
 		this._isHidden.set(false, undefined);
+		if (this._didRenderFail) {
+			return;
+		}
+		try {
+			this._render(renderedRange, scrollOffset, width, renderedViewport, context);
+		} catch (error) {
+			this._didRenderFail = true;
+			onUnexpectedError(error);
+		}
+	}
+
+	private _render(renderedRange: OffsetRange, scrollOffset: number, width: number, renderedViewport: OffsetRange, context?: ICompressedVirtualizedScrollItemContext): void {
 		let binding = this.binding.get();
 		if (!binding) {
 			const templateReference = this._manager.acquire(this.item);
@@ -165,25 +178,31 @@ export class ManagedVirtualizedItem<TItem, TBinding extends IVirtualizedItemBind
 				templateReference.dispose();
 				throw new BugIndicatingError('Virtualized template pool returned a bound template');
 			}
-			const newBinding = template.bind(this.item, {
-				initialSize: this.size.get(),
-				runWithScrollAnchor: (getItemOffset, update) => {
-					if (!context) {
-						throw new BugIndicatingError('Cannot preserve a virtualized item scroll anchor without a render context');
-					}
-					context.runWithScrollAnchor(getItemOffset, update);
-				},
-			});
-			if (newBinding.item !== this.item || template.currentBinding.get() !== newBinding) {
-				newBinding.dispose();
+			let newBinding: TBinding | undefined;
+			try {
+				newBinding = template.bind(this.item, {
+					initialSize: this.size.get(),
+					runWithScrollAnchor: (getItemOffset, update) => {
+						if (!context) {
+							throw new BugIndicatingError('Cannot preserve a virtualized item scroll anchor without a render context');
+						}
+						context.runWithScrollAnchor(getItemOffset, update);
+					},
+				});
+				if (newBinding.item !== this.item || template.currentBinding.get() !== newBinding) {
+					throw new BugIndicatingError('Virtualized template returned a binding for a different item');
+				}
+				const validatedBinding = newBinding;
+				transaction(tx => {
+					this._delegate.onDidBind?.(validatedBinding, tx);
+					this._templateReference.set(templateReference, tx);
+				});
+			} catch (error) {
+				(template.currentBinding.get() ?? newBinding)?.dispose();
 				templateReference.dispose();
-				throw new BugIndicatingError('Virtualized template returned a binding for a different item');
+				throw error;
 			}
 			binding = newBinding;
-			transaction(tx => {
-				this._templateReference.set(templateReference, tx);
-				this._delegate.onDidBind?.(newBinding, tx);
-			});
 		}
 		binding.render(renderedRange, scrollOffset, width, renderedViewport);
 	}
@@ -199,6 +218,7 @@ export class ManagedVirtualizedItem<TItem, TBinding extends IVirtualizedItemBind
 		}
 		const lastRender = this._lastRender;
 		this._clearBinding();
+		this._didRenderFail = false;
 		this.render(lastRender.renderedRange, lastRender.scrollOffset, lastRender.width, lastRender.renderedViewport, lastRender.context);
 	}
 

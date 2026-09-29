@@ -9,7 +9,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableFromEvent, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditorActivation, IEditorOptions } from '../../../../../platform/editor/common/editor.js';
@@ -92,9 +92,9 @@ interface IPendingReconcile {
  * (not a strategy) because both belong to one reconcile pipeline that must stay single-instance
  * across the New→Existing submit transition — see `SinglePaneLayoutStrategy`'s doc comment.
  * Owned and disposed by {@link import('./singlePaneExistingSessionStrategy.js').SinglePaneExistingSessionStrategy}.
- * `SinglePaneNewSessionStrategy` supplies its own supplementary reconcile intents via
- * {@link queueReconcile}; `SinglePaneQuickChatStrategy` never wants managed tabs, so it never
- * calls in — the ambient session-change trigger below reconciles them away on its own.
+ * `SinglePaneDraftSessionStrategy` supplies workspace-draft supplementary reconcile intents via
+ * {@link queueReconcile}; workspace-less drafts never want managed tabs, so the ambient
+ * session-change trigger below reconciles them away on its own.
  *
  * See `SINGLE_PANE_SCENARIOS.md` for the full reconcile rules.
  */
@@ -173,10 +173,14 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		// below, not here — the editor change fires *during* the async apply, racing the empty
 		// state.
 		const partVisibilityChangedSignal = observableSignalFromEvent(this, this._layoutService.onDidChangePartVisibility);
-		const editorsChangedSignal = observableSignalFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange));
+		// Modal changes must not start a reconcile that suppresses revealing a file opened in the main part.
+		const mainEditorsChanged = Event.filter(this._editorService.onDidEditorsChange, e => !!this._editorGroupsService.mainPart.getGroup(e.groupId));
+		const editorsChangedSignal = observableSignalFromEvent(this, mainEditorsChanged);
+		const activeMainGroup = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorGroupsService.mainPart.activeGroup);
 		this._register(autorun(reader => {
 			partVisibilityChangedSignal.read(reader);
 			editorsChangedSignal.read(reader);
+			activeMainGroup.read(reader);
 			this.queueReconcile(this._readTarget(undefined), {});
 		}));
 
@@ -207,7 +211,7 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			if (!group || group.contains(e.editor)) {
 				return;
 			}
-			void this._sequencer.queue(() => this._removeFilesTab(this._editorGroupsService.mainPart.activeGroup)).catch(onUnexpectedError);
+			this._queue(() => this._removeFilesTab(this._editorGroupsService.mainPart.activeGroup));
 		}));
 		this._register(this._editorService.onDidCloseEditor(e => {
 			if (e.editor instanceof EmptyFileEditorInput
@@ -245,7 +249,7 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			}
 
 			if (visible) {
-				void this._sequencer.queue(() => this._restoreCollapsedTabs()).catch(onUnexpectedError);
+				this._queue(() => this._restoreCollapsedTabs());
 				return;
 			}
 
@@ -254,12 +258,12 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 				return;
 			}
 			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-				void this._sequencer.queue(() => this._collapseNonManagedTabs()).catch(onUnexpectedError);
+				this._queue(() => this._collapseNonManagedTabs());
 			}
 		}));
 
 		this._register(this._ctx.onDidEndSessionLayoutRestore(() => this._queueCollapseIfDetailsOnly()));
-		this._register(this._editorService.onDidEditorsChange(() => {
+		this._register(mainEditorsChanged(() => {
 			if (!this._ctx.isRestoringSessionLayout) {
 				this._queueCollapseIfDetailsOnly();
 			}
@@ -294,7 +298,7 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			: trigger;
 		this._pending = { sessionKey, target, trigger: mergedTrigger };
 		const generation = ++this._generation;
-		void this._sequencer.queue(() => this._reconcile(generation)).catch(onUnexpectedError);
+		this._queue(() => this._reconcile(generation));
 	}
 
 	private _readTarget(reader: IReader | undefined): IManagedTabsTarget {
@@ -310,8 +314,24 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 
 	// --- Reconcile --------------------------------------------------------
 
+	override dispose(): void {
+		// Bump the generation before super.dispose() so queued/in-flight reconciles bail at their next checkpoint.
+		this._generation++;
+		this._pending = undefined;
+		super.dispose();
+	}
+
+	/** Queues coordinator-owned work, dropping tasks and failures that outlive disposal. */
+	private _queue(task: () => Promise<void>): void {
+		void this._sequencer.queue(() => this._store.isDisposed ? Promise.resolve() : task()).catch(error => {
+			if (!this._store.isDisposed) {
+				onUnexpectedError(error);
+			}
+		});
+	}
+
 	private async _reconcile(generation: number): Promise<void> {
-		if (generation !== this._generation || !this._pending) {
+		if (this._store.isDisposed || generation !== this._generation || !this._pending) {
 			return;
 		}
 
@@ -329,11 +349,17 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			if (generation !== this._generation && successor && successor.sessionKey === pending.sessionKey) {
 				this._pending = { ...successor, trigger: mergeTriggers(successor.trigger, pending.trigger) };
 			}
+			if (generation === this._generation && !this._ctx.isRestoringSessionLayout) {
+				this._ctx.completeChangesEditorTransition();
+			}
 		}
 	}
 
 	private async _reconcileCore(target: IManagedTabsTarget, trigger: IReconcileTrigger, generation: number): Promise<void> {
 		const group = this._editorGroupsService.mainPart.activeGroup;
+		let groupDisposed = false;
+		const groupDisposeListener = Event.once(group.onWillDispose)(() => groupDisposed = true);
+		const isCancelled = () => this._store.isDisposed || groupDisposed || generation !== this._generation;
 		this._resetCollapsedEditorsOnSessionChange();
 
 		const changesResource = target.changesSessionResource ? this._sessionChangesService.getChangesEditorResource(target.changesSessionResource) : undefined;
@@ -345,8 +371,8 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		try {
 			// [1] Replace an outgoing session's Changes tab in place when the incoming
 			// session also wants Changes; close only additional stale tabs.
-			await this._reconcileForeignChangesEditors(group, changesResource);
-			if (generation !== this._generation) {
+			await this._reconcileForeignChangesEditors(group, changesResource, isCancelled);
+			if (isCancelled()) {
 				return;
 			}
 			this._updateFilesEditors(group, target.workspace);
@@ -354,7 +380,7 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			const preserveMissingFiles = !!trigger.workingSetRestored && this._preserveMissingFilesForSessionKey === sessionKey;
 			if (preserveMissingFiles) {
 				await this._removeFilesTab(group);
-				if (generation !== this._generation) {
+				if (isCancelled()) {
 					return;
 				}
 			}
@@ -376,14 +402,14 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			// [3] Keep Files active by default for a new-session view.
 			if (openFilesFirst) {
 				await this._openFilesTab(group, target.workspace);
-				if (generation !== this._generation) {
+				if (isCancelled()) {
 					return;
 				}
 			}
 
 			// [4] Open Changes (active on submit so the detail panel maps to it).
 			if (openChanges && changesResource) {
-				if (!await this._openChangesTab(target.changesSessionResource!, changesResource, group, generation, activateChanges)) {
+				if (!await this._openChangesTab(target.changesSessionResource!, changesResource, group, activateChanges, isCancelled)) {
 					return;
 				}
 			}
@@ -391,13 +417,18 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			// [5] Open the Files placeholder after Changes for created sessions.
 			if (openFiles && !openFilesFirst) {
 				await this._openFilesTab(group, target.workspace);
-				if (generation !== this._generation) {
+				if (isCancelled()) {
 					return;
 				}
 			}
+		} catch (error) {
+			if (!this._store.isDisposed && !groupDisposed) {
+				throw error;
+			}
 		} finally {
 			suppression.dispose();
-			if (generation === this._generation) {
+			groupDisposeListener.dispose();
+			if (!isCancelled()) {
 				if (trigger.workingSetRestored) {
 					this._preserveMissingFilesForSessionKey = undefined;
 				}
@@ -417,11 +448,11 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 
 	// --- Tab operations ---------------------------------------------------
 
-	/** Opens the Changes editor pinned first (active on submit). Returns `false` if a newer reconcile superseded this one mid-open. */
-	private async _openChangesTab(sessionResource: URI, changesResource: URI, group: IEditorGroup, generation: number, active: boolean): Promise<boolean> {
+	/** Opens the Changes editor pinned first (active on submit). Returns `false` if the reconcile is cancelled mid-open. */
+	private async _openChangesTab(sessionResource: URI, changesResource: URI, group: IEditorGroup, active: boolean, isCancelled: () => boolean): Promise<boolean> {
 		this._changesViewService.setChangesetId(undefined);
 		await this._sessionChangesService.openChangesEditor(sessionResource, active ? CHANGES_TAB_ACTIVE_OPTIONS : CHANGES_TAB_OPTIONS, group);
-		if (generation !== this._generation) {
+		if (isCancelled()) {
 			return false;
 		}
 		const changesEditor = this._findChangesEditor(group, changesResource);
@@ -455,7 +486,7 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		}
 	}
 
-	private async _reconcileForeignChangesEditors(group: IEditorGroup, activeChangesResource: URI | undefined): Promise<void> {
+	private async _reconcileForeignChangesEditors(group: IEditorGroup, activeChangesResource: URI | undefined, isCancelled: () => boolean): Promise<void> {
 		const foreign = group.editors.filter(editor => {
 			const resource = this.getChangesEditorResource(editor);
 			return resource && (!activeChangesResource || !isEqual(resource, activeChangesResource));
@@ -476,6 +507,9 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			replacement: this._instantiationService.createInstance(SessionChangesEditorInput, activeChangesResource),
 			options: wasActive ? CHANGES_TAB_ACTIVE_OPTIONS : CHANGES_TAB_OPTIONS,
 		}]);
+		if (isCancelled()) {
+			return;
+		}
 		if (editorsToClose.length > 0) {
 			await this._closeManagedEditors(group, editorsToClose);
 		}
@@ -536,7 +570,7 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 
 	private _queueCollapseIfDetailsOnly(): void {
 		if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-			void this._sequencer.queue(() => this._collapseNonManagedTabs()).catch(onUnexpectedError);
+			this._queue(() => this._collapseNonManagedTabs());
 		}
 	}
 

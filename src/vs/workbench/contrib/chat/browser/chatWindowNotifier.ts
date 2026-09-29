@@ -8,7 +8,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableResourceMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorunDelta, autorunIterableDelta, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorunDelta, autorunIterableDelta, IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -16,6 +16,7 @@ import { FocusMode } from '../../../../platform/native/common/native.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IChatModel, IChatRequestNeedsInputInfo } from '../common/model/chatModel.js';
+import { observeChatModelIsIdle } from '../common/model/chatModelIdle.js';
 import { IChatService, IChatToolInvocation, ToolConfirmKind } from '../common/chatService/chatService.js';
 import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
 import { ChatNotificationKind, getChatNotificationDedupeKey } from '../common/chatNotification.js';
@@ -23,26 +24,17 @@ import { ChatConfiguration, ChatNotificationMode } from '../common/constants.js'
 import { IChatWidgetService } from './chat.js';
 
 /**
- * Observes whether a session has nothing left to do: no request running, no
- * input needed, and no queued work that is still going to run. Queued requests
- * are event-based on the model, so they are lifted into an observable as a
- * count, which is stable across the array being mutated in place.
+ * Whether the session's last response finished while this window was watching it.
+ *
+ * Loading a session replays its history through the same add-request-then-complete
+ * path that live work uses, so the busy -> idle transition alone cannot tell a
+ * session that was restored from one that just finished. A replayed response keeps
+ * the completion time it originally had, or has none at all when that time was
+ * never recorded, while a response completing here is stamped as it finishes.
  */
-function observeIsIdle(model: IChatModel): IObservable<boolean> {
-	const pendingRequestCount = observableFromEvent(model.onDidChangePendingRequests, () => model.getPendingRequests().length);
-	return derived(reader => {
-		if (model.requestInProgress.read(reader) || model.requestNeedsInput.read(reader)) {
-			return false;
-		}
-		if (pendingRequestCount.read(reader) === 0) {
-			return true;
-		}
-		// A queue only keeps the session busy while it can still drain. Both the chat
-		// service and the agent host stop draining after an error or a cancellation, so
-		// a session left in either state has no more work to do despite the queue.
-		const response = model.lastRequestObs.read(reader)?.response;
-		return !!response && (response.isCanceled || !!response.result?.errorDetails);
-	});
+function hasCompletedSince(model: IChatModel, watchingSince: number): boolean {
+	const completedAt = model.lastRequest?.response?.completionTimestamp;
+	return completedAt !== undefined && completedAt >= watchingSince;
 }
 
 /**
@@ -78,10 +70,29 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		));
 	}
 
+	/**
+	 * Delay before an idle session is announced, to swallow the brief idle gap
+	 * between a turn ending and the next queued turn starting. A method rather
+	 * than a field so tests can override it before `_trackModel` runs during
+	 * construction.
+	 */
+	protected _getIdleNotificationDelay(): number {
+		return 500;
+	}
+
+	/**
+	 * Delay before a toast from a window that is not showing the session, so that
+	 * a window showing it notifies first.
+	 */
+	protected _getBackgroundNotificationDelay(): number {
+		return 250;
+	}
+
 	private _trackModel(model: IChatModel) {
 		const store = new DisposableStore();
-		const isIdle = observeIsIdle(model);
-		const idleScheduler = store.add(new RunOnceScheduler(() => void this._notifyIdleIfNeeded(model, isIdle), 500));
+		const isIdle = observeChatModelIsIdle(model);
+		const watchingSince = Date.now();
+		const idleScheduler = store.add(new RunOnceScheduler(() => void this._notifyIdleIfNeeded(model, isIdle, watchingSince), this._getIdleNotificationDelay()));
 		store.add(autorunDelta(model.requestNeedsInput, ({ lastValue, newValue }) => {
 			const currentNeedsInput = !!newValue;
 			const previousNeedsInput = !!lastValue;
@@ -95,7 +106,9 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 			}
 		}));
 		store.add(autorunDelta(isIdle, ({ lastValue, newValue }) => {
-			if (lastValue === false && newValue === true && model.lastRequest) {
+			// Only notify on a genuine busy -> idle transition of a response that finished
+			// here, never for a model that was created idle or one replaying its history.
+			if (lastValue === false && newValue === true && hasCompletedSince(model, watchingSince)) {
 				idleScheduler.schedule();
 			} else if (!newValue) {
 				idleScheduler.cancel();
@@ -168,8 +181,8 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		}
 	}
 
-	private async _notifyIdleIfNeeded(model: IChatModel, isIdle: IObservable<boolean>): Promise<void> {
-		if (!model.lastRequest || !isIdle.get() || model.requestNeedsInput.get()) {
+	private async _notifyIdleIfNeeded(model: IChatModel, isIdle: IObservable<boolean>, watchingSince: number): Promise<void> {
+		if (!hasCompletedSince(model, watchingSince) || !isIdle.get() || model.requestNeedsInput.get()) {
 			return;
 		}
 		const mode = this._configurationService.getValue<ChatNotificationMode>(ChatConfiguration.NotifyWindowOnResponseReceived);
@@ -214,7 +227,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		if (isWidgetVisible && await this._hostService.hadLastFocus()) {
 			return;
 		}
-		await timeout(250);
+		await timeout(this._getBackgroundNotificationDelay());
 	}
 
 	private _confirmAllow(sessionResource: URI): boolean {

@@ -79,7 +79,6 @@ suite('EntraTokenExchange', () => {
 
 	suiteSetup(() => {
 		logger = new Log(AuthProviderType.github);
-		// The secret only exists in builds that have had the distro mixin applied, so stand one in.
 		realClientSecret = Config.gitHubClientSecret;
 		Config.gitHubClientSecret = 'client-secret';
 	});
@@ -228,7 +227,6 @@ suite('EntraTokenExchange', () => {
 				// Discovery is least privilege: only what `GET /user` needs.
 				form: {
 					client_id: Config.gitHubClientId,
-					client_secret: 'client-secret',
 					grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
 					subject_token: 'entra-1',
 					subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
@@ -243,7 +241,6 @@ suite('EntraTokenExchange', () => {
 				// Copilot default, and no scope that leaks where the token came from.
 				form: {
 					client_id: Config.gitHubClientId,
-					client_secret: 'client-secret',
 					grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
 					subject_token: 'entra-1',
 					subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
@@ -275,8 +272,7 @@ suite('EntraTokenExchange', () => {
 			linked: 'mona@contoso.com',
 			result: {
 				token: 'gho_granted',
-				// Reported as GitHub reported it: turning it into a deadline is the caller's job.
-				expiresIn: 3600,
+				expiresAfter: 3_600_000,
 				account: ACCOUNT
 			}
 		});
@@ -395,26 +391,6 @@ suite('EntraTokenExchange', () => {
 		});
 	});
 
-	test('refuses to exchange at all when the build has no client secret', async () => {
-		const harness = createHarness();
-		Config.gitHubClientSecret = undefined;
-		try {
-			assert.deepStrictEqual({
-				failure: await failureOf(harness),
-				// The subject token must never reach the wire when we already know it cannot work.
-				exchanges: harness.requests.length,
-				// And the user must not be put through a Microsoft sign in that cannot go anywhere.
-				acquisitions: harness.acquisitions.length
-			}, {
-				failure: EntraTokenExchangeFailure.Configuration,
-				exchanges: 0,
-				acquisitions: 0
-			});
-		} finally {
-			Config.gitHubClientSecret = 'client-secret';
-		}
-	});
-
 	test('refuses to exchange against a host that has no exchange endpoint', async () => {
 		// Self-hosted GitHub Enterprise Server: the identity mapping is a service GitHub runs, so
 		// there is nothing to exchange against.
@@ -429,6 +405,25 @@ suite('EntraTokenExchange', () => {
 			exchanges: 0,
 			acquisitions: 0
 		});
+	});
+
+	test('exchanges when the build has no client secret', async () => {
+		const harness = createHarness();
+		Config.gitHubClientSecret = undefined;
+		try {
+			const result = await harness.exchange.login(['read:user', 'user:email']);
+			assert.deepStrictEqual({
+				token: result.token,
+				exchanges: harness.requests.length,
+				acquisitions: harness.acquisitions.length
+			}, {
+				token: 'gho_granted',
+				exchanges: 2,
+				acquisitions: 1
+			});
+		} finally {
+			Config.gitHubClientSecret = 'client-secret';
+		}
 	});
 
 	test('rejects success responses that are not a valid token exchange', async () => {
@@ -502,7 +497,7 @@ suite('EntraTokenExchange', () => {
 			confirmations: [],
 			// The account is handed back rather than only checked, so the session built from this
 			// carries the same label and avatar a freshly created one would.
-			renewed: { token: 'gho_granted', expiresIn: 3600, account: ACCOUNT, scopes: ['read:user', 'user:email'] }
+			renewed: { token: 'gho_granted', expiresAfter: 3_600_000, account: ACCOUNT, scopes: ['read:user', 'user:email'] }
 		});
 	});
 
@@ -520,7 +515,7 @@ suite('EntraTokenExchange', () => {
 			scope: undefined,
 			renewed: {
 				token: 'gho_granted',
-				expiresIn: 3600,
+				expiresAfter: 3_600_000,
 				account: ACCOUNT,
 				// GitHub's own comma separated answer, split back apart so the session can be found
 				// by a scoped lookup.
@@ -587,25 +582,15 @@ suite('EntraTokenExchange', () => {
 		});
 	});
 
-	test('refuses to renew against a host or a build that cannot exchange at all', async () => {
+	test('refuses to renew against a host that cannot exchange at all', async () => {
 		const noEndpoint = createHarness({ noExchangeEndpoint: true });
-		const noSecret = createHarness();
-		Config.gitHubClientSecret = undefined;
-		let withoutSecret: string;
-		try {
-			withoutSecret = await renewalFailureOf(noSecret);
-		} finally {
-			Config.gitHubClientSecret = 'client-secret';
-		}
 
 		assert.deepStrictEqual({
 			withoutEndpoint: await renewalFailureOf(noEndpoint),
-			withoutSecret,
-			// Neither one reaches for a Microsoft token it could never spend.
-			acquisitions: noEndpoint.acquisitions.length + noSecret.acquisitions.length
+			// It does not reach for a Microsoft token it could never spend.
+			acquisitions: noEndpoint.acquisitions.length
 		}, {
 			withoutEndpoint: EntraTokenExchangeFailure.Configuration,
-			withoutSecret: EntraTokenExchangeFailure.Configuration,
 			acquisitions: 0
 		});
 	});

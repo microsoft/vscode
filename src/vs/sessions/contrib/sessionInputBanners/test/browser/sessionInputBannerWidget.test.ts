@@ -6,6 +6,7 @@
 import assert from 'assert';
 import type { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -142,7 +143,7 @@ suite('SessionInputBannerWidget', () => {
 			text: '2 Checks Failing',
 			ariaLabel: '2 Checks Failing',
 			actions: [{
-				label: 'Fix CI',
+				label: 'Fix Checks',
 				primary: true,
 				waitUntilReady: () => ready.p,
 				run: () => { primaryRuns++; },
@@ -172,7 +173,7 @@ suite('SessionInputBannerWidget', () => {
 
 	test('runs a pending primary action after the same banner is refreshed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const ready = new DeferredPromise<boolean>();
-		let primaryRuns = 0;
+		let runText: string | undefined;
 		const hoverService = upcastPartial<IHoverService>({
 			setupManagedHover: () => upcastPartial<IManagedHover>({ dispose() { } }),
 		});
@@ -185,10 +186,10 @@ suite('SessionInputBannerWidget', () => {
 			ariaLabel: text,
 			actions: [{
 				id: 'fixCI',
-				label: 'Fix CI',
+				label: 'Fix Checks',
 				primary: true,
 				waitUntilReady: () => ready.p,
-				run: () => { primaryRuns++; },
+				run: () => { runText = text; },
 			}],
 		});
 		const widget = disposables.add(new SessionInputBannerWidget(banner('2 Checks Failing'), hoverService, contextMenuService));
@@ -199,8 +200,47 @@ suite('SessionInputBannerWidget', () => {
 		ready.complete(true);
 		await timeout(0);
 
-		assert.strictEqual(primaryRuns, 1);
+		assert.strictEqual(runText, '3 Checks Failing');
 	}));
+
+	test('resolves a dropdown action from the current banner state', async () => {
+		let menuAction: IAction | undefined;
+		let runText: string | undefined;
+		const hoverService = upcastPartial<IHoverService>({
+			setupManagedHover: () => upcastPartial<IManagedHover>({ dispose() { } }),
+		});
+		const contextMenuService = upcastPartial<IContextMenuService>({
+			showContextMenu(delegate) {
+				menuAction = delegate.getActions?.()[0];
+			}
+		});
+		const banner = (text: string): ISessionInputBanner => ({
+			id: 'same',
+			icon: Codicon.warning,
+			accent: true,
+			text,
+			ariaLabel: text,
+			actions: [{
+				id: 'combined',
+				label: 'Fix Checks & Address Comments',
+				primary: true,
+				dropdownActions: [{
+					id: 'fixCI',
+					label: 'Fix Checks',
+					primary: true,
+					run: () => { runText = text; },
+				}],
+				run() { },
+			}],
+		});
+		const widget = disposables.add(new SessionInputBannerWidget(banner('old'), hoverService, contextMenuService));
+		widget.domNode.querySelector<HTMLElement>('.monaco-dropdown-button')?.click();
+
+		widget.setBanners([banner('new')]);
+		await menuAction?.run();
+
+		assert.strictEqual(runText, 'new');
+	});
 
 	test('navigates carousel items and preserves one banner surface', () => {
 		const hoverService = upcastPartial<IHoverService>({
@@ -272,7 +312,7 @@ suite('SessionInputBannerWidget', () => {
 		assert.deepStrictEqual({ focusPreserved, inputFocusCount }, { focusPreserved: true, inputFocusCount: 1 });
 	});
 
-	test('renders combined work and reveal actions as split buttons', () => {
+	test('renders only the combined work action as a split button', () => {
 		const hoverService = upcastPartial<IHoverService>({
 			setupManagedHover: () => upcastPartial<IManagedHover>({ dispose() { } }),
 		});
@@ -288,35 +328,27 @@ suite('SessionInputBannerWidget', () => {
 			text: '2 Checks Failing | 3 PR Comments',
 			ariaLabel: '#101, 2 Checks Failing, 3 PR Comments',
 			actions: [{
-				label: 'Fix CI & Address Comments',
+				label: 'Fix Checks & Address Comments',
 				primary: true,
 				dropdownActions: [
-					{ label: 'Fix CI', primary: true, run() { } },
+					{ label: 'Fix Checks', primary: true, run() { } },
 					{ label: 'Address Comments', primary: true, run() { } },
 				],
-				run() { },
-			}, {
-				label: 'Reveal CI',
-				dropdownActions: [{ label: 'Reveal Comments', run() { } }],
 				run() { },
 			}],
 		}, hoverService, contextMenuService));
 
 		const dropdownButtons = widget.domNode.querySelectorAll<HTMLElement>('.monaco-dropdown-button');
 		dropdownButtons[0].click();
-		const workDropdownLabels = dropdownLabels;
-		dropdownButtons[1].click();
 
 		assert.deepStrictEqual({
 			splitButtonCount: widget.domNode.querySelectorAll('.monaco-button-dropdown').length,
 			primaryLabels: [...widget.domNode.querySelectorAll('.monaco-button-dropdown > .monaco-button:first-child')].map(element => element.textContent),
-			workDropdownLabels,
-			revealDropdownLabels: dropdownLabels,
+			dropdownLabels,
 		}, {
-			splitButtonCount: 2,
-			primaryLabels: ['Fix CI & Address Comments', 'Reveal CI'],
-			workDropdownLabels: ['Fix CI', 'Address Comments'],
-			revealDropdownLabels: ['Reveal Comments'],
+			splitButtonCount: 1,
+			primaryLabels: ['Fix Checks & Address Comments'],
+			dropdownLabels: ['Fix Checks', 'Address Comments'],
 		});
 	});
 });

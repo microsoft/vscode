@@ -56,6 +56,14 @@ explicit error rather than falling back to the update service, so runs must be s
 to the artifacts that were actually downloaded. The SHA-256 check is skipped in this mode because
 there is no update service metadata to compare against.
 
+### Timeouts
+
+Extension installation makes at most three attempts, each allowing 30 seconds to click Install,
+30 seconds for installation to start, and one minute to wait for completion, with a five-second delay
+between attempts. These waits total at most 6 minutes 10 seconds, leaving room for setup and cleanup
+within the default ten-minute test timeout. Mocha does not cancel timed-out async tests, so
+increasing these waits can cause a retry to start before the previous attempt has cleaned up.
+
 ## Scripts
 
 Platform-specific scripts are provided in the `scripts/` directory to set up the environment and run tests:

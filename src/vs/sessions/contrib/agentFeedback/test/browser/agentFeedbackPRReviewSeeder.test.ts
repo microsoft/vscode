@@ -36,8 +36,8 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 		return { id, pullRequest, uri: fileA, range: new Range(line, 1, line, 1), body, author: 'reviewer' };
 	}
 
-	function setComments(...comments: IPRReviewComment[]): void {
-		prReviewState.set({ kind: PRReviewStateKind.Loaded, comments }, undefined);
+	function setComments(comments: readonly IPRReviewComment[], incompletePullRequests: readonly typeof pullRequest[] = []): void {
+		prReviewState.set({ kind: PRReviewStateKind.Loaded, comments, incompletePullRequests }, undefined);
 	}
 
 	function mirrors(): { sourceId: string | undefined; prNumber: number | undefined; state: AgentFeedbackState; text: string }[] {
@@ -84,6 +84,13 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 					onDidChangeFeedback.fire({ sessionResource: session, feedbackItems });
 				}
 			}
+			override updateFeedbackSourcePullRequest(_sessionResource: URI, feedbackId: string, sourcePullRequest: IAgentFeedback['sourcePullRequest']): void {
+				const idx = feedbackItems.findIndex(i => i.id === feedbackId);
+				if (idx >= 0) {
+					feedbackItems[idx] = { ...feedbackItems[idx], sourcePullRequest };
+					onDidChangeFeedback.fire({ sessionResource: session, feedbackItems });
+				}
+			}
 		};
 		const codeReviewService = new class extends mock<ICodeReviewService>() {
 			override getPRReviewState(_sessionResource: URI) { return prReviewState; }
@@ -96,7 +103,7 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 	});
 
 	test('seeds a created PR-review mirror for each un-accepted PR comment', () => {
-		setComments(prComment('thread-1', 5, 'Fix this'), prComment('thread-2', 9, 'And this'));
+		setComments([prComment('thread-1', 5, 'Fix this'), prComment('thread-2', 9, 'And this')]);
 
 		assert.deepStrictEqual(mirrors(), [
 			{ sourceId: 'thread-1', prNumber: 42, state: AgentFeedbackState.Created, text: 'Fix this' },
@@ -105,15 +112,15 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 	});
 
 	test('does not duplicate mirrors when the PR review state re-emits', () => {
-		setComments(prComment('thread-1', 5, 'Fix this'));
-		setComments(prComment('thread-1', 5, 'Fix this'), prComment('thread-2', 9, 'And this'));
+		setComments([prComment('thread-1', 5, 'Fix this')]);
+		setComments([prComment('thread-1', 5, 'Fix this'), prComment('thread-2', 9, 'And this')]);
 
 		assert.deepStrictEqual(mirrors().map(m => m.sourceId), ['thread-1', 'thread-2']);
 	});
 
 	test('refreshes a created mirror when the upstream comment body changes', () => {
-		setComments(prComment('thread-1', 5, 'Fix this'));
-		setComments(prComment('thread-1', 5, 'Fix this differently'));
+		setComments([prComment('thread-1', 5, 'Fix this')]);
+		setComments([prComment('thread-1', 5, 'Fix this differently')]);
 
 		assert.deepStrictEqual(mirrors(), [
 			{ sourceId: 'thread-1', prNumber: 42, state: AgentFeedbackState.Created, text: 'Fix this differently' },
@@ -121,9 +128,9 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 	});
 
 	test('does not refresh an accepted mirror when the upstream comment body changes', () => {
-		setComments(prComment('thread-1', 5, 'Fix this'));
+		setComments([prComment('thread-1', 5, 'Fix this')]);
 		feedbackItems[0] = { ...feedbackItems[0], state: AgentFeedbackState.Accepted };
-		setComments(prComment('thread-1', 5, 'Fix this differently'));
+		setComments([prComment('thread-1', 5, 'Fix this differently')]);
 
 		assert.deepStrictEqual(mirrors(), [
 			{ sourceId: 'thread-1', prNumber: 42, state: AgentFeedbackState.Accepted, text: 'Fix this' },
@@ -131,17 +138,17 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 	});
 
 	test('removes a created mirror when its PR comment disappears', () => {
-		setComments(prComment('thread-1', 5, 'Fix this'), prComment('thread-2', 9, 'And this'));
-		setComments(prComment('thread-1', 5, 'Fix this'));
+		setComments([prComment('thread-1', 5, 'Fix this'), prComment('thread-2', 9, 'And this')]);
+		setComments([prComment('thread-1', 5, 'Fix this')]);
 
 		assert.deepStrictEqual(mirrors().map(m => m.sourceId), ['thread-1']);
 	});
 
 	test('keeps an accepted mirror even after its PR comment disappears', () => {
-		setComments(prComment('thread-1', 5, 'Fix this'));
+		setComments([prComment('thread-1', 5, 'Fix this')]);
 		// Simulate the user accepting the mirror.
 		feedbackItems[0] = { ...feedbackItems[0], state: AgentFeedbackState.Accepted };
-		setComments();
+		setComments([]);
 
 		assert.deepStrictEqual(mirrors(), [
 			{ sourceId: 'thread-1', prNumber: 42, state: AgentFeedbackState.Accepted, text: 'Fix this' },
@@ -154,14 +161,14 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 			{ id: 'mirror-a', text: 'Fix this', resourceUri: fileA, range: new Range(5, 1, 5, 1), sessionResource: session, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId: 'thread-1', state: AgentFeedbackState.Created },
 			{ id: 'mirror-b', text: 'Fix this', resourceUri: fileA, range: new Range(5, 1, 5, 1), sessionResource: session, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId: 'thread-1', state: AgentFeedbackState.Created },
 		);
-		setComments(prComment('thread-1', 5, 'Fix this'));
+		setComments([prComment('thread-1', 5, 'Fix this')]);
 
 		assert.deepStrictEqual(mirrors().map(m => m.sourceId), ['thread-1']);
 	});
 
 	test('does not seed until the feedback set has loaded', () => {
 		loaded = false;
-		setComments(prComment('thread-1', 5, 'Fix this'));
+		setComments([prComment('thread-1', 5, 'Fix this')]);
 		assert.deepStrictEqual(mirrors(), []);
 
 		// Once loaded, a feedback change re-evaluates and seeds.
@@ -172,8 +179,58 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 
 	test('does not seed for non-agent-host sessions', () => {
 		activeSession.set(makeActiveSession('copilot-chat'), undefined);
-		setComments(prComment('thread-1', 5, 'Fix this'));
+		setComments([prComment('thread-1', 5, 'Fix this')]);
 
 		assert.deepStrictEqual(mirrors(), []);
+	});
+
+	test('backfills the pull request on a legacy mirror', () => {
+		feedbackItems.push({
+			id: 'legacy',
+			text: 'Fix this',
+			resourceUri: fileA,
+			range: new Range(5, 1, 5, 1),
+			sessionResource: session,
+			kind: AgentFeedbackKind.PRReview,
+			sourcePRReviewCommentId: 'thread-1',
+			state: AgentFeedbackState.Created,
+		});
+
+		setComments([prComment('thread-1', 5, 'Fix this')]);
+
+		assert.deepStrictEqual(mirrors(), [
+			{ sourceId: 'thread-1', prNumber: 42, state: AgentFeedbackState.Created, text: 'Fix this' },
+		]);
+	});
+
+	test('removes an absent legacy mirror once every pull request has loaded', () => {
+		feedbackItems.push({
+			id: 'legacy',
+			text: 'Fix this',
+			resourceUri: fileA,
+			range: new Range(5, 1, 5, 1),
+			sessionResource: session,
+			kind: AgentFeedbackKind.PRReview,
+			sourcePRReviewCommentId: 'thread-1',
+			state: AgentFeedbackState.Created,
+		});
+
+		setComments([]);
+
+		assert.deepStrictEqual(mirrors(), []);
+	});
+
+	test('keeps mirrors omitted by an incomplete pull request snapshot', () => {
+		feedbackItems.push(
+			{ id: 'one', text: 'One', resourceUri: fileA, range: new Range(5, 1, 5, 1), sessionResource: session, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId: 'thread-1', sourcePullRequest: pullRequest, state: AgentFeedbackState.Created },
+			{ id: 'two', text: 'Two', resourceUri: fileA, range: new Range(9, 1, 9, 1), sessionResource: session, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId: 'thread-2', sourcePullRequest: pullRequest, state: AgentFeedbackState.Created },
+			{ id: 'three', text: 'Three', resourceUri: fileA, range: new Range(12, 1, 12, 1), sessionResource: session, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId: 'thread-3', sourcePullRequest: pullRequest, state: AgentFeedbackState.Created },
+		);
+
+		const incompletePullRequest = { ...pullRequest, number: 43, uri: URI.parse('https://github.com/owner/repo/pull/43') };
+		feedbackItems[1] = { ...feedbackItems[1], sourcePullRequest: incompletePullRequest };
+		setComments([prComment('thread-1', 5, 'One')], [incompletePullRequest]);
+
+		assert.deepStrictEqual(mirrors().map(mirror => mirror.sourceId), ['thread-1', 'thread-2']);
 	});
 });

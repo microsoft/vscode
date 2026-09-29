@@ -390,6 +390,43 @@ suite('GitHubQueryService', () => {
 		});
 	});
 
+	test('loads and shares immutable commit resources without polling', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubRestStep({
+				method: 'GET',
+				path: '/repos/octo/repo/commits/abc123',
+				response: gitHubJsonResponse({
+					sha: 'abc123',
+					html_url: 'https://example.test/octo/repo/commit/abc123',
+					author: { id: 2, login: 'author' },
+					commit: {
+						message: 'Commit subject\n\nCommit body',
+						author: { name: 'Author Name', date: '2026-09-22T12:00:00Z' },
+					},
+				}, { etag: '"commit"' }),
+			}));
+			const { account, clock, service } = setup(server);
+			const commitA = service.subscribeCommit({ ...account, owner: 'octo', repo: 'repo', sha: 'abc123' }, { priority: 'visible' });
+			const commitB = service.subscribeCommit({ ...account, owner: 'OCTO', repo: 'REPO', sha: 'ABC123' }, { priority: 'background' });
+
+			assert.strictEqual(commitA.resource, commitB.resource);
+			await commitA.refresh();
+			clock.advanceBy(1_000);
+
+			assert.deepStrictEqual(commitA.resource.state.get().value, {
+				sha: 'abc123',
+				message: 'Commit subject\n\nCommit body',
+				url: 'https://example.test/octo/repo/commit/abc123',
+				author: { id: '2', login: 'author' },
+				committedAt: '2026-09-22T12:00:00Z',
+			});
+			assert.deepStrictEqual(server.requests.map(request => request.servicePath), ['/repos/octo/repo/commits/abc123']);
+			commitA.dispose();
+			commitB.dispose();
+			server.assertSatisfied();
+		});
+	});
+
 	test('retains dormant entity identity briefly and purges resources on account change', async () => {
 		await withServer(async server => {
 			const resumedPoll = new DeferredPromise<void>();

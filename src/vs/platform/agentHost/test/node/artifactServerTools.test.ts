@@ -4,26 +4,58 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ArtifactServerToolName } from '../../common/serverToolNames.js';
-import { artifactServerToolDefinitions, createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
+import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
+import { artifactServerToolDefinitions, createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 
 suite('Artifact Server Tools', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const group = createArtifactServerToolGroup();
 	const display = (toolName: string, args: unknown, result?: { text: string; success: boolean }) => group.getDisplay?.(toolName, args, result);
+
+	function createHarness(accessor?: Partial<IArtifactServerToolAccessor>) {
+		const sessionUri = 'copilot:/artifacts';
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession({
+			resource: sessionUri,
+			provider: 'copilot',
+			title: 'Artifacts',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		const persisted: (readonly ISessionArtifact[])[] = [];
+		const host = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
+			isEnabled: () => true,
+			persist: (_session, artifacts) => { persisted.push(artifacts); },
+			...accessor,
+		})]);
+		return {
+			sessionUri, stateManager, host, persisted,
+			artifacts: () => readSessionArtifacts(stateManager.getSessionState(sessionUri)?._meta),
+			execute: async (name: string, args?: unknown) => host.executeTool(buildDefaultChatUri(sessionUri), name, args),
+		};
+	}
 
 	test('names what was recorded, from the isArtifact flag', () => {
 		assert.deepStrictEqual({
 			artifact: display(ArtifactServerToolName.AddArtifactOrReference, { label: 'Fix login', isArtifact: true }),
 			reference: display(ArtifactServerToolName.AddArtifactOrReference, { label: 'Broken commit', isArtifact: false }),
+			batch: display(ArtifactServerToolName.AddArtifactOrReference, { items: [{ label: 'Fix login', isArtifact: true }, { label: 'Docs', isArtifact: false }] }),
 			unlabelled: display(ArtifactServerToolName.AddArtifactOrReference, { isArtifact: false }),
 			malformed: display(ArtifactServerToolName.AddArtifactOrReference, undefined),
 		}, {
 			artifact: { displayName: 'Add Artifact', invocationMessage: 'Add artifact "Fix login"', pastTenseMessage: 'Added artifact "Fix login"' },
 			reference: { displayName: 'Add Reference', invocationMessage: 'Add reference "Broken commit"', pastTenseMessage: 'Added reference "Broken commit"' },
+			batch: { displayName: 'Add Artifacts or References', invocationMessage: 'Add 2 artifacts or references', pastTenseMessage: 'Added 2 artifacts or references' },
 			unlabelled: { displayName: 'Add Reference', invocationMessage: 'Add reference', pastTenseMessage: 'Added reference' },
 			malformed: { displayName: 'Add Artifact or Reference', invocationMessage: 'Add artifact or reference', pastTenseMessage: 'Added artifact or reference' },
 		});
@@ -31,10 +63,430 @@ suite('Artifact Server Tools', () => {
 
 	test('requires model-provided file paths to be absolute URIs', () => {
 		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
+		const items = addDefinition?.inputSchema?.properties?.items as {
+			readonly type?: string;
+			readonly minItems?: number;
+			readonly description?: string;
+			readonly items?: { readonly properties?: Record<string, object>; readonly required?: readonly string[] };
+		} | undefined;
 
-		assert.deepStrictEqual(addDefinition?.inputSchema?.properties?.uri, {
-			type: 'string',
-			description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.',
+		assert.deepStrictEqual({
+			required: addDefinition?.inputSchema?.required,
+			type: items?.type,
+			minItems: items?.minItems,
+			description: items?.description,
+			itemRequired: items?.items?.required,
+			uri: items?.items?.properties?.uri,
+		}, {
+			required: ['items'],
+			type: 'array',
+			minItems: 1,
+			description: 'Artifacts and references to record in this call. Batch related entries when practical.',
+			itemRequired: ['type', 'label', 'isArtifact'],
+			uri: {
+				type: 'string',
+				description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.',
+			},
+		});
+	});
+
+	test('keeps the full eligibility contract on the eager add tool for restored chats', () => {
+		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
+		const clauses = [
+			'Registration is optional',
+			'default to no registration',
+			'you create or attempt to fix, change, or unblock is an artifact',
+			'inspection or review alone makes it a reference',
+			'deliverables the user requested',
+			'reopen, download, or reuse',
+			'References are noteworthy existing resources',
+			'batch related entries in one call',
+			'routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables',
+			'persistence or location outside the workspace is not an eligibility signal',
+			'incidental resources, commits you create unless the user asks',
+			'sessions and chats created with session-management tools',
+			'Never create, copy, or relocate a file solely to have an artifact to register',
+			'promotes a matching reference, preserving its id',
+			'never downgrade artifacts',
+		];
+
+		assert.deepStrictEqual({
+			deferLoading: addDefinition?.deferLoading,
+			missingClauses: clauses.filter(clause => !addDefinition?.description?.includes(clause)),
+		}, {
+			deferLoading: false,
+			missingClauses: [],
+		});
+	});
+
+	test('keeps classification guidance in the input schema', () => {
+		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
+		const items = addDefinition?.inputSchema?.properties?.items as {
+			readonly items?: { readonly properties?: Record<string, { readonly type?: string; readonly description?: string }> };
+		} | undefined;
+		const classificationInput = items?.items?.properties?.isArtifact;
+
+		assert.deepStrictEqual({
+			inputType: classificationInput?.type,
+			inputClassification: classificationInput?.description?.includes('attempt to fix, change, or unblock'),
+		}, {
+			inputType: 'boolean',
+			inputClassification: true,
+		});
+	});
+
+	test('keeps deferral metadata local while advertising every enabled tool', () => {
+		const { host, stateManager, sessionUri } = createHarness();
+		host.advertise(sessionUri);
+
+		assert.deepStrictEqual({
+			deferrals: host.getDefinitionsForSession(sessionUri).map(({ name, deferLoading }) => ({ name, deferLoading })),
+			advertised: stateManager.getSessionState(sessionUri)?.serverTools,
+		}, {
+			deferrals: [
+				{ name: ArtifactServerToolName.AddArtifactOrReference, deferLoading: false },
+				{ name: ArtifactServerToolName.RemoveArtifactOrReference, deferLoading: true },
+				{ name: ArtifactServerToolName.ListArtifactsAndReferences, deferLoading: true },
+			],
+			advertised: artifactServerToolDefinitions.map(({ deferLoading: _deferLoading, ...definition }) => definition),
+		});
+	});
+
+	test('gates advertisement and execution of current and legacy tools off and on', async () => {
+		let enabled = false;
+		const { host, stateManager, sessionUri, execute } = createHarness({ isEnabled: () => enabled });
+		const names = artifactServerToolDefinitions.map(tool => tool.name);
+		const legacyNames = [...LEGACY_ARTIFACT_SERVER_TOOL_NAMES.keys()];
+		for (const value of [false, true, false]) {
+			enabled = value;
+			host.advertise(sessionUri);
+			assert.deepStrictEqual({
+				definitions: host.getDefinitionsForSession(sessionUri).map(tool => tool.name),
+				advertised: stateManager.getSessionState(sessionUri)?.serverTools?.map(tool => tool.name),
+				routableNames: host.toolNames,
+			}, {
+				definitions: enabled ? names : [],
+				advertised: enabled ? names : [],
+				routableNames: enabled ? [...names, ...legacyNames] : [],
+			});
+			if (enabled) {
+				assert.strictEqual(await execute(ArtifactServerToolName.ListArtifactsAndReferences), 'No artifacts or references recorded for this session.');
+			} else {
+				for (const name of [...names, ...legacyNames]) {
+					await assert.rejects(() => execute(name, {}), /is disabled/);
+				}
+			}
+		}
+	});
+
+	test('adds a batch atomically and persists it once', async () => {
+		const sessionUri = 'copilot:/batch';
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession({
+			resource: sessionUri,
+			provider: 'copilot',
+			title: 'Batch',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		let persistCalls = 0;
+		const group = createArtifactServerToolGroup({
+			isEnabled: () => true,
+			persist: () => { persistCalls++; },
+		});
+
+		const result = await group.execute(stateManager, { sessionUri, chatUri: buildDefaultChatUri(sessionUri), turnId: 'turn-1' }, ArtifactServerToolName.AddArtifactOrReference, {
+			items: [
+				{ type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com/docs' },
+				{ type: 'file', label: 'Report', isArtifact: true, uri: 'file:///repo/report.md' },
+				{ type: 'website', label: 'Docs again', isArtifact: false, link: 'https://example.com/docs' },
+			],
+		});
+		const artifacts = readSessionArtifacts(stateManager.getSessionState(sessionUri)?._meta);
+
+		assert.deepStrictEqual({
+			messages: result.split('\n'),
+			persistCalls,
+			artifacts: artifacts.map(({ id: _id, ...artifact }) => artifact),
+		}, {
+			messages: [`Added reference: ${artifacts[0].id}`, `Added artifact: ${artifacts[1].id}`, `Already recorded: ${artifacts[0].id}`],
+			persistCalls: 1,
+			artifacts: [
+				{ type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com/docs' },
+				{ type: 'file', label: 'Report', isArtifact: true, uri: 'file:///repo/report.md' },
+			],
+		});
+	});
+
+	test('records PR artifacts for the session and associates only matching PRs with the invoking chat folder', async () => {
+		const attempts: Array<{ chat: string; url: string }> = [];
+		const { host, stateManager, sessionUri, artifacts } = createHarness({
+			associatePullRequest: async (chat, url) => {
+				attempts.push({ chat, url });
+				return url.endsWith('/1');
+			},
+		});
+		const peer = buildChatUri(sessionUri, 'peer');
+		stateManager.addChat(sessionUri, peer, { workingDirectories: ['file:///peer'] });
+		const result = await host.executeTool(peer, ArtifactServerToolName.AddArtifactOrReference, {
+			items: [
+				{ type: 'pullRequest', label: 'Peer PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1' },
+				{ type: 'pullRequest', label: 'Other PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+				{ type: 'pullRequest', label: 'Referenced PR', isArtifact: false, link: 'https://github.com/microsoft/vscode/pull/3' },
+			],
+		});
+		const repeated = await host.executeTool(peer, ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'pullRequest', label: 'Peer PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1' }],
+		});
+		await host.executeTool(peer, ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'pullRequest', label: 'Peer PR', isArtifact: false, link: 'https://github.com/microsoft/vscode/pull/1' }],
+		});
+
+		assert.deepStrictEqual({
+			artifactLinks: artifacts().map(artifact => artifact.link),
+			attempts,
+			messages: result.split('\n').map(message => message.replace(/: [0-9a-f-]{36}$/, ': <id>')),
+			repeated: repeated.replace(/: [0-9a-f-]{36}$/, ': <id>'),
+		}, {
+			artifactLinks: [
+				'https://github.com/microsoft/vscode/pull/1',
+				'https://github.com/microsoft/vscode/pull/2',
+				'https://github.com/microsoft/vscode/pull/3',
+			],
+			attempts: [
+				{ chat: peer, url: 'https://github.com/microsoft/vscode/pull/1' },
+				{ chat: peer, url: 'https://github.com/microsoft/vscode/pull/2' },
+				{ chat: peer, url: 'https://github.com/microsoft/vscode/pull/1' },
+			],
+			messages: [
+				'Added artifact: <id>',
+				'Added artifact: <id>',
+				'Added reference: <id>',
+				'Pull request https://github.com/microsoft/vscode/pull/2 was recorded but not associated with this chat\'s working folder.',
+			],
+			repeated: 'Already recorded: <id>',
+		});
+	});
+
+	test('verifies a batch once and reports recorded, pending and unrelated PRs separately', async () => {
+		const url = (number: number) => `https://github.com/microsoft/vscode/pull/${number}`;
+		const calls: Array<{ chat: string; urls: readonly string[] }> = [];
+		const { host, sessionUri, artifacts } = createHarness({
+			associatePullRequests: async (chat, urls) => {
+				calls.push({ chat, urls });
+				return { associated: url(1), pending: [url(2)], unmatched: [url(3)] };
+			},
+		});
+
+		const result = await host.executeTool(buildDefaultChatUri(sessionUri), ArtifactServerToolName.AddArtifactOrReference, {
+			items: [1, 2, 3].map(number => ({ type: 'pullRequest', label: `PR ${number}`, isArtifact: true, link: url(number) })),
+		});
+
+		assert.deepStrictEqual({
+			calls,
+			artifacts: artifacts().map(artifact => artifact.link),
+			messages: result.split('\n').slice(3),
+		}, {
+			calls: [{ chat: buildDefaultChatUri(sessionUri), urls: [url(1), url(2), url(3)] }],
+			artifacts: [url(1), url(2), url(3)],
+			messages: [
+				`Pull request ${url(2)} was recorded; folder association is pending verification.`,
+				`Pull request ${url(3)} was recorded but not associated with this chat's working folder.`,
+			],
+		});
+	});
+
+	test('cancels pending verification when the recorded PR is removed by the tool', async () => {
+		const removed: Array<{ session: string; url: string }> = [];
+		const url = 'https://github.com/microsoft/vscode/pull/1';
+		const { execute, sessionUri, artifacts } = createHarness({
+			associatePullRequests: async () => ({ pending: [url], unmatched: [] }),
+			removePendingPullRequest: async (session, url) => { removed.push({ session, url }); },
+		});
+		await execute(ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'pullRequest', label: 'Feature PR', isArtifact: true, link: url }],
+		});
+		const id = artifacts()[0].id;
+		const message = await execute(ArtifactServerToolName.RemoveArtifactOrReference, { id });
+
+		assert.deepStrictEqual({ removed, artifacts: artifacts(), message }, {
+			removed: [{ session: sessionUri, url }],
+			artifacts: [],
+			message: `Removed artifact: ${id}`,
+		});
+	});
+
+	test('reports an association failure without losing the recorded PR artifact', async () => {
+		let reportedError: string | undefined;
+		const { host, sessionUri, artifacts } = createHarness({
+			associatePullRequests: async () => { throw new Error('GitHub lookup unavailable'); },
+			reportAssociationError: error => { reportedError = error instanceof Error ? error.message : String(error); },
+		});
+		const url = 'https://github.com/microsoft/vscode/pull/1';
+
+		const result = await host.executeTool(buildDefaultChatUri(sessionUri), ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'pullRequest', label: 'Feature PR', isArtifact: true, link: url }],
+		});
+
+		assert.deepStrictEqual({
+			artifacts: artifacts().map(({ id: _id, ...artifact }) => artifact),
+			messages: result.split('\n').map(message => message.replace(/: [0-9a-f-]{36}$/, ': <id>')),
+			reportedError,
+		}, {
+			artifacts: [{ type: SessionArtifactType.PullRequest, label: 'Feature PR', isArtifact: true, link: url, isGitHub: true }],
+			messages: ['Added artifact: <id>', 'Pull request artifacts were recorded, but folder association could not be queued.'],
+			reportedError: 'GitHub lookup unavailable',
+		});
+	});
+
+	test('promotes an existing reference in one batch without changing its id or downgrading it', async () => {
+		const { execute, artifacts, persisted } = createHarness();
+		const reference = { type: 'issue', label: 'Investigated issue', isArtifact: false, link: 'https://github.com/microsoft/vscode/issues/1' };
+		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [reference] });
+		const id = artifacts()[0].id;
+		const artifact = { ...reference, label: 'Fixed issue', isArtifact: true };
+
+		const result = await execute(ArtifactServerToolName.AddArtifactOrReference, {
+			items: [artifact, artifact, reference],
+		});
+		const repeated = await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [artifact] });
+
+		assert.deepStrictEqual({
+			result,
+			repeated,
+			artifacts: artifacts(),
+			persistCalls: persisted.length,
+		}, {
+			result: [`Promoted artifact: ${id}`, `Already recorded: ${id}`, `Already recorded: ${id}`].join('\n'),
+			repeated: `Already recorded: ${id}`,
+			artifacts: [{ ...artifact, id, isGitHub: true }],
+			persistCalls: 2,
+		});
+	});
+
+	test('deduplicates and promotes entries within the same atomic batch', async () => {
+		const { execute, artifacts, persisted } = createHarness();
+		const reference = { type: 'file', label: 'Report', isArtifact: false, uri: 'file:///repo/report.md' };
+		const result = await execute(ArtifactServerToolName.AddArtifactOrReference, {
+			items: [reference, { ...reference, isArtifact: true }, reference],
+		});
+		const id = artifacts()[0].id;
+
+		assert.deepStrictEqual({ result, artifacts: artifacts(), persisted }, {
+			result: [`Added reference: ${id}`, `Promoted artifact: ${id}`, `Already recorded: ${id}`].join('\n'),
+			artifacts: [{ ...reference, id, isArtifact: true }],
+			persisted: [[{ ...reference, id, isArtifact: true }]],
+		});
+	});
+
+	test('rejects malformed URI batches without partially promoting or persisting entries', async () => {
+		const { execute, artifacts, persisted } = createHarness();
+		const reference = { type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com' };
+		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [reference] });
+		const before = artifacts();
+		for (const uri of ['report.md', '/repo/report.md', 'C:\\repo\\report.md', 'foo/bar:baz']) {
+			await assert.rejects(() => execute(ArtifactServerToolName.AddArtifactOrReference, {
+				items: [{ ...reference, isArtifact: true }, { type: 'file', label: 'Report', isArtifact: true, uri }],
+			}), /items\[1\]\.uri must be an absolute URI including its scheme/);
+		}
+
+		assert.deepStrictEqual({ artifacts: artifacts(), persisted }, { artifacts: before, persisted: [before] });
+	});
+
+	test('reports persistence errors without publishing a promotion', async () => {
+		const error = new Error('Disk full');
+		const { execute, stateManager, sessionUri, artifacts } = createHarness({ persist: async () => { throw error; } });
+		const reference: ISessionArtifact = { id: 'restored-id', type: SessionArtifactType.File, label: 'Report', isArtifact: false, uri: 'file:///repo/report.md' };
+		stateManager.setSessionMeta(sessionUri, withSessionArtifacts(undefined, [reference]));
+
+		await assert.rejects(() => execute(ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ ...reference, isArtifact: true }],
+		}), error);
+		assert.deepStrictEqual(artifacts(), [reference]);
+	});
+
+	test('restored legacy tool names and single-entry inputs still add, list, promote and remove', async () => {
+		const { execute, artifacts } = createHarness();
+		const reference = { type: 'file', label: 'Report', isArtifact: false, uri: 'file:///repo/report.md' };
+		await execute('add_artifact', reference);
+		const id = artifacts()[0].id;
+		const listed = await execute('list_artifacts');
+		const promoted = await execute('add_artifact', { ...reference, isArtifact: true });
+		const removed = await execute('remove_artifact', { id });
+		const missing = await execute(ArtifactServerToolName.RemoveArtifactOrReference, { id });
+
+		assert.deepStrictEqual({ listed, promoted, removed, missing, artifacts: artifacts() }, {
+			listed: `${id} (file, reference) Report — file:///repo/report.md`,
+			promoted: `Promoted artifact: ${id}`,
+			removed: `Removed artifact: ${id}`,
+			missing: `No artifact or reference with id ${id}.`,
+			artifacts: [],
+		});
+	});
+
+	test('removes a reference with a compact result and retains its display', async () => {
+		const { execute, artifacts } = createHarness();
+		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [{ type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com' }] });
+		const id = artifacts()[0].id;
+		const result = await execute(ArtifactServerToolName.RemoveArtifactOrReference, { id });
+
+		assert.deepStrictEqual({
+			result,
+			display: display(ArtifactServerToolName.RemoveArtifactOrReference, { id }, { text: result, success: true }),
+			artifacts: artifacts(),
+		}, {
+			result: `Removed reference: ${id}`,
+			display: { displayName: 'Remove Artifact or Reference', invocationMessage: 'Remove artifact or reference', pastTenseMessage: 'Removed reference' },
+			artifacts: [],
+		});
+	});
+
+	test('reports actionable input errors without registering anything', async () => {
+		const { execute, artifacts, persisted } = createHarness();
+		await assert.rejects(() => execute(ArtifactServerToolName.AddArtifactOrReference, { items: [] }), /items must be a non-empty array/);
+		await assert.rejects(() => execute(ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'website', label: 'Docs', isArtifact: 'false', link: 'https://example.com' }],
+		}), /items\[0\]\.isArtifact must be a boolean/);
+		await assert.rejects(() => execute(ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'website', label: 'Docs', isArtifact: false, link: 'file:///repo/docs.md' }],
+		}), /items\[0\]\.link must be an http\(s\) URL/);
+		await assert.rejects(() => execute(ArtifactServerToolName.RemoveArtifactOrReference, { id: '' }), /id must be a non-empty string/);
+		assert.deepStrictEqual({ artifacts: artifacts(), persisted }, { artifacts: [], persisted: [] });
+	});
+
+	test('rejects session-management links during execution', async () => {
+		const sessionUri = 'copilot:/caller';
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession({
+			resource: sessionUri,
+			provider: 'copilot',
+			title: 'Caller',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		let persisted = false;
+		const group = createArtifactServerToolGroup({
+			isEnabled: () => true,
+			persist: () => { persisted = true; },
+		});
+
+		let errorMessage: string | undefined;
+		try {
+			await group.execute(stateManager, { sessionUri, chatUri: buildDefaultChatUri(sessionUri), turnId: 'turn-1' }, ArtifactServerToolName.AddArtifactOrReference, {
+				type: 'resource',
+				label: 'Spawned session',
+				isArtifact: true,
+				uri: 'agent-host-session://copilot/spawned',
+			});
+		} catch (error) {
+			errorMessage = getErrorMessage(error);
+		}
+
+		assert.deepStrictEqual({ errorMessage, persisted }, {
+			errorMessage: 'Invalid add_artifact_or_reference input: sessions and chats created with session-management tools must not be recorded as artifacts or references.',
+			persisted: false,
 		});
 	});
 

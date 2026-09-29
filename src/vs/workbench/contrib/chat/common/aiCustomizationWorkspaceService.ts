@@ -36,6 +36,7 @@ export const BUILTIN_STORAGE = AICustomizationSources.builtin;
  * Possible section IDs for the AI Customization Management Editor sidebar.
  */
 export const AICustomizationManagementSection = {
+	Marketplace: 'marketplace',
 	Agents: 'agents',
 	Skills: 'skills',
 	Instructions: 'instructions',
@@ -87,6 +88,11 @@ export interface IAICustomizationWorkspaceService {
 	 * Observable that fires when the active project root changes.
 	 */
 	readonly activeProjectRoot: IObservable<URI | undefined>;
+
+	/**
+	 * Display label for the active project.
+	 */
+	readonly activeProjectLabel: IObservable<string | undefined>;
 
 	/**
 	 * Returns the current active project root, if any.
