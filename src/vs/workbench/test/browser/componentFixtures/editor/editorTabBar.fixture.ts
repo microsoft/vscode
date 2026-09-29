@@ -1002,7 +1002,7 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		Pill: defineComponentFixture({
 			render: renderBorderOwnership(true, ModernUIEditorTabStyle.Pill),
 			themes: ['dark'],
-			expectedVisualDescriptions: ['Pill tabs hide the standard indicators and paint the customized yellow outline, cyan top, and pink bottom on the inset rounded fill. A short white divider appears only between adjacent inactive pills.'],
+			expectedVisualDescriptions: ['Pill tabs hide the standard indicators and paint the customized yellow outline around every inset rounded fill. Inset cyan and pink accents stop before the rounded corners, and a short white divider appears at every shared boundary, including beside the active pill.'],
 		}),
 		Connected: defineComponentFixture({
 			render: renderBorderOwnership(true, ModernUIEditorTabStyle.Connected),

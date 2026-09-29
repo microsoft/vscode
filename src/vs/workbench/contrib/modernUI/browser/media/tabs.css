@@ -116,14 +116,6 @@
 	box-shadow: inset var(--vscode-strokeThickness) 0 var(--modern-ui-editor-tab-last-pinned-border);
 }
 
-.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.last-in-row) + .tab > .tab-divider {
-	display: none;
-}
-
-.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active):not(.last-in-row) + .tab:not(.active) > .tab-divider {
-	display: block;
-}
-
 /* Reuses the last-pinned-border color for the horizontal divider between the pinned and normal tab rows. */
 .modern-ui-tabs.monaco-workbench .part.editor .title.two-tab-bars > .tabs-and-actions-container:first-child {
 	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--modern-ui-editor-tab-last-pinned-border);
@@ -312,16 +304,40 @@
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container.active .tabs-container > .tab.active > .tab-fill,
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group.modern-ui-editor-tab-group-active .modern-ui-editor-tab.active > .modern-ui-editor-tab-fill {
+	--modern-ui-editor-tab-current-border-top: var(--modern-ui-editor-tab-active-border-top);
+	--modern-ui-editor-tab-current-border-bottom: var(--modern-ui-editor-tab-active-border);
 	background-color: var(--modern-ui-editor-tab-active-background);
-	border-top: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tab-active-border-top);
-	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tab-active-border);
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container:not(.active) .tabs-container > .tab.active > .tab-fill,
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .modern-ui-editor-tab.active > .modern-ui-editor-tab-fill {
+	--modern-ui-editor-tab-current-border-top: var(--modern-ui-editor-tab-unfocused-active-border-top);
+	--modern-ui-editor-tab-current-border-bottom: var(--modern-ui-editor-tab-unfocused-active-border);
 	background-color: var(--modern-ui-editor-tab-unfocused-active-background);
-	border-top: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tab-unfocused-active-border-top);
-	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tab-unfocused-active-border);
+}
+
+.modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs):not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.active:not(.multi-selected) > .tab-fill::before,
+.modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs):not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.active:not(.multi-selected) > .tab-fill::after,
+.modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs):not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab.active > .modern-ui-editor-tab-fill::before,
+.modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs):not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab.active > .modern-ui-editor-tab-fill::after {
+	content: '';
+	position: absolute;
+	right: var(--vscode-cornerRadius-small);
+	left: var(--vscode-cornerRadius-small);
+	height: var(--vscode-strokeThickness);
+	pointer-events: none;
+}
+
+.modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs):not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.active:not(.multi-selected) > .tab-fill::before,
+.modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs):not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab.active > .modern-ui-editor-tab-fill::before {
+	top: calc(-1 * var(--vscode-strokeThickness));
+	background-color: var(--modern-ui-editor-tab-current-border-top);
+}
+
+.modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs):not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.active:not(.multi-selected) > .tab-fill::after,
+.modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs):not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab.active > .modern-ui-editor-tab-fill::after {
+	bottom: calc(-1 * var(--vscode-strokeThickness));
+	background-color: var(--modern-ui-editor-tab-current-border-bottom);
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container.active .tabs-container > .tab.active:hover > .tab-fill,

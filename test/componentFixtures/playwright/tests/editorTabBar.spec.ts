@@ -99,10 +99,12 @@ for (const [style, expected] of [
 	['Pill', {
 		topIndicator: { display: 'none' },
 		bottomIndicator: { display: 'none' },
-		fillTop: 'rgb(34, 211, 238)',
-		fillBottom: 'rgb(244, 63, 94)',
+		fillTop: 'rgb(250, 204, 21)',
+		fillBottom: 'rgb(250, 204, 21)',
 		fillSide: 'rgb(250, 204, 21)',
-		visibleDividers: ['rgb(255, 255, 255)'],
+		topAccent: 'rgb(34, 211, 238)',
+		bottomAccent: 'rgb(244, 63, 94)',
+		visibleDividers: ['rgb(255, 255, 255)', 'rgb(255, 255, 255)', 'rgb(255, 255, 255)'],
 	}],
 	['Connected', {
 		topIndicator: { display: 'none' },
@@ -136,6 +138,8 @@ for (const [style, expected] of [
 				fillTop: fillStyle.borderTopColor,
 				fillBottom: fillStyle.borderBottomColor,
 				fillSide: fillStyle.borderRightColor,
+				topAccent: getComputedStyle(fill, '::before').backgroundColor,
+				bottomAccent: getComputedStyle(fill, '::after').backgroundColor,
 				visibleDividers,
 			};
 		});
