@@ -83,6 +83,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		this._pickerWidget.setSelectedModel(delegate.currentModel.get());
 		this._pickerWidget.setCompact(pickerOptions.compact);
 		this._pickerWidget.setContextViewLayer(pickerOptions.contextViewLayer);
+		this._pickerWidget.setForceTabbedPicker(pickerOptions.forceTabbedModelPicker === true);
 		if (pickerOptions.minimal) {
 			this._pickerWidget.setMinimal(pickerOptions.minimal);
 		}

@@ -366,6 +366,21 @@ suite('ModelPickerTelemetry', () => {
 		});
 	});
 
+	test('the input readout forwards dialog layering without confusing it with the details model', () => {
+		const result = createPicker(true);
+		result.picker.render(result.container);
+		result.picker.show(result.container);
+		result.picker.setContextViewLayer(1);
+		const readout = result.container.querySelector<HTMLElement>('.model-picker-config')!;
+		readout.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({
+			layer: result.contextViewLayer,
+			model: result.container.querySelector('.chat-model-card-name')?.textContent,
+			expanded: readout.getAttribute('aria-expanded'),
+			events: result.events,
+		}, { layer: 1, model: model.metadata.name, expanded: 'true', events: [] });
+	});
+
 	for (const target of ['name', 'config']) {
 		test(`the Auto ${target} pill opens routing choices, not Details`, async () => {
 			const result = createPicker(true, autoModel);
