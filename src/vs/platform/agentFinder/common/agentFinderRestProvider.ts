@@ -7,7 +7,6 @@ import { disposableTimeout, Limiter, raceCancellationError } from '../../../base
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { LRUCache } from '../../../base/common/map.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { IRequestOptions } from '../../../base/parts/request/common/request.js';
@@ -35,7 +34,6 @@ const maxMetadataEntries = 32;
 const maxMetadataTextLength = 512;
 const maxSourcePathLength = 4096;
 const maxGitRefLength = 1024;
-const maxCachedMcpIcons = 256;
 const maxConcurrentMcpIconRequests = 4;
 const mcpIconRequestTimeout = 5_000;
 
@@ -43,7 +41,6 @@ class AgentFinderError extends Error { }
 
 export class AgentFinderRestProvider implements ICustomizationMarketplaceProvider {
 	readonly id = CustomizationMarketplaceSources.AgentFinderPublicFeed.id;
-	private readonly mcpIconCache = new LRUCache<string, URI | null>(maxCachedMcpIcons);
 
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,
@@ -163,19 +160,12 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 			return item;
 		}
 
-		const cacheKey = `${item.externalUrl}\n${installation.version}`;
-		const cachedIcon = this.mcpIconCache.get(cacheKey);
-		if (cachedIcon !== undefined) {
-			return cachedIcon ? { ...item, icon: cachedIcon } : item;
-		}
-
 		try {
 			const server = await this.mcpGalleryService.getMcpServer(item.externalUrl, agentFinderMcpRegistryManifest, iconToken);
 			const icon = parseHttpUri(server?.icon?.light);
 			if (server?.icon?.light && !icon) {
 				this.logService.warn(`[AgentFinderRestProvider] Ignoring an invalid MCP catalog icon for '${installation.name}'.`);
 			}
-			this.mcpIconCache.set(cacheKey, icon ?? null);
 			return icon ? { ...item, icon } : item;
 		} catch (error) {
 			if (!queryToken.isCancellationRequested && !iconToken.isCancellationRequested) {

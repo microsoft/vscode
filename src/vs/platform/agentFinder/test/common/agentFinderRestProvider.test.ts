@@ -159,7 +159,7 @@ suite('AgentFinderRestProvider', () => {
 		});
 	});
 
-	test('resolves and caches an MCP registry icon without guessing repository metadata', async () => {
+	test('resolves an MCP registry icon through the fixed Agent Finder registry', async () => {
 		const lookups: { url: string; manifestUrl: string | undefined; manifestVersion: string | undefined; cancelled: boolean }[] = [];
 		const mcpGalleryService = upcastPartial<IMcpGalleryService>({
 			getMcpServer: async (url, manifest, token) => {
@@ -178,22 +178,20 @@ suite('AgentFinderRestProvider', () => {
 			},
 		});
 		const { service } = createService({ results: [mcpServer], total: 1, offset: 0, pageSize: 30 }, 200, mcpGalleryService);
-		const firstPage = await service.query({}, CancellationToken.None);
-		const secondPage = await service.query({}, CancellationToken.None);
+		const page = await service.query({}, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			item: {
-				displayName: firstPage.items[0].displayName,
-				mediaType: firstPage.items[0].mediaType,
-				version: firstPage.items[0].version,
-				url: firstPage.items[0].url?.toString(),
-				externalUrl: firstPage.items[0].externalUrl,
-				repository: firstPage.items[0].repository,
-				publisher: firstPage.items[0].publisher,
-				icon: firstPage.items[0].icon?.toString(),
-				stars: firstPage.items[0].stars,
+				displayName: page.items[0].displayName,
+				mediaType: page.items[0].mediaType,
+				version: page.items[0].version,
+				url: page.items[0].url?.toString(),
+				externalUrl: page.items[0].externalUrl,
+				repository: page.items[0].repository,
+				publisher: page.items[0].publisher,
+				icon: page.items[0].icon?.toString(),
+				stars: page.items[0].stars,
 			},
-			cachedIcon: secondPage.items[0].icon?.toString(),
 			lookups,
 		}, {
 			item: {
@@ -207,7 +205,6 @@ suite('AgentFinderRestProvider', () => {
 				icon: 'https://avatars.githubusercontent.com/u/213697801',
 				stars: undefined,
 			},
-			cachedIcon: 'https://avatars.githubusercontent.com/u/213697801',
 			lookups: [{
 				url: mcpServer.url,
 				manifestUrl: 'https://api.mcp.github.com/oss/v0.1/servers',
