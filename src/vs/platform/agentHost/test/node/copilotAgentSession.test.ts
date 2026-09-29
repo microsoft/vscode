@@ -67,6 +67,7 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { type IShellInitScript } from '../../common/shellInitScript.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
+import { CopilotMcpToolRoutingCache } from '../../node/copilot/copilotMcpToolRoutingCache.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
@@ -74,6 +75,7 @@ import { AgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { MockAgent } from './mockAgent.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
+import { AgentHostStorageService, IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '../../node/copilot/copilotSystemNotification.js';
@@ -176,6 +178,9 @@ class MockCopilotSession {
 	mcpMoveLoadingToBackgroundError: Error | undefined;
 	mcpMoveLoadingToBackgroundGate: Promise<void> | undefined;
 	readonly mcpAuthenticationStateChangedCalls: Array<{ serverName?: string; refreshSessionToken?: boolean }> = [];
+	readonly mcpListToolsCalls: Array<{ serverName: string }> = [];
+	mcpListToolsResult: Awaited<ReturnType<CopilotSession['rpc']['mcp']['listTools']>> = { tools: [] };
+	mcpListToolsError: unknown = undefined;
 	onMcpAuthenticationStateChanged: (() => void) | undefined;
 	mcpAuthenticationStateChangedError: Error | undefined;
 	readonly samplingResponses: Parameters<CopilotSession['rpc']['ui']['handlePendingSampling']>[0][] = [];
@@ -550,8 +555,12 @@ class MockCopilotSession {
 				}
 				return { movedToBackground: this.mcpMoveLoadingToBackgroundResult };
 			},
-			listTools: async (_params: { serverName: string }) => {
-				return { tools: [] };
+			listTools: async (params: { serverName: string }) => {
+				this.mcpListToolsCalls.push(params);
+				if (this.mcpListToolsError !== undefined) {
+					throw this.mcpListToolsError;
+				}
+				return this.mcpListToolsResult;
 			},
 			disable: async (params: { serverName: string }) => {
 				this.mcpDisableCalls.push(params);
@@ -1004,6 +1013,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	fireRootConfigChange: () => void;
 	fireSessionConfigChange: (config: Record<string, unknown>, session?: string) => void;
 	dispatchSessionAction: (action: StateAction) => void;
+	storageService: IAgentHostStorageService;
 }> {
 	const progressEmitter = disposables.add(new Emitter<AgentSignal>());
 	const signals: AgentSignal[] = [];
@@ -1080,6 +1090,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const services = new ServiceCollection();
 	services.set(ILogService, logService);
+	const storageService = disposables.add(new AgentHostStorageService(undefined, logService));
+	services.set(IAgentHostStorageService, storageService);
 	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
 	services.set(IAgentHostGitService, options?.gitService ?? createNoopGitService());
 	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
@@ -1327,6 +1339,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 				customizationEnablementEmitter.fire({ sessions: [sessionUri.toString()] });
 			}
 		},
+		storageService,
 	};
 }
 
@@ -15570,6 +15583,33 @@ Use the attached image as context.
 			return created;
 		}
 
+		async function createMcpRoutingSession(connected = false) {
+			const configuration = {
+				type: McpServerType.REMOTE,
+				url: 'https://docs.example.com/mcp',
+				headers: { Authorization: 'secret-token' },
+			} satisfies IMcpServerConfiguration;
+			const toolSearchSnapshot: IActiveClientSnapshot = {
+				tools: [{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }],
+				plugins: [],
+				mcpServers: { docs: configuration },
+			};
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('tool-search-client', toolSearchSnapshot.tools);
+			const created = await createAgentSession(disposables, {
+				clientSnapshot: toolSearchSnapshot,
+				activeClientToolSet,
+				modelId: 'claude-opus-4.8',
+				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
+				configureMockSession: mock => {
+					if (connected) {
+						mock.mcpListResult = { servers: [{ name: 'docs', status: 'connected' }] };
+					}
+				},
+			});
+			return { ...created, configuration };
+		}
+
 		async function runToolSearch(clientResultText: string, availableTools: CurrentToolMetadata[], query = 'search tools', success = true): Promise<ToolResultObject> {
 			const { session, runtime, mockSession } = await createToolSearchSession(false);
 			const [override] = runtime.createClientSdkTools(true);
@@ -15646,6 +15686,107 @@ Use the attached image as context.
 			}, {
 				textResultForLlm: '["everything-get-sum"]',
 				toolReferences: ['everything-get-sum'],
+			});
+		});
+
+		test('cached MCP tools add a routing proxy that performs live discovery without executing cached tools', async () => {
+			const { session, runtime, mockSession, signals, storageService, configuration } = await createMcpRoutingSession();
+			const cache = new CopilotMcpToolRoutingCache(storageService, new NullLogService());
+			cache.store({ serverName: 'docs', configuration }, [{ name: 'stale_search', description: 'Search old documentation' }]);
+
+			const [toolSearch, proxy] = runtime.createClientSdkTools(true);
+			assert.ok(proxy);
+			mockSession.mcpListToolsResult = {
+				tools: [{ name: 'current_search', description: 'Search current documentation' }],
+			};
+			session.resetTurnState('turn-mcp-route');
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'mcp-route',
+				toolName: proxy.name,
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const authPromise = runtime.handleMcpAuthRequest({
+				requestId: 'auth-mcp-route',
+				serverName: 'docs',
+				serverUrl: configuration.url,
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+			const authRequired = getActions(signals).filter(action => action.type === ActionType.ChatToolCallAuthRequired);
+			await session.resolveMcpAuthentication({ resource: configuration.url, scopes: [], token: 'token' });
+			await authPromise;
+			const result = await invokeClientToolHandler(proxy, 'mcp-route');
+			const refreshed = cache.get({ serverName: 'docs', configuration });
+			const changedConfiguration = { ...configuration, url: 'https://other.example.com/mcp' };
+			const persisted = JSON.stringify(storageService.get<unknown>('copilotMcpToolRoutingCache'));
+
+			assert.deepStrictEqual({
+				registeredTools: [toolSearch.name, proxy.name],
+				proxy: {
+					defer: proxy.defer,
+					skipPermission: proxy.skipPermission,
+					hasStaleToolDescription: proxy.description?.includes('stale_search') ?? false,
+				},
+				authRequired: authRequired.map(action => action.type === ActionType.ChatToolCallAuthRequired ? action.toolCallId : undefined),
+				listToolsCalls: mockSession.mcpListToolsCalls,
+				result,
+				refreshedTools: refreshed?.tools,
+				changedConfigurationMissesCache: cache.get({ serverName: 'docs', configuration: changedConfiguration }) === undefined,
+				persistedContainsSecret: persisted.includes('secret-token'),
+			}, {
+				registeredTools: ['tool_search_tool', proxy.name],
+				proxy: {
+					defer: 'auto',
+					skipPermission: true,
+					hasStaleToolDescription: true,
+				},
+				authRequired: ['mcp-route'],
+				listToolsCalls: [{ serverName: 'docs' }],
+				result: {
+					resultType: 'success',
+					textResultForLlm: 'The docs MCP server is connected. Search tools again to use one of its current tools: ["current_search"]',
+				},
+				refreshedTools: [{ name: 'current_search', description: 'Search current documentation' }],
+				changedConfigurationMissesCache: true,
+				persistedContainsSecret: false,
+			});
+		});
+
+		test('cached MCP routing proxy is hidden from tool search when live server tools are available', async () => {
+			const { session, runtime, mockSession, signals, waitForSignal, storageService, configuration } = await createMcpRoutingSession(true);
+			await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
+			const cache = new CopilotMcpToolRoutingCache(storageService, new NullLogService());
+			cache.store({ serverName: 'docs', configuration }, [{ name: 'stale_search', description: 'Search old documentation' }]);
+			const [toolSearch, proxy] = runtime.createClientSdkTools(true);
+			assert.ok(proxy);
+			const availableTools: CurrentToolMetadata[] = [
+				{ name: proxy.name, description: proxy.description ?? '', deferLoading: true },
+				{ name: 'current_search', namespacedName: 'docs-current_search', mcpServerName: 'docs', mcpToolName: 'current_search', description: 'Search current documentation', deferLoading: true },
+			];
+			session.resetTurnState('turn-live-mcp-search');
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'live-mcp-search',
+				toolName: toolSearch.name,
+				arguments: { query: 'documentation' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			const handlerPromise = invokeClientToolHandler(toolSearch, 'live-mcp-search', { query: 'documentation' }, availableTools);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallReady));
+			session.handleClientToolCallComplete('live-mcp-search', {
+				success: true,
+				pastTenseMessage: 'Searched tools',
+				content: [{ type: ToolResultContentType.Text, text: JSON.stringify([proxy.name, 'current_search']) }],
+			});
+			const result = await handlerPromise;
+			const readyAction = getActions(signals).find((action): action is ChatToolCallReadyAction => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'live-mcp-search');
+			assert.ok(readyAction);
+
+			assert.deepStrictEqual({
+				candidates: readToolCallMeta(readyAction).toolSearchCandidates,
+				toolReferences: result.toolReferences,
+			}, {
+				candidates: [{ name: 'current_search', description: 'Search current documentation' }],
+				toolReferences: ['docs-current_search'],
 			});
 		});
 
