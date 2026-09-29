@@ -117,6 +117,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			createdAt: Date.now(),
 			workspace: options.workspace,
 			prompt: options.prompt,
+			launching: true,
 			attachedContext,
 			branch: options.branch,
 			permissionLevel: options.permissionLevel,
@@ -167,6 +168,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		const launchedById = new Map(launchedAttempts.map(participant => [participant.id, participant] as const));
 		comparison = {
 			...current,
+			launching: undefined,
 			participants: current.participants.map(participant => launchedById.get(participant.id) ?? participant),
 		};
 		this._ensureComparisonGroupMembership([comparison]);
@@ -977,6 +979,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			const stored = parse(raw) as readonly IStoredSessionComparison[];
 			return stored.map(comparison => ({
 				...comparison,
+				launching: undefined,
 				workspace: URI.parse(comparison.workspace),
 				attachedContext: comparison.attachedContext?.map(IChatRequestVariableEntry.fromExport),
 				participants: comparison.participants.map(participant => ({

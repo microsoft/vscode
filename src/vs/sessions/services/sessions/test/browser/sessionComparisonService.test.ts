@@ -338,9 +338,13 @@ suite('SessionComparisonService', () => {
 		const comparison = service.comparisons.get()[0];
 		const stored = JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE) ?? '[]');
 		assert.deepStrictEqual({
+			liveLaunching: comparison?.launching,
+			storedLaunching: stored[0].launching,
 			liveParticipants: comparison?.participants.map(participant => ({ id: participant.id, sessionResource: participant.sessionResource?.toString(), launchError: participant.launchError })),
 			storedParticipants: stored[0].participants.map((participant: { id: string; sessionResource?: string; launchError?: string }) => ({ id: participant.id, sessionResource: participant.sessionResource, launchError: participant.launchError })),
 		}, {
+			liveLaunching: true,
+			storedLaunching: true,
 			liveParticipants: [
 				{ id: 'attempt-one', sessionResource: undefined, launchError: undefined },
 				{ id: 'attempt-two', sessionResource: undefined, launchError: undefined },
@@ -353,7 +357,8 @@ suite('SessionComparisonService', () => {
 
 		firstAttempt.complete(stubSession('attempt-one'));
 		secondAttempt.complete(stubSession('attempt-two'));
-		await comparisonPromise;
+		const launched = await comparisonPromise;
+		assert.strictEqual(launched.launching, undefined);
 	});
 
 	test('waits for every pending attempt before launching the Judge', async () => {

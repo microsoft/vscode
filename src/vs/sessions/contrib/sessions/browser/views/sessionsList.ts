@@ -6092,10 +6092,7 @@ function sortComparisonGroupMembers(comparison: ISessionComparison, sessions: IS
 }
 
 function isComparisonLaunchPending(comparison: ISessionComparison): boolean {
-	return comparison.participants.some(participant =>
-		participant.role === SessionComparisonParticipantRole.Attempt
-		&& !participant.sessionResource
-		&& !participant.launchError);
+	return comparison.launching === true;
 }
 
 function getComparisonGroupSummary(comparison: ISessionComparison, sessions: readonly ISession[], reader?: IReader): string {

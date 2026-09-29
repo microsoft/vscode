@@ -2932,6 +2932,7 @@ suite('Sessions - SessionsList', () => {
 				createdAt: 1,
 				workspace: URI.parse('file:///workspace'),
 				prompt: 'Improve the picker',
+				launching: sessionVariant === 'launching' ? true : undefined,
 				verdict,
 				participants: sessionVariant === 'launching' ? [
 					{
@@ -2950,6 +2951,7 @@ suite('Sessions - SessionsList', () => {
 							modelConfiguration: { tier: 'balanced' },
 							modelConfigurationLabel: 'Balance',
 						},
+						sessionResource: attempt2.session.resource,
 					},
 				] : [
 					{

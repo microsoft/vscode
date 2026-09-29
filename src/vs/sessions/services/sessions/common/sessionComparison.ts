@@ -153,6 +153,8 @@ export interface ISessionComparison {
 	readonly createdAt: number;
 	readonly workspace: URI;
 	readonly prompt: string;
+	/** Transient while the initial attempt sessions are still being created. */
+	readonly launching?: boolean;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly branch?: string;
 	/** Retained for comparisons persisted before execution presets were introduced. */
