@@ -178,7 +178,7 @@ suite('Product test checkpoints', () => {
 			...environment,
 			AGENT_OS: 'Darwin',
 			VSCODE_ARCH: 'arm64',
-			SYSTEM_STAGENAME: 'macOS',
+			SYSTEM_STAGENAME: 'macOSARM64',
 			SYSTEM_JOBNAME: 'macOS_arm64_Test',
 			AGENT_TEMPDIRECTORY: directory,
 		};
@@ -194,7 +194,7 @@ suite('Product test checkpoints', () => {
 		}, {
 			target: 'darwin-arm64',
 			testId: 'unit-browser-webkit',
-			artifact: 'test-pass-macOS-macOS_arm64_Test-darwin-arm64-unit-browser-webkit',
+			artifact: 'test-pass-macOSARM64-macOS_arm64_Test-darwin-arm64-unit-browser-webkit',
 			ready: 'true',
 		});
 	});

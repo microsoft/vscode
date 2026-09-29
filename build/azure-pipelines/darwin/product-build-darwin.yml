@@ -69,7 +69,7 @@ jobs:
       displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) - Test
       dependsOn:
         - macOS_${{ parameters.VSCODE_ARCH }}_Compile
-        - macOSCLI_${{ parameters.VSCODE_ARCH }}
+        - macOS_${{ parameters.VSCODE_ARCH }}_CLI
       timeoutInMinutes: 240
       cancelTimeoutInMinutes: 10
       variables:
@@ -125,7 +125,7 @@ jobs:
     displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
     dependsOn:
       - macOS_${{ parameters.VSCODE_ARCH }}_Compile
-      - macOSCLI_${{ parameters.VSCODE_ARCH }}
+      - macOS_${{ parameters.VSCODE_ARCH }}_CLI
     timeoutInMinutes: 240
     cancelTimeoutInMinutes: 10
     variables:

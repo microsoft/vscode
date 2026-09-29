@@ -1015,7 +1015,9 @@ async function main() {
 	if (e('VSCODE_BUILD_STAGE_LINUX_ARM64') === 'True') { stages.add('LinuxARM64'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX_ARMHF') === 'True') { stages.add('LinuxARMHF'); }
 	if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') { stages.add('Alpine'); }
-	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_X64') === 'True') { stages.add('macOSX64'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_ARM64') === 'True') { stages.add('macOSARM64'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_UNIVERSAL') === 'True') { stages.add('macOSUniversal'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
 	let timeline: Timeline;

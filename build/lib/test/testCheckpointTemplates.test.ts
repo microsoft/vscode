@@ -190,7 +190,7 @@ suite('Product test checkpoint templates', () => {
 		const targets = [
 			{ file: windowsTestFile, os: 'win32' as const, expected: windowsExpected, agentOS: 'Windows_NT', arch: 'x64', target: 'win32-x64', stage: 'Windows', job: 'Windows_x64_Test' },
 			{ file: linuxTestFile, os: 'linux' as const, expected: linuxExpected, agentOS: 'Linux', arch: 'x64', target: 'linux-x64', stage: 'LinuxX64', job: 'Linux_x64_Test' },
-			{ file: darwinTestFile, os: 'darwin' as const, expected: darwinExpected, agentOS: 'Darwin', arch: 'arm64', target: 'darwin-arm64', stage: 'macOS', job: 'macOS_arm64_Test' },
+			{ file: darwinTestFile, os: 'darwin' as const, expected: darwinExpected, agentOS: 'Darwin', arch: 'arm64', target: 'darwin-arm64', stage: 'macOSARM64', job: 'macOS_arm64_Test' },
 		];
 		const publishedIds = readTemplate('common/publish-test-checkpoint.yml').parameters?.find(parameter => parameter.name === 'testId')?.values;
 		assert.deepStrictEqual({

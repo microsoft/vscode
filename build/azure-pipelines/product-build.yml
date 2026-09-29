@@ -188,6 +188,14 @@ variables:
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), and(eq(variables.VSCODE_CIBUILD, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true))) }}
   - name: VSCODE_BUILD_STAGE_WINDOWS_ARM64
     value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
+  # Product architectures are split into their own stages. The existing macOS
+  # stage continues to hold the CI test jobs.
+  - name: VSCODE_BUILD_STAGE_MACOS_X64
+    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_MACOS, true)) }}
+  - name: VSCODE_BUILD_STAGE_MACOS_ARM64
+    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_MACOS_UNIVERSAL
+    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
   - name: VSCODE_USE_PUBLISHING_POOLS
@@ -527,7 +535,7 @@ extends:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
 
-      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
+      - ${{ if and(eq(variables['VSCODE_BUILD_STAGE_MACOS'], true), eq(variables['VSCODE_CIBUILD'], true)) }}:
         - stage: macOS
           dependsOn: []
           pool:
@@ -545,43 +553,81 @@ extends:
                   VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
-              - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_TEST_SUITE: Electron
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_TEST_SUITE: Browser
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_TEST_SUITE: Remote
 
-            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-              - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_TEST_SUITE: Electron
-              - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_TEST_SUITE: Browser
-              - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_TEST_SUITE: Remote
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_X64'], true) }}:
+        - stage: macOSX64
+          displayName: macOS X64
+          dependsOn: []
+          pool:
+            name: AcesShared
+            os: macOS
+            demands:
+              - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+          variables:
+            BUILDSECMON_OPT_IN: true
+          jobs:
+            - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS, true)) }}:
-              - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
-                parameters:
-                  VSCODE_ARCH: x64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+            - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
-              - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_ARM64'], true) }}:
+        - stage: macOSARM64
+          displayName: macOS ARM64
+          dependsOn: []
+          pool:
+            name: AcesShared
+            os: macOS
+            demands:
+              - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+          variables:
+            BUILDSECMON_OPT_IN: true
+          jobs:
+            - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true)) }}:
-              - template: build/azure-pipelines/darwin/product-build-darwin-universal.yml@self
+            - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+
+      # The universal job waits for the unsigned x64 and arm64 client artifacts
+      # instead of depending on their stages, so that it runs in parallel.
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_UNIVERSAL'], true) }}:
+        - stage: macOSUniversal
+          displayName: macOS Universal
+          dependsOn: []
+          pool:
+            name: AcesShared
+            os: macOS
+            demands:
+              - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+          variables:
+            BUILDSECMON_OPT_IN: true
+          jobs:
+            - template: build/azure-pipelines/darwin/product-build-darwin-universal.yml@self
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
         - stage: Web
@@ -921,7 +967,14 @@ extends:
         - stage: ArtifactSanityTestsMacOS
           displayName: Sanity Tests (Artifacts, macOS)
           dependsOn:
-            - macOS
+            - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_X64'], true) }}:
+              - macOSX64
+            - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_ARM64'], true) }}:
+              - macOSARM64
+            - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_UNIVERSAL'], true) }}:
+              - macOSUniversal
+            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+              - macOS
           variables:
             - name: BUILD_COMMIT
               value: $(Build.SourceVersion)
