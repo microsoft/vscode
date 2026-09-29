@@ -8,7 +8,6 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
-import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -128,12 +127,6 @@ export class NewChatWidget extends Disposable {
 	private _workspaceRepositoryControlsHost: HTMLElement | undefined;
 	private _workspaceSessionOptionsHost: HTMLElement | undefined;
 	private readonly _sessionOptionsExpanded = observableValue(this, true);
-	/**
-	 * Transient expansion driven by hovering or focusing the workspace picker. Overlays the
-	 * persisted {@link _sessionOptionsExpanded} state so previewing the options never overwrites
-	 * the user's remembered choice.
-	 */
-	private readonly _hoverExpanded = observableValue(this, false);
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
@@ -1287,66 +1280,7 @@ export class NewChatWidget extends Disposable {
 		}));
 		toggle.element.classList.add('new-chat-session-options-toggle');
 		toggle.element.setAttribute('aria-controls', sessionOptions.id);
-		// Hovering the workspace picker row transiently reveals the session options so they can be
-		// previewed; the preview stays open while the pointer or focus is inside, and collapses a
-		// short delay after both leave. This never touches the persisted expanded state.
-		const COLLAPSE_AFTER_HOVER_MS = 2500;
-		const collapseAfterHover = store.add(new MutableDisposable());
-		let pointerInsideRow = false;
-		// Set when the user explicitly collapses while the pointer is still over the row, so that
-		// same hover does not immediately re-expand it. Cleared once the pointer leaves.
-		let hoverPreviewSuppressed = false;
-		// The preview must stay open while the pointer is over the row, focus is anywhere inside it,
-		// or a picker opened from it is still expanded — its dropdown overlay steals focus outside the
-		// row, but its in-row trigger stays marked aria-expanded. Computed live so it can never
-		// desync from the real focus/open state (the disclosure toggle carries its own aria-expanded,
-		// so it is excluded). Only when none of these hold may the tray collapse.
-		const isInteractingWithRow = () =>
-			pointerInsideRow
-			|| row.contains(dom.getActiveElement())
-			|| !!row.querySelector('[aria-expanded="true"]:not(.new-chat-session-options-toggle)');
-		const updateHoverExpanded = () => {
-			if (pointerInsideRow && !hoverPreviewSuppressed) {
-				this._hoverExpanded.set(true, undefined);
-			}
-			if (!this._hoverExpanded.get()) {
-				collapseAfterHover.clear();
-				return;
-			}
-			if (isInteractingWithRow()) {
-				collapseAfterHover.clear();
-			} else {
-				collapseAfterHover.value = disposableTimeout(() => {
-					// Re-check at fire time: focus may have moved into a picker (or a picker opened an
-					// overlay) after the timer was scheduled, so never collapse out from under the user.
-					if (isInteractingWithRow()) {
-						updateHoverExpanded();
-					} else {
-						this._hoverExpanded.set(false, undefined);
-					}
-				}, COLLAPSE_AFTER_HOVER_MS);
-			}
-		};
-		store.add(toggle.onDidClick(() => {
-			// Toggle the state the user currently sees: a hover/focus preview counts as expanded, so
-			// the button always does the opposite of what is on screen.
-			const displayedExpanded = this._sessionOptionsExpanded.get() || this._hoverExpanded.get();
-			if (displayedExpanded) {
-				this._sessionOptionsExpanded.set(false, undefined);
-				collapseAfterHover.clear();
-				this._hoverExpanded.set(false, undefined);
-				// Only suppress the hover preview when the pointer is actually over the row; otherwise
-				// there is no hover to re-expand and no mouseleave would arrive to clear the flag.
-				hoverPreviewSuppressed = pointerInsideRow;
-			} else {
-				this._sessionOptionsExpanded.set(true, undefined);
-				hoverPreviewSuppressed = false;
-			}
-		}));
-		store.add(dom.addDisposableListener(row, dom.EventType.MOUSE_ENTER, () => { pointerInsideRow = true; updateHoverExpanded(); }));
-		store.add(dom.addDisposableListener(row, dom.EventType.MOUSE_LEAVE, () => { pointerInsideRow = false; hoverPreviewSuppressed = false; updateHoverExpanded(); }));
-		store.add(dom.addDisposableListener(row, dom.EventType.FOCUS_IN, () => updateHoverExpanded()));
-		store.add(dom.addDisposableListener(row, dom.EventType.FOCUS_OUT, () => updateHoverExpanded()));
+		store.add(toggle.onDidClick(() => this._sessionOptionsExpanded.set(!this._sessionOptionsExpanded.get(), undefined)));
 		store.add(dom.addDisposableListener(row, dom.EventType.KEY_DOWN, event => {
 			if (!this._useExperimentalComposerLayout.get() || event.altKey || event.ctrlKey || event.metaKey || !['Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
 				return;
@@ -1389,9 +1323,7 @@ export class NewChatWidget extends Disposable {
 			// Screen reader users should never have the options collapsed out of the accessibility
 			// tree: keep the tray expanded and drop the disclosure toggle entirely.
 			const disclosureAvailable = useExperimentalLayout && !screenReaderOptimized;
-			// The persisted choice is overlaid by a transient hover/focus expansion so previewing
-			// the options never overwrites the user's remembered collapsed state.
-			const expanded = this._sessionOptionsExpanded.read(reader) || (disclosureAvailable && this._hoverExpanded.read(reader));
+			const expanded = this._sessionOptionsExpanded.read(reader);
 			// The icons-vs-hidden setting only changes what a collapsed tray shows, so log the
 			// experiment trigger when the composer actually reaches that collapsed state — before
 			// reading the setting, so both arms count and users who never collapse don't dilute it.

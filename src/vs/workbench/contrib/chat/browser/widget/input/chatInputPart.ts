@@ -3367,15 +3367,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		if (this.options.renderSecondaryControlsInInput) {
-			// Lift the secondary controls into the input so it matches the Agents new-session
-			// composer: the mode / permissions pickers lead the input toolbar row, and the
-			// context-usage widget becomes a direct child of the input container so it can sit in
-			// the input's top-right corner (positioned via CSS). The marker class binds that
-			// out-of-flow positioning to the reparent itself, so the widget can never render
-			// in-flow and widen the input (which previously caused a composer/editor width
-			// mismatch — see microsoft/vscode#337490).
+			// Move the context-usage widget into the input container so it can sit in the input's
+			// top-right corner (positioned via CSS). The marker class binds that out-of-flow
+			// positioning to the reparent itself, so the widget can never render in-flow and widen
+			// the input (which previously caused a composer/editor width mismatch — see
+			// microsoft/vscode#337490). The secondary controls (mode / permissions) are moved into
+			// the input toolbar row after it is created, so the add-context button stays first.
 			inputContainer.classList.add('chat-secondary-controls-in-input');
-			toolbarsContainer.prepend(responsivePickerContainer);
 			inputContainer.appendChild(this.contextUsageWidgetContainer);
 		}
 
@@ -3744,6 +3742,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
+		if (this.options.renderSecondaryControlsInInput) {
+			// Place the mode / permissions pickers immediately after the add-context toolbar so the
+			// input row matches the Agents composer order ("+ Add Context", then mode/permissions,
+			// then the execute controls) without displacing the add-context button.
+			this.inputActionsToolbar.getElement().after(responsivePickerContainer);
+		}
 		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
 			// Update container reference for the pickers (cloud sessions host them in the primary toolbar)
