@@ -284,6 +284,11 @@ export interface ICustomizationItemProvider {
 	 *   creation locations should be returned.
 	 */
 	provideSourceFolders?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[] | undefined>;
+
+	/**
+	 * Returns the opaque workspace group containing a customization.
+	 */
+	getWorkspaceGroupId?(sessionResource: URI, resource: URI): string | undefined;
 }
 
 /**
@@ -297,6 +302,8 @@ export interface ICustomizationSourceFolder {
 	readonly source: AICustomizationSource;
 	/** Opaque provider-defined identity shared by folders that belong to the same destination. */
 	readonly destinationGroupId?: string;
+	/** Opaque provider-defined identity shared by folders that belong to the same workspace root. */
+	readonly workspaceGroupId?: string;
 }
 
 /**

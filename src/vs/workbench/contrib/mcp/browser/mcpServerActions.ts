@@ -27,6 +27,7 @@ import { IMcpSamplingService, IMcpServer, IMcpServerContainer, IMcpService, IMcp
 import { startServerByFilter } from '../common/mcpTypesUtils.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IMcpWorkspaceInstallTargetService } from '../../../services/mcp/common/mcpWorkspaceInstallTargetService.js';
 import { IQuickInputService, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -307,7 +308,7 @@ export class InstallInWorkspaceAction extends McpServerAction {
 	constructor(
 		private readonly open: boolean,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IMcpWorkspaceInstallTargetService private readonly workspaceInstallTargetService: IMcpWorkspaceInstallTargetService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IMcpService private readonly mcpService: IMcpService,
@@ -320,7 +321,7 @@ export class InstallInWorkspaceAction extends McpServerAction {
 	update(): void {
 		this.enabled = false;
 		this.class = InstallInWorkspaceAction.HIDE;
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		if (this.workspaceInstallTargetService.getTargets().length === 0) {
 			return;
 		}
 		if (!this.mcpServer?.gallery && !this.mcpServer?.installable) {
@@ -376,12 +377,16 @@ export class InstallInWorkspaceAction extends McpServerAction {
 	private async getConfigurationTarget(): Promise<ConfigurationTarget | IWorkspaceFolder | undefined> {
 		type OptionQuickPickItem = QuickPickItem & { target?: ConfigurationTarget | IWorkspaceFolder };
 		const options: OptionQuickPickItem[] = [];
-
-		for (const folder of this.workspaceService.getWorkspace().folders) {
-			options.push({ target: folder, label: folder.name, description: localize('install in workspace folder', "Workspace Folder") });
+		const targets = this.workspaceInstallTargetService.getTargets();
+		if (targets.length === 0) {
+			return undefined;
 		}
 
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+		for (const folder of targets.filter(isWorkspaceFolder)) {
+			options.push({ target: folder, label: localize('mcp.target.workspaceFolderLabel', "Workspace ({0})", folder.name), description: localize('install in workspace folder', "Workspace Folder") });
+		}
+
+		if (targets.includes(ConfigurationTarget.WORKSPACE)) {
 			if (options.length > 0) {
 				options.push({ type: 'separator' });
 			}
@@ -597,7 +602,7 @@ export class DisableMcpServerGloballyAction extends McpServerAction {
 	constructor(
 		@IMcpService private readonly mcpService: IMcpService,
 	) {
-		super(DisableMcpServerGloballyAction.ID, localize('disableGlobally', "Disable"), McpServerAction.LABEL_ACTION_CLASS);
+		super(DisableMcpServerGloballyAction.ID, localize('disableGlobally', "Disable (Globally)"), McpServerAction.LABEL_ACTION_CLASS);
 		this.tooltip = localize('disableGloballyTooltip', "Disable this MCP server");
 		this.update();
 	}
@@ -690,7 +695,7 @@ export class DisableMcpDropDownAction extends ButtonWithDropDownExtensionAction 
 
 export function getContextMenuActions(mcpServer: IWorkbenchMcpServer, isEditorAction: boolean, instantiationService: IInstantiationService): IAction[][] {
 	return instantiationService.invokeFunction(accessor => {
-		const workspaceService = accessor.get(IWorkspaceContextService);
+		const workspaceInstallTargetService = accessor.get(IMcpWorkspaceInstallTargetService);
 		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 		const groups: McpServerAction[][] = [];
@@ -727,7 +732,7 @@ export function getContextMenuActions(mcpServer: IWorkbenchMcpServer, isEditorAc
 			]);
 			if (!isEditorAction) {
 				const installGroup: McpServerAction[] = [instantiationService.createInstance(UninstallAction)];
-				if (workspaceService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+				if (workspaceInstallTargetService.getTargets().length > 0) {
 					installGroup.push(instantiationService.createInstance(InstallInWorkspaceAction, false));
 				}
 				if (environmentService.remoteAuthority && mcpServer.local?.scope !== LocalMcpServerScope.RemoteUser) {
@@ -737,7 +742,7 @@ export function getContextMenuActions(mcpServer: IWorkbenchMcpServer, isEditorAc
 			}
 		} else {
 			const installGroup = [];
-			if (workspaceService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+			if (workspaceInstallTargetService.getTargets().length > 0) {
 				installGroup.push(instantiationService.createInstance(InstallInWorkspaceAction, !isEditorAction));
 			}
 			if (environmentService.remoteAuthority) {

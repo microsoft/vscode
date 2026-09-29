@@ -19,7 +19,6 @@ import { ChatConfiguration, ChatNotificationMode } from '../../../../workbench/c
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export class SessionsWindowNotifier extends Disposable implements IWorkbenchContribution {
@@ -36,7 +35,6 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@ISessionComparisonService private readonly _sessionComparisonService: ISessionComparisonService,
 	) {
 		super();
 
@@ -98,15 +96,17 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 		if (session.status.get() !== status) {
 			return;
 		}
+		// A live chat model in this window is already covered by ChatWindowNotifier,
+		// which knows about queued requests. This notifier only covers sessions that
+		// have no model here, where the status summary is all we have to go on.
+		if (this._chatService.getSession(session.resource) || this._chatWidgetService.getWidgetBySessionResource(session.resource)) {
+			return;
+		}
 		const setting = status === SessionStatus.NeedsInput
 			? ChatConfiguration.NotifyWindowOnConfirmation
 			: ChatConfiguration.NotifyWindowOnResponseReceived;
 		const mode = this._configurationService.getValue<ChatNotificationMode>(setting);
-		const notifyForInactivePane = this._shouldNotifyForInactivePane(session, status, mode);
-		if (this._isCoveredByChatNotifier(session, status) && !notifyForInactivePane) {
-			return;
-		}
-		if (mode === ChatNotificationMode.Off || (mode !== ChatNotificationMode.Always && this._hostService.hasFocus && !notifyForInactivePane)) {
+		if (mode === ChatNotificationMode.Off || (mode !== ChatNotificationMode.Always && this._hostService.hasFocus)) {
 			return;
 		}
 
@@ -118,10 +118,8 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 			// so it always yields to a window that does. Without the delay it would win
 			// native deduplication and the toast would open the wrong window.
 			await timeout(this._getBackgroundNotificationDelay());
-			const notifyForInactivePane = this._shouldNotifyForInactivePane(session, status, mode);
 			if (cts.token.isCancellationRequested || session.status.get() !== status
-				|| this._isCoveredByChatNotifier(session, status) && !notifyForInactivePane
-				|| mode !== ChatNotificationMode.Always && this._hostService.hasFocus && !notifyForInactivePane) {
+				|| this._chatService.getSession(session.resource) || this._chatWidgetService.getWidgetBySessionResource(session.resource)) {
 				return;
 			}
 			if (!this._hostService.hasFocus) {
@@ -147,29 +145,6 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 				this._clearNotification(session);
 			}
 		}
-	}
-
-	private _isCoveredByChatNotifier(session: ISession, status: SessionStatus): boolean {
-		const model = this._chatService.getSession(session.resource);
-		if (status === SessionStatus.NeedsInput) {
-			return !!model?.requestNeedsInput.get();
-		}
-		return !!model || !!this._chatWidgetService.getWidgetBySessionResource(session.resource);
-	}
-
-	private _shouldNotifyForInactivePane(session: ISession, status: SessionStatus, mode: ChatNotificationMode): boolean {
-		if (status !== SessionStatus.NeedsInput || mode !== ChatNotificationMode.WindowNotFocused || !this._hostService.hasFocus) {
-			return false;
-		}
-		const visibleSessions = this._sessionsService.visibleSessions.get();
-		const activeSession = this._sessionsService.activeSession.get();
-		const comparison = this._sessionComparisonService.getComparisonForSession(session.resource);
-		return visibleSessions.length > 1
-			&& visibleSessions.some(candidate => candidate?.sessionId === session.sessionId)
-			&& activeSession?.sessionId !== session.sessionId
-			&& !!comparison
-			&& !!activeSession
-			&& this._sessionComparisonService.getComparisonForSession(activeSession.resource)?.id === comparison.id;
 	}
 
 	private _getNotificationBody(session: ISession, status: SessionStatus): string {

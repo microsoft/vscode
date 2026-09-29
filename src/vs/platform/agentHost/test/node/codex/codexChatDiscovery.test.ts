@@ -23,7 +23,7 @@ import { ILogService, NullLogService } from '../../../../log/common/log.js';
 import { IProductService } from '../../../../product/common/productService.js';
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
-import { AgentSession, IAgentDiscoveredChat } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, IAgentDiscoveredChat } from '../../../common/agent.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
@@ -48,6 +48,9 @@ import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
+import { AgentHostStartupPerformance, IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
+import { AgentHostLaunchKind } from '../../../common/agentHostTelemetry.js';
+import { TestAgentHostStartupTelemetryService } from '../testAgentHostStartupTelemetryService.js';
 
 const codexHome = URI.file('/codex-discovery/custom-home');
 
@@ -78,6 +81,13 @@ function thread(id: string, updatedAt = 1, name = id): Thread {
 	};
 }
 
+function turn(id: string, text: string): CodexTurn {
+	return {
+		id, status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
+		items: [{ type: 'userMessage', id: `${id}-user`, clientId: null, content: [{ type: 'text', text, text_elements: [] }] }],
+	};
+}
+
 class CatalogClient extends mock<ICodexAppServerClient>() {
 	threads: Thread[] = [thread('first')];
 	turns: CodexTurn[] = [];
@@ -89,6 +99,7 @@ class CatalogClient extends mock<ICodexAppServerClient>() {
 	activeLists = 0;
 	maxActiveLists = 0;
 	nextList: (() => Promise<Thread[]>) | undefined;
+	nextCursor: string | null = null;
 	readonly requests: (ClientRequestParams<ClientRequestMethod>)[] = [];
 	override async request<M extends ClientRequestMethod, R>(method: M, _params: ClientRequestParams<M>): Promise<R> {
 		if (method === 'thread/read') {
@@ -115,7 +126,7 @@ class CatalogClient extends mock<ICodexAppServerClient>() {
 		const next = this.nextList;
 		this.nextList = undefined;
 		try {
-			return { data: next ? await next() : this.threads, nextCursor: null } as R;
+			return { data: next ? await next() : this.threads, nextCursor: this.nextCursor } as R;
 		} finally {
 			this.activeLists--;
 		}
@@ -140,7 +151,7 @@ class DiscoveryFileSystem extends InMemoryFileSystemProvider {
 	}
 }
 
-function createHarness(store: DisposableStore, sessionData = createSessionDataService()) {
+function createHarness(store: DisposableStore, sessionData = createSessionDataService(), startupPerformance: IAgentHostStartupPerformance = NullAgentHostStartupPerformance, downloader = new RecordingAgentSdkDownloader()) {
 	const instantiation = store.add(new TestInstantiationService());
 	const log = new NullLogService();
 	const files = store.add(new FileService(log));
@@ -148,7 +159,6 @@ function createHarness(store: DisposableStore, sessionData = createSessionDataSe
 	store.add(files.registerProvider(Schemas.file, filesystem));
 	const state = store.add(new AgentHostStateManager(log));
 	const config = store.add(new AgentConfigurationService(state, log));
-	const downloader = new RecordingAgentSdkDownloader();
 	instantiation.stub(ILogService, log);
 	instantiation.stub(IFileService, files);
 	instantiation.stub(IAgentConfigurationService, config);
@@ -166,6 +176,7 @@ function createHarness(store: DisposableStore, sessionData = createSessionDataSe
 	instantiation.stub(INativeEnvironmentService, { userHome: URI.file('/codex-discovery/user') });
 	instantiation.stub(IProductService, { version: '1.0.0-test' });
 	instantiation.stub(ITelemetryService, NullTelemetryService);
+	instantiation.stub(IAgentHostStartupPerformance, startupPerformance);
 	const agent = store.add(instantiation.createInstance(CodexAgent));
 	const internal = agent as unknown as ITestCodexAgent;
 	// Stub the native process boundary while retaining real discovery, metadata mapping and file services.
@@ -186,16 +197,142 @@ function createHarness(store: DisposableStore, sessionData = createSessionDataSe
 suite('Codex chat discovery', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const [active, sdkAvailable] of [[false, false], [true, false], [true, true]]) {
+		test(`startup telemetry snapshots activation ${active} and SDK availability ${sdkAvailable} without additional work`, async () => {
+			const store = disposables.add(new DisposableStore());
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+			const setupChecked = new DeferredPromise<void>();
+			const downloader = new class extends RecordingAgentSdkDownloader {
+				checks = 0;
+				override async isSdkResolvableWithoutDownload(): Promise<boolean> {
+					this.checks++;
+					if (this.checks === 1) {
+						void setupChecked.complete();
+					}
+					return super.isSdkResolvableWithoutDownload();
+				}
+			};
+			downloader.resolvableWithoutDownload = sdkAvailable;
+			let downloads = 0;
+			downloader.loadSdkRootResult = async () => {
+				downloads++;
+				throw new Error('unexpected download');
+			};
+			const { agent, internal, client } = createHarness(store, undefined, startupPerformance, downloader);
+			internal._activated = active;
+			client.threads = [];
+			await setupChecked.p;
+			const setupChecks = downloader.checks;
+			const first = await agent.listChatsToMigrate();
+			const initialChecks = downloader.checks - setupChecks;
+			const initialRequests = client.listCalls;
+			internal._activated = true;
+			downloader.resolvableWithoutDownload = true;
+			await agent.listChatsToMigrate();
+
+			assert.deepStrictEqual({
+				deferred: first === AgentChatMigrationDeferred,
+				initialChecks,
+				initialRequests,
+				totalChecks: downloader.checks - setupChecks,
+				totalRequests: client.listCalls,
+				downloads,
+				contexts: telemetry.events.filter(event => event.data?.name === 'providerContext').map(({ data }) => [
+					data?.provider, data?.activationState, data?.sdkAvailability,
+				]),
+			}, {
+				deferred: !active || !sdkAvailable,
+				initialChecks: active ? 1 : 0,
+				initialRequests: active && sdkAvailable ? 1 : 0,
+				totalChecks: active ? 2 : 1,
+				totalRequests: active && sdkAvailable ? 2 : 1,
+				downloads: 0,
+				contexts: [['codex', active ? 'active' : 'inactive', active ? (sdkAvailable ? 'available' : 'unavailable') : 'unknown']],
+			});
+		});
+	}
+
+	test('startup telemetry keeps SDK availability unknown when its existing check fails', async () => {
+		const store = disposables.add(new DisposableStore());
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const downloader = new class extends RecordingAgentSdkDownloader {
+			override async isSdkResolvableWithoutDownload(): Promise<boolean> {
+				throw new Error('SDK lookup failed');
+			}
+		};
+		const { agent, client } = createHarness(store, undefined, startupPerformance, downloader);
+		await assert.rejects(agent.listChatsToMigrate(), /SDK lookup failed/);
+		assert.deepStrictEqual({
+			requests: client.listCalls,
+			contexts: telemetry.events.filter(event => event.data?.name === 'providerContext').map(({ data }) => [data?.activationState, data?.sdkAvailability]),
+		}, { requests: 0, contexts: [['active', 'unknown']] });
+	});
+
+	test('startup telemetry counts provider threads before subagent filtering without extra requests', async () => {
+		const store = disposables.add(new DisposableStore());
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const { agent, client, events } = createHarness(store, undefined, startupPerformance);
+		client.threads = [...Array.from({ length: 100 }, (_, i) => thread(`startup-${i}`)), { ...thread('child'), parentThreadId: 'parent' }];
+		await agent.startChatDiscovery();
+		await agent.startChatDiscovery();
+		assert.deepStrictEqual({
+			requests: client.listCalls,
+			discovered: events.flat().length,
+			contexts: telemetry.events.filter(event => event.data?.name === 'providerContext').map(({ data }) => [data?.activationState, data?.sdkAvailability]),
+			timings: telemetry.events.filter(event => event.data?.outcome).map(({ data }) => [data?.name, data?.provider, data?.outcome, data?.scannedSessionCount, data?.pageCount, data?.truncated]),
+		}, {
+			requests: 1,
+			discovered: 100,
+			contexts: [['active', 'available']],
+			timings: [['sessionDiscoveryScan', 'codex', 'success', 101, 1, false]],
+		});
+	});
+
+	test('startup telemetry flags a repeated provider cursor as a partial scan', async () => {
+		const store = disposables.add(new DisposableStore());
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const { agent, client } = createHarness(store, undefined, startupPerformance);
+		client.nextCursor = 'repeated';
+		await agent.startChatDiscovery();
+		assert.deepStrictEqual(telemetry.events.filter(event => event.data?.outcome).map(({ data }) => [data?.outcome, data?.scannedSessionCount, data?.pageCount, data?.truncated]), [
+			['partial', 2, 2, true],
+		]);
+	});
+
+	test('startup telemetry preserves enumeration failure and a later empty result as different outcomes', async () => {
+		const store = disposables.add(new DisposableStore());
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const { agent, client } = createHarness(store, undefined, startupPerformance);
+		client.nextList = async () => { throw new Error('catalog unavailable'); };
+		const failed = await agent.listChatsToMigrate();
+		client.threads = [];
+		const empty = await agent.listChatsToMigrate();
+		assert.deepStrictEqual({
+			failed,
+			empty,
+			timings: telemetry.events.filter(event => event.data?.outcome).map(({ data }) => [data?.outcome, data?.scannedSessionCount, data?.pageCount]),
+		}, {
+			failed: undefined,
+			empty: [],
+			timings: [['error', undefined, 0], ['success', 0, 1]],
+		});
+	});
+
 	test('publishes external creation and title/recency updates after the initial catalog without another start', () => runWithFakedTimers({}, async () => {
 		const store = disposables.add(new DisposableStore());
-		const { agent, client, files, events } = createHarness(store);
+		const { agent, client, files, filesystem, events } = createHarness(store);
 		try {
 			await agent.startChatDiscovery();
 			client.threads = [thread('first'), thread('second')];
 			await files.writeFile(URI.file(client.threads[1].path!), VSBuffer.fromString('new rollout'));
 			await timeout(6000);
 			client.threads = [thread('first', 2, 'Updated title'), thread('second')];
-			await files.writeFile(URI.file(client.threads[0].path!), VSBuffer.fromString('updated rollout'));
+			filesystem.changeHomeFile('session_index.jsonl');
 			await timeout(6000);
 			assert.deepStrictEqual(events.map(chats => chats.map(chat => [chat.summary, chat.modifiedTime, chat.external])), [
 				[['first', 1000, true]],
@@ -209,14 +346,14 @@ suite('Codex chat discovery', () => {
 
 	test('serves the latest discovery metadata without materializing the external thread', () => runWithFakedTimers({}, async () => {
 		const store = disposables.add(new DisposableStore());
-		const { agent, client, files } = createHarness(store);
+		const { agent, client, filesystem } = createHarness(store);
 		try {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
 			const before = await agent.getChatMetadata(chat, session);
 			client.threads = [thread('first', 2, 'Updated title')];
-			await files.writeFile(URI.file(client.threads[0].path!), VSBuffer.fromString('update'));
+			filesystem.changeHomeFile('session_index.jsonl');
 			await timeout(6000);
 			const after = await agent.getChatMetadata(chat, session);
 			assert.deepStrictEqual([before?.summary, after?.summary, after?.modifiedTime], ['first', 'Updated title', 2000]);
@@ -225,22 +362,125 @@ suite('Codex chat discovery', () => {
 		}
 	}));
 
-	test('coalesces streaming writes, serializes scans, and retains a trailing invalidation', () => runWithFakedTimers({}, async () => {
+	test('rollout updates do not rescan the catalog while additions and deletions do', () => runWithFakedTimers({}, async () => {
 		const store = disposables.add(new DisposableStore());
 		const { agent, client, files, events } = createHarness(store);
+		try {
+			const existing = URI.file(client.threads[0].path!);
+			await files.writeFile(existing, VSBuffer.fromString('initial rollout'));
+			await timeout(100);
+			await agent.startChatDiscovery();
+			for (let i = 0; i < 7; i++) {
+				await files.writeFile(existing, VSBuffer.fromString(`stream ${i}`));
+				await timeout(1000);
+			}
+			await timeout(6000);
+			const afterUpdates = { lists: client.listCalls, events: events.length };
+
+			const added = thread('second');
+			client.threads = [client.threads[0], added];
+			await files.writeFile(URI.file(added.path!), VSBuffer.fromString('new rollout'));
+			await timeout(6000);
+			const afterAddition = { lists: client.listCalls, events: events.length };
+
+			client.threads = [client.threads[0]];
+			await files.del(URI.file(added.path!));
+			await timeout(6000);
+			assert.deepStrictEqual({ afterUpdates, afterAddition, afterDeletion: { lists: client.listCalls, events: events.length } }, {
+				afterUpdates: { lists: 1, events: 1 },
+				afterAddition: { lists: 2, events: 2 },
+				afterDeletion: { lists: 3, events: 2 },
+			});
+		} finally {
+			store.dispose();
+		}
+	}));
+
+	test('rollout updates refresh observed history without rescanning the catalog', () => runWithFakedTimers({}, async () => {
+		const store = disposables.add(new DisposableStore());
+		const { agent, client, files } = createHarness(store);
+		try {
+			const rollout = URI.file(client.threads[0].path!);
+			await files.writeFile(rollout, VSBuffer.fromString('initial rollout'));
+			await timeout(100);
+			await agent.startChatDiscovery();
+			const session = AgentSession.uri('codex', 'first');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			await agent.materializeChat(chat, { resource: session, configurationResource: session }, undefined);
+			client.turns = [turn('one', 'First message')];
+			await agent.chats.getMessages(chat, session);
+			const observed = agent as import('../../../common/agent.js').IAgent;
+			const histories: string[][] = [];
+			if (observed.onDidChangeChatHistory) {
+				store.add(observed.onDidChangeChatHistory(event => histories.push(event.turns.map(turn => turn.message.text))));
+			}
+			if (observed.watchChatHistory) {
+				store.add(observed.watchChatHistory(chat));
+			}
+			await timeout(1500);
+			histories.length = 0;
+			const historyReads = client.historyRequests.length;
+			const catalogReads = client.listCalls;
+
+			client.turns = [...client.turns, turn('two', 'Sent later in ChatGPT')];
+			await files.writeFile(rollout, VSBuffer.fromString('updated rollout'));
+			await timeout(1500);
+
+			assert.deepStrictEqual({
+				histories,
+				historyRead: client.historyRequests.length > historyReads,
+				catalogReads: client.listCalls - catalogReads,
+			}, {
+				histories: [['First message', 'Sent later in ChatGPT']],
+				historyRead: true,
+				catalogReads: 0,
+			});
+		} finally {
+			store.dispose();
+		}
+	}));
+
+	test('ordinary state database writes do not rescan, while database creation and index changes do', () => runWithFakedTimers({}, async () => {
+		const store = disposables.add(new DisposableStore());
+		const { agent, client, filesystem } = createHarness(store);
+		try {
+			await agent.startChatDiscovery();
+			filesystem.changeHomeFile('state_5.sqlite');
+			filesystem.changeHomeFile('state_5.sqlite-wal', FileChangeType.ADDED);
+			await timeout(6000);
+			const afterPersistence = client.listCalls;
+
+			filesystem.changeHomeFile('state_6.sqlite', FileChangeType.ADDED);
+			await timeout(6000);
+			const afterDatabaseCreation = client.listCalls;
+
+			filesystem.changeHomeFile('session_index.jsonl');
+			await timeout(6000);
+			assert.deepStrictEqual({ afterPersistence, afterDatabaseCreation, afterIndexChange: client.listCalls }, {
+				afterPersistence: 1,
+				afterDatabaseCreation: 2,
+				afterIndexChange: 3,
+			});
+		} finally {
+			store.dispose();
+		}
+	}));
+
+	test('coalesces metadata invalidations, serializes scans, and retains a trailing invalidation', () => runWithFakedTimers({}, async () => {
+		const store = disposables.add(new DisposableStore());
+		const { agent, client, filesystem, events } = createHarness(store);
 		try {
 			await agent.startChatDiscovery();
 			const blocked = new DeferredPromise<Thread[]>();
 			client.nextList = () => blocked.p;
-			const rollout = URI.file(client.threads[0].path!);
 			// A steady stream must still refresh before writes stop.
 			for (let i = 0; i < 7; i++) {
-				await files.writeFile(rollout, VSBuffer.fromString(`stream ${i}`));
+				filesystem.changeHomeFile('session_index.jsonl');
 				await timeout(1000);
 			}
 			const duringStreaming = client.listCalls;
 			client.threads = [thread('first', 3, 'Trailing title')];
-			await files.writeFile(rollout, VSBuffer.fromString('trailing'));
+			filesystem.changeHomeFile('session_index.jsonl');
 			await timeout(6000);
 			await blocked.complete([thread('first', 2, 'Intermediate title')]);
 			await timeout(6000);
@@ -264,7 +504,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const failedEvents = events.length;
 			await timeout(6000);
-			filesystem.changeHomeFile('state_5.sqlite-wal');
+			filesystem.changeHomeFile('session_index.jsonl');
 			await timeout(6000);
 			assert.deepStrictEqual({ failedEvents, lists: client.listCalls, events: events.length }, { failedEvents: 0, lists: 3, events: 1 });
 		} finally {
@@ -336,7 +576,7 @@ suite('Codex chat discovery', () => {
 			client.threads = [thread('internal'), thread('external')];
 			await agent.startChatDiscovery();
 			client.threads = [thread('internal', 2), thread('external', 2)];
-			filesystem.changeHomeFile('state_5.sqlite-wal');
+			filesystem.changeHomeFile('session_index.jsonl');
 			await timeout(6000);
 			assert.deepStrictEqual(events.map(chats => chats.map(chat => [chat.summary, chat.external])), [
 				[['internal', false], ['external', true]], [['internal', false], ['external', true]],
@@ -421,10 +661,6 @@ suite('Codex chat discovery', () => {
 	test('observed external history refreshes during writes without resuming the native writer', () => runWithFakedTimers({}, async () => {
 		const store = disposables.add(new DisposableStore());
 		const { agent, client, filesystem } = createHarness(store);
-		const turn = (id: string, text: string): CodexTurn => ({
-			id, status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
-			items: [{ type: 'userMessage', id: `${id}-user`, clientId: null, content: [{ type: 'text', text, text_elements: [] }] }],
-		});
 		try {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
@@ -462,9 +698,9 @@ suite('Codex chat discovery', () => {
 			watch?.dispose();
 			const requestsAtDispose = client.historyRequests.length;
 			await timeout(6000);
-			assert.deepStrictEqual({ afterCreation, afterBurst, unchanged: count === afterUnchanged, maxConcurrent: client.maxActiveHistoryReads, stopped: requestsAtDispose === client.historyRequests.length }, {
+			assert.deepStrictEqual({ afterCreation, afterBurst, unchanged: count === afterUnchanged, maxConcurrent: client.maxActiveHistoryReads, stopped: requestsAtDispose === client.historyRequests.length, lists: client.listCalls }, {
 				afterCreation: ['First message', 'Sent later in ChatGPT'], afterBurst: ['First message', 'Sent later in ChatGPT', 'Trailing external turn'],
-				unchanged: true, maxConcurrent: 1, stopped: true,
+				unchanged: true, maxConcurrent: 1, stopped: true, lists: 1,
 			});
 		} finally {
 			store.dispose();
@@ -542,15 +778,16 @@ suite('Codex chat discovery', () => {
 			client.threads = [{ ...thread('desktop'), source: 'vscode' }];
 			const rollout = URI.file(client.threads[0].path!);
 			await files.writeFile(rollout, VSBuffer.fromString('{"type":"session_meta","payload":{"originator":"Codex Desktop"}}\n'));
+			await timeout(100);
 			let rolloutReads = 0;
 			const readFile = files.readFile;
 			files.readFile = async (resource, options) => { rolloutReads++; return readFile.call(files, resource, options); };
 			await agent.startChatDiscovery();
-			const initial = { rolloutReads, databaseReads };
+			const initial = { rolloutReads, databaseReads, lists: client.listCalls };
 			filesystem.changeHomeFile('state_5.sqlite-wal');
 			await timeout(6000);
-			assert.deepStrictEqual({ initial, after: { rolloutReads, databaseReads } }, {
-				initial: { rolloutReads: 1, databaseReads: 1 }, after: { rolloutReads: 1, databaseReads: 1 },
+			assert.deepStrictEqual({ initial, after: { rolloutReads, databaseReads, lists: client.listCalls } }, {
+				initial: { rolloutReads: 1, databaseReads: 1, lists: 1 }, after: { rolloutReads: 1, databaseReads: 1, lists: 1 },
 			});
 		} finally {
 			store.dispose();
@@ -564,7 +801,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const pending = new DeferredPromise<Thread[]>();
 			client.nextList = () => pending.p;
-			filesystem.changeHomeFile('state_5.sqlite-wal');
+			filesystem.changeHomeFile('session_index.jsonl');
 			await timeout(6000);
 			const previous = internal._connection;
 			assert.strictEqual(previous.kind, 'ready');
@@ -597,7 +834,7 @@ suite('Codex chat discovery', () => {
 			await timeout(66_000);
 			const pending = new DeferredPromise<Thread[]>();
 			client.nextList = () => pending.p;
-			filesystem.changeHomeFile('state_5.sqlite-wal');
+			filesystem.changeHomeFile('session_index.jsonl');
 			await timeout(6000);
 			await agent.shutdown();
 			const callsAtShutdown = client.listCalls;

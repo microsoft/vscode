@@ -4,19 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../../browser/media/workbench.css';
+import '../../browser/parts/media/editorPart.css';
 import '../../browser/parts/mobile/mobileChatShell.css';
 import assert from 'assert';
+import sinon from 'sinon';
 import { $, append } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { getAgentsPartCardContentSize } from '../../browser/parts/agentsPartCard.js';
 import { CustomViewGridPart } from '../../browser/parts/customViewGridPart.js';
+import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 
 suite('Sessions - Agents Part Card', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	function createCard(sidebarVisible: boolean, editorPaneVisible: boolean, phone: boolean = false) {
 		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
@@ -76,6 +82,68 @@ suite('Sessions - Agents Part Card', () => {
 		});
 	});
 
+	for (const singlePane of [false, true]) {
+		test(`keeps the expanded ${singlePane ? 'single-pane' : 'classic'} editor gutter and content size in sync`, () => {
+			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.noauxiliarybar'));
+			store.add(toDisposable(() => workbench.remove()));
+			workbench.classList.toggle('dock-detail-panel', singlePane);
+			workbench.style.width = '800px';
+			workbench.style.setProperty('--vscode-agents-layout-floatingPanelGap', '4px');
+			workbench.style.setProperty('--vscode-strokeThickness', '1px');
+			const grid = append(workbench, $('.monaco-grid-view'));
+			grid.style.width = '796px';
+			const editor = append(grid, $('.part.editor'));
+			const content = append(editor, $('.content'));
+			const baseLayout = sinon.stub(MainEditorPartBase.prototype, 'layout').callsFake((width, height) => {
+				content.style.width = `${width}px`;
+				content.style.height = `${height}px`;
+			});
+			const states = [
+				{ name: 'split', sidebar: true, sessions: true, phone: false, leftGap: 0, contentWidth: 794 },
+				{ name: 'sidebar hidden', sidebar: false, sessions: true, phone: false, leftGap: 0, contentWidth: 794 },
+				{ name: 'expanded', sidebar: false, sessions: false, phone: false, leftGap: 4, contentWidth: 790 },
+				{ name: 'restored', sidebar: false, sessions: true, phone: false, leftGap: 0, contentWidth: 794 },
+				{ name: 'phone', sidebar: false, sessions: false, phone: true, leftGap: 0, contentWidth: 794 },
+				{ name: 'desktop restored', sidebar: false, sessions: false, phone: false, leftGap: 4, contentWidth: 790 },
+				{ name: 'sidebar restored', sidebar: true, sessions: false, phone: false, leftGap: 0, contentWidth: 794 },
+			];
+			const actual = states.map(state => {
+				workbench.classList.toggle('nosidebar', !state.sidebar);
+				workbench.classList.toggle('nosessionspart', !state.sessions);
+				workbench.classList.toggle('phone-layout', state.phone);
+				const part = {
+					layoutService: {
+						mainContainer: workbench,
+						isSinglePaneLayoutEnabled: singlePane,
+						isVisible: (partId: Parts) => partId === Parts.EDITOR_PART
+							|| (partId === Parts.SIDEBAR_PART && state.sidebar)
+							|| (partId === Parts.SESSIONS_PART && state.sessions),
+					},
+				};
+				const layout = MainEditorPart.prototype.layout as (this: typeof part, width: number, height: number, top: number, left: number) => void;
+				layout.call(part, 796, 600, 36, 0);
+
+				return {
+					name: state.name,
+					leftGap: editor.getBoundingClientRect().left - grid.getBoundingClientRect().left,
+					rightGap: workbench.getBoundingClientRect().right - editor.getBoundingClientRect().right,
+					contentWidth: content.clientWidth,
+					editorContentWidth: editor.clientWidth,
+					layout: baseLayout.lastCall.args,
+				};
+			});
+
+			assert.deepStrictEqual(actual, states.map(state => ({
+				name: state.name,
+				leftGap: state.leftGap,
+				rightGap: 4,
+				contentWidth: state.contentWidth,
+				editorContentWidth: state.contentWidth,
+				layout: [state.contentWidth, 598, 36, 0],
+			})));
+		});
+	}
+
 	for (const partConstructor of [SessionsPart, CustomViewGridPart]) {
 		test(`${partConstructor.name} uses full phone content dimensions after a desktop-to-phone transition`, () => {
 			const { container } = createCard(false, false);
@@ -98,7 +166,6 @@ suite('Sessions - Agents Part Card', () => {
 				},
 				_gridWidget: { layout: layoutGrid },
 				_layoutNode: layoutGrid,
-				layoutSessionGrid: layoutGrid,
 			};
 			const layout = Reflect.get(partConstructor.prototype, 'layout') as (this: typeof part, width: number, height: number, top: number, left: number) => void;
 

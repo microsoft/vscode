@@ -924,10 +924,13 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	let sessionLoaded: boolean;
 	/** Simulates the widget loading the session's chat model. */
 	let loadSession: () => void;
+	/** The resources a chat widget was looked up for. */
+	let widgetLookups: string[];
 
 	setup(() => {
 		widgetOps = [];
 		addedEntries = [];
+		widgetLookups = [];
 		acceptInputSent = new DeferredPromise<void>();
 		acceptsRequest = true;
 		providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -980,7 +983,8 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 			override onDidAddWidget = Event.None;
 			override getAllWidgets(): readonly IChatWidget[] { return [widget]; }
-			override getWidgetBySessionResource(_resource: URI): IChatWidget | undefined {
+			override getWidgetBySessionResource(resource: URI): IChatWidget | undefined {
+				widgetLookups.push(resource.toString());
 				return sessionLoaded ? widget : undefined;
 			}
 		});
@@ -1043,6 +1047,25 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 				{ id: first.id, state: AgentFeedbackState.Submitted },
 				{ id: second.id, state: AgentFeedbackState.Accepted },
 			],
+		});
+	});
+
+	test('sends session feedback to another chat while reading and marking it under the session', async () => {
+		const first = service.addFeedback(session, fileA, r(10), 'Fix the PR comment');
+		const targetChat = URI.parse('test://session/1#peer');
+
+		const submitted = await service.submitFeedback(session, { query: '/act-on-feedback', feedbackIds: [first.id], targetChat });
+
+		assert.deepStrictEqual({
+			submitted,
+			lookups: [...new Set(widgetLookups)],
+			attachedTexts: addedEntries[0]?.feedbackItems.map(item => item.text),
+			state: service.getFeedback(session)[0].state,
+		}, {
+			submitted: true,
+			lookups: [targetChat.toString()],
+			attachedTexts: ['Fix the PR comment'],
+			state: AgentFeedbackState.Submitted,
 		});
 	});
 

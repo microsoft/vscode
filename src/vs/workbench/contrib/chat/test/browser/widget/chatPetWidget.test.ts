@@ -676,12 +676,16 @@ suite('ChatPetWidget', () => {
 		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the fall must finish at the new input');
 		const frames = drawImage.getCalls().map(call => call.args[1] / 96)
 			.filter((frame, index, allFrames) => index === 0 || frame !== allFrames[index - 1]);
+		const respawnIndex = frames.indexOf(0);
 
 		assert.deepStrictEqual({
 			departure,
 			respawn,
 			duringFall,
-			frames,
+			// Elapsed-time animation can skip intermediate frames when callbacks run late.
+			frameEndpoints: [frames[0], frames[respawnIndex], frames.at(-1)],
+			framesInOrder: frames.every((frame, index) => index === 0
+				|| (index <= respawnIndex ? frame < frames[index - 1] : frame > frames[index - 1])),
 			attached: overlay.parentElement === firstParent,
 			landed: button.getBoundingClientRect().bottom,
 			effectHidden: effect.classList.contains('hidden'),
@@ -691,7 +695,8 @@ suite('ChatPetWidget', () => {
 			departure: { left: source.left, top: source.top, hidden: true },
 			respawn: { top: root.getBoundingClientRect().top, aboveInput: true },
 			duringFall: { state: 'falling', effectHidden: true, aboveInput: true, tabIndex: -1 },
-			frames: [5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5],
+			frameEndpoints: [5, 0, 5],
+			framesInOrder: true,
 			attached: true,
 			landed: targetTop,
 			effectHidden: true,
@@ -2635,8 +2640,9 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
-	test('squishes once per pointer contact and keeps the result until the next interaction', async function () {
-		this.timeout(10_000);
+	test('squishes once per pointer contact and keeps the result until the next interaction', async () => {
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const clock = sinon.useFakeTimers();
 		const parent = mainWindow.document.createElement('div');
 		parent.style.cssText = 'position:relative;width:400px;height:240px';
 		const input = mainWindow.document.createElement('div');
@@ -2665,6 +2671,11 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
 		));
+		disposables.add(toDisposable(() => {
+			// Drain the shared animation-frame queue after widget disposal, before restoring the clock.
+			clock.runToFrame();
+			clock.restore();
+		}));
 		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
 		const counter = parent.querySelector<HTMLElement>('.chat-pet-bounce-counter');
 		assert.ok(button);
@@ -2689,7 +2700,7 @@ suite('ChatPetWidget', () => {
 		assert.strictEqual(counter.textContent, '');
 		for (let attempt = 0; attempt < 30 && counter.textContent === ''; attempt++) {
 			moveAway();
-			await timeout(20);
+			clock.tick(20);
 			strike();
 		}
 		strike();
@@ -2702,18 +2713,19 @@ suite('ChatPetWidget', () => {
 			transform: button.style.transform,
 		};
 		for (let attempt = 0; attempt < 100 && (button.classList.contains('throwing') || button.classList.contains('falling')); attempt++) {
-			await timeout(20);
+			clock.tick(20);
 		}
+		assert.ok(!button.classList.contains('throwing') && !button.classList.contains('falling'), 'the pet must land before checking the result timeout');
 		const landed = {
 			count: counter.textContent,
 			hidden: counter.classList.contains('hidden'),
 		};
-		await timeout(CHAT_PET_BOUNCE_RESULT_DURATION - 200);
+		clock.tick(CHAT_PET_BOUNCE_RESULT_DURATION - 200);
 		const beforeTimeout = {
 			count: counter.textContent,
 			hidden: counter.classList.contains('hidden'),
 		};
-		await timeout(250);
+		clock.tick(250);
 		const timedOut = {
 			count: counter.textContent,
 			hidden: counter.classList.contains('hidden'),
@@ -2723,7 +2735,7 @@ suite('ChatPetWidget', () => {
 		Object.defineProperty(bounceEvent, 'keyCode', { value: 13 });
 		button.dispatchEvent(bounceEvent);
 		for (let attempt = 0; attempt < 100 && (button.classList.contains('throwing') || button.classList.contains('falling')); attempt++) {
-			await timeout(20);
+			clock.tick(20);
 		}
 		button.click();
 		const dismissed = {
