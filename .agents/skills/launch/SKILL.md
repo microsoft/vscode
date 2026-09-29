@@ -152,8 +152,6 @@ The persistent integrated-browser partition keeps website state such as cookies,
 
 > **Why never share the source `extensions/` dir directly?** The extension management service writes a shared `.obsolete` file; two concurrent writers crash each other's shared background process. The launcher always uses an isolated extensions dir for the same reason it uses `--shared-data-dir` (see below).
 
-> If the launched window says "language model unavailable" or otherwise looks unauthed, ask the user to sign in.
-
 The script runs pre-launch (electron download, compile-if-missing, built-in extensions) **in the foreground**, then starts Code OSS detached and **blocks until the renderer's CDP endpoint is responding** (up to ~90s) before printing the JSON line on stdout. If anything fails — preLaunch errors, code.sh exits early, CDP never opens — the script exits non-zero and dumps the relevant log tail to stderr.
 
 For repeated launches of the same prepared build, pass `--skip-prelaunch` after one successful normal launch. Only use it while a watch task keeps all output current or neither sources nor build outputs have changed; otherwise the new instance may run stale or incomplete code.
@@ -321,7 +319,7 @@ Because the launch skill is built around isolation, the natural workload is **ma
 ```bash
 LAUNCH_DIR=<dir-of-this-SKILL.md>
 FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
-PASTE="$LAUNCH_DIR/scripts/monaco-paste.sh"
+PASTE="$LAUNCH_DIR/scripts/monaco-paste.mjs"
 export PW_SESSION
 
 # In agent A's shell:
@@ -330,7 +328,7 @@ INFO=$("$LAUNCH" --agents -- --use-mock-keychain | tail -n1)
 CDP=$(node -p 'JSON.parse(process.argv[1]).cdpPort' "$INFO")
 npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
 npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
-"$PASTE" "prompt for A"   # helper picks up $PW_SESSION
+node "$PASTE" "prompt for A"   # helper picks up $PW_SESSION
 
 # In agent B's shell (running concurrently):
 PW_SESSION="agent-B-$$"
@@ -338,7 +336,7 @@ INFO=$("$LAUNCH" --agents -- --use-mock-keychain | tail -n1)
 CDP=$(node -p 'JSON.parse(process.argv[1]).cdpPort' "$INFO")
 npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
 npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
-"$PASTE" "prompt for B"
+node "$PASTE" "prompt for B"
 ```
 
 Each agent gets its own `cliDaemon` bound to its own CDP, so the pastes / clicks / snapshots don't cross-contaminate. Verified live with two concurrent instances. **macOS Mach-ports caveat:** on macOS, beyond ~2–3 concurrent Code OSS instances Crashpad's exception handler tends to die with `mach_port_request_notification: invalid capability`. That's a separate, OS-level limit; it's not affected by the session name.

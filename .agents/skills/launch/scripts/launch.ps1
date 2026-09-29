@@ -412,7 +412,7 @@ try {
 			Exit-Usage "Could not find a vscode checkout in $candidateRepo. Pass --repo <vscode-repo-root>."
 		}
 	}
-	$repo = (Resolve-Path -LiteralPath $repo).Path
+	$repo = [IO.Path]::GetFullPath($repo)
 
 	$codeBat = Join-Path $repo 'scripts\code.bat'
 	if (-not (Test-Path -LiteralPath $codeBat -PathType Leaf)) {
