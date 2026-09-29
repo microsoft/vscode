@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { ResourceSet } from '../../../util/vs/base/common/map';
 import { Schemas } from '../../../util/vs/base/common/network';
-import { dirname, isEqual, joinPath } from '../../../util/vs/base/common/resources';
+import { dirname, isEqual, joinPath, resolvePath } from '../../../util/vs/base/common/resources';
 import { equalsIgnoreCase } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
@@ -29,18 +29,6 @@ const CLAUDE_CONFIG_FOLDER = '.claude';
 const COPILOT_CONFIG_FOLDER = '.copilot';
 const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
 const GITHUB_CONFIG_FOLDER = '.github';
-
-function resolveGitPath(base: URI, value: string): URI {
-	const path = value.trim();
-	if (/^[a-zA-Z]:[\\/]/.test(path)) {
-		return URI.file(path);
-	}
-	const normalizedPath = path.replace(/\\/g, '/');
-	if (normalizedPath.startsWith('/')) {
-		return base.scheme === Schemas.file ? URI.file(path) : base.with({ path: normalizedPath });
-	}
-	return joinPath(base, normalizedPath);
-}
 
 interface IWorkspaceInstructionFile {
 	readonly fileName: string;
@@ -237,7 +225,7 @@ export class AgentInstructionsLocator extends Disposable {
 			if (!gitDirPath) {
 				return false;
 			}
-			const commonDirStat = await this.fileSystemService.stat(joinPath(resolveGitPath(folderUri, gitDirPath), 'commondir'));
+			const commonDirStat = await this.fileSystemService.stat(joinPath(resolvePath(folderUri, gitDirPath.trim()), 'commondir'));
 			return (commonDirStat.type & FileType.File) !== 0;
 		} catch {
 			return false;

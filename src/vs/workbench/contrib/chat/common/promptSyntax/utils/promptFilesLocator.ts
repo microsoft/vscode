@@ -9,7 +9,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import * as nls from '../../../../../../nls.js';
 import { FileOperation, FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../config/config.js';
-import { basename, dirname, isEqual, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, isEqualOrParent, joinPath, resolvePath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, COPILOT_CONFIG_FOLDER, GITHUB_CONFIG_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
@@ -33,18 +33,6 @@ import { AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/a
  * Maximum recursion depth when traversing subdirectories for instruction files.
  */
 const MAX_INSTRUCTIONS_RECURSION_DEPTH = 5;
-
-function resolveGitPath(base: URI, value: string): URI {
-	const path = value.trim();
-	if (/^[a-zA-Z]:[\\/]/.test(path)) {
-		return URI.file(path);
-	}
-	const normalizedPath = path.replace(/\\/g, '/');
-	if (normalizedPath.startsWith('/')) {
-		return base.scheme === Schemas.file ? URI.file(path) : base.with({ path: normalizedPath });
-	}
-	return joinPath(base, normalizedPath);
-}
 
 export interface IWorkspaceInstructionFile {
 	readonly fileName: string;
@@ -187,7 +175,7 @@ export class PromptFilesLocator {
 			if (!gitDirPath) {
 				return false;
 			}
-			const commonDirStat = await this.fileService.stat(joinPath(resolveGitPath(folderUri, gitDirPath), 'commondir'));
+			const commonDirStat = await this.fileService.stat(joinPath(resolvePath(folderUri, gitDirPath.trim()), 'commondir'));
 			return commonDirStat.isFile;
 		} catch {
 			return false;
