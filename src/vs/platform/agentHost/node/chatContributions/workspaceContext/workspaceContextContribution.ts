@@ -14,7 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { FileType, IFileService } from '../../../../files/common/files.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
-import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
@@ -79,12 +79,7 @@ function snapshotKey(enumerationRoots: readonly URI[]): string {
 export class WorkspaceContextContribution extends Disposable implements IAgentHostChatContribution {
 
 	static readonly id = 'workspaceContext';
-	/**
-	 * Before `QueueDrainContribution` (200): its `onTurnEnd` can start a turn
-	 * queued behind a local command, and that turn must already see the local
-	 * command as undispatched to start preparing. Instructions still follow
-	 * `markdownPlanRichLinks` (100) and precede `chatSurface` (300).
-	 */
+	/** Instructions follow `markdownPlanRichLinks` (100) and precede `chatSurface` (300). */
 	readonly order = 175;
 	private readonly _prepared = this._register(new DisposableMap<ProtocolURI, IPreparedSnapshot>());
 	/** First-turn chats whose session is creating its worktree, keyed by session id. */
@@ -159,23 +154,6 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	}
 
 	/**
-	 * A first turn that ends without reaching the provider (a local command, or a
-	 * turn rejected, cancelled, or failed before dispatch) leaves the snapshot
-	 * unconsumed for the next turn that does.
-	 */
-	onTurnEnd(turn: ITurnEnd): void {
-		const candidate = this._candidates.get(turn.channel);
-		if (candidate && candidate.turnId === turn.turnId) {
-			const undispatched = this._context.memento(undispatchedTurnsMemento, turn.channel);
-			undispatched.set(new Set([...undispatched.get(), candidate.turnId]), undefined);
-			if (candidate.report) {
-				this._logService.info(`[WorkspaceContext] First turn of ${turn.channel} ended (${turn.reason.kind}) before reaching the provider; the snapshot will be added to the next turn that does`);
-			}
-		}
-		this._release(turn.channel);
-	}
-
-	/**
 	 * Starts preparing as soon as a first turn is accepted, whether a client or
 	 * the host (`create_session`, `send_message`, automations) started it, so
 	 * the snapshot is usually complete by the time {@link onOutgoingTurn} needs
@@ -188,9 +166,34 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		}
 		if (action.type === ActionType.SessionChatRemoved) {
 			this._release(action.chat);
-		} else if (action.type === ActionType.ChatTurnStarted && isAhpChatChannel(channel)) {
-			this._onTurnStarted(channel, session, action.turnId);
+		} else if (isAhpChatChannel(channel)) {
+			if (action.type === ActionType.ChatTurnStarted) {
+				this._onTurnStarted(channel, session, action.turnId);
+			} else if (action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnCancelled || action.type === ActionType.ChatError) {
+				this._onTurnEnded(channel, action.turnId, action.type);
+			}
 		}
+	}
+
+	/**
+	 * A tracked first turn that ends without reaching the provider (a local
+	 * command, or a turn rejected, cancelled, or failed before dispatch) leaves
+	 * the snapshot unconsumed for the next turn that does. Observed from the
+	 * turn's terminal state action rather than `onTurnEnd`: a cancelled local
+	 * command's turn end only arrives when the command finishes, possibly after
+	 * a replacement turn started. Matching by turn id ignores such stale ends.
+	 */
+	private _onTurnEnded(chat: ProtocolURI, turnId: string, reason: string): void {
+		const candidate = this._candidates.get(chat);
+		if (candidate?.turnId !== turnId) {
+			return;
+		}
+		const undispatched = this._context.memento(undispatchedTurnsMemento, chat);
+		undispatched.set(new Set([...undispatched.get(), turnId]), undefined);
+		if (candidate.report) {
+			this._logService.info(`[WorkspaceContext] First turn of ${chat} ended (${reason}) before reaching the provider; the snapshot will be added to the next turn that does`);
+		}
+		this._release(chat);
 	}
 
 	/** A restored chat with history already has a provider conversation. */

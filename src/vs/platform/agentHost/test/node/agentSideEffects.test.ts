@@ -2795,6 +2795,60 @@ suite('AgentSideEffects', () => {
 			assert.ok(terminalManager.sentTexts.some(s => s.data.includes('echo hi')));
 		});
 
+		test('a cancelled ! command that finishes late does not release the next turn\'s workspace snapshot', async () => {
+			const repository = URI.file('/repo');
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'copilotcli',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				workingDirectories: [repository.toString()],
+			});
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
+			const diskFileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
+			// Hold the provider turn at its turn-start checkpoint: after the outgoing-turn contributions, before dispatch.
+			const capture = new DeferredPromise<void>();
+			const checkpointService: IAgentHostCheckpointService = { ...NULL_CHECKPOINT_SERVICE, captureTurnStartCheckpoint: () => capture.p };
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const telemetry = new TestTelemetryService();
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [repository],
+				fileService: diskFileService,
+			}, undefined, telemetry, new FakeChangesetService(), terminalManager, checkpointService);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			// As AgentService does for a client action: apply it, then run its side effects.
+			const dispatchClient = (action: ChatAction, clientSeq: number) => {
+				stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq });
+				localSideEffects.handleAction(defaultChatUri, action);
+			};
+
+			dispatchClient({ type: ActionType.ChatTurnStarted, turnId: 'bang', startedAt: '2025-01-01T00:00:00.000Z', message: { text: '!sleep 10', origin: { kind: MessageKind.User } } }, 1);
+			await terminalManager.commandFinishedListenerRegistered.p;
+			dispatchClient({ type: ActionType.ChatTurnCancelled, turnId: 'bang', duration: 0 }, 2);
+			dispatchClient({ type: ActionType.ChatTurnStarted, turnId: 'turn-2', startedAt: '2025-01-01T00:00:01.000Z', message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } }, 3);
+			await timeout(10);
+			// The cancelled command finishes while the provider turn waits to be dispatched.
+			terminalManager.fireCommandFinished({ commandId: '1', command: 'sleep 10', exitCode: 0, output: '' });
+			await timeout(0);
+			capture.complete();
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			const snapshot = (!URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined)?.find(instruction => instruction.startsWith('<workspace_info>'));
+			const reported = telemetry.events.filter(event => event.eventName === 'agentHost.workspaceSnapshot').map(event => (event.data as { preparation?: string }).preparation);
+			assert.deepStrictEqual({ prompt: agent.sendMessageCalls[0].prompt, snapshotSent: snapshot !== undefined, reported }, {
+				prompt: 'Bump the version to 2', snapshotSent: true, reported: ['prepared'],
+			});
+		});
+
 		test('a lone ! is forwarded to the agent instead of running a command', async () => {
 			setupSession();
 			const terminalManager = disposables.add(new TestAgentHostTerminalManager());

@@ -154,7 +154,9 @@ suite('WorkspaceContextContribution', () => {
 				return;
 			}
 			activeTurns.delete(channel);
-			state.dispatchServerAction(channel, reason === 'cancelled' ? { type: ActionType.ChatTurnCancelled, turnId, duration: 0 } : { type: ActionType.ChatTurnComplete, turnId, duration: 0 });
+			const action = reason === 'cancelled' ? { type: ActionType.ChatTurnCancelled, turnId, duration: 0 } as const : { type: ActionType.ChatTurnComplete, turnId, duration: 0 } as const;
+			state.dispatchServerAction(channel, action);
+			service.didDispatchAction({ channel, session, action });
 			service.turnEnd({ session, channel, turnId, reason: { kind: reason } });
 		};
 		/**
