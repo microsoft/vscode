@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { DEFAULT_OTLP_ENDPOINT } from '../../../platform/otel/common/otelConfig';
-import { IOTelConfigResolver } from '../../../platform/otel/common/otelConfigResolution';
+import { classifyOTelConfigDrift, describeOTelConfigDrift, IOTelConfigResolver, OTelConfigDrift } from '../../../platform/otel/common/otelConfigResolution';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IOTelSqliteStore, type OTelSqliteStore } from '../../../platform/otel/node/sqlite/otelSqliteStore';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -126,26 +126,21 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 		const monitor = new OTelStaleConfigMonitor(this._otelConfigResolver, {
 			getRestartRecord: () => state.get<IOTelPolicyRestartRecord>(POLICY_RESTART_RECORD_KEY),
 			setRestartRecord: async record => state.update(POLICY_RESTART_RECORD_KEY, record),
-			// Unlike ordinary messages, progress notifications close when their host is disposed.
-			restartExtensionHost: async () => vscode.window.withProgress({
-				location: vscode.ProgressLocation.Notification,
-				title: vscode.l10n.t("Restarting extensions in this window to apply your organization's Copilot telemetry settings. Active sessions may ask you to confirm."),
-				cancellable: false,
-			}, async () => {
-				await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
-				// Successful restart destroys this host. This one-off grace period is only
-				// for deciding when a still-running host should show the reload fallback.
-				await timeout(15_000);
-			}),
+			restartExtensionHost: () => this._restartExtensionHost(),
 			warnPolicyNotApplied: () => {
-				void this._promptReload(vscode.l10n.t("Your organization's Copilot telemetry policy could not be applied automatically. Reload the window to apply it."), true);
+				void this._promptRestartExtensions(vscode.l10n.t("Your organization's telemetry settings for Local Copilot Chat could not be applied automatically. Restart extensions to apply them. This may interrupt active extension work."), true);
 			},
 			promptReload: current => {
+				if (classifyOTelConfigDrift(this._otelConfigResolver.activeResolution, current) === OTelConfigDrift.Policy) {
+					this._logService.info(`[OTel] Offering an extension host restart for Local Copilot Chat policy changes (${describeOTelConfigDrift(this._otelConfigResolver.activeResolution.config, current.config).join(', ')}).`);
+					void this._promptRestartExtensions(vscode.l10n.t("Your organization's telemetry settings for Local Copilot Chat have changed. Restart extensions to apply them. This may interrupt active extension work."), false);
+					return;
+				}
 				const endpoint = current.config.otlpEndpoint;
 				const endpointChanged = current.config.enabled && endpoint !== this._otelConfigResolver.activeResolution.config.otlpEndpoint;
 				void this._promptReload(endpointChanged
 					? vscode.l10n.t("Copilot OTel endpoint will change to {0} after reload.", String(endpoint))
-					: vscode.l10n.t("Copilot OTel settings changed - a reload is required for the change to take effect."), false);
+					: vscode.l10n.t("Copilot OTel settings changed - a reload is required for the change to take effect."));
 			},
 			notifyPolicyRestarted: () => {
 				this._logService.info('[OTel] Extensions were restarted to apply enterprise telemetry policy.');
@@ -163,12 +158,47 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 		scheduler.schedule();
 	}
 
-	private async _promptReload(message: string, warning: boolean): Promise<void> {
+	private async _restartExtensionHost(): Promise<void> {
+		// Unlike ordinary messages, progress notifications close when their host is disposed.
+		return vscode.window.withProgress({
+			location: vscode.ProgressLocation.Notification,
+			title: vscode.l10n.t("Restarting extensions in this window to apply Local Copilot Chat telemetry settings. Active sessions may ask you to confirm."),
+			cancellable: false,
+		}, async () => {
+			await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
+			// Successful restart destroys this host. Only a still-running host needs a fallback.
+			await timeout(15_000);
+		});
+	}
+
+	private async _promptRestartExtensions(message: string, warning: boolean): Promise<void> {
+		try {
+			const restartLabel = vscode.l10n.t("Restart Extensions");
+			const selection = warning
+				? await vscode.window.showWarningMessage(message, restartLabel)
+				: await vscode.window.showInformationMessage(message, restartLabel);
+			if (selection !== restartLabel || this._store.isDisposed
+				|| classifyOTelConfigDrift(this._otelConfigResolver.activeResolution, this._otelConfigResolver.resolve()) === OTelConfigDrift.None) {
+				return;
+			}
+
+			try {
+				await this._restartExtensionHost();
+			} catch (error) {
+				this._logService.error(error, '[OTel] Failed to restart extensions for Local Copilot Chat telemetry settings');
+			}
+			if (!this._store.isDisposed) {
+				await vscode.window.showWarningMessage(vscode.l10n.t("Extensions did not restart. Local Copilot Chat telemetry settings are still pending. Run 'Developer: Restart Extension Host' after active work finishes."));
+			}
+		} catch (error) {
+			this._logService.error(error, '[OTel] Failed to prompt for an extension host restart');
+		}
+	}
+
+	private async _promptReload(message: string): Promise<void> {
 		try {
 			const reloadWindowLabel = vscode.l10n.t("Reload Window");
-			const selection = warning
-				? await vscode.window.showWarningMessage(message, reloadWindowLabel)
-				: await vscode.window.showInformationMessage(message, reloadWindowLabel);
+			const selection = await vscode.window.showInformationMessage(message, reloadWindowLabel);
 			if (selection === reloadWindowLabel) {
 				await vscode.commands.executeCommand('workbench.action.reloadWindow');
 			}

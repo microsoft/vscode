@@ -205,13 +205,19 @@ a progress notification before requesting the restart; that notice clears automa
 the host restarts or the attempt ends. Successful recovery is logged without another toast.
 Restarting also interrupts other extensions in the window. If the restart is unavailable,
 vetoed, or fails to apply the settings,
-a warning offers **Reload Window** instead. User changes and policy withdrawal remain
+a warning offers **Restart Extensions** instead. User changes and policy withdrawal remain
 opt-in reloads, except that identity denial is enforced before subsequent exports.
 Existing exporter selection and legacy environment-variable precedence are unchanged.
 It uses changes to the application-scoped, policy-backed configuration defaults as a recovery
 signal, without a new API. Normal personal settings changes do not change those defaults.
 If a recognizable enterprise OTel block was already present at initialization, later changes
-only offer a reload, including enabling a previously disabled managed configuration.
+offer **Restart Extensions**, including enabling a previously disabled managed configuration.
+This is a user-controlled restart, not another automatic recovery attempt. The notification names
+Local Copilot Chat because Agent Host telemetry runs in a separate process.
+Restarting extensions avoids deliberately restarting the window's managed-settings refresh cycle;
+it does not fix the startup ordering, and recovery may be needed again after reloading the window
+or restarting the application. If extensions do not restart, the notification directs the user to
+**Developer: Restart Extension Host** after active work finishes.
 Automatic recovery additionally requires policy-enabled OTLP export targeting the collector in
 those defaults. Disabled and DB-only pipelines, unrelated partial policies, and configurations
 still redirected by environment variables to a different collector or file do not qualify.
@@ -224,10 +230,10 @@ schema-default values from no policy.
 There is no periodic polling or restart loop. A startup check and configuration events trigger
 checks, coalesced by a 500 ms debounce. At most one automatic off-to-on recovery is attempted per
 workspace and editor session, identified by `vscode.env.sessionId`. The attempt remains recorded
-even after success or failure. Later policy updates only offer a reload, deduplicated while stale.
+even after success or failure. Later policy updates offer **Restart Extensions**, deduplicated while stale.
 If policy first arrives after a later sign-in, that single recovery can happen then rather than
 immediately at launch. A one-off 15-second grace period allows a requested restart to finish
-before a still-running host shows the reload fallback.
+before a still-running host shows the manual-restart fallback.
 
 OTel is **off by default** with zero overhead. It activates when:
 

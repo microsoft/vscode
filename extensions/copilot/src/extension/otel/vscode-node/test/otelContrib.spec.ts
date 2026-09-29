@@ -14,6 +14,7 @@ import { NullTelemetryService } from '../../../../platform/telemetry/common/null
 import { MockExtensionContext } from '../../../../platform/test/node/extensionContext';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { mock } from '../../../../util/common/test/simpleMock';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { OTelContrib } from '../otelContrib';
 
 const ui = vi.hoisted(() => ({
@@ -49,7 +50,9 @@ class TestExtensionContext extends mock<IVSCodeExtensionContext>() {
 
 class RecordingLogService extends TestLogService {
 	readonly messages: string[] = [];
+	readonly errors: string[] = [];
 	override info(message: string): void { this.messages.push(message); }
+	override error(error: string | Error, message?: string): void { this.errors.push(`${message}: ${error}`); }
 }
 
 describe('OTelContrib restart notification', () => {
@@ -84,7 +87,7 @@ describe('OTelContrib restart notification', () => {
 				events.push('progress completed');
 			}
 		});
-		ui.showWarningMessage.mockImplementation(async () => { events.push('reload warning'); });
+		ui.showWarningMessage.mockImplementation(async () => { events.push('restart warning'); });
 		ui.showInformationMessage.mockResolvedValue(undefined);
 		ui.executeCommand.mockImplementation(async (command: string) => {
 			if (command === 'workbench.action.restartExtensionHost') {
@@ -114,15 +117,15 @@ describe('OTelContrib restart notification', () => {
 		expect(events).toEqual(['progress opened', 'restart requested']);
 		expect(ui.showWarningMessage).not.toHaveBeenCalled();
 		await vi.advanceTimersByTimeAsync(15_000);
-		expect(events).toEqual(['progress opened', 'restart requested', 'progress completed', 'reload warning']);
-		expect(ui.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('could not be applied automatically'), 'Reload Window');
+		expect(events).toEqual(['progress opened', 'restart requested', 'progress completed', 'restart warning']);
+		expect(ui.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('could not be applied automatically'), 'Restart Extensions');
 	});
 
-	it('ends progress when the restart command fails, then offers a manual reload', async () => {
+	it('ends progress when the restart command fails, then offers a manual extension restart', async () => {
 		ui.executeCommand.mockRejectedValue(new Error('Restart unavailable'));
 		settings.policy = { enabled: true, otlpEndpoint: 'https://managed.example' };
 		await vi.advanceTimersByTimeAsync(500);
-		expect(events).toEqual(['progress opened', 'progress completed', 'reload warning']);
+		expect(events).toEqual(['progress opened', 'progress completed', 'restart warning']);
 		expect(ui.showWarningMessage).toHaveBeenCalledTimes(1);
 	});
 
@@ -147,9 +150,122 @@ describe('OTelContrib restart notification', () => {
 
 	it('does not show automatic restart progress for personal settings changes', async () => {
 		settings.user = { enabled: true, otlpEndpoint: 'https://personal.example' };
+		ui.showInformationMessage.mockResolvedValue('Reload Window');
 		await vi.advanceTimersByTimeAsync(500);
 		expect(ui.withProgress).not.toHaveBeenCalled();
 		expect(ui.showWarningMessage).not.toHaveBeenCalled();
 		expect(ui.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('after reload'), 'Reload Window');
+		expect(ui.executeCommand).toHaveBeenCalledWith('workbench.action.reloadWindow');
+	});
+
+	it.each([false, true])('offers an opt-in restart after restricted startup values clear (personal OTel enabled: %s)', async enabled => {
+		contribution.dispose();
+		settings.user = { enabled, otlpEndpoint: 'https://personal.example' };
+		settings.policy = { enabled: false, exporterType: '', otlpEndpoint: '', captureIdentity: false };
+		contribution = createContribution();
+		settings.policy = { enabled: true, otlpEndpoint: 'https://managed.example', headers: { authorization: 'private-value' } };
+
+		await vi.advanceTimersByTimeAsync(500);
+
+		expect(ui.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('Local Copilot Chat'), 'Restart Extensions');
+		expect({
+			progress: ui.withProgress.mock.calls,
+			restarts: ui.executeCommand.mock.calls.filter(([command]) => command === 'workbench.action.restartExtensionHost'),
+			reloads: ui.executeCommand.mock.calls.filter(([command]) => command === 'workbench.action.reloadWindow'),
+			restartRecord: context.workspaceState.get('github.copilot.otel.latePolicyRestart'),
+		}).toEqual({ progress: [], restarts: [], reloads: [], restartRecord: undefined });
+		const diagnostic = log.messages.find(message => message.includes('Offering an extension host restart'));
+		expect(diagnostic).toContain('headers');
+		expect(diagnostic).not.toContain('private-value');
+		expect(diagnostic).not.toContain('managed.example');
+	});
+
+	function startWithPersonalExport(): void {
+		contribution.dispose();
+		settings.user = { enabled: true, otlpEndpoint: 'https://personal.example' };
+		contribution = createContribution();
+		settings.policy = { enabled: true, otlpEndpoint: 'https://managed.example' };
+	}
+
+	it('restarts extensions rather than the window when the user accepts policy recovery', async () => {
+		startWithPersonalExport();
+		ui.showInformationMessage.mockResolvedValue('Restart Extensions');
+		await vi.advanceTimersByTimeAsync(500);
+		expect(events).toEqual(['progress opened', 'restart requested']);
+		expect(ui.executeCommand).not.toHaveBeenCalledWith('workbench.action.reloadWindow');
+		expect(context.workspaceState.get('github.copilot.otel.latePolicyRestart')).toBeUndefined();
+
+		contribution.dispose();
+		vi.clearAllTimers();
+		ui.showInformationMessage.mockClear();
+		contribution = createContribution();
+		await vi.advanceTimersByTimeAsync(500);
+		expect(ui.showInformationMessage).not.toHaveBeenCalled();
+	});
+
+	it('reports a manual restart that does not stop the host without retrying or reloading', async () => {
+		startWithPersonalExport();
+		ui.showInformationMessage.mockResolvedValue('Restart Extensions');
+		await vi.advanceTimersByTimeAsync(15_500);
+		expect(events).toEqual(['progress opened', 'restart requested', 'progress completed', 'restart warning']);
+		expect(ui.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('Extensions did not restart'));
+		expect(ui.executeCommand).not.toHaveBeenCalledWith('workbench.action.reloadWindow');
+	});
+
+	it('logs a failed manual restart and tells the user that settings are still pending', async () => {
+		startWithPersonalExport();
+		ui.showInformationMessage.mockResolvedValue('Restart Extensions');
+		ui.executeCommand.mockRejectedValue(new Error('Restart unavailable'));
+		await vi.advanceTimersByTimeAsync(500);
+		expect({
+			events,
+			errors: log.errors,
+		}).toEqual({
+			events: ['progress opened', 'progress completed', 'restart warning'],
+			errors: ['[OTel] Failed to restart extensions for Local Copilot Chat telemetry settings: Error: Restart unavailable'],
+		});
+		expect(ui.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining('settings are still pending'));
+	});
+
+	it('allows an explicit retry after automatic recovery without resetting its guard', async () => {
+		settings.policy = { enabled: true, otlpEndpoint: 'https://managed.example' };
+		ui.showWarningMessage.mockResolvedValueOnce('Restart Extensions');
+		await vi.advanceTimersByTimeAsync(500);
+		const record = context.workspaceState.get('github.copilot.otel.latePolicyRestart');
+		await vi.advanceTimersByTimeAsync(15_000);
+		expect({
+			restarts: ui.executeCommand.mock.calls.filter(([command]) => command === 'workbench.action.restartExtensionHost').length,
+			restartRecord: context.workspaceState.get('github.copilot.otel.latePolicyRestart'),
+		}).toEqual({ restarts: 2, restartRecord: record });
+		expect(record).toBeDefined();
+		expect(ui.executeCommand).not.toHaveBeenCalledWith('workbench.action.reloadWindow');
+	});
+
+	it.each(['configuration restored', 'contribution disposed'])('ignores a pending restart choice after %s', async change => {
+		startWithPersonalExport();
+		const selection = new DeferredPromise<string | undefined>();
+		ui.showInformationMessage.mockReturnValue(selection.p);
+		await vi.advanceTimersByTimeAsync(500);
+		if (change === 'configuration restored') {
+			settings.policy = {};
+		} else {
+			contribution.dispose();
+		}
+		await selection.complete('Restart Extensions');
+		await vi.runAllTimersAsync();
+		expect(ui.withProgress).not.toHaveBeenCalled();
+		expect(ui.executeCommand).not.toHaveBeenCalledWith('workbench.action.restartExtensionHost');
+	});
+
+	it('keeps policy withdrawal on the existing window reload action', async () => {
+		contribution.dispose();
+		settings.policy = { enabled: true, otlpEndpoint: 'https://managed.example' };
+		contribution = createContribution();
+		settings.policy = {};
+		ui.showInformationMessage.mockResolvedValue('Reload Window');
+		await vi.advanceTimersByTimeAsync(500);
+		expect(ui.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('reload is required'), 'Reload Window');
+		expect(ui.executeCommand).toHaveBeenCalledWith('workbench.action.reloadWindow');
+		expect(ui.withProgress).not.toHaveBeenCalled();
 	});
 });

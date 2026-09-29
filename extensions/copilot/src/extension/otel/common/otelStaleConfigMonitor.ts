@@ -103,7 +103,7 @@ export class OTelStaleConfigMonitor {
 		try {
 			await this._host.restartExtensionHost();
 			// A slow restart could still succeed, so keep its guard.
-			this._logService.warn('[OTel] The extension host was not restarted. Enterprise telemetry policy is not applied until the window is reloaded.');
+			this._logService.warn('[OTel] The extension host was not restarted. Enterprise telemetry policy still requires an extension host restart.');
 		} catch (error) {
 			this._logService.warn(`[OTel] Failed to restart the extension host: ${error}`);
 		}
