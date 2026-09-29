@@ -2513,14 +2513,10 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			template.elementDisposables.add(autorun(reader => {
 				template.description.textContent = comparison.summary(reader);
 			}));
-			template.elementDisposables.add(autorun(reader => {
-				const comparisonSessions = getCurrentComparisonSessions();
-				template.comparisonArchive.element.hidden = comparisonSessions.length === 0
-					|| comparisonSessions.some(session => isSessionActive(session, reader));
-			}));
+			template.comparisonArchive.element.hidden = getCurrentComparisonSessions().length === 0;
 			template.elementDisposables.add(template.comparisonArchive.onDidClick(async () => {
 				const comparisonSessions = getCurrentComparisonSessions();
-				if (comparisonSessions.length === 0 || comparisonSessions.some(session => isSessionActive(session, undefined))) {
+				if (comparisonSessions.length === 0) {
 					return;
 				}
 				template.comparisonArchive.enabled = false;

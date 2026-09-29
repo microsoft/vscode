@@ -3121,22 +3121,11 @@ suite('Sessions - SessionsList', () => {
 				checkIcon: archive?.querySelector('.codicon-check') !== null,
 				stopButtons: container.querySelectorAll('.session-comparison-stop-all, .session-comparison-participant-stop').length,
 			}, {
-				hidden: true,
-				display: 'none',
+				hidden: false,
+				display: 'flex',
 				ariaLabel: 'Archive Comparison',
 				checkIcon: true,
 				stopButtons: 0,
-			});
-
-			attempt2.status.set(SessionStatus.Completed, undefined);
-			judge.status.set(SessionStatus.Completed, undefined);
-
-			assert.deepStrictEqual({
-				archiveHidden: archive?.hidden,
-				display: archive ? mainWindow.getComputedStyle(archive).display : undefined,
-			}, {
-				archiveHidden: false,
-				display: 'flex',
 			});
 
 			archive?.click();
