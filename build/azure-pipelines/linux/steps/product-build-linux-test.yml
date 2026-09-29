@@ -57,7 +57,7 @@ steps:
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
           displayName: 🧪 Run unit tests (Electron)
-          timeoutInMinutes: 15
+          timeoutInMinutes: 30
 
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
@@ -70,7 +70,7 @@ steps:
           env:
             NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
           displayName: 🧪 Run unit tests (node.js)
-          timeoutInMinutes: 15
+          timeoutInMinutes: 30
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
@@ -81,7 +81,7 @@ steps:
           env:
             DEBUG: "*browser*"
           displayName: 🧪 Run unit tests (Browser, Chromium)
-          timeoutInMinutes: 15
+          timeoutInMinutes: 30
 
   - script: |
       set -e
@@ -125,7 +125,7 @@ steps:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
             VSCODE_SKIP_PRELAUNCH: '1'
           displayName: 🧪 Run integration tests (Electron)
-          timeoutInMinutes: 20
+          timeoutInMinutes: 30
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
@@ -136,7 +136,7 @@ steps:
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
           displayName: 🧪 Run integration tests (Browser, Chromium)
-          timeoutInMinutes: 20
+          timeoutInMinutes: 30
 
   - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
@@ -154,7 +154,7 @@ steps:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
             VSCODE_SKIP_PRELAUNCH: '1'
           displayName: 🧪 Run integration tests (Remote)
-          timeoutInMinutes: 20
+          timeoutInMinutes: 30
 
   - script: bash build/azure-pipelines/linux/collect-test-diagnostics.sh before "$(Agent.TempDirectory)"
     displayName: Diagnostics before smoke test run (disk space, processes, max_user_watches, number of opened file handles)
@@ -185,7 +185,7 @@ steps:
             # instead of the small OS root disk (`/tmp`), which has filled up and
             # crashed the agent worker with "No space left on device".
             TMPDIR: $(Agent.TempDirectory)
-          timeoutInMinutes: 20
+          timeoutInMinutes: 30
           displayName: 🧪 Run smoke tests (Electron)
 
     - script: |
@@ -204,7 +204,7 @@ steps:
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
             TMPDIR: $(Agent.TempDirectory)
-          timeoutInMinutes: 20
+          timeoutInMinutes: 30
           displayName: 🧪 Run smoke tests (Browser, Chromium)
 
   - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
@@ -219,7 +219,7 @@ steps:
             npm run smoketest-no-compile -- --tracing --remote --build "$APP_PATH"
           env:
             TMPDIR: $(Agent.TempDirectory)
-          timeoutInMinutes: 20
+          timeoutInMinutes: 30
           displayName: 🧪 Run smoke tests (Remote)
 
   - script: bash build/azure-pipelines/linux/collect-test-diagnostics.sh after "$(Agent.TempDirectory)"

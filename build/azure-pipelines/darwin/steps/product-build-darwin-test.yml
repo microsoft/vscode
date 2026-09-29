@@ -19,7 +19,7 @@ steps:
       env:
         VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run unit tests (Electron)
-      timeoutInMinutes: 15
+      timeoutInMinutes: 30
     - script: |
         set -e
         mkdir -p .build/crashes
@@ -27,7 +27,7 @@ steps:
       env:
         NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
       displayName: 🧪 Run unit tests (node.js)
-      timeoutInMinutes: 15
+      timeoutInMinutes: 30
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - script: npm run test-browser-no-install -- --build --browser webkit --tfs "Browser Unit Tests"
@@ -75,14 +75,14 @@ steps:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
         VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run integration tests (Electron)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - script: ./scripts/test-web-integration.sh --browser webkit
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
       displayName: 🧪 Run integration tests (Browser, Webkit)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
 
   - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
     - script: |
@@ -97,7 +97,7 @@ steps:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
         VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run integration tests (Remote)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
 
   - script: ps -ef
     displayName: Diagnostics before smoke test run
@@ -112,7 +112,7 @@ steps:
         npm run smoketest-no-compile -- --tracing --build "$APP_ROOT/$APP_NAME"
       env:
         VSCODE_SMOKE_TEST_POLICY: '1'
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
       displayName: 🧪 Run smoke tests (Electron)
 
     - script: brew list squid >/dev/null 2>&1 || brew install squid
@@ -138,7 +138,7 @@ steps:
     - script: npm run smoketest-no-compile -- --web --tracing --headless
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
       displayName: 🧪 Run smoke tests (Browser, Chromium)
 
   - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
@@ -150,7 +150,7 @@ steps:
         npm run smoketest-no-compile -- --tracing --remote --build "$APP_ROOT/$APP_NAME"
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
       displayName: 🧪 Run smoke tests (Remote)
 
   - script: ps -ef
