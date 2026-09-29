@@ -12,7 +12,7 @@ Agent plugins are a modular extension system that allows external packages of pr
 | `agentPluginEnablement.ts` | Plugin collision enablement, canonical plugin identity, and enterprise-policy identity helpers |
 | `agentPluginRepositoryService.ts` | `IAgentPluginRepositoryService` — abstract repository clone/pull/cache operations |
 | `pluginMarketplaceService.ts` | `IPluginMarketplaceService` — marketplace metadata, installed-plugin storage, trusted-marketplace tracking, periodic update checks |
-| `pluginInstallService.ts` | `IPluginInstallService` — install/update orchestration interface |
+| `pluginInstallService.ts` | `IPluginInstallService` — install/update/uninstall orchestration interface |
 | `pluginSource.ts` | `IPluginSource` — per-source-kind strategy interface (install path, ensure, update, cleanup) |
 
 ### Browser layer (`browser/`)
@@ -83,7 +83,7 @@ Subclasses implement `_discoverPluginSources()` to determine *which* plugin URIs
 
 **ConfiguredAgentPluginDiscovery** — resolves `chat.pluginLocations` configuration entries (absolute, tilde-expanded, or workspace-relative paths) and watches for config changes. Redundant paths into the Copilot CLI-owned cache are ignored; committed CLI installations are owned by `CopilotCliAgentPluginDiscovery`.
 
-**MarketplaceAgentPluginDiscovery** — discovers plugins from `IPluginMarketplaceService.installedPlugins` and delegates to the install/repository services for on-disk availability.
+**MarketplaceAgentPluginDiscovery** — resolves entries from `IPluginMarketplaceService.installedPlugins`, publishes only targets that still exist as directories, and delegates exact-URI removal and source cleanup to `IPluginInstallService`.
 
 **CopilotCliAgentPluginDiscovery** — reads the Copilot CLI-managed `installedPlugins` records from `~/.copilot/config.json` and resolves their committed `cache_path` values. A correlated non-recursive watcher observes only the state file (or its nearest existing ancestor before first launch), and unchanged inventories are suppressed. CLI plugin entries do not create watchers inside their cache directories, so the CLI can atomically replace them on Windows. CLI-owned plugins are not removable through VS Code because install, update, and uninstall are transactions coordinated by the CLI's cross-process lock and state writer.
 

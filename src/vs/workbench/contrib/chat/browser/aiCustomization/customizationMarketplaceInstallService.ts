@@ -215,6 +215,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 		this.enabledDisposables.add(autorun(reader => {
 			this.pluginMarketplaceService.installedPlugins.read(reader);
+			this.agentPluginService.plugins.read(reader);
 			this._onDidChange.fire();
 			void this.reconcileRecords(this.getRecordsByKind('plugin'));
 		}));
@@ -473,8 +474,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				state = { kind: await this.isSkillInstallationComplete(record.target) ? 'installed' : 'missing' };
 			} else if (record.target.kind === 'plugin') {
 				const target = record.target;
-				let installed = this.pluginMarketplaceService.installedPlugins.get().find(candidate => isEqual(candidate.pluginUri, target.uri));
-				installed ??= this.getInstalledPlugin(record);
+				const installed = await this.getExistingInstalledPlugin(record);
 				state = { kind: installed ? 'installed' : 'missing' };
 				if (installed && !isEqual(installed.pluginUri, target.uri)) {
 					record = { ...record, target: { ...target, uri: installed.pluginUri } };
@@ -891,12 +891,14 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				return;
 			}
 			const plugin = this.agentPluginService.plugins.get().find(candidate => isEqual(candidate.uri, installed.pluginUri));
-			if (!plugin?.remove) {
-				throw new Error(localize('customizationMarketplace.pluginUninstallUnavailable', "This plugin cannot be uninstalled from the customization marketplace."));
+			if (plugin?.remove) {
+				if (!await plugin.remove()) {
+					throw new CancellationError();
+				}
+				return;
 			}
-			if (!await plugin.remove()) {
-				throw new CancellationError();
-			}
+			this.agentPluginService.enablementModel.remove(installed.pluginUri.toString());
+			await this.pluginInstallService.uninstallPlugin(installed.pluginUri);
 			return;
 		}
 		if (record.target.kind !== 'skill') {
@@ -1113,15 +1115,41 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		return manifest;
 	}
 
+	private async getExistingInstalledPlugin(record: ICustomizationMarketplaceInstallationRecord) {
+		const target = record.target;
+		const recorded = target.kind === 'plugin'
+			? this.pluginMarketplaceService.installedPlugins.get().find(candidate => isEqual(candidate.pluginUri, target.uri))
+			: undefined;
+		const candidates = recorded
+			? [recorded, ...this.getInstalledPlugins(record).filter(candidate => !isEqual(candidate.pluginUri, recorded.pluginUri))]
+			: this.getInstalledPlugins(record);
+		for (const candidate of candidates) {
+			try {
+				if ((await this.fileService.resolve(candidate.pluginUri)).isDirectory) {
+					return candidate;
+				}
+			} catch (error) {
+				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					throw error;
+				}
+			}
+		}
+		return undefined;
+	}
+
 	private getInstalledPlugin(record: ICustomizationMarketplaceInstallationRecord) {
+		return this.getInstalledPlugins(record)[0];
+	}
+
+	private getInstalledPlugins(record: ICustomizationMarketplaceInstallationRecord) {
 		const source = record.installation;
 		if (source.kind === 'configuredPlugin') {
-			return this.pluginMarketplaceService.installedPlugins.get().find(({ plugin }) => getPluginMarketplaceIdentifier(plugin) === record.identifier);
+			return this.pluginMarketplaceService.installedPlugins.get().filter(({ plugin }) => getPluginMarketplaceIdentifier(plugin) === record.identifier);
 		}
 		if (source.kind !== 'plugin') {
-			return undefined;
+			return [];
 		}
-		return this.pluginMarketplaceService.installedPlugins.get().find(({ plugin }) => {
+		return this.pluginMarketplaceService.installedPlugins.get().filter(({ plugin }) => {
 			if (record.version !== undefined && plugin.version !== record.version) {
 				return false;
 			}

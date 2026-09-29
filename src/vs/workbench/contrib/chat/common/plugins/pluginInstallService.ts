@@ -67,6 +67,12 @@ export interface IPluginInstallService {
 	installPlugin(plugin: IMarketplacePlugin, token?: CancellationToken): Promise<void>;
 
 	/**
+	 * Removes the exact installed plugin entry and performs best-effort source cleanup.
+	 * Returns `false` when no installed entry matches the URI.
+	 */
+	uninstallPlugin(pluginUri: URI): Promise<boolean>;
+
+	/**
 	 * Installs a plugin directly from a source location string. Accepts
 	 * GitHub shorthand (`owner/repo`), a full git clone URL, or a local
 	 * folder path (`file://` URI, absolute path, or `~`-prefixed path).

@@ -8,6 +8,7 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -77,6 +78,8 @@ suite('PluginInstallService', () => {
 		/** Whether the strict-marketplace enterprise policy is active */
 		strictMarketplacePolicyActive?: boolean;
 		installedPlugins: IMarketplaceInstalledPlugin[];
+		removedPluginUris: string[];
+		cleanupPluginSourceCalls: { plugin: IMarketplacePlugin; otherInstalledDescriptors: readonly IPluginSourceDescriptor[] }[];
 		recordInstalledPlugins: boolean;
 		ensurePluginSourceDescriptors: IPluginSourceDescriptor[];
 		singlePluginManifestDirectories: URI[];
@@ -128,6 +131,8 @@ suite('PluginInstallService', () => {
 			marketplaceTrusted: true,
 			strictMarketplacePolicyActive: false,
 			installedPlugins: [],
+			removedPluginUris: [],
+			cleanupPluginSourceCalls: [],
 			recordInstalledPlugins: false,
 			ensurePluginSourceDescriptors: [],
 			singlePluginManifestDirectories: [],
@@ -307,17 +312,26 @@ suite('PluginInstallService', () => {
 				state.updatePluginSourceCalls.push({ plugin, options });
 			},
 			getPluginSource: (kind: PluginSourceKind) => mockSourceRepos.get(kind)!,
-			cleanupPluginSource: async () => { },
+			cleanupPluginSource: async (plugin: IMarketplacePlugin, otherInstalledDescriptors?: readonly IPluginSourceDescriptor[]) => {
+				state.cleanupPluginSourceCalls.push({ plugin, otherInstalledDescriptors: otherInstalledDescriptors ?? [] });
+			},
 		} as unknown as IAgentPluginRepositoryService);
 
 		// IPluginMarketplaceService
+		const installedPlugins = observableValue('test.installedPlugins', state.installedPlugins);
 		instantiationService.stub(IPluginMarketplaceService, {
-			installedPlugins: observableValue('test.installedPlugins', state.installedPlugins),
+			installedPlugins,
 			addInstalledPlugin: (uri: URI, plugin: IMarketplacePlugin) => {
 				state.addedPlugins.push({ uri: uri.toString(), plugin });
 				if (state.recordInstalledPlugins) {
-					state.installedPlugins.push({ pluginUri: uri, plugin });
+					state.installedPlugins = [...state.installedPlugins, { pluginUri: uri, plugin }];
+					installedPlugins.set(state.installedPlugins, undefined);
 				}
+			},
+			removeInstalledPlugin: (uri: URI) => {
+				state.removedPluginUris.push(uri.toString());
+				state.installedPlugins = state.installedPlugins.filter(candidate => !isEqual(candidate.pluginUri, uri));
+				installedPlugins.set(state.installedPlugins, undefined);
 			},
 			isMarketplaceTrusted: () => state.marketplaceTrusted,
 			isStrictMarketplacePolicyActive: () => state.strictMarketplacePolicyActive ?? false,
@@ -438,6 +452,51 @@ suite('PluginInstallService', () => {
 			});
 			const uri = service.getPluginInstallUri(plugin);
 			assert.strictEqual(uri.path, ghUri.path);
+		});
+	});
+
+	suite('uninstallPlugin', () => {
+
+		test('removes the exact entry and cleans its source with the remaining descriptors', async () => {
+			const targetUri = URI.file('/cache/target');
+			const otherUri = URI.file('/cache/other');
+			const target = createPlugin({
+				name: 'target',
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/shared', path: 'plugins/target' },
+			});
+			const other = createPlugin({
+				name: 'other',
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/shared', path: 'plugins/other' },
+			});
+			const { service, state } = createService({
+				installedPlugins: [
+					{ pluginUri: targetUri, plugin: target },
+					{ pluginUri: otherUri, plugin: other },
+				],
+			});
+
+			const removed = await service.uninstallPlugin(targetUri);
+			const missing = await service.uninstallPlugin(targetUri);
+
+			assert.deepStrictEqual({
+				removed,
+				missing,
+				removedPluginUris: state.removedPluginUris,
+				remaining: state.installedPlugins.map(candidate => candidate.plugin.name),
+				cleanup: state.cleanupPluginSourceCalls.map(call => ({
+					plugin: call.plugin.name,
+					otherInstalledDescriptors: call.otherInstalledDescriptors,
+				})),
+			}, {
+				removed: true,
+				missing: false,
+				removedPluginUris: [targetUri.toString()],
+				remaining: ['other'],
+				cleanup: [{
+					plugin: 'target',
+					otherInstalledDescriptors: [other.sourceDescriptor],
+				}],
+			});
 		});
 	});
 

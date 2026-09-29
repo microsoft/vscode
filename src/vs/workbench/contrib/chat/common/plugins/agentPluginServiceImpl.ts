@@ -54,6 +54,7 @@ import { HookType } from '../promptSyntax/hookTypes.js';
 import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService } from './agentPluginService.js';
+import { IPluginInstallService } from './pluginInstallService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
 // Re-export shared helpers so existing consumers (including tests) continue to work.
@@ -776,6 +777,7 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 
 	constructor(
 		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
+		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
 		@IAgentPluginRepositoryService private readonly _pluginRepositoryService: IAgentPluginRepositoryService,
 		@IFileService fileService: IFileService,
 		@IPathService pathService: IPathService,
@@ -821,18 +823,7 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 				repositoryUri,
 				remove: async () => {
 					this._enablementModel.remove(stat.resource.toString());
-					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);
-
-					// Pass remaining installed descriptors so the repository service
-					// can skip deletion when other plugins share the same cache dir.
-					const remaining = this._pluginMarketplaceService.installedPlugins.get();
-					this._pluginRepositoryService.cleanupPluginSource(
-						entry.plugin,
-						remaining.map(e => e.plugin.sourceDescriptor),
-					).catch(error => {
-						this._logService.error('[MarketplaceAgentPluginDiscovery] Failed to clean up plugin source', error);
-					});
-					return true;
+					return this._pluginInstallService.uninstallPlugin(entry.pluginUri);
 				},
 			});
 		}
