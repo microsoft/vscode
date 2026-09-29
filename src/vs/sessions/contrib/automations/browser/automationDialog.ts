@@ -890,6 +890,9 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		}
 		if (!repo) {
 			this.branchLoadState = 'noRepository';
+			if (this.isolationModel.isolationMode === 'worktree') {
+				this.isolationModel.selectIsolationMode('workspace');
+			}
 			this.renderBranchControl();
 			return;
 		}
