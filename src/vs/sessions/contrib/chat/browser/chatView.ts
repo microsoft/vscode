@@ -323,6 +323,7 @@ export class ChatView extends AbstractChatView {
 				enableImplicitContext: true,
 				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
+				renderSecondaryControlsInInput: isExperimentalSessionComposerLayoutEnabled(this.configurationService),
 				inputEditorMinLines: 2,
 				isSessionsWindow: true,
 				transcriptTabIndex: -1,

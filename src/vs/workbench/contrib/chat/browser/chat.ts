@@ -281,6 +281,12 @@ export interface IChatWidgetViewOptions {
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
+	/**
+	 * Lift the mode/permissions pickers into the input toolbar row and the context-usage widget into
+	 * the input's top-right corner, matching the Agents new-session composer. See
+	 * {@link IChatInputPartOptions.renderSecondaryControlsInInput}.
+	 */
+	renderSecondaryControlsInInput?: boolean;
 	renderGettingStartedTip?: boolean | (() => boolean);
 	customizationMigrationNotice?: {
 		readonly workspace: IObservable<URI | undefined>;

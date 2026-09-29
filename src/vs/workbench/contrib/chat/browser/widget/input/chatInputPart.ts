@@ -275,6 +275,12 @@ export interface IChatInputPartOptions {
 	renderFollowups: boolean;
 	renderStyle?: 'compact';
 	renderInputToolbarBelowInput: boolean;
+	/**
+	 * Lift the secondary controls (mode / permissions pickers) into the input toolbar row and move
+	 * the context-usage widget into the input container's top-right corner, so the input matches the
+	 * Agents new-session composer layout. Positioning is handled in CSS.
+	 */
+	renderSecondaryControlsInInput?: boolean;
 	menus: {
 		executeToolbar: MenuId;
 		telemetrySource: string;
@@ -3358,6 +3364,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (this.options.renderStyle === 'compact') {
 			toolbarsContainer.prepend(this.contextUsageWidgetContainer);
+		}
+
+		if (this.options.renderSecondaryControlsInInput) {
+			// Lift the secondary controls into the input so it matches the Agents new-session
+			// composer: the mode / permissions pickers lead the input toolbar row, and the
+			// context-usage widget becomes a direct child of the input container so it can sit in
+			// the input's top-right corner (positioned via CSS).
+			toolbarsContainer.prepend(responsivePickerContainer);
+			inputContainer.appendChild(this.contextUsageWidgetContainer);
 		}
 
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
