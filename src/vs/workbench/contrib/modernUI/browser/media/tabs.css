@@ -108,14 +108,20 @@
 	z-index: 0;
 	border-radius: var(--vscode-cornerRadius-small);
 	box-sizing: border-box;
-	box-shadow: inset calc(-1 * var(--vscode-strokeThickness)) 0 var(--modern-ui-editor-tab-border);
+	border: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tab-border);
 	pointer-events: none;
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor .tabs-container > .tab.sticky + .tab:not(.sticky) > .tab-fill {
-	box-shadow:
-		inset calc(-1 * var(--vscode-strokeThickness)) 0 var(--modern-ui-editor-tab-border),
-		inset var(--vscode-strokeThickness) 0 var(--modern-ui-editor-tab-last-pinned-border);
+	box-shadow: inset var(--vscode-strokeThickness) 0 var(--modern-ui-editor-tab-last-pinned-border);
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.last-in-row) + .tab > .tab-divider {
+	display: none;
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active):not(.last-in-row) + .tab:not(.active) > .tab-divider {
+	display: block;
 }
 
 /* Reuses the last-pinned-border color for the horizontal divider between the pinned and normal tab rows. */

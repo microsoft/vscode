@@ -127,6 +127,23 @@
 	display: none;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-divider {
+	display: none;
+	position: absolute;
+	top: 50%;
+	left: 0;
+	z-index: 9;
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-spacing-size160);
+	background-color: var(--vscode-tab-divider, transparent);
+	pointer-events: none;
+	transform: translateY(-50%);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.last-in-row) + .tab > .tab-divider {
+	display: block;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge {
 	display: none;
 }

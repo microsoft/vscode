@@ -94,12 +94,15 @@ for (const [style, expected] of [
 	['Legacy', {
 		topIndicator: { display: 'block', color: 'rgb(34, 211, 238)' },
 		bottomIndicator: { display: 'block', color: 'rgb(244, 63, 94)' },
+		visibleDividers: ['rgb(255, 255, 255)', 'rgb(255, 255, 255)', 'rgb(255, 255, 255)'],
 	}],
 	['Pill', {
 		topIndicator: { display: 'none' },
 		bottomIndicator: { display: 'none' },
 		fillTop: 'rgb(34, 211, 238)',
 		fillBottom: 'rgb(244, 63, 94)',
+		fillSide: 'rgb(250, 204, 21)',
+		visibleDividers: ['rgb(255, 255, 255)'],
 	}],
 	['Connected', {
 		topIndicator: { display: 'none' },
@@ -107,6 +110,7 @@ for (const [style, expected] of [
 		fillTop: 'rgb(34, 211, 238)',
 		fillBottom: 'rgba(0, 0, 0, 0)',
 		fillSide: 'rgb(250, 204, 21)',
+		visibleDividers: ['rgb(255, 255, 255)'],
 	}],
 ] as const) {
 	test(`${style} tabs retain their border ownership`, async ({ page }) => {
@@ -119,6 +123,9 @@ for (const [style, expected] of [
 				throw new Error('Expected active tab border elements');
 			}
 			const fillStyle = getComputedStyle(fill);
+			const visibleDividers = [...active.parentElement!.querySelectorAll<HTMLElement>('.tab-divider')]
+				.filter(element => getComputedStyle(element).display !== 'none')
+				.map(element => getComputedStyle(element).backgroundColor);
 			const indicatorStyle = (element: HTMLElement) => {
 				const style = getComputedStyle(element);
 				return { display: style.display, color: style.backgroundColor };
@@ -129,6 +136,7 @@ for (const [style, expected] of [
 				fillTop: fillStyle.borderTopColor,
 				fillBottom: fillStyle.borderBottomColor,
 				fillSide: fillStyle.borderRightColor,
+				visibleDividers,
 			};
 		});
 		expect(ownership).toMatchObject(expected);

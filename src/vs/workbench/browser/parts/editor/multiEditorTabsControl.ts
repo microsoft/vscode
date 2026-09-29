@@ -998,6 +998,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		tabContainer.appendChild(tabFillContainer);
 		const tabConnectedEdgeContainer = $('.tab-connected-edge', { 'aria-hidden': true });
 		tabContainer.appendChild(tabConnectedEdgeContainer);
+		const tabDivider = $('.tab-divider', { 'aria-hidden': true });
+		tabContainer.appendChild(tabDivider);
 
 		// Tab Border Top
 		const tabBorderTopContainer = $('.tab-border-top-container');

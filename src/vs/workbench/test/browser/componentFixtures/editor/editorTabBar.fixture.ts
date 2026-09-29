@@ -51,6 +51,7 @@ import {
 	TAB_ACTIVE_BORDER,
 	TAB_ACTIVE_BORDER_TOP,
 	TAB_BORDER,
+	TAB_DIVIDER,
 	TAB_SELECTED_BORDER_TOP,
 	TAB_UNFOCUSED_ACTIVE_BORDER,
 	TAB_UNFOCUSED_ACTIVE_BORDER_TOP,
@@ -417,6 +418,7 @@ function renderBorderOwnership(modernUI: boolean, editorTabStyle?: ModernUIEdito
 			{ resource: file('/project/alpha.ts'), pinned: true },
 			{ resource: file('/project/beta.ts'), pinned: true, active: true },
 			{ resource: file('/project/gamma.ts'), pinned: true },
+			{ resource: file('/project/delta.ts'), pinned: true },
 		],
 		colorCustomizations: getLegacyEditorTabBorderCustomizations(),
 	});
@@ -854,6 +856,7 @@ function getLegacyEditorTabBorderCustomizations(): Readonly<Record<string, strin
 		[TAB_ACTIVE_BORDER]: '#F43F5E',
 		[TAB_ACTIVE_BORDER_TOP]: '#22D3EE',
 		[TAB_BORDER]: '#FACC15',
+		[TAB_DIVIDER]: '#FFFFFF',
 		[TAB_UNFOCUSED_ACTIVE_BORDER]: '#FB923C',
 		[TAB_UNFOCUSED_ACTIVE_BORDER_TOP]: '#C084FC',
 		[TAB_SELECTED_BORDER_TOP]: '#A3E635',
@@ -994,17 +997,17 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		Legacy: defineComponentFixture({
 			render: renderBorderOwnership(false),
 			themes: ['dark'],
-			expectedVisualDescriptions: ['Legacy tabs retain their standard full-width top and bottom border indicators.'],
+			expectedVisualDescriptions: ['Legacy tabs retain their standard full-width top and bottom border indicators, with a short white divider at every shared tab boundary.'],
 		}),
 		Pill: defineComponentFixture({
 			render: renderBorderOwnership(true, ModernUIEditorTabStyle.Pill),
 			themes: ['dark'],
-			expectedVisualDescriptions: ['Pill tabs hide the standard indicators and paint the customized cyan top and pink bottom borders on the inset rounded fill.'],
+			expectedVisualDescriptions: ['Pill tabs hide the standard indicators and paint the customized yellow outline, cyan top, and pink bottom on the inset rounded fill. A short white divider appears only between adjacent inactive pills.'],
 		}),
 		Connected: defineComponentFixture({
 			render: renderBorderOwnership(true, ModernUIEditorTabStyle.Connected),
 			themes: ['dark'],
-			expectedVisualDescriptions: ['Connected tabs paint the customized cyan top border on the rounded cap, retain the pink bottom indicator, and use the yellow structural side stroke.'],
+			expectedVisualDescriptions: ['Connected tabs paint the customized cyan top border on the rounded cap, retain the pink bottom indicator, and use yellow tab boundaries. A short white divider appears only between adjacent inactive tabs and overlays the shared boundary.'],
 		}),
 	}),
 	ConnectedBorderContinuity: defineThemedFixtureGroup({
