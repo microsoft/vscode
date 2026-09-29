@@ -210,25 +210,6 @@
 	color: var(--vscode-editor-foreground);
 }
 
-.inbox-notifications-detail-evidence-item {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
-	gap: var(--vscode-spacing-size60);
-}
-
-.inbox-notifications-detail-evidence-link {
-	color: var(--vscode-textLink-foreground);
-	cursor: pointer;
-	text-decoration: none;
-}
-
-.inbox-notifications-detail-evidence-link:hover,
-.inbox-notifications-detail-evidence-link:focus-visible {
-	text-decoration: underline;
-	color: var(--vscode-textLink-activeForeground);
-}
-
 .inbox-notifications-detail-thread {
 	display: flex;
 	flex-direction: column;

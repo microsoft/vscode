@@ -56,7 +56,6 @@ import { IOnboardingScenarioService } from '../../../../workbench/contrib/onboar
 import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../github/common/sessionLifecycleSettings.js';
 import {
 	IInboxDetailSummary,
-	IInboxEvidenceArtifact,
 	IInboxNotificationAction,
 	IInboxNotificationItem,
 	IInboxNotificationConfirmationPart,
@@ -494,7 +493,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	/** Bounded category of the element a click landed on. */
 	private clickTargetKind(target: HTMLElement): string {
-		if (target.closest('.inbox-notifications-detail-evidence-link')) { return 'evidenceLink'; }
 		if (target.closest('.inbox-notifications-section-header')) { return 'sectionHeader'; }
 		if (target.closest('.inbox-notifications-filter-button')) { return 'filterButton'; }
 		if (target.closest('.inbox-notifications-feedback-button')) { return 'feedbackButton'; }
@@ -2460,10 +2458,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 			clearNode(container);
 			if (!summary) {
 				this.renderEvidenceLoading(container, runStore);
-			} else if (!summary.status && summary.evidence.length === 0) {
+			} else if (!summary.status && summary.decisions.length === 0) {
 				this.renderEvidenceFallback(container, item);
 			} else {
-				this.renderEvidencePack(container, item, summary, runStore);
+				this.renderEvidencePack(container, summary);
 			}
 			this.detailScrollableElement.scanDomNode();
 		}));
@@ -2493,7 +2491,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 	}
 
-	private renderEvidencePack(container: HTMLElement, item: IInboxNotificationItem, summary: IInboxDetailSummary, store: DisposableStore): void {
+	private renderEvidencePack(container: HTMLElement, summary: IInboxDetailSummary): void {
 		if (summary.status) {
 			container.appendChild($('.inbox-notifications-detail-summary', undefined, summary.status));
 		}
@@ -2504,52 +2502,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 				list.appendChild($('li', undefined, decision));
 			}
 		}
-		if (summary.evidence.length) {
-			container.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.evidence', "Evidence")));
-			const list = container.appendChild($('ul.inbox-notifications-detail-list'));
-			for (const evidence of summary.evidence) {
-				const entry = list.appendChild($('li.inbox-notifications-detail-evidence-item'));
-				entry.appendChild($('span.inbox-notifications-detail-evidence-text', undefined, evidence.text));
-				const link = entry.appendChild($('a.inbox-notifications-detail-evidence-link', undefined, evidence.artifact.label));
-				link.setAttribute('role', 'button');
-				link.setAttribute('tabindex', '0');
-				link.setAttribute('title', localize('inboxNotifications.detail.evidence.open', "Open {0}", evidence.artifact.label));
-				const open = () => this.openEvidenceArtifact(item, evidence.artifact);
-				store.add(addDisposableListener(link, EventType.CLICK, event => { event.stopPropagation(); open(); }));
-				store.add(addDisposableListener(link, EventType.KEY_DOWN, (event: KeyboardEvent) => {
-					if (event.key === 'Enter' || event.key === ' ') {
-						event.preventDefault();
-						event.stopPropagation();
-						open();
-					}
-				}));
-			}
-		}
-	}
-
-	private openEvidenceArtifact(item: IInboxNotificationItem, artifact: IInboxEvidenceArtifact): void {
-		this.logInboxInteraction('detail.openEvidence', 'detailEvidence', item, 'none', { evidenceArtifactKind: artifact.kind });
-		if (artifact.kind === 'file' && artifact.uri) {
-			const startTime = Date.now();
-			void this.openerService.open(artifact.uri).then(() => {
-				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'success', durationMs: Date.now() - startTime, evidenceArtifactKind: artifact.kind });
-			}, error => {
-				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'failure', durationMs: Date.now() - startTime, evidenceArtifactKind: artifact.kind });
-				onUnexpectedError(error);
-			});
-			return;
-		}
-		if (item.sessionResource) {
-			const startTime = Date.now();
-			void this.sessionsService.openSession(item.sessionResource, { source: 'notification' }).then(() => {
-				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'success', durationMs: Date.now() - startTime, evidenceArtifactKind: artifact.kind });
-			}, error => {
-				this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'failure', durationMs: Date.now() - startTime, evidenceArtifactKind: artifact.kind });
-				onUnexpectedError(error);
-			});
-			return;
-		}
-		this.logInboxInteraction('detail.openEvidence.result', 'detailEvidence', item, 'none', { result: 'skipped', evidenceArtifactKind: artifact.kind });
 	}
 
 	private renderConversationThread(body: HTMLElement, item: IInboxNotificationItem): void {
