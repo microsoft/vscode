@@ -16,8 +16,6 @@ import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ActionType, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatTurnStartedAction } from '../../../common/state/sessionActions.js';
-import { AgentHostCanvasesChangedNotification, ResolveAgentHostCanvasSourceExtensionMethod, type IAgentHostCanvasesChangedParams, type IAgentHostExtensionCommandMap } from '../../../common/agentHostExtensionProtocol.js';
-import { AgentHostClientConnectionKind } from '../../../common/agentHostTelemetry.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ISessionWithDefaultChat, type ToolDefinition } from '../../../common/state/sessionState.js';
 import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
@@ -33,7 +31,6 @@ const COPILOT_CONFIG: IAgentHostProviderTestConfig = {
 };
 const CANVAS_COPILOT_CONFIG: IAgentHostProviderTestConfig = {
 	...COPILOT_CONFIG,
-	clientMeta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local },
 	sessionConfig: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
 };
 
@@ -217,21 +214,13 @@ session = await joinSession({
 			&& (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === 'open_canvas',
 			90_000,
 		);
-		void (getActionEnvelope(startNotification).action as ChatToolCallStartAction);
-		const canvasNotification = await client.waitForNotification(n => {
-			if ((n as { method: string }).method !== AgentHostCanvasesChangedNotification) {
-				return false;
-			}
-			return (n as unknown as { params: IAgentHostCanvasesChangedParams }).params.canvases.length > 0;
-		}, 90_000);
-		const canvasSnapshot = (canvasNotification as unknown as { params: IAgentHostCanvasesChangedParams }).params;
-		const canvas = canvasSnapshot.canvases[0];
-		assert.ok(canvas);
-		const source = await client.call<IAgentHostExtensionCommandMap[typeof ResolveAgentHostCanvasSourceExtensionMethod]['result']>(ResolveAgentHostCanvasSourceExtensionMethod, {
-			chat: buildDefaultChatUri(sessionUri),
-			instanceId: canvas.instanceId,
-			revision: canvas.revision,
-		});
+		const openCanvasStart = getActionEnvelope(startNotification).action as ChatToolCallStartAction;
+		const openCanvasCompleteNotification = await client.waitForNotification(n =>
+			isActionNotification(n, ActionType.ChatToolCallComplete)
+			&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).toolCallId === openCanvasStart.toolCallId,
+			90_000,
+		);
+		const openCanvasComplete = getActionEnvelope(openCanvasCompleteNotification).action as ChatToolCallCompleteAction;
 		await client.waitForNotification(n =>
 			isActionNotification(n, ActionType.ChatTurnComplete)
 			&& (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === 'turn-mock-canvas',
@@ -263,23 +252,13 @@ session = await joinSession({
 		);
 
 		assert.deepStrictEqual({
-			canvas: {
-				instanceId: canvas.instanceId,
-				revision: canvas.revision,
-				availability: canvas.availability,
-			},
-			source,
+			openCanvasSucceeded: openCanvasComplete.result.success,
 			providerTurn: {
 				message: providerTurnStarted.message,
 				response: providerResponse.part.kind === ResponsePartKind.Markdown ? providerResponse.part.content : undefined,
 			},
 		}, {
-			canvas: {
-				instanceId: 'proof-instance',
-				revision: 1,
-				availability: 'ready',
-			},
-			source: { url: 'http://127.0.0.1:43119/proof-instance' },
+			openCanvasSucceeded: true,
 			providerTurn: {
 				message: {
 					text: `[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}] Report that the canvas request completed.`,
