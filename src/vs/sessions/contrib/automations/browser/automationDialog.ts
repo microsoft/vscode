@@ -67,6 +67,7 @@ import { ISessionContext, SessionContext } from '../../../services/sessions/brow
 import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
+import { NEW_WORKTREE_LABEL } from '../../../common/sessionConfig.js';
 import { Menus } from '../../../browser/menus.js';
 
 const $ = DOM.$;
@@ -605,7 +606,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 				void this.reloadRepository(this.isolationModel.folderUri);
 			},
 			isolation: {
-				label: localize('automation.form.isolation.worktree', "New Worktree"),
+				label: NEW_WORKTREE_LABEL,
 				ariaLabel: localize('automation.form.isolation.checkboxAriaLabel', "Worktree isolation"),
 				onToggle: checked => {
 					this.isolationModel.selectIsolationMode(checked ? 'worktree' : 'workspace');
@@ -1632,7 +1633,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		const items = super._buildItems();
 		const noWorkspace: IActionListItem<IWorkspacePickerItem> = {
 			kind: ActionListItemKind.Action,
-			label: localize('automation.form.noWorkspace', "No workspace"),
+			label: this._getNoWorkspaceLabel(),
 			description: localize('automation.form.noWorkspace.description', "Run without a backing workspace"),
 			group: { title: '', icon: Codicon.commentDiscussion },
 			item: {
@@ -1663,7 +1664,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		const workspace = this.selectedResolved?.workspace;
 		const noWorkspace = this.targetModel?.isQuickChat === true;
 		const label = noWorkspace
-			? localize('automation.form.noWorkspace', "No workspace")
+			? this._getNoWorkspaceLabel()
 			: workspace?.label ?? localize('automation.form.selectWorkspace', "Select workspace");
 		const icon = noWorkspace ? Codicon.commentDiscussion : workspace?.icon ?? Codicon.project;
 

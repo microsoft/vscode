@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ResolveSessionConfigResult } from '../../platform/agentHost/common/state/protocol/commands.js';
+import { localize } from '../../nls.js';
 
 /**
  * When enabled, the Agents window docks the detail panel (auxiliary
@@ -14,6 +15,8 @@ import type { ResolveSessionConfigResult } from '../../platform/agentHost/common
 export const DOCK_DETAIL_PANEL_SETTING = 'sessions.layout.singlePaneDetailPanel';
 
 export const USE_WORKTREE_SETTING = 'sessions.useWorktree';
+
+export const NEW_WORKTREE_LABEL = localize('sessionConfig.newWorktree', "New Worktree");
 
 export const USE_WORKTREE_SETTING_TREATMENT = 'agentSessionsUseWorktree';
 
