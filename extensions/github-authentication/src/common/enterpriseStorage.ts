@@ -52,19 +52,34 @@ async function readStorage(context: vscode.ExtensionContext, key: string): Promi
 	};
 }
 
-async function migrateStorage(context: vscode.ExtensionContext, source: EnterpriseStorage, target: EnterpriseStorage): Promise<void> {
-	if (source.links !== undefined && target.links === undefined) {
-		await context.globalState.update(`${target.key}${accountLinksSuffix}`, source.links);
+function selectLegacyStorage(sources: readonly EnterpriseStorage[], originalKey: string, uri: vscode.Uri): EnterpriseStorage | undefined {
+	if (sources.length < 2) {
+		return sources[0];
 	}
-	if (source.tokens !== undefined && (await context.secrets.get(target.key)) === undefined) {
-		await context.secrets.store(target.key, source.tokens);
+	const source = sources.find(source => source.key === originalKey);
+	if (!source) {
+		throw new Error(vscode.l10n.t('Multiple saved authentication stores match {0}. Set {1} to the previously used URI before migrating its saved sign-in.', uri.toString(true), enterpriseUriSetting));
 	}
-	// Keep both legacy stores until both destination writes have succeeded.
-	if (source.tokens !== undefined) {
-		await context.secrets.delete(source.key);
+	return source;
+}
+
+async function migrateStorage(context: vscode.ExtensionContext, sources: readonly EnterpriseStorage[], target: EnterpriseStorage, originalKey: string, uri: vscode.Uri): Promise<void> {
+	const tokenSource = target.tokens === undefined ? selectLegacyStorage(sources.filter(source => source.tokens !== undefined), originalKey, uri) : undefined;
+	const linkSource = target.links === undefined ? selectLegacyStorage(sources.filter(source => source.links !== undefined), originalKey, uri) : undefined;
+	if (linkSource?.links !== undefined) {
+		await context.globalState.update(`${target.key}${accountLinksSuffix}`, linkSource.links);
 	}
-	if (source.links !== undefined) {
-		await context.globalState.update(`${source.key}${accountLinksSuffix}`, undefined);
+	if (tokenSource?.tokens !== undefined && (await context.secrets.get(target.key)) === undefined) {
+		await context.secrets.store(target.key, tokenSource.tokens);
+	}
+	// Keep legacy stores until both destination writes have succeeded.
+	for (const source of sources) {
+		if (source.tokens !== undefined && (target.tokens !== undefined || source === tokenSource)) {
+			await context.secrets.delete(source.key);
+		}
+		if (source.links !== undefined && (target.links !== undefined || source === linkSource)) {
+			await context.globalState.update(`${source.key}${accountLinksSuffix}`, undefined);
+		}
 	}
 }
 
@@ -88,11 +103,7 @@ export async function migrateEnterpriseStorage(context: vscode.ExtensionContext,
 		return;
 	}
 	const originalKey = `${uri.authority}${uri.path}${tokenSuffix}`;
-	const source = sources.find(source => source.key === originalKey) ?? (sources.length === 1 ? sources[0] : undefined);
-	if (!source) {
-		throw new Error(vscode.l10n.t('Multiple saved authentication stores match {0}. Set {1} to the previously used URI before migrating its saved sign-in.', uri.toString(true), enterpriseUriSetting));
-	}
-	await migrateStorage(context, source, target);
+	await migrateStorage(context, sources, target, originalKey, uri);
 }
 
 //#endregion

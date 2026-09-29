@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { getEnterpriseStorageKey, migrateEnterpriseStorage } from '../common/enterpriseStorage';
+import { getEnterpriseStorageKey, getEnterpriseUriKey, migrateEnterpriseStorage } from '../common/enterpriseStorage';
 import { createTestExtensionContext } from './testExtensionContext';
 import { TestMemento } from './testMemento';
 import { TestSecretStorage } from './testSecretStorage';
@@ -15,6 +15,7 @@ suite('GitHub Enterprise storage migration', () => {
 	const original = vscode.Uri.parse('https://TENANT.example/Team/');
 	const canonical = vscode.Uri.parse('https://tenant.example/Team');
 	const legacyKey = 'TENANT.example/Team/.ghes.auth';
+	const aliasKey = 'tenant.example/Team/.ghes.auth';
 	const canonicalKey = 'https://tenant.example/Team.ghes.auth';
 	const linksSuffix = '.microsoftAccountLinks';
 	const tokens = JSON.stringify([{
@@ -75,6 +76,20 @@ suite('GitHub Enterprise storage migration', () => {
 		]);
 	});
 
+	test('normalizing and reparsing an instance preserves case-sensitive user-info', () => {
+		const uri = vscode.Uri.parse('HTTPS://MixedUser:MixedPassword@TENANT.example:443/Team/');
+		const normalized = vscode.Uri.parse(getEnterpriseUriKey(uri));
+		assert.deepStrictEqual({
+			normalized: normalized.toString(),
+			authority: normalized.authority,
+			originalAuthority: uri.authority
+		}, {
+			normalized: 'https://MixedUser:MixedPassword@tenant.example:443/Team',
+			authority: 'MixedUser:MixedPassword@tenant.example:443',
+			originalAuthority: 'MixedUser:MixedPassword@TENANT.example:443'
+		});
+	});
+
 	test('moves tokens and Microsoft links without changing their contents or writing bookkeeping', async () => {
 		await seed();
 		await migrateEnterpriseStorage(context, original);
@@ -132,32 +147,38 @@ suite('GitHub Enterprise storage migration', () => {
 		assert.deepStrictEqual({ writes: writes.callCount, updates: updates.callCount }, { writes: 0, updates: 0 });
 	});
 
-	test('canonical sign-out remains authoritative over legacy credentials', async () => {
+	test('canonical sign-out remains authoritative over ambiguous legacy aliases', async () => {
 		await seed();
+		await secrets.store(aliasKey, 'other-token');
+		await state.update(`${aliasKey}${linksSuffix}`, links);
 		await secrets.store(canonicalKey, '[]');
 		await state.update(`${canonicalKey}${linksSuffix}`, []);
-		await migrateEnterpriseStorage(context, original);
+		await migrateEnterpriseStorage(context, canonical);
 		assert.deepStrictEqual(await snapshot(), {
 			secrets: { [canonicalKey]: '[]' },
 			state: { [`${canonicalKey}${linksSuffix}`]: [] }
 		});
 	});
 
-	test('existing canonical tokens and links are not overwritten by a legacy store', async () => {
+	test('existing canonical tokens and links make all legacy aliases redundant', async () => {
 		await seed();
+		await secrets.store(aliasKey, 'other-token');
+		await state.update(`${aliasKey}${linksSuffix}`, links);
 		const newerTokens = tokens.replace('fake-token', 'newer-token');
 		const newerLinks = [{ ...links[0], microsoftAccountLabel: 'newer@example.com' }];
 		await secrets.store(canonicalKey, newerTokens);
 		await state.update(`${canonicalKey}${linksSuffix}`, newerLinks);
-		await migrateEnterpriseStorage(context, original);
+		await migrateEnterpriseStorage(context, canonical);
 		assert.deepStrictEqual(await snapshot(), {
 			secrets: { [canonicalKey]: newerTokens },
 			state: { [`${canonicalKey}${linksSuffix}`]: newerLinks }
 		});
 	});
 
-	test('canonical credentials created during legacy lookup are not overwritten', async () => {
+	test('canonical credentials created during legacy lookup take precedence over ambiguous aliases', async () => {
 		await seed();
+		await secrets.store(aliasKey, 'other-token');
+		await state.update(`${aliasKey}${linksSuffix}`, links);
 		const newerTokens = tokens.replace('fake-token', 'newer-token');
 		const newerLinks = [{ ...links[0], microsoftAccountLabel: 'newer@example.com' }];
 		sinon.stub(secrets, 'get').callThrough().withArgs(legacyKey).callsFake(async () => {
@@ -165,10 +186,69 @@ suite('GitHub Enterprise storage migration', () => {
 			await state.update(`${canonicalKey}${linksSuffix}`, newerLinks);
 			return tokens;
 		});
-		await migrateEnterpriseStorage(context, original);
+		await migrateEnterpriseStorage(context, canonical);
 		assert.deepStrictEqual(await snapshot(), {
 			secrets: { [canonicalKey]: newerTokens },
 			state: { [`${canonicalKey}${linksSuffix}`]: newerLinks }
+		});
+	});
+
+	for (const missing of ['tokens', 'links'] as const) {
+		test(`migrates only missing ${missing} despite aliases for the authoritative component`, async () => {
+			await seed();
+			const newerTokens = tokens.replace('fake-token', 'newer-token');
+			const newerLinks = [{ ...links[0], microsoftAccountLabel: 'newer@example.com' }];
+			if (missing === 'links') {
+				await secrets.store(canonicalKey, newerTokens);
+				await secrets.store(aliasKey, 'other-token');
+			} else {
+				await state.update(`${canonicalKey}${linksSuffix}`, newerLinks);
+				await state.update(`${aliasKey}${linksSuffix}`, links);
+			}
+			await migrateEnterpriseStorage(context, canonical);
+			assert.deepStrictEqual(await snapshot(), {
+				secrets: { [canonicalKey]: missing === 'tokens' ? tokens : newerTokens },
+				state: { [`${canonicalKey}${linksSuffix}`]: missing === 'links' ? links : newerLinks }
+			});
+		});
+
+		test(`still requires an alias choice when missing ${missing} have multiple sources`, async () => {
+			await seed();
+			if (missing === 'tokens') {
+				await state.update(`${canonicalKey}${linksSuffix}`, links);
+				await secrets.store(aliasKey, 'other-token');
+			} else {
+				await secrets.store(canonicalKey, tokens);
+				await state.update(`${aliasKey}${linksSuffix}`, [{ ...links[0], microsoftAccountLabel: 'other@example.com' }]);
+			}
+			const before = await snapshot();
+			await assert.rejects(migrateEnterpriseStorage(context, canonical), /Multiple saved authentication stores/);
+			assert.deepStrictEqual(await snapshot(), before);
+		});
+	}
+
+	test('unique token and link sources can migrate from different aliases', async () => {
+		await secrets.store(legacyKey, tokens);
+		await state.update(`${aliasKey}${linksSuffix}`, links);
+		await migrateEnterpriseStorage(context, canonical);
+		assert.deepStrictEqual(await snapshot(), {
+			secrets: { [canonicalKey]: tokens },
+			state: { [`${canonicalKey}${linksSuffix}`]: links }
+		});
+	});
+
+	test('redundant alias cleanup can be retried without changing canonical credentials', async () => {
+		await seed();
+		await secrets.store(aliasKey, 'other-token');
+		await secrets.store(canonicalKey, tokens);
+		await state.update(`${canonicalKey}${linksSuffix}`, links);
+		sinon.stub(secrets, 'delete').callThrough().withArgs(aliasKey).rejects(new Error('Cleanup failed'));
+		await assert.rejects(migrateEnterpriseStorage(context, canonical), /Cleanup failed/);
+		sinon.restore();
+		await migrateEnterpriseStorage(context, canonical);
+		assert.deepStrictEqual(await snapshot(), {
+			secrets: { [canonicalKey]: tokens },
+			state: { [`${canonicalKey}${linksSuffix}`]: links }
 		});
 	});
 
