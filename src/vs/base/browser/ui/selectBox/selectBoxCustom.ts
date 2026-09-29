@@ -616,8 +616,11 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 			const window = dom.getWindow(this.selectElement);
 			const selectPosition = dom.getDomNodePagePosition(this.selectElement);
-			const maxSelectDropDownHeightBelow = (window.innerHeight - selectPosition.top - selectPosition.height - (this.selectBoxOptions.minBottomMargin || 0));
-			const maxSelectDropDownHeightAbove = (selectPosition.top - SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN);
+			const containerPosition = this.selectBoxOptions.layoutContainer ? dom.getDomNodePagePosition(this.selectBoxOptions.layoutContainer) : undefined;
+			const layoutTop = Math.max(SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN, containerPosition?.top ?? 0);
+			const layoutBottom = Math.min(window.innerHeight, containerPosition ? containerPosition.top + containerPosition.height : window.innerHeight);
+			const maxSelectDropDownHeightBelow = (layoutBottom - selectPosition.top - selectPosition.height - (this.selectBoxOptions.minBottomMargin || 0));
+			const maxSelectDropDownHeightAbove = (selectPosition.top - layoutTop);
 
 			// Determine optimal width - min(longest option), opt(parent select, excluding margins), max(ContextView controlled)
 			const selectWidth = this.selectElement.offsetWidth;
@@ -629,7 +632,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			// Get initial list height and determine space above and below
 			this.selectList.getHTMLElement().style.height = '';
 			this.selectList.layout();
-			let listHeight = this.selectList.contentHeight;
+			let listHeight = Math.min(this.selectList.contentHeight, (this.selectBoxOptions.maxVisibleOptions ?? Infinity) * SELECT_OPTION_HEIGHT);
 
 			if (this._hasDetails && this._cachedMaxDetailsHeight === undefined) {
 				this._cachedMaxDetailsHeight = this.measureMaxDetailsHeight();
@@ -650,8 +653,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				// Check if select moved out of viewport , do not open
 				// If at least one option cannot be shown, don't open the drop-down or hide/remove if open
 
-				if ((selectPosition.top + selectPosition.height) > (window.innerHeight - 22)
-					|| selectPosition.top < SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN
+				if ((selectPosition.top + selectPosition.height) > Math.min(window.innerHeight - 22, layoutBottom)
+					|| selectPosition.top < layoutTop
 					|| ((maxVisibleOptionsBelow < 1) && (maxVisibleOptionsAbove < 1))) {
 					// Indicate we cannot open
 					return false;
@@ -664,7 +667,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				const otherVisibleOptions = preferAbove ? maxVisibleOptionsBelow : maxVisibleOptionsAbove;
 				const flip = preferredVisibleOptions < SelectBoxList.DEFAULT_MINIMUM_VISIBLE_OPTIONS
 					&& otherVisibleOptions > preferredVisibleOptions
-					&& this.selectList.length > preferredVisibleOptions;
+					&& Math.min(this.selectList.length, this.selectBoxOptions.maxVisibleOptions ?? Infinity) > preferredVisibleOptions;
 				if (preferAbove ? !flip : flip) {
 					this._dropDownPosition = AnchorPosition.ABOVE;
 					this.selectDropDownListContainer.remove();
@@ -690,8 +693,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			}
 
 			// Check if select out of viewport or cutting into status bar
-			if ((selectPosition.top + selectPosition.height) > (window.innerHeight - 22)
-				|| selectPosition.top < SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN
+			if ((selectPosition.top + selectPosition.height) > Math.min(window.innerHeight - 22, layoutBottom)
+				|| selectPosition.top < layoutTop
 				|| (this._dropDownPosition === AnchorPosition.BELOW && maxVisibleOptionsBelow < 1)
 				|| (this._dropDownPosition === AnchorPosition.ABOVE && maxVisibleOptionsAbove < 1)) {
 				// Cannot properly layout, close and hide
@@ -720,6 +723,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			}
 
 			// Set adjusted list height and relayout
+			this.selectList.getHTMLElement().style.height = `${listHeight}px`;
 			this.selectList.layout(listHeight);
 			this.selectList.domFocus();
 
@@ -737,7 +741,6 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 			if (this._hasDetails) {
 				// Leave the selectDropDownContainer to size itself according to children (list + details) - #57447
-				this.selectList.getHTMLElement().style.height = `${listHeight}px`;
 				this.selectDropDownContainer.style.height = '';
 			} else {
 				this.selectDropDownContainer.style.height = `${listHeight}px`;

@@ -10,7 +10,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
-import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -1050,7 +1050,12 @@ export function renderForm(
 
 	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
 	const scheduleRow = DOM.append(formContent, $('.automation-form-row.automation-form-schedule-row'));
-	const useCustomDrawn = !hasNativeContextMenu(configurationService);
+	const scheduleSelectOptions: ISelectBoxOptions = {
+		useCustomDrawn: !hasNativeContextMenu(configurationService),
+		anchorPosition: AnchorPosition.ABOVE,
+		maxVisibleOptions: 8,
+		layoutContainer: form.closest<HTMLElement>('.monaco-dialog-box') ?? form,
+	};
 
 	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
 	DOM.append(intervalGroup, $('span.automation-form-label', undefined, localize('automation.form.interval', "Schedule")));
@@ -1061,7 +1066,7 @@ export function renderForm(
 		intervalIndex,
 		contextViewService,
 		defaultSelectBoxStyles,
-		{ ariaLabel: localize('automation.form.interval', "Schedule"), useCustomDrawn, anchorPosition: AnchorPosition.ABOVE },
+		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.interval', "Schedule") },
 	));
 	const intervalSelectContainer = DOM.append(intervalGroup, $('.automation-form-schedule-select-container'));
 	intervalSelect.render(intervalSelectContainer);
@@ -1077,7 +1082,7 @@ export function renderForm(
 		initialTimeIndex,
 		contextViewService,
 		defaultSelectBoxStyles,
-		{ ariaLabel: localize('automation.form.time', "Time"), useCustomDrawn, anchorPosition: AnchorPosition.ABOVE },
+		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.time', "Time") },
 	));
 	const timeSelectContainer = DOM.append(timeGroup, $('.automation-form-schedule-select-container.automation-form-time-select-container'));
 	timeSelect.render(timeSelectContainer);
@@ -1095,7 +1100,7 @@ export function renderForm(
 		Math.min(Math.max(state.day, 0), DAYS_OF_WEEK.length - 1),
 		contextViewService,
 		defaultSelectBoxStyles,
-		{ ariaLabel: localize('automation.form.day', "Day of week"), useCustomDrawn, anchorPosition: AnchorPosition.ABOVE },
+		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.day', "Day of week") },
 	));
 	const daySelectContainer = DOM.append(dayGroup, $('.automation-form-schedule-select-container'));
 	daySelect.render(daySelectContainer);

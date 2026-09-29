@@ -41,6 +41,10 @@ export interface ISelectBoxOptions {
 	minBottomMargin?: number;
 	/** Preferred custom dropdown position; defaults to below and flips when space is limited. Native pickers ignore this. */
 	anchorPosition?: AnchorPosition;
+	/** Maximum number of visible custom dropdown options before scrolling. */
+	maxVisibleOptions?: number;
+	/** Constrains the custom dropdown's vertical bounds to this element and the viewport. */
+	layoutContainer?: HTMLElement;
 	optionsAsChildren?: boolean;
 	/** Context views with higher layers are rendered higher in z-index order. */
 	contextViewLayer?: number;

@@ -143,6 +143,57 @@ suite('SelectBoxList', () => {
 		});
 	});
 
+	for (const { name, top, height, count, expectedHeight, expectedPosition } of [
+		{ name: 'caps long lists at eight options', top: 180, height: 280, count: 96, expectedHeight: 176, expectedPosition: AnchorPosition.ABOVE },
+		{ name: 'falls back within the container', top: 10, height: 280, count: 96, expectedHeight: 176, expectedPosition: AnchorPosition.BELOW },
+		{ name: 'shrinks to the available container space', top: 80, height: 130, count: 96, expectedHeight: 66, expectedPosition: AnchorPosition.ABOVE },
+		{ name: 'does not pad short lists to the cap', top: 180, height: 280, count: 4, expectedHeight: 88, expectedPosition: AnchorPosition.ABOVE },
+	]) {
+		test(name, () => {
+			const contextViewProvider = disposables.add(new TestContextViewProvider());
+			const bounds = document.createElement('div');
+			bounds.style.cssText = `position: fixed; top: 100px; height: ${height}px; width: 200px;`;
+			document.body.appendChild(bounds);
+			disposables.add(toDisposable(() => bounds.remove()));
+			const container = document.createElement('div');
+			container.style.cssText = `position: absolute; top: ${top}px; width: 150px;`;
+			bounds.appendChild(container);
+			const selectBox = disposables.add(new SelectBoxList(
+				Array.from({ length: count }, (_, index) => ({ text: `Option ${index}` })),
+				0,
+				contextViewProvider,
+				unthemedSelectBoxStyles,
+				{ anchorPosition: AnchorPosition.ABOVE, maxVisibleOptions: 8, layoutContainer: bounds },
+			));
+			selectBox.render(container);
+			const select = container.querySelector('select')!;
+			select.click();
+			const position = contextViewProvider.anchorPosition;
+			const list = contextViewProvider.container.querySelector<HTMLElement>('[role="listbox"]')!;
+			const popup = contextViewProvider.container.querySelector<HTMLElement>('.monaco-select-box-dropdown-container')!;
+			const sizes = { list: list.clientHeight, popup: popup.clientHeight };
+			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', keyCode: 35, bubbles: true }));
+			const focusedRow = list.querySelector<HTMLElement>('.monaco-list-row.focused')!;
+			const rowBounds = focusedRow.getBoundingClientRect();
+			const listBounds = list.getBoundingClientRect();
+			const lastOptionVisible = rowBounds.top >= listBounds.top && rowBounds.bottom <= listBounds.bottom;
+			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			assert.deepStrictEqual({
+				position, sizes, lastOptionVisible,
+				selected: select.selectedIndex,
+				expanded: select.getAttribute('aria-expanded'),
+				focused: document.activeElement === select,
+			}, {
+				position: expectedPosition,
+				sizes: { list: expectedHeight, popup: expectedHeight },
+				lastOptionVisible: true,
+				selected: count - 1,
+				expanded: 'false',
+				focused: true,
+			});
+		});
+	}
+
 	test('passes the requested context view layer to the dropdown', () => {
 		const contextViewProvider = disposables.add(new TestContextViewProvider());
 		const selectBox = disposables.add(new SelectBoxList(
