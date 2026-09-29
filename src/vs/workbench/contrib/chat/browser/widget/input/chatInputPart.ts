@@ -189,6 +189,11 @@ const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 1
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 const CHAT_INPUT_COMPACT_PICKER_WIDTH = 22;
+/**
+ * Trailing editor space reserved when the context-usage widget is lifted into the input's top-right
+ * corner (renderSecondaryControlsInInput), so the editor's first line never slides under it.
+ */
+const CONTEXT_USAGE_WIDGET_TRAILING_SPACE = 72;
 
 function getToolbarPickerResponsiveItems(
 	toolbar: MenuWorkbenchToolBar,
@@ -550,10 +555,34 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private contextUsageWidget?: ChatContextUsageWidget;
 	private contextUsageWidgetContainer!: HTMLElement;
+	/** The container the context-usage widget lives in by default (its secondary-toolbar home). */
+	private contextUsageWidgetHome!: HTMLElement;
+	/** Horizontal space reserved at the trailing edge of the input editor (e.g. for an overlaid widget). */
+	private inputEditorTrailingSpace = 0;
 	private readonly _contextUsageDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
+	}
+
+	/**
+	 * Moves the context-usage widget into {@link container}, or back to its default secondary-toolbar
+	 * home when omitted. Used by the Agents composer to lift the widget into the input's top-right
+	 * corner (positioned via CSS). Pair with {@link setInputEditorTrailingSpace} to reserve room so
+	 * the editor's first line never slides underneath it.
+	 */
+	placeContextUsageWidget(container?: HTMLElement): void {
+		(container ?? this.contextUsageWidgetHome).append(this.contextUsageWidgetContainer);
+	}
+
+	/** Reserves horizontal space at the trailing edge of the input editor. */
+	setInputEditorTrailingSpace(width: number): void {
+		const trailingSpace = Math.max(0, width);
+		if (this.inputEditorTrailingSpace === trailingSpace) {
+			return;
+		}
+		this.inputEditorTrailingSpace = trailingSpace;
+		this.layoutForToolbarChange();
 	}
 
 	get customizationMigrationNoticeContainerElement(): HTMLElement {
@@ -3360,6 +3389,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		));
 		this.chatGoalBannerContainer = elements.chatGoalBannerContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
+		this.contextUsageWidgetHome = this.options.renderStyle === 'compact' ? toolbarsContainer : this.secondaryToolbarContainer;
 		this.statusToolbarContainer = elements.statusToolbarContainer;
 
 		if (this.options.renderStyle === 'compact') {
@@ -3367,14 +3397,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		if (this.options.renderSecondaryControlsInInput) {
-			// Move the context-usage widget into the input container so it can sit in the input's
-			// top-right corner (positioned via CSS). The marker class binds that out-of-flow
-			// positioning to the reparent itself, so the widget can never render in-flow and widen
-			// the input (which previously caused a composer/editor width mismatch — see
-			// microsoft/vscode#337490). The secondary controls (mode / permissions) are moved into
-			// the input toolbar row after it is created, so the add-context button stays first.
+			// Lift the context-usage widget into the input's top-right corner (positioned via CSS)
+			// and reserve trailing editor space so the first line of text never slides underneath
+			// it. Reusing placeContextUsageWidget / setInputEditorTrailingSpace (the same mechanism
+			// as the earlier composer work) keeps the widget absolutely positioned and out of flow,
+			// so it can never widen the input and desync the composer/editor width — the split-width
+			// mismatch fixed in microsoft/vscode#337490. The marker class binds that out-of-flow
+			// positioning to the reparent. The secondary controls (mode / permissions) are moved
+			// into the input toolbar row after it is created, so the add-context button stays first.
 			inputContainer.classList.add('chat-secondary-controls-in-input');
-			inputContainer.appendChild(this.contextUsageWidgetContainer);
+			this.placeContextUsageWidget(inputContainer);
+			this.inputEditorTrailingSpace = CONTEXT_USAGE_WIDGET_TRAILING_SPACE;
 		}
 
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
@@ -5223,7 +5256,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		const newEditorWidth = Math.max(0, width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth);
+		const newEditorWidth = Math.max(0, width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth - this.inputEditorTrailingSpace);
 		const effectiveMaxHeight = this._effectiveInputEditorMaxHeight;
 		const contentHeight = preserveInputEditorHeight && this.previousInputEditorDimension
 			? this.previousInputEditorDimension.height
