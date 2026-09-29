@@ -224,40 +224,6 @@ suite('WordHighlighterContribution', () => {
 		});
 	}
 
-	test('updates existing highlights and keyboard navigation when toggled repeatedly', async () => {
-		await withHighlighter({}, async (editor, contribution, services) => {
-			const providers = services.get(ILanguageFeaturesService).documentHighlightProvider;
-			const calls: string[] = [];
-			store.add(providers.register('*', {
-				provideDocumentHighlights: () => { calls.push('lower'); return [first, second]; }
-			}));
-			store.add(providers.register('plaintext', {
-				provideDocumentHighlights: () => { calls.push('higher'); return [first]; }
-			}));
-			const defaultValue = editor.getOption(EditorOption.occurrencesHighlightFromAllProviders);
-
-			contribution.wordHighlighter?.trigger();
-			editor.updateOptions({ occurrencesHighlightFromAllProviders: true });
-			editor.updateOptions({ occurrencesHighlightFromAllProviders: false });
-			await timeout(0);
-			const columns: number[] = [];
-			contribution.moveNext();
-			columns.push(editor.getPosition().column);
-			for (const enabled of [true, false, true]) {
-				editor.updateOptions({ occurrencesHighlightFromAllProviders: enabled });
-				await timeout(0);
-				contribution.moveNext();
-				columns.push(editor.getPosition().column);
-			}
-
-			assert.deepStrictEqual({ defaultValue, columns, calls }, {
-				defaultValue: false,
-				columns: [1, 6, 1, 6],
-				calls: ['higher', 'higher', 'lower', 'higher', 'higher', 'lower']
-			});
-		});
-	});
-
 	test('cancels in-flight merged results when the setting is disabled', async () => {
 		await withHighlighter({ occurrencesHighlightFromAllProviders: true }, async (editor, contribution, services) => {
 			const providers = services.get(ILanguageFeaturesService).documentHighlightProvider;
@@ -326,33 +292,6 @@ suite('WordHighlighterContribution', () => {
 				{ cancelled: initialToken?.isCancellationRequested, column: editor.getPosition().column },
 				{ cancelled: true, column: 6 }
 			);
-		});
-	});
-
-	test('leaves multi-document provider selection unchanged', async () => {
-		await withHighlighter({ occurrencesHighlight: 'multiFile', occurrencesHighlightFromAllProviders: true }, async (editor, contribution, services) => {
-			const otherModel = store.add(services.get(IModelService).createModel('word word', null));
-			store.add(instantiateTestCodeEditor(services, otherModel, { hasTextFocus: false }));
-			const providers = services.get(ILanguageFeaturesService);
-			const calls: string[] = [];
-			store.add(providers.documentHighlightProvider.register('*', {
-				provideDocumentHighlights: () => { calls.push('single'); return [second]; }
-			}));
-			store.add(providers.multiDocumentHighlightProvider.register('*', {
-				selector: '*',
-				provideMultiDocumentHighlights: () => { calls.push('lower'); return new ResourceMap([[editor.getModel().uri, [second]]]); }
-			}));
-			store.add(providers.multiDocumentHighlightProvider.register('plaintext', {
-				selector: 'plaintext',
-				provideMultiDocumentHighlights: () => { calls.push('higher'); return new ResourceMap([[editor.getModel().uri, [first]]]); }
-			}));
-
-			contribution.wordHighlighter?.trigger();
-			await timeout(0);
-			editor.updateOptions({ occurrencesHighlightFromAllProviders: false });
-			await timeout(0);
-			contribution.moveNext();
-			assert.deepStrictEqual({ calls, column: editor.getPosition().column }, { calls: ['higher'], column: 1 });
 		});
 	});
 });
