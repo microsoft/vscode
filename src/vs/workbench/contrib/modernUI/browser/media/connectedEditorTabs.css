@@ -645,6 +645,11 @@
 	border-left-color: transparent;
 }
 
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .monaco-grid-view .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.first-in-row:not(.active):not(.selected):not(:focus):not(:hover) > .tab-fill {
+	border-left-width: 0;
+	border-left-color: transparent;
+}
+
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab.connected-tab-upper-row:not(.sticky-compact):not(.tab-actions-left) > .tab-actions {
 	right: var(--modern-ui-connected-tab-action-inset);
 }

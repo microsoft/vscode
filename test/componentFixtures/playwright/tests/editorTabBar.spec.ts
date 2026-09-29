@@ -206,8 +206,9 @@ for (const [theme, expected] of [
 		await openFixture(page, `editor/editorTabBar/editorTabBar/BorderOwnership/Connected/${theme}`, '.tabs-container > .tab.active');
 		const ownership = await page.locator('.editor-group-container').evaluate(group => {
 			const activeFill = group.querySelector<HTMLElement>('.tab.active > .tab-fill');
-			const inactiveFill = group.querySelector<HTMLElement>('.tab:not(.active) > .tab-fill');
-			if (!activeFill || !inactiveFill) {
+			const inactiveFill = group.querySelector<HTMLElement>('.tab:not(.active):not(.first-in-row) > .tab-fill');
+			const firstFill = group.querySelector<HTMLElement>('.tab.first-in-row > .tab-fill');
+			if (!activeFill || !inactiveFill || !firstFill) {
 				throw new Error('Expected active and inactive connected tab fills');
 			}
 
@@ -226,6 +227,7 @@ for (const [theme, expected] of [
 					top: inactiveStyle.borderTopColor,
 					side: inactiveStyle.borderRightColor,
 				},
+				firstLeft: getComputedStyle(firstFill).borderLeftColor,
 				frame: getComputedStyle(group, '::after').borderColor,
 				visibleDividers,
 			};
@@ -240,6 +242,7 @@ for (const [theme, expected] of [
 				top: expected.tabBorder,
 				side: expected.tabBorder,
 			},
+			firstLeft: expected.tabBorder,
 			frame: expected.accent,
 			visibleDividers: [],
 		});
