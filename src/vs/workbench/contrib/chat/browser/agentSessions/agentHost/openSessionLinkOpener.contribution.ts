@@ -114,7 +114,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		}
 		const chatSessionType = getChatSessionType(clientResource);
 		await this._chatSessionsService.activateChatSessionItemProvider(chatSessionType);
-		return findChatSessionItem(this._chatSessionsService, chatSessionType, clientResource, token);
+		return (await findChatSessionItem(this._chatSessionsService, chatSessionType, clientResource, token))?.item;
 	}
 
 	private async _open(resource: URI | string): Promise<boolean> {
@@ -184,9 +184,14 @@ class WorkbenchAgentSessionLinkPresentationWatcher extends Disposable implements
 
 	private async _resolve(token: CancellationToken): Promise<ILinkPresentation | undefined> {
 		await this._providerReady;
-		const item = await findChatSessionItem(this._chatSessionsService, this._chatSessionType, this._clientResource, token);
-		return item ? toSessionLinkPresentation(item, this._kind) : undefined;
+		const match = await findChatSessionItem(this._chatSessionsService, this._chatSessionType, this._clientResource, token);
+		return match ? toSessionLinkPresentation(match.item, match.status, this._kind) : undefined;
 	}
+}
+
+interface IChatSessionItemMatch {
+	readonly item: IChatSessionItem;
+	readonly status: ChatSessionStatus | undefined;
 }
 
 /**
@@ -198,22 +203,23 @@ async function findChatSessionItem(
 	chatSessionType: string,
 	clientResource: URI,
 	token: CancellationToken,
-): Promise<IChatSessionItem | undefined> {
+): Promise<IChatSessionItemMatch | undefined> {
 	for await (const group of chatSessionsService.getChatSessionItems([chatSessionType], token)) {
-		const item = findChatSessionItemByResource(group.items, clientResource);
-		if (item) {
-			return item;
+		const match = findChatSessionItemByResource(group.items, clientResource);
+		if (match) {
+			return match;
 		}
 	}
 	return undefined;
 }
 
-function findChatSessionItemByResource(items: readonly IChatSessionItem[], resource: URI): IChatSessionItem | undefined {
+function findChatSessionItemByResource(items: readonly IChatSessionItem[], resource: URI, parentStatus?: ChatSessionStatus): IChatSessionItemMatch | undefined {
 	for (const item of items) {
+		const status = item.status ?? parentStatus;
 		if (isEqual(item.resource, resource) || !!item.legacyResource && isEqual(item.legacyResource, resource)) {
-			return item;
+			return { item, status };
 		}
-		const child = item.children && findChatSessionItemByResource(item.children, resource);
+		const child = item.children && findChatSessionItemByResource(item.children, resource, status);
 		if (child) {
 			return child;
 		}
@@ -233,9 +239,9 @@ function toClientSessionResource(resource: URI | string): URI | undefined {
 		: undefined;
 }
 
-function toSessionLinkPresentation(item: IChatSessionItem, kind: 'session' | 'chat'): ILinkPresentation {
+function toSessionLinkPresentation(item: IChatSessionItem, status: ChatSessionStatus | undefined, kind: 'session' | 'chat'): ILinkPresentation {
 	const description = typeof item.description === 'string' ? item.description : item.description?.value;
-	return buildAgentSessionLinkPresentation(item.label, description, chatSessionStatusName(item.status), kind);
+	return buildAgentSessionLinkPresentation(item.label, description, chatSessionStatusName(status), kind);
 }
 
 /**

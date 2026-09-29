@@ -99,7 +99,6 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 		const peerChat: IChatSessionItem = {
 			resource: sessionResource.with({ fragment: 'peer-chat' }),
 			label: 'Hi',
-			status: ChatSessionStatus.Completed,
 			timing,
 		};
 		const chatSessionsService = new class extends mock<IChatSessionsService>() {
@@ -114,7 +113,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 					items: [{
 						resource: sessionResource,
 						label: 'Main chat',
-						status: ChatSessionStatus.Completed,
+						status: ChatSessionStatus.NeedsInput,
 						timing,
 						children: [peerChat],
 					}],
@@ -152,11 +151,11 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 		assert.deepStrictEqual({
 			opened,
 			openedResource: openedResource?.toString(),
-			presentation: presentation && { kind: presentation.kind, title: presentation.title },
+			presentation: presentation && { kind: presentation.kind, title: presentation.title, status: presentation.status?.kind },
 		}, {
 			opened: true,
 			openedResource: 'agent-host-copilotcli:/session#peer-chat',
-			presentation: { kind: 'chat', title: 'Hi' },
+			presentation: { kind: 'chat', title: 'Hi', status: 'warning' },
 		});
 	});
 
