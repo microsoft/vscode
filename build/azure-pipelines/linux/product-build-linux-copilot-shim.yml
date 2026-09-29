@@ -1,0 +1,109 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+  - name: VSCODE_CHECK_ONLY
+    type: boolean
+    default: false
+  - name: VSCODE_POOL_NAME
+    type: string
+    default: 1es-ubuntu-22.04-x64
+
+jobs:
+  - job: LinuxCopilotShim_${{ parameters.VSCODE_ARCH }}
+    displayName: Linux Copilot Shim (${{ upper(parameters.VSCODE_ARCH) }})
+    timeoutInMinutes: 60
+    pool:
+      name: ${{ parameters.VSCODE_POOL_NAME }}
+      os: linux
+    variables:
+      VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+    templateContext:
+      outputs:
+        - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+          - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+            - output: pipelineArtifact
+              targetPath: $(Build.ArtifactStagingDirectory)/copilot_shim_linux_x64.tar.gz
+              artifactName: copilot_shim_linux_x64
+              displayName: Publish copilot_shim_linux_x64 artifact
+              sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/copilot_shim_linux_x64
+              sbomPackageName: copilot_shim_linux_x64
+              sbomPackageVersion: $(Build.SourceVersion)
+          - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+            - output: pipelineArtifact
+              targetPath: $(Build.ArtifactStagingDirectory)/copilot_shim_linux_arm64.tar.gz
+              artifactName: copilot_shim_linux_arm64
+              displayName: Publish copilot_shim_linux_arm64 artifact
+              sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/copilot_shim_linux_arm64
+              sbomPackageName: copilot_shim_linux_arm64
+              sbomPackageVersion: $(Build.SourceVersion)
+          - ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
+            - output: pipelineArtifact
+              targetPath: $(Build.ArtifactStagingDirectory)/copilot_shim_linux_armhf.tar.gz
+              artifactName: copilot_shim_linux_armhf
+              displayName: Publish copilot_shim_linux_armhf artifact
+              sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/copilot_shim_linux_armhf
+              sbomPackageName: copilot_shim_linux_armhf
+              sbomPackageVersion: $(Build.SourceVersion)
+    steps:
+      - template: ../common/checkout.yml@self
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+
+      - task: AzureKeyVault@2
+        displayName: "Azure Key Vault: Get GitHub token"
+        inputs:
+          azureSubscription: vscode-oss-build-secrets
+          KeyVaultName: vscode-oss-build-secrets
+          SecretsFilter: "github-token-code-oss"
+
+      - template: ../cli/install-rust-posix.yml@self
+        parameters:
+          targets:
+            - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+              - x86_64-unknown-linux-gnu
+            - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+              - aarch64-unknown-linux-gnu
+            - ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
+              - armv7-unknown-linux-gnueabihf
+
+      - script: rustup component add rustfmt clippy
+        displayName: Install Rust quality components
+        condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
+
+      - template: ../copilot-shim/copilot-shim-quality.yml@self
+
+      - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+        - template: ../copilot-shim/copilot-shim-compile.yml@self
+          parameters:
+            COPILOT_SHIM_TARGET: x86_64-unknown-linux-gnu
+            COPILOT_SHIM_ARTIFACT: copilot_shim_linux_x64
+            COPILOT_SHIM_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+            COPILOT_SHIM_ENV:
+              GITHUB_TOKEN: "$(github-token-code-oss)"
+              SYSROOT_ARCH: amd64
+              VERIFY_GLIBC: "1"
+
+      - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+        - template: ../copilot-shim/copilot-shim-compile.yml@self
+          parameters:
+            COPILOT_SHIM_TARGET: aarch64-unknown-linux-gnu
+            COPILOT_SHIM_ARTIFACT: copilot_shim_linux_arm64
+            COPILOT_SHIM_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+            COPILOT_SHIM_ENV:
+              GITHUB_TOKEN: "$(github-token-code-oss)"
+              SYSROOT_ARCH: arm64
+              VERIFY_GLIBC: "1"
+
+      - ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
+        - template: ../copilot-shim/copilot-shim-compile.yml@self
+          parameters:
+            COPILOT_SHIM_TARGET: armv7-unknown-linux-gnueabihf
+            COPILOT_SHIM_ARTIFACT: copilot_shim_linux_armhf
+            COPILOT_SHIM_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+            COPILOT_SHIM_ENV:
+              GITHUB_TOKEN: "$(github-token-code-oss)"
+              SYSROOT_ARCH: armhf
+              VERIFY_GLIBC: "1"

@@ -351,6 +351,10 @@ extends:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CHECK_ONLY: true
                   VSCODE_POOL_NAME: 1es-windows-2022-x64-wus3
+              - template: build/azure-pipelines/win32/product-build-win32-copilot-shim.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CHECK_ONLY: true
 
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
@@ -405,6 +409,10 @@ extends:
                   VSCODE_ARCH: x64
                   VSCODE_CHECK_ONLY: true
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              - template: build/azure-pipelines/linux/product-build-linux-copilot-shim.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CHECK_ONLY: true
 
             - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
               parameters:
@@ -463,6 +471,10 @@ extends:
                   VSCODE_ARCH: arm64
                   VSCODE_CHECK_ONLY: true
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              - template: build/azure-pipelines/darwin/product-build-darwin-copilot-shim.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_CHECK_ONLY: true
 
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:

@@ -1,0 +1,95 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+  - name: VSCODE_CHECK_ONLY
+    type: boolean
+    default: false
+  - name: VSCODE_POOL_NAME
+    type: string
+    default: 1es-ubuntu-22.04-x64
+
+jobs:
+  - job: AlpineCopilotShim_${{ parameters.VSCODE_ARCH }}
+    displayName: Alpine Copilot Shim (${{ upper(parameters.VSCODE_ARCH) }})
+    timeoutInMinutes: 60
+    pool:
+      name: ${{ parameters.VSCODE_POOL_NAME }}
+      os: linux
+    variables:
+      VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+    templateContext:
+      outputs:
+        - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+          - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+            - output: pipelineArtifact
+              targetPath: $(Build.ArtifactStagingDirectory)/copilot_shim_alpine_x64.tar.gz
+              artifactName: copilot_shim_alpine_x64
+              displayName: Publish copilot_shim_alpine_x64 artifact
+              sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/copilot_shim_alpine_x64
+              sbomPackageName: copilot_shim_alpine_x64
+              sbomPackageVersion: $(Build.SourceVersion)
+          - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+            - output: pipelineArtifact
+              targetPath: $(Build.ArtifactStagingDirectory)/copilot_shim_alpine_arm64.tar.gz
+              artifactName: copilot_shim_alpine_arm64
+              displayName: Publish copilot_shim_alpine_arm64 artifact
+              sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/copilot_shim_alpine_arm64
+              sbomPackageName: copilot_shim_alpine_arm64
+              sbomPackageVersion: $(Build.SourceVersion)
+    steps:
+      - template: ../common/checkout.yml@self
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+
+      - task: AzureKeyVault@2
+        displayName: "Azure Key Vault: Get GitHub token"
+        inputs:
+          azureSubscription: vscode-oss-build-secrets
+          KeyVaultName: vscode-oss-build-secrets
+          SecretsFilter: "github-token-code-oss"
+
+      - bash: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -yq build-essential musl-dev musl-tools linux-libc-dev pkgconf xutils-dev lld
+          sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
+        displayName: Install musl build dependencies
+
+      - template: ../cli/install-rust-posix.yml@self
+        parameters:
+          targets:
+            - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+              - x86_64-unknown-linux-musl
+            - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+              - aarch64-unknown-linux-musl
+
+      - script: rustup component add rustfmt clippy
+        displayName: Install Rust quality components
+        condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
+
+      - template: ../copilot-shim/copilot-shim-quality.yml@self
+
+      - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+        - template: ../copilot-shim/copilot-shim-compile.yml@self
+          parameters:
+            COPILOT_SHIM_TARGET: x86_64-unknown-linux-musl
+            COPILOT_SHIM_ARTIFACT: copilot_shim_alpine_x64
+            COPILOT_SHIM_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+            COPILOT_SHIM_ENV:
+              CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+              CC_x86_64_unknown_linux_musl: musl-gcc
+              CXX_x86_64_unknown_linux_musl: musl-g++
+
+      - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+        - template: ../copilot-shim/copilot-shim-compile.yml@self
+          parameters:
+            COPILOT_SHIM_TARGET: aarch64-unknown-linux-musl
+            COPILOT_SHIM_ARTIFACT: copilot_shim_alpine_arm64
+            COPILOT_SHIM_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+            COPILOT_SHIM_ENV:
+              GITHUB_TOKEN: "$(github-token-code-oss)"
+              SYSROOT_ARCH: arm64
+              IS_MUSL: "1"

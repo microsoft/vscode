@@ -1,0 +1,12 @@
+steps:
+  - script: cargo fmt --check
+    displayName: Check Copilot shim formatting
+    workingDirectory: $(Build.SourcesDirectory)/copilot_shim
+
+  - script: cargo test --locked
+    displayName: Test Copilot shim
+    workingDirectory: $(Build.SourcesDirectory)/copilot_shim
+
+  - script: cargo clippy --all-targets --locked -- -D warnings
+    displayName: Lint Copilot shim
+    workingDirectory: $(Build.SourcesDirectory)/copilot_shim
