@@ -87,6 +87,7 @@ import { TestSessionsList } from './testSessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
+	workspaceResource?: URI;
 	createdAt?: Date;
 	updatedAt?: Date;
 	isArchived?: boolean;
@@ -107,7 +108,7 @@ function createSession(id: string, opts: {
 		icon: Codicon.account,
 		createdAt,
 		workspace: observableValue(`workspace-${id}`, opts.workspaceLabel !== undefined ? {
-			uri: URI.parse(`session://workspace/${id}`),
+			uri: opts.workspaceResource ?? URI.parse(`session://workspace/${id}`),
 			label: opts.workspaceLabel,
 			icon: Codicon.folder,
 			folders: [],
@@ -1680,14 +1681,57 @@ suite('Sessions - SessionsList', () => {
 			assert.strictEqual(groups[1].sessions.length, 1);
 		});
 
-		test('group ids are prefixed with workspace:', () => {
+		test('uses the display label for the group id and the resource for collapse state', () => {
+			const workspaceResource = URI.parse('vscode-agent-host://stable-host/project');
 			const sessions = [
-				createSession('1', { workspaceLabel: 'MyProject' }),
+				createSession('1', { workspaceLabel: 'MyProject', workspaceResource }),
 			];
 
 			const groups = groupByWorkspace(sessions);
 
 			assert.strictEqual(groups[0].id, 'workspace:MyProject');
+			assert.strictEqual(groups[0].collapseStateId, `workspace:${workspaceResource.toString()}`);
+		});
+
+		test('restores collapse state after a workspace display label changes', () => {
+			const workspaceResource = URI.parse('vscode-agent-host://stable-host/project');
+			const originalLabel = 'project [Original Host]';
+			const renamedLabel = 'project [Renamed Host]';
+			const original = createSession('1', { workspaceLabel: originalLabel, workspaceResource });
+			const renamed = createSession('1', { workspaceLabel: renamedLabel, workspaceResource });
+			const harness = createListHarness(disposables, [original]);
+			const storageService = harness.instantiationService.get(IStorageService);
+			storageService.store(
+				'sessionsListControl.sectionCollapseState',
+				JSON.stringify({ [`workspace:${originalLabel}`]: true }),
+				StorageScope.PROFILE,
+				StorageTarget.USER,
+			);
+
+			const createList = (label: string) => {
+				const container = harness.createContainer();
+				const list = harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				});
+				list.layout(300, 400);
+				return { container, list, sectionId: `workspace:${label}` };
+			};
+
+			const first = createList(originalLabel);
+			assert.strictEqual(first.list.getItemRow({ section: first.sectionId })?.getAttribute('aria-expanded'), 'false');
+			first.list.dispose();
+
+			const persisted = JSON.parse(storageService.get('sessionsListControl.sectionCollapseState', StorageScope.PROFILE)!) as Record<string, boolean>;
+			const resourceStateId = `workspace:${workspaceResource.toString()}`;
+			assert.strictEqual(persisted[resourceStateId], true);
+			assert.strictEqual(persisted[`workspace:${originalLabel}`], undefined);
+
+			harness.managementService.sessions = [renamed];
+			const second = createList(renamedLabel);
+			assert.strictEqual(second.list.getItemRow({ section: second.sectionId })?.getAttribute('aria-expanded'), 'false');
+			second.list.dispose();
 		});
 	});
 
