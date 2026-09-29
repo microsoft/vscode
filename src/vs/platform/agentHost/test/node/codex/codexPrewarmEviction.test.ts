@@ -1490,6 +1490,7 @@ suite('CodexAgent prewarm eviction', () => {
 			try {
 				const resource = agent['_retainCommandOutput'](entry, {
 					type: 'commandExecution', id, command: 'build', cwd: '/tmp', processId: null,
+					pluginId: null, scriptPath: null,
 					source: 'agent', status: 'completed', commandActions: [],
 					aggregatedOutput: output, exitCode: 0, durationMs: 1,
 				});
@@ -1534,6 +1535,7 @@ suite('CodexAgent prewarm eviction', () => {
 				const command: Extract<ThreadItem, { type: 'commandExecution' }> = {
 					type: 'commandExecution', id: 'cmd-delayed',
 					command: 'build', cwd: '/tmp', processId: null,
+					pluginId: null, scriptPath: null,
 					source: 'agent', status: 'inProgress',
 					commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
 				};
@@ -1547,7 +1549,7 @@ suite('CodexAgent prewarm eviction', () => {
 				agent['_dispatchTurnCompleted']({
 					threadId,
 					turn: {
-						id: 'turn-1', items: recovered ? [completed] : [], itemsView: { type: 'full' },
+						id: 'turn-1', items: recovered ? [completed] : [], itemsView: 'full',
 						status: 'completed', error: null, startedAt: null, completedAt: null, durationMs: 1,
 					},
 				});

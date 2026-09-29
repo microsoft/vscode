@@ -1235,6 +1235,7 @@ suite('codexMapAppServerEvents', () => {
 		state.itemToToolCall.set('cmd', { toolCallId: 'cmd', turnId: 'turn_a', toolName: 'shell', output: '' });
 		const command: Extract<ThreadItem, { type: 'commandExecution' }> = {
 			type: 'commandExecution', id: 'cmd', command: 'build', cwd: '/tmp', processId: null,
+			pluginId: null, scriptPath: null,
 			source: 'agent', status: 'completed', commandActions: [], aggregatedOutput: '', exitCode: null, durationMs: null,
 		};
 		assert.deepStrictEqual([

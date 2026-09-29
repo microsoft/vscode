@@ -804,6 +804,7 @@ suite('codexReplayMapper', () => {
 			const command = (id: string, flags: string, output: string): Extract<ThreadItem, { type: 'commandExecution' }> => ({
 				type: 'commandExecution', id, command: `pwsh ${flags} -Command "Write-Output hello"`,
 				cwd: '/tmp', processId: null, source: 'agent', status: 'completed',
+				pluginId: null, scriptPath: null,
 				commandActions: [], aggregatedOutput: output, exitCode: 0, durationMs: 1,
 			});
 			const preflightFlags = '-NoProfile -ExecutionPolicy Bypass';
@@ -822,7 +823,7 @@ suite('codexReplayMapper', () => {
 				id: 'thr',
 				turns: [{
 					id: 'turn_a', items: [{ type: 'userMessage', id: 'u', clientId: null, content: [{ type: 'text', text: 'run', text_elements: [] }] }, ...items],
-					itemsView: { type: 'full' }, status: 'completed',
+					itemsView: 'full', status: 'completed',
 					error: null, startedAt: null, completedAt: null, durationMs: null,
 				}],
 			} as never);
@@ -830,7 +831,7 @@ suite('codexReplayMapper', () => {
 			assert.deepStrictEqual({
 				liveIds,
 				replay: turns[0].responseParts.filter(part => part.kind === ResponsePartKind.ToolCall).map(part => ({
-					id: part.toolCall.toolCallId, input: part.toolCall.toolInput,
+					id: part.toolCall.toolCallId, input: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.toolInput : undefined,
 				})),
 			}, {
 				liveIds: expectedIds,
