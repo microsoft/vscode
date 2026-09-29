@@ -6784,9 +6784,9 @@ class PluginController extends Disposable {
 		};
 	}
 
-	public async tryParsePlugin(pluginDir: URI): Promise<IParsedPlugin | undefined> {
+	public async tryParsePlugin(pluginDir: URI, workspaceRoot?: URI): Promise<IParsedPlugin | undefined> {
 		try {
-			return await parsePlugin(pluginDir, this._fileService, undefined, this.getUserHome(), pluginDir);
+			return await parsePlugin(pluginDir, this._fileService, workspaceRoot, this.getUserHome(), pluginDir);
 		} catch (error) {
 			this._logService.warn(`[Copilot:PluginController] Error parsing plugin '${pluginDir.toString()}': ${error instanceof Error ? error.message : String(error)}`);
 			return undefined;
@@ -7015,6 +7015,23 @@ class SessionPluginController extends Disposable {
 		const discovered = entry?.currentCustomizations() ?? [];
 		const discoveredDirectories = discovered.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory);
 		const sessionPlugin = discoveredDirectories.some(isEnabledForSdk) ? mapToParsedPlugin(discoveredDirectories) : undefined;
+		const runtimePluginHooks = (await Promise.all(discovered
+			.filter((customization): customization is PluginCustomization => customization.type === CustomizationType.Plugin && isEnabledForSdk(customization))
+			.map(async customization => {
+				const plugin = await this._parent.tryParsePlugin(URI.parse(customization.uri), this._directory);
+				if (!plugin?.hooks.length) {
+					return undefined;
+				}
+				return {
+					format: plugin.format,
+					hooks: plugin.hooks,
+					mcpServers: [],
+					skills: [],
+					agents: [],
+					instructions: [],
+					sourceUri: URI.parse(customization.uri),
+				} satisfies ICopilotPluginInfo;
+			}))).filter(plugin => plugin !== undefined);
 		const withSdkRegistration = (plugin: IParsedPlugin, pluginDir: URI | undefined): ICopilotPluginInfo => ({
 			...plugin,
 			pluginDir,
@@ -7049,6 +7066,7 @@ class SessionPluginController extends Disposable {
 			...this._flattenClientCustomizations().filter(item => !!item.plugin && isEnabledForSdk(item.customization))
 				.map(item => ({ ...withClientDefaults(item), sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
 			...sessionPlugins,
+			...runtimePluginHooks,
 		];
 	}
 
