@@ -25,6 +25,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification, INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { IOnboardingTryoutRunOptions } from '../../../../../platform/onboarding/common/onboardingTryoutHandoff.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IPreferencesService, ISetting } from '../../../../services/preferences/common/preferences.js';
 import { SimpleSettingRenderer } from '../../../markdown/browser/markdownSettingRenderer.js';
@@ -95,9 +96,9 @@ suite('Release notes Try This', () => {
 				assert.ok(scenarios.has(id), 'Only locally registered IDs may be resolved');
 				return availability.get(id) ?? { kind: 'ready' };
 			}
-			override run(id: string, token?: CancellationToken) {
+			override run(id: string, token?: CancellationToken, options?: IOnboardingTryoutRunOptions) {
 				runs.push(id);
-				return runImplementation(id, token);
+				return runImplementation(id, token, options);
 			}
 		});
 		tryouts = store.add(instantiationService.createInstance(ReleaseNotesTryouts));
@@ -377,11 +378,16 @@ suite('Release notes Try This', () => {
 	});
 
 	test('runs ready examples only after an explicit validated activation', async () => {
+		const options: (IOnboardingTryoutRunOptions | undefined)[] = [];
+		runImplementation = async (_id, _token, runOptions) => {
+			options.push(runOptions);
+			return { kind: 'opened' };
+		};
 		await render();
 		attach();
 		request();
 		await timeout(0);
-		assert.deepStrictEqual({ runs, commands: executeCommand.callCount, focusCount }, { runs: ['sample'], commands: 0, focusCount: 0 });
+		assert.deepStrictEqual({ runs, options, commands: executeCommand.callCount, focusCount }, { runs: ['sample'], options: [{ source: 'releaseNotes' }], commands: 0, focusCount: 0 });
 	});
 
 	test('coalesces repeated activation without cancelling the pending example', async () => {
@@ -446,12 +452,12 @@ suite('Release notes Try This', () => {
 		assert.deepStrictEqual({ runs, messages, notifications, focusCount }, { runs: [], messages: [], notifications: [], focusCount: 0 });
 	});
 
-	test('rejects malformed direct command links without falling through to arbitrary dispatch', async () => {
+	test('silently ignores malformed or unknown direct command links without falling through to arbitrary dispatch', async () => {
 		await render();
 		attach();
 		await tryouts.openLink(createCommandUri(RUN_ONBOARDING_TRYOUT_COMMAND_ID, 'sample', 'injected'));
-		await tryouts.openLink(createOnboardingTryoutUri('other'));
-		assert.deepStrictEqual({ runs, commands: executeCommand.callCount, errors: notifications.length }, { runs: [], commands: 0, errors: 2 });
+		await tryouts.openLink(createOnboardingTryoutUri('missing'));
+		assert.deepStrictEqual({ runs, commands: executeCommand.callCount, notifications: notifications.length }, { runs: [], commands: 0, notifications: 0 });
 	});
 
 	for (const kind of ['cancelled', 'unavailable', 'failure'] as const) {

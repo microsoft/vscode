@@ -332,6 +332,7 @@ suite('AgentHostAutomationStore', () => {
 			assert.deepStrictEqual({
 				state: store.catalogueState.get(),
 				reason: store.unavailableReason.get(),
+				reasonCode: store.unavailableReasonCode.get(),
 				canCreate: store.canCreateAutomation.get(),
 				canRun: store.canRunAutomation('automation'),
 				automations: store.automations.get(),
@@ -343,6 +344,7 @@ suite('AgentHostAutomationStore', () => {
 			}, {
 				state: state === 'initializing' ? 'loading' : 'unavailable',
 				reason: reasons[state],
+				reasonCode: state,
 				canCreate: false, canRun: false, automations: [], runs: [], actions: [], requests: [], legacy, providerLegacy: legacy,
 			});
 		}
@@ -406,14 +408,15 @@ suite('AgentHostAutomationStore', () => {
 				runRequests: connection.runRequests,
 			}, { state: 'unavailable', canCreate: false, subscribed: undefined, dispatched: [], runRequests: [] });
 			assert.match(store.unavailableReason.get()!, /Update this Agent Host/);
+			assert.strictEqual(store.unavailableReasonCode.get(), 'incompatible');
 		}
 		connection.initializeResult.set(compatible, undefined);
 		const created = await store.createAutomation(createOptions());
-		const upgraded = { ready: store.catalogueState.get(), canRun: store.canRunAutomation(created.id), reason: store.unavailableReason.get() };
+		const upgraded = { ready: store.catalogueState.get(), canRun: store.canRunAutomation(created.id), reason: store.unavailableReason.get(), reasonCode: store.unavailableReasonCode.get() };
 		connection.initializeResult.set({ ...compatible, _meta: undefined }, undefined);
 		assert.throws(() => store.runAutomation(created.id), /Update this Agent Host/);
 		assert.deepStrictEqual({ upgraded, downgraded: store.catalogueState.get(), runRequests: connection.runRequests }, {
-			upgraded: { ready: 'ready', canRun: true, reason: undefined }, downgraded: 'unavailable', runRequests: [],
+			upgraded: { ready: 'ready', canRun: true, reason: undefined, reasonCode: undefined }, downgraded: 'unavailable', runRequests: [],
 		});
 	});
 
@@ -1155,6 +1158,7 @@ suite('AgentHostAutomationStore', () => {
 						[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
 						[SessionConfigKey.WorktreeBranchPrefix]: 'host-prefix/',
 						[SessionConfigKey.WorktreeIncludeFiles]: ['host.json'],
+						[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
 						[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
 						[SessionConfigKey.AgentMerge]: true,
 					},
@@ -1198,6 +1202,7 @@ suite('AgentHostAutomationStore', () => {
 				[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
 				[SessionConfigKey.WorktreeBranchPrefix]: 'host-prefix/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['host.json'],
+				[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
 				[SessionConfigKey.AgentMerge]: true,
 			},
 		});

@@ -66,6 +66,8 @@ The view service:
 
 It delegates model lifecycle operations to `ISessionsManagementService`.
 
+Visible-session slots have stable identities independent of list position. The view service coordinates membership, activation, directional placement, cancellation, and persisted leaf bindings; the Sessions Part owns rendering and split geometry. Explicit batch opening resolves and prepares its sessions before committing a visibility change. Geometry and layout operations remain independent of providers and comparison membership. See [LAYOUT.md](LAYOUT.md#sessions-part) for the grid and restoration contract.
+
 ### Scoped session context
 
 Surfaces that can represent a session other than the window-global active session use `ISessionContext`. Commands and menus resolve their target through that scope rather than assuming the active session.
@@ -104,6 +106,8 @@ Chat origin and interactivity describe whether a chat is user-created, tool-crea
 ### Workspaces and quick chats
 
 `ISession.workspace` describes the complete workspace in which a session operates. `IChat.workspace` describes the effective workspace available to that chat and may be a subset of the session workspace. Each folder of a chat's workspace reports that folder's own repository and pull request information, so chats sharing a folder share its pull requests. Each folder also has its own Agent Merge settings: Agent Merge actions and indicators for the focused conversation follow the folder `IActiveSession.activeChat` works in, while session-wide surfaces such as the sessions list use the session folder (the main chat's). A folder that is a VS Code-created worktree (`<repo>.worktrees/<name>`) reports its repository as the folder's project, so a chat working in such a worktree shows that project. Filesystem-facing UI and actions for the focused conversation use `IActiveSession.activeChat.workspace`; session lifecycle, creation, and list presentation continue to use the aggregate session workspace. In the compact sessions list, a chat row shows the folder its chat works in, on hover or focus, when the session spans more than one project and the chat works in exactly one folder. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
+
+`ISessionsRecentWorkspacesService` owns persistent workspace dismissals shared by the new-session pickers. Provider-derived workspaces require a non-archived, non-external session; dismissals also prevent automatic selection and survive provider refreshes and reloads. Only a successful send from the new-session composer clears a dismissal, using the selected workspace captured before session preparation; browsing or sessions created elsewhere do not clear it.
 
 ### Capabilities
 
@@ -153,7 +157,7 @@ A provider that must establish backend state before presenting a session may imp
 
 An editor-window draft handoff fills the existing New Session composer only when its input and attachments are empty. The handoff preserves occupied live or restored drafts, including their workspace, and yields to newer input or navigation while awaiting setup or workspace creation. It never sends a request or clears the source editor's draft.
 
-The product protocol link `<product-protocol>://agents/new?workspace=<encoded URI>&prompt=<encoded text>` opens the Agents Window and applies its workspace and prompt through the same draft handoff. Opening the link never submits the prompt, and an occupied composer remains unchanged.
+The product protocol link `<product-protocol>://agents/new?prompt=<encoded text>&workspace=<optional encoded URI>` opens the Agents Window and applies its prompt and optional workspace through the same draft handoff. When `workspace` is omitted, the handoff explicitly selects No Workspace. Opening the link never submits the prompt, and an occupied composer remains unchanged.
 
 Automation editing uses an independent draft so it cannot replace the ordinary New Session composer. Providers advertise `supportsAutomationSessionConfiguration` when they restore `ISessionsProviderCreateSessionOptions.automationConfiguration` before the draft's first configuration resolution and implement `getAutomationSessionConfiguration` to capture the current template. The management service rejects canonical templates for providers without this capability, while deprecated flat aliases continue through ordinary model, mode, and permission operations. It distinguishes unsupported capture from a valid empty template, a replaced draft, and capture failure.
 
@@ -161,7 +165,7 @@ Provider-specific configuration remains opaque to shared Sessions code. Scoped A
 
 ### Operations
 
-Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, and chat creation. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
+Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, chat creation, and optional worktree disk-usage measurement. Shared cleanup UI consumes the optional measurement through the management service and remains independent of provider transport or filesystem details. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
 
 ### Provider ownership
 

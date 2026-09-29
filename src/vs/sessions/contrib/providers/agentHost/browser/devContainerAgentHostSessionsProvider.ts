@@ -6,7 +6,7 @@
 import { raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -18,7 +18,7 @@ import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessi
 import { AgentCustomization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { ILanguageModelChatMetadata } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { isAgentHostProvider, IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatModelSource, ISession } from '../../../../services/sessions/common/session.js';
@@ -179,7 +179,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			return;
 		}
 		const normalizeIsolation = (async () => {
-			await this._waitForSessionConfigResolution(this, sessionId, CancellationToken.None);
+			await this.whenSessionConfigResolved(sessionId, CancellationToken.None);
 			if (!this._devContainerDrafts.has(sessionId) || !this._getNewSession(sessionId)) {
 				return;
 			}
@@ -263,11 +263,11 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		await this._waitForSessionConfigResolution(this, sessionId, token);
-		const sourceConfig = this.getSessionConfig(sessionId);
+		await raceCancellationError(draft.waitForConfigurationReady(), token);
+		const sourceConfig = await this.whenSessionConfigResolved(sessionId, token);
 		let devContainerWorkspace = sourceWorkspace;
 		let detachedWorktree: { readonly handle: string; readonly worktree: URI; readonly connection: IAgentConnection } | undefined;
-		if (sourceConfig?.values[SessionConfigKey.Isolation] === 'worktree') {
+		if (sourceConfig.values[SessionConfigKey.Isolation] === 'worktree') {
 			progress(localize('devContainerAgentHost.preparingWorktree', "Preparing worktree for Dev Container"));
 			await raceCancellationError(draft.waitForEagerCreate(), token);
 			if (token.isCancellationRequested) {
@@ -324,26 +324,24 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			});
 			const discardReplacement = () => targetProvider.deleteNewSession(replacement.sessionId);
 			deleteReplacement = discardReplacement;
+			const replacementToken = targetProvider.getNewSessionCancellationToken(replacement.sessionId);
 			if (detachedWorktree) {
 				await detachedWorktree.connection.claimDetachedWorktree!(detachedWorktree.handle);
 			}
-			await this._waitForSessionConfigResolution(targetProvider, replacement.sessionId, token);
+			let targetConfig = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
 			if (detachedWorktree) {
-				await targetProvider.setSessionConfigValue(replacement.sessionId, SessionConfigKey.Isolation, 'folder');
-				await this._waitForSessionConfigResolution(targetProvider, replacement.sessionId, token);
+				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, SessionConfigKey.Isolation, 'folder'), replacementToken);
+				targetConfig = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
 			}
-			const targetConfig = targetProvider.getSessionConfig(replacement.sessionId);
-			if (sourceConfig) {
-				for (const [property, value] of Object.entries(sourceConfig.values)) {
-					if (detachedWorktree && property === SessionConfigKey.Isolation) {
-						continue;
-					}
-					const targetProperty = targetConfig?.schema.properties[property];
-					if (!targetProperty || targetProperty.readOnly) {
-						continue;
-					}
-					await targetProvider.setSessionConfigValue(replacement.sessionId, property, value);
+			for (const [property, value] of Object.entries(sourceConfig.values)) {
+				if (detachedWorktree && property === SessionConfigKey.Isolation) {
+					continue;
 				}
+				const targetProperty = targetConfig.schema.properties[property];
+				if (!targetProperty || targetProperty.readOnly) {
+					continue;
+				}
+				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, property, value), replacementToken);
 			}
 			const sourceChat = draft.session.mainChat.get();
 			const replacementChat = replacement.mainChat.get();
@@ -366,7 +364,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			if (targetAgent) {
 				targetProvider.setAgent?.(replacement.sessionId, { uri: targetAgent.uri, name: targetAgent.name });
 			}
-			if (token.isCancellationRequested) {
+			if (token.isCancellationRequested || replacementToken.isCancellationRequested) {
 				throw new CancellationError();
 			}
 			return {
@@ -400,15 +398,6 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			await worktree.connection.deleteDetachedWorktree?.(worktree.handle);
 		} catch (error) {
 			this._logService.error(`[${this.id}] Failed to delete detached Dev Container worktree '${worktree.handle}' during rollback.`, error);
-		}
-	}
-
-	private async _waitForSessionConfigResolution(provider: IAgentHostSessionsProvider, sessionId: string, token: CancellationToken): Promise<void> {
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		while (provider.isSessionConfigResolving(sessionId).get()) {
-			await raceCancellationError(Event.toPromise(Event.filter(provider.onDidChangeSessionConfig, changedSessionId => changedSessionId === sessionId)), token);
 		}
 	}
 

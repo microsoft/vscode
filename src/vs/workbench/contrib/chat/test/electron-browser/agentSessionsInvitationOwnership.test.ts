@@ -90,7 +90,7 @@ suite('Agents invitation widget ownership', () => {
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 		instantiation.stub(IContextKeyService, contextService);
-		instantiation.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({}));
+		instantiation.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ onDidCommitSession: Event.None }));
 		instantiation.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			get lastFocusedWidget() { return lastFocused; },
 			getAllWidgets: () => widgets,
@@ -105,6 +105,7 @@ suite('Agents invitation widget ownership', () => {
 			model: upcastPartial<IAgentSessionsModel>({
 				onDidChangeSessions: Event.None,
 				sessions: Array.from({ length: 6 }, (_, index) => upcastPartial<IAgentSession>({
+					resource: URI.from({ scheme: SessionType.AgentHostCopilot, path: `/session-${index}` }),
 					providerType: SessionType.AgentHostCopilot,
 					status: index === 0 ? AgentSessionStatus.InProgress : AgentSessionStatus.Completed,
 					isArchived: () => false,

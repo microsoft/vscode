@@ -267,6 +267,6 @@ suite('NewChatMigrationNotice', () => {
 		const notice = env.create();
 		await timeout(0);
 		assert.deepStrictEqual({ visible: snapshot(notice).visible, errors: env.errors },
-			{ visible: false, errors: [['Failed to check customization migrations for the new chat notice', error]] });
+			{ visible: false, errors: [['Failed to check customization migrations for the chat notice', error]] });
 	});
 });

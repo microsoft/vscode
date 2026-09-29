@@ -5,6 +5,7 @@
 
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -32,7 +33,9 @@ import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { agentsBackground } from '../../../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
@@ -51,6 +54,8 @@ import { SessionsListRearrangeExperimentState } from '../sessionsListRearrangeEx
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
+import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
+import { SessionsListNotification } from './sessionsListNotification.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -93,6 +98,7 @@ export function renderSessionsHeader(
 	instantiationService: IInstantiationService,
 	contextKeyService: IContextKeyService,
 	disposables: DisposableStore,
+	onDidShowFilters?: () => void,
 ): ISessionsHeaderElements {
 	const row = DOM.append(parent, $('.agent-sessions-header-row'));
 	const label = DOM.append(row, $('.agent-sessions-header-label'));
@@ -105,13 +111,36 @@ export function renderSessionsHeader(
 		toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, Menus.SidebarSessionsHeader, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'sessionsView.header',
-			toolbarOptions: { primaryGroup: () => true },
+			toolbarOptions: { primaryGroup: group => group.startsWith('navigation') },
+			actionViewItemProvider: (action, options) => onDidShowFilters && action instanceof SubmenuItemAction && action.item.submenu === SessionsViewFilterSubMenu
+				? scopedInstantiationService.createInstance(SessionsFilterActionViewItem, action, options, onDidShowFilters)
+				: undefined,
 		}));
 	} else {
 		row.classList.add('phone-layout-empty');
 	}
 
 	return { row, label, actions, toolbar };
+}
+
+/** The Filter Sessions dropdown, which reports whenever it shows. */
+class SessionsFilterActionViewItem extends SubmenuEntryActionViewItem {
+
+	constructor(
+		action: SubmenuItemAction,
+		options: IDropdownMenuActionViewItemOptions | undefined,
+		onDidShow: () => void,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IThemeService themeService: IThemeService,
+	) {
+		super(action, options, keybindingService, contextMenuService, themeService);
+		this._register(this.onDidChangeVisibility(visible => {
+			if (visible) {
+				onDidShow();
+			}
+		}));
+	}
 }
 
 export class SessionsView extends ViewPane {
@@ -128,6 +157,7 @@ export class SessionsView extends ViewPane {
 	private readonly sessionsHeaders = new Set<IRegisteredSessionsHeader>();
 	private isFindWidgetOpen = false;
 	sessionsControl: SessionsList | undefined;
+	archiveNotification: SessionsListNotification | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private readonly sessionsListRearrangeExperimentState: SessionsListRearrangeExperimentState;
 	private readonly customizationsNavigationVisible = observableValue(this, false);
@@ -289,7 +319,10 @@ export class SessionsView extends ViewPane {
 				return this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 		}));
+		const storageCleanupNotice = this._register(this.instantiationService.createInstance(SessionStorageCleanupNotice, () => sessionsControl.focus(), status));
+		sessionsContent.appendChild(storageCleanupNotice.domNode);
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
+		this.archiveNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
 
 		// Toggle header label/actions visibility when find widget opens/closes
 		this._register(sessionsControl.onDidChangeFindOpenState(open => {
@@ -413,7 +446,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private createSessionsHeader(parent: HTMLElement, phoneLayout: boolean, treeHeader: boolean, disposables: DisposableStore): ISessionsHeaderElements {
-		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables);
+		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportArchivedFilterShown());
 		const registeredHeader: IRegisteredSessionsHeader = { ...header, treeHeader };
 		this.sessionsHeaders.add(registeredHeader);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(registeredHeader)));

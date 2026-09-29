@@ -28,6 +28,7 @@ import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRe
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetFile } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, parseRequiredSessionUriFromChatUri, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -1039,6 +1040,82 @@ suite('AgentHostSessionChangesets', () => {
 			acquiredChats: [peerChatUri.toString()],
 			acquiredChangesets: [compareFromUser3, compareFromUser6],
 			releasedChangesets: [compareFromUser3],
+		});
+	});
+
+	test('dispatches deleted file review state using the host file id', () => {
+		const fileResource = URI.parse('host-workspace://cluster/project/deleted.ts');
+		const changesetResource = URI.parse('host-changeset://cluster/session-1/branch');
+		const changesetState: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'opaque-deleted-file-id',
+				edit: {
+					before: {
+						uri: fileResource.toString(),
+						content: { uri: 'host-content://cluster/snapshots/deleted.ts' },
+					},
+					diff: { added: 0, removed: 3 },
+				},
+			}],
+		};
+		let dispatchedChannel: string | undefined;
+		let dispatchedAction: Parameters<IAgentConnection['dispatch']>[1] | undefined;
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+				const subscription = new class extends mock<IAgentSubscription<ComponentToState[T]>>() {
+					override readonly value = changesetState as ComponentToState[T];
+					override readonly verifiedValue = changesetState as ComponentToState[T];
+					override readonly onDidChange = Event.None;
+					override readonly onWillApplyAction = Event.None;
+					override readonly onDidApplyAction = Event.None;
+				}();
+				return {
+					object: subscription,
+					dispose: () => { },
+				};
+			}
+
+			override dispatch(channel: string, action: Parameters<IAgentConnection['dispatch']>[1]): void {
+				dispatchedChannel = channel;
+				dispatchedAction = action;
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+		const options: IAgentHostAdapterOptions = {
+			icon: Codicon.copilot,
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+		};
+		const [changeset] = createChangesets(
+			URI.parse('host-session://cluster/session-1'),
+			options,
+			constObservable(true),
+			[{
+				label: 'Branch Changes',
+				changeKind: ChangesetKind.Branch,
+				uriTemplate: changesetResource.toString(),
+				capabilities: { review: {} },
+			}],
+		);
+
+		changeset.setReviewState?.([fileResource], true);
+
+		assert.deepStrictEqual({
+			channel: dispatchedChannel,
+			action: dispatchedAction,
+		}, {
+			channel: changesetResource.toString(),
+			action: {
+				type: ActionType.ChangesetFilesReviewChanged,
+				files: ['opaque-deleted-file-id'],
+				reviewed: true,
+			},
 		});
 	});
 

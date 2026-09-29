@@ -26,10 +26,10 @@ import { createSessionIsolationToolGroup, type ISessionIsolationToolAccessor } f
  * When omitted (the pure display path) the session group's `execute` is inert,
  * but its definitions and display remain available.
  */
-export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor, isolationAccessor?: ISessionIsolationToolAccessor): readonly IServerToolGroup[] {
+export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor, areAgentOrchestrationLimitsEnabled?: () => boolean, isolationAccessor?: ISessionIsolationToolAccessor): readonly IServerToolGroup[] {
 	return [
 		feedbackServerToolGroup,
-		createSessionServerToolGroup(sessionAccessor),
+		createSessionServerToolGroup(sessionAccessor, areAgentOrchestrationLimitsEnabled),
 		createAgentMergeServerToolGroup(agentMergeAccessor),
 		createArtifactServerToolGroup(artifactAccessor),
 		createSessionIsolationToolGroup(isolationAccessor),

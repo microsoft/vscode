@@ -859,6 +859,32 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		}),
 		ThemeColors: defineThemedFixtureGroup(createThemeColorFixtures()),
 	}),
+	TabStyleCompatibility: defineThemedFixtureGroup({
+		Legacy: defineComponentFixture({
+			render: render(false, {}),
+			themes: ['dark'],
+			additionalThemes: ['darkModern'],
+			expectedVisualDescriptions: [
+				'With Modern UI disabled, the legacy tab strip and inactive tabs retain the theme legacy background instead of adopting the connected-tab strip color.',
+			],
+		}),
+		Connected: defineComponentFixture({
+			render: render(true, {}),
+			themes: ['dark'],
+			additionalThemes: ['darkModern'],
+			expectedVisualDescriptions: [
+				'Connected tabs use the dedicated connected strip color while the active tab remains joined to the editor surface.',
+			],
+		}),
+		Pill: defineComponentFixture({
+			render: render(true, { editorTabStyle: ModernUIEditorTabStyle.Pill }),
+			themes: ['dark'],
+			additionalThemes: ['darkModern'],
+			expectedVisualDescriptions: [
+				'Pill tabs retain their transparent modern surface and separate rounded geometry instead of adopting the connected-tab strip color.',
+			],
+		}),
+	}),
 	ConnectedSurface: defineThemedFixtureGroup({
 		MinimumIdentity: defineComponentFixture({
 			render: renderConnectedSurface(3, undefined, undefined, {

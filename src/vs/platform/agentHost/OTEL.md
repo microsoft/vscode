@@ -4,6 +4,10 @@ The **agent host** is a separate utility process (under `src/vs/platform/agentHo
 
 This is the architecture and integration reference for OTel in Agent Host sessions. It lives next to `IAgentHostOTelService` in [node/otel/agentHostOTelService.ts](node/otel/agentHostOTelService.ts) because Agent Host runs outside the extension host. Local Copilot Chat remains an independent extension-host pipeline configured with `github.copilot.chat.otel.*` and documented in [`extensions/copilot/docs/monitoring/agent_monitoring.md`](../../../../extensions/copilot/docs/monitoring/agent_monitoring.md).
 
+Product startup telemetry and its host-lifetime correlation ID are documented in
+[`PERFORMANCE.md`](PERFORMANCE.md). They use the existing usage-telemetry consent,
+not the OTel exporter or its configuration.
+
 | Property | Agent Host OTel | Extension OTel |
 |---|---|---|
 | Process | Separate utility process (`src/vs/platform/agentHost/node/`) | Extension host |
@@ -384,7 +388,7 @@ The workbench-side starter translates the settings above into the following env 
 
 Inside Agent Host, OTel activates when `COPILOT_OTEL_ENABLED` or `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` is truthy, or when an OTLP endpoint or file-exporter path is non-empty. This allows inherited environment configuration to enable OTel without a local VS Code setting.
 
-> **Activation timing.** Env vars are bound at agent host **spawn time**. Changing a setting while the agent host is already running has no effect until the host respawns — restart VS Code or reload the window if you change these settings mid-session.
+> **Activation timing.** Env vars are bound at agent host **spawn time**. When settled enterprise OTel policy changes after startup, VS Code automatically respawns the local agent host with the new policy. Temporary policy-refresh values and windows still resolving their initial account do not restart an existing host. Changes to personal settings still require a manual agent host or window restart.
 
 ## Local SQLite Span Store
 
@@ -471,4 +475,4 @@ This matches the path-handling rules of the official OpenTelemetry SDKs and ensu
 
 ## Spawn-Time Env Binding
 
-The agent host inherits its env vars at fork time. `IAgentHostOTelService` reads `process.env` once in its constructor and caches the resolved config. Changing a `chat.agentHost.otel.*` setting at runtime therefore has **no effect** on the currently-running agent host — the host must respawn (reload window / restart VS Code) to pick up the new value. This is the same model used by the rest of the agent host service surface.
+The agent host inherits its env vars at fork time. `IAgentHostOTelService` reads `process.env` once in its constructor and caches the resolved config. The renderer forwards enterprise-resolved OTel policy changes and account-policy readiness to the main process. The main process retains the existing host's policy during a pending refresh or another window's initial account resolution. A settled change, including policy withdrawal or fail-closed restrictions after a failed refresh, respawns the shared local agent host. Pending refreshes do not bypass the account-policy gate on AI functionality. A cold host can use provisional startup values until settled policy arrives. Personal `chat.agentHost.otel.*` setting changes do not trigger this automatic restart and require a manual agent host or window restart.

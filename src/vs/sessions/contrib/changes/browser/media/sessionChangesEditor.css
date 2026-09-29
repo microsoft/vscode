@@ -150,6 +150,7 @@
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
 	background-color: var(--vscode-commandCenter-background);
 	color: var(--vscode-commandCenter-foreground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-toolbar-hoverBackground);
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
@@ -158,7 +159,7 @@
 }
 
 :is(.hc-black, .hc-light) .changes-picker-action-with-summary .action-label {
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+	border-color: var(--vscode-contrastBorder);
 }
 
 .changes-picker-action-with-summary .action-label:focus-visible {
@@ -172,6 +173,10 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.changes-picker-action-rich .changes-picker-label.non-default {
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .changes-picker-action-rich .changes-picker-summary {

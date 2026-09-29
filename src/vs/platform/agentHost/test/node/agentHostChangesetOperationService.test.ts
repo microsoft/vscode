@@ -128,6 +128,9 @@ class TestConfigurationService implements IAgentConfigurationService {
 	readonly onDidRootConfigChange = Event.None;
 	readonly onDidSessionConfigChange = Event.None;
 	readonly onDidChangeWorkingDirectoryPending = Event.None;
+	setSessionSandboxEnabled(): void { }
+	getSessionSandboxEnabled(): undefined { return undefined; }
+	rejectSessionSandboxChange(): void { }
 
 	constructor(private _workingDirectories: string[] | undefined) { }
 
@@ -374,7 +377,7 @@ suite('AgentHostChangesetOperationService', () => {
 		assert.deepStrictEqual(dispatched, [sampleOperations]);
 	});
 
-	test('chat-owned changesets use chat Git state and exclude session-owned operations', () => {
+	test('chat-owned uncommitted changesets use chat Git state, offer pull request workflows, and exclude merge', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
 		const chatKey = buildChatUri(sessionKey, 'peer');
@@ -421,7 +424,7 @@ suite('AgentHostChangesetOperationService', () => {
 			operationsWithoutChatGit: [],
 			publishedWithoutChatGit: [],
 			gitState: chatGitState,
-			operationIds: [testOperationId],
+			operationIds: [testOperationId, PREPARE_PULL_REQUEST_OPERATION_ID],
 		});
 	});
 
@@ -655,7 +658,7 @@ suite('AgentHostChangesetOperationService', () => {
 		assert.deepStrictEqual(uncommittedOperations, sampleOperations);
 	});
 
-	test('offers pull request workflows on every folder scope Branch and keeps merge with the default chat', () => {
+	test('offers pull request workflows on every folder scope Branch and Uncommitted changeset and keeps merge with the default chat', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
 		const defaultFolder = 'file:///default';
@@ -696,7 +699,7 @@ suite('AgentHostChangesetOperationService', () => {
 			otherScopeBranch: service.getOperations(sessionKey, otherScopeBranch, sampleGitState).map(operation => operation.id),
 		}, {
 			defaultBranch: [testOperationId, PREPARE_PULL_REQUEST_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID],
-			defaultUncommitted: [testOperationId],
+			defaultUncommitted: [testOperationId, PREPARE_PULL_REQUEST_OPERATION_ID],
 			sessionChanges: [testOperationId, PREPARE_PULL_REQUEST_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID],
 			defaultTurn: [testOperationId],
 			defaultCompare: [testOperationId],

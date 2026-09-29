@@ -16,6 +16,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import type { AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -63,15 +64,14 @@ suite('SessionServerTools', () => {
 		return { sessionUri, chatUri: buildDefaultChatUri(sessionUri), turnId: 'turn-1' };
 	}
 
-	function prepared(directory: URI, release: () => Promise<void> = async () => { }): IPreparedChatWorkingDirectory {
-		return { directory, release };
+	function prepared(directory: URI, release: () => Promise<void> = async () => { }, associateWithChat?: (chat: URI) => Promise<void>): IPreparedChatWorkingDirectory {
+		return { directory, release, associateWithChat };
 	}
 
 	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (...args: Parameters<ISessionServerToolAccessor['startPrompt']>) => void; onCreateChat?: (...args: Parameters<ISessionServerToolAccessor['createChat']>) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
 		const depths = overrides?.depths ?? new Map<string, number>();
 		return {
-			isActiveAgentTitleGenerationEnabled: overrides?.isActiveAgentTitleGenerationEnabled ?? (() => true),
-			getAutomaticTitleGenerationStrategy: overrides?.getAutomaticTitleGenerationStrategy ?? (() => overrides?.isActiveAgentTitleGenerationEnabled?.() === false ? 'utility' : 'activeAgent'),
+			getAutomaticTitleGenerationStrategy: overrides?.getAutomaticTitleGenerationStrategy ?? (() => 'deferred'),
 			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
 			supportsChatWorkingDirectories: overrides?.supportsChatWorkingDirectories ?? (() => true),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
@@ -110,6 +110,10 @@ suite('SessionServerTools', () => {
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ListSessions)?.description ?? '', /`openLink` for clickable Markdown links/);
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.SendMessage)?.description ?? '', /target chat is busy.*message is queued/);
 		assert.deepStrictEqual(sessionServerToolDefinitions.filter(definition => definition.enabledForEphemeralSessions).map(definition => definition.name), []);
+		assert.deepStrictEqual(
+			sessionServerToolDefinitions.map(({ name, deferLoading }) => ({ name, deferLoading })),
+			sessionServerToolDefinitions.map(({ name }) => ({ name, deferLoading: true })),
+		);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateSession), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateChat), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.SetWorkspace), true);
@@ -160,8 +164,8 @@ suite('SessionServerTools', () => {
 		});
 		assert.strictEqual(sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.ListSessions)?.inputSchema?.properties?.label, undefined);
 		const renameDefinition = sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.RenameChat);
-		assert.deepStrictEqual([{ name: renameDefinition?.name, required: renameDefinition?.inputSchema?.required }], [
-			{ name: SessionServerToolName.RenameChat, required: ['title'] },
+		assert.deepStrictEqual([{ name: renameDefinition?.name, required: renameDefinition?.inputSchema?.required, deferLoading: renameDefinition?.deferLoading }], [
+			{ name: SessionServerToolName.RenameChat, required: ['title'], deferLoading: true },
 		]);
 		assert.deepStrictEqual([renameDefinition?.inputSchema?.properties?.title], [
 			{ type: 'string', maxLength: 200, description: 'Short, descriptive chat title, ideally 1-4 words.' },
@@ -235,8 +239,8 @@ suite('SessionServerTools', () => {
 		stateManager.dispose();
 	});
 
-	test('new sessions use the current setting while materialized sessions keep their advertised tools', async () => {
-		let enabled = false;
+	test('new sessions use the current strategy while materialized sessions keep their advertised tools', async () => {
+		let strategy: AutomaticTitleGenerationStrategy = 'utility';
 		const stateManager = new AgentHostStateManager(new NullLogService());
 		const disabledSession = 'copilot:/s1';
 		const enabledSession = 'copilot:/s2';
@@ -251,7 +255,7 @@ suite('SessionServerTools', () => {
 			});
 		}
 		const accessor = createAccessor({
-			isActiveAgentTitleGenerationEnabled: () => enabled,
+			getAutomaticTitleGenerationStrategy: () => strategy,
 			listSessions: async () => [
 				sessionMeta('s1', SessionStatus.Idle, workspace),
 				sessionMeta('s2', SessionStatus.Idle, workspace),
@@ -262,7 +266,7 @@ suite('SessionServerTools', () => {
 		]);
 
 		host.advertise(disabledSession);
-		enabled = true;
+		strategy = 'deferred';
 		host.advertise(enabledSession);
 
 		await assert.rejects(
@@ -291,8 +295,8 @@ suite('SessionServerTools', () => {
 		stateManager.dispose();
 	});
 
-	test('materialized rename tools remain executable after the root setting is disabled', async () => {
-		let enabled = true;
+	test('materialized rename tools remain executable after the strategy changes', async () => {
+		let strategy: AutomaticTitleGenerationStrategy = 'deferred';
 		const stateManager = new AgentHostStateManager(new NullLogService());
 		const session = 'copilot:/s1';
 		stateManager.createSession({
@@ -304,11 +308,11 @@ suite('SessionServerTools', () => {
 			modifiedAt: new Date(0).toISOString(),
 		});
 		const host = new AgentServerToolHost(stateManager, [
-			createSessionServerToolGroup(createAccessor({ isActiveAgentTitleGenerationEnabled: () => enabled })),
+			createSessionServerToolGroup(createAccessor({ getAutomaticTitleGenerationStrategy: () => strategy })),
 		]);
 
 		host.advertise(session);
-		enabled = false;
+		strategy = 'utility';
 
 		assert.strictEqual(
 			await host.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameChat, { title: 'Still enabled' }),
@@ -328,7 +332,6 @@ suite('SessionServerTools', () => {
 				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 			});
 			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({
-				isActiveAgentTitleGenerationEnabled: () => false,
 				getAutomaticTitleGenerationStrategy: () => 'deferred',
 			}))]);
 			host.advertise(session);
@@ -432,7 +435,7 @@ suite('SessionServerTools', () => {
 			execute: () => '',
 		};
 		const host = new AgentServerToolHost(stateManager, [
-			createSessionServerToolGroup(createAccessor({ isActiveAgentTitleGenerationEnabled: () => sessionToolsEnabled })),
+			createSessionServerToolGroup(createAccessor({ getAutomaticTitleGenerationStrategy: () => sessionToolsEnabled ? 'deferred' : 'utility' })),
 			dynamicGroup,
 		]);
 
@@ -1503,10 +1506,65 @@ suite('SessionServerTools', () => {
 		let n = 0;
 		const group = createSessionServerToolGroup(createAccessor({ createSession: async () => URI.parse(`copilot:/s${n++}`) }));
 		const args = { relationship: 'independent', workspace: workspace.toString(), prompt: 'go', title: 'Spawned Task' };
-		for (let i = 0; i < 25; i++) {
+		for (let i = 0; i < 50; i++) {
 			await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, args);
 		}
-		await assert.rejects(async () => { await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, args); }, /more than 25 sessions/);
+		await assert.rejects(async () => { await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, args); }, /more than 50 sessions/);
+		store.dispose();
+	});
+
+	test('turning agent orchestration limits off bypasses creation, recursion, and messaging backstops', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+
+		let sessionLimitsEnabled = true;
+		let createdSessions = 0;
+		const depths = new Map<string, number>();
+		const sessionGroup = createSessionServerToolGroup(createAccessor({
+			depths,
+			createSession: async () => URI.parse(`copilot:/created-${createdSessions++}`),
+		}), () => sessionLimitsEnabled);
+		const independentArgs = { relationship: 'independent', workspace: workspace.toString(), prompt: 'go', title: 'Spawned Task' };
+		for (let i = 0; i < 50; i++) {
+			await sessionGroup.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, independentArgs);
+		}
+		await assert.rejects(async () => { await sessionGroup.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, independentArgs); }, /more than 50 sessions/);
+		depths.set('copilot:/deep', 3);
+		sessionLimitsEnabled = false;
+		await sessionGroup.execute(stateManager, executionContext('copilot:/deep'), SessionServerToolName.CreateSession, independentArgs);
+
+		let chatLimitsEnabled = true;
+		let createdChats = 0;
+		const chatGroup = createSessionServerToolGroup(createAccessor({
+			createChat: async () => { createdChats++; },
+		}), () => chatLimitsEnabled);
+		const chatArgs = { relationship: 'currentSession', prompt: 'go', title: 'Peer Task' };
+		for (let i = 0; i < 50; i++) {
+			await chatGroup.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, chatArgs);
+		}
+		await assert.rejects(async () => { await chatGroup.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, chatArgs); }, /more than 50 chats/);
+		chatLimitsEnabled = false;
+		await chatGroup.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, chatArgs);
+
+		let messageLimitsEnabled = true;
+		let sentMessages = 0;
+		const messageGroup = createSessionServerToolGroup(createAccessor({
+			startPrompt: async () => { sentMessages++; },
+		}), () => messageLimitsEnabled);
+		const messageArgs = { session: 'copilot:/s1', message: 'status' };
+		for (let i = 0; i < 100; i++) {
+			await messageGroup.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.SendMessage, messageArgs);
+		}
+		await assert.rejects(async () => { await messageGroup.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.SendMessage, messageArgs); }, /more than 100 messages/);
+		messageLimitsEnabled = false;
+		await messageGroup.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.SendMessage, messageArgs);
+
+		assert.deepStrictEqual({ createdSessions, createdChats, sentMessages, spawnedDepth: depths.get('copilot:/created-50') }, {
+			createdSessions: 51,
+			createdChats: 51,
+			sentMessages: 101,
+			spawnedDepth: 4,
+		});
 		store.dispose();
 	});
 
@@ -1572,7 +1630,7 @@ suite('SessionServerTools', () => {
 		const requestedWorkspace = URI.file('/workspace/other');
 		const preparedWorkspace = URI.file('/workspace/other.worktrees/task');
 		const operations: string[] = [];
-		let createdChat: { session: URI; options?: Parameters<ISessionServerToolAccessor['createChat']>[2] } | undefined;
+		let createdChat: { session: URI; chat: URI; options?: Parameters<ISessionServerToolAccessor['createChat']>[2] } | undefined;
 		let addOptions: Parameters<ISessionServerToolAccessor['prepareChatWorkingDirectory']>[2] | undefined;
 		const accessor = createAccessor({
 			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)],
@@ -1580,11 +1638,13 @@ suite('SessionServerTools', () => {
 			prepareChatWorkingDirectory: async (session, directory, options) => {
 				operations.push(`add:${session.toString()}:${directory.toString()}`);
 				addOptions = options;
-				return prepared(preparedWorkspace);
+				return prepared(preparedWorkspace, async () => { }, async chat => {
+					operations.push(`associate:${chat.toString()}`);
+				});
 			},
-			onCreateChat: (session, _chat, options) => {
+			onCreateChat: (session, chat, options) => {
 				operations.push('create');
-				createdChat = { session, options };
+				createdChat = { session, chat, options };
 			},
 			onRenameChat: () => operations.push('rename'),
 			onPrompt: () => operations.push('prompt'),
@@ -1607,7 +1667,7 @@ suite('SessionServerTools', () => {
 			// The chat gets the prepared checkout, not the requested folder.
 			workingDirectories: [preparedWorkspace.toString()],
 			addOptions: { isolation: 'worktree', prompt: 'do it there' },
-			operations: [`add:copilot:/s1:${requestedWorkspace.toString()}`, 'create', 'rename', 'prompt'],
+			operations: [`add:copilot:/s1:${requestedWorkspace.toString()}`, `associate:${createdChat?.chat.toString()}`, 'create', 'rename', 'prompt'],
 		});
 		store.dispose();
 	});

@@ -84,7 +84,7 @@ suite('AgentHostChangesetStrategy', () => {
 		isolation?: string;
 		workingDirectories?: string[];
 		db?: TestSessionDatabase;
-		peer?: { resource: string; db: TestSessionDatabase; turnId: string };
+		peer?: { resource: string; db: TestSessionDatabase; turnId: string; workingDirectories?: readonly string[] };
 		unavailableDatabase?: string;
 	} = {}) {
 		const state = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -184,7 +184,7 @@ suite('AgentHostChangesetStrategy', () => {
 		setIsolation(state, options.isolation);
 		addTurn(state, turnId);
 		if (options.peer) {
-			state.addChat(session, options.peer.resource);
+			state.addChat(session, options.peer.resource, { workingDirectories: options.peer.workingDirectories });
 			addTurn(state, options.peer.turnId, options.peer.resource);
 		}
 		return { service, state, db, diff, git, checkpoints, results, subscriptions, gitCalls, repositoryCalls, checkpointCalls, databaseCalls };
@@ -603,7 +603,7 @@ suite('AgentHostChangesetStrategy', () => {
 		}, { state: { status: ChangesetStatus.Error, errorType: 'computeFailed', edits: [gitOnlyDiff] }, git: [], tracked: 0 });
 	});
 
-	test('tracker includes every tracked root without repository partitioning or path filtering', async () => {
+	test('tracker includes every working directory without repository partitioning and excludes files outside them', async () => {
 		const fixture = createFixture({ isolation: 'folder', workingDirectories: ['file:///repo', 'file:///non-git'] });
 		const paths = ['/non-git/file.txt', '/outside/file.txt', trackedPath];
 		for (const path of paths) {
@@ -611,13 +611,109 @@ suite('AgentHostChangesetStrategy', () => {
 		}
 		await refresh(fixture, 'fileEditTracker');
 		await fixture.service.computeTurnChangeset(session, turnId, 'fileEditTracker');
+		const workspacePaths = ['/non-git/file.txt', trackedPath];
 		assert.deepStrictEqual({
 			session: snapshot(fixture.state, sessionChangeset),
 			turn: snapshot(fixture.state, turnChangeset),
 			repositories: fixture.repositoryCalls,
 			checkpoints: fixture.checkpointCalls,
 			git: fixture.gitCalls,
-		}, { session: ready(paths.map(path => trackedDiff(path))), turn: ready(paths.map(path => trackedDiff(path))), repositories: [], checkpoints: [], git: [] });
+		}, { session: ready(workspacePaths.map(path => trackedDiff(path))), turn: ready(workspacePaths.map(path => trackedDiff(path))), repositories: [], checkpoints: [], git: [] });
+	});
+
+	for (const strategy of ['fileEditTracker', 'auto'] as const) {
+		test(`${strategy} tracked edits exclude files outside the working directory`, async () => {
+			const fixture = createFixture();
+			// Without checkpoints, `auto` falls back to tracked edits.
+			fixture.results.pair = undefined;
+			addEdit(fixture.db);
+			addEdit(fixture.db, '/session-state/plan.md', turnId, 'edit-2');
+			await refresh(fixture, strategy);
+			await fixture.service.computeTurnChangeset(session, turnId, strategy);
+			assert.deepStrictEqual({
+				session: snapshot(fixture.state, sessionChangeset),
+				turn: snapshot(fixture.state, turnChangeset),
+			}, { session: ready([trackedDiff()]), turn: ready([trackedDiff()]) });
+		});
+	}
+
+	test('tracker excludes peer chat edits outside the working directory', async () => {
+		const peer = buildChatUri(session, 'peer');
+		const peerDb = new TestSessionDatabase();
+		const fixture = createFixture({ peer: { resource: peer, db: peerDb, turnId: 'peer-turn' } });
+		addEdit(fixture.db);
+		addEdit(peerDb, '/session-state/plan.md', 'peer-turn', 'peer-edit');
+		await refresh(fixture, 'fileEditTracker');
+		const uri = await fixture.service.computeTurnChangeset(session, 'peer-turn', 'fileEditTracker');
+		assert.deepStrictEqual({
+			session: snapshot(fixture.state, sessionChangeset),
+			turn: snapshot(fixture.state, uri),
+		}, { session: ready([trackedDiff()]), turn: ready([]) });
+	});
+
+	test('auto fallback scopes peer turn edits to the peer working directory', async () => {
+		const peer = buildChatUri(session, 'peer');
+		const peerDb = new TestSessionDatabase();
+		const fixture = createFixture({ peer: { resource: peer, db: peerDb, turnId: 'peer-turn', workingDirectories: ['file:///peer'] } });
+		fixture.results.pair = undefined;
+		addEdit(peerDb, '/peer/file.txt', 'peer-turn', 'peer-edit');
+		addEdit(peerDb, '/repo/parent.txt', 'peer-turn', 'parent-edit');
+		const uri = await fixture.service.computeTurnChangeset(session, 'peer-turn', 'auto');
+		assert.deepStrictEqual(snapshot(fixture.state, uri), ready([trackedDiff('/peer/file.txt', peer, 'peer-edit')]));
+	});
+
+	test('incremental tracker recompute excludes edits outside the working directory', async () => {
+		const fixture = createFixture();
+		addEdit(fixture.db);
+		await refresh(fixture, 'fileEditTracker');
+		addEdit(fixture.db, '/session-state/plan.md', 'turn-2', 'edit-2');
+		addEdit(fixture.db, '/repo/second.txt', 'turn-2', 'edit-3');
+		const published = nextPublication(fixture.state, sessionChangeset);
+		fixture.service.onTurnComplete(session, 'turn-2');
+		await published;
+		assert.deepStrictEqual({
+			state: snapshot(fixture.state, sessionChangeset),
+			reads: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls],
+		}, { state: ready([trackedDiff('/repo/second.txt', session, 'edit-3'), trackedDiff()]), reads: [1, 1] });
+	});
+
+	test('tracker leaves turn edits unscoped when no working directory is known', async () => {
+		const fixture = createFixture({ workingDirectories: [] });
+		addEdit(fixture.db, '/session-state/plan.md');
+		await fixture.service.computeTurnChangeset(session, turnId, 'fileEditTracker');
+		assert.deepStrictEqual(snapshot(fixture.state, turnChangeset), ready([trackedDiff('/session-state/plan.md')]));
+	});
+
+	for (const strategy of ['fileEditTracker', 'auto'] as const) {
+		test(`${strategy} tracked edits exclude every file for a peer chat without working-directory access`, async () => {
+			const peer = buildChatUri(session, 'peer');
+			const peerDb = new TestSessionDatabase();
+			const fixture = createFixture({ peer: { resource: peer, db: peerDb, turnId: 'peer-turn', workingDirectories: [] } });
+			// Without checkpoints, `auto` falls back to tracked edits.
+			fixture.results.pair = undefined;
+			addEdit(peerDb, '/repo/peer.txt', 'peer-turn', 'peer-edit');
+			addEdit(peerDb, '/session-state/plan.md', 'peer-turn', 'plan-edit');
+			const uri = await fixture.service.computeTurnChangeset(session, 'peer-turn', strategy);
+			assert.deepStrictEqual(snapshot(fixture.state, uri), ready([]));
+		});
+	}
+
+	test('tracker excludes every file when the default chat has no working-directory access', async () => {
+		const fixture = createFixture();
+		const defaultChat = buildDefaultChatUri(session);
+		fixture.state.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///repo' });
+		fixture.state.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///repo' });
+		addEdit(fixture.db);
+		addEdit(fixture.db, '/session-state/plan.md', turnId, 'edit-2');
+		// Refreshes skip sessions without a working directory; turn completion still recomputes.
+		const published = nextPublication(fixture.state, sessionChangeset);
+		fixture.service.onTurnComplete(session, turnId);
+		await published;
+		await fixture.service.computeTurnChangeset(session, turnId, 'fileEditTracker');
+		assert.deepStrictEqual({
+			session: snapshot(fixture.state, sessionChangeset),
+			turn: snapshot(fixture.state, turnChangeset),
+		}, { session: ready([]), turn: ready([]) });
 	});
 
 	for (const failure of ['non-git root', 'missing checkpoint', 'unavailable diff', 'thrown diff'] as const) {

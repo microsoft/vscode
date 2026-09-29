@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -105,7 +106,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	/** Environment metadata keyed by connection address, for on-demand reconnect. */
 	private readonly _environments = new Map<string, ICloudSandboxSessionEnvironment>();
 	/** In-flight connects keyed by address, so concurrent opens share one attempt. */
-	private readonly _pendingConnects = new Map<string, Promise<string>>();
+	private readonly _pendingConnects = new Map<string, { readonly source: CancellationTokenSource; readonly promise: Promise<string> }>();
 	/**
 	 * Addresses being provisioned right now. A task we just created is not yet visible to a
 	 * discovery pass that started before it existed, so reconciliation would see a brand-new
@@ -199,6 +200,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._register(toDisposable(() => {
 			this._enabledCts.cancel();
 			this._enabledCts.dispose();
+			for (const address of [...this._environments.keys()]) {
+				this._teardownEnvironment(address);
+			}
 		}));
 
 		this._register(Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
@@ -419,17 +423,25 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	/**
-	 * Remove the connection (and its credential refresher) for an environment while keeping the
-	 * provider and its cached sessions visible in a disconnected state. Disposing the protocol
-	 * client stops its soft-reconnect loop and disposes the credential refresher owned by its
-	 * connection factory.
+	 * Cancel pending work and remove the connection while retaining the provider and its cached sessions.
 	 */
-	private async _disconnectEnvironment(address: string): Promise<void> {
+	protected async _disconnectEnvironment(address: string): Promise<void> {
+		this._cancelPendingConnect(address);
 		try {
-			await this._remoteAgentHostService.removeRemoteAgentHost(address);
+			await this._cloudSandboxService.disconnect(address);
 		} catch (error) {
 			this._logService.warn(`${LOG_PREFIX} Failed to disconnect ${address}: ${error instanceof Error ? error.message : String(error)}`);
+		} finally {
+			if (!this._pendingConnects.has(address)) {
+				this._settleFailedConnect(address);
+			}
 		}
+	}
+
+	private _cancelPendingConnect(address: string): void {
+		const pending = this._pendingConnects.get(address);
+		this._pendingConnects.delete(address);
+		pending?.source.dispose(true);
 	}
 
 	/**
@@ -439,7 +451,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	 */
 	private _teardownEnvironment(address: string): void {
 		this._environments.delete(address);
-		this._pendingConnects.delete(address);
+		this._cancelPendingConnect(address);
 		this._providerStores.deleteAndDispose(address);
 		// Drop the read-only stand-in too, or disabling the feature would leave a content provider
 		// registered for a session type this contribution no longer serves.
@@ -627,36 +639,35 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 		const pending = this._pendingConnects.get(address);
 		if (pending) {
-			return pending;
+			return pending.promise;
 		}
-		const token = this._enabledCts.token;
+		const source = new CancellationTokenSource(this._enabledCts.token);
+		const token = source.token;
 		const attempt = (async () => {
-			try {
-				this._providerInstances.get(address)?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
-				// Drop any read-only stand-in *before* connecting: the connect registers the live
-				// handler, and two content providers for one session type throws.
-				this._clearReadOnly(address);
-				const result = await this._cloudSandboxService.connect(options, token);
-				// The feature may have been disabled while connecting; drop the connection rather
-				// than leaving a live relay open after teardown.
-				if (token.isCancellationRequested || !this._isEnabled()) {
-					void this._disconnectEnvironment(address);
-					throw new CancellationError();
-				}
-				return result;
-			} catch (error) {
-				// Settle the status here rather than waiting for a connections-changed event: a
-				// wake that exhausts its retry budget fails before any transport entry exists, so
-				// no such event is coming and the provider would sit at `connecting` forever —
-				// a permanent spinner with no way back to the connect action.
+			this._providerInstances.get(address)?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+			// Drop the stand-in before connecting, which registers the live content provider.
+			this._clearReadOnly(address);
+			const result = await raceCancellationError(this._cloudSandboxService.connect(options, token), token);
+			if (token.isCancellationRequested || !this._isEnabled()) {
+				throw new CancellationError();
+			}
+			return result;
+		})();
+		this._pendingConnects.set(address, { source, promise: attempt });
+		try {
+			return await attempt;
+		} catch (error) {
+			if (this._pendingConnects.get(address)?.source === source) {
+				// Credential acquisition can fail before a connection status event exists.
 				this._settleFailedConnect(address);
-				throw error;
-			} finally {
+			}
+			throw error;
+		} finally {
+			if (this._pendingConnects.get(address)?.source === source) {
 				this._pendingConnects.delete(address);
 			}
-		})();
-		this._pendingConnects.set(address, attempt);
-		return attempt;
+			source.dispose();
+		}
 	}
 
 	/**

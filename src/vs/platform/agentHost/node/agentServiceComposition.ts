@@ -16,6 +16,7 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY } from '../common/state/sessionState.js';
 import type { IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -167,16 +168,22 @@ export function createAgentServiceComposition(
 		};
 		const serverToolHost = new AgentServerToolHost(
 			stateManager,
-			buildServerToolGroups(sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor, {
-				canIsolateSession: session => stateManager.getSessionState(session.toString())?.chats.some(chat => workspaceConversionService.value?.canIsolateChat(URI.parse(chat.resource))) === true,
-				requestSessionIsolation: (chat, turnId) => {
-					const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
-					if (!initiatingClientId || !workspaceConversionService.value) {
-						throw new Error('Session isolation requires a turn initiated by a connected client.');
-					}
-					workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId);
+			buildServerToolGroups(
+				sessionServerToolAccessor,
+				agentMergeTools,
+				callbackAdapter.artifactServerToolAccessor,
+				() => configurationService.getRootValue(platformRootSchema, AgentHostAgentOrchestrationLimitsConfigKey) !== 'off',
+				{
+					canIsolateSession: session => stateManager.getSessionState(session.toString())?.chats.some(chat => workspaceConversionService.value?.canIsolateChat(URI.parse(chat.resource))) === true,
+					requestSessionIsolation: (chat, turnId) => {
+						const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
+						if (!initiatingClientId || !workspaceConversionService.value) {
+							throw new Error('Session isolation requires a turn initiated by a connected client.');
+						}
+						workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId);
+					},
 				},
-			}),
+			),
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService, {
