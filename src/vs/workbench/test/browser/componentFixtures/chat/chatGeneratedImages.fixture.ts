@@ -24,7 +24,6 @@ import { ChatProgressAnimation, CollapsedToolsDisplayMode, ThinkingDisplayMode }
 import { ChatRequestModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
-import { CopilotToolId } from '../../../../contrib/chat/common/tools/copilotToolIds.js';
 import { TestFileService } from '../../../common/workbenchTestServices.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { FixtureMotionAccessibilityService } from './chatFixtureUtils.js';
@@ -58,7 +57,7 @@ async function renderGeneratedImage(context: ComponentFixtureContext, options: {
 	};
 	const tool: NonNullable<IFixtureMessage['assistant']>[number] = {
 		kind: 'tool',
-		toolId: options.toolId ?? CopilotToolId.GenerateImage,
+		toolId: options.toolId ?? 'image_generation',
 		displayName: 'Generate Image',
 		invocationMessage: 'Generating image',
 		pastTenseMessage: options.running ? undefined : options.failed ? 'Generated image failed' : 'Generated image',

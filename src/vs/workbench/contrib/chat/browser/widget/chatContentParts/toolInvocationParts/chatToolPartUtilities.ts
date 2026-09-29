@@ -6,13 +6,9 @@
 import { createMarkdownCommandLink, IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../../../nls.js';
 import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
-import { CopilotToolId } from '../../../../common/tools/copilotToolIds.js';
-import { GenerateImageMockToolId } from '../../../../common/tools/builtinTools/generateImageMockTool.js';
 
 export function isImageGenerationToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
 	return toolInvocation.toolSpecificData?.kind === 'generatedImage'
-		|| toolInvocation.toolId === CopilotToolId.GenerateImage
-		|| toolInvocation.toolId === GenerateImageMockToolId
 		|| toolInvocation.toolId === 'image_gen.imagegen'
 		|| toolInvocation.toolId === 'image_generation';
 }

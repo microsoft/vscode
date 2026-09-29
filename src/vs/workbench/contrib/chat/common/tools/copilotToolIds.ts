@@ -5,7 +5,6 @@
 
 export const enum CopilotToolId {
 	ReadFile = 'copilot_readFile',
-	GenerateImage = 'copilot_generateImage',
 }
 
 export const enum CopilotChatSettingId {

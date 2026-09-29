@@ -23,6 +23,7 @@ suite('Chat Accessibility Help', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			standalone: help.includes('Image generation appears separately from thinking and tool-call groups'),
+			harnesses: help.includes('Copilot and Codex agent sessions share this presentation'),
 			position: help.includes('Completed steps collapse only before the first image-generation tool, keeping image tools in their original position'),
 			placeholder: help.includes('While generation runs, a decorative animation of shifting binary digits marks where the image will appear, without a tool dropdown'),
 			overlapping: help.includes('Overlapping image-generation attempts share one placeholder while any attempt is running'),
@@ -38,8 +39,7 @@ suite('Chat Accessibility Help', () => {
 			loadFailure: help.includes('Unable to load image indicates a problem loading the preview, not a failed generation'),
 			keyboard: help.includes('Tab or Shift+Tab to focus an image and Enter to open it'),
 			save: help.includes('Save action beside the image'),
-			mock: help.includes('In development builds, reference #generate_image_mock in local Chat'),
-		}, { standalone: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, dropdown: true, expand: true, progress: true, imageAndDropdown: true, failure: true, restoredState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true, mock: true });
+		}, { standalone: true, harnesses: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, dropdown: true, expand: true, progress: true, imageAndDropdown: true, failure: true, restoredState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true });
 	});
 
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {

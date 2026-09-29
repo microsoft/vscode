@@ -9,10 +9,10 @@ This folder contains the various test runners for VS Code. Please refer to the d
 * `smoke`: our suite of automated UI tests ([README](smoke/README.md))
 * `sanity`: release sanity tests ([README](sanity/README.md))
 
-## Mock image generation in local Chat
+## Image generation in Agent Host
 
-Source/development builds register the client-side `generate_image_mock` tool. In local Chat's Agent mode, attach `#generate_image_mock` and ask it to simulate generating an image, for example: `#generate_image_mock Draw a happy puppy`.
+Copilot image generation is provided by its native runtime and observed by the Copilot Agent Host harness. It requires a compatible runtime/SDK and backend image-generation access. There is no local extension-host image generator or client-side mock tool.
 
-The tool waits five seconds, showing the normal image-generation placeholder and persistent progress, then returns the [bundled sample image](../src/vs/workbench/contrib/chat/common/tools/builtinTools/media/generatedImageMock.png). The prompt and output remain available in the completed tool dropdown, with the large image and Save action below it. Stop cancels the wait.
+The shared Chat renderer handles both Copilot's `image_generation` and Codex's `image_gen.imagegen` tool calls. Both show the binary-water placeholder and persistent progress while running, followed by an expandable input/output dropdown and a large image with a Save action on success, or a failed dropdown on error. Restored history uses the same renderer. Codex availability remains controlled by its provider; the current harness enables generation for OpenAI models with a ChatGPT sign-in.
 
-The prompt does not change the sample image. The mock does not contact an image-generation service or write workspace files, and it does not require image-generation entitlement, the image preview flag, or a custom SDK/runtime. Normal chat model access is still needed for a model to call the tool. The real `generate_image` tool is unchanged. This mock is not registered in packaged builds and is hidden when Chat is disabled.
+To inspect the UI without image-generation access, use the `chat/generatedImages` Component Explorer fixtures, including the Copilot/Codex selector in `Preview`. The rendering explorations remain under `chat/imageLoadingStudies`; they do not register tools or make image-generation requests.

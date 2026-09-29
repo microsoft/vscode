@@ -13,8 +13,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
-import { CopilotToolId } from '../../../../common/tools/copilotToolIds.js';
-import { GenerateImageMockToolId } from '../../../../common/tools/builtinTools/generateImageMockTool.js';
 import { CodeBlockPart } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IDisposableReference } from '../../../../browser/widget/chatContentParts/chatCollections.js';
@@ -196,7 +194,7 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 		});
 	});
 
-	for (const toolId of [CopilotToolId.GenerateImage, GenerateImageMockToolId, 'image_gen.imagegen', 'image_generation', 'copilot_viewImage']) {
+	for (const toolId of ['image_gen.imagegen', 'image_generation', 'copilot_viewImage']) {
 		test(`collapsed resources are hidden only for image generation (${toolId})`, () => {
 			const instantiationService = workbenchInstantiationService(undefined, store);
 			const context: IChatContentPartRenderContext = {

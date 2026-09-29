@@ -97,6 +97,8 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 Provider-hosted image generation is observed, not dispatched as a client function call. [copilotHostedImageTools.ts](node/copilot/copilotHostedImageTools.ts) normalizes the SDK's hosted progress and completed results for both live handling and history restoration. The harness emits existing AHP tool-call actions with the `image_generation` name, so the shared generated-image UI renders the output without a new protocol kind.
 
+Copilot generation is runtime-owned; the local extension-host harness does not register an image generator or a client-side mock. Codex's existing `imageGeneration` items map to `image_gen.imagegen` and reuse the same renderer. Its final revised prompt is published before completion so live and restored tool dropdowns expose the provider's input without substituting a display label for an unavailable prompt.
+
 Streamed SDK message IDs are tracked separately from the current markdown part, so opening a standalone image row cannot make the final assistant message repeat text that was already rendered.
 
 The runtime owns availability, authorization, provider replay, and durable image assets. Resource links must resolve through the host's `resourceRead`; an opaque SDK asset id alone is not a readable AHP resource. Hosted-call tracking is scoped to its owning chat/subagent, and completed-call deduplication retains only a bounded set of ids, never image bytes.

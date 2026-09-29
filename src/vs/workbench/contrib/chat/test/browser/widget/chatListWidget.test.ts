@@ -40,7 +40,6 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { ChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { CopilotToolId } from '../../../common/tools/copilotToolIds.js';
 import { ILanguageModelToolsService, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
@@ -281,7 +280,7 @@ suite('ChatListWidget', () => {
 	}
 
 	suite('generated image preview retention', () => {
-		for (const toolId of [CopilotToolId.GenerateImage, 'image_generation', 'image_gen.imagegen']) {
+		for (const toolId of ['image_generation', 'image_gen.imagegen']) {
 			for (const height of [300, 650]) {
 				test(`${toolId} preserves a loaded image while a follow-up starts and streams (height=${height})`, async () => {
 					const { model, container, widget } = createWidget({}, configuration => {

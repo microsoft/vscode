@@ -66,8 +66,6 @@ import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTyp
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
-import { CopilotToolId } from '../../../common/tools/copilotToolIds.js';
-import { GenerateImageMockToolId } from '../../../common/tools/builtinTools/generateImageMockTool.js';
 import { ChatEditorOptions, IChatEditorConfiguration } from '../../../browser/widget/chatOptions.js';
 import { ChatToolInvocationPart, shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatImageGenerationProgressPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatImageGenerationProgressPart.js';
@@ -2097,17 +2095,17 @@ suite('ChatListRenderer', () => {
 	}
 
 	for (const success of [true, false]) {
-		test(`local image generation shows its ${success ? 'completed' : 'failed'} dropdown instead of the last progress message`, async () => {
+		test(`image generation shows its ${success ? 'completed' : 'failed'} dropdown instead of the last progress message`, async () => {
 			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
 			const tool = new ChatToolInvocation({
 				invocationMessage: 'Generating image',
 				pastTenseMessage: 'Generated image',
 			}, {
-				id: CopilotToolId.GenerateImage,
+				id: 'image_generation',
 				displayName: 'Generate Image',
 				modelDescription: 'Generate Image',
 				source: ToolDataSource.Internal,
-			}, 'local-image', undefined, { prompt: 'Draw a puppy' }, {}, request.id);
+			}, 'image', undefined, { prompt: 'Draw a puppy' }, {}, request.id);
 			model.acceptResponseProgress(request, tool);
 			renderer.renderElement(node, 0, template);
 			tool.acceptProgress({ message: 'Rendering the last pixels', progress: 0.9 });
@@ -2236,7 +2234,7 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	for (const toolId of [CopilotToolId.GenerateImage, 'image_generation', 'image_gen.imagegen']) {
+	for (const toolId of ['image_generation', 'image_gen.imagegen']) {
 		for (const persistentProgress of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {
 			test(`overlapping image generations for ${toolId} retain cancelled dropdowns with persistent progress ${persistentProgress}`, async () => {
 				const { model, request, renderer, template, node } = createPersistentProgressRenderer({ persistentProgress, collapsedTools: CollapsedToolsDisplayMode.Always });
@@ -6474,7 +6472,7 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	for (const toolId of [CopilotToolId.GenerateImage, GenerateImageMockToolId, 'image_gen.imagegen', 'image_generation']) {
+	for (const toolId of ['image_gen.imagegen', 'image_generation']) {
 		for (const thinkingStyle of Object.values(ThinkingDisplayMode)) {
 			for (const collapsedTools of Object.values(CollapsedToolsDisplayMode)) {
 				for (const [progress, progressVerbosity] of [
@@ -6577,7 +6575,7 @@ suite('ChatListRenderer', () => {
 			}, 'image', undefined, {}, {}, requestId);
 		}
 
-		for (const toolId of [CopilotToolId.GenerateImage, GenerateImageMockToolId, 'image_gen.imagegen', 'image_generation']) {
+		for (const toolId of ['image_gen.imagegen', 'image_generation']) {
 			for (const restored of [false, true]) {
 				test(`${toolId} immediately renders an image instead of a file pill or warning (restored=${restored})`, async () => {
 					const { model, request, renderer, template, node } = createPersistentProgressRenderer();
@@ -6756,7 +6754,7 @@ suite('ChatListRenderer', () => {
 			const tool = new ChatToolInvocation({
 				invocationMessage: 'Generating image',
 			}, {
-				id: CopilotToolId.GenerateImage,
+				id: 'image_generation',
 				displayName: 'Generate Image',
 				modelDescription: 'Generate Image',
 				source: ToolDataSource.Internal,

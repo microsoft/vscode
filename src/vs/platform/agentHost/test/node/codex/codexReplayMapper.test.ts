@@ -5,11 +5,13 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
 import { toHostSnapshotAttachmentMeta } from '../../../common/meta/agentSnapshotAttachmentMeta.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { replayThreadToTurns } from '../../../node/codex/codexReplayMapper.js';
+import type { Thread } from '../../../node/codex/protocol/generated/v2/Thread.js';
 import { getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ModelSelection } from '../../../common/state/sessionState.js';
 
 suite('codexReplayMapper', () => {
@@ -668,37 +670,48 @@ suite('codexReplayMapper', () => {
 		});
 	});
 
-	test('imageGeneration restores its generated image', () => {
-		const turns = replayThreadToTurns({
-			id: 'thr',
-			turns: [{
-				id: 'turn_a',
-				items: [
-					{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'draw it', text_elements: [] }] },
-					{ type: 'imageGeneration', id: 'image_1', status: 'completed', revisedPrompt: 'A watercolor fox', result: 'aW1hZ2U=' },
-				],
-				itemsView: { type: 'full' } as never,
-				status: 'completed' as never,
-				error: null, startedAt: null, completedAt: null, durationMs: null,
-			}],
-		} as never);
-		const part = turns[0].responseParts[0];
-		assert.deepStrictEqual(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? {
-			toolName: part.toolCall.toolName,
-			displayName: part.toolCall.displayName,
-			toolInput: part.toolCall.toolInput,
-			success: part.toolCall.success,
-			pastTenseMessage: part.toolCall.pastTenseMessage,
-			content: part.toolCall.content,
-		} : undefined, {
-			toolName: 'image_gen.imagegen',
-			displayName: 'Generate image',
-			toolInput: '{"prompt":"A watercolor fox"}',
-			success: true,
-			pastTenseMessage: 'Generated image',
-			content: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }],
-		});
-	});
+	for (const [status, result, success] of [
+		['completed', 'aW1hZ2U=', true],
+		['failed', 'aW1hZ2U=', false],
+		['completed', '', false],
+		['incomplete', '', false],
+	] as const) {
+		for (const revisedPrompt of [null, 'A watercolor fox']) {
+			test(`imageGeneration restores ${status} with ${result ? 'image data' : 'no image'} and ${revisedPrompt ? 'a prompt' : 'no prompt'}`, () => {
+				const turns = replayThreadToTurns(upcastPartial<Thread>({
+					id: 'thr',
+					turns: [{
+						id: 'turn_a',
+						items: [
+							{ type: 'userMessage', id: 'u', clientId: null, content: [{ type: 'text', text: 'draw it', text_elements: [] }] },
+							{ type: 'imageGeneration', id: 'image_1', status, revisedPrompt, result, failure: null },
+						],
+						itemsView: 'full',
+						status: 'completed',
+						error: null, startedAt: null, completedAt: null, durationMs: null,
+					}],
+				}));
+				const part = turns[0].responseParts[0];
+				assert.deepStrictEqual(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? {
+					toolName: part.toolCall.toolName,
+					displayName: part.toolCall.displayName,
+					toolInput: part.toolCall.toolInput,
+					success: part.toolCall.success,
+					pastTenseMessage: part.toolCall.pastTenseMessage,
+					content: part.toolCall.content,
+					error: part.toolCall.error,
+				} : undefined, {
+					toolName: 'image_gen.imagegen',
+					displayName: 'Generate image',
+					toolInput: revisedPrompt ? '{"prompt":"A watercolor fox"}' : undefined,
+					success,
+					pastTenseMessage: success ? 'Generated image' : 'Failed to generate image',
+					content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: result, contentType: 'image/png' }] : undefined,
+					error: success ? undefined : { message: `Image generation ${status}` },
+				});
+			});
+		}
+	}
 
 	test('contextCompaction is restored as a completed /compact turn', () => {
 		const turns = replayThreadToTurns({

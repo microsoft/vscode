@@ -12,7 +12,6 @@ import './executionSubagentTool';
 import './findFilesTool';
 import './findTestsFilesTool';
 import './findTextInFilesTool';
-import './generateImageTool';
 import './getErrorsTool';
 import './getNotebookCellOutputTool';
 import './githubRepoSemanticSearchTool.tsx';
