@@ -2231,14 +2231,14 @@ suite('ModernUIContribution', () => {
 			const activeTab = appendElement(tabs, 'tab active tab-border-top tab-border-bottom');
 			activeTab.style.setProperty('--tab-border-top-color', active ? '#123456' : '#234567');
 			activeTab.style.setProperty('--tab-border-bottom-color', active ? '#345678' : '#456789');
-			appendElement(activeTab, 'tab-fill');
+			const activeFill = appendElement(activeTab, 'tab-fill');
 			const activeTopBorder = appendElement(activeTab, 'tab-border-top-container');
 			const activeBottomBorder = appendElement(activeTab, 'tab-border-bottom-container');
 			const selectedTab = appendElement(tabs, 'tab selected tab-border-top');
 			selectedTab.style.setProperty('--tab-border-top-color', '#56789a');
 			appendElement(selectedTab, 'tab-fill');
 			const selectedTopBorder = appendElement(selectedTab, 'tab-border-top-container');
-			return { activeTopBorder, activeBottomBorder, selectedTopBorder };
+			return { activeFill, activeTopBorder, activeBottomBorder, selectedTopBorder };
 		};
 		const activeGroup = createGroup(true);
 		const unfocusedGroup = createGroup(false);
@@ -2248,7 +2248,7 @@ suite('ModernUIContribution', () => {
 			const activeBottom = targetWindow.getComputedStyle(group.activeBottomBorder);
 			const selectedTop = targetWindow.getComputedStyle(group.selectedTopBorder);
 			return {
-				activeTop: [activeTop.display, activeTop.backgroundColor],
+				activeTop: [activeTop.display, targetWindow.getComputedStyle(group.activeFill).borderTopColor],
 				activeBottom: [activeBottom.display, activeBottom.backgroundColor],
 				selectedTop: [selectedTop.display, selectedTop.backgroundColor],
 			};
@@ -2259,12 +2259,12 @@ suite('ModernUIContribution', () => {
 			unfocusedGroup: borderStyles(unfocusedGroup),
 		}, {
 			activeGroup: {
-				activeTop: ['block', 'rgb(18, 52, 86)'],
+				activeTop: ['none', 'rgb(18, 52, 86)'],
 				activeBottom: ['block', 'rgb(52, 86, 120)'],
 				selectedTop: ['block', 'rgb(86, 120, 154)'],
 			},
 			unfocusedGroup: {
-				activeTop: ['block', 'rgb(35, 69, 103)'],
+				activeTop: ['none', 'rgb(35, 69, 103)'],
 				activeBottom: ['block', 'rgb(69, 103, 137)'],
 				selectedTop: ['block', 'rgb(86, 120, 154)'],
 			},

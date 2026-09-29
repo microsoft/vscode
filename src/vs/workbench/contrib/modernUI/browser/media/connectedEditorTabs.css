@@ -206,6 +206,17 @@
 	box-shadow: none;
 }
 
+/* The connected cap owns its rounded top stroke. Painting the standard straight
+ * indicator over it squares the corners and creates a notch where the cap meets
+ * adjacent surfaces. */
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.tab-border-top > .tab-fill {
+	border-top-color: var(--tab-border-top-color);
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
+	display: none;
+}
+
 /* The foreground mask below removes the cap's side stroke where each shoulder curves out. */
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::before,
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::after,
@@ -566,7 +577,7 @@
 	inset-inline: 0;
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-top-row:not(.connected-tab-upper-row) > .tab-fill {
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-top-row:not(.connected-tab-upper-row):not(.tab-border-top) > .tab-fill {
 	border-top-color: transparent;
 }
 

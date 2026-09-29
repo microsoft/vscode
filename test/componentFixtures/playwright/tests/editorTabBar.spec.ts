@@ -46,13 +46,13 @@ test('Dark Modern keeps legacy, connected, and pill tab surfaces distinct', asyn
 
 for (const [group, expected] of [
 	['ActiveGroup', {
-		activeTop: { display: 'block', color: 'rgb(34, 211, 238)' },
+		activeTop: { indicator: 'none', color: 'rgb(34, 211, 238)' },
 		activeBottom: { display: 'block', color: 'rgb(244, 63, 94)' },
 		activeSide: 'rgb(250, 204, 21)',
 		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)' },
 	}],
 	['InactiveGroup', {
-		activeTop: { display: 'block', color: 'rgb(192, 132, 252)' },
+		activeTop: { indicator: 'none', color: 'rgb(192, 132, 252)' },
 		activeBottom: { display: 'block', color: 'rgb(251, 146, 60)' },
 		activeSide: 'rgb(250, 204, 21)',
 		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)' },
@@ -76,7 +76,10 @@ for (const [group, expected] of [
 				return { display: computedStyle.display, color: computedStyle.backgroundColor };
 			};
 			return {
-				activeTop: style(activeTop),
+				activeTop: {
+					indicator: getComputedStyle(activeTop).display,
+					color: getComputedStyle(activeFill).borderTopColor,
+				},
 				activeBottom: style(activeBottom),
 				activeSide: getComputedStyle(activeFill).borderRightColor,
 				selectedTop: style(selectedTop),
