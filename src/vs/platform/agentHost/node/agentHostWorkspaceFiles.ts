@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import * as fs from 'fs/promises';
 import { Limiter } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -131,8 +132,44 @@ export class AgentHostWorkspaceFiles extends Disposable {
 		});
 	}
 
-	private async _enumerate(workingDirectory: URI): Promise<IAgentHostWorkspaceFilesResult> {
+	/**
+	 * Enumerates `workingDirectory` for a single caller, without the shared
+	 * cache. Cancelling `token` stops a running ripgrep process, and an
+	 * enumeration still waiting for a concurrency slot never starts. Use this
+	 * when only the caller can use the result, so it should not keep consuming
+	 * I/O after the caller stops waiting.
+	 *
+	 * Git's own storage (a bare repository, or a directory inside `.git`) is not
+	 * a source tree and returns an empty list without being scanned. Only
+	 * `file://` URIs are supported. Other schemes return an empty list.
+	 */
+	async enumerate(workingDirectory: URI, token: CancellationToken): Promise<IAgentHostWorkspaceFilesResult> {
+		if (workingDirectory.scheme !== Schemas.file) {
+			return { files: [], isTruncated: false };
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (await isGitAdministrativeDirectory(workingDirectory)) {
+			this._logService.trace(`[AgentHostWorkspaceFiles] Skipped Git administrative directory ${workingDirectory.toString()}`);
+			return { files: [], isTruncated: false };
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		return enumerationLimiter.queue(() => {
+			if (token.isCancellationRequested) {
+				return Promise.reject(new CancellationError());
+			}
+			return this._isDisposed ? Promise.resolve({ files: [], isTruncated: false }) : this._enumerate(workingDirectory, token);
+		});
+	}
+
+	private async _enumerate(workingDirectory: URI, token: CancellationToken = CancellationToken.None): Promise<IAgentHostWorkspaceFilesResult> {
 		const resolvedRgDiskPath = await rgDiskPath();
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		return new Promise<IAgentHostWorkspaceFilesResult>((resolve, reject) => {
 			const cwd = workingDirectory.fsPath;
 			// Mirror the workbench's `ripgrepFileSearch.ts` invocation: pass
@@ -160,6 +197,7 @@ export class AgentHostWorkspaceFiles extends Disposable {
 					return;
 				}
 				settled = true;
+				cancellationListener.dispose();
 				this._activeChildren.delete(child);
 				if (error) {
 					reject(error);
@@ -167,6 +205,15 @@ export class AgentHostWorkspaceFiles extends Disposable {
 					resolve({ files, isTruncated: limitHit });
 				}
 			};
+
+			const cancellationListener = token.onCancellationRequested(() => {
+				try {
+					child.kill();
+				} catch {
+					// ignore
+				}
+				finish([], new CancellationError());
+			});
 
 			child.stdout.setEncoding('utf8');
 			child.stdout.on('data', (chunk: string) => {
@@ -236,4 +283,17 @@ export class AgentHostWorkspaceFiles extends Disposable {
 			});
 		});
 	}
+}
+
+/**
+ * Whether `directory` is Git's own storage rather than a work tree: inside a
+ * `.git` directory (including a linked worktree's admin directory), or a bare
+ * repository. Its `HEAD`, `config`, `objects/`, and `refs/` are not source files.
+ */
+async function isGitAdministrativeDirectory(directory: URI): Promise<boolean> {
+	if (directory.path.split('/').includes('.git')) {
+		return true;
+	}
+	const [head, objects, refs, dotGit] = await Promise.all(['HEAD', 'objects', 'refs', '.git'].map(name => fs.stat(URI.joinPath(directory, name).fsPath).catch(() => undefined)));
+	return !dotGit && !!head?.isFile() && !!objects?.isDirectory() && !!refs?.isDirectory();
 }

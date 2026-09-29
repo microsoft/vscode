@@ -177,4 +177,58 @@ suite('AgentHostWorkspaceFiles', () => {
 		const result = await survivor;
 		assert.ok(result.files.some(uri => uri.path.endsWith('/a.txt')), `survivor should resolve with files even when first caller cancelled: ${result.files.map(u => u.path).join(',')}`);
 	});
+	test('enumerate lists files for its caller without sharing a cached result', async () => {
+		const dir = createTempDir();
+		writeFileSync(join(dir, 'a.txt'), 'a');
+
+		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
+		const wd = URI.file(dir);
+		const [first, second] = await Promise.all([
+			files.enumerate(wd, CancellationToken.None),
+			files.enumerate(wd, CancellationToken.None),
+		]);
+		assert.deepStrictEqual({
+			separate: first !== second,
+			files: first.files.map(uri => uri.path.slice(uri.path.lastIndexOf('/') + 1)),
+		}, { separate: true, files: ['a.txt'] });
+	});
+
+	test('enumerate rejects when cancelled and never starts once already cancelled', async () => {
+		const dir = createTempDir();
+		writeFileSync(join(dir, 'a.txt'), 'a');
+
+		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
+		const running = new CancellationTokenSource();
+		const inFlight = files.enumerate(URI.file(dir), running.token);
+		running.cancel();
+		running.dispose();
+		const cancelled = new CancellationTokenSource();
+		cancelled.cancel();
+		const neverStarted = files.enumerate(URI.file(dir), cancelled.token);
+		cancelled.dispose();
+
+		await assert.rejects(inFlight, (err: unknown) => err instanceof CancellationError);
+		await assert.rejects(neverStarted, (err: unknown) => err instanceof CancellationError);
+	});
+	test('enumerate does not list Git administrative directories as source trees', async () => {
+		const dir = createTempDir();
+		const bare = join(dir, 'bare.git');
+		mkdirSync(join(bare, 'objects'), { recursive: true });
+		mkdirSync(join(bare, 'refs'));
+		writeFileSync(join(bare, 'HEAD'), 'ref: refs/heads/main\n');
+		writeFileSync(join(bare, 'config'), '[core]\n\tbare = true\n');
+		const commonDirectory = join(dir, 'repo', '.git');
+		mkdirSync(commonDirectory, { recursive: true });
+		writeFileSync(join(commonDirectory, 'HEAD'), 'ref: refs/heads/main\n');
+		const workTree = join(dir, 'repo');
+		writeFileSync(join(workTree, 'HEAD'), 'not git metadata');
+
+		const files = disposables.add(new AgentHostWorkspaceFiles(new NullLogService()));
+		const listed = async (path: string) => (await files.enumerate(URI.file(path), CancellationToken.None)).files.map(uri => uri.path.slice(uri.path.lastIndexOf('/') + 1));
+		assert.deepStrictEqual({
+			bare: await listed(bare),
+			commonDirectory: await listed(commonDirectory),
+			workTree: await listed(workTree),
+		}, { bare: [], commonDirectory: [], workTree: ['HEAD'] });
+	});
 });

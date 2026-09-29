@@ -1583,8 +1583,8 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
-			const getFiles = sinon.stub(AgentHostWorkspaceFiles.prototype, 'getFiles').callsFake(async root => ({ files: [URI.joinPath(root, 'meta.json')], isTruncated: false }));
-			disposables.add(toDisposable(() => getFiles.restore()));
+			const enumerate = sinon.stub(AgentHostWorkspaceFiles.prototype, 'enumerate').callsFake(async root => ({ files: [URI.joinPath(root, 'meta.json')], isTruncated: false }));
+			disposables.add(toDisposable(() => enumerate.restore()));
 			const localSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
 				agents: agentList,
@@ -1605,7 +1605,7 @@ suite('AgentSideEffects', () => {
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
 			const snapshot = (!URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined)?.find(instruction => instruction.startsWith('<workspace_info>'));
 			assert.deepStrictEqual({
-				enumerated: getFiles.getCalls().map(call => call.args[0].toString()),
+				enumerated: enumerate.getCalls().map(call => call.args[0].toString()),
 				structure: snapshot?.split('```text\n')[1].split('\n```')[0],
 			}, {
 				enumerated: [worktree.toString()],
