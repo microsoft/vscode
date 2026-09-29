@@ -226,10 +226,7 @@ function computeOccurencesMultiModel(registry: LanguageFeatureRegistry<MultiDocu
 
 registerModelAndPositionCommand('_executeDocumentHighlights', async (accessor, model, position) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-	const mergeProviders = accessor.get(IConfigurationService).getValue<boolean>('editor.occurrencesHighlightFromAllProviders', {
-		resource: model.uri,
-		overrideIdentifier: model.getLanguageId()
-	});
+	const mergeProviders = accessor.get(IConfigurationService).getValue<boolean>('editor.occurrencesHighlightFromAllProviders');
 	const map = await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, position, CancellationToken.None, mergeProviders);
 	return map?.get(model.uri);
 });
@@ -354,11 +351,9 @@ class WordHighlighter {
 			const newFromAllProvidersEnablement = this.editor.getOption(EditorOption.occurrencesHighlightFromAllProviders);
 			if (this.occurrencesHighlightFromAllProvidersEnablement !== newFromAllProvidersEnablement) {
 				this.occurrencesHighlightFromAllProvidersEnablement = newFromAllProvidersEnablement;
-				if (!this.getOtherModelsToHighlight(this.editor.getModel()).length) {
-					this._stopAll();
-					if (this.occurrencesHighlightEnablement !== 'off') {
-						this._run();
-					}
+				this._stopAll();
+				if (this.occurrencesHighlightEnablement !== 'off') {
+					this._run();
 				}
 			}
 		}));
@@ -749,9 +744,6 @@ class WordHighlighter {
 
 			const queryModelRef = await this.textModelService.createModelReference(WordHighlighter.query.modelInfo.modelURI);
 			try {
-				if (myRequestId !== this.workerRequestTokenId) {
-					return;
-				}
 				this.workerRequest = this.computeWithModel(queryModelRef.object.textEditorModel, WordHighlighter.query.modelInfo.selection, otherModelsToHighlight);
 				this.workerRequest?.result.then(data => {
 					if (myRequestId === this.workerRequestTokenId) {
@@ -778,9 +770,6 @@ class WordHighlighter {
 
 			const queryModelRef = await this.textModelService.createModelReference(WordHighlighter.query.modelInfo.modelURI);
 			try {
-				if (myRequestId !== this.workerRequestTokenId) {
-					return;
-				}
 				this.workerRequest = this.computeWithModel(queryModelRef.object.textEditorModel, WordHighlighter.query.modelInfo.selection, [this.model]);
 				this.workerRequest?.result.then(data => {
 					if (myRequestId === this.workerRequestTokenId) {
