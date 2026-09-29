@@ -1776,7 +1776,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			const useExperimentalOrder = !isPhoneLayout(this._layoutService)
 				&& this._configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
 				&& this._configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING);
-			if (useExperimentalOrder && branchIndex > isolationIndex && isolationIndex >= 0) {
+			if (useExperimentalOrder && isolationIndex > branchIndex && branchIndex >= 0) {
 				[properties[branchIndex], properties[isolationIndex]] = [properties[isolationIndex], properties[branchIndex]];
 			}
 
