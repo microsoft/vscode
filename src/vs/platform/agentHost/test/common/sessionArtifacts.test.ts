@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseSessionArtifactInput, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
+import { parseSessionArtifactInput, parseSessionArtifactInputs, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
 import { isGitHubArtifactLink, parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 
 suite('Session Artifacts', () => {
@@ -30,6 +30,35 @@ suite('Session Artifacts', () => {
 		]);
 	});
 
+	test('parses batched and legacy single-entry inputs', () => {
+		assert.deepStrictEqual({
+			batch: parseSessionArtifactInputs({
+				items: [
+					{ type: 'website', label: 'Docs', link: 'https://example.com', isArtifact: false },
+					{ type: 'file', label: 'Plan', uri: 'file:///repo/plan.md', isArtifact: true },
+				],
+			}, TOOL),
+			legacy: parseSessionArtifactInputs({ type: 'website', label: 'Docs', link: 'https://example.com', isArtifact: false }, TOOL),
+		}, {
+			batch: [
+				{ type: SessionArtifactType.Website, label: 'Docs', link: 'https://example.com', isArtifact: false },
+				{ type: SessionArtifactType.File, label: 'Plan', uri: 'file:///repo/plan.md', isArtifact: true },
+			],
+			legacy: [
+				{ type: SessionArtifactType.Website, label: 'Docs', link: 'https://example.com', isArtifact: false },
+			],
+		});
+	});
+
+	test('identifies invalid entries within a batch', () => {
+		assert.throws(() => parseSessionArtifactInputs({
+			items: [
+				{ type: 'website', label: 'Docs', link: 'https://example.com', isArtifact: false },
+				{ type: 'file', label: 'Plan', uri: 'plan.md', isArtifact: true },
+			],
+		}, TOOL), /items\[1\]\.uri/);
+	});
+
 	test('rejects a duplicate value and returns the existing artifact', () => {
 		const first = new SessionArtifactCollection().add(parseSessionArtifactInput({ type: 'file', label: 'Plan', uri: 'file:///repo/plan.md', isArtifact: true }, TOOL), createId);
 		const duplicate = new SessionArtifactCollection(first.artifacts).add(parseSessionArtifactInput({ type: 'file', label: 'Plan again', uri: 'file:///repo/plan.md', isArtifact: true }, TOOL), createId);
@@ -42,6 +71,31 @@ suite('Session Artifacts', () => {
 			added: false,
 			id: 'id-1',
 			count: 1,
+		});
+	});
+
+	test('promotes a duplicate reference to an artifact while preserving its id', () => {
+		const reference = new SessionArtifactCollection().add(parseSessionArtifactInput({ type: 'pullRequest', label: 'Referenced PR', link: 'https://github.com/microsoft/vscode/pull/1', isArtifact: false }, TOOL), createId);
+		const promoted = new SessionArtifactCollection(reference.artifacts).addOrPromoteArtifact(parseSessionArtifactInput({ type: 'pullRequest', label: 'Pull Request #1', link: 'https://github.com/microsoft/vscode/pull/1', isArtifact: true }, TOOL), createId);
+
+		assert.deepStrictEqual(promoted, {
+			artifacts: [{
+				id: 'id-1',
+				type: SessionArtifactType.PullRequest,
+				label: 'Pull Request #1',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/1',
+				isGitHub: true,
+			}],
+			artifact: {
+				id: 'id-1',
+				type: SessionArtifactType.PullRequest,
+				label: 'Pull Request #1',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/1',
+				isGitHub: true,
+			},
+			added: false,
 		});
 	});
 

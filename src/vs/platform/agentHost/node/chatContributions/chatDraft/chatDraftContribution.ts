@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
-import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IObservedAction, type IRestoredChat } from '../../../common/agentHostChatContributionsService.js';
+import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IAppliedClientAction, type IRestoredChat } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { isAhpChatChannel, parseChatUri } from '../../../common/state/sessionState.js';
@@ -15,6 +15,12 @@ import { isAhpChatChannel, parseChatUri } from '../../../common/state/sessionSta
  * Owns chat draft persistence in both directions. Restore runs eagerly at
  * catalog-registration time, before turns load, so it belongs on
  * {@link onHydrateChat} rather than {@link onHydrateTurns}.
+ *
+ * Persisting through `onDidApplyClientAction` covers client dispatch only, which is narrower than the
+ * `onDidEmitEnvelope` observer this replaced. That is deliberate: `ChatDraftChangedAction`
+ * is a `ClientChatAction` that nothing in production server-dispatches, and `onDidApplyClientAction` runs
+ * after the reject-and-return guards in `_dispatchActionNow`, so a rejected draft is no
+ * longer written.
  */
 export class ChatDraftContribution extends Disposable implements IAgentHostChatContribution {
 
@@ -29,7 +35,7 @@ export class ChatDraftContribution extends Disposable implements IAgentHostChatC
 		super();
 	}
 
-	onAction(observed: IObservedAction): void {
+	onDidApplyClientAction(observed: IAppliedClientAction): void {
 		if (observed.action.type !== ActionType.ChatDraftChanged || !isAhpChatChannel(observed.channel) || !parseChatUri(observed.channel)) {
 			return;
 		}

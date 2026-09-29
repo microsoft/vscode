@@ -16,6 +16,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ISessionSummaryHoverService } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
+import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -28,9 +29,11 @@ import { getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverC
  * session and opening it through {@link ISessionsService}. The link carries the
  * backend session URI; the owning session in the window uses a client scheme
  * (e.g. `agent-host-copilotcli`), so matching goes through
- * {@link IAgentHostConnectionsService.resolveSessionResource}. When the link
- * carries a chat id (from `create_chat`), the specific peer chat is opened via
- * {@link ISessionsService.openChat} instead of the whole session.
+ * {@link IAgentHostConnectionsService.resolveSessionResourceIdentity}. When the link
+ * carries a chat id (from `create_chat`), that specific peer chat is opened;
+ * otherwise the session's main/default chat is opened, via
+ * {@link ISessionsService.openChat} in both cases so the correct chat becomes
+ * active even when a different chat of the same session is currently showing.
  */
 export class OpenSessionLinkOpenerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -45,6 +48,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 		@ILabelService labelService: ILabelService,
+		@IPreferencesService preferencesService: IPreferencesService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
@@ -69,7 +73,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		this._register(sessionSummaryHoverService.registerProvider({
 			provideSessionSummaryHoverData: async resource => {
 				const session = this._findSessionForLink(resource);
-				return session ? getSessionSummaryHoverData(session, sessionsProvidersService, openerService, labelService) : undefined;
+				return session ? getSessionSummaryHoverData(session, sessionsProvidersService, openerService, labelService, preferencesService) : undefined;
 			},
 		}));
 	}
@@ -77,7 +81,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 	private _findSessionForLink(resource: URI | string): ISession | undefined {
 		const backendSession = parseOpenSessionLinkUri(resource);
 		return backendSession
-			? findSession(backendSession, this._sessionsManagementService, this._connectionsService)
+			? findSessionForOpenSessionLink(backendSession, this._sessionsManagementService, this._connectionsService)
 			: undefined;
 	}
 
@@ -86,13 +90,10 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		if (!session) {
 			return false;
 		}
+		// An absent chat id means the session's main/default chat, not "no target chat" (see buildOpenSessionLinkUri).
 		const chatId = parseOpenSessionLinkChatId(resource);
-		if (chatId) {
-			const chatResource = session.resource.with({ fragment: chatId });
-			await this._sessionsService.openChat(session, chatResource);
-			return true;
-		}
-		await this._sessionsService.openSession(session.resource, { source: 'link' });
+		const chatResource = chatId ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
+		await this._sessionsService.openChat(session, chatResource, { source: 'link' });
 		return true;
 	}
 }
@@ -115,7 +116,7 @@ class AgentSessionLinkPresentationWatcher extends Disposable implements ILinkPre
 			reader => {
 				sessionsChanged.read(reader);
 				const session = backendSession
-					? findSession(backendSession, sessionsManagementService, connectionsService)
+					? findSessionForOpenSessionLink(backendSession, sessionsManagementService, connectionsService)
 					: undefined;
 				return session ? readSessionState(session, chatId, reader, kind) : undefined;
 			},
@@ -153,15 +154,17 @@ export interface ISessionLinkState {
 	readonly chats: IObservable<readonly ISessionLinkChatState[]>;
 }
 
-function findSession(
+export function findSessionForOpenSessionLink(
 	backendSession: URI,
 	sessionsManagementService: ISessionsManagementService,
 	connectionsService: IAgentHostConnectionsService,
 ): ISession | undefined {
 	return sessionsManagementService.getSessions().find(session => {
-		const resolved = connectionsService.resolveSessionResource(session.resource);
-		return isEqual(session.resource, backendSession)
-			|| !!resolved && isEqual(resolved.backendSession, backendSession);
+		if (isEqual(session.resource, backendSession)) {
+			return true;
+		}
+		const identity = connectionsService.resolveSessionResourceIdentity(session.resource);
+		return !!identity && isEqual(identity.backendSession, backendSession);
 	});
 }
 

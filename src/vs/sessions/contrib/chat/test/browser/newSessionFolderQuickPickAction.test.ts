@@ -29,7 +29,7 @@ function createResolvedRecent(uri: URI, providerId = 'local-1', checked = false)
 		requiresWorkspaceTrust: false,
 		isVirtualWorkspace: false,
 	};
-	return { workspace, providerId, checked };
+	return { workspace, providerId, checked, source: 'agents' };
 }
 
 function createRecentWorkspacesService(recent: IRecentWorkspace[]): ISessionsRecentWorkspacesService {

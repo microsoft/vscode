@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient } from '@github/copilot-sdk';
 import { ILogService } from '../../../log/common/log.js';
 import { raceTimeout } from '../../../../base/common/async.js';
+import { copilotSandboxPolicyCommand } from './copilotSandboxPolicyDisplay.js';
+import type { ICopilotSlashCommandHandler, ResolvedCopilotSlashCommand, RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 
 type RuntimeSlashCommandCatalog = {
 	readonly commands: readonly RuntimeSlashCommandInfo[];
@@ -18,33 +19,48 @@ type RuntimeSlashCommandCache = {
 	inFlight?: Promise<RuntimeSlashCommandCatalog>;
 };
 
-type RuntimeSlashCommandInfo = Awaited<ReturnType<CopilotClient['rpc']['commands']['list']>>['commands'][number];
+interface ICopilotSlashCommandProviderOptions {
+	readonly getCommandHandler?: (command: RuntimeSlashCommandInfo) => ICopilotSlashCommandHandler | undefined;
+}
 
 export class CopilotSlashCommandProvider {
 	private _runtimeSlashCommandCache: RuntimeSlashCommandCache | undefined;
 	constructor(
 		private readonly listCommands: () => Promise<RuntimeSlashCommandInfo[]>,
+		private readonly options: ICopilotSlashCommandProviderOptions = {},
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
 	async getSlashCommands(options?: { readonly maxWaitMs?: number }): Promise<readonly RuntimeSlashCommandInfo[]> {
+		let commands: readonly RuntimeSlashCommandInfo[] = [];
 		try {
 			const maxWaitMs = options?.maxWaitMs;
 			const catalog = await this._getRuntimeSlashCommandCatalog(maxWaitMs === undefined ? undefined : Math.max(0, maxWaitMs));
-			return catalog.commands;
+			commands = catalog.commands;
 		} catch (err) {
 			this._logService.warn(`[Copilot] rpc.commands.list failed`, err);
-			return [];
 		}
+		return [copilotSandboxPolicyCommand, ...commands.filter(command => this._normalizeSlashCommandKey(command.name) !== copilotSandboxPolicyCommand.name)];
 	}
 
-	public async resolveSlashCommand(command: string, maxWaitMs: number | undefined = undefined): Promise<RuntimeSlashCommandInfo | undefined> {
+	public async resolveSlashCommand(command: string, maxWaitMs: number | undefined = undefined): Promise<ResolvedCopilotSlashCommand | undefined> {
 		const key = this._normalizeSlashCommandKey(command);
 		if (!key) {
 			return undefined;
 		}
+		if (key === copilotSandboxPolicyCommand.name) {
+			return this._withHandler(copilotSandboxPolicyCommand);
+		}
 		const catalog = await this._getRuntimeSlashCommandCatalog(maxWaitMs);
-		return catalog.byName.get(key) ?? catalog.byAlias.get(key);
+		return this._withHandler(catalog.byName.get(key) ?? catalog.byAlias.get(key));
+	}
+
+	private _withHandler(command: RuntimeSlashCommandInfo | undefined): ResolvedCopilotSlashCommand | undefined {
+		if (!command) {
+			return undefined;
+		}
+		const handler = this.options.getCommandHandler?.(command);
+		return handler ? { ...command, ...handler } : command;
 	}
 
 	public clearCache(): void {

@@ -26,26 +26,31 @@ export enum SessionTypeAvailability {
 
 /**
  * The picker's view of {@link getSessionTypeAvailability}, which keeps a harness
- * selectable in the two cases where the raw answer would grey out something the
- * user can still act on.
- *
- * `hasSetupBanner` is the second: a harness whose SDK setup banner is on offer
- * has no models *yet*, and the banner saying how to fix that renders inside a
- * session of that very type. Not a static allow-list of session types — a
- * signed-in user whose Claude harness has no models gets no banner and stays
- * greyed out, which is the honest answer for them.
+ * selectable when the user can make it usable by selecting it. Agent SDK model
+ * discovery is intentionally demand-driven, so an advertised setup path must be
+ * allowed to cross that activation boundary before it has published any models.
  */
-export function getSessionTypePickerAvailability(type: string, availability: SessionTypeAvailability, allowSignedOutWhenUsable: boolean, hasSetupBanner: boolean): SessionTypeAvailability {
+export function getSessionTypePickerAvailability(type: string, availability: SessionTypeAvailability, allowSignedOutWhenUsable: boolean, canInitializeOnSelection: boolean): SessionTypeAvailability {
+	if (canInitializeOnSelection) {
+		return SessionTypeAvailability.Available;
+	}
 	if (!allowSignedOutWhenUsable) {
 		return availability;
 	}
 	if (type === SessionType.AgentHostCopilot && availability === SessionTypeAvailability.SignInRequired) {
 		return SessionTypeAvailability.Available;
 	}
-	if (hasSetupBanner && availability === SessionTypeAvailability.NoModels) {
-		return SessionTypeAvailability.Available;
-	}
 	return availability;
+}
+
+/**
+ * Whether selecting an Agent SDK harness may initialize its models. A user who
+ * is signed in through either GitHub or the harness's own provider can enter an
+ * advertised setup flow; otherwise the signed-out experiment must permit it.
+ */
+export function canInitializeSessionTypeOnSelection(entitlement: ChatEntitlement, allowSignedOutWhenUsable: boolean, hasAgentSdkSetup: boolean, canInitializeWithoutGitHub = false): boolean {
+	const hasResolvedGitHubAccount = entitlement !== ChatEntitlement.Unknown && entitlement !== ChatEntitlement.Unresolved;
+	return hasAgentSdkSetup && (canInitializeWithoutGitHub || allowSignedOutWhenUsable || hasResolvedGitHubAccount);
 }
 
 /**

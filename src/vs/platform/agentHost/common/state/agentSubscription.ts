@@ -9,13 +9,13 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, ActionType, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
-import { changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
+import { ActionEnvelope, ActionType, type AutomationAction, type AutomationRunAction, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
+import { automationReducer, automationRunReducer, changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
-import type { AnnotationsState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
+import type { AnnotationsState, AutomationRunState, AutomationState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
-import { isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 import { normalizeLegacyChatStateErrors } from './legacyProtocolCompatibility.js';
 
 // --- Public API --------------------------------------------------------------
@@ -103,6 +103,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	protected _confirmedState: T | undefined;
 	private _error: Error | undefined;
 	private _bufferedEnvelopes: ActionEnvelope[] | undefined;
+	private _awaitingSnapshotRefresh = false;
 
 	protected readonly _onDidChange = this._register(new Emitter<T>());
 	readonly onDidChange: Event<T> = this._onDidChange.event;
@@ -140,9 +141,45 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	 * Apply an initial snapshot from the server.
 	 */
 	handleSnapshot(state: T, fromSeq: number): void {
+		this._awaitingSnapshotRefresh = false;
 		this._confirmedState = state;
 		this._error = undefined;
 		this._onSnapshotApplied(fromSeq);
+		this._onDidChange.fire(this.value as T);
+	}
+
+	/**
+	 * Buffer incoming envelopes until the next {@link handleSnapshot}.
+	 *
+	 * Needed when a subscription that already holds confirmed state is
+	 * re-subscribed to be reseated from a restarted host: the snapshot is
+	 * computed at some `fromSeq`, but the channel is already live, so newer
+	 * actions can reach the client before the subscribe response does.
+	 * Applying them first and then installing the older snapshot would drop
+	 * them silently — losing, say, the action that ends a turn.
+	 */
+	beginSnapshotRefresh(): void {
+		this._awaitingSnapshotRefresh = true;
+	}
+
+	/**
+	 * Abandon a refresh started by {@link beginSnapshotRefresh} when the
+	 * snapshot never arrives, applying whatever was buffered meanwhile so the
+	 * subscription does not silently lose those actions too.
+	 */
+	cancelSnapshotRefresh(): void {
+		if (!this._awaitingSnapshotRefresh) {
+			return;
+		}
+		this._awaitingSnapshotRefresh = false;
+		const buffered = this._bufferedEnvelopes;
+		if (!buffered || this._confirmedState === undefined) {
+			return;
+		}
+		this._bufferedEnvelopes = undefined;
+		for (const envelope of buffered) {
+			this._reconcile(envelope, envelope.origin?.clientId === this._clientId);
+		}
 		this._onDidChange.fire(this.value as T);
 	}
 
@@ -165,7 +202,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 
 		// Buffer actions that arrive before the snapshot has been applied.
 		// They're replayed in _onSnapshotApplied().
-		if (this._confirmedState === undefined) {
+		if (this._confirmedState === undefined || this._awaitingSnapshotRefresh) {
 			if (!this._bufferedEnvelopes) {
 				this._bufferedEnvelopes = [];
 			}
@@ -203,16 +240,25 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 				if (envelope.serverSeq > _fromSeq) {
 					const isOwnAction = envelope.origin?.clientId === this._clientId;
 					this._reconcile(envelope, isOwnAction);
+				} else if (envelope.origin?.clientId === this._clientId) {
+					// The snapshot already includes this action. Retire its optimistic
+					// copy without replaying an older draft over newer server state.
+					this._acknowledgeSnapshotAction(envelope.origin.clientSeq);
 				}
 			}
 		}
 	}
+
+	protected _acknowledgeSnapshotAction(_clientSeq: number): void { }
 
 	/**
 	 * Default reconciliation: apply to confirmed, fire change event.
 	 * Session subscriptions override this for write-ahead.
 	 */
 	protected _reconcile(envelope: ActionEnvelope, _isOwnAction: boolean): void {
+		if (envelope.rejectionReason) {
+			return;
+		}
 		this._confirmedState = this._applyReducer(this._confirmedState!, envelope.action);
 		this._onDidChange.fire(this.value as T);
 	}
@@ -380,6 +426,10 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, channel: this._sessionUri }));
 	}
 
+	protected override _acknowledgeSnapshotAction(clientSeq: number): void {
+		this.dropPendingByClientSeq(clientSeq);
+	}
+
 	/**
 	 * Drop the pending entry whose `clientSeq` matches the supplied value.
 	 * Used during reconnect to evict actions the server already echoed back
@@ -451,14 +501,29 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 	}
 
 	protected override _applyReducer(state: ChatState, action: StateAction): ChatState {
+		if (action.type === ActionType.SessionChatUpdated && action.chat === this._chatUri) {
+			const { resource: _resource, ...changes } = action.changes;
+			return { ...state, ...changes };
+		}
 		return chatReducer(state, action as IProtocolChatAction, this._log);
 	}
 
 	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
-		return isChatAction(envelope.action) && envelope.channel === this._chatUri;
+		// Host-advertised chat URIs are opaque; the update identifies its target.
+		return isChatAction(envelope.action) && envelope.channel === this._chatUri
+			|| envelope.action.type === ActionType.SessionChatUpdated && envelope.action.chat === this._chatUri;
 	}
 
 	protected override _onSnapshotApplied(fromSeq: number): void {
+		// A snapshot can confirm a turn before this subscription receives its start acknowledgement.
+		const state = this._confirmedState;
+		for (let i = this._pendingActions.length - 1; i >= 0; i--) {
+			const action = this._pendingActions[i].action;
+			if (action.type === ActionType.ChatTurnStarted
+				&& (state?.activeTurn?.id === action.turnId || state?.turns.some(turn => turn.id === action.turnId))) {
+				this._pendingActions.splice(i, 1);
+			}
+		}
 		super._onSnapshotApplied(fromSeq);
 		this._recomputeOptimistic();
 	}
@@ -539,6 +604,10 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, channel: this._chatUri }));
 	}
 
+	protected override _acknowledgeSnapshotAction(clientSeq: number): void {
+		this.dropPendingByClientSeq(clientSeq);
+	}
+
 	dropPendingByClientSeq(clientSeq: number): boolean {
 		const idx = this._pendingActions.findIndex(p => p.clientSeq === clientSeq);
 		if (idx === -1) {
@@ -570,6 +639,53 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 
 	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
 		return envelope.action.type.startsWith('terminal/') && envelope.channel === this._terminalUri;
+	}
+}
+
+/** Subscription to the singleton host-owned automation catalogue. */
+export class AutomationCatalogSubscription extends BaseAgentSubscription<AutomationState> {
+
+	constructor(clientId: string, log: (msg: string) => void) {
+		super(clientId, log);
+	}
+
+	protected override _applyReducer(state: AutomationState, action: StateAction): AutomationState {
+		return automationReducer(state, action as AutomationAction, this._log);
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isAhpAutomationCatalogChannel(envelope.channel);
+	}
+
+	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		if (!envelope.rejectionReason) {
+			super._reconcile(envelope, isOwnAction);
+		}
+	}
+}
+
+/** Subscription to one host-owned automation run. */
+export class AutomationRunSubscription extends BaseAgentSubscription<AutomationRunState> {
+
+	private readonly _resource: string;
+
+	constructor(resource: string, clientId: string, log: (msg: string) => void) {
+		super(clientId, log);
+		this._resource = resource;
+	}
+
+	protected override _applyReducer(state: AutomationRunState, action: StateAction): AutomationRunState {
+		return automationRunReducer(state, action as AutomationRunAction, this._log);
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isAhpAutomationRunChannel(envelope.channel) && envelope.channel === this._resource;
+	}
+
+	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		if (!envelope.rejectionReason) {
+			super._reconcile(envelope, isOwnAction);
+		}
 	}
 }
 
@@ -671,7 +787,7 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 	}
 }
 
-type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription;
+type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription | AutomationCatalogSubscription | AutomationRunSubscription;
 
 // --- Annotations State Subscription ------------------------------------------
 
@@ -790,6 +906,10 @@ export class AnnotationsStateSubscription extends BaseAgentSubscription<Annotati
 		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, channel: this._annotationsUri }));
 	}
 
+	protected override _acknowledgeSnapshotAction(clientSeq: number): void {
+		this.dropPendingByClientSeq(clientSeq);
+	}
+
 	dropPendingByClientSeq(clientSeq: number): boolean {
 		const index = this._pendingActions.findIndex(p => p.clientSeq === clientSeq);
 		if (index === -1) {
@@ -800,7 +920,7 @@ export class AnnotationsStateSubscription extends BaseAgentSubscription<Annotati
 	}
 }
 
-type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponents; refCount: number; holders: Map<number, string> };
+type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponents; refCount: number; holders: Map<number, string>; refresh?: Promise<void>; snapshotVersion: number };
 
 // --- Subscription Manager ----------------------------------------------------
 
@@ -865,6 +985,36 @@ export class AgentSubscriptionManager extends Disposable {
 		return entry?.sub as IAgentSubscription<T> | undefined;
 	}
 
+	/** Re-read a held channel without unsubscribing or discarding pending local actions. */
+	refreshSubscription(resource: URI): Promise<void> {
+		const entry = this._subscriptions.get(resource);
+		if (!entry) {
+			return Promise.reject(new Error(`Subscription not found: ${resource}`));
+		}
+		if (entry.refresh) {
+			return entry.refresh;
+		}
+		const snapshotVersion = ++entry.snapshotVersion;
+		entry.sub.beginSnapshotRefresh();
+		const refresh = (async () => {
+			try {
+				const snapshot = await this._subscribe(resource);
+				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
+					entry.sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
+				}
+			} catch (error) {
+				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
+					entry.sub.cancelSnapshotRefresh();
+				}
+				throw error;
+			} finally {
+				entry.refresh = undefined;
+			}
+		})();
+		entry.refresh = refresh;
+		return refresh;
+	}
+
 	/**
 	 * Returns the in-flight `createSession` Promise for this URI, or `undefined` if no create is pending. Used by
 	 * callers that need to gate their own work on a still-running eager `createSession` (e.g. the chat handler awaits
@@ -920,13 +1070,14 @@ export class AgentSubscriptionManager extends Disposable {
 		// Create new subscription based on caller-specified kind
 		const key = resource.toString();
 		const sub = this._createSubscription(kind, key);
-		const entry: ManagedSubscriptionEntry = { sub, kind, refCount: 1, holders: new Map() };
+		const entry: ManagedSubscriptionEntry = { sub, kind, refCount: 1, holders: new Map(), snapshotVersion: 0 };
 		this._subscriptions.set(resource, entry);
 
 		// Kick off server subscription asynchronously.
 		// Capture the entry reference so we can validate it hasn't been
 		// replaced by a new subscription for the same key (race guard).
-		void (async () => {
+		const snapshotVersion = ++entry.snapshotVersion;
+		entry.refresh = (async () => {
 			const inflight = this._inflightCreates.get(resource);
 			if (inflight) {
 				try {
@@ -939,15 +1090,19 @@ export class AgentSubscriptionManager extends Disposable {
 			}
 			try {
 				const snapshot = await this._subscribe(resource);
-				if (this._subscriptions.get(resource) === entry) {
+				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
 					sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
 				}
 			} catch (err) {
-				if (this._subscriptions.get(resource) === entry) {
+				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
 					sub.setError(err instanceof Error ? err : new Error(String(err)));
 				}
+				throw err;
 			}
-		})();
+		})().finally(() => { entry.refresh = undefined; });
+		// Initial errors are reported on the subscription. An explicit refresh
+		// joining this request must still receive its rejection.
+		void entry.refresh.catch(() => { });
 
 		return this._acquireReference<T>(resource, entry, owner);
 	}
@@ -1012,7 +1167,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * `channel` is the protocol URI string identifying the channel the
 	 * action targets (a session URI for session actions, etc.).
 	 */
-	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): number {
+	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(channel));
 			if (entry?.sub instanceof SessionStateSubscription) {
@@ -1120,6 +1275,9 @@ export class AgentSubscriptionManager extends Disposable {
 		if (!entry) {
 			return;
 		}
+		// Reconnect owns the new baseline. An older in-flight refresh must not
+		// overwrite it or cancel buffering for its replacement.
+		entry.snapshotVersion++;
 		// Clear any pending optimistic actions before reseating confirmed
 		// state \u2014 they were predicated on the pre-disconnect confirmed
 		// state and won't reconcile correctly against a fresh snapshot.
@@ -1127,6 +1285,24 @@ export class AgentSubscriptionManager extends Disposable {
 			entry.sub.clearPending();
 		}
 		entry.sub.handleSnapshot(state as never, fromSeq);
+	}
+
+	/**
+	 * Put a subscription into snapshot-refresh mode ahead of an explicit
+	 * re-`subscribe` that reseats it from a restarted host. See
+	 * {@link BaseAgentSubscription.beginSnapshotRefresh}.
+	 */
+	beginSnapshotRefresh(resource: URI): void {
+		const entry = this._subscriptions.get(resource);
+		if (entry) {
+			entry.snapshotVersion++;
+			entry.sub.beginSnapshotRefresh();
+		}
+	}
+
+	/** Abandon a refresh started by {@link beginSnapshotRefresh}. */
+	cancelSnapshotRefresh(resource: URI): void {
+		this._subscriptions.get(resource)?.sub.cancelSnapshotRefresh();
 	}
 
 	/**
@@ -1159,6 +1335,10 @@ export class AgentSubscriptionManager extends Disposable {
 				return new ChangesetStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Annotations:
 				return new AnnotationsStateSubscription(key, this._clientId, this._seqAllocator, this._log);
+			case StateComponents.AutomationCatalog:
+				return new AutomationCatalogSubscription(this._clientId, this._log);
+			case StateComponents.AutomationRun:
+				return new AutomationRunSubscription(key, this._clientId, this._log);
 			case StateComponents.Root:
 				throw new Error('_createSubscription: root subscription is managed separately');
 			default:
@@ -1195,6 +1375,14 @@ export function isActionEnvelopeRelevantToSubscriptionUris(envelope: ActionEnvel
 	if (isAhpRootChannel(envelope.channel)) {
 		for (const uri of subscribedUris) {
 			if (isAhpRootChannel(uri)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	if (isAhpAutomationCatalogChannel(envelope.channel)) {
+		for (const uri of subscribedUris) {
+			if (isAhpAutomationCatalogChannel(uri)) {
 				return true;
 			}
 		}

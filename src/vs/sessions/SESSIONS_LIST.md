@@ -34,6 +34,7 @@ A session appears in exactly one primary section. Higher-precedence states win:
 Archived
     > Pinned
     > Custom group
+    > External (when dedicated sectioning is enabled)
     > Quick chat
     > Workspace or date group
 ```
@@ -41,6 +42,7 @@ Archived
 - Archived sessions appear only in the final archived section.
 - Pinned sessions appear in the pinned section.
 - A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat.
+- When dedicated external sectioning is enabled, remaining external sessions appear together before the archived section. Pinning and custom-group membership retain their precedence; disabling sectioning returns external sessions to the ordinary grouping rules without changing that presentation state.
 - Remaining unpinned quick chats appear in the dedicated chats section.
 - Remaining sessions follow the selected workspace or date grouping.
 - A regular session created by another regular session is initially placed
@@ -50,6 +52,8 @@ Archived
   reordering are ordinary persisted list state.
 
 The active session remains visible even when a filter would otherwise exclude it.
+
+A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and exposes the requested spotlight target. An archive-action reveal also keeps the action visible without hover or focus. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 
 ## Grouping
 
@@ -67,7 +71,7 @@ Quick chats are identified through `ISession.isQuickChat`, not by checking for a
 
 ### Archived sessions
 
-Archiving removes custom-group membership. Restoring a session does not restore its former membership. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
+Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing a bulk archive from the list: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
 
 ## Durable user intent
 
@@ -85,7 +89,7 @@ Stale entries that match no current session are inert and may be compacted by th
 
 The list supports created-time and updated-time sorting. Manual ordering stores list-owned sort keys for each mode without changing provider timestamps.
 
-Filters compose across session type, status, archive/read state, and provider. The find widget matches session and section labels and bypasses presentation capping while a search is active.
+Filters compose across session type, status, archive/read state, and provider. The archived filter governs both archived sessions and archived nested chats; there is no per-session archive-visibility override. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. The find widget matches session and section labels and bypasses presentation capping while a search is active.
 
 ## Drag and drop
 
@@ -105,9 +109,11 @@ Rows derive title, status, workspace, changes, capabilities, and quick-chat iden
 
 Row renderers use tree-supported row classes and APIs rather than traversing tree-owned DOM structure.
 
+Session facades may expose catalog-backed peer-chat identities, titles, and interactivity before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
+
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section collapse, pins, custom groups, manual sort keys, and section order. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, pins, custom groups, manual sort keys, and section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
 ## Change policy
 

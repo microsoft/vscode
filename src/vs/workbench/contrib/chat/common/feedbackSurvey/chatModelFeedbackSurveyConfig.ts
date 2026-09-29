@@ -12,6 +12,8 @@
  * but cannot share code today because that renderer needs telemetry keys known at compile time.
  */
 
+import { expandModelMatchCandidates, ID_PATTERN, isObject, MAX_ID_LENGTH, normalizeSelector, parseExpPayloadEnvelope, readSelectorList, readText } from '../expPayload.js';
+
 /** Payload versions this build understands. Bump when making a breaking shape change. */
 export const CHAT_MODEL_FEEDBACK_SURVEY_CONFIG_VERSION = 1;
 
@@ -21,17 +23,12 @@ export const CHAT_MODEL_FEEDBACK_SURVEY_NO_HARNESS = 'none';
 const MAX_STEPS = 8;
 const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 8;
-const MAX_ID_LENGTH = 64;
 const MAX_TITLE_LENGTH = 200;
 const MAX_LABEL_LENGTH = 120;
 const MAX_PLACEHOLDER_LENGTH = 100;
 const MAX_COMMENT_LENGTH = 1000;
-const MAX_SELECTORS = 32;
 
 const MATCH_FIELDS = ['selectedModels', 'resolvedModels', 'modes', 'harnesses', 'sessionTypes'] as const;
-
-/** Ids appear in telemetry, so they are restricted to a shape that needs no sanitization. */
-const ID_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
 
 export const enum ChatModelFeedbackSurveyStepKind {
 	Choice = 'choice',
@@ -151,26 +148,12 @@ export interface IChatModelFeedbackSurveyMatchContext {
  * measures.
  */
 export function parseChatModelFeedbackSurveyConfig(raw: string | undefined): ChatModelFeedbackSurveyParseResult {
-	if (typeof raw !== 'string' || !raw.trim()) {
-		return { error: 'empty payload' };
+	const parsed = parseExpPayloadEnvelope(raw, CHAT_MODEL_FEEDBACK_SURVEY_CONFIG_VERSION);
+	if (typeof parsed === 'string') {
+		return { error: parsed };
 	}
 
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(raw);
-	} catch (err) {
-		return { error: `payload is not valid JSON: ${err instanceof Error ? err.message : String(err)}` };
-	}
-
-	if (!isObject(parsed)) {
-		return { error: 'payload is not an object' };
-	}
-
-	if (parsed.version !== CHAT_MODEL_FEEDBACK_SURVEY_CONFIG_VERSION) {
-		return { error: `unsupported version ${JSON.stringify(parsed.version)}, expected ${CHAT_MODEL_FEEDBACK_SURVEY_CONFIG_VERSION}` };
-	}
-
-	const id = readId(parsed.id);
+	const id = readText(parsed.id, MAX_ID_LENGTH, ID_PATTERN);
 	if (!id) {
 		return { error: 'missing or malformed survey id' };
 	}
@@ -221,29 +204,6 @@ function readMatch(raw: unknown): IChatModelFeedbackSurveyMatch | string {
 	};
 }
 
-function readSelectorList(raw: unknown, path: string): string[] | string {
-	if (raw === undefined) {
-		return [];
-	}
-	if (!Array.isArray(raw)) {
-		return `${path} must be an array of strings`;
-	}
-	if (raw.length > MAX_SELECTORS) {
-		return `${path} exceeds ${MAX_SELECTORS} entries`;
-	}
-	const out: string[] = [];
-	for (const entry of raw) {
-		if (typeof entry !== 'string') {
-			return `${path} must contain only strings`;
-		}
-		const normalized = normalizeSelector(entry);
-		if (!normalized) {
-			return `${path} must not contain empty strings`;
-		}
-		out.push(normalized);
-	}
-	return out;
-}
 
 /**
  * Reads the automatic prompting rules. An omitted `prompt` block gives a manual only survey, so
@@ -378,7 +338,7 @@ function readStep(raw: unknown, index: number): ChatModelFeedbackSurveyStep | st
 		return `steps[${index}] must be an object`;
 	}
 
-	const id = readId(raw.id);
+	const id = readText(raw.id, MAX_ID_LENGTH, ID_PATTERN);
 	if (!id) {
 		return `steps[${index}].id is missing or malformed`;
 	}
@@ -421,7 +381,7 @@ function readStep(raw: unknown, index: number): ChatModelFeedbackSurveyStep | st
 		if (!isObject(option)) {
 			return `steps[${index}].options[${i}] must be an object`;
 		}
-		const optionId = readId(option.id);
+		const optionId = readText(option.id, MAX_ID_LENGTH, ID_PATTERN);
 		if (!optionId) {
 			return `steps[${index}].options[${i}].id is missing or malformed`;
 		}
@@ -439,27 +399,7 @@ function readStep(raw: unknown, index: number): ChatModelFeedbackSurveyStep | st
 	return { kind: ChatModelFeedbackSurveyStepKind.Choice, id, title, options };
 }
 
-function readId(raw: unknown): string | undefined {
-	if (typeof raw !== 'string') {
-		return undefined;
-	}
-	const trimmed = raw.trim().toLowerCase();
-	if (!trimmed || trimmed.length > MAX_ID_LENGTH || !ID_PATTERN.test(trimmed)) {
-		return undefined;
-	}
-	return trimmed;
-}
 
-function readText(raw: unknown, maxLength: number): string | undefined {
-	if (typeof raw !== 'string') {
-		return undefined;
-	}
-	const trimmed = raw.trim();
-	if (!trimmed || trimmed.length > maxLength) {
-		return undefined;
-	}
-	return trimmed;
-}
 
 function readPositiveInteger(raw: unknown, fallback: number): number | undefined {
 	if (raw === undefined) {
@@ -491,39 +431,7 @@ function readProbability(raw: unknown, fallback: number): number | undefined {
 	return raw;
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
-/**
- * Builds every string a selector may match for a model.
- *
- * Identifiers are qualified differently across harnesses. The language model service uses
- * `<vendor>/<group>/<id>` while agent host sessions use `<sessionType>:<id>`, so a selector is
- * compared against each segment as well as the whole id. That lets `auto` match both
- * `copilot/auto` and `agent-host-copilotcli:auto`.
- */
-export function expandModelMatchCandidates(modelId: string | undefined, aliases?: readonly string[]): Set<string> {
-	const candidates = new Set<string>();
-	const add = (value: string | undefined): void => {
-		const normalized = value === undefined ? '' : normalizeSelector(value);
-		if (normalized) {
-			candidates.add(normalized);
-		}
-	};
-
-	if (modelId) {
-		add(modelId);
-		for (const segment of modelId.split(/[/:]/)) {
-			add(segment);
-		}
-	}
-	for (const alias of aliases ?? []) {
-		add(alias);
-	}
-
-	return candidates;
-}
 
 /** Whether the response described by `context` should be offered `config`'s survey. */
 export function matchesChatModelFeedbackSurvey(config: IChatModelFeedbackSurveyConfig, context: IChatModelFeedbackSurveyMatchContext): boolean {
@@ -563,6 +471,3 @@ function matchesScalar(selectors: readonly string[], value: string | undefined):
 	return !!normalized && selectors.includes(normalized);
 }
 
-function normalizeSelector(value: string): string {
-	return value.trim().toLowerCase().replace(/[\s_]+/g, '-');
-}

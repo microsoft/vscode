@@ -262,8 +262,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 
 			// Safe lockfile-only installs since we trust the workspace and lock file is trusted.
 			'npm ci': true,
+			'/^npm\\s+ci\\s+\\S/': false,
 			'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+			'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
 			'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+			'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
 
 			// #endregion
 
@@ -558,7 +561,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[AgentSandboxSettingId.AgentSandboxAllowNetwork]: {
 		markdownDescription: localize('agentSandbox.allowNetwork', "When {0} is enabled, controls whether to allow all network domains in the sandbox. When enabled, the sandbox preserves file system restrictions while relaxing all network restrictions.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'boolean',
-		default: false,
+		default: true,
 		tags: ['preview'],
 		restricted: true,
 		policy: {

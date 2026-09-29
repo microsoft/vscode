@@ -3,13 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* When docked in the chat input area, hide the container when it's empty so
- * we don't reserve space. */
-.interactive-session .interactive-input-part > .chat-plan-review-widget-container:empty,
-.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-plan-review-widget-container:empty {
-	display: none;
-}
-
 .interactive-session .interactive-input-part > .chat-plan-review-widget-container,
 .interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-plan-review-widget-container {
 	width: 100%;
@@ -17,11 +10,6 @@
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
-}
-
-.interactive-session .interactive-input-part > .chat-plan-review-widget-container:not(:empty),
-.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-plan-review-widget-container:not(:empty) {
-	margin-top: 8px;
 }
 
 /* When the part is docked inside the input container, drop our own

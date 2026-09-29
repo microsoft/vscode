@@ -133,8 +133,8 @@ export interface IAgentHostRestrictedTelemetry {
 	sendInternalMSFTTelemetryEventForContext(context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
 	/** Sets the Copilot user tracking id (`copilot_trackingId`) carried on every subsequent event. */
 	setCopilotTrackingId(trackingId: string | undefined): void;
-	/** Adds a property carried on every subsequent event, mirroring `ITelemetryService.setCommonProperty`. */
-	setCommonProperty(name: string, value: string | boolean): void;
+	/** Adds or removes a property carried on every subsequent event, mirroring `ITelemetryService.setCommonProperty`. */
+	setCommonProperty(name: string, value: string | boolean | undefined): void;
 	/** Overrides the POST endpoint with the user's CAPI `endpoints.telemetry`; falsy restores the default. */
 	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void;
 	/** Enables enhanced GH telemetry once the authenticated account opts in; off by default and on flip/logout. */
@@ -166,13 +166,15 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 		private readonly _internalSink?: IAgentHostInternalTelemetrySink,
 		private readonly _fetchFn: FetchFn = globalThis.fetch,
 	) {
+		const editorVersion = asString(commonProperties['version']);
 		// Map the resolved common properties onto the GH property names the hydro schema reads.
 		this._commonProps = {
 			client_machineid: asString(commonProperties['common.machineId']),
 			client_deviceid: asString(commonProperties['common.devDeviceId']),
 			client_sessionid: asString(commonProperties['sessionID']),
 			common_os: asString(commonProperties['common.nodePlatform']) ?? process.platform,
-			editor_version: asString(commonProperties['version']),
+			// Match the application identity supplied to the Copilot SDK through clientInfo.
+			editor_version: editorVersion === undefined ? undefined : `vscode-agent-host/${editorVersion}`,
 		};
 	}
 
@@ -229,8 +231,12 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 		this._commonProps.copilot_trackingId = trackingId || undefined;
 	}
 
-	setCommonProperty(name: string, value: string | boolean): void {
-		this._commonProps[name] = String(value);
+	setCommonProperty(name: string, value: string | boolean | undefined): void {
+		if (value === undefined) {
+			delete this._commonProps[name];
+		} else {
+			this._commonProps[name] = String(value);
+		}
 	}
 
 	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void {

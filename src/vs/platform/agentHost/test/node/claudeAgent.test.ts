@@ -54,6 +54,7 @@ import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPlugin
 import { ActionType } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChatOriginKind, CustomizationEnablementKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -65,10 +66,13 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
-import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
+import { AgentHostStartupPerformance, IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
+import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
+import { TestAgentHostStartupTelemetryService } from './testAgentHostStartupTelemetryService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
@@ -83,9 +87,10 @@ import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KE
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
-import { IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
+import { ClaudeProxyService, IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
-import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
+import { CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
+import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION } from '../../node/shared/agentMergeToolRestrictions.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
@@ -888,6 +893,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	setMcpPermissionModeOverride(): never { throw new Error('FakeQuery: setMcpPermissionModeOverride not modeled'); }
 	setMaxThinkingTokens(): never { throw new Error('FakeQuery: setMaxThinkingTokens not modeled'); }
 	async applyFlagSettings(s: Settings): Promise<void> { this.recordedFlagSettings.push(s); }
+	updateSettings(): never { throw new Error('FakeQuery: updateSettings not modeled'); }
 	initializationResult(): never { throw new Error('FakeQuery: initializationResult not modeled'); }
 	reinitialize(): never { throw new Error('FakeQuery: reinitialize not modeled'); }
 
@@ -934,6 +940,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	}
 	rewindFiles(): never { throw new Error('FakeQuery: rewindFiles not modeled'); }
 	readFile(): never { throw new Error('FakeQuery: readFile not modeled'); }
+	readMcpResource(): never { throw new Error('FakeQuery: readMcpResource not modeled'); }
 	seedReadState(): never { throw new Error('FakeQuery: seedReadState not modeled'); }
 	reconnectMcpServer(serverName: string): never {
 		this.mcpReconnectCalls.push(serverName);
@@ -954,6 +961,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	streamInput(): never { throw new Error('FakeQuery: streamInput not modeled'); }
 	stopTask(): never { throw new Error('FakeQuery: stopTask not modeled'); }
 	reloadSkills(): never { throw new Error('FakeQuery: reloadSkills not modeled'); }
+	reloadOutputStyles(): never { throw new Error('FakeQuery: reloadOutputStyles not modeled'); }
 	backgroundTasks(): never { throw new Error('FakeQuery: backgroundTasks not modeled'); }
 	close(): void { this.closeCount++; }
 	[Symbol.asyncDispose](): Promise<void> { return Promise.resolve(); }
@@ -1062,6 +1070,10 @@ const ALL_MODELS: readonly CCAModel[] = [
  */
 class RecordingOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
+	readonly diagnosticsEnabled = false;
+	emitTurnTiming(): void { }
+	emitFirstResponse(): void { }
+	emitUserInteraction(): void { }
 	readonly titleChanges: Array<{ conversationId: string; sessionUri: string; title: string }> = [];
 	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
@@ -1112,7 +1124,7 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; checkpointService?: IAgentHostCheckpointService; nativeAccount?: AccountInfo },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; copilotApiService?: ICopilotApiService; claudeProxyService?: IClaudeProxyService; checkpointService?: IAgentHostCheckpointService; nativeAccount?: AccountInfo; startupPerformance?: IAgentHostStartupPerformance },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
@@ -1145,8 +1157,9 @@ function createTestContext(
 		[IFileService, fileService],
 		[INativeEnvironmentService, { userHome: overrides?.userHome ?? URI.file('/mock-home') } as INativeEnvironmentService],
 		[ILogService, logService],
-		[ICopilotApiService, api],
-		[IClaudeProxyService, proxy],
+		[IAgentHostStartupPerformance, overrides?.startupPerformance ?? NullAgentHostStartupPerformance],
+		[ICopilotApiService, overrides?.copilotApiService ?? api],
+		[IClaudeProxyService, overrides?.claudeProxyService ?? proxy],
 		[ISessionDataService, sessionData],
 		[IClaudeAgentSdkService, sdk],
 		[IAgentSdkDownloader, sdkDownloader],
@@ -1254,6 +1267,7 @@ function createTestAgentStateServices(disposables: Pick<DisposableStore, 'add'>)
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	return [
 		[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
+		[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 		[IAgentHostOTelService, new RecordingOTelService()],
@@ -1300,12 +1314,56 @@ suite('ClaudeAgent', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('startup telemetry counts all SDK sessions before migration filtering', async () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+		sdk.sessionList = Array.from({ length: 101 }, (_, i) => ({ sessionId: `startup-${i}`, cwd: '/work', summary: '', lastModified: 1 }));
+		const migrated = await agent.listChatsToMigrate();
+		await agent.listChatsToMigrate();
+		assert.deepStrictEqual({
+			migrated,
+			contexts: telemetry.events.filter(event => event.data?.name === 'providerContext').map(({ data }) => [data?.provider, data?.activationState, data?.sdkAvailability]),
+			timings: telemetry.events.filter(event => event.data?.outcome).map(({ data }) => [data?.name, data?.provider, data?.outcome, data?.scannedSessionCount]),
+		}, {
+			migrated: [],
+			contexts: [['claude', 'notRequired', 'available']],
+			timings: [['sessionMigrationScan', 'claude', 'success', 101]],
+		});
+	});
+
+	test('startup telemetry captures a missing Claude SDK without downloading it or replacing the initial snapshot', async () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+		sdk.canLoadWithoutDownloadResult = false;
+		const first = await agent.listChatsToMigrate();
+		const initialSdkLists = sdk.listSessionsCallCount;
+		sdk.canLoadWithoutDownloadResult = true;
+		await agent.listChatsToMigrate();
+		assert.deepStrictEqual({
+			deferred: first === AgentChatMigrationDeferred,
+			initialSdkLists,
+			downloads: sdk.ensureAvailableCalls,
+			contexts: telemetry.events.filter(event => event.data?.name === 'providerContext').map(({ data }) => [data?.provider, data?.activationState, data?.sdkAvailability]),
+		}, { deferred: true, initialSdkLists: 0, downloads: 0, contexts: [['claude', 'notRequired', 'unavailable']] });
+	});
+
 	test('getDescriptor advertises the Claude provider', () => {
 		const { agent } = createTestContext(disposables);
 		const desc = agent.getDescriptor();
 		assert.deepStrictEqual(
-			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0 },
-			{ provider: 'claude', displayName: 'Claude', hasDescription: true },
+			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, agentHostCapabilities: agent.agentHostCapabilities },
+			{ provider: 'claude', displayName: 'Claude', hasDescription: true, agentHostCapabilities: { workspaceConversion: false } },
+		);
+	});
+
+	test('setWorkingDirectory rejects because Claude does not advertise workspace conversion', async () => {
+		const { agent } = createTestContext(disposables);
+
+		await assert.rejects(
+			() => agent.setWorkingDirectory(URI.parse('claude:/chat'), URI.parse('claude:/session'), URI.file('/workspace')),
+			/Claude does not support changing the working directory/,
 		);
 	});
 
@@ -1754,6 +1812,37 @@ suite('ClaudeAgent', () => {
 		);
 	});
 
+	for (const duringAuthentication of [false, true]) {
+		test(`enterprise endpoint changes retire Claude proxy credentials (pending authentication: ${duringAuthentication})`, async () => {
+			const logService = new NullLogService();
+			const state = disposables.add(new AgentHostStateManager(logService));
+			const configuration = disposables.add(new AgentConfigurationService(state, logService));
+			const endpoints = disposables.add(new AgentHostGitHubEndpointService(configuration, logService));
+			let retiredCredentialReachedEnterprise = false;
+			const api = disposables.add(new CopilotApiService(async url => {
+				if (String(url).endsWith('/copilot_internal/user')) {
+					retiredCredentialReachedEnterprise ||= !String(url).startsWith('https://api.github.com/');
+					return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a' });
+				}
+				return Response.json({ data: ALL_MODELS });
+			}, logService, FakeProductService, endpoints));
+			const proxy = disposables.add(new ClaudeProxyService(logService, api));
+			const { agent } = createTestContext(disposables, { gitHubEndpointService: endpoints, copilotApiService: api, claudeProxyService: proxy });
+			const authenticating = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a');
+			if (!duringAuthentication) {
+				await authenticating;
+				await agent.refreshModels();
+			}
+			configuration.updateRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' });
+			await authenticating;
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({ retiredCredentialReachedEnterprise, models: agent.models.get() }, {
+				retiredCredentialReachedEnterprise: false, models: [],
+			});
+		});
+	}
+
 	test('authenticate populates models filtered to Claude family', async () => {
 		const { agent, proxy } = createTestContext(disposables);
 
@@ -1975,6 +2064,40 @@ suite('ClaudeAgent', () => {
 		}, {
 			startTokens: ['tokA', 'tokB'],
 			disposeCount: 1,
+		});
+	});
+
+	test('an older proxy startup cannot replace a newer authentication on the same endpoint', async () => {
+		const { agent, proxy } = createTestContext(disposables);
+		const starts = new Map<string, DeferredPromise<IClaudeProxyHandle>>();
+		const disposed: string[] = [];
+		proxy.start = async token => {
+			proxy.startCalls.push({ token });
+			const started = new DeferredPromise<IClaudeProxyHandle>();
+			starts.set(token, started);
+			return started.p;
+		};
+		const handle = (token: string): IClaudeProxyHandle => ({
+			baseUrl: 'http://127.0.0.1:0',
+			nonce: `nonce-for-${token}`,
+			dispose: () => disposed.push(token),
+		});
+
+		const older = agent.authenticate('https://api.github.com', 'tokA');
+		const newer = agent.authenticate('https://api.github.com', 'tokB');
+		starts.get('tokB')?.complete(handle('tokB'));
+		await newer;
+		starts.get('tokA')?.complete(handle('tokA'));
+		await older;
+
+		assert.deepStrictEqual({
+			githubToken: agent['_githubToken'],
+			proxyNonce: agent['_proxyHandle']?.nonce,
+			disposed,
+		}, {
+			githubToken: 'tokB',
+			proxyNonce: 'nonce-for-tokB',
+			disposed: ['tokA'],
 		});
 	});
 
@@ -4226,6 +4349,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
+			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 			[IAgentHostOTelService, new RecordingOTelService()],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
@@ -4606,7 +4730,7 @@ suite('ClaudeAgent', () => {
 		const sessionUri = created.session;
 		const observed: AgentSignal[] = [];
 		disposables.add(agent.onDidChatProgress(s => {
-			const resource = s.kind === 'action' || s.kind === 'model_call_completed' ? s.resource : s.chat;
+			const resource = s.kind === 'action' || s.kind === 'model_call_completed' || s.kind === 'model_call_finished' ? s.resource : s.chat;
 			if ((parseDefaultChatUri(resource) ?? resource.toString()) === sessionUri.toString()) {
 				observed.push(s);
 			}
@@ -5218,18 +5342,10 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('neither restore nor cold discovery pulls the SDK down', async () => {
-		// Regression: when a materialized Claude session is restored on
-		// startup (the renderer subscribes to the last-active session), the
-		// host's restore path calls `getChatMetadata` -> `getSessionInfo`
-		// and `chats.getMessages`, both of which dynamically import the SDK.
-		// Before the fix that eagerly triggered a cold SDK download (with no
-		// progress interest registered, so no notification) purely from
-		// preselecting/restoring Claude — the download must only start on the
-		// first user message. Discovery used to be exempt and fetch in the
-		// background; it no longer is, since the download is the user's call.
+	test('restoring chat history downloads a cold SDK while passive metadata and discovery stay cold', async () => {
 		const sdk = new FakeClaudeAgentSdkService();
 		sdk.canLoadWithoutDownloadResult = false;
+		sdk.ensureAvailableGate = Promise.resolve().then(() => { sdk.canLoadWithoutDownloadResult = true; });
 		sdk.sessionList = [
 			{ sessionId: 'materialized', summary: 'Materialized Session', lastModified: 5000, createdAt: 4900, cwd: '/work' },
 		];
@@ -5238,6 +5354,7 @@ suite('ClaudeAgent', () => {
 		const services = new ServiceCollection(
 			[ILogService, new NullLogService()],
 			...createTestAgentStateServices(disposables),
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, createNullSessionDataService()],
@@ -5250,29 +5367,31 @@ suite('ClaudeAgent', () => {
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 		const discoveredChats: number[] = [];
 		disposables.add(agent.onDidDiscoverChats(chats => discoveredChats.push(chats.length)));
+		void agent.startChatDiscovery();
 
 		const sessionUri = AgentSession.uri('claude', 'materialized');
 		const chat = defaultChatUri(sessionUri);
-		const metadata = await agent.getChatMetadata(chat, chatContext(chat));
+		const passiveMetadata = await agent.getChatMetadata(chat, chatContext(chat));
+		const restoredMetadata = await agent.getChatMetadata(chat, chatContext(chat), undefined, { activation: 'restore' });
 		await bindDefaultChat(agent, sessionUri);
 		const messages = await agent.chats.getMessages(defaultChatUri(sessionUri), chatContext(defaultChatUri(sessionUri)));
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			metadata,
-			messages,
-			// Nothing reachable from restore or discovery may touch the SDK
-			// while it is absent, whether to read it or to fetch it.
+			passiveMetadata,
+			restoredSummary: restoredMetadata?.summary,
+			messageCount: messages.length,
 			getSessionInfoCalls: sdk.getSessionInfoCalls,
 			getSessionMessagesCalls: sdk.getSessionMessagesCalls,
 			availabilityRequests: sdk.ensureAvailableCalls,
 			discoveredChats,
 		}, {
-			metadata: undefined,
-			messages: [],
-			getSessionInfoCalls: [],
-			getSessionMessagesCalls: [],
-			availabilityRequests: 0,
+			passiveMetadata: undefined,
+			restoredSummary: 'Materialized Session',
+			messageCount: 2,
+			getSessionInfoCalls: ['materialized'],
+			getSessionMessagesCalls: [{ sessionId: 'materialized', options: { includeSystemMessages: true } }],
+			availabilityRequests: 1,
 			discoveredChats: [],
 		});
 	});
@@ -5609,6 +5728,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		services.set(IAgentHostAuthenticationService, disposables.add(new FakeAgentHostAuthenticationService()));
+		services.set(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = instantiationService.createInstance(ClaudeAgent);
 
@@ -6228,9 +6348,9 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		const ctx = createTestContext(disposables);
 		ctx.sdk.canLoadWithoutDownloadResult = false;
 		ctx.sdk.sessionList = [{ sessionId: 'from-claude-code', summary: 'An existing chat', lastModified: 1000, createdAt: 900 }];
-		// Subscribing is what starts discovery.
 		const discovered: number[] = [];
 		disposables.add(ctx.agent.onDidDiscoverChats(chats => discovered.push(chats.length)));
+		void ctx.agent.startChatDiscovery();
 		await settle();
 		const cold = {
 			discovered: [...discovered],
@@ -6878,6 +6998,10 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 			name: 'viewUnreviewedComments',
 			description: 'View unreviewed comments',
 			inputSchema: { type: 'object', properties: {} },
+		}, {
+			name: 'set_workspace',
+			description: 'Set workspace',
+			inputSchema: { type: 'object', properties: {} },
 		}];
 		readonly toolNames = this.definitions.map(definition => definition.name);
 		confirmationRequiredForSession = false;
@@ -6991,6 +7115,40 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		}, {
 			result: { behavior: 'allow', updatedInput: {} },
 			pendingConfirmations: 0,
+		});
+	});
+
+	test('set_workspace uses a plain-language confirmation without raw input', async () => {
+		const host = new FakeServerToolHost();
+		host.confirmationRequiredForSession = true;
+		const { ctx, canUseTool } = await materialize(undefined, host);
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+
+		const input = { workspaceFolder: '/workspace/app', isolation: true };
+		const resultPromise = canUseTool('mcp__host__set_workspace', input, makeOptions('tu_set_workspace'));
+		await tick();
+		ctx.agent.respondToPermissionRequest('tu_set_workspace', true);
+		const confirmation = signals.find(signal => signal.kind === 'pending_confirmation');
+
+		assert.deepStrictEqual({
+			result: await resultPromise,
+			confirmation: confirmation?.kind === 'pending_confirmation' ? {
+				displayName: confirmation.state.displayName,
+				invocationMessage: confirmation.state.invocationMessage,
+				toolInput: confirmation.state.toolInput,
+				confirmationTitle: confirmation.state.confirmationTitle,
+				permissionKind: confirmation.permissionKind,
+			} : undefined,
+		}, {
+			result: { behavior: 'allow', updatedInput: input },
+			confirmation: {
+				displayName: 'Set Workspace',
+				invocationMessage: 'Continue this session in /workspace/app with changes isolated from the existing folder?',
+				toolInput: undefined,
+				confirmationTitle: 'Continue in app?',
+				permissionKind: 'mcp',
+			},
 		});
 	});
 
@@ -7635,7 +7793,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const promise = onElicitation(
 			{ serverName: 'test-mcp', message: 'Pick a side', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-accept' },
 		);
 		await tick();
 
@@ -7646,10 +7804,12 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 		});
 
 		assert.deepStrictEqual({
+			id: inputRequest.id,
 			message: inputRequest.message,
 			questions: inputRequest.questions?.map(q => ({ id: q.id, kind: q.kind } as const)),
 			result: await promise,
 		}, {
+			id: 'elicitation-accept',
 			message: 'Pick a side',
 			questions: [{ id: 'side', kind: 'text' }],
 			result: { action: 'accept', content: { side: 'left' } },
@@ -7661,7 +7821,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const promise = onElicitation(
 			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-decline' },
 		);
 		await tick();
 		ctx.agent.respondToUserInputRequest(inputRequests.at(-1)!.id, ChatInputResponseKind.Decline);
@@ -7675,7 +7835,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 		const controller = new AbortController();
 		const promise = onElicitation(
 			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
-			{ signal: controller.signal },
+			{ signal: controller.signal, requestId: 'elicitation-abort' },
 		);
 		await tick();
 		assert.ok(inputRequests.at(-1), 'the elicitation parked as a ChatInputRequested action');
@@ -7689,7 +7849,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const promise = onElicitation(
 			{ serverName: 'm', message: 'Authorize', mode: 'url', url: 'https://example.com/auth' },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-url' },
 		);
 		await tick();
 
@@ -7716,7 +7876,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 		controller.abort();
 		const result = await onElicitation(
 			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
-			{ signal: controller.signal },
+			{ signal: controller.signal, requestId: 'elicitation-pre-aborted' },
 		);
 
 		assert.deepStrictEqual({ result, parked: inputRequests.length }, { result: { action: 'cancel' }, parked: 0 });
@@ -7727,7 +7887,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const result = await onElicitation(
 			{ serverName: 'm', message: 'Authorize', mode: 'url' },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-missing-url' },
 		);
 
 		assert.deepStrictEqual({ result, parked: inputRequests.length }, { result: { action: 'cancel' }, parked: 0 });
@@ -7738,7 +7898,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 		const result = await onElicitation(
 			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: {} } },
-			{ signal: new AbortController().signal },
+			{ signal: new AbortController().signal, requestId: 'elicitation-empty-form' },
 		);
 
 		assert.deepStrictEqual({ result, parked: inputRequests.length }, { result: { action: 'cancel' }, parked: 0 });
@@ -7758,14 +7918,14 @@ suite('ClaudeAgent (Phase 8 — file edit tracking via SDK message stream)', () 
 		return { ctx, sessionId, sessionUri: created.session };
 	}
 
-	test('Options carries enableFileCheckpointing and only the transient host-context hook', async () => {
+	test('Options carries enableFileCheckpointing and host hooks', async () => {
 		// Phase 8 refactor. Pins the Options shape that
 		// `_materializeProvisional` ships to the SDK: file checkpointing
 		// must be on (a startup option, not user-bypassable). File-edit
 		// tracking remains wired
 		// through `ClaudeAgentSession._observeAssistantMessage` /
-		// `_observeUserMessage` in the message-pump loop; the only SDK hook
-		// adds transient host context to a submitted prompt.
+		// `_observeUserMessage` in the message-pump loop; SDK hooks add
+		// transient host context and enforce Agent Merge tool restrictions.
 		const { ctx } = await materialize();
 		const opts = ctx.sdk.capturedStartupOptions[0];
 		assert.ok(opts, 'Options captured');
@@ -7776,7 +7936,7 @@ suite('ClaudeAgent (Phase 8 — file edit tracking via SDK message stream)', () 
 			userPromptSubmitHooks: opts.hooks?.UserPromptSubmit?.[0].hooks.length,
 		}, {
 			enableFileCheckpointing: true,
-			hookNames: ['UserPromptSubmit'],
+			hookNames: ['PreToolUse', 'UserPromptSubmit'],
 			userPromptSubmitHooks: 1,
 		});
 	});
@@ -8336,6 +8496,46 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 		assert.strictEqual(sdk.getSessionMessagesCalls.length, 0, 'provisional chat must not hit SDK');
 	});
 
+	test('getMessages restores retained Bash output from the chat database', async () => {
+		const database = new TestSessionDatabase();
+		await database.createTurn('u1');
+		await database.storeTerminalOutput('u1', 'toolu_bash', VSBuffer.fromString('full output').buffer);
+		const { agent, sdk } = createTestContext(disposables, { database });
+		const sessionId = 'phase13-retained-output';
+		sdk.sessionMessagesById.set(sessionId, [
+			makeUserSessionMessage('u1', 'run it'),
+			{
+				...makeAssistantMessage(sessionId, [
+					{ type: 'tool_use', id: 'toolu_bash', name: 'Bash', input: { command: 'build' } },
+				]),
+				parent_agent_id: null,
+			},
+			{
+				...makeUserToolResultMessage(sessionId, 'toolu_bash', 'Output too large'),
+				parent_agent_id: null,
+				session_id: sessionId,
+				uuid: 'bash-result',
+			},
+		]);
+		const sessionUri = AgentSession.uri(agent.id, sessionId);
+		const chat = defaultChatUri(sessionUri);
+		await bindDefaultChat(agent, sessionUri);
+
+		const turns = await agent.chats.getMessages(chat, chatContext(chat));
+
+		const toolCall = turns[0]?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		assert.deepStrictEqual(toolCall?.kind === ResponsePartKind.ToolCall && toolCall.toolCall.status === ToolCallStatus.Completed ? toolCall.toolCall.content : undefined, [
+			{ type: ToolResultContentType.Text, text: 'Output too large' },
+			{
+				type: ToolResultContentType.Terminal,
+				resource: buildNonPtyShellTerminalUri(sessionUri, sessionUri, chat, 'toolu_bash'),
+				title: 'Run shell command',
+				isPty: false,
+				result: { exitCode: 0, truncated: true },
+			},
+		]);
+	});
+
 	test('getMessages returns [] on SDK fetch failure (warn-logged)', async () => {
 		const log = new CapturingLogService();
 		const { agent, sdk } = createTestContext(disposables, { logService: log });
@@ -8446,6 +8646,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostOTelService, otelService],
+			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 			[IAgentHostCustomizationEnablementService, {
 				_serviceBrand: undefined,
 				onDidChange: reducerBackedEnablementChangeEvent(stateManager),
@@ -8765,6 +8966,97 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 	});
 
+	test('Agent Merge turns deny only MCP tools of enabled GitHub servers', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const workspace = URI.file('/work');
+		const pluginUri = 'https://bundle';
+		const pluginDir = URI.file('/p/bundle');
+		await fileService.createFolder(URI.joinPath(pluginDir, '.claude-plugin'));
+		await Promise.all([
+			fileService.writeFile(URI.joinPath(workspace, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+				'component-explorer': { type: 'stdio', command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] },
+				corp: { type: 'http', url: 'https://api.github.com/mcp' },
+				hub: { type: 'http', url: 'https://api.githubcopilot.com/mcp/x/repos' },
+			}))),
+			fileService.writeFile(URI.joinPath(pluginDir, '.claude-plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'bundle' }))),
+			fileService.writeFile(URI.joinPath(pluginDir, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+				corp: { type: 'http', url: 'https://corp.example.com/mcp' },
+				'corp.hub': { type: 'http', url: 'https://api.github.com/mcp' },
+			}))),
+		]);
+		const synced = makeSyncedRef(pluginUri, pluginDir.fsPath);
+		const mcpDefaultCwds = toClientPluginMcpDefaultCwdsMeta({ corp: null, 'corp.hub': null });
+		pm.syncResult = [{ ...synced, customization: { ...synced.customization, _meta: mcpDefaultCwds } }];
+		const created = await createSession(agent, {
+			workingDirectories: [workspace],
+			activeClient: {
+				clientId: 'client-1',
+				tools: [],
+				customizations: [{ ...makeClientCustomization(pluginUri, 'Bundle'), _meta: mcpDefaultCwds }],
+			},
+		});
+		const disabledWorkspaceCorp = makeMcpServerCustomization(URI.joinPath(workspace, '.mcp.json'), 'corp');
+		publishReducerCustomizations(stateManager, created.session, [disabledWorkspaceCorp]);
+		stateManager.dispatchServerAction(created.session.toString(), {
+			type: ActionType.SessionCustomizationToggled,
+			id: disabledWorkspaceCorp.id,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+		});
+		const chat = defaultChatUri(created.session);
+		const turnActive = new DeferredPromise<void>();
+		const finishTurn = new DeferredPromise<void>();
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [];
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		sdk.queryAdvance = async index => {
+			if (index === 1) {
+				turnActive.complete();
+				await finishTurn.p;
+			}
+		};
+		const send = agent.chats.sendMessage(chat, 'repair', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat, { agentMergeTurn: true }));
+		await turnActive.p;
+
+		const options = sdk.capturedStartupOptions[0];
+		const preToolUse = options?.hooks?.PreToolUse?.[0].hooks[0];
+		assert.ok(preToolUse);
+		const toolNames = ['mcp__component-explorer__sessions', 'mcp__client__runTests', 'mcp__host__readAgentMergeCI', 'mcp__corp__get_me', 'mcp__hub__get_me', 'mcp__corp_hub__get_me', 'mcp__github-mcp-server__get_me'];
+		const results = await Promise.all(toolNames.map(async toolName => [toolName, await preToolUse({
+			hook_event_name: 'PreToolUse',
+			tool_name: toolName,
+			tool_input: {},
+			tool_use_id: toolName,
+			session_id: created.sdkSessionId,
+			transcript_path: '/tmp/transcript',
+			cwd: workspace.fsPath,
+		}, undefined, { signal: new AbortController().signal })]));
+		finishTurn.complete();
+		await send;
+
+		const denied = {
+			continue: false,
+			stopReason: AGENT_MERGE_GITHUB_TOOL_RESTRICTION,
+			hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: AGENT_MERGE_GITHUB_TOOL_RESTRICTION },
+		};
+		assert.deepStrictEqual({
+			explicitServers: Object.keys(options.mcpServers ?? {}).sort(),
+			hookResults: Object.fromEntries(results),
+		}, {
+			explicitServers: ['corp', 'corp.hub', 'github-mcp-server'],
+			hookResults: {
+				'mcp__component-explorer__sessions': {},
+				'mcp__client__runTests': {},
+				'mcp__host__readAgentMergeCI': {},
+				'mcp__corp__get_me': {},
+				'mcp__hub__get_me': denied,
+				'mcp__corp_hub__get_me': denied,
+				'mcp__github-mcp-server__get_me': denied,
+			},
+		});
+	});
+
 	test('session MCP enablement persists across materialization and customization refreshes', async () => {
 		const pm = new FakeAgentPluginManager();
 		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
@@ -9072,7 +9364,16 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		// always present pre-materialize for discoverability (before a live SDK
 		// set exists): the built-in agents directory and the "Built-in" skills
 		// container.
-		assert.deepStrictEqual(customizations.map(c => c.uri), ['https://a', 'file:///mock-home/.claude/agents', 'agent-builtin:/skills']);
+		assert.deepStrictEqual(customizations.map(c => c.uri), [
+			'https://a',
+			'file:///work/.claude/agents',
+			'file:///work/.claude/skills',
+			'file:///work/.claude/rules',
+			'file:///mock-home/.claude/agents',
+			'file:///mock-home/.claude/skills',
+			'file:///mock-home/.claude/rules',
+			'agent-builtin:/skills',
+		]);
 	});
 
 	test('getChatCustomizations overlays the enablement state onto client-pushed entries', async () => {
@@ -9302,7 +9603,16 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		// the client-pushed entry survives (UI not blanked) and the curated
 		// built-ins are appended (the built-in agents directory and the skills
 		// container) since there is no live set to derive from.
-		assert.deepStrictEqual(customizations.map(c => c.uri), ['https://a', 'file:///mock-home/.claude/agents', 'agent-builtin:/skills'], 'client-pushed projection survives SDK snapshot failure');
+		assert.deepStrictEqual(customizations.map(c => c.uri), [
+			'https://a',
+			'file:///work/.claude/agents',
+			'file:///work/.claude/skills',
+			'file:///work/.claude/rules',
+			'file:///mock-home/.claude/agents',
+			'file:///mock-home/.claude/skills',
+			'file:///mock-home/.claude/rules',
+			'agent-builtin:/skills',
+		], 'client-pushed projection survives SDK snapshot failure');
 	});
 
 	test('getChatCustomizations derives the Built-in container from the live SDK command set post-materialize', async () => {
@@ -9324,8 +9634,8 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
 		const customizations = await agent.getChatCustomizations!(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
-		assert.strictEqual(customizations.length, 1);
-		const container = customizations[0];
+		const container = customizations.find(customization => customization.uri === 'agent-builtin:/skills');
+		assert.ok(container);
 		assert.strictEqual(container.type, CustomizationType.Directory);
 		assert.strictEqual(container.uri, 'agent-builtin:/skills');
 

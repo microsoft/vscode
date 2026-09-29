@@ -5,6 +5,14 @@
 
 export const ChatAIDisabledSettingId = 'chat.disableAIFeatures';
 
+/**
+ * Configuration key gating the "Continue with Microsoft" sign-in choice. When `true`, every
+ * sign-in dialog offers it, and choosing it exchanges a Microsoft Entra sign-in for a GitHub
+ * token that is published as a process-lifetime GitHub authentication session. Off by default
+ * while the flow is dogfooded.
+ */
+export const ChatMicrosoftAuthenticationEnabledSettingId = 'chat.microsoftAuthentication.enabled';
+
 export const ChatEditAutoApproveSettingId = 'chat.tools.edits.autoApprove';
 
 export type ChatEditAutoApprovePatterns = Readonly<Record<string, boolean>>;
@@ -27,6 +35,9 @@ export const ALWAYS_CHECKED_EDIT_PATTERNS: ChatEditAutoApprovePatterns = {
 	'**/.claude/agents/**': false,
 	'**/.claude/settings.json': false,
 	'**/.claude/settings.local.json': false,
+	'**/.codex/agents/**': false,
+	'**/.codex/config.toml': false,
+	'**/.codex/hooks.json': false,
 };
 
 export const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: ChatEditAutoApprovePatterns = {

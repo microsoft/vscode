@@ -16,6 +16,7 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { parseCodexDelegation } from './codexDelegation.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
+import { codexRetainedCommandOutputContent } from './codexTerminalOutput.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
 import type { FileChangeOutputDeltaNotification } from './protocol/generated/v2/FileChangeOutputDeltaNotification.js';
@@ -137,6 +138,10 @@ export interface ICodexToolCallEntry {
 	readonly turnId: string;
 	readonly toolName: string;
 	output: string;
+	/** Latest `mcpToolCall/progress` message, kept out of {@link output} so it never becomes the result. */
+	progressMessage?: string;
+	/** The `_meta` emitted at start, re-spread by later actions since the reducer replaces the whole bag. */
+	meta?: Record<string, unknown>;
 }
 
 export function createCodexSessionMapState(serverToolNames: ReadonlySet<string> = new Set(), clientToolSet: ActiveClientToolSet = new ActiveClientToolSet()): ICodexSessionMapState {
@@ -546,7 +551,7 @@ export function mapItemStarted(
 	// state, so nothing new is emitted here.
 	if (params.item.type === 'commandExecution') {
 		const pending = state.pendingPreflight;
-		if (pending && pending.turnId === params.turnId && pending.command === unwrapShellInvocation(params.item.command ?? '')) {
+		if (pending && pending.turnId === params.turnId && pending.command === (params.item.command ?? '')) {
 			state.pendingPreflight = undefined;
 			state.itemToToolCall.set(params.item.id, {
 				toolCallId: pending.toolCallId,
@@ -592,15 +597,17 @@ function mapItemStartedBody(
 		];
 	}
 	if (params.item.type === 'commandExecution') {
-		// Phase 4: surface shell commands as tool calls. We allocate a
-		// fresh toolCallId; the `commandExecution` item id only
-		// disambiguates the codex side.
-		const toolCallId = generateUuid();
+		// Phase 4: surface shell commands as tool calls. The codex item id is
+		// stable across live delivery and thread replay, so it also identifies
+		// the command's retained output after a reload.
+		const toolCallId = params.item.id;
+		const meta = toToolCallMeta({ toolKind: 'terminal' });
 		state.itemToToolCall.set(params.item.id, {
 			toolCallId,
 			turnId: params.turnId,
 			toolName: 'shell',
 			output: '',
+			meta,
 		});
 		const command = unwrapShellInvocation(params.item.command ?? '');
 		return [
@@ -610,7 +617,7 @@ function mapItemStartedBody(
 				toolCallId,
 				toolName: 'shell',
 				displayName: 'Run shell command',
-				_meta: toToolCallMeta({ toolKind: 'terminal' }),
+				_meta: meta,
 			},
 			{
 				type: ActionType.ChatToolCallDelta,
@@ -625,17 +632,19 @@ function mapItemStartedBody(
 				invocationMessage: command,
 				toolInput: command,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
-				_meta: toToolCallMeta({ toolKind: 'terminal' }),
+				_meta: meta,
 			},
 		];
 	}
 	if (params.item.type === 'webSearch') {
 		const toolCallId = generateUuid();
+		const meta = toToolCallMeta({ toolKind: 'search' });
 		state.itemToToolCall.set(params.item.id, {
 			toolCallId,
 			turnId: params.turnId,
 			toolName: 'web_search',
 			output: '',
+			meta,
 		});
 		const query = describeWebSearch(params.item.query, params.item.action);
 		return [
@@ -645,7 +654,7 @@ function mapItemStartedBody(
 				toolCallId,
 				toolName: 'web_search',
 				displayName: 'Web search',
-				_meta: toToolCallMeta({ toolKind: 'search' }),
+				_meta: meta,
 			},
 			{
 				type: ActionType.ChatToolCallDelta,
@@ -660,7 +669,7 @@ function mapItemStartedBody(
 				invocationMessage: webSearchInvocationMessage(query),
 				toolInput: query,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
-				_meta: toToolCallMeta({ toolKind: 'search' }),
+				_meta: meta,
 			},
 		];
 	}
@@ -962,20 +971,25 @@ export function mapFileChangeOutputDelta(
 	}];
 }
 
+/**
+ * Progress is a transient status line rather than output, so it travels as
+ * `_meta.progressMessage` (see {@link IToolCallMeta}) and never joins the result.
+ */
 export function mapMcpToolCallProgress(
 	state: ICodexSessionMapState,
 	params: McpToolCallProgressNotification,
 ): (SessionAction | ChatAction)[] {
 	const entry = state.itemToToolCall.get(params.itemId);
-	if (!entry) {
+	if (!entry || params.message === entry.progressMessage) {
 		return [];
 	}
-	entry.output = [entry.output, params.message].filter(Boolean).join('\n');
+	entry.progressMessage = params.message;
 	return [{
 		type: ActionType.ChatToolCallContentChanged,
 		turnId: entry.turnId,
 		toolCallId: entry.toolCallId,
-		content: [{ type: ToolResultContentType.Text, text: entry.output }],
+		content: entry.output ? [{ type: ToolResultContentType.Text, text: entry.output }] : [],
+		_meta: { ...entry.meta, ...toToolCallMeta({ progressMessage: params.message }) },
 	}];
 }
 
@@ -1010,11 +1024,14 @@ export function mapAgentMessageDelta(
  * (auto-confirmed; the codex server already decided to run the command
  * — any host-side approval was settled via the `requestApproval`
  * server-request handler before we got here) followed by a
- * `ChatToolCallComplete` carrying the aggregated output.
+ * `ChatToolCallComplete` carrying the aggregated output. When
+ * `retainedOutputResource` is set, the completion carries a preview and
+ * that terminal resource instead of the complete output.
  */
 export function mapItemCompleted(
 	state: ICodexSessionMapState,
 	params: ItemCompletedNotification,
+	retainedOutputResource?: string,
 ): (SessionAction | ChatAction)[] {
 	if (params.item.type === 'agentMessage') {
 		state.itemToPartId.delete(params.item.id);
@@ -1047,7 +1064,7 @@ export function mapItemCompleted(
 	}
 	if (params.item.type === 'commandExecution') {
 		const success = params.item.status === 'completed' && (params.item.exitCode === 0 || params.item.exitCode === null);
-		const output = params.item.aggregatedOutput ?? entry.output;
+		const output = params.item.aggregatedOutput || entry.output;
 		const command = unwrapShellInvocation(params.item.command ?? '');
 		const exit = params.item.exitCode;
 		const pastTense = success
@@ -1063,9 +1080,11 @@ export function mapItemCompleted(
 				result: {
 					success,
 					pastTenseMessage: pastTense,
-					content: output
-						? [{ type: ToolResultContentType.Text, text: output }]
-						: undefined,
+					content: retainedOutputResource
+						? codexRetainedCommandOutputContent(retainedOutputResource, output, exit)
+						: output
+							? [{ type: ToolResultContentType.Text, text: output }]
+							: undefined,
 					error: success ? undefined : {
 						message: exit !== null ? `Exit code ${exit}` : 'Command failed',
 						...(declined ? { code: 'denied' } : {}),
@@ -1080,7 +1099,7 @@ export function mapItemCompleted(
 		// turn end (see mapItemStarted / mapTurnCompleted).
 		if (success && !output && !declined) {
 			const flushed = flushPendingPreflight(state);
-			state.pendingPreflight = { toolCallId: entry.toolCallId, turnId: entry.turnId, command, completion };
+			state.pendingPreflight = { toolCallId: entry.toolCallId, turnId: entry.turnId, command: params.item.command ?? '', completion };
 			return [...flushed, ...flushDeferredResponseActions(state)];
 		}
 		return [...flushPendingPreflight(state), ...completion, ...flushDeferredResponseActions(state)];
@@ -1136,7 +1155,7 @@ export function mapItemCompleted(
 	}
 	if (params.item.type === 'mcpToolCall') {
 		const success = params.item.status === 'completed' && !params.item.error;
-		const output = mcpToolOutput(params.item.result, params.item.error?.message) || entry.output;
+		const output = mcpToolOutput(params.item.result, params.item.error?.message);
 		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
 		return [{
 			type: ActionType.ChatToolCallComplete,
@@ -1187,6 +1206,10 @@ export function mapItemCompleted(
 	return [];
 }
 
+export function shouldRecoverCommandCompletion(state: ICodexSessionMapState, item: ItemCompletedNotification['item']): boolean {
+	return item.type === 'commandExecution' && (item.exitCode !== null || item.status !== 'completed') && state.itemToToolCall.has(item.id);
+}
+
 /**
  * `turn/completed` translates to either a normal complete signal or, when
  * the turn ended with `status: 'failed'`, an error followed by the
@@ -1196,6 +1219,7 @@ export function mapTurnCompleted(
 	state: ICodexSessionMapState,
 	params: TurnCompletedNotification,
 	fallbackDuration?: number,
+	retainedOutputResources?: ReadonlyMap<string, string>,
 ): (SessionAction | ChatAction)[] {
 	state.currentTurnId = undefined;
 	state.itemToPartId.clear();
@@ -1205,13 +1229,13 @@ export function mapTurnCompleted(
 	// Live notifications normally use `itemsView: 'notLoaded'` and empty items.
 	const recoveredToolCallActions: (SessionAction | ChatAction)[] = [];
 	for (const item of params.turn.items) {
-		if (item.type === 'commandExecution' && (item.exitCode !== null || item.status !== 'completed') && state.itemToToolCall.has(item.id)) {
+		if (shouldRecoverCommandCompletion(state, item)) {
 			recoveredToolCallActions.push(...mapItemCompleted(state, {
 				threadId: params.threadId,
 				turnId: params.turn.id,
 				item,
 				completedAtMs: typeof params.turn.completedAt === 'number' ? params.turn.completedAt * 1000 : 0,
-			}));
+			}, retainedOutputResources?.get(item.id)));
 		}
 	}
 	// Finalize any command whose completion was deferred to coalesce a possible

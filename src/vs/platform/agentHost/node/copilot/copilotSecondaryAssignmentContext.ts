@@ -7,9 +7,9 @@ import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { isValidAssignmentContext } from '../../../telemetry/common/assignmentContext.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 
-const SECONDARY_ASSIGNMENT_CONTEXT_PROPERTY = 'secondary_assignment_context';
+const SECONDARY_ASSIGNMENT_CONTEXT_PROPERTY = 'secondary.assignmentcontext';
 
-// __GDPR__COMMON__ "secondary_assignment_context" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Secondary experiment assignment context assigned by CAPI during Copilot model calls." }
+// __GDPR__COMMON__ "secondary.assignmentcontext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Secondary experiment assignment context assigned by CAPI during Copilot model calls." }
 
 export class CopilotSecondaryAssignmentContext {
 

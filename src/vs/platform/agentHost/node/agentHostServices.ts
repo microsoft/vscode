@@ -11,6 +11,7 @@ import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService
 import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../sandbox/common/terminalSandboxMxcRuntime.js';
 import { URI } from '../../../base/common/uri.js';
+import { dirname, joinPath } from '../../../base/common/resources.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { IAgentEditAttributionService } from '../common/fileEditAttribution.js';
@@ -41,12 +42,15 @@ import { AgentHostChangesetOperationService } from './agentHostChangesetOperatio
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
 import { AgentHostChatContributions } from './agentHostChatContributionsService.js';
+import { AgentHostDatabase, IAgentHostDatabase } from './agentHostDatabase.js';
+import { AgentSessionRegistry, IAgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from './agentHostPromptCache.js';
+import { AgentHostPullRequestStatusService, IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostReviewService } from './agentHostReviewService.js';
 import { AgentHostSubscriptionService } from './agentHostSubscriptionService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
@@ -54,23 +58,40 @@ import { AgentHostSessionOpenTelemetry, IAgentHostSessionOpenTelemetry } from '.
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostProviderService, IAgentHostProviderService } from './agentHostProviderService.js';
+import { AgentHostChatInputService, IAgentHostChatInputService } from './agentHostChatInputService.js';
+import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
 import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
+import { AgentHostTurnService, IAgentHostTurnService } from './agentHostTurnService.js';
+import { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
+import { RemoteDevContainerAgentHostService } from './devContainerAgentHostService.js';
+import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AgentHostStartupMarks, AgentHostStartupPerformance, IAgentHostStartupPerformance } from './agentHostStartupPerformance.js';
 
 export interface IAgentHostCoreServiceInputs {
 	readonly storageResource: URI | undefined;
+	readonly rootConfigResource?: URI;
+	readonly orchestratorDatabase?: IAgentHostDatabase;
 	readonly fetchFn: typeof globalThis.fetch;
 	readonly gitHubServiceOptions: GitHubServiceOptions;
 	readonly copilotApiService?: ICopilotApiService;
+	readonly hostLaunchKind?: AgentHostLaunchKind;
+	readonly startupMarks?: AgentHostStartupMarks;
 }
 
 export function registerAgentHostCoreServices(services: ServiceCollection, inputs: IAgentHostCoreServiceInputs): void {
+	const databasePath = inputs.rootConfigResource
+		? joinPath(dirname(inputs.rootConfigResource), 'agent-host.db').fsPath
+		: ':memory:';
+	services.set(IAgentHostDatabase, inputs.orchestratorDatabase ?? new SyncDescriptor(AgentHostDatabase, [databasePath]));
+	services.set(IAgentSessionRegistry, new SyncDescriptor(AgentSessionRegistry));
 	services.set(IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
 	services.set(INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
 	services.set(IDiffComputeService, new SyncDescriptor(NodeWorkerDiffComputeService));
@@ -89,6 +110,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostSessionTitleSignal, new SyncDescriptor(AgentHostSessionTitleSignal));
 	services.set(IAgentHostSessionOpenTelemetry, new SyncDescriptor(AgentHostSessionOpenTelemetry));
 	services.set(IAgentHostChangesetSubscriptionService, new SyncDescriptor(AgentHostChangesetSubscriptionService));
+	services.set(IAgentHostPullRequestStatusService, new SyncDescriptor(AgentHostPullRequestStatusService));
 	services.set(IAgentHostSubscriptionService, new SyncDescriptor(AgentHostSubscriptionService));
 	services.set(IAgentHostChangesetOperationService, new SyncDescriptor(AgentHostChangesetOperationService));
 	services.set(IAgentHostReviewService, new SyncDescriptor(AgentHostReviewService));
@@ -96,11 +118,16 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
 	services.set(IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
 	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
+	services.set(IAgentHostTurnService, new SyncDescriptor(AgentHostTurnService));
 	services.set(IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));
+	services.set(IAgentHostStartupPerformance, new SyncDescriptor(AgentHostStartupPerformance, [inputs.hostLaunchKind ?? AgentHostLaunchKind.Unknown, inputs.startupMarks]));
 	services.set(IAgentHostTurnTracker, new SyncDescriptor(AgentHostTurnTracker));
+	services.set(IAgentHostToolCallTracker, new SyncDescriptor(AgentHostToolCallTracker));
 	services.set(IAgentHostProviderService, new SyncDescriptor(AgentHostProviderService));
+	services.set(IAgentHostChatInputService, new SyncDescriptor(AgentHostChatInputService));
 	services.set(IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
 	services.set(IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
+	services.set(IAdditionalWorktreeLifecycleService, new SyncDescriptor(AdditionalWorktreeLifecycleService));
 }
 
 export interface IAgentHostHostServiceInputs {
@@ -110,6 +137,7 @@ export interface IAgentHostHostServiceInputs {
 }
 
 export function registerAgentHostHostServices(services: ServiceCollection, inputs: IAgentHostHostServiceInputs): void {
+	services.set(IDevContainerAgentHostMainService, new SyncDescriptor(RemoteDevContainerAgentHostService));
 	services.set(IWindowsMxcTerminalSandboxRuntime, new SyncDescriptor(WindowsMxcTerminalSandboxRuntime));
 	services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 	services.set(IAgentHostGitService, new SyncDescriptor(AgentHostGitService));
@@ -117,7 +145,7 @@ export function registerAgentHostHostServices(services: ServiceCollection, input
 	services.set(IAgentSdkDownloader, new SyncDescriptor(AgentSdkDownloader));
 	services.set(IClaudeAgentSdkService, new SyncDescriptor(ClaudeAgentSdkService));
 	services.set(IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));
-	services.set(ICodexProxyService, new SyncDescriptor(CodexProxyService));
+	services.set(ICodexProxyService, new SyncDescriptor(CodexProxyService, [undefined]));
 	services.set(IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [inputs.fetchFn]));
 	services.set(
 		IByokLmProxyService,

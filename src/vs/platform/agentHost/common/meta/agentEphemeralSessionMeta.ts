@@ -17,7 +17,6 @@ export interface IEphemeralSessionMeta {
 
 /** Reads recognized ephemeral-session metadata, dropping wrong-typed values. */
 export function readEphemeralSessionMeta(source: IHasEphemeralSessionMeta): IEphemeralSessionMeta {
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the namespaced ephemeral-session slot.
 	const value = source._meta?.[VSCODE_EPHEMERAL_SESSION_META_KEY];
 	return typeof value === 'boolean' ? { isEphemeral: value } : {};
 }
