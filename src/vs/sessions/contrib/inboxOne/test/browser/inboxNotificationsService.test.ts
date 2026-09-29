@@ -818,6 +818,54 @@ suite('InboxNotificationsService', () => {
 		}]);
 	});
 
+	test('surfaces failing CI on a draft pull request but not merge-ready passing CI', () => {
+		const gitHubService = new TestGitHubService();
+		const fixture = createFixture([createSession({
+			id: 'draft-ci',
+			status: SessionStatus.Completed,
+			updatedAt: 100,
+			isRead: true,
+			pullRequest: { owner: 'owner', repo: 'repo', number: 77 },
+		})], undefined, gitHubService);
+
+		gitHubService.setPullRequest('owner', 'repo', 77, openPullRequest(77, 'sha77', { isDraft: true }));
+		gitHubService.setCIStatus('owner', 'repo', 77, 'sha77', GitHubCIOverallStatus.Failure, [{
+			id: 1,
+			name: 'CI',
+			status: GitHubCheckStatus.Completed,
+			conclusion: GitHubCheckConclusion.Failure,
+			startedAt: '2026-09-21T16:00:00Z',
+			completedAt: '2026-09-21T16:01:00Z',
+			detailsUrl: undefined,
+		}]);
+		// Failing CI on a draft is actionable (Fix CI Failures) and surfaces.
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind,
+			actions: item.actions.map(action => action.kind),
+		})), [{
+			kind: InboxNotificationKind.FailingCI,
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeFixCI, InboxNotificationActionKind.MarkDone],
+		}]);
+
+		// Passing CI on a draft offers no merge-ready action, so it does not surface
+		// a merge notification (the completed session may still surface on its own).
+		gitHubService.setCIStatus('owner', 'repo', 77, 'sha77', GitHubCIOverallStatus.Success, [{
+			id: 2,
+			name: 'CI',
+			status: GitHubCheckStatus.Completed,
+			conclusion: GitHubCheckConclusion.Success,
+			startedAt: '2026-09-21T16:02:00Z',
+			completedAt: '2026-09-21T16:03:00Z',
+			detailsUrl: undefined,
+		}]);
+		assert.deepStrictEqual(
+			fixture.service.notifications.get()
+				.map(item => item.kind)
+				.filter(kind => kind === InboxNotificationKind.PassingCI || kind === InboxNotificationKind.FailingCI),
+			[],
+		);
+	});
+
 	test('surfaces unresolved Copilot review comments only', () => {
 		const gitHubService = new TestGitHubService();
 		const fixture = createFixture([createSession({
@@ -1369,11 +1417,12 @@ function openPullRequest(number: number, headSha: string, options?: {
 	readonly state?: GitHubPullRequestState;
 	readonly mergedAt?: string;
 	readonly updatedAt?: string;
+	readonly isDraft?: boolean;
 }): IGitHubPullRequest {
 	return upcastPartial<IGitHubPullRequest>({
 		number,
 		headSha,
-		isDraft: false,
+		isDraft: options?.isDraft ?? false,
 		state: options?.state ?? GitHubPullRequestState.Open,
 		mergedAt: options?.mergedAt,
 		updatedAt: options?.updatedAt ?? options?.mergedAt,

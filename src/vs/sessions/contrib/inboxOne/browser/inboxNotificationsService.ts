@@ -1769,7 +1769,11 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			));
 			const pullRequest = pullRequestModelRef.object.pullRequest.read(reader);
 			const effectiveState = pullRequest?.state ?? pullRequestRef.liveState ?? pullRequestRef.state;
-			if ((effectiveState !== GitHubPullRequestState.Open && effectiveState !== GitHubPullRequestState.Merged) || pullRequest?.isDraft) {
+			// Drafts are still surfaced for Fix CI / Address Reviews (you fix those
+			// before marking ready), but excluded from merge-oriented notifications
+			// (Passing CI → Merge) below, since a draft cannot be merged.
+			const isDraft = pullRequest?.isDraft === true;
+			if (effectiveState !== GitHubPullRequestState.Open && effectiveState !== GitHubPullRequestState.Merged) {
 				continue;
 			}
 
@@ -1797,7 +1801,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 
 			const pullRequestIcon = computePullRequestIcon(
-				pullRequest?.isDraft ? 'draft' : effectiveState,
+				isDraft ? 'draft' : effectiveState,
 				{
 					hasFailingChecks: ciStatus === GitHubCIOverallStatus.Failure,
 					hasUnresolvedComments: unresolvedReviewThreads.length > 0,
@@ -1815,7 +1819,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					timestamp: ciTimestamp,
 					identity: headSha ?? String(ciTimestamp),
 				});
-			} else if (ciStatus === GitHubCIOverallStatus.Success) {
+			} else if (ciStatus === GitHubCIOverallStatus.Success && !isDraft) {
+				// A draft cannot be merged, so passing CI on a draft offers no
+				// merge-ready action; skip it until the pull request is ready.
 				passingCandidates.push({
 					...candidateBase,
 					timestamp: ciTimestamp,
