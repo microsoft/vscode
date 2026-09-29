@@ -180,6 +180,19 @@ describe('OTelStaleConfigMonitor', () => {
 		expect(host.prompts).toBe(1);
 	});
 
+	it('does not suppress personal setting drift that matches a managed reload guard', async () => {
+		settings.policy = managedPolicy;
+		const first = newHost();
+		settings.policy = { ...managedPolicy, otlpEndpoint: 'https://changed.example' };
+		expect(await first.check()).toBe(OTelConfigDrift.Policy);
+
+		settings.user = { captureIdentity: true };
+		const second = new OTelStaleConfigMonitor(new TestResolver(settings, {}, 'later-session'), host, log);
+		settings.user.captureIdentity = false;
+		expect(await second.check()).toBe(OTelConfigDrift.User);
+		expect(host.prompts).toBe(2);
+	});
+
 	it('canonicalizes object key order when checking the restart guard', async () => {
 		const first = newHost();
 		settings.policy = { ...managedPolicy, headers: { a: '1', b: '2' } };

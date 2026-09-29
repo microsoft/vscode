@@ -67,15 +67,15 @@ export class OTelStaleConfigMonitor {
 		if (this._handledFingerprint === fingerprint) {
 			return drift;
 		}
+		if (drift === OTelConfigDrift.User || drift === OTelConfigDrift.Withdrawal) {
+			this._handledFingerprint = fingerprint;
+			this._host.promptReload(current);
+			return drift;
+		}
 		const record = this._host.getRestartRecord();
 		if (record?.fingerprint === fingerprint && record.sessionId !== active.config.sessionId) {
 			this._handledFingerprint = fingerprint;
 			this._logService.warn('[OTel] Telemetry recovery was already attempted for this configuration. Not prompting for another window reload.');
-			return drift;
-		}
-		if (drift === OTelConfigDrift.User || drift === OTelConfigDrift.Withdrawal) {
-			this._handledFingerprint = fingerprint;
-			this._host.promptReload(current);
 			return drift;
 		}
 		if (active.hasEnterpriseSettings || active.config.enabledExplicitly || !isPolicyEnabledOtlp(current)) {

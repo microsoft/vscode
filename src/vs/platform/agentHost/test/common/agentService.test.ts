@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../common/agent.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, AgentHostOTelPolicyState, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -301,6 +301,52 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 		const result = sanitizeAgentHostOTelPolicySettings(raw);
 		assert.deepStrictEqual(result.resourceAttributes, { 'service.namespace': 'acme' });
 		assert.strictEqual(({} as Record<string, unknown>).polluted, undefined);
+	});
+});
+
+suite('AgentHostOTelPolicyState', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restarts once for changed forwarded policy while deduplicating events and windows', () => {
+		const state = new AgentHostOTelPolicyState();
+		const first = { enabled: true, otlpEndpoint: 'http://localhost:4318' };
+		const second = { enabled: true, otlpEndpoint: 'http://localhost:4319' };
+		const third = { enabled: true, otlpEndpoint: 'http://localhost:4320' };
+
+		assert.deepStrictEqual({
+			initialBeforeStart: state.update(first, false),
+			duplicateFromAnotherWindow: state.update(first, true),
+			changedWhileRunning: state.update(second, true),
+			duplicateConfigurationEvent: state.update(second, true),
+			latestWhileRestartPending: state.update(third, true),
+			policyBeforeStartCompletes: state.policy,
+		}, {
+			initialBeforeStart: false,
+			duplicateFromAnotherWindow: false,
+			changedWhileRunning: true,
+			duplicateConfigurationEvent: false,
+			latestWhileRestartPending: false,
+			policyBeforeStartCompletes: {
+				enabled: true,
+				exporterType: undefined,
+				otlpProtocol: undefined,
+				otlpEndpoint: 'http://localhost:4320',
+				captureContent: undefined,
+				outfile: undefined,
+				serviceName: undefined,
+				resourceAttributes: undefined,
+			},
+		});
+
+		state.didStart();
+		assert.deepStrictEqual({
+			duplicateAfterRestart: state.update(third, true),
+			nextChange: state.update(first, true),
+		}, {
+			duplicateAfterRestart: false,
+			nextChange: true,
+		});
 	});
 });
 
