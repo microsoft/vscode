@@ -13,6 +13,7 @@ mod legacy;
 mod model;
 mod runtime;
 mod setup;
+#[cfg(any(windows, test))]
 mod version;
 
 use std::ffi::OsString;

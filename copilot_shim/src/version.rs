@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//! Version parsing for the PowerShell hosts that run `.ps1` Copilot CLI wrappers.
+
 use std::fmt;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -18,28 +20,9 @@ impl fmt::Display for CliVersion {
 	}
 }
 
-pub(crate) const MINIMUM_VERSION: CliVersion = CliVersion {
-	major: 1,
-	minor: 0,
-	patch: 82,
-};
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SuccessfulVersion {
-	Compatible(CliVersion),
-	Old(CliVersion),
-	Unparseable,
-}
-
-pub(crate) fn evaluate_successful_stdout(stdout: &[u8]) -> SuccessfulVersion {
-	match first_version(stdout) {
-		Some(version) if version < MINIMUM_VERSION => SuccessfulVersion::Old(version),
-		Some(version) => SuccessfulVersion::Compatible(version),
-		None => SuccessfulVersion::Unparseable,
-	}
-}
-
-fn first_version(stdout: &[u8]) -> Option<CliVersion> {
+/// Finds the first `major.minor.patch` triple in the output. A triple whose component overflows makes the output
+/// unparseable.
+pub(crate) fn first_version(stdout: &[u8]) -> Option<CliVersion> {
 	let mut index = 0;
 	while index < stdout.len() {
 		if !stdout[index].is_ascii_digit() || index > 0 && stdout[index - 1].is_ascii_digit() {
@@ -93,4 +76,50 @@ fn component(bytes: &[u8]) -> Option<u64> {
 			.checked_add(u64::from(*byte - b'0'))?;
 	}
 	Some(value)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn version(major: u64, minor: u64, patch: u64) -> Option<CliVersion> {
+		Some(CliVersion {
+			major,
+			minor,
+			patch,
+		})
+	}
+
+	#[test]
+	fn the_first_version_triple_is_parsed() {
+		assert_eq!(
+			[
+				first_version(b"7.4.6"),
+				first_version(b"5.1.26100.1234"),
+				first_version(b"PowerShell v7.3.0-preview.1"),
+				first_version(b"no version"),
+				first_version(b"7.4"),
+			],
+			[
+				version(7, 4, 6),
+				version(5, 1, 26100),
+				version(7, 3, 0),
+				None,
+				None
+			]
+		);
+	}
+
+	#[test]
+	fn an_overflowing_first_triple_is_unparseable() {
+		assert_eq!(
+			[
+				first_version(b"18446744073709551616.1.2 then 9.9.9"),
+				first_version(b"prefix 18446744073709551616 then 7.4.6"),
+				first_version(b"1.18446744073709551616.2 then 9.9.9"),
+				first_version(b"1.2.18446744073709551616 then 9.9.9"),
+			],
+			[None, version(7, 4, 6), None, None]
+		);
+	}
 }

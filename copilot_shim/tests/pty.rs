@@ -316,7 +316,6 @@ fn unix_pty_ctrl_c_cancels_without_fallback() {
 	for directory in [&tools, &working_directory, &state, &temporary] {
 		fs::create_dir_all(directory).expect("create cancellation test directory");
 	}
-	write_executable(&tools.join("copilot"), failing_cli_script());
 	write_executable(&tools.join("curl"), blocking_curl_script());
 	write_executable(&tools.join("wget"), &marker_script("wget-started"));
 	write_executable(&tools.join("bash"), &marker_script("bash-started"));
@@ -349,10 +348,9 @@ fn unix_pty_ctrl_c_cancels_without_fallback() {
 			state.join("curl-completed").exists(),
 			state.join("wget-started").exists(),
 			state.join("bash-started").exists(),
-			state.join("final-cli").exists(),
 			count_bytes(process.transcript(), INSTALL_PROMPT),
 		),
-		(Some(130), false, false, false, false, false, false, 1),
+		(Some(130), false, false, false, false, false, 1),
 		"PTY transcript:\n{}",
 		String::from_utf8_lossy(process.transcript())
 	);
@@ -470,10 +468,6 @@ fn write_executable(path: &Path, contents: &[u8]) {
 
 fn compatible_cli_script() -> &'static [u8] {
 	b"#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then\n\tprintf '1.0.82\\n'\n\texit 0\nfi\nif [ -z \"${COPILOT_SHIM_TEST_STATE:-}\" ]; then\n\texit 0\nfi\nprintf 'CLI_READY\\n'\nIFS= read -r input || exit 91\nprintf '%s' \"$input\" > \"$COPILOT_SHIM_TEST_STATE/stdin\"\nprintf '%s' \"$COPILOT_SHIM_TEST_ENV\" > \"$COPILOT_SHIM_TEST_STATE/environment\"\npwd -P > \"$COPILOT_SHIM_TEST_STATE/cwd\"\n: > \"$COPILOT_SHIM_TEST_STATE/arguments\"\nfor argument do\n\tprintf '%s\\0' \"$argument\" >> \"$COPILOT_SHIM_TEST_STATE/arguments\"\ndone\nprintf 'CLI_STDOUT_EXACT\\n'\nprintf 'CLI_STDERR_EXACT\\n' >&2\nexit 47\n"
-}
-
-fn failing_cli_script() -> &'static [u8] {
-	b"#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then\n\texit 9\nfi\n: > \"$COPILOT_SHIM_TEST_STATE/final-cli\"\nexit 0\n"
 }
 
 fn blocking_curl_script() -> &'static [u8] {
