@@ -244,6 +244,11 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
 }
 
+.customization-discovery-card-icon:not(.is-fallback) > .codicon,
+.customization-discovery-result-icon:not(.is-fallback) > .codicon {
+	display: none;
+}
+
 .customization-discovery-card-icon img {
 	position: absolute;
 	inset: 0;
