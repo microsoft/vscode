@@ -17,6 +17,8 @@ import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRang
 import { Range } from '../../../../../editor/common/core/range.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
@@ -1188,6 +1190,12 @@ interface IPersistentProgressScenarioOptions {
 
 async function renderPersistentProgressScenario(context: ComponentFixtureContext, messages: readonly IFixtureMessage[], options: IPersistentProgressScenarioOptions = {}): Promise<void> {
 	const { expectedText, progressAnimation = ChatProgressAnimation.Draw, productQuality = 'stable', reducedMotion = false, thinkingStyle = ThinkingDisplayMode.Collapsed } = options;
+	const reducedMotionEmitter = context.disposableStore.add(new Emitter<void>());
+	const accessibilityService = new class extends TestAccessibilityService {
+		override readonly onDidChangeReducedMotion = reducedMotionEmitter.event;
+		override isMotionReduced(): boolean { return reducedMotion; }
+	}();
+	context.disposableStore.add(context.onDidChangeEnableAnimations(() => reducedMotionEmitter.fire()));
 	let handle: IChatWidgetFixtureHandle | undefined;
 	await renderChatWidget(context, {
 		messages,
@@ -1204,6 +1212,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		width: options.width,
 		height: options.height ?? 560,
 		listHeight: options.listHeight ?? 340,
+		additionalServices: reg => reg.defineInstance(IAccessibilityService, accessibilityService),
 		onRendered: rendered => {
 			handle = rendered;
 			if (!options.activityUpdates || context.container.classList.contains('disable-animations')) {
@@ -1251,6 +1260,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	context.container.classList.toggle('monaco-reduce-motion', reducedMotion);
 
 	const targetWindow = dom.getWindow(context.container);
+	const initialDrawPathData = [...context.container.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d') ?? '');
 	const mcpStartup = messages.flatMap(message => message.assistant ?? []).find(part => part.kind === 'mcpStarting');
 	if (hasLocalMcpAutostart(messages)) {
 		await timeout(2600);
@@ -1484,8 +1494,19 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 			throw new Error('The terminal activity animation did not retain its original motion behavior');
 		}
 	}
-	if (logo.getAnimations({ subtree: true }).length !== (shouldAnimate && !noIcon ? 3 : 0)) {
-		throw new Error(`${progressAnimation} progress animation did not match reducedMotion=${reducedMotion}`);
+	if (logo.getAnimations({ subtree: true }).length !== 0) {
+		throw new Error(`${progressAnimation} progress must use requestAnimationFrame instead of CSS animations`);
+	}
+	const drawPaths = [...logo.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')];
+	if (!noIcon && drawPaths.length !== 3) {
+		throw new Error(`${progressAnimation} progress did not render all Draw mask bands`);
+	}
+	const drawPathData = drawPaths.map(path => path.getAttribute('d') ?? '');
+	if (shouldAnimate && !noIcon && drawPathData.every((path, index) => path === initialDrawPathData[index])) {
+		throw new Error(`${progressAnimation} progress did not advance its Draw paths`);
+	}
+	if (!shouldAnimate && !noIcon && drawPathData.some(path => path.length === 0)) {
+		throw new Error(`${progressAnimation} progress did not resolve to the assembled reduced-motion mark`);
 	}
 	if ((targetWindow.getComputedStyle(textElement).animationName !== 'none') !== shouldAnimate) {
 		throw new Error(`Persistent progress text animation did not match reducedMotion=${reducedMotion}`);
@@ -2659,7 +2680,6 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			Draw: defineProgressAnimationScenarios(ChatProgressAnimation.Draw),
 			DrawMonochrome: defineProgressAnimationScenarios(ChatProgressAnimation.DrawMonochrome),
 			DrawMonochromeNoIcon: defineProgressAnimationScenarios(ChatProgressAnimation.DrawMonochromeNoIcon),
-			Ribbon: defineProgressAnimationScenarios(ChatProgressAnimation.Ribbon),
 		}),
 		ByThinkingStyle: defineThemedFixtureGroup({
 			Collapsed: defineThinkingStyleScenarios(ThinkingDisplayMode.Collapsed),

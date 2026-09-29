@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 type Point = [number, number];
-export type ChatWorkingLogoRibbonBand = 'leg1' | 'leg3' | 'bar';
+export type ChatWorkingLogoDrawBand = 'leg1' | 'leg3' | 'bar';
 
-export interface IChatWorkingLogoRibbonFrame {
-	readonly paths: Readonly<Record<ChatWorkingLogoRibbonBand, string>>;
+export interface IChatWorkingLogoDrawFrame {
+	readonly paths: Readonly<Record<ChatWorkingLogoDrawBand, string>>;
 	readonly tail: number;
 	readonly head: number;
 }
@@ -19,12 +19,12 @@ interface ICrossSection {
 
 interface IFoldBand {
 	readonly splitAt: number;
-	readonly before: ChatWorkingLogoRibbonBand;
-	readonly after: ChatWorkingLogoRibbonBand;
+	readonly before: ChatWorkingLogoDrawBand;
+	readonly after: ChatWorkingLogoDrawBand;
 }
 
-type SpanBand = ChatWorkingLogoRibbonBand | IFoldBand;
-type RibbonMark = [number, number, ChatWorkingLogoRibbonBand];
+type SpanBand = ChatWorkingLogoDrawBand | IFoldBand;
+type DrawMark = [number, number, ChatWorkingLogoDrawBand];
 
 const point = (x: number, y: number): Point => [x, y];
 
@@ -41,15 +41,13 @@ const P = {
 	V11: point(12.1872, 25.0096),
 	V14: point(1.35853, 36.417),
 	V16: point(1.35853, 63.5832),
-	V17: point(1.36303, 69.7453),
-	V18: point(6.86933, 74.7541),
 	V19: point(12.1872, 74.9905),
 	V21: point(68.769, 97.9167),
 	H1: point(75.0152, 27.2989),
 	H3: point(75.0152, 72.7012),
 };
 
-export const CHAT_WORKING_LOGO_RIBBON_PAINT_ORDER: readonly ChatWorkingLogoRibbonBand[] = ['leg1', 'leg3', 'bar'];
+export const CHAT_WORKING_LOGO_DRAW_PAINT_ORDER: readonly ChatWorkingLogoDrawBand[] = ['leg1', 'leg3', 'bar'];
 
 const subtract = (a: Point, b: Point): Point => [a[0] - b[0], a[1] - b[1]];
 const add = (a: Point, b: Point): Point => [a[0] + b[0], a[1] + b[1]];
@@ -230,32 +228,12 @@ function buildLogoSpans(): Span[] {
 	];
 }
 
-function buildCapProfile(): Point[] {
-	const { V16, V17, V18, V19 } = P;
-	const points: Point[] = [V16];
-	points.push(...flattenCubic(V16, point(-0.454633, 65.2374), point(-0.452552, 68.0938), V17, cornerSteps));
-	points.push(V18);
-	points.push(...flattenCubic(V18, point(8.35363, 76.1043), point(10.589, 76.2037), V19, cornerSteps));
-	const origin = midpoint(V16, V19);
-	const halfWidth = length(subtract(V19, V16)) / 2;
-	const across = normalize(subtract(V19, V16));
-	const forward: Point = [across[1], -across[0]];
-	return points.map(value => {
-		const offset = subtract(value, origin);
-		return [
-			(offset[0] * across[0] + offset[1] * across[1]) / halfWidth,
-			(offset[0] * forward[0] + offset[1] * forward[1]) / halfWidth,
-		];
-	});
-}
-
 /** Models the official mark as one arc-length-parameterized strip with smooth moving end caps. */
 class Ribbon {
 	readonly spans = buildLogoSpans();
 	readonly spanStarts: number[] = [];
 	readonly length: number;
-	private readonly capProfile = buildCapProfile();
-	private readonly marks: RibbonMark[];
+	private readonly marks: DrawMark[];
 
 	constructor(private readonly bleed = 0.35) {
 		let totalLength = 0;
@@ -284,22 +262,6 @@ class Ribbon {
 		return this.spans[location.index].crossSection(location.amount);
 	}
 
-	private cap(distance: number, direction: -1 | 1): Point[] {
-		if (distance > 1e-6 && Math.abs(distance - this.length) > 1e-6) {
-			return this.travelCap(distance, direction);
-		}
-		const { a, b } = this.crossSection(distance);
-		const origin = midpoint(a, b);
-		const halfWidth = length(subtract(a, b)) / 2 || 1e-6;
-		const across = normalize(subtract(a, b));
-		const normal: Point = direction < 0 ? [across[1], -across[0]] : [-across[1], across[0]];
-		const points = this.capProfile.map(([x, y]) => point(
-			origin[0] + (across[0] * x + normal[0] * y) * halfWidth,
-			origin[1] + (across[1] * x + normal[1] * y) * halfWidth,
-		));
-		return direction > 0 ? points.reverse() : points;
-	}
-
 	private travelCap(distance: number, direction: -1 | 1): Point[] {
 		const { a, b } = this.crossSection(distance);
 		const before = crossSectionMidpoint(this.crossSection(Math.max(0, distance - 0.15)));
@@ -312,8 +274,8 @@ class Ribbon {
 		const end = direction > 0 ? b : a;
 		const width = length(subtract(a, b));
 		const points: Point[] = [];
-		for (let index = 0; index <= 16; index++) {
-			const amount = index / 16;
+		for (let index = 0; index <= 8; index++) {
+			const amount = index / 8;
 			const bow = 4 * amount * (1 - amount) * width * 0.03;
 			points.push(add(interpolate(start, end, amount), multiply(forward, bow)));
 		}
@@ -347,8 +309,8 @@ class Ribbon {
 		return result;
 	}
 
-	private buildMarks(): RibbonMark[] {
-		const marks: RibbonMark[] = [];
+	private buildMarks(): DrawMark[] {
+		const marks: DrawMark[] = [];
 		for (let index = 0; index < this.spans.length; index++) {
 			const span = this.spans[index];
 			const start = this.spanStarts[index];
@@ -360,7 +322,7 @@ class Ribbon {
 				marks.push([cut, start + span.sLength, span.band.after]);
 			}
 		}
-		const merged: RibbonMark[] = [];
+		const merged: DrawMark[] = [];
 		for (const mark of marks) {
 			const previous = merged[merged.length - 1];
 			if (previous && previous[2] === mark[2] && Math.abs(previous[1] - mark[0]) < 1e-9) {
@@ -369,7 +331,7 @@ class Ribbon {
 				merged.push([...mark]);
 			}
 		}
-		const paintIndex = (band: ChatWorkingLogoRibbonBand): number => CHAT_WORKING_LOGO_RIBBON_PAINT_ORDER.indexOf(band);
+		const paintIndex = (band: ChatWorkingLogoDrawBand): number => CHAT_WORKING_LOGO_DRAW_PAINT_ORDER.indexOf(band);
 		for (let index = 0; index < merged.length - 1; index++) {
 			if (paintIndex(merged[index][2]) < paintIndex(merged[index + 1][2])) {
 				merged[index][1] += this.bleed;
@@ -380,9 +342,9 @@ class Ribbon {
 		return merged;
 	}
 
-	bands(start: number, end: number): Readonly<Record<ChatWorkingLogoRibbonBand, string>> {
-		const buckets = new Map<ChatWorkingLogoRibbonBand, string[]>(
-			CHAT_WORKING_LOGO_RIBBON_PAINT_ORDER.map(band => [band, []]),
+	bands(start: number, end: number): Readonly<Record<ChatWorkingLogoDrawBand, string>> {
+		const buckets = new Map<ChatWorkingLogoDrawBand, string[]>(
+			CHAT_WORKING_LOGO_DRAW_PAINT_ORDER.map(band => [band, []]),
 		);
 		for (const [markStart, markEnd, band] of this.marks) {
 			const low = Math.max(start, markStart);
@@ -411,7 +373,7 @@ class Ribbon {
 		}
 		const points: Point[] = [];
 		if (capStart) {
-			points.push(...this.cap(start, -1));
+			points.push(...this.travelCap(start, -1));
 		} else {
 			points.push(sections[0].b, sections[0].a);
 		}
@@ -419,7 +381,7 @@ class Ribbon {
 			points.push(sections[index].a);
 		}
 		if (capEnd) {
-			points.push(...this.cap(end, 1).slice(1));
+			points.push(...this.travelCap(end, 1).slice(1));
 		} else {
 			points.push(sections[sections.length - 1].b);
 		}
@@ -459,22 +421,22 @@ function format(value: number): string {
 	return Object.is(rounded, -0) ? '0' : String(rounded);
 }
 
-const ribbon = new Ribbon();
-const emptyPaths = ribbon.bands(0, 0);
-const tiedPaths = ribbon.bands(0, ribbon.length);
+const drawRibbon = new Ribbon();
+const emptyPaths = drawRibbon.bands(0, 0);
+const tiedPaths = drawRibbon.bands(0, drawRibbon.length);
 
-export function getChatWorkingLogoRibbonFrame(progress: number): IChatWorkingLogoRibbonFrame {
+export function getChatWorkingLogoDrawFrame(progress: number): IChatWorkingLogoDrawFrame {
 	const wrapped = progress >= 0 && progress < 1 ? progress : ((progress % 1) + 1) % 1;
 	if (wrapped < tieDuration) {
-		const head = ribbon.length * easeOutCubic(wrapped / tieDuration);
-		return { paths: head > 0 ? ribbon.bands(0, head) : emptyPaths, tail: 0, head };
+		const head = drawRibbon.length * easeOutCubic(wrapped / tieDuration);
+		return { paths: head > 0 ? drawRibbon.bands(0, head) : emptyPaths, tail: 0, head };
 	}
 	if (wrapped < holdEnd) {
-		return { paths: tiedPaths, tail: 0, head: ribbon.length };
+		return { paths: tiedPaths, tail: 0, head: drawRibbon.length };
 	}
 	if (wrapped < untieEnd) {
-		const tail = ribbon.length * easeInCubic((wrapped - holdEnd) / (untieEnd - holdEnd));
-		return { paths: ribbon.bands(tail, ribbon.length), tail, head: ribbon.length };
+		const tail = drawRibbon.length * easeInCubic((wrapped - holdEnd) / (untieEnd - holdEnd));
+		return { paths: drawRibbon.bands(tail, drawRibbon.length), tail, head: drawRibbon.length };
 	}
-	return { paths: emptyPaths, tail: ribbon.length, head: ribbon.length };
+	return { paths: emptyPaths, tail: drawRibbon.length, head: drawRibbon.length };
 }

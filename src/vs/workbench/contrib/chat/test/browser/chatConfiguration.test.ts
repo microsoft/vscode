@@ -73,22 +73,22 @@ suite('Chat configuration', () => {
 			settings: ['chat.experimental.persistentProgress', 'chat.experimental.persistentProgressVerbosity'],
 			type: 'string',
 			default: product.quality === 'insider' ? 'draw' : 'off',
-			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon', 'ribbon'],
-			labels: ['Off', 'Draw', 'Draw (Monochrome)', 'Draw (Monochrome, No Icon)', 'Ribbon'],
-			descriptions: 5,
+			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon'],
+			labels: ['Off', 'Draw', 'Draw (Monochrome)', 'Draw (Monochrome, No Icon)'],
+			descriptions: 4,
 		});
 	});
 
 	test('migrates removed progress animations to Draw', async () => {
 		assert.deepStrictEqual(await Promise.all(
-			['weave', 'orbit', 'accordion', 'dial'].map(value => legacyProgressAnimationMigration?.migrateFn(value, () => undefined)),
-		), Array.from({ length: 4 }, () => ({ value: 'draw' })));
+			['weave', 'orbit', 'accordion', 'dial', 'ribbon'].map(value => legacyProgressAnimationMigration?.migrateFn(value, () => undefined)),
+		), Array.from({ length: 5 }, () => ({ value: 'draw' })));
 	});
 
 	test('preserves current progress styles and absent settings during migration', async () => {
 		assert.deepStrictEqual(await Promise.all(
-			['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon', 'ribbon', undefined, 'unsupported'].map(value => legacyProgressAnimationMigration?.migrateFn(value, () => undefined)),
-		), [[], [], [], [], [], [], []]);
+			['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon', undefined, 'unsupported'].map(value => legacyProgressAnimationMigration?.migrateFn(value, () => undefined)),
+		), [[], [], [], [], [], []]);
 	});
 
 	test('defaults persistent progress verbosity to Compact tool previews', () => {

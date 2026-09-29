@@ -1854,7 +1854,6 @@ suite('ChatListRenderer', () => {
 			ChatProgressAnimation.Draw,
 			ChatProgressAnimation.DrawMonochrome,
 			ChatProgressAnimation.DrawMonochromeNoIcon,
-			ChatProgressAnimation.Ribbon,
 			ChatProgressAnimation.Draw,
 		]) {
 			await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
@@ -1871,6 +1870,7 @@ suite('ChatListRenderer', () => {
 				sameLogo: footer.querySelector('.chat-working-logo') === logo,
 				iconVisibility: targetWindow.getComputedStyle(logo).visibility,
 				iconAnimations: logo.getAnimations({ subtree: true }).length,
+				drawBands: logo.querySelectorAll('.chat-working-logo-draw-band').length,
 				text: text.textContent,
 				textVisibility: targetWindow.getComputedStyle(text).visibility,
 				textAligned: Math.abs(text.getBoundingClientRect().left - textLeft) < 0.1,
@@ -1884,17 +1884,17 @@ suite('ChatListRenderer', () => {
 			completedFooters: template.value.querySelectorAll('.chat-working-progress').length,
 		}, {
 			snapshots: [
-				{ animation: 'draw', iconAnimations: 3 },
-				{ animation: 'drawMonochrome', iconAnimations: 3 },
-				{ animation: 'drawMonochromeNoIcon', iconAnimations: 0 },
-				{ animation: 'ribbon', iconAnimations: 0 },
-				{ animation: 'draw', iconAnimations: 3 },
-			].map(({ animation, iconAnimations }) => ({
+				{ animation: 'draw' },
+				{ animation: 'drawMonochrome' },
+				{ animation: 'drawMonochromeNoIcon' },
+				{ animation: 'draw' },
+			].map(({ animation }) => ({
 				animation,
 				sameFooter: true,
 				sameLogo: true,
 				iconVisibility: animation === 'drawMonochromeNoIcon' ? 'hidden' : 'visible',
-				iconAnimations,
+				iconAnimations: 0,
+				drawBands: 3,
 				text: 'Working',
 				textVisibility: 'visible',
 				textAligned: true,
@@ -1913,14 +1913,13 @@ suite('ChatListRenderer', () => {
 			snapshots.push({
 				persistentRows: template.value.querySelectorAll('.chat-working-progress').length,
 				logos: template.value.querySelectorAll('.chat-working-logo').length,
-				staticLogos: template.value.querySelectorAll('.chat-working-logo-static').length,
 				hasLegacyWorking: [...template.value.querySelectorAll('.progress-container')].some(row => !row.classList.contains('chat-working-progress') && row.textContent === 'Working'),
 			});
 		}
 		assert.deepStrictEqual(snapshots, [
-			{ persistentRows: 0, logos: 0, staticLogos: 0, hasLegacyWorking: true },
-			{ persistentRows: 1, logos: 1, staticLogos: 0, hasLegacyWorking: false },
-			{ persistentRows: 0, logos: 0, staticLogos: 0, hasLegacyWorking: true },
+			{ persistentRows: 0, logos: 0, hasLegacyWorking: true },
+			{ persistentRows: 1, logos: 1, hasLegacyWorking: false },
+			{ persistentRows: 0, logos: 0, hasLegacyWorking: true },
 		]);
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
@@ -6455,7 +6454,8 @@ suite('ChatListRenderer', () => {
 						includesDetail: target.textContent?.includes('Reviewing'),
 					}];
 				}),
-				logoFaces: template.value.getAnimations({ subtree: true }).filter(animation => animation instanceof CSSAnimation && animation.animationName.startsWith('chat-logo-draw-')).length,
+				logoAnimations: logo.getAnimations({ subtree: true }).length,
+				drawBands: logo.querySelectorAll('.chat-working-logo-draw-band').length,
 				innerRows: thinking.querySelectorAll('.chat-thinking-spinner-item').length,
 				headerLogos: thinking.querySelectorAll('.chat-working-logo').length,
 				footerIsLast: template.value.lastElementChild === footer,
@@ -6467,7 +6467,8 @@ suite('ChatListRenderer', () => {
 			const collapsed = snapshot();
 			const expected = {
 				shimmers: [{ location: 'footer', paintsText: true, includesDetail: false }],
-				logoFaces: 3,
+				logoAnimations: 0,
+				drawBands: 3,
 				innerRows: 0,
 				headerLogos: 0,
 				footerIsLast: true,
