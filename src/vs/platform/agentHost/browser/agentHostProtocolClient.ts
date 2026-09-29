@@ -69,8 +69,8 @@ const CLIENT_SUPPORTED_PROTOCOL_VERSIONS = SUPPORTED_PROTOCOL_VERSIONS.filter(ve
 
 /**
  * After this much inbound silence, send an application-level `ping` to
- * the remote so we have something to time out on. Reset on every received
- * message — busy connections don't generate ping traffic.
+ * the remote so we have something to time out on. Reset on any inbound
+ * data — busy connections don't generate ping traffic.
  *
  * Mirrors {@link ProtocolConstants.KeepAliveSendTime} from the regular
  * remote extension host stack.
@@ -80,7 +80,7 @@ const PING_INTERVAL_MS = 5_000;
 /**
  * Total inbound silence (ping interval + this) before a non-local connection
  * is declared dead and force-closed so the renderer's reconnect logic kicks
- * in. Reset on every received message. After a deferred close resumes, this
+ * in. Reset on any inbound data. After a deferred close resumes, this
  * is also the full budget granted before the next liveness check.
  *
  * Matches {@link ProtocolConstants.TimeoutTime} from the regular remote
@@ -91,7 +91,7 @@ const LIVENESS_TIMEOUT_MS = 20_000;
 function connectionTimeoutError(address: string, silenceMs: number): ProtocolError {
 	return new ProtocolError(
 		AHP_CLIENT_CONNECTION_CLOSED,
-		`Connection appears dead: ${address}; no message received for ${silenceMs}ms.`,
+		`Connection appears dead: ${address}; no data received for ${silenceMs}ms.`,
 	);
 }
 
@@ -354,7 +354,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _authenticationRestorePending = false;
 
 	/**
-	 * Timestamp of the most recent message of any kind received from the
+	 * Timestamp of the most recent data of any kind received from the
 	 * server. Used only for diagnostic logging when the close timer fires.
 	 */
 	private _lastReadTime = Date.now();
@@ -370,7 +370,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * has an unanswered reverse request or the local event loop has high load,
 	 * both timers re-arm instead. Once the deferral clears, it grants a full
 	 * liveness window before closing.
-	 * Both are reset on every received message, so busy connections generate
+	 * Both are reset on any inbound data, so busy connections generate
 	 * no ping traffic at all.
 	 *
 	 * Detects silently-dead transports (e.g. SSH/tunnel after laptop
@@ -548,6 +548,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const listeners = new DisposableStore();
 		listeners.add(transport);
 		listeners.add(transport.onMessage(msg => this._handleMessage(msg)));
+		if (transport.onDidReceiveData) {
+			listeners.add(transport.onDidReceiveData(() => this._recordInboundTraffic()));
+		}
 		listeners.add(transport.onClose(() => this._handleTransportClose()));
 		if (transport.onDidCloseDetails) {
 			listeners.add(transport.onDidCloseDetails(close => {
@@ -735,7 +738,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	private _handleTransportClose(): void {
 		if (this._state.kind !== AgentHostClientState.Closed) {
-			this._diagnostic('transport.closed', `state=${this._state.kind}; sinceLastMessageMs=${Date.now() - this._lastReadTime}`);
+			this._diagnostic('transport.closed', `state=${this._state.kind}; sinceLastDataMs=${Date.now() - this._lastReadTime}`);
 		}
 		switch (this._state.kind) {
 			case AgentHostClientState.Closed:
@@ -1969,8 +1972,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		// transport is still alive. Reset the liveness timers before
 		// dispatch so they're consistent even if a handler synchronously
 		// schedules work.
-		this._lastReadTime = Date.now();
-		this._resetLivenessTimers();
+		this._recordInboundTraffic();
 
 		if (isJsonRpcRequest(msg)) {
 			this._handleReverseRequest(msg.id, msg.method, msg.params);
@@ -2451,10 +2453,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._pendingRequests.clear();
 	}
 
+	private _recordInboundTraffic(): void {
+		this._lastReadTime = Date.now();
+		this._resetLivenessTimers();
+	}
+
 	/**
 	 * Reset the liveness timers. Called at construction for an already-open
 	 * passive transport, after a successful client-transport initialization,
-	 * once on every received message (which is itself proof the remote is
+	 * once on any inbound data (which is itself proof the remote is
 	 * alive), and once after a successful soft reconnect.
 	 *
 	 * Two timers cooperate:
@@ -2537,7 +2544,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		const silence = Date.now() - this._lastReadTime;
 		this._logService.info(
-			`[RemoteAgentHostProtocol] Liveness: no message from ${this._address} for ${silence}ms; forcing close to trigger reconnect.`,
+			`[RemoteAgentHostProtocol] Liveness: no data from ${this._address} for ${silence}ms; forcing close to trigger reconnect.`,
 		);
 		// Tear down the dead transport so it can't keep delivering messages
 		// to a Reconnecting/Closed client (and, on the non-factory path,
@@ -2545,7 +2552,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		// WebSocketClientTransport.dispose() disposes its emitters
 		// synchronously before the native close event arrives, so this
 		// won't re-enter {@link _handleTransportClose}.
-		this._diagnostic('watchdog.timeout', `sinceLastMessageMs=${silence}`);
+		this._diagnostic('watchdog.timeout', `sinceLastDataMs=${silence}`);
 		this._transportListeners.clear();
 		if (this._transportFactory) {
 			// In factory mode, route directly through the soft-reconnect path.
