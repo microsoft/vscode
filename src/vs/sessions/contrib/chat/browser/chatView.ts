@@ -18,6 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { scrollbarShadow } from '../../../../platform/theme/common/colorRegistry.js';
@@ -25,6 +26,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
@@ -65,6 +67,7 @@ import { ISessionsChatBackgroundService } from '../../../services/chatBackground
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
+import { registerOpenGitHubLinksInExternalBrowser } from './sessionLinkOpenHandler.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 
@@ -275,6 +278,8 @@ export class ChatView extends AbstractChatView {
 		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@IOpenerService openerService: IOpenerService,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
@@ -283,6 +288,7 @@ export class ChatView extends AbstractChatView {
 		this.element.classList.add('chat-view-chat');
 		this._widgetContainer = $('.chat-view-widget');
 		this.element.appendChild(this._widgetContainer);
+		this._register(registerOpenGitHubLinksInExternalBrowser(this._widgetContainer, openerService, () => defaultAccountService.resolveGitHubUrl('')));
 
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(
