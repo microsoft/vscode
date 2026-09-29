@@ -73,6 +73,7 @@ import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../commo
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
+import { getWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -89,6 +90,16 @@ const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.session
 const STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS = 'sessions.agentHost.sessionConfigPicker.workspaceIsolations';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS = 50;
+
+/**
+ * Session config properties derived from settings (see `_derivedNewSessionConfig`),
+ * with the value that clears them on the agent host.
+ */
+const SETTINGS_DERIVED_SESSION_CONFIG_CLEARED_VALUES: Readonly<Record<string, unknown>> = {
+	[SessionConfigKey.WorktreeBranchPrefix]: '',
+	[SessionConfigKey.WorktreeIncludeFiles]: [],
+	[SessionConfigKey.WorktreeSymlinkFolders]: [],
+};
 
 function mergeSessionChangeEvents(events: readonly ISessionChangeEvent[]): ISessionChangeEvent {
 	const changes = new Map<string, { added?: ISession; removed?: ISession; changed?: ISession }>();
@@ -790,6 +801,8 @@ export interface IAgentHostAdapterOptions {
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
 	/** Keeps reported activity separate from connection availability for remotely discoverable sessions. */
 	readonly preserveStatusWhenDisconnected?: boolean;
+	/** Overrides host provenance when a provider tracks external sessions locally. */
+	readonly externalSessionState?: (resource: URI, store: DisposableStore) => IObservable<boolean>;
 }
 
 /**
@@ -1324,7 +1337,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
-		this.isExternal = derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
+		this.isExternal = _options.externalSessionState?.(this.resource, this._store)
+			?? derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
 		const connectionStatus = _options.connectionStatus;
 		this.remoteConnectionStatus = toSessionRemoteConnectionStatus(this, connectionStatus);
 		this.createdBySession = derived(this, reader => {
@@ -3629,7 +3643,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected'>;
+	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or
@@ -4544,6 +4558,24 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return config;
 	}
 
+	/**
+	 * Re-reads the settings-derived config values of a draft before its first
+	 * request. The Agents window loads the settings of the draft's folder only
+	 * once the draft is active, so the values seeded at creation can miss them.
+	 * The agent host merges the config it receives on first send into the values
+	 * it got at creation, so a property whose setting is gone is cleared explicitly.
+	 */
+	private _refreshSettingsDerivedNewSessionConfig(newSession: NewSession): void {
+		const values = newSession.getConfigValues();
+		const derivedValues = this._derivedNewSessionConfig(newSession.session.workspace.get());
+		for (const [property, clearedValue] of Object.entries(SETTINGS_DERIVED_SESSION_CONFIG_CLEARED_VALUES)) {
+			const value = derivedValues[property] ?? (values && Object.hasOwn(values, property) ? clearedValue : undefined);
+			if (!equals(values?.[property], value)) {
+				newSession.setConfigValue(property, value);
+			}
+		}
+	}
+
 	// -- Dynamic session config ----------------------------------------------
 
 	getAutomationModelConfiguration(sessionId: string): AutomationModelConfiguration | undefined {
@@ -4623,6 +4655,36 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._keepSessionStateAlive(sessionId);
 		return this._runningSessionConfigs.get(sessionId);
+	}
+
+	getNewSessionCancellationToken(sessionId: string): CancellationToken {
+		const newSession = this._getNewSession(sessionId);
+		if (!newSession) {
+			throw new Error(`Cannot get cancellation token for unknown new session '${sessionId}'.`);
+		}
+		return newSession.cancellationToken;
+	}
+
+	async whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult> {
+		const newSession = this._getNewSession(sessionId);
+		if (!newSession) {
+			throw new Error(`Cannot resolve configuration for unknown new session '${sessionId}'.`);
+		}
+		const store = new DisposableStore();
+		const cancellation = store.add(new CancellationTokenSource(token));
+		store.add(newSession.cancellationToken.onCancellationRequested(() => cancellation.cancel()));
+		try {
+			await waitForState(this.authenticationPending, pending => !pending, undefined, cancellation.token);
+			await raceCancellationError(newSession.waitForConfigResolution(), cancellation.token);
+			const config = newSession.getConfig();
+			if (!this.connection || !config) {
+				throw new Error(localize('agentHost.sessionConfigUnavailable', "Could not resolve the Agent Host session configuration. Please try again."));
+			}
+			return config;
+		} finally {
+			cancellation.cancel();
+			store.dispose();
+		}
 	}
 
 	/**
@@ -5508,6 +5570,30 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
+	async getSessionWorktreeDiskUsage(sessionId: string): Promise<number | undefined> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!session || !connection) {
+			return undefined;
+		}
+		const worktrees = new Map<string, URI>();
+		for (const folder of session.workspace.get()?.folders ?? []) {
+			const worktreeUri = folder.gitRepository?.workTreeUri;
+			if (worktreeUri) {
+				worktrees.set(worktreeUri.toString(), worktreeUri);
+			}
+		}
+		if (worktrees.size === 0) {
+			return undefined;
+		}
+		const sizes = await Promise.all([...worktrees.values()].map(worktreeUri => getWorktreeDiskUsage(connection, worktreeUri)));
+		if (sizes.every(size => size === undefined)) {
+			return undefined;
+		}
+		return sizes.reduce<number>((total, size) => total + (size ?? 0), 0);
+	}
+
 	async unarchiveSession(sessionId: string): Promise<void> {
 		this._setSessionArchived(sessionId, false);
 	}
@@ -6027,6 +6113,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!this.connection) {
 			throw new Error(this._notConnectedSendErrorMessage());
 		}
+		this._refreshSettingsDerivedNewSessionConfig(newSession);
 
 		const selectedModelId = this._resolveSendModelId(chatId, newSession.getSelectedModelId());
 		const selectedModelSource = newSession.session.mainChat.get().modelSource.get() ?? ChatModelSource.Chosen;

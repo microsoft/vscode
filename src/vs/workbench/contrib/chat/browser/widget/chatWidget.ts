@@ -2642,6 +2642,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					() => this.focusInput(),
 					this.viewOptions.customizationMigrationNotice.onDidChangeAvailability,
 					visible => input.setCustomizationMigrationNoticeVisible(visible),
+					undefined,
 				));
 			} else {
 				this.customizationMigrationNotice.clear();

@@ -34,6 +34,10 @@
 }
 
 @keyframes action-widget-dropdown-open {
+	from, to {
+		--vscode-context-view-menu-motion-backdrop-opacity: 100%;
+	}
+
 	0% {
 		opacity: 0;
 		transform: scale(0.97);
@@ -45,7 +49,20 @@
 	}
 }
 
+@keyframes action-widget-scale-open {
+	from {
+		transform: scale(0.97);
+	}
+	to {
+		transform: scale(1);
+	}
+}
+
 @keyframes action-widget-dropdown-close {
+	from, to {
+		--vscode-context-view-menu-motion-backdrop-opacity: 100%;
+	}
+
 	0% {
 		opacity: var(--action-widget-close-start-opacity, 1);
 		transform: var(--action-widget-close-start-transform, scale(1));

@@ -65,7 +65,7 @@ import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/a
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
-import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
+import { AgentHostLocalTurns, parsePersistedTurn } from './agentHostLocalTurns.js';
 import { AgentSessionResidency } from './agentSessionResidency.js';
 import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { IAgentHostSessionOpenTelemetry, type IAgentHostSessionOpenTelemetryScope } from './agentHostSessionOpenTelemetry.js';
@@ -75,7 +75,7 @@ import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChat
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
-import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
+import { parseSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
@@ -1527,6 +1527,9 @@ export class AgentService extends Disposable implements IAgentService {
 	private _createArtifactServerToolAccessor(): IArtifactServerToolAccessor {
 		return {
 			isEnabled: () => this._isArtifactToolsEnabled(),
+			associatePullRequests: (chat, urls) => this._gitStateService.associateRecordedPullRequests?.(chat, urls) ?? Promise.resolve({ pending: [], unmatched: [...urls] }),
+			removePendingPullRequest: (session, url) => this._gitStateService.removePendingRecordedPullRequest?.(session, url) ?? Promise.resolve(),
+			reportAssociationError: error => this._logService.warn('[AgentService] Failed to reconcile a recorded pull request', error),
 			persist: async (session, artifacts) => {
 				try {
 					await this._persistOrderedListVisibleSessionState(URI.parse(session), { [SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(artifacts) });
@@ -1540,7 +1543,15 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		await this.restoreSession(session);
-		await new SessionArtifacts(this._stateManager, session.toString(), this._createArtifactServerToolAccessor().persist).remove(artifactId);
+		await new SessionArtifacts(this._stateManager, session.toString(), this._createArtifactServerToolAccessor().persist).remove(artifactId, async artifact => {
+			if (artifact.type === SessionArtifactType.PullRequest && artifact.link) {
+				try {
+					await this._gitStateService.removePendingRecordedPullRequest?.(session.toString(), artifact.link);
+				} catch (error) {
+					this._logService.warn('[AgentService] Failed to remove pending pull request association', error);
+				}
+			}
+		});
 	}
 
 	async importSession(session: URI): Promise<void> {
@@ -5300,10 +5311,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const byAnchor = new Map<string, Turn[]>();
 		const head: Turn[] = [];
 		for (const record of records) {
-			let turn: Turn;
-			try {
-				turn = JSON.parse(record.payload) as Turn;
-			} catch {
+			const turn = parsePersistedTurn(record, this._logService, AgentHostLocalTurns.name);
+			if (!turn) {
 				continue;
 			}
 			if (record.anchorTurnId === undefined) {
@@ -6128,8 +6137,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- Protocol methods ---------------------------------------------------
 
-	async createTerminal(params: CreateTerminalParams): Promise<void> {
-		await this._terminalManager.createTerminal(params);
+	async createTerminal(params: CreateTerminalParams, clientType = AgentHostClientType.Unknown): Promise<void> {
+		await this._terminalManager.createTerminal(params, {
+			vscodeTerminalIdentity: clientType !== AgentHostClientType.Unknown,
+		});
 	}
 
 	async disposeTerminal(terminal: URI): Promise<void> {
@@ -8263,6 +8274,8 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
 
 		void this._gitStateService.attachSessionGitHubPullRequest(sessionStr, meta.workingDirectories?.[0]);
+		void this._gitStateService.reconcilePendingRecordedPullRequests?.(sessionStr, true).catch(error =>
+			this._logService.warn(`[AgentService] Failed to reconcile pending pull requests after restoring ${sessionStr}`, error));
 
 		return {
 			turnCount: mergedTurns.length,

@@ -3942,6 +3942,53 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	for (const outcome of ['available', 'unavailable', 'error', 'canceled'] as const) {
+		test(`notifies Dev Container request changes while availability is pending (${outcome})`, async () => {
+			const availability = new DeferredPromise<boolean>();
+			const provider = createProvider(disposables, agentHost, undefined, {
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override isAvailable(): Promise<boolean> { return availability.p; }
+				}(),
+			});
+			const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session.sessionId, config => !!config);
+			const read = () => ({
+				requested: provider.isDevContainerRequested(session.sessionId),
+				enabled: provider.isDevContainerEnabled(session.sessionId),
+			});
+			let observed = read();
+			disposables.add(provider.onDidChangeSessionConfig(sessionId => {
+				if (sessionId === session.sessionId) {
+					observed = read();
+				}
+			}));
+			const states = [observed];
+			provider.preferDevContainer(session.sessionId);
+			states.push(observed);
+			if (outcome === 'canceled') {
+				provider.setDevContainerEnabled(session.sessionId, false);
+				states.push(observed);
+			}
+			if (outcome === 'error') {
+				await availability.error(new Error('Configuration probe failed'));
+			} else {
+				await availability.complete(outcome !== 'unavailable');
+			}
+			await timeout(0);
+			states.push(observed);
+			const settled = { requested: outcome === 'available', enabled: outcome === 'available' };
+			assert.deepStrictEqual({ states, actual: read() }, {
+				states: [
+					{ requested: false, enabled: false },
+					{ requested: true, enabled: false },
+					...(outcome === 'canceled' ? [{ requested: false, enabled: false }] : []),
+					settled,
+				],
+				actual: settled,
+			});
+		});
+	}
+
 	test('enables a preferred Dev Container immediately after availability resolved', async () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
@@ -4150,6 +4197,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		let connectedWorkspace: URI | undefined;
 		let logWorkspace: URI | undefined;
 		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
 				override async isAvailable(): Promise<boolean> { return true; }
 				override async showLog(workspace: URI): Promise<void> {
@@ -4196,6 +4244,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}
 			let connectCalls = 0;
 			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
 					override async isAvailable(): Promise<boolean> { return true; }
 					override async connect(): Promise<never> {
@@ -4318,6 +4367,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}();
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService,
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			setUrisTrust: async uris => {
 				if (uris.some(uri => uri.toString() === remoteWorkspace.toString())) {
 					throw setupError;
@@ -4393,6 +4443,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				deletedTargetDrafts.push(sessionId);
 			}
 			override isSessionConfigResolving() { return constObservable(false); }
+			override async whenSessionConfigResolved() { return this.getSessionConfig(); }
+			override getNewSessionCancellationToken() { return CancellationToken.None; }
 			override getSessionConfig(): ResolveSessionConfigResult {
 				return {
 					schema: {
@@ -4452,6 +4504,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService,
 			sessionsProvidersService,
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			languageModelIds: [sourceModelId],
 			lookupLanguageModel: id => id === sourceModelId
 				? { ...createTestLanguageModel('gpt-5'), targetChatSessionType: 'agent-host-copilotcli' }
@@ -5566,6 +5619,43 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			seededImmediately: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
 			forwardedToAgentHost: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
+		});
+	});
+
+	test('sendRequest forwards Git worktree settings of the folder loaded after the draft was created', async () => {
+		const folder = URI.file('/home/user/project');
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('git.worktreeIncludeFiles', ['user.json']);
+		configService.setUserConfiguration('git.worktreeSymlinkFolders', ['node_modules']);
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'worktree', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
+		};
+		let sentConfig: Record<string, unknown> | undefined;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: configService,
+			openSession: true,
+			sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+				sentConfig = options?.agentHostSessionConfig;
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(folder, provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+		const chat = await provider.createNewChat(session.sessionId);
+
+		// The Agents window loads the folder settings once it mounts the draft's folder.
+		configService.setUserConfiguration('git.worktreeIncludeFiles', ['folder.json'], folder);
+		configService.setUserConfiguration('git.worktreeSymlinkFolders', [], folder);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+		assert.deepStrictEqual({
+			createdWith: agentHost.createSessionConfigs.at(-1)?.config,
+			sentConfig,
+		}, {
+			createdWith: { isolation: 'worktree', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
+			sentConfig: { isolation: 'worktree', worktreeIncludeFiles: ['folder.json'], worktreeSymlinkFolders: [] },
 		});
 	});
 

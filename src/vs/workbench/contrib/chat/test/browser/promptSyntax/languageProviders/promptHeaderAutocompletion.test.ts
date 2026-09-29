@@ -152,6 +152,19 @@ suite('PromptHeaderAutocompletion', () => {
 			].sort(sortByLabel));
 		});
 
+		test('complete model attribute name for github-copilot target', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.ok(actual.some(({ label }) => label === 'model'));
+		});
+
 		test('complete model attribute value', async () => {
 			const content = [
 				'---',

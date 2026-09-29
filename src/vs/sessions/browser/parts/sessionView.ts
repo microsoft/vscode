@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../nls.js';
+
 import './media/sessionView.css';
 import { $, isAncestorOfActiveElement, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
@@ -105,6 +107,12 @@ export class SessionView extends Disposable implements ISerializableView {
 		@ISessionChangesStatsCache private readonly _changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super();
+
+		this.element.setAttribute('role', 'region');
+		this._register(autorun(reader => {
+			const session = this._sessionObs.read(reader);
+			this.element.setAttribute('aria-label', session ? localize('sessionPane', "Session: {0}", session.title.read(reader)) : localize('newSessionPane', "New Session"));
+		}));
 
 		// Scoped context key service so toolbars hosted within can react to
 		// session-specific context keys (e.g. sessionIsCreated, sessionIsSticky).

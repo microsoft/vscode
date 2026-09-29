@@ -119,7 +119,7 @@ export function formatTerminalText(data: string, options: IFormatTerminalTextOpt
  */
 export interface IAgentHostTerminalManager {
 	readonly _serviceBrand: undefined;
-	createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void>;
+	createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean; vscodeTerminalIdentity?: boolean }): Promise<void>;
 	writeInput(uri: string, data: string): void;
 	sendText(uri: string, data: string, options: ISendTextOptions): Promise<void>;
 	onData(uri: string, cb: (data: string) => void): IDisposable;
@@ -289,7 +289,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	 * Create a new terminal backed by node-pty.
 	 * Spawns the user's default shell.
 	 */
-	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
+	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean; vscodeTerminalIdentity?: boolean }): Promise<void> {
 		const uri = params.channel;
 		if (this._terminals.has(uri)) {
 			throw new Error(`Terminal already exists: ${uri}`);
@@ -307,6 +307,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		// Shell integration — inject scripts so the shell emits OSC 633 sequences
 		const nonce = generateUuid();
 		const env: Record<string, string> = { ...process.env as Record<string, string> };
+		if (options?.vscodeTerminalIdentity) {
+			// Match the identity workbench terminals set in addTerminalEnvironmentKeys.
+			env['TERM_PROGRAM'] = 'vscode';
+			env['TERM_PROGRAM_VERSION'] = this._productService.version;
+		}
 		// Attribute these commands to VS Code. Already inherited from the agent
 		// host process; set here as defense in depth.
 		env[AiAgentEnvVar] = AiAgentEnvValue;

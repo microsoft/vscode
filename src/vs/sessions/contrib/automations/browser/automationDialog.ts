@@ -571,6 +571,8 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	private branches: readonly string[] = [];
 	private detachedCommit: string | undefined;
 	private worktreeCapabilityResolved = false;
+	private container: HTMLElement | undefined;
+	private visibleFromInput = true;
 
 	constructor(
 		action: IAction,
@@ -620,10 +622,12 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		this.cancelBranchRequest();
 		DOM.clearNode(container);
 		container.style.marginLeft = 'auto';
+		this.container = container;
 		const visible = this.visible;
 		if (visible) {
 			this.renderDisposables.add(autorun(reader => {
-				setAutomationControlVisible(container, visible.read(reader));
+				this.visibleFromInput = visible.read(reader);
+				this.updateVisibility();
 			}));
 		}
 
@@ -650,6 +654,13 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 
 	showPicker(anchor: HTMLElement): void {
 		this.branchPicker.showPicker(anchor);
+	}
+
+	/** Worktree and branch pickers only apply to Git repositories, so hide them once the folder is known not to be one. */
+	private updateVisibility(): void {
+		if (this.container) {
+			setAutomationControlVisible(this.container, this.visibleFromInput && this.branchLoadState !== 'noRepository');
+		}
 	}
 
 	private refreshTargetCapability(): void {
@@ -721,6 +732,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 				disabledReason: worktreeUnavailableReason,
 			},
 		});
+		this.updateVisibility();
 		this.revalidate();
 	}
 
@@ -878,6 +890,9 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		}
 		if (!repo) {
 			this.branchLoadState = 'noRepository';
+			if (this.isolationModel.isolationMode === 'worktree') {
+				this.isolationModel.selectIsolationMode('workspace');
+			}
 			this.renderBranchControl();
 			return;
 		}
@@ -1232,12 +1247,9 @@ export function renderForm(
 
 	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
 	const targetRow = DOM.append(sessionSection, $('.automation-form-row.automation-target-row'));
-	const targetLabel = DOM.append(targetRow, $('span.automation-form-label', {
-		id: 'automation-target-label',
-	}, localize('automation.form.target', "Target")));
 	const targetContainer = DOM.append(targetRow, $('.automation-target-toolbar', {
 		role: 'group',
-		'aria-labelledby': targetLabel.id,
+		'aria-label': localize('automation.form.target', "Target"),
 	}));
 	const targetError = DOM.append(targetRow, $('span.automation-target-error', {
 		id: 'automation-target-error',
@@ -1248,7 +1260,6 @@ export function renderForm(
 	DOM.hide(targetError);
 	const promptSection = DOM.append(sessionSection, $('.automation-prompt-section'));
 	const promptRow = DOM.append(promptSection, $('.automation-form-row'));
-	DOM.append(promptRow, $('span.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 	const editorOverflowWidgetsDomNode = layoutService.getContainer(DOM.getWindow(promptHost)).appendChild($('.chat-editor-overflow.automation-dialog-editor-overflow.monaco-editor'));
 	disposables.add(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
