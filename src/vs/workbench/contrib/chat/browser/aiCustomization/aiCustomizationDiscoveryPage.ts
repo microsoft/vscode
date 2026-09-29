@@ -1403,7 +1403,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		} else {
 			this.resultStatus.textContent = catalogPending ? this.getLoadingLabel() : '';
 		}
-		if (catalogPending) {
+		if (this.loading) {
 			this.announce(this.getLoadingLabel());
 		}
 		if (!catalogPending && !this.errorMessage) {
