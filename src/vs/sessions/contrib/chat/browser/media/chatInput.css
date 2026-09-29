@@ -274,6 +274,25 @@
 	display: none;
 }
 
+.experimental-new-session-composer .sessions-chat-toolbar .action-label.model-picker-split.has-config .model-picker-config,
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-toolbar .action-label.model-picker-split.has-config .model-picker-config {
+	position: relative;
+	margin-left: var(--vscode-spacing-size20);
+}
+
+.experimental-new-session-composer .sessions-chat-toolbar .action-label.model-picker-split.has-config .model-picker-config::before,
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-toolbar .action-label.model-picker-split.has-config .model-picker-config::before {
+	position: absolute;
+	left: calc(-1 * var(--vscode-spacing-size20) / 2);
+	top: 50%;
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-spacing-size120);
+	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+	content: "";
+	transform: translate(-50%, -50%);
+	pointer-events: none;
+}
+
 .sessions-chat-config-toolbar .monaco-toolbar {
 	height: auto;
 	min-width: 0;
