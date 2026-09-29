@@ -47,8 +47,10 @@ suite('Session comparison navigation', () => {
 			})),
 		};
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
 		const openedSessions: string[] = [];
 		const openedGrids: string[][] = [];
+		let commitGridOpen = true;
 		const hiddenParts: Array<{ hidden: boolean; part: Parts }> = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
@@ -61,11 +63,15 @@ suite('Session comparison navigation', () => {
 			}
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override visibleSessions = visibleSessions;
 			override async openSession(resource: URI): Promise<void> {
 				openedSessions.push(sessions.find(session => session.resource.toString() === resource.toString())!.sessionId);
 			}
 			override async openSessionsInGrid(targets: readonly IActiveSession[]): Promise<void> {
 				openedGrids.push(targets.map(session => session.sessionId));
+				if (commitGridOpen) {
+					visibleSessions.set(targets, undefined);
+				}
 			}
 		}());
 		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
@@ -74,7 +80,7 @@ suite('Session comparison navigation', () => {
 			}
 		}());
 		const service = instantiationService.createInstance(SessionComparisonViewService);
-		return { service, comparisons, statuses, openedSessions, openedGrids, hiddenParts };
+		return { service, comparisons, statuses, openedSessions, openedGrids, hiddenParts, setCommitGridOpen: (value: boolean) => commitGridOpen = value };
 	}
 
 	test('opens attempts in the grid when the Judge is available', async () => {
@@ -131,6 +137,19 @@ suite('Session comparison navigation', () => {
 				{ hidden: true, part: Parts.EDITOR_PART },
 				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
 			],
+		});
+	});
+
+	test('does not hide side panes when opening the grid is superseded', async () => {
+		const fixture = setup();
+		fixture.setCommitGridOpen(false);
+		await fixture.service.open('comparison');
+		assert.deepStrictEqual({
+			openedGrids: fixture.openedGrids,
+			hiddenParts: fixture.hiddenParts,
+		}, {
+			openedGrids: [['attempt-0', 'attempt-1']],
+			hiddenParts: [],
 		});
 	});
 

@@ -46,6 +46,10 @@ export class SessionComparisonViewService implements ISessionComparisonViewServi
 			throw new Error(localize('sessionComparison.noAttempts', "No comparison attempts are available to open."));
 		}
 		await this.sessionsService.openSessionsInGrid(availableAttempts);
+		const visibleSessions = this.sessionsService.visibleSessions.get();
+		if (visibleSessions.length !== availableAttempts.length || visibleSessions.some((session, index) => session?.sessionId !== availableAttempts[index]?.sessionId)) {
+			return;
+		}
 		this.layoutService.setPartHidden(true, Parts.EDITOR_PART);
 		this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 	}
