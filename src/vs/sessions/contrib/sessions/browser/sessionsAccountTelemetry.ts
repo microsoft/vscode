@@ -26,7 +26,7 @@ interface ISessionsAccountTelemetryData {
 type SessionsAccountStateClassification = {
 	owner: 'benibenj';
 	comment: 'Reports account and quota context once per Agents window after startup data resolves, waiting at most 30 seconds before reporting available fields.';
-	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU at startup, or signedOut or unknown when no SKU is available.' };
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU at startup, including anonymous access, or signedOut or unknown when no SKU is available.' };
 	copilotAccountState: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot account state at startup: signedIn, signedOut, or unknown while resolving entitlement.' };
 	copilotQuotaPercentRemaining: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Remaining percentage (0-100) of the monthly premium chat quota, falling back to the monthly chat quota if absent. Omitted for unresolved, unlimited, invalid, or expired quotas.' };
 	chatgptAccountState: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'ChatGPT account state at startup: unknown, downloading, signedIn, signedOut, unavailable, or error. Does not contain an account identifier.' };
@@ -43,7 +43,7 @@ type SessionsAccountStateChangedEvent = ISessionsAccountTelemetryData & {
 type SessionsAccountStateChangedClassification = {
 	owner: 'benibenj';
 	comment: 'Reports Agents window sign-in, sign-out, and Copilot SKU changes, and quotas first becoming available after startup or an account change. Routine quota consumption does not emit an event.';
-	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current Copilot entitlement SKU, or signedOut or unknown when no SKU is available.' };
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current Copilot entitlement SKU, including anonymous access, or signedOut or unknown when no SKU is available.' };
 	copilotAccountState: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot account state: signedIn, signedOut, or unknown while resolving entitlement.' };
 	copilotQuotaPercentRemaining: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Remaining percentage (0-100) of the monthly premium chat quota, falling back to the monthly chat quota if absent. Omitted for unresolved, unlimited, invalid, or expired quotas.' };
 	chatgptAccountState: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'ChatGPT account state: unknown, downloading, signedIn, signedOut, unavailable, or error. Does not contain an account identifier.' };
@@ -74,8 +74,10 @@ export class SessionsAccountTelemetryContribution extends Disposable implements 
 		// Entitlement changes precede the corresponding synchronous quota update.
 		const update = this._register(new RunOnceScheduler(() => this.onAccountChanged(), 0));
 		this._register(chatEntitlementService.onDidChangeEntitlement(() => update.schedule()));
+		this._register(chatEntitlementService.onDidChangeAnonymous(() => update.schedule()));
 		this._register(chatEntitlementService.onDidChangeQuotaRemaining(() => update.schedule()));
 		this._register(codexAccountService.onDidChangeAccount(() => update.schedule()));
+		this._register(defaultAccountService.onDidChangeDefaultAccount(() => update.schedule()));
 		this.startupDeadline.schedule();
 		void this.waitForInitialAccount(update).catch(error => this.logService.error('[SessionsAccountTelemetry] Failed to resolve the initial account.', error));
 	}
@@ -88,15 +90,21 @@ export class SessionsAccountTelemetryContribution extends Disposable implements 
 		}
 	}
 
-	private hasStartupData(): boolean {
-		if (!this.initialDefaultAccountResolved) {
-			return false;
-		}
-		const { entitlement, sku, quotas } = this.chatEntitlementService;
-		if (entitlement === ChatEntitlement.Unresolved
+	private get copilotEntitlement(): ChatEntitlement {
+		const entitlement = this.chatEntitlementService.entitlement;
+		if (!this.initialDefaultAccountResolved
 			|| (entitlement === ChatEntitlement.Unknown && this.defaultAccountService.currentDefaultAccount !== null)) {
+			return ChatEntitlement.Unresolved;
+		}
+		return entitlement;
+	}
+
+	private hasStartupData(): boolean {
+		const entitlement = this.copilotEntitlement;
+		if (entitlement === ChatEntitlement.Unresolved) {
 			return false;
 		}
+		const { sku, quotas } = this.chatEntitlementService;
 		if (entitlement !== ChatEntitlement.Unknown && entitlement !== ChatEntitlement.Available && entitlement !== ChatEntitlement.Unavailable
 			&& (sku === undefined || (quotas.premiumChat === undefined && quotas.chat === undefined))) {
 			return false;
@@ -107,12 +115,12 @@ export class SessionsAccountTelemetryContribution extends Disposable implements 
 	}
 
 	private get snapshot(): ISessionsAccountTelemetryData {
-		const entitlement = this.initialDefaultAccountResolved ? this.chatEntitlementService.entitlement : ChatEntitlement.Unresolved;
+		const entitlement = this.copilotEntitlement;
 		const copilotAccountState = entitlement === ChatEntitlement.Unknown ? 'signedOut'
 			: entitlement === ChatEntitlement.Unresolved ? 'unknown' : 'signedIn';
 		const now = Date.now();
 		return {
-			copilotSku: this.initialDefaultAccountResolved ? getSessionsTelemetryCopilotSku(this.chatEntitlementService) : 'unknown',
+			copilotSku: entitlement === ChatEntitlement.Unresolved ? 'unknown' : getSessionsTelemetryCopilotSku(this.chatEntitlementService),
 			copilotAccountState,
 			copilotQuotaPercentRemaining: copilotAccountState === 'signedIn'
 				? getCopilotQuotaPercentRemaining(this.chatEntitlementService.quotas.premiumChat ?? this.chatEntitlementService.quotas.chat, now, this.logService)
@@ -155,7 +163,7 @@ export class SessionsAccountTelemetryContribution extends Disposable implements 
 }
 
 export function getSessionsTelemetryCopilotSku(chatEntitlementService: IChatEntitlementService): string {
-	if (chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+	if (chatEntitlementService.entitlement === ChatEntitlement.Unknown && !chatEntitlementService.anonymous) {
 		return 'signedOut';
 	}
 	if (chatEntitlementService.entitlement === ChatEntitlement.Unresolved) {

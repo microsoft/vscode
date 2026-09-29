@@ -327,6 +327,30 @@ suite('SessionsTelemetryContribution', () => {
 		]);
 	});
 
+	test('preserves the anonymous SKU on requests, lifecycle actions, and summaries', async () => {
+		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
+			override entitlement = ChatEntitlement.Unknown;
+			override anonymous = true;
+			override sku = 'no_auth_limited_copilot';
+		};
+		const { telemetryService, onDidSendRequest, onDidArchiveSession } = setup([session], undefined, [], { chatEntitlementService });
+
+		onDidSendRequest.fire({ session, chat, isNewSession: true, isNewChat: true, options: { query: 'anonymous session' } });
+		await timeout(0);
+		onDidArchiveSession.fire(session);
+		await timeout(0);
+		chatEntitlementService.anonymous = false;
+		onDidSendRequest.fire({ session, chat, isNewSession: false, isNewChat: false, options: { query: 'signed out' } });
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryService.events, [
+			{ name: 'agents/requestSent', copilotSku: 'no_auth_limited_copilot' },
+			{ name: 'agents/sessionSummary', copilotSku: 'no_auth_limited_copilot' },
+			{ name: 'agents/sessionArchived', copilotSku: 'no_auth_limited_copilot' },
+			{ name: 'agents/requestSent', copilotSku: 'signedOut' },
+		]);
+	});
+
 	test('requestSent includes editor usage without incrementing it for Agents messages', async () => {
 		const { telemetryService, storageService, onDidSendRequest } = setup([session]);
 		const usage = new EditorChatUsage(storageService);

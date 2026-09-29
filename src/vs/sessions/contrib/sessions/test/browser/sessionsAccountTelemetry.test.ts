@@ -34,6 +34,7 @@ suite('SessionsAccountTelemetryContribution', () => {
 	function createHarness(initial: {
 		entitlement?: ChatEntitlement;
 		sku?: string;
+		anonymous?: boolean;
 		quotas?: IChatEntitlementService['quotas'];
 		account?: ICodexAccountInfo;
 		defaultAccount?: IDefaultAccountService['currentDefaultAccount'];
@@ -41,13 +42,17 @@ suite('SessionsAccountTelemetryContribution', () => {
 		telemetryService?: ITelemetryService;
 	} = {}) {
 		const entitlementChanged = disposables.add(new Emitter<void>());
+		const anonymousChanged = disposables.add(new Emitter<void>());
 		const quotaChanged = disposables.add(new Emitter<void>());
 		const accountChanged = disposables.add(new Emitter<ICodexAccountInfo>());
+		const defaultAccountChanged = disposables.add(new Emitter<IDefaultAccountService['currentDefaultAccount']>());
 		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
 			override entitlement = initial.entitlement ?? ChatEntitlement.Unknown;
 			override sku = initial.sku;
+			override anonymous = initial.anonymous ?? false;
 			override quotas: IChatEntitlementService['quotas'] = initial.quotas ?? {};
 			override onDidChangeEntitlement = entitlementChanged.event;
+			override onDidChangeAnonymous = anonymousChanged.event;
 			override onDidChangeQuotaRemaining = quotaChanged.event;
 		};
 		const codexAccountService = new class extends mock<ICodexAccountService>() {
@@ -56,6 +61,7 @@ suite('SessionsAccountTelemetryContribution', () => {
 		};
 		const defaultAccountService = new class extends mock<IDefaultAccountService>() {
 			override currentDefaultAccount = initial.defaultAccount ?? null;
+			override onDidChangeDefaultAccount = defaultAccountChanged.event;
 			override async getDefaultAccount() {
 				await initial.defaultAccountReady;
 				return this.currentDefaultAccount;
@@ -70,7 +76,7 @@ suite('SessionsAccountTelemetryContribution', () => {
 			}
 		};
 		const tracker = disposables.add(new SessionsAccountTelemetryContribution(telemetryService, chatEntitlementService, codexAccountService, new NullLogService(), defaultAccountService));
-		return { tracker, chatEntitlementService, codexAccountService, entitlementChanged, quotaChanged, accountChanged, events };
+		return { tracker, chatEntitlementService, codexAccountService, defaultAccountService, entitlementChanged, anonymousChanged, quotaChanged, accountChanged, defaultAccountChanged, events };
 	}
 
 	test('emits one standalone startup event with one remaining-percentage metric per provider', async () => {
@@ -276,6 +282,128 @@ suite('SessionsAccountTelemetryContribution', () => {
 					data: {
 						...signedOutSnapshot, chatgptAccountState: 'unknown',
 						changeReason: 'accountChanged', previousCopilotSku: 'unknown', previousCopilotAccountState: 'unknown', previousChatgptAccountState: 'unknown',
+					},
+				},
+			]);
+		});
+	});
+
+	test('reports unknown at the deadline for a resolved signed-in account awaiting entitlement', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const harness = createHarness({
+				defaultAccount: upcastPartial<NonNullable<IDefaultAccountService['currentDefaultAccount']>>({}),
+				sku: 'cached_sku',
+				quotas: { premiumChat: { percentRemaining: 50, unlimited: false } },
+			});
+			await timeout(29_999);
+			const beforeDeadline = [...harness.events];
+			await timeout(1);
+			harness.chatEntitlementService.entitlement = ChatEntitlement.Pro;
+			harness.chatEntitlementService.sku = 'copilot_for_individual_user';
+			harness.chatEntitlementService.quotas = { premiumChat: { percentRemaining: 75, unlimited: false } };
+			harness.entitlementChanged.fire();
+			await timeout(0);
+
+			assert.deepStrictEqual({ beforeDeadline, events: harness.events }, {
+				beforeDeadline: [],
+				events: [
+					{
+						name: 'agents/accountState',
+						data: { ...signedOutSnapshot, copilotSku: 'unknown', copilotAccountState: 'unknown' },
+					},
+					{
+						name: 'agents/accountStateChanged',
+						data: {
+							...signedOutSnapshot, copilotSku: 'copilot_for_individual_user', copilotAccountState: 'signedIn', copilotQuotaPercentRemaining: 75,
+							changeReason: 'accountChanged', previousCopilotSku: 'unknown', previousCopilotAccountState: 'unknown', previousChatgptAccountState: 'signedOut',
+						},
+					},
+				],
+			});
+		});
+	});
+
+	test('observes pending sign-in and sign-out while entitlement remains Unknown', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const harness = createHarness();
+			await timeout(1);
+			harness.defaultAccountService.currentDefaultAccount = upcastPartial<NonNullable<IDefaultAccountService['currentDefaultAccount']>>({});
+			harness.defaultAccountChanged.fire(harness.defaultAccountService.currentDefaultAccount);
+			await timeout(0);
+			harness.defaultAccountService.currentDefaultAccount = null;
+			harness.defaultAccountChanged.fire(null);
+			await timeout(0);
+
+			assert.deepStrictEqual(harness.events, [
+				{ name: 'agents/accountState', data: signedOutSnapshot },
+				{
+					name: 'agents/accountStateChanged',
+					data: {
+						...signedOutSnapshot, copilotSku: 'unknown', copilotAccountState: 'unknown',
+						changeReason: 'accountChanged', previousCopilotSku: 'signedOut', previousCopilotAccountState: 'signedOut', previousChatgptAccountState: 'signedOut',
+					},
+				},
+				{
+					name: 'agents/accountStateChanged',
+					data: {
+						...signedOutSnapshot,
+						changeReason: 'accountChanged', previousCopilotSku: 'unknown', previousCopilotAccountState: 'unknown', previousChatgptAccountState: 'signedOut',
+					},
+				},
+			]);
+		});
+	});
+
+	test('preserves the anonymous SKU at startup and on anonymous access changes', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const harness = createHarness({ anonymous: true, sku: 'no_auth_limited_copilot' });
+			await timeout(1);
+			harness.chatEntitlementService.anonymous = false;
+			harness.anonymousChanged.fire();
+			await timeout(0);
+			harness.chatEntitlementService.anonymous = true;
+			harness.anonymousChanged.fire();
+			await timeout(0);
+
+			assert.deepStrictEqual(harness.events, [
+				{ name: 'agents/accountState', data: { ...signedOutSnapshot, copilotSku: 'no_auth_limited_copilot' } },
+				{
+					name: 'agents/accountStateChanged',
+					data: {
+						...signedOutSnapshot,
+						changeReason: 'accountChanged', previousCopilotSku: 'no_auth_limited_copilot', previousCopilotAccountState: 'signedOut', previousChatgptAccountState: 'signedOut',
+					},
+				},
+				{
+					name: 'agents/accountStateChanged',
+					data: {
+						...signedOutSnapshot, copilotSku: 'no_auth_limited_copilot',
+						changeReason: 'accountChanged', previousCopilotSku: 'signedOut', previousCopilotAccountState: 'signedOut', previousChatgptAccountState: 'signedOut',
+					},
+				},
+			]);
+		});
+	});
+
+	test('retains the anonymous SKU as the previous SKU after sign-in', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const harness = createHarness({ anonymous: true, sku: 'no_auth_limited_copilot' });
+			await timeout(1);
+			harness.chatEntitlementService.anonymous = false;
+			harness.chatEntitlementService.entitlement = ChatEntitlement.Pro;
+			harness.chatEntitlementService.sku = 'copilot_for_individual_user';
+			harness.chatEntitlementService.quotas = { premiumChat: { percentRemaining: 75, unlimited: false } };
+			harness.entitlementChanged.fire();
+			harness.anonymousChanged.fire();
+			await timeout(0);
+
+			assert.deepStrictEqual(harness.events, [
+				{ name: 'agents/accountState', data: { ...signedOutSnapshot, copilotSku: 'no_auth_limited_copilot' } },
+				{
+					name: 'agents/accountStateChanged',
+					data: {
+						...signedOutSnapshot, copilotSku: 'copilot_for_individual_user', copilotAccountState: 'signedIn', copilotQuotaPercentRemaining: 75,
+						changeReason: 'accountChanged', previousCopilotSku: 'no_auth_limited_copilot', previousCopilotAccountState: 'signedOut', previousChatgptAccountState: 'signedOut',
 					},
 				},
 			]);
