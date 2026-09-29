@@ -84,7 +84,7 @@ suite('ChatResourceGroupWidget', () => {
 		const initial = snapshot(widget);
 		const image = widget.domNode.querySelector<HTMLImageElement>('img')!;
 		await image.decode();
-		await timeout(0);
+		await retry(async () => assert.strictEqual(snapshot(widget).busy, 'false'), 10, 50);
 
 		assert.deepStrictEqual({
 			initial,
@@ -108,7 +108,8 @@ suite('ChatResourceGroupWidget', () => {
 		const image = widget.domNode.querySelector<HTMLImageElement>('img')!;
 		const loadingBorder = mainWindow.getComputedStyle(widget.domNode.querySelector('.image-attachment')!).borderColor;
 		await content.complete(decodeBase64(imageData));
-		await retry(async () => assert.ok(image.complete && image.naturalWidth > 0), 10, 50);
+		// WebKit can finish decoding before the load handler updates the widget.
+		await retry(async () => assert.ok(image.complete && image.naturalWidth > 0 && snapshot(widget).busy === 'false'), 10, 50);
 
 		assert.deepStrictEqual({
 			initial,
