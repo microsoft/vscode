@@ -40,7 +40,7 @@ export interface ChatState {
 	activity?: string;
 	/**
 	 * Work running outside the current turn that will resume this chat when it
-	 * finishes, such as background shells and subagents. Independent of turn state.
+	 * finishes, such as background shells. Independent of turn state.
 	 */
 	backgroundWork?: BackgroundWork[];
 	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
@@ -168,8 +168,6 @@ export interface ChatSummary {
 export const enum BackgroundWorkKind {
 	/** A shell command that continues after its initiating tool call returns. */
 	Shell = 'shell',
-	/** A subagent running in the background. */
-	Subagent = 'subagent',
 }
 
 /**
@@ -198,7 +196,7 @@ interface BackgroundWorkBase {
 	 * convention.
 	 */
 	id: string;
-	/** Human-readable label, such as the command's purpose or the subagent's name. */
+	/** Human-readable label, such as the command's purpose. */
 	label: string;
 	/** Current activity of the unfinished work. */
 	status: BackgroundWorkStatus;
@@ -222,26 +220,13 @@ export interface BackgroundShellWork extends BackgroundWorkBase {
 }
 
 /**
- * A subagent running in the background. Its own state lives in its chat.
- *
- * @category Background Work
- */
-export interface BackgroundSubagentWork extends BackgroundWorkBase {
-	kind: BackgroundWorkKind.Subagent;
-	/** The subagent's chat. */
-	chat: URI;
-}
-
-/**
  * Work running outside the current turn that will resume the owning chat when
  * it finishes. Clients that don't recognize a `kind` should keep the entry and
  * may render it from the common fields.
  *
  * @category Background Work
  */
-export type BackgroundWork =
-	| BackgroundShellWork
-	| BackgroundSubagentWork;
+export type BackgroundWork = BackgroundShellWork;
 
 /**
  * Discriminant for {@link ChatOrigin} — how a chat came into existence.

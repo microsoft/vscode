@@ -96,6 +96,7 @@ const SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS = 50;
 function toChatBackgroundShells(work: readonly BackgroundWork[] | undefined): readonly IChatBackgroundShell[] {
 	const shells: IChatBackgroundShell[] = [];
 	for (const entry of work ?? []) {
+		// The kind set is non-exhaustive, so newer hosts can send kinds this client doesn't render.
 		if (entry.kind !== BackgroundWorkKind.Shell) {
 			continue;
 		}
