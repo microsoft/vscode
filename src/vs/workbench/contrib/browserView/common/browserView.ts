@@ -498,25 +498,6 @@ export function createBrowserViewEventEmitters(store: DisposableStore): BrowserV
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
-	readonly onDidChangeAreaSelectionActive = this._remoteEvents.onDidChangeAreaSelectionActive.event;
-	readonly onDidChangeDevToolsState = this._remoteEvents.onDidChangeDevToolsState.event;
-	readonly onDidChangeElementSelectionState = this._remoteEvents.onDidChangeElementSelectionState.event;
-	readonly onDidChangeFavicon = this._remoteEvents.onDidChangeFavicon.event;
-	readonly onDidChangeFocus = this._remoteEvents.onDidChangeFocus.event;
-	readonly onDidChangeLoadingState = this._remoteEvents.onDidChangeLoadingState.event;
-	readonly onDidChangeOwner = this._remoteEvents.onDidChangeOwner.event;
-	readonly onDidChangeRemoteStatus = this._remoteEvents.onDidChangeRemoteStatus.event;
-	readonly onDidChangeTitle = this._remoteEvents.onDidChangeTitle.event;
-	readonly onDidChangeVisibility = this._remoteEvents.onDidChangeVisibility.event;
-	readonly onDidClose = this._remoteEvents.onDidClose.event;
-	readonly onDidFindInPage = this._remoteEvents.onDidFindInPage.event;
-	readonly onDidKeyCommand = this._remoteEvents.onDidKeyCommand.event;
-	readonly onDidNavigate = this._remoteEvents.onDidNavigate.event;
-	readonly onDidPickArea = this._remoteEvents.onDidPickArea.event;
-	readonly onDidRemoveElementComment = this._remoteEvents.onDidRemoveElementComment.event;
-	readonly onDidRequestPermission = this._remoteEvents.onDidRequestPermission.event;
-	readonly onDidSelectElement = this._remoteEvents.onDidSelectElement.event;
-
 	private _url: string = '';
 	private _owner: IBrowserViewOwner;
 	private _title: string = '';
@@ -543,6 +524,25 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	readonly history = this._register(new BrowserHistoryStore());
 	readonly permissions = this._register(new BrowserPermissionStore());
+
+	get onDidNavigate() { return this._remoteEvents.onDidNavigate.event; }
+	get onDidChangeLoadingState() { return this._remoteEvents.onDidChangeLoadingState.event; }
+	get onDidChangeFocus() { return this._remoteEvents.onDidChangeFocus.event; }
+	get onDidChangeDevToolsState() { return this._remoteEvents.onDidChangeDevToolsState.event; }
+	get onDidKeyCommand() { return this._remoteEvents.onDidKeyCommand.event; }
+	get onDidChangeTitle() { return this._remoteEvents.onDidChangeTitle.event; }
+	get onDidChangeFavicon() { return this._remoteEvents.onDidChangeFavicon.event; }
+	get onDidChangeOwner() { return this._remoteEvents.onDidChangeOwner.event; }
+	get onDidFindInPage() { return this._remoteEvents.onDidFindInPage.event; }
+	get onDidChangeVisibility() { return this._remoteEvents.onDidChangeVisibility.event; }
+	get onDidClose() { return this._remoteEvents.onDidClose.event; }
+	get onDidSelectElement() { return this._remoteEvents.onDidSelectElement.event; }
+	get onDidRemoveElementComment() { return this._remoteEvents.onDidRemoveElementComment.event; }
+	get onDidChangeElementSelectionState() { return this._remoteEvents.onDidChangeElementSelectionState.event; }
+	get onDidPickArea() { return this._remoteEvents.onDidPickArea.event; }
+	get onDidChangeAreaSelectionActive() { return this._remoteEvents.onDidChangeAreaSelectionActive.event; }
+	get onDidChangeRemoteStatus() { return this._remoteEvents.onDidChangeRemoteStatus.event; }
+	get onDidRequestPermission() { return this._remoteEvents.onDidRequestPermission.event; }
 
 	private readonly _onDidChangeDevice = this._register(new Emitter<IBrowserDeviceProfile | undefined>());
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined> = this._onDidChangeDevice.event;

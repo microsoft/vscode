@@ -401,7 +401,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				}
 				return model;
 			});
-			input.onWillDispose(() => {
+			Event.once(input.onWillDispose)(() => {
 				this._known.delete(id);
 				this._onDidChangeBrowserViews.fire();
 			});
@@ -461,7 +461,12 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			return existing;
 		}
 
-		const state = initialUrl ? { ...info.state, url: initialUrl } : info.state;
+		const state = {
+			...info.state,
+			url: initialUrl ?? info.state.url,
+			title: info.state.title || input?.title || '',
+			lastFavicon: info.state.lastFavicon ?? input?.favicon
+		};
 		const store = new DisposableStore();
 		const emitters = createBrowserViewEventEmitters(store);
 		this._remoteEvents.set(info.id, { emitters, dispose: () => store.dispose() });
@@ -472,7 +477,13 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			this._remoteEvents.deleteAndDispose(info.id);
 			throw error;
 		}
-		store.add(Event.once(model.onWillDispose)(() => this._remoteEvents.deleteAndDispose(info.id)));
+		store.add(Event.once(model.onWillDispose)(() => {
+			if (this._remoteEvents.get(info.id)?.emitters === emitters) {
+				this._remoteEvents.deleteAndLeak(info.id);
+			}
+			// Let an in-flight close event reach the remaining model consumers.
+			queueMicrotask(() => store.dispose());
+		}));
 
 		// Sanity: both pass and assign the model to be sure. It will no-op if already set.
 		this._getOrCreateLazy({ id: info.id, associatedResource, url: initialUrl }, model).model = model;
