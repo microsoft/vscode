@@ -218,6 +218,7 @@ import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
 import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
+import { CodexStatusBarEntry } from './chatStatus/codexStatusEntry.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
 import { ChatWindowNotifier } from './chatWindowNotifier.js';
 import { AgentPluginRecommendations } from './claudePluginRecommendations.js';
@@ -3268,6 +3269,7 @@ registerWorkbenchContribution2(ChatExpNotificationContribution.ID, ChatExpNotifi
 registerWorkbenchContribution2(HasByokModelsContribution.ID, HasByokModelsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(CodexStatusBarEntry.ID, CodexStatusBarEntry, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ClientToolSetsContribution.ID, ClientToolSetsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(UsagesToolContribution.ID, UsagesToolContribution, WorkbenchPhase.BlockRestore);

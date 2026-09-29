@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse } from '../../../node/codex/codexAccountState.js';
+import { codexAccountRateLimitFromResponse, codexAccountRateLimitsFromResponse, codexAccountStateFromResponse } from '../../../node/codex/codexAccountState.js';
 
 suite('CodexAccountState', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,8 +43,8 @@ suite('CodexAccountState', () => {
 		);
 	});
 
-	test('prefers the Codex weekly rate-limit window', () => {
-		assert.deepStrictEqual(codexAccountRateLimitFromResponse({
+	test('keeps all Codex rate-limit windows and prefers the weekly summary', () => {
+		const response = {
 			rateLimits: {
 				limitId: null,
 				limitName: null,
@@ -72,10 +72,20 @@ suite('CodexAccountState', () => {
 			rateLimitResetCredits: null,
 			accountId: null,
 			rateLimitUpsell: null,
-		}), {
-			usedPercent: 42.4,
-			windowDurationMins: 7 * 24 * 60,
-			resetsAt: 300,
+		};
+		assert.deepStrictEqual({
+			rateLimit: codexAccountRateLimitFromResponse(response),
+			rateLimits: codexAccountRateLimitsFromResponse(response),
+		}, {
+			rateLimit: {
+				usedPercent: 42.4,
+				windowDurationMins: 7 * 24 * 60,
+				resetsAt: 300,
+			},
+			rateLimits: [
+				{ usedPercent: 21, windowDurationMins: 300, resetsAt: 200 },
+				{ usedPercent: 42.4, windowDurationMins: 7 * 24 * 60, resetsAt: 300 },
+			],
 		});
 	});
 

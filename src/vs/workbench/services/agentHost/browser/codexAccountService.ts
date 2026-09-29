@@ -48,6 +48,12 @@ export function hasSignedInCodexChatGPTAccount(account: ICodexAccountInfo, visib
 	return visible && account.status === 'signedIn';
 }
 
+export function getCodexAccountPlanName(account: Pick<ICodexAccountInfo, 'planType'>): string {
+	return account.planType
+		? localize('chatGPTPlan', "ChatGPT {0}", account.planType.charAt(0).toUpperCase() + account.planType.slice(1))
+		: localize('chatGPTSubscription', "ChatGPT subscription");
+}
+
 export function shouldShowCodexAccount(configurationService: ICodexAccountVisibilityConfiguration, isSessionsWindow: boolean): boolean {
 	return configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true
 		&& configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId) === true

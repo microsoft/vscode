@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ICodexAccountRateLimitInfo } from '../../common/codexAccount.js';
+import type { ICodexAccountRateLimitInfo, ICodexAccountRateLimitsInfo } from '../../common/codexAccount.js';
 import type { GetAccountRateLimitsResponse } from './protocol/generated/v2/GetAccountRateLimitsResponse.js';
 import type { GetAccountResponse } from './protocol/generated/v2/GetAccountResponse.js';
 import type { RateLimitWindow } from './protocol/generated/v2/RateLimitWindow.js';
@@ -32,23 +32,33 @@ export function codexAccountStateFromResponse(response: GetAccountResponse): ICo
 }
 
 export function codexAccountRateLimitFromResponse(response: GetAccountRateLimitsResponse): ICodexAccountRateLimitInfo | undefined {
-	const codexSnapshot = response.rateLimitsByLimitId?.codex;
-	const snapshot = codexSnapshot?.primary || codexSnapshot?.secondary ? codexSnapshot : response.rateLimits;
-	const windows = [snapshot.primary, snapshot.secondary].filter((window): window is RateLimitWindow => !!window);
+	const windows = codexAccountRateLimitsFromResponse(response) ?? [];
 	if (windows.length === 0) {
 		return undefined;
 	}
 	const weeklyWindowMins = 7 * 24 * 60;
-	const window = windows.reduce((best, candidate) => {
-		if (candidate.windowDurationMins === null) {
+	return windows.reduce((best, candidate) => {
+		if (candidate.windowDurationMins === undefined) {
 			return best;
 		}
-		if (best.windowDurationMins === null) {
+		if (best.windowDurationMins === undefined) {
 			return candidate;
 		}
 		return Math.abs(candidate.windowDurationMins - weeklyWindowMins) < Math.abs(best.windowDurationMins - weeklyWindowMins) ? candidate : best;
 	});
-	if (!Number.isFinite(window.usedPercent)) {
+}
+
+export function codexAccountRateLimitsFromResponse(response: GetAccountRateLimitsResponse): ICodexAccountRateLimitsInfo | undefined {
+	const codexSnapshot = response.rateLimitsByLimitId?.codex;
+	const snapshot = codexSnapshot?.primary || codexSnapshot?.secondary ? codexSnapshot : response.rateLimits;
+	const primary = codexAccountRateLimitWindowFromResponse(snapshot.primary);
+	const secondary = codexAccountRateLimitWindowFromResponse(snapshot.secondary);
+	const rateLimits = [primary, secondary].filter((rateLimit): rateLimit is ICodexAccountRateLimitInfo => !!rateLimit);
+	return rateLimits.length > 0 ? rateLimits : undefined;
+}
+
+function codexAccountRateLimitWindowFromResponse(window: RateLimitWindow | null): ICodexAccountRateLimitInfo | undefined {
+	if (!window || !Number.isFinite(window.usedPercent)) {
 		return undefined;
 	}
 	return {

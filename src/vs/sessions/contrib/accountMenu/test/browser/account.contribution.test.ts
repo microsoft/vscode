@@ -6,12 +6,13 @@
 import assert from 'assert';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -19,9 +20,11 @@ import { TestThemeService } from '../../../../../platform/theme/test/common/test
 import { CHAT_SETUP_ACTION_ID } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatPetAccessoryId, ChatPetAccessoryIds, ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { ChatPetVariant, IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { ICodexAccountService, type ICodexAccountViewInfo } from '../../../../../workbench/services/agentHost/browser/codexAccountService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { shouldShowAccountPanelSummary } from '../../browser/account.contribution.js';
 import { getSessionsChatPetAchievementBadges, SessionsChatPetAchievementBadges } from '../../browser/chatPetAchievementBadges.js';
+import { ChatGPTAccountSection, getChatGPTRateLimitResetHover } from '../../browser/chatGPTAccountSection.js';
 
 suite('Sessions - Account Menu', () => {
 
@@ -62,6 +65,70 @@ suite('Sessions - Account Menu', () => {
 			signedOut: false,
 			unavailable: true,
 			loading: false,
+		});
+	});
+
+	test('formats exact ChatGPT rate-limit reset hovers', () => {
+		const weeklyReset = new Date(2026, 9, 5, 16, 59);
+		const fiveHourReset = new Date(2026, 9, 5, 15, 6);
+		assert.deepStrictEqual({
+			weekly: getChatGPTRateLimitResetHover({ usedPercent: 1, windowDurationMins: 7 * 24 * 60, resetsAt: weeklyReset.getTime() / 1000 }),
+			fiveHour: getChatGPTRateLimitResetHover({ usedPercent: 3, windowDurationMins: 5 * 60, resetsAt: fiveHourReset.getTime() / 1000 }),
+		}, {
+			weekly: 'Resets on Oct 5, 2026 at 4:59 PM',
+			fiveHour: 'Resets at 3:06 PM',
+		});
+	});
+
+	test('renders every ChatGPT rate limit by ascending duration', () => {
+		const parent = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
+		const account: ICodexAccountViewInfo = {
+			status: 'signedIn',
+			email: 'person@example.com',
+			planType: 'plus',
+			rateLimits: [
+				{ usedPercent: 94, windowDurationMins: 7 * 24 * 60 },
+				{ usedPercent: 72, windowDurationMins: 24 * 60 },
+				{ usedPercent: 65, windowDurationMins: 5 * 60 },
+			],
+		};
+		const accountService: ICodexAccountService = {
+			_serviceBrand: undefined,
+			agent: 'codex',
+			account,
+			onDidChangeAccount: Event.None,
+			signIn() { },
+			signOut() { },
+		};
+		const hoverService = new class extends mock<IHoverService>() {
+			override setupDelayedHover() {
+				return toDisposable(() => { });
+			}
+		}();
+		const section = store.add(new ChatGPTAccountSection(
+			{ account },
+			accountService,
+			new class extends mock<ICommandService>() { }(),
+			hoverService,
+		));
+		parent.appendChild(section.element);
+
+		const rows = Array.from(section.element.querySelectorAll('.sessions-account-titlebar-panel-provider-metric-row.secondary'));
+		assert.deepStrictEqual({
+			plan: section.element.querySelector('.sessions-account-titlebar-panel-provider-plan')?.textContent,
+			limits: rows.map(row => ({
+				label: row.firstElementChild?.textContent,
+				usage: row.lastElementChild?.textContent,
+			})),
+		}, {
+			plan: 'ChatGPT Plus',
+			limits: [
+				{ label: '5-hour limit', usage: '65% used' },
+				{ label: 'Daily limit', usage: '72% used' },
+				{ label: 'Weekly limit', usage: '94% used' },
+			],
 		});
 	});
 

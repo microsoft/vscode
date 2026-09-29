@@ -32,6 +32,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { registerUpdateTitleBarMenuPlacement } from '../../../../workbench/contrib/update/browser/updateTitleBarEntry.js';
 import { ChatEntitlement, ChatEntitlementService, getChatPlanName, getQuotaReset, getQuotaUsage, IChatEntitlementService, IQuotaSnapshot, QuotaUsageKind } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
+import { getCodexRateLimits } from '../../../../workbench/contrib/chat/browser/chatStatus/codexStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
@@ -50,7 +51,7 @@ import { MANAGE_CHAT_COMMAND_ID } from '../../../../workbench/contrib/chat/commo
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { fromNow, safeIntl } from '../../../../base/common/date.js';
+import { safeIntl } from '../../../../base/common/date.js';
 import { language } from '../../../../base/common/platform.js';
 import { AgentHostCodexAgentEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
@@ -58,6 +59,7 @@ import { CHAT_SETUP_ACTION_ID } from '../../../../workbench/contrib/chat/browser
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { SessionsChatPetAchievementBadges } from './chatPetAchievementBadges.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { ChatGPTAccountSection } from './chatGPTAccountSection.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = Menus.AccountMenu;
@@ -172,8 +174,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private container: HTMLElement | undefined;
 	private avatarElement: HTMLImageElement | undefined;
 	private iconElement: HTMLElement | undefined;
-	private codexPanelAvatarElement: HTMLImageElement | undefined;
-	private codexPanelIconElement: HTMLElement | undefined;
+	private chatGPTAccountSection: ChatGPTAccountSection | undefined;
 	private labelElement: HTMLElement | undefined;
 	private badgeElement: HTMLElement | undefined;
 	private accountName: string | undefined;
@@ -362,7 +363,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.badgeElement.classList.toggle('dot-badge-warning', shouldShowDotBadge && state.dotBadge === 'warning');
 		this.badgeElement.classList.toggle('dot-badge-error', shouldShowDotBadge && state.dotBadge === 'error');
 		this.badgeElement.style.display = shouldShowDotBadge ? '' : 'none';
-		this.renderCodexPanelAvatar();
+		this.chatGPTAccountSection?.setAvatarUrl(this.loadedCodexAvatarUrl);
 	}
 
 	private getAvatarAltText(hasLoadedAvatar: boolean): string {
@@ -371,29 +372,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 
 		return localize('accountAvatarAltFallback', "Account profile image");
-	}
-
-	private getCodexAvatarAltText(): string {
-		return this.codexAccountService.account.email
-			? localize('chatGPTAvatarAlt', "ChatGPT profile image for {0}", this.codexAccountService.account.email)
-			: localize('chatGPTAvatarAltFallback', "ChatGPT profile image");
-	}
-
-	private renderCodexPanelAvatar(): void {
-		if (!this.codexPanelAvatarElement || !this.codexPanelIconElement) {
-			return;
-		}
-		const avatarUrl = this.loadedCodexAvatarUrl;
-		this.codexPanelAvatarElement.classList.toggle('hidden', !avatarUrl);
-		this.codexPanelIconElement.classList.toggle('hidden', !!avatarUrl);
-		this.codexPanelAvatarElement.alt = this.getCodexAvatarAltText();
-		if (avatarUrl) {
-			if (this.codexPanelAvatarElement.src !== avatarUrl) {
-				this.codexPanelAvatarElement.src = avatarUrl;
-			}
-		} else {
-			this.codexPanelAvatarElement.removeAttribute('src');
-		}
 	}
 
 	private refreshAvatar(): void {
@@ -638,62 +616,18 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 
 		if (hasSignedInCodexChatGPTAccount(codexAccount, codexAccountVisible)) {
-			const accountSection = append(identities, $('section.sessions-account-titlebar-panel-provider-account', {
-				'aria-label': localize('chatGPTAccountSectionLabel', "ChatGPT account")
+			const accountSection = panelStore.add(this.instantiationService.createInstance(ChatGPTAccountSection, {
+				account: codexAccount,
+				avatarUrl: this.loadedCodexAvatarUrl,
+				onWillRunAction: () => this.clickPanelDisposable.clear(),
 			}));
-			const accountIdentity = append(accountSection, $('.sessions-account-titlebar-panel-provider-identity'));
-			const avatar = append(accountIdentity, $('img.sessions-account-titlebar-panel-provider-avatar', {
-				alt: this.getCodexAvatarAltText(),
-				draggable: 'false',
-			})) as HTMLImageElement;
-			avatar.decoding = 'async';
-			avatar.referrerPolicy = 'no-referrer';
-			const accountIcon = append(accountIdentity, $('span.sessions-account-titlebar-panel-provider-icon', { 'aria-hidden': 'true' }));
-			accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.openai));
-			this.codexPanelAvatarElement = avatar;
-			this.codexPanelIconElement = accountIcon;
-			this.renderCodexPanelAvatar();
+			identities.appendChild(accountSection.element);
+			this.chatGPTAccountSection = accountSection;
 			panelStore.add(toDisposable(() => {
-				if (this.codexPanelAvatarElement === avatar) {
-					this.codexPanelAvatarElement = undefined;
-				}
-				if (this.codexPanelIconElement === accountIcon) {
-					this.codexPanelIconElement = undefined;
+				if (this.chatGPTAccountSection === accountSection) {
+					this.chatGPTAccountSection = undefined;
 				}
 			}));
-			const accountName = append(accountIdentity, $('.sessions-account-titlebar-panel-provider-name'));
-			accountName.textContent = codexAccount.email ?? localize('chatGPTAccountName', "ChatGPT");
-			const accountActions = append(accountIdentity, $('.sessions-account-titlebar-panel-provider-actions'));
-			const accountActionBar = panelStore.add(new ActionBar(accountActions));
-			panelStore.add(accountActionBar.onWillRun(() => {
-				this.hoverService.hideHover(true);
-				this.clickPanelDisposable.clear();
-			}));
-			accountActionBar.push(panelStore.add(new Action(
-				'codex.manageChatGPTModels',
-				localize('manageChatGPTModels', "Manage ChatGPT Models"),
-				ThemeIcon.asClassName(Codicon.openai),
-				true,
-				() => this.commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, '@provider:"ChatGPT"'),
-			)), { icon: true, label: false });
-			accountActionBar.push(panelStore.add(new Action(
-				'codex.openAgentCustomizations',
-				localize('openCodexAgentCustomizations', "Agent Customizations for Codex"),
-				ThemeIcon.asClassName(Codicon.settingsGear),
-				true,
-				() => this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
-					sessionType: SessionType.AgentHostCodex,
-					section: AICustomizationManagementSection.HarnessSettings,
-				}),
-			)), { icon: true, label: false });
-			accountActionBar.push(panelStore.add(new Action(
-				'codex.signOutOfChatGPT',
-				localize('signOutOfChatGPT', "Sign Out"),
-				ThemeIcon.asClassName(Codicon.signOut),
-				true,
-				() => this.codexAccountService.signOut(),
-			)), { icon: true, label: false });
-			this.appendChatGPTUsage(accountSection);
 		} else {
 			const codexAccountActions = createCodexAccountMenuActions(this.codexAccountService, codexAccountVisible);
 			if (codexAccountActions.length) {
@@ -835,35 +769,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, localize('copilotCreditsUsedLabel', "Credits used")));
 	}
 
-	private appendChatGPTUsage(accountSection: HTMLElement): void {
-		const account = this.codexAccountService.account;
-		const usage = append(accountSection, $('.sessions-account-titlebar-panel-provider-usage'));
-		const planRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.primary'));
-		append(planRow, $('span.sessions-account-titlebar-panel-provider-plan', undefined, account.planType
-			? localize('chatGPTPlan', "ChatGPT {0}", account.planType.charAt(0).toUpperCase() + account.planType.slice(1))
-			: localize('chatGPTSubscription', "ChatGPT subscription")));
-		if (!account.rateLimit) {
-			return;
-		}
-		const percentageFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 0 });
-		const usedPercentage = percentageFormatter.value.format(account.rateLimit.usedPercent);
-		append(planRow, $('span.sessions-account-titlebar-panel-provider-usage-value', {
-			'aria-label': localize('chatGPTLimitUsedPercentage', "{0}% used", usedPercentage),
-		}, localize('chatGPTLimitUsedPercentageValue', "{0}%", usedPercentage)));
-		const detailRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.secondary'));
-		if (account.rateLimit.resetsAt) {
-			append(detailRow, $('span.sessions-account-titlebar-panel-provider-reset', undefined, localize(
-				'chatGPTLimitReset',
-				"{0} resets {1}",
-				this.getChatGPTLimitLabel(account.rateLimit.windowDurationMins),
-				fromNow(account.rateLimit.resetsAt * 1000, false, true),
-			)));
-		} else {
-			detailRow.classList.add('without-reset');
-		}
-		append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, localize('chatGPTLimitUsedLabel', "Limit used")));
-	}
-
 	private getCopilotResetLabel(quota: IQuotaSnapshot | undefined): string | undefined {
 		const reset = getQuotaReset(quota, this.chatEntitlementService.quotas);
 		if (!reset) {
@@ -873,18 +778,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		return reset.hasTime
 			? localize('copilotCreditsResetAt', "Resets {0} at {1}", accountDateFormatter.value.format(reset.date), accountTimeFormatter.value.format(reset.date))
 			: localize('copilotCreditsReset', "Resets {0}", accountDateFormatter.value.format(reset.date));
-	}
-
-	private getChatGPTLimitLabel(windowDurationMins: number | undefined): string {
-		if (windowDurationMins !== undefined) {
-			if (Math.abs(windowDurationMins - 7 * 24 * 60) <= 60) {
-				return localize('chatGPTWeeklyLimitUsed', "Weekly limit");
-			}
-			if (Math.abs(windowDurationMins - 24 * 60) <= 60) {
-				return localize('chatGPTDailyLimitUsed', "Daily limit");
-			}
-		}
-		return localize('chatGPTUsageLimitUsed', "Usage limit");
 	}
 
 	private partitionMenuActions(rawActions: IAction[]): { signIn: IAction | undefined; signOut: IAction | undefined; personalize: IAction[]; other: IAction[] } {
@@ -995,15 +888,18 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 }
 
 function hasCodexAccountPanelContentChanged(previous: ICodexAccountViewInfo, current: ICodexAccountViewInfo): boolean {
+	const previousRateLimits = getCodexRateLimits(previous);
+	const currentRateLimits = getCodexRateLimits(current);
 	return previous.status !== current.status
 		|| previous.email !== current.email
 		|| previous.planType !== current.planType
 		|| previous.requiresOpenaiAuth !== current.requiresOpenaiAuth
 		|| previous.authUrl !== current.authUrl
 		|| previous.authUrlNonce !== current.authUrlNonce
-		|| previous.rateLimit?.usedPercent !== current.rateLimit?.usedPercent
-		|| previous.rateLimit?.windowDurationMins !== current.rateLimit?.windowDurationMins
-		|| previous.rateLimit?.resetsAt !== current.rateLimit?.resetsAt;
+		|| previousRateLimits.length !== currentRateLimits.length
+		|| previousRateLimits.some((rateLimit, index) => rateLimit.usedPercent !== currentRateLimits[index].usedPercent
+			|| rateLimit.windowDurationMins !== currentRateLimits[index].windowDurationMins
+			|| rateLimit.resetsAt !== currentRateLimits[index].resetsAt);
 }
 
 // --- Register custom view item --- //
