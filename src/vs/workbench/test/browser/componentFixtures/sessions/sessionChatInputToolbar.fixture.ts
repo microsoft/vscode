@@ -10,12 +10,14 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
 import { chatPersistentContentVisibleClass } from '../../../../contrib/chat/browser/widget/chatWidget.js';
+import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { BrowserEditorInput } from '../../../../contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../contrib/browserView/common/browserView.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -29,7 +31,7 @@ import { IGitHubService } from '../../../../../sessions/contrib/github/browser/g
 // eslint-disable-next-line local/code-import-patterns
 import { SessionInputBanners } from '../../../../../sessions/contrib/sessionInputBanners/browser/sessionInputBanners.js';
 // eslint-disable-next-line local/code-import-patterns
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../sessions/common/agentHostSessionsProvider.js';
+import { IAgentHostMcpServer, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../sessions/common/agentHostSessionsProvider.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/workbench.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -72,6 +74,7 @@ interface ISessionSpec {
 	readonly artifacts?: readonly ISessionArtifact[];
 	/** Customizations the chat used or read. */
 	readonly customizations?: readonly ISessionChatCustomization[];
+	readonly mcpServers?: readonly { readonly name: string; readonly status: McpServerStatus }[];
 	readonly pullRequests?: readonly IGitHubPullRequestRef[];
 }
 
@@ -80,6 +83,7 @@ interface IMockSessionAndChat {
 	readonly session: IActiveSession;
 	readonly chat: IChat;
 	readonly browsers: readonly BrowserEditorInput[];
+	readonly mcpServers: readonly IAgentHostMcpServer[];
 }
 
 function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
@@ -149,7 +153,13 @@ function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 			override readonly onDidChangeLabel = Event.None;
 		}();
 	});
-	return { session, chat, browsers };
+	const mcpServers = (spec.mcpServers ?? []).map(server => new class extends mock<IAgentHostMcpServer>() {
+		override readonly id = server.name;
+		override readonly name = server.name;
+		override readonly enabled = true;
+		override readonly status = server.status;
+	}());
+	return { session, chat, browsers, mcpServers };
 }
 
 function createBrowserViewService(inputs: readonly BrowserEditorInput[]): IBrowserViewWorkbenchService {
@@ -162,6 +172,9 @@ function createBrowserViewService(inputs: readonly BrowserEditorInput[]): IBrows
 }
 
 function registerSessionChatPillFixtureServices(registration: ServiceRegistration, sessionMock: IMockSessionAndChat): void {
+	registration.defineInstance(IAgentHostCustomizationService, new class extends NullAgentHostCustomizationService {
+		override getMcpServers(): readonly IAgentHostMcpServer[] { return sessionMock.mcpServers; }
+	}());
 	registration.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override getProvider() { return undefined; }
 	}());
@@ -178,6 +191,17 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 // ============================================================================
 // Render helpers
 // ============================================================================
+
+function registerPillActionWidgetServices(registration: ServiceRegistration, container: HTMLElement): void {
+	registration.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
+		override readonly mainContainer = container;
+		override readonly activeContainer = container;
+		override readonly onDidLayoutContainer = Event.None;
+		override getContainer(): HTMLElement { return container; }
+	}());
+	registration.define(IContextViewService, ContextViewService);
+	registration.define(IActionWidgetService, ActionWidgetService);
+}
 
 async function createImageReferenceContent(resource: URI): Promise<IFileContent> {
 	const fixtureUrl = resource.path.includes('refined-chat')
@@ -210,14 +234,7 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 			// (which register a partial ISessionsService).
 			registerChatFixtureServices(reg);
 			registerSessionChatPillFixtureServices(reg, sessionMock);
-			reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
-				override readonly mainContainer = container;
-				override readonly activeContainer = container;
-				override readonly onDidLayoutContainer = Event.None;
-				override getContainer(): HTMLElement { return container; }
-			}());
-			reg.define(IContextViewService, ContextViewService);
-			reg.define(IActionWidgetService, ActionWidgetService);
+			registerPillActionWidgetServices(reg, container);
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
 				override readonly onDidRunOperation = Event.None;
@@ -260,7 +277,10 @@ async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMock
 		messages,
 		height: options?.height,
 		persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
-		additionalServices: registration => registerSessionChatPillFixtureServices(registration, mock),
+		additionalServices: registration => {
+			registerSessionChatPillFixtureServices(registration, mock);
+			registerPillActionWidgetServices(registration, ctx.container);
+		},
 		onRendered: scrollOffsetFromBottom
 			? handle => {
 				const maximumScrollTop = Math.max(0, handle.listWidget.scrollHeight - handle.listWidget.renderHeight);
@@ -344,6 +364,42 @@ const STACKED_SURFACES_VIEW_MESSAGES: IFixtureMessage[] = [
 // ============================================================================
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+
+	SessionChatPills_McpSignInSingle: defineComponentFixture({
+		render: ctx => renderChatViewWithPills(ctx, createMockSession({
+			mcpServers: [{ name: 'GitHub', status: McpServerStatus.AuthRequired }],
+		}), FULL_VIEW_MESSAGES, { height: 480 }),
+	}),
+
+	SessionChatPills_McpSignInMultiple: defineComponentFixture({
+		render: ctx => renderChatViewWithPills(ctx, createMockSession({
+			mcpServers: [
+				{ name: 'GitHub', status: McpServerStatus.AuthRequired },
+				{ name: 'Slack', status: McpServerStatus.AuthRequired },
+			],
+		}), FULL_VIEW_MESSAGES, { height: 480 }),
+	}),
+
+	SessionChatPills_McpSignInDropdown: defineComponentFixture({
+		render: async ctx => {
+			await renderChatViewWithPills(ctx, createMockSession({
+				mcpServers: [
+					{ name: 'GitHub', status: McpServerStatus.AuthRequired },
+					{ name: 'Slack', status: McpServerStatus.AuthRequired },
+				],
+			}), FULL_VIEW_MESSAGES, { height: 480 });
+			ctx.container.querySelector<HTMLElement>('[aria-label="Show 2 MCP servers requiring sign-in"]')!.click();
+		},
+	}),
+
+	SessionChatPills_McpSignInResolved: defineComponentFixture({
+		render: ctx => renderChatViewWithPills(ctx, createMockSession({
+			mcpServers: [
+				{ name: 'GitHub', status: McpServerStatus.Ready },
+				{ name: 'Slack', status: McpServerStatus.Ready },
+			],
+		}), FULL_VIEW_MESSAGES, { height: 480 }),
+	}),
 
 	// --- Changes pill (per turn) --------------------------------------------
 
