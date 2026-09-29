@@ -126,7 +126,7 @@ suite('PromptHoverProvider', () => {
 			assert.strictEqual(hover, 'The target to which the header attributes like tools apply to. Possible values are `github-copilot` and `vscode`.');
 		});
 
-		test('hover on model attribute with github-copilot target shows note', async () => {
+		test('hover on model attribute with github-copilot target shows supported model guidance', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
@@ -135,12 +135,7 @@ suite('PromptHoverProvider', () => {
 				'---',
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
-			const expected = [
-				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
-				'',
-				'Note: This attribute is not used when target is github-copilot.'
-			].join('\n');
-			assert.strictEqual(hover, expected);
+			assert.strictEqual(hover, 'Specify the model that runs this custom agent. This is supported by the GitHub Copilot harness. You can also provide an ordered list of model preferences; the first available model will be used.');
 		});
 
 		test('hover on model attribute with vscode target shows model info', async () => {
