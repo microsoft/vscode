@@ -6653,8 +6653,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private async _restoreRetainedCommandOutputs(chat: URI, commands: readonly ICodexReplayedCommand[]): Promise<void> {
 		const storage = chatStorageUri(chat);
-		const candidates = commands.filter(command => shouldRetainCodexCommandOutput(command.output));
-		if (!storage || candidates.length === 0) {
+		if (!storage || commands.length === 0) {
 			return;
 		}
 		try {
@@ -6663,10 +6662,18 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 			try {
-				for (const { toolCall, output, exitCode } of candidates) {
+				for (const { toolCall, output, exitCode } of commands) {
 					if (await database.object.getTerminalOutputSize(toolCall.toolCallId) !== undefined) {
+						let previewOutput = output;
+						if (!shouldRetainCodexCommandOutput(output)) {
+							const storedOutput = await database.object.readTerminalOutput(toolCall.toolCallId);
+							if (!storedOutput) {
+								continue;
+							}
+							previewOutput = VSBuffer.wrap(storedOutput).toString();
+						}
 						const resource = buildNonPtyShellTerminalUri(storage, parseRequiredSessionUriFromChatUri(chat), chat, toolCall.toolCallId);
-						toolCall.content = codexRetainedCommandOutputContent(resource, output, exitCode);
+						toolCall.content = codexRetainedCommandOutputContent(resource, previewOutput, exitCode);
 					}
 				}
 			} finally {

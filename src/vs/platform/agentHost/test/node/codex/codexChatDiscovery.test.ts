@@ -478,7 +478,7 @@ suite('Codex chat discovery', () => {
 		await database.createTurn('stored-turn');
 		await database.storeTerminalOutput('stored-turn', 'cmd-retained', VSBuffer.fromString(output).buffer);
 		const { agent, client, filesystem } = createHarness(store, createSessionDataService(database));
-		const turn = (answer: string): CodexTurn => ({
+		const turn = (answer: string, aggregatedOutput = output): CodexTurn => ({
 			id: 'one', status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
 			items: [
 				{ type: 'userMessage', id: 'one-user', clientId: null, content: [{ type: 'text', text: 'Run it', text_elements: [] }] },
@@ -486,7 +486,7 @@ suite('Codex chat discovery', () => {
 					type: 'commandExecution', id: 'cmd-retained', command: 'build', cwd: '/tmp',
 					processId: null, source: 'agent', status: 'completed', commandActions: [],
 					pluginId: null, scriptPath: null,
-					aggregatedOutput: output, exitCode: 0, durationMs: 5,
+					aggregatedOutput, exitCode: 0, durationMs: 5,
 				},
 				{ type: 'agentMessage', id: 'one-agent', text: answer, phase: 'final_answer', memoryCitation: null, delivery: null, questions: null },
 			],
@@ -508,7 +508,7 @@ suite('Codex chat discovery', () => {
 				store.add(observed.onDidChangeChatHistory(event => refreshed = retainedContent(event.turns)));
 			}
 			const watch = observed.watchChatHistory && store.add(observed.watchChatHistory(chat));
-			client.turns = [turn('Done')];
+			client.turns = [turn('Done', '')];
 			filesystem.changeHomeFile('state_5.sqlite-wal');
 			await timeout(1500);
 

@@ -1659,7 +1659,10 @@ suite('CodexAgent prewarm eviction', () => {
 		const database = new TestSessionDatabase();
 		await database.setMetadata('codex.threadId', 'retained-history-thread');
 		await database.createTurn('host-turn');
-		await database.storeTerminalOutput('host-turn', 'cmd-retained', VSBuffer.fromString(output).buffer);
+		const retainedIds = ['cmd-retained', 'cmd-short', 'cmd-empty', 'cmd-missing'];
+		for (const id of retainedIds) {
+			await database.storeTerminalOutput('host-turn', id, VSBuffer.fromString(output).buffer);
+		}
 		const agent = await createAgent(disposables, { database });
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
@@ -1671,11 +1674,11 @@ suite('CodexAgent prewarm eviction', () => {
 		const parent = AgentSession.uri('codex', 'parent');
 		const chat = chatOf(parent, 'retained-history');
 		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'retained-history' }));
-		const command = (id: string) => ({
+		const command = (id: string, aggregatedOutput: string | null = output) => ({
 			type: 'commandExecution', id,
-			command: 'build', cwd: '/tmp', processId: null,
+			command: `build ${id}`, cwd: '/tmp', processId: null,
 			source: 'agent', status: 'completed',
-			commandActions: [], aggregatedOutput: output, exitCode: 0, durationMs: 5,
+			commandActions: [], aggregatedOutput, exitCode: 0, durationMs: 5,
 		});
 		const responses: Record<string, object> = {
 			'thread/read': { thread: { id: 'retained-history', historyMode: 'paginated', turns: [] } },
@@ -1685,6 +1688,9 @@ suite('CodexAgent prewarm eviction', () => {
 					items: [
 						{ type: 'userMessage', id: 'user-1', content: [{ type: 'text', text: 'build it', text_elements: [] }] },
 						command('cmd-retained'),
+						command('cmd-short', 'short native output'),
+						command('cmd-empty', ''),
+						command('cmd-missing', null),
 						command('cmd-inline'),
 					],
 					itemsView: 'full',
@@ -1704,16 +1710,16 @@ suite('CodexAgent prewarm eviction', () => {
 
 		const preview = `BEGIN\n${'x'.repeat(400 - 'BEGIN\n'.length)}`;
 		assert.deepStrictEqual(turns[0]?.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined), [
-			[
+			...retainedIds.map(id => [
 				{ type: ToolResultContentType.Text, text: preview },
 				{
 					type: ToolResultContentType.Terminal,
-					resource: buildNonPtyShellTerminalUri(chatStorageUri(chat)!, parent, chat, 'cmd-retained'),
+					resource: buildNonPtyShellTerminalUri(chatStorageUri(chat)!, parent, chat, id),
 					title: 'Run shell command',
 					isPty: false,
 					result: { exitCode: 0, preview, truncated: true },
 				},
-			],
+			]),
 			// Output the database did not retain stays as the thread recorded it.
 			[{ type: ToolResultContentType.Text, text: output }],
 		]);
