@@ -8,6 +8,9 @@ parameters:
   - name: VSCODE_BUILD_LINUX_SNAP
     type: boolean
     default: false
+  - name: VSCODE_SNAP_BASE
+    type: string
+    default: core24
   - name: VSCODE_RUN_ELECTRON_TESTS
     type: boolean
     default: false
@@ -210,5 +213,6 @@ jobs:
           VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
+          VSCODE_SNAP_BASE: ${{ parameters.VSCODE_SNAP_BASE }}
 
       - template: ./steps/product-build-linux-package-finalize.yml@self

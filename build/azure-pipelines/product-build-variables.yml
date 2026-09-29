@@ -23,6 +23,9 @@ parameters:
   - name: VSCODE_BUILD_LINUX_SNAP
     type: boolean
     default: true
+  - name: VSCODE_SNAP_BASE
+    type: string
+    default: core24
   - name: VSCODE_BUILD_LINUX_ARM64
     type: boolean
     default: true
@@ -81,7 +84,7 @@ variables:
   - name: VSCODE_BUILD_STAGE_LINUX_X64
     value: ${{ and(eq(variables.VSCODE_CIBUILD, false), or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))) }}
   - name: VSCODE_BUILD_STAGE_LINUX_ARM64
-    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
+    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), or(eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))) }}
   - name: VSCODE_BUILD_STAGE_LINUX_ARMHF
     value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}
   # The Windows stage holds the x64 jobs (and the CI test jobs), the WindowsARM64
@@ -99,7 +102,7 @@ variables:
   - name: VSCODE_BUILD_STAGE_MACOS_UNIVERSAL
     value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
   - name: VSCODE_PUBLISH
-    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false), or(eq(parameters.VSCODE_BUILD_LINUX_SNAP, false), eq(parameters.VSCODE_SNAP_BASE, 'core24'))) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
   - name: VSCODE_PUBLISH_COUNTER_PREFIX

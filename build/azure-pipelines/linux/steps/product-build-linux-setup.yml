@@ -54,6 +54,7 @@ steps:
         libkrb5-dev \
         libgbm1 \
         rpm \
+        file \
         bubblewrap \
         socat
       sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb

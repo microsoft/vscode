@@ -1,0 +1,7 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for license information.
+
+deb http://azure.ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
+deb http://azure.ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
+deb http://azure.ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
+deb http://azure.ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse

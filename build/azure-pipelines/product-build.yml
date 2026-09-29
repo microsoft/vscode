@@ -68,9 +68,16 @@ parameters:
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX_SNAP
-    displayName: "🎯 Linux x64 Snap"
+    displayName: "🎯 Linux x64 and arm64 Snap"
     type: boolean
     default: true
+  - name: VSCODE_SNAP_BASE
+    displayName: "Linux Snap Base"
+    type: string
+    default: core24
+    values:
+      - core22
+      - core24
   - name: VSCODE_BUILD_LINUX_ARM64
     displayName: "🎯 Linux arm64"
     type: boolean
@@ -179,7 +186,7 @@ variables:
   - name: VSCODE_BUILD_STAGE_LINUX_X64
     value: ${{ and(eq(variables.VSCODE_CIBUILD, false), or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))) }}
   - name: VSCODE_BUILD_STAGE_LINUX_ARM64
-    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
+    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), or(eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))) }}
   - name: VSCODE_BUILD_STAGE_LINUX_ARMHF
     value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}
   # The Windows stage holds the x64 jobs (and the CI test jobs), the WindowsARM64
@@ -197,7 +204,7 @@ variables:
   - name: VSCODE_BUILD_STAGE_MACOS_UNIVERSAL
     value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
   - name: VSCODE_PUBLISH
-    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false), or(eq(parameters.VSCODE_BUILD_LINUX_SNAP, false), eq(parameters.VSCODE_SNAP_BASE, 'core24'))) }}
   - name: VSCODE_USE_PUBLISHING_POOLS
     value: ${{ and(eq(variables.VSCODE_PUBLISH, true), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}
   - name: VSCODE_WINDOWS_POOL
@@ -339,6 +346,14 @@ extends:
           name: ${{ variables.VSCODE_UBUNTU_POOL }}
           os: linux
         jobs:
+          - ${{ if and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true), ne(parameters.VSCODE_SNAP_BASE, 'core24'), or(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RELEASE, true))) }}:
+            - job: ValidateSnapBase
+              displayName: Prevent publishing an unvalidated Snap base
+              steps:
+                - bash: |
+                    echo "##vso[task.logissue type=error]Core22 Snap builds require VSCODE_PUBLISH=false and VSCODE_RELEASE=false."
+                    exit 1
+                  displayName: Validate Snap Base
           - template: build/azure-pipelines/product-quality-checks.yml@self
 
       - stage: Copilot
@@ -350,7 +365,7 @@ extends:
           - template: build/azure-pipelines/product-copilot.yml@self
             parameters:
               VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
+              VSCODE_RELEASE: ${{ and(eq(parameters.VSCODE_RELEASE, true), eq(variables.VSCODE_PUBLISH, true)) }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -437,6 +452,7 @@ extends:
                 VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                 VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                 VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
+                VSCODE_SNAP_BASE: ${{ parameters.VSCODE_SNAP_BASE }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_ARM64'], true) }}:
         - stage: LinuxARM64
@@ -457,6 +473,8 @@ extends:
                 NPM_ARCH: arm64
                 VSCODE_ARCH: arm64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
+                VSCODE_SNAP_BASE: ${{ parameters.VSCODE_SNAP_BASE }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_ARMHF'], true) }}:
         - stage: LinuxARMHF
@@ -902,6 +920,15 @@ extends:
                   poolName: 1es-ubuntu-22.04-x64
                   os: linux
 
+            - ${{ if and(eq(parameters.VSCODE_BUILD_LINUX_SNAP, true), eq(parameters.VSCODE_BUILD_LINUX, false)) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: ubuntu_native_snap_x64
+                  displayName: Ubuntu 22.04 x64 Snap
+                  poolName: 1es-ubuntu-22.04-x64
+                  os: linux
+                  args: --grep "linux-snap-x64$"
+
             # Ubuntu 22.04
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -1146,14 +1173,36 @@ extends:
                   poolName: 1es-ubuntu-22.04-x64
                   os: linux
                   continueOnError: false
-                  args: --grep "linux(-deb|-snap)?-x64$"
+                  args: --grep "linux(-deb)?-x64$"
                   artifacts:
                     - vscode_cli_linux_x64_cli
                     - vscode_client_linux_x64_archive-unsigned
                     - vscode_client_linux_x64_deb-package
-                    - vscode_client_linux_x64_snap
                     - vscode_server_linux_x64_archive-unsigned
                     - vscode_web_linux_x64_archive-unsigned
+
+            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_SNAP, true) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_ubuntu_snap_x64
+                  displayName: Ubuntu 22.04 x64 Snap
+                  poolName: 1es-ubuntu-22.04-x64
+                  os: linux
+                  continueOnError: false
+                  args: --grep "linux-snap-x64$"
+                  artifacts:
+                    - vscode_client_linux_x64_snap
+
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_ubuntu_snap_arm64
+                  displayName: Linux arm64 Snap artifact (no runtime)
+                  poolName: 1es-ubuntu-22.04-x64
+                  os: linux
+                  continueOnError: false
+                  args: --no-detection --grep "linux-snap-arm64$"
+                  artifacts:
+                    - vscode_client_linux_arm64_snap
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self

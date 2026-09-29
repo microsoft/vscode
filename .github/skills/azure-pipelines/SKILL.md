@@ -107,7 +107,8 @@ node .github/skills/azure-pipelines/azure-pipeline.ts queue --parameter "VSCODE_
 | `VSCODE_BUILD_WIN32` | boolean | `true` | `true`, `false` | Build Windows x64 |
 | `VSCODE_BUILD_WIN32_ARM64` | boolean | `true` | `true`, `false` | Build Windows arm64 |
 | `VSCODE_BUILD_LINUX` | boolean | `true` | `true`, `false` | Build Linux x64 |
-| `VSCODE_BUILD_LINUX_SNAP` | boolean | `true` | `true`, `false` | Build Linux x64 Snap |
+| `VSCODE_BUILD_LINUX_SNAP` | boolean | `true` | `true`, `false` | Build Linux x64 and arm64 Snaps |
+| `VSCODE_SNAP_BASE` | string | `core24` | `core22`, `core24` | Snap base for both architectures; core26 requires a native Ubuntu 26.04 build |
 | `VSCODE_BUILD_LINUX_ARM64` | boolean | `true` | `true`, `false` | Build Linux arm64 |
 | `VSCODE_BUILD_LINUX_ARMHF` | boolean | `true` | `true`, `false` | Build Linux armhf |
 | `VSCODE_BUILD_ALPINE` | boolean | `true` | `true`, `false` | Build Alpine x64 |
