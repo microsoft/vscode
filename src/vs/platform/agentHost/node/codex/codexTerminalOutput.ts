@@ -4,17 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ToolResultContentType, type ToolResultContent } from '../../common/state/sessionState.js';
-import { SHELL_COMMAND_MAX_OUTPUT_BYTES } from '../shared/shellCommandExecution.js';
 
+/** Maximum inline Codex command output, measured in UTF-16 code units. */
+export const CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT = 80_000;
 const RETAINED_OUTPUT_PREVIEW_LENGTH = 400;
 
-/**
- * Codex reports a command's complete output, so it stays inline unless it is
- * longer than the {@link SHELL_COMMAND_MAX_OUTPUT_BYTES} characters of shell
- * output the agent host surfaces in a transcript.
- */
 export function shouldRetainCodexCommandOutput(output: string): boolean {
-	return output.length > SHELL_COMMAND_MAX_OUTPUT_BYTES;
+	return output.length > CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT;
 }
 
 /**

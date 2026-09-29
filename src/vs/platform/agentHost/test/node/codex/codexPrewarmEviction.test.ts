@@ -57,7 +57,7 @@ import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildMcpChannel, McpCustomizationController } from '../../../node/shared/mcpCustomizationController.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/workspacelessInstructions.js';
 import { sessionServerToolDefinitions, sessionToolRequiresConfirmation } from '../../../node/shared/sessionServerTools.js';
-import { SHELL_COMMAND_MAX_OUTPUT_BYTES } from '../../../node/shared/shellCommandExecution.js';
+import { CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT } from '../../../node/codex/codexTerminalOutput.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
@@ -1392,7 +1392,7 @@ suite('CodexAgent prewarm eviction', () => {
 		agent['_sessionIdByThreadId'].set(threadId, entry.sessionId);
 		// `turn/started` records the host turn before any of its items complete.
 		await database.createTurn('turn-1');
-		const output = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES)}\nEND\n`;
+		const output = `BEGIN\n${'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT)}\nEND\n`;
 		const command = (id: string, aggregatedOutput: string | null) => ({
 			type: 'commandExecution', id,
 			command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
@@ -1530,7 +1530,7 @@ suite('CodexAgent prewarm eviction', () => {
 				if (outcome !== 'missing turn') {
 					await database.createTurn('turn-1');
 				}
-				const output = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES)}\nEND\n`;
+				const output = `BEGIN\n${'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT)}\nEND\n`;
 				const command: Extract<ThreadItem, { type: 'commandExecution' }> = {
 					type: 'commandExecution', id: 'cmd-delayed',
 					command: 'build', cwd: '/tmp', processId: null,
@@ -1580,7 +1580,7 @@ suite('CodexAgent prewarm eviction', () => {
 	}
 
 	test('turn completion recovery retains large parent output but leaves subagent output inline', async () => {
-		const output = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES)}\nEND\n`;
+		const output = `BEGIN\n${'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT)}\nEND\n`;
 		const command = {
 			type: 'commandExecution', id: 'cmd-recovered',
 			command: 'build', cwd: '/tmp', processId: null,
@@ -1655,7 +1655,7 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('restored large command output reopens its retained terminal resource', async () => {
-		const output = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES)}\nEND\n`;
+		const output = `BEGIN\n${'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT)}\nEND\n`;
 		const database = new TestSessionDatabase();
 		await database.setMetadata('codex.threadId', 'retained-history-thread');
 		await database.createTurn('host-turn');

@@ -7,17 +7,20 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ToolResultContentType } from '../../../common/state/sessionState.js';
 import { codexRetainedCommandOutputContent, shouldRetainCodexCommandOutput } from '../../../node/codex/codexTerminalOutput.js';
-import { SHELL_COMMAND_MAX_OUTPUT_BYTES } from '../../../node/shared/shellCommandExecution.js';
 
 suite('shouldRetainCodexCommandOutput', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('keeps output up to the shell output limit inline', () => {
+	test('keeps output up to 80,000 UTF-16 code units inline', () => {
 		assert.deepStrictEqual([
-			shouldRetainCodexCommandOutput('x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES)),
-			shouldRetainCodexCommandOutput('x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES + 1)),
-		], [false, true]);
+			shouldRetainCodexCommandOutput('x'.repeat(80_000)),
+			shouldRetainCodexCommandOutput('x'.repeat(80_001)),
+			shouldRetainCodexCommandOutput('\u00e9'.repeat(80_000)),
+			shouldRetainCodexCommandOutput('\u00e9'.repeat(80_001)),
+			shouldRetainCodexCommandOutput('\ud83d\ude00'.repeat(40_000)),
+			shouldRetainCodexCommandOutput('\ud83d\ude00'.repeat(40_000) + 'x'),
+		], [false, true, false, true, false, true]);
 	});
 
 	test('keeps a raw prefix as the retained output preview', () => {
