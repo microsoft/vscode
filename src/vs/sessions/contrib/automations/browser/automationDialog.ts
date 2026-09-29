@@ -1244,12 +1244,9 @@ export function renderForm(
 
 	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
 	const targetRow = DOM.append(sessionSection, $('.automation-form-row.automation-target-row'));
-	const targetLabel = DOM.append(targetRow, $('span.automation-form-label', {
-		id: 'automation-target-label',
-	}, localize('automation.form.target', "Target")));
 	const targetContainer = DOM.append(targetRow, $('.automation-target-toolbar', {
 		role: 'group',
-		'aria-labelledby': targetLabel.id,
+		'aria-label': localize('automation.form.target', "Target"),
 	}));
 	const targetError = DOM.append(targetRow, $('span.automation-target-error', {
 		id: 'automation-target-error',
@@ -1260,7 +1257,6 @@ export function renderForm(
 	DOM.hide(targetError);
 	const promptSection = DOM.append(sessionSection, $('.automation-prompt-section'));
 	const promptRow = DOM.append(promptSection, $('.automation-form-row'));
-	DOM.append(promptRow, $('span.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 	const editorOverflowWidgetsDomNode = layoutService.getContainer(DOM.getWindow(promptHost)).appendChild($('.chat-editor-overflow.automation-dialog-editor-overflow.monaco-editor'));
 	disposables.add(toDisposable(() => editorOverflowWidgetsDomNode.remove()));

@@ -346,7 +346,7 @@ suite('Automation dialog layout', () => {
 		const inputContainer = form.querySelector('.chat-input-container')!;
 		const sessionControls = form.querySelector('.automation-session-configuration')!;
 		assert.deepStrictEqual({
-			targetLabel: targetRow.querySelector('.automation-form-label')?.textContent,
+			targetLabel: targetRow.querySelector('.automation-target-toolbar')?.getAttribute('aria-label'),
 			targetContainsWorkspace: targetRow.contains(workspaceButton),
 			targetBeforePrompt: !!(targetRow.compareDocumentPosition(promptSection) & Node.DOCUMENT_POSITION_FOLLOWING),
 			targetControls: Array.from(targetRow.querySelectorAll('button, a[href]'), element => element.textContent),
