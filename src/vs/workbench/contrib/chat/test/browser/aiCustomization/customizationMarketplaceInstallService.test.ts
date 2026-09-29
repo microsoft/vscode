@@ -1095,6 +1095,57 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 		});
 
+		test('sanitizes invalid optional icons without dropping valid installation records', () => {
+			const storage = store.add(new TestStorageService());
+			const prefix = 'chat.customizations.marketplace.installationRecord.v1.';
+			const warnings: string[] = [];
+			const logService = store.add(new class extends NullLogService {
+				override warn(message: string, ..._args: unknown[]): void { warnings.push(message); }
+			}());
+			const storedRecord = (id: string, icon: unknown, iconDark: unknown) => ({
+				version: 1,
+				record: {
+					id,
+					sourceId: 'testSource',
+					identifier: `server-${id[0]}`,
+					displayName: `Server ${id[0]}`,
+					description: '',
+					mediaType: CustomizationMarketplaceMediaType.McpServer,
+					installation: { kind: 'mcp', name: `server-${id[0]}`, version: '1.0.0' },
+					icon,
+					iconDark,
+					target: { kind: 'mcp', id: `mcp-${id[0]}` },
+				},
+			});
+			const firstId = 'a'.repeat(64);
+			const secondId = 'b'.repeat(64);
+			const thirdId = 'c'.repeat(64);
+			storage.store(`${prefix}${firstId}`, JSON.stringify(storedRecord(firstId, 'javascript:alert(1)', 'https://example.com/dark.png')), StorageScope.PROFILE, StorageTarget.MACHINE);
+			storage.store(`${prefix}${secondId}`, JSON.stringify(storedRecord(secondId, 'https://example.com/light.png', { invalid: true })), StorageScope.PROFILE, StorageTarget.MACHINE);
+			storage.store(`${prefix}${thirdId}`, JSON.stringify(storedRecord(thirdId, 42, 'file:///tmp/icon.png')), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+			const records = [...store.add(new CustomizationMarketplaceInstallationRecordStore(storage, logService)).records.values()];
+
+			assert.deepStrictEqual({
+				records: records.map(record => ({
+					id: record.id,
+					icon: URI.isUri(record.icon) ? record.icon.toString() : record.icon,
+				})),
+				warnings,
+			}, {
+				records: [
+					{ id: firstId, icon: 'https://example.com/dark.png' },
+					{ id: secondId, icon: 'https://example.com/light.png' },
+					{ id: thirdId, icon: undefined },
+				],
+				warnings: [
+					`[CustomizationMarketplace] Sanitized invalid icon metadata fields [icon] for installation record '${prefix}${firstId}'.`,
+					`[CustomizationMarketplace] Sanitized invalid icon metadata fields [iconDark] for installation record '${prefix}${secondId}'.`,
+					`[CustomizationMarketplace] Sanitized invalid icon metadata fields [icon, iconDark] for installation record '${prefix}${thirdId}'.`,
+				],
+			});
+		});
+
 		test('rejects a connector record without a valid account identity', () => {
 			const storage = store.add(new TestStorageService());
 			const prefix = 'chat.customizations.marketplace.installationRecord.v1.';

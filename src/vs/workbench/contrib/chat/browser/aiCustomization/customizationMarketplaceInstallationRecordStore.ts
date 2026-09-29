@@ -67,8 +67,8 @@ interface IStoredCustomizationMarketplaceInstallationRecord {
 		readonly description: string;
 		readonly mediaType: string;
 		readonly installation: RecordedCustomizationMarketplaceInstallation;
-		readonly icon?: string;
-		readonly iconDark?: string;
+		readonly icon?: unknown;
+		readonly iconDark?: unknown;
 		readonly target:
 		| {
 			readonly kind: 'skill';
@@ -140,11 +140,14 @@ export class CustomizationMarketplaceInstallationRecordStore extends Disposable 
 			}
 			try {
 				const stored: unknown = JSON.parse(raw);
-				const record = reviveInstallationRecord(stored);
-				if (!record || this.getStorageKey(record.id) !== key) {
+				const revived = reviveInstallationRecord(stored);
+				if (!revived || this.getStorageKey(revived.record.id) !== key) {
 					throw new Error('Invalid installation record');
 				}
-				records.set(record.id, record);
+				if (revived.sanitizedIconFields.length > 0) {
+					this.logService.warn(`[CustomizationMarketplace] Sanitized invalid icon metadata fields [${revived.sanitizedIconFields.join(', ')}] for installation record '${key}'.`);
+				}
+				records.set(revived.record.id, revived.record);
 			} catch (error) {
 				this.logService.error(`[CustomizationMarketplace] Unable to load installation record '${key}'`, error);
 			}
@@ -186,12 +189,18 @@ export function toRecordedMarketplaceResource(record: ICustomizationMarketplaceI
 	};
 }
 
-function reviveInstallationRecord(value: unknown): ICustomizationMarketplaceInstallationRecord | undefined {
+interface IRevivedCustomizationMarketplaceInstallationRecord {
+	readonly record: ICustomizationMarketplaceInstallationRecord;
+	readonly sanitizedIconFields: readonly ('icon' | 'iconDark')[];
+}
+
+function reviveInstallationRecord(value: unknown): IRevivedCustomizationMarketplaceInstallationRecord | undefined {
 	if (!isStoredInstallationRecord(value)) {
 		return undefined;
 	}
 	try {
 		const record = value.record;
+		const sanitizedIcon = sanitizeStoredIcon(record.icon, record.iconDark);
 		let target: CustomizationMarketplaceInstallationRecordTarget;
 		if (record.target.kind === 'mcp') {
 			target = { kind: 'mcp', id: record.target.id };
@@ -226,16 +235,19 @@ function reviveInstallationRecord(value: unknown): ICustomizationMarketplaceInst
 			};
 		}
 		return {
-			id: record.id,
-			sourceId: record.sourceId,
-			identifier: record.identifier,
-			version: record.version,
-			displayName: record.displayName,
-			description: record.description,
-			mediaType: record.mediaType,
-			installation: record.installation,
-			icon: reviveStoredIcon(record.icon, record.iconDark),
-			target,
+			record: {
+				id: record.id,
+				sourceId: record.sourceId,
+				identifier: record.identifier,
+				version: record.version,
+				displayName: record.displayName,
+				description: record.description,
+				mediaType: record.mediaType,
+				installation: record.installation,
+				icon: sanitizedIcon.icon,
+				target,
+			},
+			sanitizedIconFields: sanitizedIcon.sanitizedFields,
 		};
 	} catch {
 		return undefined;
@@ -297,8 +309,6 @@ function isStoredInstallationRecord(value: unknown): value is IStoredCustomizati
 		|| typeof record.description !== 'string'
 		|| !isNonEmptyString(record.mediaType)
 		|| !isStoredInstallation(record.installation)
-		|| record.icon !== undefined && !isSafeStoredIcon(record.icon)
-		|| record.iconDark !== undefined && (!isSafeStoredIcon(record.iconDark) || record.icon === undefined)
 		|| !isRecord(record.target)
 		|| !isStoredTargetKind(record.target.kind, record.installation.kind)) {
 		return false;
@@ -408,12 +418,32 @@ function isSafeStoredIcon(value: unknown): value is string {
 	}
 }
 
-function reviveStoredIcon(light: string | undefined, dark: string | undefined): CustomizationMarketplaceIcon | undefined {
-	if (!light) {
-		return undefined;
+function sanitizeStoredIcon(light: unknown, dark: unknown): {
+	readonly icon: CustomizationMarketplaceIcon | undefined;
+	readonly sanitizedFields: readonly ('icon' | 'iconDark')[];
+} {
+	const sanitizedFields: ('icon' | 'iconDark')[] = [];
+	const lightUri = isSafeStoredIcon(light) ? URI.parse(light) : undefined;
+	const darkUri = isSafeStoredIcon(dark) ? URI.parse(dark) : undefined;
+	if (light !== undefined && !lightUri) {
+		sanitizedFields.push('icon');
 	}
-	const lightUri = URI.parse(light);
-	return dark ? { light: lightUri, dark: URI.parse(dark) } : lightUri;
+	if (dark !== undefined && !darkUri) {
+		sanitizedFields.push('iconDark');
+	}
+	if (lightUri && darkUri) {
+		return { icon: { light: lightUri, dark: darkUri }, sanitizedFields };
+	}
+	if (lightUri) {
+		return { icon: lightUri, sanitizedFields };
+	}
+	if (darkUri) {
+		if (light === undefined) {
+			sanitizedFields.push('iconDark');
+		}
+		return { icon: darkUri, sanitizedFields };
+	}
+	return { icon: undefined, sanitizedFields };
 }
 
 function serializeStoredIcon(icon: CustomizationMarketplaceIcon | undefined): Pick<IStoredCustomizationMarketplaceInstallationRecord['record'], 'icon' | 'iconDark'> {
