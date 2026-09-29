@@ -340,6 +340,8 @@ suite('AgentFinderRestProvider', () => {
 			const variants = [
 				{ ...marketplacePlugin, metadata: { ...marketplacePlugin.metadata, repoPath: '.github/plugin/other.json' } },
 				{ ...marketplacePlugin, metadata: { ...marketplacePlugin.metadata, sourceSet: 'other/repository' } },
+				{ ...marketplacePlugin, url: 'https://github.com/github/copilot-plugins/blob' },
+				{ ...marketplacePlugin, url: 'https://github.com/github/copilot-plugins/tree' },
 				{ ...marketplacePlugin, url: 'https://github.com/github/copilot-plugins/blob/main' },
 				{ ...marketplacePlugin, url: 'https://github.com/github/copilot-plugins/blob/main/plugins/.git' },
 				{ ...marketplacePlugin, url: 'https://github.com/github/copilot-plugins/blob/main/plugins%2Fspark' },

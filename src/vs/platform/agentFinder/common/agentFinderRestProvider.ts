@@ -361,7 +361,7 @@ function parseInstallation(mediaType: string, metadata: Record<string, unknown> 
 	if (isMarketplacePlugin) {
 		const [ref, ...pathSegments] = parts;
 		const path = pathSegments.join('/');
-		return isSupportedMarketplaceRef(ref) && isSafeSourcePath(path)
+		return ref !== undefined && isSupportedMarketplaceRef(ref) && isSafeSourcePath(path)
 			? { kind: 'plugin', repository: sourceSet, ref, path }
 			: undefined;
 	}
