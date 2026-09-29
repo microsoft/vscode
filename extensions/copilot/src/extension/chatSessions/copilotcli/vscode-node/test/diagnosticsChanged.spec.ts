@@ -43,7 +43,7 @@ interface DiagnosticNotificationParams {
 			message: string;
 			severity: string;
 			source?: string;
-			code?: string | number;
+			code?: string | number | null;
 			range: {
 				start: { line: number; character: number };
 				end: { line: number; character: number };
@@ -197,12 +197,14 @@ describe('diagnosticsChanged push notification', () => {
 		expect(notifiedDiag.range.end.character).toBe(20);
 	});
 
-	it('should serialize a null diagnostic code without crashing', async () => {
+	it('should preserve a null diagnostic code without throwing', async () => {
 		registerDiagnosticsChangedNotification(logger, httpServer as unknown as InProcHttpServer);
 
 		const uri = createMockUri('/test/file.ts');
-		const diag = createMockDiagnostic('Null code message', 0, 0, 0, 0, 10, 'test-source');
-		(diag as { code?: unknown }).code = null;
+		// A diagnostic with no structured code surfaces as `null` at runtime (out of contract
+		// with the `string | number | { value; target }` type). `typeof null === 'object'` used
+		// to take the object branch and dereference `null.value`, throwing inside the delayed task.
+		const diag = createMockDiagnostic('No code', 1, 0, 0, 0, 5, 'test-source', null as unknown as undefined);
 
 		mockGetDiagnostics.mockReturnValue([diag]);
 
@@ -212,8 +214,7 @@ describe('diagnosticsChanged push notification', () => {
 		const params = httpServer.broadcastNotification.mock.calls[0][1] as unknown as DiagnosticNotificationParams;
 		const notifiedDiag = params.uris[0].diagnostics[0];
 
-		expect(notifiedDiag.message).toBe('Null code message');
-		expect(notifiedDiag.code).toBeNull();
+		expect(notifiedDiag.code).toBe(null);
 	});
 
 	it('should handle multiple URIs in a single change event', async () => {
