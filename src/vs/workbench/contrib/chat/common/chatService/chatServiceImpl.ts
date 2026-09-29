@@ -53,7 +53,7 @@ import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../attachments/chatVariables.js';
-import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, CustomizationMigrationHintMode, getCopilotHarnessIntroductionMode } from '../constants.js';
+import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, getCopilotHarnessIntroductionMode } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ModelSelectionReason } from '../modelSelection.js';
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
@@ -1689,13 +1689,11 @@ export class ChatService extends Disposable implements IChatService {
 
 			const collectCustomizationMigrationHint = async (): Promise<ICustomizationMigrationHint | undefined> => {
 				const sessionType = getChatSessionType(sessionResource);
-				const hintMode = this.configurationService.getValue<CustomizationMigrationHintMode>(ChatConfiguration.ChatCustomizationsMigrationHint);
 				const hintAlreadyShown = model.inputModel.state.get()?.contrib[customizationMigrationHintShownStateKey] === true;
-				const showOnce = hintMode === CustomizationMigrationHintMode.Once;
 				if (!isAgentHostTarget(sessionType)
-					|| (!showOnce && hintMode !== CustomizationMigrationHintMode.Always)
+					|| this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMigrationEnabled) !== true
 					|| this.storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE)
-					|| (showOnce && hintAlreadyShown)
+					|| hintAlreadyShown
 				) {
 					return undefined;
 				}
@@ -1918,17 +1916,13 @@ export class ChatService extends Disposable implements IChatService {
 
 					const showCustomizationMigrationHint = (hint: ICustomizationMigrationHint | undefined): void => {
 						const hintAlreadyShown = model.inputModel.state.get()?.contrib[customizationMigrationHintShownStateKey] === true;
-						const hintMode = this.configurationService.getValue<CustomizationMigrationHintMode>(ChatConfiguration.ChatCustomizationsMigrationHint);
-						const showOnce = hintMode === CustomizationMigrationHintMode.Once;
-						if (!hint || token.isCancellationRequested || (showOnce && hintAlreadyShown)) {
+						if (!hint || token.isCancellationRequested || hintAlreadyShown) {
 							return;
 						}
 
-						if (showOnce) {
-							model.inputModel.setState({
-								contrib: { ...model.inputModel.state.get()?.contrib, [customizationMigrationHintShownStateKey]: true }
-							});
-						}
+						model.inputModel.setState({
+							contrib: { ...model.inputModel.state.get()?.contrib, [customizationMigrationHintShownStateKey]: true }
+						});
 
 						const reviewLink = createMarkdownCommandLink({
 							id: AICustomizationManagementCommands.OpenEditor,

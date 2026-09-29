@@ -23,7 +23,8 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { CustomizationMigrationType, getCustomizationMigrationEnablementSetting, ICustomizationMigrationHint, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
@@ -82,12 +83,14 @@ suite('NewChatMigrationNotice', () => {
 		const changed = store.add(new Emitter<void>());
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
 		const session = observableValue<IActiveSession | undefined>('session', createSession('one'));
-		const configuration = new TestConfigurationService(Object.fromEntries(enabledTypes.map(type => [getCustomizationMigrationEnablementSetting(type), true])));
+		const configuration = new TestConfigurationService({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: enabledTypes.length > 0,
+		});
 		const migrations = new TestMigrationService(changed.event);
 		migrations.result = async () => {
-			const counts = enabledTypes
-				.filter(type => configuration.getValue<boolean>(getCustomizationMigrationEnablementSetting(type)) === true)
-				.map(type => ({ type, count: 1 }));
+			const counts = configuration.getValue<boolean>(ChatConfiguration.ChatCustomizationsMigrationEnabled) === true
+				? enabledTypes.map(type => ({ type, count: 1 }))
+				: [];
 			const count = counts.length;
 			return count > 0 ? {
 				migrationFlowId: 'hint',
@@ -219,7 +222,7 @@ suite('NewChatMigrationNotice', () => {
 		await timeout(0);
 		const disabledCalls = env.migrations.requests.length;
 		env.sentiment.set({ hidden: true }, undefined);
-		await env.configuration.setUserConfiguration(getCustomizationMigrationEnablementSetting(CustomizationMigrationType.PromptFiles), true);
+		await env.configuration.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled, true);
 		env.configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
 			override affectsConfiguration() { return true; }
 		}());
@@ -243,12 +246,12 @@ suite('NewChatMigrationNotice', () => {
 		assert.deepStrictEqual({ before, after: snapshot(notice).visible }, { before: true, after: false });
 	});
 
-	test('recomputes counts when migration categories are disabled', async () => {
+	test('hides when migrations are disabled', async () => {
 		const env = setup();
 		const notice = env.create();
 		await timeout(0);
 		const before = snapshot(notice);
-		const setting = getCustomizationMigrationEnablementSetting(CustomizationMigrationType.UserData);
+		const setting = ChatConfiguration.ChatCustomizationsMigrationEnabled;
 		await env.configuration.setUserConfiguration(setting, false);
 		env.configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
 			override affectsConfiguration(section: string) { return section === setting; }
@@ -256,7 +259,7 @@ suite('NewChatMigrationNotice', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ before, after: snapshot(notice) }, {
 			before: { visible: true, message: '2 agent customizations need an update to keep working.' },
-			after: { visible: true, message: '1 agent customization needs an update to keep working.' },
+			after: { visible: false, message: undefined },
 		});
 	});
 

@@ -56,7 +56,7 @@ import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReferenc
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatServiceTelemetry } from '../../../common/chatService/chatServiceTelemetry.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CustomizationMigrationHintMode } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
@@ -2598,7 +2598,7 @@ suite('ChatService', () => {
 		});
 	});
 
-	test('customization migration hint respects never, once, always, and workspace harness dismissal', async () => {
+	test('customization migration hint respects enablement, once-per-session, and workspace harness dismissal', async () => {
 		const sessionType = SessionType.AgentHostCopilot;
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
@@ -2652,7 +2652,7 @@ suite('ChatService', () => {
 		await neverModeResponse.data.responseCompletePromise;
 
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled, true);
 		const first = await testService.sendRequest(sessionResource, 'first', { agentId: sessionType });
 		ChatSendResult.assertSent(first);
 		await first.data.responseCompletePromise;
@@ -2660,7 +2660,6 @@ suite('ChatService', () => {
 		ChatSendResult.assertSent(second);
 		await second.data.responseCompletePromise;
 
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Always);
 		const otherSessionResource = URI.from({ scheme: sessionType, path: '/other-session' });
 		const otherRef = await testService.acquireOrLoadSession(otherSessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(otherRef);
@@ -2708,11 +2707,9 @@ suite('ChatService', () => {
 			dismissedForSessionType: storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE),
 			dismissedForOtherSessionType: storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(SessionType.AgentHostClaude), StorageScope.WORKSPACE),
 		}, {
-			computeCalls: 3,
+			computeCalls: 2,
 			computedFor: sessionResource.toString(),
 			migrationTelemetry: [
-				{ action: 'assessment', migrationFlowId: 'migration-flow-id', category: 'promptFiles', count: 3 },
-				{ action: 'hintShown', migrationFlowId: 'migration-flow-id', count: 3 },
 				{ action: 'assessment', migrationFlowId: 'migration-flow-id', category: 'promptFiles', count: 3 },
 				{ action: 'hintShown', migrationFlowId: 'migration-flow-id', count: 3 },
 				{ action: 'assessment', migrationFlowId: 'migration-flow-id', category: 'promptFiles', count: 3 },
@@ -2721,7 +2718,7 @@ suite('ChatService', () => {
 			neverHint: [],
 			firstHint: [expectedHint],
 			secondHint: [],
-			otherSessionHints: [[expectedHint], [expectedHint]],
+			otherSessionHints: [[expectedHint], []],
 			dismissedSessionHint: [],
 			dismissedForSessionType: true,
 			dismissedForOtherSessionType: undefined,
@@ -2758,7 +2755,7 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled, true);
 		instantiationService.stub(ICustomizationMigrationService, migrationService);
 		const testService = createChatService();
 		const firstRef = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);

@@ -879,12 +879,10 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('gates each migration category on its own experimental setting', () => {
+	test('gates all migration categories on the migration setting', () => {
 		const welcomePageCalls: ICustomizationMigrationCategorySummary[][] = [];
 		const configurationService = createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: false,
-			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: false,
-			[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: false,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: false,
 		}) as IConfigurationService & { setValue(key: string, value: unknown): void };
 		const editor = createTestEditor(undefined, configurationService);
 		editor.customizationsByMigrationCategory = new Map([
@@ -912,11 +910,8 @@ suite('aiCustomizationManagementEditor', () => {
 		};
 
 		editor.refreshCustomizationMigrationUi();
-		configurationService.setValue(ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled, true);
+		configurationService.setValue(ChatConfiguration.ChatCustomizationsMigrationEnabled, true);
 		editor.refreshCustomizationMigrationUi();
-		configurationService.setValue(ChatConfiguration.ChatCustomizationsPromptMigrationEnabled, true);
-		editor.refreshCustomizationMigrationUi();
-		configurationService.setValue(ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled, true);
 		configurationService.setValue('chat.agentFilesLocations', { '/workspace/custom-agents': true });
 		editor.refreshCustomizationMigrationUi();
 		editor.migrationWorkspaceSkipped = true;
@@ -924,7 +919,6 @@ suite('aiCustomizationManagementEditor', () => {
 
 		assert.deepStrictEqual(welcomePageCalls.map(categories => categories.map(category => category.id)), [
 			[],
-			[CustomizationMigrationCategoryId.UserData],
 			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData],
 			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData, CustomizationMigrationCategoryId.ConfiguredLocations],
 			[CustomizationMigrationCategoryId.UserData],
@@ -934,7 +928,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('tracks migration selection by URI and storage', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const sharedUri = URI.file('/home/user/shared.prompt.md');
 		const workspacePrompt: MigratableConfiguration = {
@@ -1002,8 +996,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('defaults workspace file migrations to GitHub folders and preserves a custom selection', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
-			[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const prompt: MigratableConfiguration = {
 			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
@@ -1176,7 +1169,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('offers a custom folder when no default migration destination exists', async () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const prompt: MigratableConfiguration = {
 			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
@@ -1217,7 +1210,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('existing migration pages retain their header without homepage destination controls', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const prompt: MigratableConfiguration = {
 			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
@@ -1265,7 +1258,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('lists MCP servers that are not available to migrate with reasons', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.McpServers;
 		editor.activeMigrationStorage = PromptsStorage.local;
@@ -1368,7 +1361,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('places the MCP migration action with migratable servers before unavailable servers', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const candidate: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
@@ -1429,8 +1422,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('dashboard file review includes enabled file migration categories', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const prompt: MigratableConfiguration = {
 			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
@@ -1457,7 +1449,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('root migration dashboard hides the category migration footer', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		editor.customizationsByMigrationCategory = new Map([[
 			CustomizationMigrationCategoryId.PromptFiles,
@@ -1561,7 +1553,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	function createMigrationRefreshEditor(compute: (session: URI, token: CancellationToken) => Promise<readonly IMcpServerCustomizationMigrationCandidate[]>, mcpServerMigrationEnabled = true) {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: mcpServerMigrationEnabled,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: mcpServerMigrationEnabled,
 		}));
 		store.add(editor.editorPreviewDisposables);
 		const renders: boolean[] = [];
@@ -1762,7 +1754,7 @@ suite('aiCustomizationManagementEditor', () => {
 			source: PromptFileSource.UserData,
 		};
 		editor.configurationService = createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		});
 		editor.customizationMigrationService.computeMigration = async (_session, _type, token = CancellationToken.None) => {
 			migrationTokens.push(token);
@@ -1852,7 +1844,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const agentSettingId = 'chat.agentFilesLocations';
 		const instructionsSettingId = 'chat.instructionsFilesLocations';
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 			[agentSettingId]: { '/custom/agents': true },
 			[instructionsSettingId]: { '/custom/instructions': true },
 		}));
@@ -1940,8 +1932,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('migration banners include destination consequences when applicable', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const userDataCustomizations = [
 			{
@@ -2027,7 +2018,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('opens a migration candidate through the shared Button widget', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const promptFile: MigratableConfiguration = {
 			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
@@ -2078,7 +2069,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('virtualized migration rows keep checkbox selection and keyboard traversal aligned', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const promptFiles = Array.from({ length: 6 }, (_, index): MigratableConfiguration => ({
 			uri: URI.file(`/workspace/.github/prompts/workspace-${index}.prompt.md`),
@@ -2123,7 +2114,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('renders MCP migration candidates without file actions', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
@@ -2186,7 +2177,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('confirms and executes selected MCP migration candidates', async () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
@@ -2271,7 +2262,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('returns to the migration homepage after a successful file migration', async () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const prompt: MigratableConfiguration = {
 			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
@@ -2317,10 +2308,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('groups the homepage by location and filters existing pages without filtering global candidates', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
-			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
-			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
-			[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 			[PromptsConfig.AGENTS_LOCATION_KEY]: { '/custom/agents': true },
 		}));
 		const profile: MigratableConfiguration = {
@@ -2384,7 +2372,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('keeps the unified sidebar entry reachable when all workspace migrations are skipped', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		editor.migrationShortcutContainer = document.createElement('div');
 		editor.migrationShortcutButton = document.createElement('button');
@@ -2410,7 +2398,7 @@ suite('aiCustomizationManagementEditor', () => {
 	});
 
 	test('persists only successful MCP activity in its initiating workspace', async () => {
-		const configuration = createConfigurationServiceStub({ [ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true });
+		const configuration = createConfigurationServiceStub({ [ChatConfiguration.ChatCustomizationsMigrationEnabled]: true });
 		const editor = createTestEditor(undefined, configuration);
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers, id: 'server', name: 'server',
@@ -2451,7 +2439,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 		test('records user MCP migration activity in the profile even when the workspace is skipped', async () => {
 			const editor = createTestEditor(undefined, createConfigurationServiceStub({
-				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+				[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 			}));
 			const server: IMcpServerCustomizationMigrationCandidate = {
 				type: CustomizationMigrationType.McpServers,
@@ -2486,7 +2474,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('removes reverted migration activity while preserving copied activity', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles);
 		const context = editor.getMigrationActivityContext(PromptsStorage.local);
@@ -2599,7 +2587,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('group migration selection retains keyboard focus', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const promptFiles = [
 			{
@@ -2685,7 +2673,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('customization migration groups render as flat source sections', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const promptFiles = [
 			{
@@ -2749,7 +2737,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('unchecking every item in a migration group unchecks the group checkbox', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const promptFiles = [
 			{
