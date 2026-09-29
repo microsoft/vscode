@@ -183,6 +183,14 @@ export class AgentHostTurnTracker extends Disposable {
 	private readonly _onDidStartTurn = this._register(new Emitter<string>());
 	readonly onDidStartTurn: Event<string> = this._onDidStartTurn.event;
 
+	private readonly _onDidDispatchTurn = this._register(new Emitter<{ readonly chat: string; readonly turnId: string }>());
+	/**
+	 * Fires once per turn when the send path hands it to the provider, after
+	 * the final pre-dispatch cancellation checks. A turn cancelled or failed
+	 * before this point never reached the provider.
+	 */
+	readonly onDidDispatchTurn: Event<{ readonly chat: string; readonly turnId: string }> = this._onDidDispatchTurn.event;
+
 	constructor(
 		@IAgentHostTelemetryReporter private readonly _reporter: AgentHostTelemetryReporter,
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
@@ -359,12 +367,15 @@ export class AgentHostTurnTracker extends Disposable {
 	 */
 	markSendDispatched(session: string, turnId: string): void {
 		const timing = this._turnTimings.get(this._key(session, turnId));
-		if (!timing || timing.sendDispatchedMs !== undefined) {
+		if (timing?.sendDispatchedMs !== undefined) {
 			return;
 		}
-		this._closeSendStage(timing);
-		timing.sendDispatchedMs = timing.stopWatch.elapsed();
-		timing.telemetryContext = timing.agent.getTelemetryContext?.();
+		if (timing) {
+			this._closeSendStage(timing);
+			timing.sendDispatchedMs = timing.stopWatch.elapsed();
+			timing.telemetryContext = timing.agent.getTelemetryContext?.();
+		}
+		this._onDidDispatchTurn.fire({ chat: session, turnId });
 	}
 
 	private _closeSendStage(timing: ITurnTiming): void {

@@ -1627,6 +1627,66 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual({ preparation: snapshotEvent?.preparation, included: snapshotEvent?.includedRootCount }, { preparation: 'prepared', included: 1 });
 		});
 
+		test('offers the workspace snapshot again when the first turn is cancelled before reaching the provider', async () => {
+			const repository = URI.file('/repo');
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'copilotcli',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				workingDirectories: [repository.toString()],
+			});
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
+			const diskFileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
+			// Hold the first turn at its turn-start checkpoint, after the outgoing-turn contributions and before the final cancellation check.
+			const firstCapture = new DeferredPromise<void>();
+			let captures = 0;
+			const checkpointService: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: async () => { if (captures++ === 0) { await firstCapture.p; } },
+			};
+			const telemetry = new TestTelemetryService();
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [repository],
+				fileService: diskFileService,
+			}, undefined, telemetry, new FakeChangesetService(), undefined, checkpointService);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			const startTurn = (turnId: string) => {
+				const action = { type: ActionType.ChatTurnStarted, turnId, startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } } as const;
+				stateManager.dispatchServerAction(defaultChatUri, action);
+				localSideEffects.handleAction(defaultChatUri, action);
+			};
+			const reportedSnapshots = () => telemetry.events.filter(event => event.eventName === 'agentHost.workspaceSnapshot').length;
+
+			startTurn('turn-1');
+			await timeout(10);
+			// As AgentService does for a client action: apply it, then run its side effects.
+			const cancel = { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 0 } as const;
+			stateManager.dispatchClientAction(defaultChatUri, cancel, { clientId: 'test', clientSeq: 1 });
+			localSideEffects.handleAction(defaultChatUri, cancel);
+			firstCapture.complete();
+			await timeout(0);
+			const afterCancel = { sends: agent.sendMessageCalls.length, reported: reportedSnapshots() };
+
+			startTurn('turn-2');
+			await waitForSendMessageCalls(1);
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			const snapshot = (!URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined)?.find(instruction => instruction.startsWith('<workspace_info>'));
+			assert.deepStrictEqual({ afterCancel, snapshotSent: snapshot !== undefined, reported: reportedSnapshots() }, {
+				afterCancel: { sends: 0, reported: 0 },
+				snapshotSent: true,
+				reported: 1,
+			});
+		});
+
 		test('snapshots the worktree created for the first send, not the folder in session state', async () => {
 			const repository = URI.file('/repo');
 			const worktree = URI.file('/worktrees/repo-agent');

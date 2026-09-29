@@ -19,10 +19,14 @@ import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
-import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type AgentHostWorkspaceSnapshotPreparation } from '../../agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type AgentHostWorkspaceSnapshotPreparation, type IAgentHostWorkspaceSnapshotEvent } from '../../agentHostTelemetryReporter.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
 import { IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
 
-const firstTurnSeenMemento = createChatMementoKey<boolean>('firstTurnSeen', () => false);
+/** Whether a turn of the chat reached the provider, so its provider conversation already exists. */
+const providerTurnSeenMemento = createChatMementoKey<boolean>('providerTurnSeen', () => false);
+/** Turns of the chat that ended without reaching the provider, such as local commands and turns cancelled before dispatch. */
+const undispatchedTurnsMemento = createChatMementoKey<ReadonlySet<string>>('undispatchedTurns', () => new Set());
 const MAX_STRUCTURE_LENGTH = 2000;
 /**
  * Longest the first send waits for a snapshot that is still being prepared.
@@ -57,6 +61,13 @@ function withProcessRoot(worktree: URI, workingDirectories: readonly URI[]): URI
 	return [worktree, ...workingDirectories.slice(1)];
 }
 
+/** A first turn being tracked until it reaches the provider or ends. */
+interface ICandidateTurn {
+	readonly turnId: string;
+	/** Set once the outgoing turn added a snapshot; reported only if the turn reaches the provider. */
+	report?: { readonly event: IAgentHostWorkspaceSnapshotEvent; readonly detail: string };
+}
+
 function snapshotKey(enumerationRoots: readonly URI[]): string {
 	return enumerationRoots.map(root => root.toString()).join('\n');
 }
@@ -72,6 +83,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	private readonly _prepared = this._register(new DisposableMap<ProtocolURI, IPreparedSnapshot>());
 	/** First-turn chats whose session is creating its worktree, keyed by session id. */
 	private readonly _awaitingWorktree = new Map<string, Set<ProtocolURI>>();
+	private readonly _candidates = new Map<ProtocolURI, ICandidateTurn>();
 
 	constructor(
 		private readonly _context: IAgentHostChatContributionContext,
@@ -79,10 +91,12 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		@IAgentHostWorktreeIsolation private readonly _worktreeIsolation: IAgentHostWorktreeIsolation,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostTelemetryReporter private readonly _telemetryReporter: AgentHostTelemetryReporter,
+		@IAgentHostTurnTracker turnTracker: AgentHostTurnTracker,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._register(_worktreeIsolation.onDidChangeWorkingDirectoryPending(sessionId => this._onWorktreeResolved(sessionId)));
+		this._register(turnTracker.onDidDispatchTurn(({ chat, turnId }) => this._onTurnDispatched(chat, turnId)));
 		this._register(_stateManager.onDidRemoveSession(session => this._releaseSession(session)));
 	}
 
@@ -97,7 +111,9 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			if (!this._firstTurnWorkingDirectories(turn.chat)) {
 				return undefined;
 			}
-			this._context.memento(firstTurnSeenMemento, turn.chat).set(true, undefined);
+			// Consumed and reported only when the turn reaches the provider; see _onTurnDispatched.
+			const candidate: ICandidateTurn = { turnId: turn.turnId };
+			this._candidates.set(turn.chat, candidate);
 			// Use the directories the provider will run in, not session state: a worktree created on this send is not in state until the provider materializes.
 			const { enumerationRoots } = resolveAgentHostFileCompletionRoots(turn.workingDirectories ?? []);
 			if (enumerationRoots.length === 0) {
@@ -113,7 +129,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			}
 			const waitMs = Date.now() - waitStarted;
 			const structure = prepared.roots.map(root => root.outcome === 'included' ? root.tree : undefined).filter(Boolean).join('\n\n');
-			this._report(turn.chat, prepared, preparation, waitMs, structure.length);
+			candidate.report = this._createReport(prepared, preparation, waitMs, structure.length);
 			if (!structure) {
 				return undefined;
 			}
@@ -121,12 +137,24 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 				instructions: [`<workspace_info>\nInitial workspace structure (file names only):\n${appendEscapedMarkdownCodeBlockFence(structure, 'text')}\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>`],
 			};
 		} finally {
-			this._release(turn.chat);
+			this._stopPreparing(turn.chat);
 		}
 	}
 
-	/** Releases preparation for a first turn that ended before it was sent (rejected, cancelled, or failed). */
+	/**
+	 * A first turn that ends without reaching the provider (a local command, or a
+	 * turn rejected, cancelled, or failed before dispatch) leaves the snapshot
+	 * unconsumed for the next turn that does.
+	 */
 	onTurnEnd(turn: ITurnEnd): void {
+		const candidate = this._candidates.get(turn.channel);
+		if (candidate && candidate.turnId === turn.turnId) {
+			const undispatched = this._context.memento(undispatchedTurnsMemento, turn.channel);
+			undispatched.set(new Set([...undispatched.get(), candidate.turnId]), undefined);
+			if (candidate.report) {
+				this._logService.info(`[WorkspaceContext] First turn of ${turn.channel} ended (${turn.reason.kind}) before reaching the provider; the snapshot will be added to the next turn that does`);
+			}
+		}
 		this._release(turn.channel);
 	}
 
@@ -144,13 +172,14 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		if (action.type === ActionType.SessionChatRemoved) {
 			this._release(action.chat);
 		} else if (action.type === ActionType.ChatTurnStarted && isAhpChatChannel(channel)) {
-			this._onTurnStarted(channel, session);
+			this._onTurnStarted(channel, session, action.turnId);
 		}
 	}
 
+	/** A restored chat with history already has a provider conversation. */
 	onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
 		if (turns.length > 0) {
-			this._context.memento(firstTurnSeenMemento, context.chat).set(true, undefined);
+			this._context.memento(providerTurnSeenMemento, context.chat).set(true, undefined);
 		}
 		return turns;
 	}
@@ -160,11 +189,12 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	 * instead: the worktree does not exist yet, and walking the source checkout
 	 * would compete with its creation.
 	 */
-	private _onTurnStarted(chat: ProtocolURI, session: ProtocolURI): void {
+	private _onTurnStarted(chat: ProtocolURI, session: ProtocolURI, turnId: string): void {
 		const workingDirectories = this._firstTurnWorkingDirectories(chat);
 		if (!workingDirectories) {
 			return;
 		}
+		this._candidates.set(chat, { turnId });
 		const sessionId = AgentSession.id(session);
 		if (this._worktreeIsolation.isWorkingDirectoryPending(sessionId)) {
 			let awaiting = this._awaitingWorktree.get(sessionId);
@@ -180,21 +210,37 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		this._prepare(chat, worktree ? withProcessRoot(worktree, workingDirectories) : workingDirectories);
 	}
 
-	/** Logs and reports why each root was or was not included, so a missing snapshot can be diagnosed. */
-	private _report(chat: ProtocolURI, prepared: IPreparedSnapshot, preparation: AgentHostWorkspaceSnapshotPreparation, waitMs: number, snapshotLength: number): void {
+	/** Records why each root was or was not included, so a missing snapshot can be diagnosed. */
+	private _createReport(prepared: IPreparedSnapshot, preparation: AgentHostWorkspaceSnapshotPreparation, waitMs: number, snapshotLength: number): ICandidateTurn['report'] {
 		const count = (outcome: RootOutcome) => prepared.roots.filter(root => root.outcome === outcome).length;
 		const omitted = prepared.roots.filter(root => root.outcome !== 'included').map(root => `${root.outcome}: ${root.root.fsPath}`);
-		this._logService.info(`[WorkspaceContext] First turn of ${chat}: included ${count('included')}/${prepared.roots.length} roots (${preparation}, waited ${waitMs}ms)${omitted.length ? `; ${omitted.join('; ')}` : ''}`);
-		this._telemetryReporter.workspaceSnapshotSent({
-			preparation,
-			rootCount: prepared.roots.length,
-			includedRootCount: count('included'),
-			pendingRootCount: count('pending'),
-			emptyRootCount: count('empty') + count('gitAdministrative'),
-			failedRootCount: count('failed'),
-			waitMs,
-			snapshotLength,
-		});
+		return {
+			detail: `included ${count('included')}/${prepared.roots.length} roots (${preparation}, waited ${waitMs}ms)${omitted.length ? `; ${omitted.join('; ')}` : ''}`,
+			event: {
+				preparation,
+				rootCount: prepared.roots.length,
+				includedRootCount: count('included'),
+				pendingRootCount: count('pending'),
+				emptyRootCount: count('empty') + count('gitAdministrative'),
+				failedRootCount: count('failed'),
+				waitMs,
+				snapshotLength,
+			},
+		};
+	}
+
+	/** Consumes the snapshot once its turn reaches the provider, then logs and reports it. */
+	private _onTurnDispatched(chat: ProtocolURI, turnId: string): void {
+		const candidate = this._candidates.get(chat);
+		if (candidate?.turnId !== turnId) {
+			return;
+		}
+		this._candidates.delete(chat);
+		this._context.memento(providerTurnSeenMemento, chat).set(true, undefined);
+		if (candidate.report) {
+			this._logService.info(`[WorkspaceContext] First turn of ${chat}: ${candidate.report.detail}`);
+			this._telemetryReporter.workspaceSnapshotSent(candidate.report.event);
+		}
 	}
 
 	/** Starts preparing the first-turn snapshots that were waiting for the worktree their session just created. */
@@ -214,7 +260,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	}
 
 	/** Stops a chat's preparation, including a pending wait for its worktree. */
-	private _release(chat: ProtocolURI): void {
+	private _stopPreparing(chat: ProtocolURI): void {
 		for (const [sessionId, awaiting] of this._awaitingWorktree) {
 			if (awaiting.delete(chat) && awaiting.size === 0) {
 				this._awaitingWorktree.delete(sessionId);
@@ -223,11 +269,17 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		this._prepared.deleteAndDispose(chat);
 	}
 
+	/** Stops a chat's preparation and forgets its tracked first turn. */
+	private _release(chat: ProtocolURI): void {
+		this._stopPreparing(chat);
+		this._candidates.delete(chat);
+	}
+
 	private _releaseSession(session: ProtocolURI): void {
 		this._awaitingWorktree.delete(AgentSession.id(session));
-		for (const chat of [...this._prepared.keys()]) {
+		for (const chat of new Set([...this._prepared.keys(), ...this._candidates.keys()])) {
 			if (parseRequiredSessionUriFromChatUri(chat) === session) {
-				this._prepared.deleteAndDispose(chat);
+				this._release(chat);
 			}
 		}
 	}
@@ -283,12 +335,17 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	 * that already carries the source chat's context, and tool-spawned chats
 	 * receive a focused task from the chat that delegated it. A restored chat
 	 * whose history is not loaded yet is never treated as new: it may already
-	 * have a snapshot in its provider conversation.
+	 * have a snapshot in its provider conversation. Earlier turns that never
+	 * reached the provider, such as local commands, do not count.
 	 */
 	private _firstTurnWorkingDirectories(chat: ProtocolURI): URI[] | undefined {
 		const state = this._stateManager.getSessionState(chat);
 		const chatState = this._stateManager.getChatState(chat);
-		if (state?.provider !== 'copilotcli' || !chatState || chatState.turns.length > 0 || this._context.memento(firstTurnSeenMemento, chat).get()) {
+		if (state?.provider !== 'copilotcli' || !chatState || this._context.memento(providerTurnSeenMemento, chat).get()) {
+			return undefined;
+		}
+		const undispatched = this._context.memento(undispatchedTurnsMemento, chat).get();
+		if (chatState.turns.some(turn => !undispatched.has(turn.id))) {
 			return undefined;
 		}
 		const origin = this._stateManager.getChatOrigin(chat);

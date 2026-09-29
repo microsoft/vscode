@@ -25,7 +25,9 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostWorkspaceSnapshotEvent } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { WorkspaceContextContribution } from '../../node/chatContributions/workspaceContext/workspaceContextContribution.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 
@@ -117,12 +119,14 @@ suite('WorkspaceContextContribution', () => {
 		});
 		const telemetry = new AgentHostTelemetryReporter(NullTelemetryService);
 		const reported = sinon.spy(telemetry, 'workspaceSnapshotSent');
+		const turnTracker = store.add(new AgentHostTurnTracker(telemetry, store.add(new AgentHostClientConnectionService()), log));
 		const instantiation = store.add(new InstantiationService(new ServiceCollection(
 			[ILogService, log],
 			[IAgentHostStateManager, state],
 			[IAgentHostWorktreeIsolation, worktreeIsolation],
 			[IFileService, fileService],
 			[IAgentHostTelemetryReporter, telemetry],
+			[IAgentHostTurnTracker, turnTracker],
 		), true));
 		const service: IAgentHostChatContributions = store.add(new AgentHostChatContributions(log, instantiation));
 		store.add(service.registerContribution(WorkspaceContextContribution));
@@ -132,15 +136,30 @@ suite('WorkspaceContextContribution', () => {
 			channel, session,
 			action: { type: ActionType.ChatTurnStarted, turnId: String(turn + 1), startedAt: new Date(0).toISOString(), message: userMessage },
 		});
-		/** Runs the outgoing-turn contributions for the directories the provider will run in. */
-		const send = (channel = chat, workingDirectories: readonly URI[] | undefined = roots.map(root => URI.parse(root))) => service.outgoingTurn({
-			session, chat: channel, turnId: String(++turn), workingDirectories, message: userMessage,
-		});
+		/**
+		 * Runs the outgoing-turn contributions for the directories the provider
+		 * will run in, then, unless `dispatch` is false, hands the turn to the
+		 * provider as the send path does after its final cancellation checks.
+		 */
+		const send = async (channel = chat, workingDirectories: readonly URI[] | undefined = roots.map(root => URI.parse(root)), dispatch = true) => {
+			const turnId = String(++turn);
+			const result = await service.outgoingTurn({ session, chat: channel, turnId, workingDirectories, message: userMessage });
+			if (dispatch) {
+				turnTracker.markSendDispatched(channel, turnId);
+			}
+			return result;
+		};
 		/** Accepts a turn, lets preparation finish, and sends it. */
-		const firstTurn = async (channel = chat, workingDirectories?: readonly URI[]) => {
+		const firstTurn = async (channel = chat, workingDirectories?: readonly URI[], dispatch = true) => {
 			accept(channel);
 			await timeout(0);
-			return workingDirectories ? send(channel, workingDirectories) : send(channel);
+			return send(channel, workingDirectories ?? roots.map(root => URI.parse(root)), dispatch);
+		};
+		/** Ends a turn and records it in the chat's history, as the reducer does. */
+		const endTurnInHistory = (channel: string, turnId: string, reason: 'localCommand' | 'cancelled') => {
+			service.turnEnd({ session, channel, turnId, reason: { kind: reason } });
+			state.dispatchServerAction(channel, { type: ActionType.ChatTurnStarted, turnId, startedAt: new Date(0).toISOString(), message: userMessage });
+			state.dispatchServerAction(channel, reason === 'cancelled' ? { type: ActionType.ChatTurnCancelled, turnId, duration: 0 } : { type: ActionType.ChatTurnComplete, turnId, duration: 0 });
 		};
 		const endTurn = (channel = chat) => service.turnEnd({ session, channel, turnId: String(turn), reason: { kind: 'cancelled' } });
 		const addChat = (name: string, origin: Parameters<AgentHostStateManager['addChat']>[2] extends infer O ? O extends { origin?: infer R } ? R : never : never = { kind: ChatOriginKind.User }) => {
@@ -152,7 +171,7 @@ suite('WorkspaceContextContribution', () => {
 			const { waitMs: _waitMs, ...event } = call.args[0];
 			return event;
 		});
-		return { log, state, service, session, chat, disk, accept, send, firstTurn, endTurn, addChat, events, worktreeIsolation };
+		return { log, state, service, session, chat, disk, accept, send, firstTurn, endTurn, endTurnInHistory, addChat, events, worktreeIsolation };
 	}
 
 	const structureOf = (result: { instructions?: readonly string[] }) => result.instructions?.[0].split('```text\n')[1].split('\n```')[0];
@@ -326,6 +345,40 @@ suite('WorkspaceContextContribution', () => {
 		release();
 		await timeout(10);
 		assert.deepStrictEqual(context.disk.reads, ['/workspace', '/workspace', '/workspace']);
+	});
+
+	test('keeps the snapshot for the first provider turn after a local command', async () => {
+		const context = await setupContext();
+		context.accept();
+		context.endTurnInHistory(context.chat, '1', 'localCommand');
+		const result = await context.firstTurn();
+		assert.deepStrictEqual({
+			history: context.state.getChatState(context.chat)?.turns.map(turn => turn.id),
+			snapshot: !!result.instructions?.length,
+			reported: context.events().length,
+		}, { history: ['1'], snapshot: true, reported: 1 });
+	});
+
+	test('keeps and does not report a snapshot whose turn never reached the provider', async () => {
+		const context = await setupContext();
+		const cancelled = await context.firstTurn(context.chat, undefined, false);
+		const reportedBeforeDispatch = context.events().length;
+		context.endTurnInHistory(context.chat, '1', 'cancelled');
+		const next = await context.firstTurn();
+		assert.deepStrictEqual({
+			cancelled: !!cancelled.instructions?.length,
+			reportedBeforeDispatch,
+			next: !!next.instructions?.length,
+			reported: context.events().length,
+		}, { cancelled: true, reportedBeforeDispatch: 0, next: true, reported: 1 });
+	});
+
+	test('consumes the snapshot once its turn reaches the provider, even if the turn is then cancelled', async () => {
+		const context = await setupContext();
+		await context.firstTurn();
+		context.endTurnInHistory(context.chat, '1', 'cancelled');
+		const next = await context.firstTurn();
+		assert.deepStrictEqual({ next, reported: context.events().length }, { next: { message: userMessage }, reported: 1 });
 	});
 
 	test('does not treat a restored chat as new before its history is loaded', async () => {
