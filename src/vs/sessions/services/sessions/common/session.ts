@@ -750,6 +750,17 @@ export function isSideChatOf(chat: IChat, parentChat: URI): boolean {
 		&& isEqual(chat.origin.parentChat, parentChat);
 }
 
+/** User-visible children of a session's main chat, shared by the Sessions list and Hub. */
+export function getSessionChildChats(session: ISession, reader?: IReader): readonly IChat[] {
+	const mainChat = session.mainChat.read(reader);
+	return session.chats.read(reader).filter(chat =>
+		!isEqual(chat.resource, mainChat.resource) &&
+		chat.origin?.kind !== ChatOriginKind.Tool &&
+		chat.origin?.kind !== ChatOriginKind.SideChat &&
+		chat.interactivity.read(reader) !== ChatInteractivity.Hidden
+	);
+}
+
 /**
  * Resolve a chat's effective capabilities. Combines the chat's own advertised
  * {@link IChat.capabilities} (falling back to {@link DEFAULT_CHAT_CAPABILITIES})

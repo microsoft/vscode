@@ -290,6 +290,7 @@ suite('ProjectBoardNewSession', () => {
 			override readonly providerId = 'test';
 			override readonly title = constObservable('Greeting');
 			override readonly chats = constObservable([chat]);
+			override readonly mainChat = constObservable(chat);
 			override readonly isArchived = constObservable(false);
 		}();
 		const board = new ProjectBoardModel();

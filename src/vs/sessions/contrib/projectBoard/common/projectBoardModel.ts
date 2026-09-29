@@ -7,7 +7,7 @@ import { IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IProjectBoardConfiguration } from './projectBoardConfiguration.js';
-import { IChat, ISession, ChatInteractivity, SessionStatus, getGitHubPullRequestRefs } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ChatInteractivity, SessionStatus, getGitHubPullRequestRefs, getSessionChildChats } from '../../../services/sessions/common/session.js';
 
 export interface IProjectBoardAxis {
 	readonly id: string;
@@ -58,6 +58,8 @@ export class ProjectBoardModel {
 	private autoIncludeSessions = true;
 	private showSessionList = false;
 	private sessionPlacements: Map<ISession, IProjectBoardPlacement | undefined> | undefined;
+	private readonly parents = new Map<string, IProjectBoardCard>();
+	private readonly children = new Map<string, readonly IProjectBoardCard[]>();
 
 	get rows(): readonly IProjectBoardAxis[] { return this._rows; }
 	get columns(): readonly IProjectBoardAxis[] { return this._columns; }
@@ -160,19 +162,57 @@ export class ProjectBoardModel {
 		}
 		this._cards = cards;
 		this.sessionPlacements = undefined;
+		this.parents.clear();
+		this.children.clear();
+		const byId = new Map(cards.map(card => [card.id, card]));
+		for (const session of sessions) {
+			const parent = byId.get(getProjectBoardCardId(session, session.mainChat.read(reader)));
+			if (!parent) {
+				continue;
+			}
+			const children = getSessionChildChats(session, reader).flatMap(chat => {
+				const child = byId.get(getProjectBoardCardId(session, chat));
+				if (!child) {
+					return [];
+				}
+				this.parents.set(child.id, parent);
+				return [child];
+			});
+			this.children.set(parent.id, children);
+		}
 	}
 
 	getPlacement(cardId: string): IProjectBoardPlacement | undefined {
-		if (this.showSessionList) {
-			const card = this._cards.find(card => card.id === cardId);
-			return card ? this.getCardPlacement(card) : undefined;
+		const card = this._cards.find(card => card.id === cardId);
+		return card ? this.getCardPlacement(card) : this.showSessionList ? undefined : this.placements.get(cardId);
+	}
+
+	getParentCard(cardId: string, showArchived = false): IProjectBoardCard | undefined {
+		const parent = this.parents.get(cardId);
+		if (!parent || (!showArchived && parent.archived)) {
+			return undefined;
 		}
-		return this.placements.get(cardId);
+		const parentPlacement = this.getCardPlacement(parent);
+		const childPlacement = this.placements.get(cardId) ?? parentPlacement;
+		return (this.autoIncludeSessions || parentPlacement)
+			&& childPlacement?.rowId === parentPlacement?.rowId && childPlacement?.columnId === parentPlacement?.columnId
+			? parent : undefined;
+	}
+
+	getChildCards(parentId: string, showArchived = false): readonly IProjectBoardCard[] {
+		return this.sortCards((this.children.get(parentId) ?? []).filter(card =>
+			(showArchived || !card.archived) && this.getParentCard(card.id, showArchived)?.id === parentId
+		));
+	}
+
+	getInheritedPlacement(cardId: string): IProjectBoardPlacement | undefined {
+		const parent = this.parents.get(cardId);
+		return parent ? this.placements.get(parent.id) : undefined;
 	}
 
 	private getCardPlacement(card: IProjectBoardCard): IProjectBoardPlacement | undefined {
 		if (!this.showSessionList) {
-			return this.placements.get(card.id);
+			return this.placements.get(card.id) ?? this.getInheritedPlacement(card.id);
 		}
 		if (!this.sessionPlacements) {
 			this.sessionPlacements = new Map();
@@ -227,7 +267,7 @@ export class ProjectBoardModel {
 	private getPresentationCards(showArchived: boolean): readonly IProjectBoardCard[] {
 		const cards = this.sortCards(this._cards.filter(card => showArchived || !card.archived));
 		if (!this.showSessionList) {
-			return cards;
+			return cards.filter(card => !this.getParentCard(card.id, showArchived));
 		}
 		const sessions = new Set<ISession>();
 		return cards.filter(card => {
