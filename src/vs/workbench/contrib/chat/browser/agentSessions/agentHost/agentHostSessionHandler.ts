@@ -83,7 +83,7 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -1142,14 +1142,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * above is only released when the last of them goes away.
 	 */
 	private readonly _clientToolRetainCounts = new Map<string, number>();
-	/**
-	 * Per-session set of MCP server ids that already had an authentication
-	 * prompt surfaced in the current conversation. A server is removed from the
-	 * set once it reaches the running state ({@link McpServerStatus.Ready}), so
-	 * that a later auth requirement for the same server prompts again instead of
-	 * the prompt repeating on every message.
-	 */
-	private readonly _surfacedMcpAuthServers = new ResourceMap<Set<string>>();
 	private readonly _pendingMcpAutoAuthentication = new Map<string, Promise<boolean>>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
 	private readonly _clientDispatchedTurnIds = new Set<string>();
@@ -1266,11 +1258,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._inputNeededWatcherBackends.clear();
 			this._terminalChatURIs.clear();
 		}));
-		// Drop MCP servers from the per-session surfaced set once they reach the
-		// running state so a later auth requirement for the same server prompts
-		// again.
-		this._register(this._customizationService.onDidChangeCustomizations(() => this._reconcileSurfacedMcpAuthServers()));
-
 		this._register(toDisposable(() => {
 			for (const entry of this._activeClientEntries.values()) {
 				entry.dispose();
@@ -1725,7 +1712,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._mcpAuthWatchers.deleteAndDispose(sessionResource);
 					this._releaseSessionInputNeeded(sessionResource);
 					this._pendingHistoryTurns.delete(sessionResource);
-					this._surfacedMcpAuthServers.delete(sessionResource);
 					const chatURI = this._chatURIsBySessionResource.get(sessionResource);
 					this._chatURIsBySessionResource.delete(sessionResource);
 					if (chatURI) {
@@ -3491,9 +3477,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._clearTurnStopWatch(opts.chatURI, opts.turnId);
 			}
 		}));
-		const mcpAuthRequired$ = derivedOpts({ equalsFn: equals }, reader => {
-			return getMcpAuthenticationRequiredServers(opts.sessionResource, mergedState$.read(reader));
-		});
 		const mcpStarting$ = derivedOpts({ equalsFn: equals }, reader => {
 			const state = mergedState$.read(reader);
 			const backgroundActions = new Map(this._customizationService.getMcpServers(opts.sessionResource)
@@ -3593,8 +3576,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
 			let lastAutoModeResolution: IChatAutoModeResolutionPart | undefined;
 			const modelLookup = this._createTurnModelLookup(opts.sessionResource, undefined);
-
-			this._setupMcpAuthPrompt(mcpAuthRequired$, store, opts);
 
 			// Surface the host's chat activity — e.g. the live "Creating
 			// isolated worktree (42%)" progress reported while the session's
@@ -3850,104 +3831,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		return store;
-	}
-
-	/**
-	 * Surfaces the "MCP server … requires authentication" prompt for a turn.
-	 *
-	 * Each server is prompted at most once per conversation: {@link mcpAuthRequired$}
-	 * is session-wide, so without this guard the prompt would repeat on every
-	 * message. The per-session {@link _surfacedMcpAuthServers surfaced set} tracks
-	 * which servers were already prompted; it is pruned by
-	 * {@link _reconcileSurfacedMcpAuthServers} once a server reaches the running
-	 * state, so a server that is re-required after being authenticated (e.g.
-	 * after a restart) prompts again.
-	 *
-	 * The emitted part lists only the servers it introduced and shrinks as they
-	 * authenticate.
-	 */
-	private _setupMcpAuthPrompt(
-		mcpAuthRequired$: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>,
-		store: DisposableStore,
-		opts: IObserveTurnOptions,
-	): void {
-		let part: IChatMcpAuthenticationRequired & { servers: ISettableObservable<IChatMcpAuthenticationRequiredServer[]> } | undefined;
-		let ownedIds = new Set<string>();
-		let runId = 0;
-
-		store.add(autorun(reader => {
-			const pendingAuth = mcpAuthRequired$.read(reader);
-			const currentRunId = ++runId;
-			this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth).then(servers => {
-				// Ignore stale completions: a newer run has superseded this one
-				// (guards against out-of-order resolution of the async filter).
-				if (currentRunId !== runId) {
-					return;
-				}
-				const surfaced = this._getSurfacedMcpAuthServers(opts.sessionResource);
-				const newServers = servers.filter(server => !surfaced.has(server.id));
-				// Nothing new to prompt and no live prompt to update/hide.
-				if (!newServers.length && (!part || part.isUsed)) {
-					return;
-				}
-				if (!part || part.isUsed) {
-					ownedIds = new Set();
-					part = {
-						kind: 'mcpAuthenticationRequired',
-						sessionResource: opts.sessionResource.toJSON(),
-						isUsed: false,
-						servers: observableValue('mcpAuthNeededServers', []),
-					};
-					opts.sink([part]);
-				}
-				for (const server of newServers) {
-					surfaced.add(server.id);
-					ownedIds.add(server.id);
-				}
-				const remainingServers = servers.filter(server => ownedIds.has(server.id));
-				if (part.servers.read(undefined).length > 0 && remainingServers.length === 0) {
-					part.isUsed = true;
-				}
-				part.servers.set(remainingServers, undefined);
-			});
-		}));
-	}
-
-	/**
-	 * Returns the mutable set of MCP server ids already surfaced for
-	 * authentication in the given session, creating it on first use.
-	 */
-	private _getSurfacedMcpAuthServers(sessionResource: URI): Set<string> {
-		let surfaced = this._surfacedMcpAuthServers.get(sessionResource);
-		if (!surfaced) {
-			surfaced = new Set<string>();
-			this._surfacedMcpAuthServers.set(sessionResource, surfaced);
-		}
-		return surfaced;
-	}
-
-	/**
-	 * Prunes servers that reached the running ({@link McpServerStatus.Ready})
-	 * state from every session's {@link _surfacedMcpAuthServers surfaced set} so
-	 * a subsequent auth requirement surfaces a fresh prompt instead of being
-	 * suppressed. Only the running state counts as actioned — a server that
-	 * merely left {@link McpServerStatus.AuthRequired} for an error/stopped
-	 * state was not authenticated and stays suppressed.
-	 */
-	private _reconcileSurfacedMcpAuthServers(): void {
-		for (const [sessionResource, surfaced] of this._surfacedMcpAuthServers) {
-			if (surfaced.size === 0) {
-				continue;
-			}
-			const ready = new Set(this._customizationService.getMcpServers(sessionResource)
-				.filter(server => server.status === McpServerStatus.Ready)
-				.map(server => server.id));
-			for (const id of surfaced) {
-				if (ready.has(id)) {
-					surfaced.delete(id);
-				}
-			}
-		}
 	}
 
 	private async _filterAutoGrantedMcpAuthentication(sessionResource: URI, servers: readonly IChatMcpAuthenticationRequiredServer[]): Promise<readonly IChatMcpAuthenticationRequiredServer[]> {
