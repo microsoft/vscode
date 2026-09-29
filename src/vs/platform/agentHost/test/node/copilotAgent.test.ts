@@ -8,7 +8,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
-import { spy, useFakeTimers } from 'sinon';
+import { spy, stub, useFakeTimers } from 'sinon';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -22,10 +22,11 @@ import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
+import { makeMcpServerCustomization, PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
+import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { IFileService, type IStat } from '../../../files/common/files.js';
+import { FileChangesEvent, FileChangeType, IFileService, type IStat } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -84,7 +85,7 @@ import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkIns
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
-import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
+import { getCopilotHomePath, getCopilotMcpConfigurationPath } from '../../../environment/common/copilotHome.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { basename, dirname, join } from '../../../../base/common/path.js';
@@ -555,6 +556,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 			readonly list: CopilotClient['rpc']['sessions']['list'];
 		};
 		readonly models: { readonly list: CopilotModelsList };
+		readonly mcp: Pick<CopilotClient['rpc']['mcp'], 'discover'> & { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list' | 'reload'> };
 	};
 }
 
@@ -593,6 +595,11 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 }
 
 class TestCopilotClient implements ITestCopilotClient {
+	discoverMcp: CopilotClient['rpc']['mcp']['discover'] = async () => ({ servers: [] });
+	listMcpConfig: CopilotClient['rpc']['mcp']['config']['list'] = async () => ({ servers: {} });
+	readonly mcpDiscoveryRequests: Parameters<CopilotClient['rpc']['mcp']['discover']>[0][] = [];
+	mcpConfigListCalls = 0;
+	mcpConfigReloadCalls = 0;
 	discoverAgents: CopilotAgentDiscovery['discover'] = async () => ({ agents: [] });
 	getAgentDiscoveryPaths: CopilotAgentDiscovery['getDiscoveryPaths'] = async () => ({ paths: [] });
 	discoverInstructions: CopilotInstructionDiscovery['discover'] = async () => ({ sources: [] });
@@ -604,6 +611,19 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly skillDiscoveryRequests: Parameters<CopilotSkillDiscovery['discover']>[0][] = [];
 
 	readonly rpc: ITestCopilotClient['rpc'] = {
+		mcp: {
+			discover: params => {
+				this.mcpDiscoveryRequests.push(params);
+				return this.discoverMcp(params);
+			},
+			config: {
+				list: () => {
+					this.mcpConfigListCalls++;
+					return this.listMcpConfig();
+				},
+				reload: async () => { this.mcpConfigReloadCalls++; },
+			},
+		},
 		agents: {
 			discover: async params => {
 				this.agentDiscoveryRequests.push(params);
@@ -823,6 +843,7 @@ interface ICredentialUpdateSession {
 }
 
 class MockCopilotSession {
+	mcpServers: Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>>['servers'] = [];
 	readonly mcpStartCalls: string[] = [];
 	readonly mcpStopCalls: string[] = [];
 	mcpStartGate: Promise<void> | undefined;
@@ -838,7 +859,7 @@ class MockCopilotSession {
 	readonly gitHubCredentialUpdates: Array<{ credentials: { type: 'token'; host: string; token: string } }> = [];
 	readonly rpc = {
 		mcp: {
-			list: async () => ({ servers: [] }),
+			list: async () => ({ servers: this.mcpServers }),
 			enable: async () => ({ success: true }),
 			disable: async () => ({ success: true }),
 			startServer: async ({ serverName }: { serverName: string }) => {
@@ -9817,6 +9838,7 @@ suite('CopilotAgent', () => {
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
 				mcpServerStates: observableValue('test', []),
+				topLevelMcpCustomizations: () => [],
 				async initializeSession(): Promise<void> { },
 				async remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> { remaps.push(mapping); },
 				async getMessages(): Promise<readonly Turn[]> { return []; },
@@ -10190,7 +10212,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('provisional session anchors customization discovery to the additional roots (gated)', async () => {
-			const { agent, stateManager } = createTestAgentContext(disposables);
+			const { agent, stateManager } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				const repoA = URI.file('/repo-a');
@@ -10901,6 +10923,7 @@ suite('CopilotAgent', () => {
 			const source = URI.joinPath(workspace, '.mcp.json');
 			await fileService.writeFile(source, VSBuffer.fromString('{"mcpServers":{"automation":{"command":"node"},"explorer":{"command":"node"}}}'));
 			const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
 				fileService,
 				sessionDataService: disposables.add(new TestSessionDataService()),
 				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
@@ -10938,6 +10961,7 @@ suite('CopilotAgent', () => {
 
 		test('getSessionCustomizations includes root MCP servers before materialization', async () => {
 			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
 				rootConfig: {
 					[AgentHostGitHubMcpServerEnabledConfigKey]: false,
 					[AgentHostMcpServersConfigKey]: {
@@ -10950,13 +10974,285 @@ suite('CopilotAgent', () => {
 			try {
 				const session = AgentSession.uri('copilotcli', 'root-mcp-customizations-before-materialization');
 				await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
-
 				const customizations = await getDefaultChatCustomizations(agent, session);
-
 				assert.deepStrictEqual(customizations
 					.filter(customization => customization.type === CustomizationType.McpServer)
 					.map(customization => customization.name)
 					.sort(), ['playwright', 'slack']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('pre-session MCP discovery publishes runtime and ordered workspace declarations without an SDK session', async () => {
+			const logService = new NullLogService();
+			const debug = spy(logService, 'debug');
+			disposables.add(toDisposable(() => debug.restore()));
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const primary = URI.file('/primary');
+			const secondary = URI.file('/secondary');
+			const userConfig = URI.file('/home/.copilot/mcp-config.json');
+			const plugin = URI.file('/plugins/mcp-only');
+			const pluginConfig = URI.joinPath(plugin, '.mcp.json');
+			await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"MCP Only"}'));
+			for (const [root, names] of [[primary, ['shared', 'primary']], [secondary, ['shared', 'secondary']]] as const) {
+				await fileService.writeFile(URI.joinPath(root, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+					mcpServers: Object.fromEntries(names.map(name => [name, { command: 'never-start' }])),
+				})));
+			}
+			const client = new TestCopilotClient([]);
+			let sdkCalls = 0;
+			client.createSession = client.resumeSession = async () => { sdkCalls++; throw new Error('No SDK session during discovery'); };
+			client.discoverMcp = async () => ({
+				servers: [
+					{ name: 'user', source: 'user', enabled: false, effectiveSource: { id: 'opaque-user', kind: 'user', editability: 'editable', file: { uri: userConfig.toString() } } },
+					{ name: 'shared', source: 'workspace', enabled: true, effectiveSource: { id: 'opaque-workspace', kind: 'workspace', editability: 'editable', file: { uri: URI.joinPath(primary, '.mcp.json').toString() } } },
+					{ name: 'ancestor', source: 'workspace', enabled: true, effectiveSource: { id: 'opaque-ancestor', kind: 'workspace', editability: 'editable', file: { uri: 'file:///ancestor/.mcp.json' } } },
+					{ name: 'root-override', source: 'user', enabled: false },
+					{ name: 'plugin-server', source: 'plugin', sourcePlugin: 'MCP Only', enabled: true, effectiveSource: { id: 'opaque-plugin', kind: 'plugin', editability: 'read-only', file: { uri: pluginConfig.toString() } } },
+				],
+			});
+			const { agent, stateManager } = createTestAgentContext(disposables, {
+				copilotClient: client, fileService, logService, useRealCustomizationEnablementService: true, rootConfig: {
+					[AgentHostCopilotMultiRootEnabledConfigKey]: true,
+					[AgentHostGitHubMcpServerEnabledConfigKey]: false,
+					[AgentHostMcpServersConfigKey]: { 'root-override': { type: 'stdio', command: 'never-start' } },
+				}
+			});
+			const published: Customization[][] = [];
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationsChanged) {
+					published.push(signal.action.customizations);
+				}
+			}));
+			try {
+				const session = AgentSession.uri('copilotcli', 'pre-session-mcp');
+				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, workingDirectories: [primary.toString(), secondary.toString()], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() });
+				await provisionSession(agent, { session, workingDirectories: [primary, secondary] });
+				const snapshot = await getDefaultChatCustomizations(agent, session);
+				const servers = snapshot.filter(c => c.type === CustomizationType.McpServer);
+				assert.deepStrictEqual({
+					servers: servers.map(c => ({ name: c.name, uri: c.uri, enabled: isCustomizationEnabled(c), state: c.state.kind, source: readMcpServerSource(c) })),
+					requests: client.mcpDiscoveryRequests,
+					sdkCalls,
+					publishedUser: published.some(items => items.some(c => c.name === 'user')),
+					globalInventory: agent.getCustomizations(),
+					plugins: snapshot.filter(c => c.type === CustomizationType.Plugin).map(c => ({ uri: c.uri, children: c.children?.map(child => ({ id: child.id, name: child.name })) })),
+					discoveryCompleted: debug.getCalls().filter(call => call.args[0].startsWith('[Copilot:McpDiscovery] Discovery completed:')).map(call => call.args.map(arg => typeof arg === 'string' ? arg.replace(/durationMs=\d+/, 'durationMs=<elapsed>') : arg)),
+					snapshotReady: debug.getCalls().filter(call => call.args[0].startsWith('[Copilot:McpDiscovery] Customization snapshot ready:')).map(call => call.args),
+					publicationLogged: debug.getCalls().some(call => call.args[0].startsWith('[Copilot:McpDiscovery] Publishing customization snapshot:')),
+				}, {
+					servers: [
+						{ name: 'shared', uri: URI.joinPath(primary, '.mcp.json').toString(), enabled: true, state: McpServerStatus.Stopped, source: 'workspace' },
+						{ name: 'primary', uri: URI.joinPath(primary, '.mcp.json').toString(), enabled: true, state: McpServerStatus.Stopped, source: undefined },
+						{ name: 'secondary', uri: URI.joinPath(secondary, '.mcp.json').toString(), enabled: true, state: McpServerStatus.Stopped, source: undefined },
+						{ name: 'user', uri: userConfig.toString(), enabled: false, state: McpServerStatus.Stopped, source: 'user' },
+						{ name: 'ancestor', uri: 'file:///ancestor/.mcp.json', enabled: true, state: McpServerStatus.Stopped, source: 'workspace' },
+						{ name: 'root-override', uri: 'mcp-top-level:copilotcli:pre-session-mcp:root-override', enabled: true, state: McpServerStatus.Stopped, source: undefined },
+					],
+					requests: [{ workingDirectory: primary.fsPath, includeEffectiveSource: true }],
+					sdkCalls: 0,
+					publishedUser: true,
+					globalInventory: [],
+					plugins: [{ uri: plugin.toString(), children: [{ id: makeMcpServerCustomization(pluginConfig, 'plugin-server').id, name: 'plugin-server' }] }],
+					discoveryCompleted: [[`[Copilot:McpDiscovery] Discovery completed: session=${session.toString()}, revision=1, mode=workspace, roots=2, servers=5, disabled=2, changed=true, durationMs=<elapsed>`]],
+					snapshotReady: [[`[Copilot:McpDiscovery] Customization snapshot ready: session=${session.toString()}, mcpServers=7, materialized=false`]],
+					publicationLogged: true,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('pre-session MCP discovery uses only user config without a folder and strips launch secrets', async () => {
+			const logService = new NullLogService();
+			const debug = spy(logService, 'debug');
+			disposables.add(toDisposable(() => debug.restore()));
+			const userHome = URI.file(await fs.mkdtemp(join(os.tmpdir(), 'mcp-user-home-')));
+			const client = new TestCopilotClient([]);
+			client.listMcpConfig = async () => ({ servers: { personal: { type: 'stdio', command: 'SECRET_COMMAND', args: ['SECRET_ARG'], env: { TOKEN: 'SECRET_TOKEN' }, tools: ['*'] } } });
+			client.createSession = client.resumeSession = async () => { throw new Error('No SDK session during discovery'); };
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, userHome, logService, rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false } });
+			try {
+				const session = AgentSession.uri('copilotcli', 'no-folder-mcp');
+				await provisionSession(agent, { session });
+				const snapshot = await getDefaultChatCustomizations(agent, session);
+				assert.deepStrictEqual({
+					names: snapshot.filter(c => c.type === CustomizationType.McpServer).map(c => c.name),
+					listCalls: client.mcpConfigListCalls,
+					discover: client.mcpDiscoveryRequests,
+					hasSecrets: JSON.stringify(snapshot).includes('SECRET'),
+					logsHaveSecrets: JSON.stringify(debug.getCalls().map(call => call.args)).includes('SECRET'),
+					discoveryCompleted: debug.getCalls().filter(call => call.args[0].startsWith('[Copilot:McpDiscovery] Discovery completed:')).map(call => call.args.map(arg => typeof arg === 'string' ? arg.replace(/durationMs=\d+/, 'durationMs=<elapsed>') : arg)),
+				}, {
+					names: ['personal'], listCalls: 1, discover: [], hasSecrets: false, logsHaveSecrets: false,
+					discoveryCompleted: [[`[Copilot:McpDiscovery] Discovery completed: session=${session.toString()}, revision=0, mode=user, roots=0, servers=1, disabled=unknown, changed=true, durationMs=<elapsed>`]],
+				});
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			}
+		});
+
+		test('pre-session MCP discovery logs an empty catalog without claiming an incremental publication', async () => {
+			const logService = new NullLogService();
+			const debug = spy(logService, 'debug');
+			disposables.add(toDisposable(() => debug.restore()));
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]), logService, rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+			});
+			try {
+				const session = AgentSession.uri('copilotcli', 'empty-discovery');
+				await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+				await getDefaultChatCustomizations(agent, session);
+				assert.deepStrictEqual(debug.getCalls().filter(call => call.args[0].startsWith('[Copilot:McpDiscovery]')).map(call => call.args.map(arg => typeof arg === 'string' ? arg.replace(/durationMs=\d+/, 'durationMs=<elapsed>') : arg)), [
+					[`[Copilot:McpDiscovery] Starting discovery: session=${session.toString()}, revision=0, mode=workspace, roots=1`],
+					['[Copilot:McpDiscovery] Querying workspace catalog: method=mcp.discover, includeEffectiveSource=true'],
+					[`[Copilot:McpDiscovery] Discovery completed: session=${session.toString()}, revision=0, mode=workspace, roots=1, servers=0, disabled=0, changed=false, durationMs=<elapsed>`],
+					[`[Copilot:McpDiscovery] Customization snapshot ready: session=${session.toString()}, mcpServers=0, materialized=false`],
+				]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('pre-session MCP discovery errors reject rather than becoming an empty catalog', async () => {
+			const client = new TestCopilotClient([]);
+			client.discoverMcp = async () => { throw Object.assign(new Error('discovery failed: SECRET_TOKEN'), { code: -32603, data: { headers: { Authorization: 'SECRET_TOKEN' } } }); };
+			const logService = new NullLogService();
+			const warnings = spy(logService, 'warn');
+			disposables.add(toDisposable(() => warnings.restore()));
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, logService });
+			try {
+				const session = AgentSession.uri('copilotcli', 'failed-discovery');
+				await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+				await assert.rejects(getDefaultChatCustomizations(agent, session), /discovery failed/);
+				assert.deepStrictEqual(warnings.getCalls().map(call => call.args.map(arg => typeof arg === 'string' ? arg.replace(/durationMs=\d+/, 'durationMs=<elapsed>') : arg)), [
+					[`[Copilot:McpDiscovery] Discovery failed: session=${session.toString()}, revision=0, mode=workspace, roots=1, code=-32603, durationMs=<elapsed>`],
+				]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('pre-session MCP discovery ignores completion after disposal', async () => {
+			const logService = new NullLogService();
+			const debug = spy(logService, 'debug');
+			disposables.add(toDisposable(() => debug.restore()));
+			const gate = new DeferredPromise<Awaited<ReturnType<CopilotClient['rpc']['mcp']['discover']>>>();
+			const started = new DeferredPromise<void>();
+			const client = new TestCopilotClient([]);
+			client.discoverMcp = () => { started.complete(); return gate.p; };
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, logService });
+			try {
+				const session = AgentSession.uri('copilotcli', 'disposed-discovery');
+				await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+				let latePublications = 0;
+				const result = getDefaultChatCustomizations(agent, session);
+				await started.p;
+				await disposeProvisionedSession(agent, session);
+				disposables.add(agent.onDidChatProgress(signal => {
+					if (signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationsChanged) {
+						latePublications++;
+					}
+				}));
+				gate.complete({ servers: [{ name: 'late', source: 'user', enabled: true }] });
+				await assert.rejects(result, isCancellationError);
+				assert.deepStrictEqual({
+					latePublications,
+					results: debug.getCalls().filter(call => /^\[Copilot:McpDiscovery\] (?:Ignoring discovery result|Discovery completed|Publishing customization snapshot|Customization snapshot ready)/.test(call.args[0])).map(call => call.args),
+				}, {
+					latePublications: 0,
+					results: [[`[Copilot:McpDiscovery] Ignoring discovery result: session=${session.toString()}, revision=0, mode=workspace, roots=1, reason=disposed`]],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('pre-session MCP discovery retains identity and live state after first send and gates disabled declarations at launch', async () => {
+			const logService = new NullLogService();
+			const debug = spy(logService, 'debug');
+			disposables.add(toDisposable(() => debug.restore()));
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const userHome = URI.file('/home');
+			const userConfig = URI.file(getCopilotMcpConfigurationPath(userHome.fsPath, process.env));
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const watcherEvents = new Map<string, Emitter<FileChangesEvent>>();
+			const watchers = stub(fileService, 'createWatcher').callsFake(resource => {
+				const emitter = new Emitter<FileChangesEvent>();
+				watcherEvents.set(resource.toString(), emitter);
+				return { onDidChange: emitter.event, dispose: () => emitter.dispose() };
+			});
+			disposables.add(toDisposable(() => watchers.restore()));
+			let disabled = true;
+			client.discoverMcp = async () => ({
+				servers: ['personal', 'disabled'].map(name => ({
+					name, source: 'user', enabled: name !== 'disabled' || !disabled,
+					effectiveSource: { id: 'opaque-user', kind: 'user', editability: 'editable', file: { uri: userConfig.toString() } },
+				}))
+			});
+			const runtime = new MockCopilotSession();
+			let creates = 0;
+			let disabledAtLaunch: readonly string[] | undefined;
+			client.createSession = async config => {
+				creates++;
+				disabledAtLaunch = config.disabledMcpServers;
+				return runtime as unknown as CopilotSession;
+			};
+			client.resumeSession = async () => { throw new Error('Unexpected resume'); };
+			const { agent, stateManager } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService, fileService, userHome, logService, useRealCustomizationEnablementService: true, rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false } });
+			try {
+				const session = AgentSession.uri('copilotcli', 'pre-session-transition');
+				const chat = defaultChatUri(session);
+				const workspace = URI.file('/workspace');
+				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, workingDirectories: [workspace.toString()], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() });
+				await provisionSession(agent, { session, workingDirectories: [workspace] });
+				const before = await getDefaultChatCustomizations(agent, session);
+				assert.deepStrictEqual({ creates, sends: runtime.sendCalls, starts: runtime.mcpStartCalls }, { creates: 0, sends: 0, starts: [] });
+				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...before] });
+				await agent.chats.sendMessage(chat, 'hello', [workspace], undefined, 'turn-1', undefined, exactChatContext(session, chat, session));
+				runtime.mcpServers = [{ name: 'personal', status: 'connected', source: 'user' }, { name: 'disabled', status: 'disabled', source: 'user' }];
+				const ready = Event.toPromise(Event.filter(agent.onDidChatProgress, signal =>
+					signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationUpdated
+					&& signal.action.customization.type === CustomizationType.McpServer && signal.action.customization.state.kind === McpServerStatus.Ready));
+				runtime.emit({
+					id: 'mcp-loaded', timestamp: new Date(0).toISOString(), parentId: null,
+					type: 'session.mcp_servers_loaded',
+					ephemeral: true,
+					data: { servers: [{ name: 'personal', status: 'connected' }, { name: 'disabled', status: 'disabled' }] },
+				});
+				await ready;
+				const refreshed = Event.toPromise(Event.filter(agent.onDidChatProgress, signal => signal.kind === 'action'
+					&& signal.action.type === ActionType.SessionCustomizationsChanged
+					&& signal.action.customizations.some(c => c.type === CustomizationType.McpServer && c.name === 'personal' && c.state.kind === McpServerStatus.Ready)));
+				disabled = false;
+				watcherEvents.get(URI.joinPath(userConfig, '..').toString())?.fire(new FileChangesEvent([{ resource: userConfig, type: FileChangeType.UPDATED }], false));
+				const after = await getDefaultChatCustomizations(agent, session);
+				await refreshed;
+				assert.deepStrictEqual({
+					creates,
+					disabledAtLaunch,
+					reloads: client.mcpConfigReloadCalls,
+					discoveryCalls: client.mcpDiscoveryRequests.length,
+					refreshLogged: debug.calledWith(`[Copilot:McpDiscovery] Refresh requested: session=${session.toString()}, revision=1, reason=userConfigChanged`),
+					materializedSnapshotLogged: debug.calledWith(`[Copilot:McpDiscovery] Customization snapshot ready: session=${session.toString()}, mcpServers=2, materialized=true`),
+					servers: after.filter(c => c.type === CustomizationType.McpServer).map(c => ({ id: c.id, name: c.name, state: c.state.kind })),
+				}, {
+					creates: 1,
+					disabledAtLaunch: ['disabled'],
+					reloads: 1,
+					discoveryCalls: 2,
+					refreshLogged: true,
+					materializedSnapshotLogged: true,
+					servers: [
+						{ id: makeMcpServerCustomization(userConfig, 'personal').id, name: 'personal', state: McpServerStatus.Ready },
+						{ id: makeMcpServerCustomization(userConfig, 'disabled').id, name: 'disabled', state: McpServerStatus.Stopped },
+					],
+				});
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -11370,6 +11666,7 @@ suite('CopilotAgent', () => {
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
 					mcpServerStates: observableValue('test', []),
+					topLevelMcpCustomizations: () => [],
 					async initializeSession(): Promise<void> {
 						if (shouldFail) {
 							throw new Error(message);
@@ -12787,7 +13084,7 @@ suite('CopilotAgent', () => {
 			} satisfies ICustomizationEnablementService);
 			const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 			services.set(IInstantiationService, instantiationService);
-			return { agent: instantiationService.createInstance(CopilotAgent), stateManager };
+			return { agent: instantiationService.createInstance(TestableCopilotAgent, new TestCopilotClient([]), Date.now), stateManager };
 		}
 
 		test('constructs and serves session-addressed calls without the state manager registered', async () => {
@@ -13403,6 +13700,7 @@ suite('CopilotAgent', () => {
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
 				mcpServerStates: observableValue('test', []),
+				topLevelMcpCustomizations: () => [],
 				async initializeSession(): Promise<void> { rec.initialized = true; },
 				async remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> { rec.remapCalls.push(mapping); },
 				async send(prompt: string, _attachments: unknown, turnId: string | undefined, mode: unknown, senderClientId: string | undefined): Promise<void> {
@@ -15417,6 +15715,7 @@ suite('CopilotAgent', () => {
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
 					mcpServerStates: observableValue('test', []),
+					topLevelMcpCustomizations: () => [],
 					async initializeSession(): Promise<void> { },
 					async remapTurnIds(): Promise<void> { },
 					async getMessages(): Promise<readonly Turn[]> { return []; },

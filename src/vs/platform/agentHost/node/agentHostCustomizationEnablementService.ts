@@ -61,6 +61,8 @@ export interface ICustomizationEnablementTarget {
 	readonly name: string;
 	readonly source: URI;
 	readonly owningPluginSource?: URI;
+	/** Provider-reported default beneath explicit host and client decisions. */
+	readonly defaultEnabled?: boolean;
 	/**
 	 * Whether the client supplied this customization and therefore owns its global decision.
 	 */
@@ -270,7 +272,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		if (globalDecision !== undefined) {
 			decisions.push({ kind: CustomizationEnablementKind.Global, enabled: globalDecision });
 		} else {
-			const clientGlobalDecision = this._clientGlobalEnablement.get(session)?.get(persistentKey);
+			const clientGlobalDecision = this._clientGlobalEnablement.get(session)?.get(persistentKey) ?? target.defaultEnabled;
 			if (clientGlobalDecision !== undefined) {
 				decisions.push({ kind: CustomizationEnablementKind.Global, enabled: clientGlobalDecision });
 			}
@@ -467,7 +469,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	private _setGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enabled: boolean | undefined, removeRedundantWorkspaceDecisions: boolean): void {
 		const key = this._persistentKey(target);
 		const global = this._persistent.global ?? {};
-		this._setPersistentDecision('global', global, key, enabled, this._clientGlobalEnablement.get(session)?.get(key) ?? DEFAULT_CUSTOMIZATION_ENABLED);
+		this._setPersistentDecision('global', global, key, enabled, this._clientGlobalEnablement.get(session)?.get(key) ?? target.defaultEnabled ?? DEFAULT_CUSTOMIZATION_ENABLED);
 		this._persistent = { ...this._persistent, global };
 		if (removeRedundantWorkspaceDecisions && global[key] !== undefined) {
 			this._removeRedundantWorkspaceDecisions(key);
@@ -503,7 +505,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	private _globalEnablement(session: string, target: ICustomizationEnablementTarget): boolean {
 		const key = this._persistentKey(target);
-		return this._persistent.global?.[key] ?? this._clientGlobalEnablement.get(session)?.get(key) ?? DEFAULT_CUSTOMIZATION_ENABLED;
+		return this._persistent.global?.[key] ?? this._clientGlobalEnablement.get(session)?.get(key) ?? target.defaultEnabled ?? DEFAULT_CUSTOMIZATION_ENABLED;
 	}
 
 	private _setWorkspace(session: string, target: ICustomizationEnablementTarget, workingDirectory: URI, enabled: boolean | undefined): void {

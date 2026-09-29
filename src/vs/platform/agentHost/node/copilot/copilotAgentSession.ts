@@ -7308,7 +7308,7 @@ export class CopilotAgentSession extends Disposable {
 				source: server.source,
 				sourceUri: server.source === 'user'
 					? URI.file(getCopilotMcpConfigurationPath(this._environmentService.userHome.fsPath, process.env)).toString()
-					: null,
+					: undefined,
 			}
 			: {};
 		return {
