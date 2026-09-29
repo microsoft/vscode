@@ -5,6 +5,7 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { spy } from 'sinon';
 import { PassThrough } from 'stream';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -34,7 +35,7 @@ import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, chatStorageUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, ToolResultContentType, type StringOrMarkdown } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
-import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
@@ -1469,6 +1470,41 @@ suite('CodexAgent prewarm eviction', () => {
 			stored: output,
 		});
 		peer.exit();
+	});
+
+	test('command output retention checks character and UTF-8 byte limits before storage', async () => {
+		const database = new TestSessionDatabase();
+		const agent = await createAgent(disposables, { database });
+		const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		await database.createTurn('turn-1');
+		const results = [];
+		for (const [id, output] of [
+			['ascii-over', 'x'.repeat(MAX_TERMINAL_OUTPUT_BYTES + 1)],
+			['ascii-limit', 'x'.repeat(MAX_TERMINAL_OUTPUT_BYTES)],
+			['utf8-over', '\u00e9'.repeat(MAX_TERMINAL_OUTPUT_BYTES / 2 + 1)],
+			['utf8-limit', '\u00e9'.repeat(MAX_TERMINAL_OUTPUT_BYTES / 2)],
+		]) {
+			entry.mapState.itemToToolCall.set(id, { toolCallId: id, turnId: 'turn-1', toolName: 'shell', output });
+			const encode = spy(VSBuffer, 'fromString');
+			try {
+				const resource = agent['_retainCommandOutput'](entry, {
+					type: 'commandExecution', id, command: 'build', cwd: '/tmp', processId: null,
+					source: 'agent', status: 'completed', commandActions: [],
+					aggregatedOutput: output, exitCode: 0, durationMs: 1,
+				});
+				await agent['_pendingCommandOutputs'].get(entry)?.get(id);
+				results.push({ id, encoded: encode.calledWith(output), retained: !!resource, size: await database.getTerminalOutputSize(id) });
+			} finally {
+				encode.restore();
+			}
+		}
+		assert.deepStrictEqual(results, [
+			{ id: 'ascii-over', encoded: false, retained: false, size: undefined },
+			{ id: 'ascii-limit', encoded: true, retained: true, size: MAX_TERMINAL_OUTPUT_BYTES },
+			{ id: 'utf8-over', encoded: true, retained: false, size: undefined },
+			{ id: 'utf8-limit', encoded: true, retained: true, size: MAX_TERMINAL_OUTPUT_BYTES },
+		]);
 	});
 
 	for (const recovered of [false, true]) {

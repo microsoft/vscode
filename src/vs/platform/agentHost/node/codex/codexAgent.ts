@@ -3618,7 +3618,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const output = item.aggregatedOutput || entry?.output;
 		const chat = session.chatChannel;
 		const storage = chat && chatStorageUri(chat);
-		if (!entry || !output || !chat || !storage || !shouldRetainCodexCommandOutput(output)) {
+		if (!entry || !output || !chat || !storage || !shouldRetainCodexCommandOutput(output) || output.length > MAX_TERMINAL_OUTPUT_BYTES) {
 			return undefined;
 		}
 		const content = VSBuffer.fromString(output).buffer;
