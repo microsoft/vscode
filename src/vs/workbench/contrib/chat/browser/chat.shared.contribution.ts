@@ -2416,6 +2416,23 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW,
 		},
+		[ChatConfiguration.CopilotCliCommandEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilotCliCommand.enabled', "Controls whether integrated terminals include the `copilot` command that ships with VS Code. The command runs GitHub Copilot CLI and offers to install it when it's missing. A GitHub Copilot CLI that you installed yourself isn't affected."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			policy: {
+				name: 'CopilotCliCommand',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.140',
+				localization: {
+					description: {
+						key: 'chat.copilotCliCommand.enabled.policy',
+						value: nls.localize('chat.copilotCliCommand.enabled.policy', "Controls whether VS Code provides the copilot command for GitHub Copilot CLI. When disabled, VS Code setup on Windows doesn't add the command to PATH and removes the entry it added, VS Code doesn't install GitHub Copilot CLI, and integrated terminals don't include the command. A GitHub Copilot CLI that was installed separately isn't affected."),
+					}
+				},
+			}
+		},
 		[ChatConfiguration.TitleBarSignInEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.titleBar.signIn.enabled', "Controls whether the Copilot Sign In button is shown in the title bar when signed out. When disabled, the Sign In affordance falls back to the status bar."),

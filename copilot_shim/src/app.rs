@@ -481,6 +481,12 @@ fn request_mutation<R: Runtime>(
 	kind: MutationKind,
 	installed_version: Option<CliVersion>,
 ) -> Result<PromptResponse, ApplicationExit> {
+	if runtime.copilot_cli_command_disabled() {
+		report_disabled_by_policy(runtime, kind, installed_version);
+		return Err(ApplicationExit::Code(
+			setup::InstallStatus::Policy.exit_code(),
+		));
+	}
 	let Some(target) = target else {
 		report_unsupported_target(runtime, kind, None);
 		return Err(ApplicationExit::InternalFailure);
@@ -554,6 +560,27 @@ fn request_mutation<R: Runtime>(
 			Err(ApplicationExit::InternalFailure)
 		}
 	}
+}
+
+fn report_disabled_by_policy<R: Runtime>(
+	runtime: &R,
+	kind: MutationKind,
+	installed_version: Option<CliVersion>,
+) {
+	let situation = match (kind, installed_version) {
+		(MutationKind::Update, Some(version)) => format!(
+			"GitHub Copilot CLI {version} is older than the required version {MINIMUM_VERSION}"
+		),
+		_ => String::from("GitHub Copilot CLI was not found"),
+	};
+	let action = match kind {
+		MutationKind::Install => "Installing",
+		MutationKind::Update => "Updating",
+	};
+	runtime.write_diagnostic(&format!(
+		"{situation}. {action} it from VS Code is turned off by the {} policy; contact your administrator.",
+		setup::COPILOT_CLI_COMMAND_POLICY
+	));
 }
 
 fn unsupported_target(target: HostTarget) -> Option<UnsupportedTarget> {
@@ -736,8 +763,8 @@ mod tests {
 		ProcessOutcome, ProcessTermination, SupervisionMode, SystemError,
 	};
 	use crate::runtime::{
-		EnvironmentEffects, FileSystemEffects, InspectedFileType, PathInspection, ProcessEffects,
-		PromptKind, PromptResponse, UserInteractionEffects,
+		EnvironmentEffects, FileSystemEffects, InspectedFileType, PathInspection, PolicyEffects,
+		ProcessEffects, PromptKind, PromptResponse, UserInteractionEffects,
 	};
 
 	struct ProcessStep {
@@ -757,6 +784,7 @@ mod tests {
 		prompts: RefCell<Vec<String>>,
 		clears: Cell<usize>,
 		diagnostics: RefCell<Vec<String>>,
+		policy_disabled: Cell<bool>,
 	}
 
 	impl Default for FakeRuntime {
@@ -783,6 +811,7 @@ mod tests {
 				prompts: RefCell::new(Vec::new()),
 				clears: Cell::new(0),
 				diagnostics: RefCell::new(Vec::new()),
+				policy_disabled: Cell::new(false),
 			}
 		}
 	}
@@ -873,8 +902,14 @@ mod tests {
 			Ok(self.inspections.borrow().get(path).cloned())
 		}
 
-		fn read_directory(&self, _path: &Path) -> io::Result<Vec<OsString>> {
-			Ok(Vec::new())
+		fn read_directory(&self, path: &Path) -> io::Result<Vec<OsString>> {
+			Ok(self
+				.inspections
+				.borrow()
+				.keys()
+				.filter(|entry| entry.parent() == Some(path))
+				.filter_map(|entry| entry.file_name().map(OsString::from))
+				.collect())
 		}
 
 		fn open_file(&self, path: &Path) -> io::Result<Box<dyn io::Read>> {
@@ -929,6 +964,12 @@ mod tests {
 				*self.path.borrow_mut() = Some(path);
 			}
 			step.result
+		}
+	}
+
+	impl PolicyEffects for FakeRuntime {
+		fn copilot_cli_command_disabled(&self) -> bool {
+			self.policy_disabled.get()
 		}
 	}
 
@@ -1395,6 +1436,68 @@ mod tests {
 				0,
 				vec![String::from("update 1.0.81 to 1.0.82")],
 				1,
+			)
+		);
+	}
+
+	#[test]
+	fn policy_blocks_install_and_update_but_launches_an_installed_cli() {
+		let name = if cfg!(windows) {
+			"copilot.exe"
+		} else {
+			"copilot"
+		};
+		let target = Some(HostTarget::LinuxGnuX64);
+		let policy_runtime = |directory: &str| {
+			let runtime = FakeRuntime::default();
+			runtime.policy_disabled.set(true);
+			runtime.add_directory(Path::new(directory));
+			runtime.set_path(&[Path::new(directory)]);
+			runtime
+		};
+
+		let missing = policy_runtime("/empty");
+		let missing_exit = run(&missing, Vec::new(), target);
+
+		let old = policy_runtime("/old");
+		old.add_program(&Path::new("/old").join(name));
+		old.push_process_result(Ok(captured_exit(0, b"1.0.81", b"")));
+		let old_exit = run(&old, Vec::new(), target);
+
+		let current = policy_runtime("/cli");
+		current.add_program(&Path::new("/cli").join(name));
+		current.push_process_result(Ok(captured_exit(0, b"1.0.89", b"")));
+		current.push_process_result(Ok(interactive_exit(7)));
+		let current_exit = run(&current, vec![OsString::from("--resume")], target);
+
+		assert_eq!(
+			(
+				(missing_exit, missing.prompts.borrow().len(), missing.diagnostics.borrow().clone()),
+				(
+					old_exit,
+					old.prompts.borrow().len(),
+					old.commands.borrow().len(),
+					old.diagnostics.borrow().clone()
+				),
+				(current_exit, current.commands.borrow().len()),
+			),
+			(
+				(
+					10,
+					0,
+					vec![String::from(
+						"GitHub Copilot CLI was not found. Installing it from VS Code is turned off by the CopilotCliCommand policy; contact your administrator."
+					)]
+				),
+				(
+					10,
+					0,
+					1,
+					vec![String::from(
+						"GitHub Copilot CLI 1.0.81 is older than the required version 1.0.82. Updating it from VS Code is turned off by the CopilotCliCommand policy; contact your administrator."
+					)]
+				),
+				(7, 2),
 			)
 		);
 	}

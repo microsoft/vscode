@@ -70,9 +70,10 @@ the reverse.
 - The Windows installer ([`copilot.iss`](../build/win32/copilot.iss)) adds the
   folder to `PATH`, and can install Copilot CLI with the setup commands.
 - The Copilot extension computes the same path, adds the folder to the `PATH`
-  of integrated terminals, and falls back to `copilot` from `PATH` when the
-  shim is missing. It removes the script shims that earlier versions wrote to
-  its global storage.
+  of integrated terminals unless `chat.copilotCliCommand.enabled` is off, and
+  falls back to `copilot` from `PATH` when the shim is missing or turned off.
+  It removes the script shims that earlier versions wrote to its global
+  storage.
 
 ## Out of scope
 
@@ -709,9 +710,37 @@ outcome table.
 | User declines update | Exit `0` without launching. |
 | Prompt receives EOF or noninteractive stdin | Treat as No and exit `0`. |
 | A `--vscode-shim` option is unknown or malformed | Print a diagnostic; exit `2` without launching. |
+| Installation or update is needed, but the `CopilotCliCommand` policy is disabled | Print the policy diagnostic; exit `10` without launching. |
 
 Shim-owned diagnostics go to stderr. Prompts and normal installer/CLI output
 remain visible in the terminal.
+
+## Enterprise policy
+
+The VS Code policy `CopilotCliCommand` controls the core setting
+`chat.copilotCliCommand.enabled`. When it is disabled:
+
+- the shim still launches a Copilot CLI that is already installed, but never
+  installs or updates one. It prints a diagnostic that names the policy and
+  exits with `10`;
+- `probe` reports `policy=disabled` and skips its network check, and `install`
+  reports the `policy` status;
+- VS Code setup on Windows doesn't show its Copilot CLI page, doesn't publish
+  the shim, and removes the `PATH` entry it added; and
+- the Copilot extension doesn't add the shim to integrated terminals, which run
+  `copilot` from `PATH` instead.
+
+On Windows the shim reads the policy from the registry: a `REG_DWORD`
+`CopilotCliCommand` value of `0` under
+`SOFTWARE\Policies\Microsoft\<quality key>` disables it. Quality keys are
+`VSCode`, `VSCodeInsiders`, `VSCodeExploration`, and `CodeOSS`. For each
+quality, the `HKLM` value takes precedence over the `HKCU` value, as in VS Code.
+A disabled policy in any quality wins, because the shim of any installed quality
+can be the one on `PATH`; VS Code setup applies the same rule.
+
+On macOS and Linux the shim doesn't read the policy. It is reachable only from
+integrated terminals there, and the Copilot extension applies the policy
+through the setting.
 
 ## Setup commands
 
@@ -742,8 +771,8 @@ Unless `--no-network` is given, it resolves the latest release and requests the
 MSI for the current architecture, within the timeout (default 5 seconds, at most
 60 seconds). The timeout covers the whole check, including proxy discovery, so
 setup gets the local result even when the network hangs. It writes a `[probe]`
-section with `protocol`, `shimVersion`,
-`scope`, `cliFound`, `cliPath`, `pwshFound`, `downloadAvailable`,
+section with `protocol`, `shimVersion`, `scope`, `policy` (`allowed` or
+`disabled`), `cliFound`, `cliPath`, `pwshFound`, `downloadAvailable`,
 `downloadSize`, `releaseTag`, and `reason`, and exits `0` when the file was
 written.
 
@@ -774,6 +803,7 @@ collected on its page or command line. In that mode the command:
 | Status | Exit code |
 |---|---|
 | `installed`, `alreadyInstalled` | `0` |
+| `policy` | `10` |
 | `network` | `20` |
 | `verification` | `30` |
 | `msiexec` | `40` |
@@ -974,6 +1004,10 @@ fixtures.
 - Result files are UTF-16LE single-line INI files replaced atomically.
 - Install statuses map to the documented exit codes.
 - Unsigned files have no Authenticode signer.
+- With the `CopilotCliCommand` policy disabled, a missing or old CLI produces
+  the policy diagnostic and exit code `10` without a prompt, and an installed
+  compatible CLI still launches.
+- Policy registry values are read only from `REG_DWORD` values.
 
 ### Launch behavior
 
