@@ -6018,7 +6018,7 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 
 	const result: ISessionSection[] = order.map(label => ({
 		id: `workspace:${label}`,
-		collapseStateId: workspaceCollapseStateId(groups.get(label)![0]),
+		collapseStateId: workspaceCollapseStateId(groups.get(label)!),
 		label,
 		sessions: groups.get(label)!,
 	}));
@@ -6032,9 +6032,11 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	return result;
 }
 
-function workspaceCollapseStateId(session: ISession): string | undefined {
-	const workspace = session.workspace.get();
-	return workspace ? `workspace:${workspace.uri.toString()}` : undefined;
+function workspaceCollapseStateId(sessions: readonly ISession[]): string | undefined {
+	const resource = sessions[0]?.workspace.get()?.uri.toString();
+	return resource && sessions.every(session => session.workspace.get()?.uri.toString() === resource)
+		? `workspace:${resource}`
+		: undefined;
 }
 
 /** Maximum number of sessions shown in the "Recent" date section. */

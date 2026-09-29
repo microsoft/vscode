@@ -1685,12 +1685,25 @@ suite('Sessions - SessionsList', () => {
 			const workspaceResource = URI.parse('vscode-agent-host://stable-host/project');
 			const sessions = [
 				createSession('1', { workspaceLabel: 'MyProject', workspaceResource }),
+				createSession('2', { workspaceLabel: 'MyProject', workspaceResource }),
 			];
 
 			const groups = groupByWorkspace(sessions);
 
 			assert.strictEqual(groups[0].id, 'workspace:MyProject');
 			assert.strictEqual(groups[0].collapseStateId, `workspace:${workspaceResource.toString()}`);
+		});
+
+		test('uses the display label for collapse state when grouped resources differ', () => {
+			const sessions = [
+				createSession('1', { workspaceLabel: 'MyProject', workspaceResource: URI.parse('file:///a/project') }),
+				createSession('2', { workspaceLabel: 'MyProject', workspaceResource: URI.parse('file:///b/project') }),
+			];
+
+			const groups = groupByWorkspace(sessions);
+
+			assert.strictEqual(groups[0].id, 'workspace:MyProject');
+			assert.strictEqual(groups[0].collapseStateId, undefined);
 		});
 
 		test('restores collapse state after a workspace display label changes', () => {
