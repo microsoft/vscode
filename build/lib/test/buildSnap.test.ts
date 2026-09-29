@@ -15,7 +15,7 @@ import { getSnapBase, getSnapcraftConfig } from '../../linux/snapcraftConfig.ts'
 const buildScript = path.resolve(import.meta.dirname, '../../azure-pipelines/linux/build-snap.sh');
 const launcherScript = path.resolve(import.meta.dirname, '../../../resources/linux/snap/electron-launch');
 const snapcraftTemplate = path.resolve(import.meta.dirname, '../../../resources/linux/snap/snapcraft.yaml');
-const compileTemplate = path.resolve(import.meta.dirname, '../../azure-pipelines/linux/steps/product-build-linux-compile.yml');
+const packageTemplate = path.resolve(import.meta.dirname, '../../azure-pipelines/linux/steps/product-build-linux-package.yml');
 
 suite('Linux Snap packaging', { skip: process.platform !== 'linux' }, () => {
 	let root: string;
@@ -199,11 +199,38 @@ echo "Packed snap"
 	});
 
 	test('pins the privileged ARM64 emulation image', () => {
-		const template = fs.readFileSync(compileTemplate, 'utf8');
+		const template = fs.readFileSync(packageTemplate, 'utf8');
 		assert.deepStrictEqual({
 			pinned: template.includes('vscodehub.azurecr.io/multiarch/qemu-user-static@sha256:fe60359c92e86a43cc87b3d906006245f77bfc0565676b80004cc666e4feb9f0'),
 			mutableTag: template.includes('qemu-user-static:latest')
 		}, { pinned: true, mutableTag: false });
+	});
+
+	test('routes both Snap architectures through the Linux sign jobs', () => {
+		const root = fs.readFileSync(path.resolve(import.meta.dirname, '../../azure-pipelines/product-build.yml'), 'utf8');
+		const template = fs.readFileSync(path.resolve(import.meta.dirname, '../../azure-pipelines/product-build-template.yml'), 'utf8');
+		const variables = fs.readFileSync(path.resolve(import.meta.dirname, '../../azure-pipelines/product-build-variables.yml'), 'utf8');
+		const jobs = fs.readFileSync(path.resolve(import.meta.dirname, '../../azure-pipelines/linux/product-build-linux-jobs.yml'), 'utf8');
+		const packageSteps = fs.readFileSync(packageTemplate, 'utf8');
+		const stageFlag = 'or(eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))';
+		const baseParameter = 'VSCODE_SNAP_BASE: ${{ parameters.VSCODE_SNAP_BASE }}';
+		const snapFlag = 'VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}';
+
+		assert.deepStrictEqual({
+			mainArm64Stage: root.includes(stageFlag),
+			sharedArm64Stage: variables.includes(stageFlag),
+			mainProductStages: ['build/azure-pipelines/linux/product-build-linux-jobs.yml@self', baseParameter, snapFlag].every(value => root.split(value).length >= 3),
+			templateProductStages: ['linux/product-build-linux-jobs.yml@self', baseParameter, snapFlag].every(value => template.split(value).length >= 3),
+			signJob: jobs.includes(baseParameter) && jobs.includes(snapFlag) && jobs.includes('product-build-linux-package.yml@self'),
+			packageSteps: packageSteps.includes(baseParameter) && packageSteps.includes('Build snap package')
+		}, {
+			mainArm64Stage: true,
+			sharedArm64Stage: true,
+			mainProductStages: true,
+			templateProductStages: true,
+			signJob: true,
+			packageSteps: true
+		});
 	});
 
 	test('excludes Apt sources from the TypeScript copyright header check', () => {

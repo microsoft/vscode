@@ -7,6 +7,8 @@ import type { SessionEvent, SessionEventPayload, SystemNotification } from '@git
 import { softAssertNever } from '../../../../base/common/assert.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
+import { subagentChatTitle } from '../../common/agent.js';
+import { getSubagentMetadata, getToolKind, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 
 export interface ICopilotSystemNotification {
 	/** Text for a new system-origin AHP turn; derived from SDK `data.kind` metadata, e.g. shell completion `description`. */
@@ -15,26 +17,51 @@ export interface ICopilotSystemNotification {
 	readonly startsTurn: boolean;
 }
 
-function getCopilotSubagentDisplayInfo(event: SessionEvent): { agentId: string; displayName: string } | undefined {
+function getCopilotSubagentDisplayInfo(event: SessionEvent, taskDescriptions?: ReadonlyMap<string, string>): { agentId: string; displayName: string } | undefined {
 	if (event.type === 'subagent.started' || event.type === 'subagent.completed' || event.type === 'subagent.failed') {
+		const description = taskDescriptions?.get(event.data.toolCallId);
 		const displayName = event.data.agentDisplayName.trim();
-		return event.agentId && displayName ? { agentId: event.agentId, displayName } : undefined;
+		return event.agentId && (description || displayName)
+			? { agentId: event.agentId, displayName: subagentChatTitle(description, displayName) }
+			: undefined;
 	}
 	if (event.type === 'system.notification') {
 		const kind = event.data.kind;
 		if (kind.type === 'agent_completed' || kind.type === 'agent_idle') {
-			const displayName = kind.displayName?.trim() || kind.description?.trim() || kind.agentType.trim();
-			return displayName ? { agentId: kind.agentId, displayName } : undefined;
+			const displayName = kind.displayName?.trim() || kind.agentType.trim();
+			return kind.description?.trim() || displayName
+				? { agentId: kind.agentId, displayName: subagentChatTitle(kind.description, displayName) }
+				: undefined;
 		}
 	}
 	return undefined;
 }
 
-/** Collects agent labels without letting notification fallbacks replace canonical lifecycle names. */
+/** Reconstructs the chat titles used by agent activity, preferring spawning task descriptions over SDK names. */
 export function getCopilotSubagentDisplayNames(events: readonly SessionEvent[]): ReadonlyMap<string, string> {
+	const taskDescriptions = new Map<string, string>();
+	const collectTaskDescription = (toolCallId: string, toolName: string, parameters: unknown) => {
+		if (getToolKind(toolName) === 'subagent') {
+			const description = getSubagentMetadata(parameters).description?.trim();
+			if (description) {
+				taskDescriptions.set(toolCallId, description);
+			}
+		}
+	};
+	for (const event of events) {
+		if (event.type === 'tool.execution_start') {
+			collectTaskDescription(event.data.toolCallId, event.data.toolName, event.data.arguments);
+		} else if (event.type === 'assistant.message') {
+			for (const request of event.data.toolRequests ?? []) {
+				if (!taskDescriptions.has(request.toolCallId)) {
+					collectTaskDescription(request.toolCallId, request.name, request.arguments);
+				}
+			}
+		}
+	}
 	const names = new Map<string, string>();
 	for (const event of events) {
-		const identity = getCopilotSubagentDisplayInfo(event);
+		const identity = getCopilotSubagentDisplayInfo(event, taskDescriptions);
 		if (identity && (event.type !== 'system.notification' || !names.has(identity.agentId))) {
 			names.set(identity.agentId, identity.displayName);
 		}
@@ -42,7 +69,7 @@ export function getCopilotSubagentDisplayNames(events: readonly SessionEvent[]):
 	return names;
 }
 
-export function buildCopilotSystemNotification(event: SessionEventPayload<'system.notification'>): ICopilotSystemNotification | undefined {
+export function buildCopilotSystemNotification(event: SessionEventPayload<'system.notification'>, resolveAgentName?: ToolAgentNameResolver): ICopilotSystemNotification | undefined {
 	const data = event.data;
 	const kind: SystemNotification = data.kind;
 	const content = cleanSystemNotificationContent(data.content);
@@ -63,7 +90,7 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 		}
 		case 'agent_completed':
 		case 'agent_idle': {
-			const name = getCopilotSubagentDisplayInfo(event)?.displayName;
+			const name = resolveAgentName?.(kind.agentId)?.trim() || getCopilotSubagentDisplayInfo(event)?.displayName;
 			const formattedName = name ? appendEscapedMarkdownInlineCode(name) : undefined;
 			if (kind.type === 'agent_idle') {
 				return {

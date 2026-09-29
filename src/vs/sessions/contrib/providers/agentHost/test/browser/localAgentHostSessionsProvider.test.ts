@@ -4150,6 +4150,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		let connectedWorkspace: URI | undefined;
 		let logWorkspace: URI | undefined;
 		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
 				override async isAvailable(): Promise<boolean> { return true; }
 				override async showLog(workspace: URI): Promise<void> {
@@ -4196,6 +4197,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}
 			let connectCalls = 0;
 			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
 					override async isAvailable(): Promise<boolean> { return true; }
 					override async connect(): Promise<never> {
@@ -4318,6 +4320,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}();
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService,
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			setUrisTrust: async uris => {
 				if (uris.some(uri => uri.toString() === remoteWorkspace.toString())) {
 					throw setupError;
@@ -4393,6 +4396,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				deletedTargetDrafts.push(sessionId);
 			}
 			override isSessionConfigResolving() { return constObservable(false); }
+			override async whenSessionConfigResolved() { return this.getSessionConfig(); }
+			override getNewSessionCancellationToken() { return CancellationToken.None; }
 			override getSessionConfig(): ResolveSessionConfigResult {
 				return {
 					schema: {
@@ -4452,6 +4457,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService,
 			sessionsProvidersService,
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			languageModelIds: [sourceModelId],
 			lookupLanguageModel: id => id === sourceModelId
 				? { ...createTestLanguageModel('gpt-5'), targetChatSessionType: 'agent-host-copilotcli' }

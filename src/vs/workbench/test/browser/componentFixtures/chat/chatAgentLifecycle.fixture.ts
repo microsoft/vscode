@@ -101,9 +101,9 @@ const scenarios: Record<string, Scenario> = {
 	CompletedSectionBeforeSubagents: { phase: 'parallel', sectionTail: 'subagents', persistentProgress: ChatProgressAnimation.Off, description: 'With persistent progress Off, four subagents remain working after the parent finishes its section. Their pills are the last visible content, so there is no redundant Working shimmer below them.' },
 	CompletedThinkingAfterSubagents: { phase: 'parallel', sectionTail: 'thinking', persistentProgress: ChatProgressAnimation.Off, description: 'With persistent progress Off, the parent finishes a thinking section after four subagent pills. Thinking is no longer active, and the ordinary Working shimmer appears below the intervening content.' },
 	CompletedAgentReadAfterSubagents: { phase: 'parallel', sectionTail: 'tool', persistentProgress: ChatProgressAnimation.Off, description: 'With persistent progress Off, a completed Read agent row displays a canonical agent name supplied by the agent host. Its tool section finishes, and ordinary Working shimmer remains because the last visible content is not a subagent pill.' },
-	PersistentCompletedSectionBeforeSubagents: { phase: 'parallel', sectionTail: 'subagents', persistentProgress: ChatProgressAnimation.Draw, description: 'Draw/Compact keeps four active subagent pills after the finished parent section, followed by one persistent footer saying Waiting for 4 subagents.' },
-	PersistentCompletedThinkingAfterSubagents: { phase: 'parallel', sectionTail: 'thinking', persistentProgress: ChatProgressAnimation.Draw, description: 'Draw/Compact keeps the finished parent reasoning inactive after four active subagent pills, with one persistent footer saying Waiting for 4 subagents.' },
-	PersistentCompletedAgentReadAfterSubagents: { phase: 'parallel', sectionTail: 'tool', persistentProgress: ChatProgressAnimation.Draw, description: 'Draw/Compact keeps the completed Read agent row after four active subagent pills, with one persistent footer saying Waiting for 4 subagents.' },
+	PersistentCompletedSectionBeforeSubagents: { phase: 'parallel', sectionTail: 'subagents', persistentProgress: ChatProgressAnimation.Draw, description: 'Draw/Compact keeps four active subagent pills after the finished parent section, followed by one persistent footer saying 4 subagents running.' },
+	PersistentCompletedThinkingAfterSubagents: { phase: 'parallel', sectionTail: 'thinking', persistentProgress: ChatProgressAnimation.Draw, description: 'Draw/Compact keeps the finished parent reasoning inactive after four active subagent pills, with one persistent footer saying 4 subagents running.' },
+	PersistentCompletedAgentReadAfterSubagents: { phase: 'parallel', sectionTail: 'tool', persistentProgress: ChatProgressAnimation.Draw, description: 'Draw/Compact keeps the completed Read agent row after four active subagent pills, with one persistent footer saying 4 subagents running.' },
 	UnknownModel: { phase: 'running', model: 'unknown', description: 'The child is known to be running, but its model is not known yet. Do not invent a model name.' },
 	LateModelDiscovery: { phase: 'running', model: 'late', description: 'The worker starts without model metadata. Show Model publishes its identity while it is still running; the existing pill must update without waiting for completion.' },
 	MatchingParentModel: { phase: 'running', model: 'same', description: 'The child and parent have the same canonical model. The redundant inline model label is hidden.' },
@@ -720,8 +720,8 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 	if ((scenario.phase === 'followUp' || scenario.phase === 'resumedFollowUp') && !scenario.confirmations) {
 		const latestResponse = preview.querySelector('.chat-most-recent-response');
 		const progress = latestResponse?.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim();
-		if (latestResponse?.querySelector('.chat-subagent-pill-widget') || progress !== 'Waiting for 1 subagent') {
-			throw new Error(`${name}: the latest turn must report the retained subagent wait, got ${JSON.stringify(progress)}`);
+		if (latestResponse?.querySelector('.chat-subagent-pill-widget') || progress !== '1 subagent running') {
+			throw new Error(`${name}: the latest turn must report the retained subagent activity, got ${JSON.stringify(progress)}`);
 		}
 	}
 	if (scenario.confirmations && preview.querySelector('.chat-subagent-pill-widget')) {
@@ -735,7 +735,7 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 		const shimmers = [...response.querySelectorAll('.shimmer-progress')].map(element => element.textContent?.replace(/\u00a0/g, ' '));
 		const expectedShimmers = persistentProgress === ChatProgressAnimation.Off
 			? scenario.sectionTail === 'subagents' ? [] : ['Working']
-			: ['Waiting for 4 subagents'];
+			: ['4 subagents running'];
 		if (shimmers.length !== expectedShimmers.length || shimmers.some((text, index) => text !== expectedShimmers[index])) {
 			throw new Error(`${name}: expected progress labels ${JSON.stringify(expectedShimmers)}, got ${JSON.stringify(shimmers)}`);
 		}

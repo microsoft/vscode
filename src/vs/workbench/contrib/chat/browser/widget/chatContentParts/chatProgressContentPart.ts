@@ -412,6 +412,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 	private progressStep: number | undefined;
 	private showDelayedProgressMessage: boolean;
 	private showingDelayedProgressMessage = false;
+	private showingUnresponsiveToolMessage = false;
 	private readonly contextElement: ChatTreeItem;
 	private readonly workingLogo: ChatWorkingProgressLogo | undefined;
 	private readonly delayedProgressMessageScheduler: RunOnceScheduler | undefined;
@@ -476,8 +477,9 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		}
 
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
-			if (isEqual(context.element.sessionResource, e.sessionResource)) {
+			if (isEqual(context.element.sessionResource, e.sessionResource) && (!this.workingLogo || !this.explicitContent || this.showingUnresponsiveToolMessage)) {
 				this.updateWorkingContent(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)), true, false, this.progressStep, false);
+				this.showingUnresponsiveToolMessage = true;
 			}
 		}));
 	}
@@ -486,7 +488,8 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		return renderAsPlaintext(this.currentContent);
 	}
 
-	updateWorkingContent(content: IMarkdownString | undefined, isActive = this.isActive, announce = false, progressStep = this.progressStep, showDelayedProgressMessage = this.showDelayedProgressMessage): void {
+	updateWorkingContent(content: IMarkdownString | undefined, isActive = this.isActive, announce: IChatWorkingProgress['announce'] = false, progressStep = this.progressStep, showDelayedProgressMessage = this.showDelayedProgressMessage): void {
+		this.showingUnresponsiveToolMessage = false;
 		const previousExplicitContent = this.explicitContent;
 		const previousIsActive = this.isActive;
 		const previousProgressStep = this.progressStep;
@@ -506,8 +509,6 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		if (this.workingLogo && content?.value === previousExplicitContent?.value && resolvedContent.value === this.currentContent.value && isActive === previousIsActive) {
 			return;
 		}
-		// The retained footer swaps its text in place, so a new blocking state ("1 confirmation pending",
-		// "Authentication required") must be announced the way a freshly created row would be.
 		const shouldAnnounce = announce && !!this.workingLogo && !!content && content.value !== previousExplicitContent?.value
 			&& this.workingConfigurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates);
 		if (this.workingLogo) {
@@ -517,7 +518,12 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		}
 		this.updateMessage(resolvedContent);
 		if (shouldAnnounce) {
-			alert(stripIcons(renderAsPlaintext(resolvedContent)));
+			const message = stripIcons(renderAsPlaintext(resolvedContent));
+			if (announce === 'polite') {
+				status(message);
+			} else {
+				alert(message);
+			}
 		}
 	}
 

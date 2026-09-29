@@ -68,7 +68,7 @@ suite('Product test checkpoints', () => {
 				TEST_CHECKPOINT_UNIT_ELECTRON_READY: 'false',
 				...Object.fromEntries([
 					'UNIT_NODE', 'UNIT_BROWSER_CHROMIUM',
-					'INTEGRATION_ELECTRON', 'INTEGRATION_BROWSER_FIREFOX', 'INTEGRATION_REMOTE',
+					'INTEGRATION_ELECTRON', 'INTEGRATION_BROWSER_CHROMIUM', 'INTEGRATION_BROWSER_FIREFOX', 'INTEGRATION_REMOTE',
 					'SMOKE_ELECTRON', 'SMOKE_BROWSER_CHROMIUM', 'SMOKE_REMOTE',
 					'COPILOT_EXTENSION', 'COPILOT_COMPLETIONS_CORE', 'COPILOT_SANITY',
 				].flatMap(id => [`TEST_CHECKPOINT_${id}_HIT`, `TEST_CHECKPOINT_${id}_READY`].map(name => [name, 'false']))),
@@ -133,7 +133,6 @@ suite('Product test checkpoints', () => {
 		}
 		for (const overrides of [
 			{ VSCODE_ARCH: 'arm64' },
-			{ AGENT_OS: 'Linux' },
 			{ AGENT_OS: 'Darwin' },
 			{ BUILD_BUILDID: '' },
 			{ SYSTEM_JOBNAME: '../job' },
@@ -156,7 +155,7 @@ suite('Product test checkpoints', () => {
 		const state = variables(recorded);
 		const metadata: Record<string, unknown> = JSON.parse(readFileSync(state[`${prefix}_FILE`], 'utf8'));
 		const hits: string[] = [];
-		for (const artifactTarget of ['win32-arm64', 'win32-x64']) {
+		for (const artifactTarget of ['linux-x64', 'win32-x64']) {
 			const restored: string[] = [];
 			await testCheckpoint(['restore'], { ...env, SYSTEM_JOBATTEMPT: '2' }, async () => Response.json({
 				value: [{ name: artifactName(id, artifactTarget), resource: { type: 'PipelineArtifact' } }],

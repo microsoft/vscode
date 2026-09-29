@@ -137,15 +137,19 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 				// for deciding when a still-running host should show the reload fallback.
 				await timeout(15_000);
 			}),
-			warnPolicyNotApplied: () => {
-				void this._promptReload(vscode.l10n.t("Your organization's Copilot telemetry policy could not be applied automatically. Reload the window to apply it."), true);
+			warnPolicyNotApplied: beforeReload => {
+				if (beforeReload) {
+					void this._promptReload(vscode.l10n.t("Your organization's Copilot telemetry policy could not be applied automatically. Reload the window to apply it."), true, beforeReload);
+				} else {
+					void vscode.window.showWarningMessage(vscode.l10n.t("Your organization's Copilot telemetry policy is still not applied after reloading. Check the GitHub Copilot Chat output log for details."));
+				}
 			},
-			promptReload: current => {
+			promptReload: (current, beforeReload) => {
 				const endpoint = current.config.otlpEndpoint;
 				const endpointChanged = current.config.enabled && endpoint !== this._otelConfigResolver.activeResolution.config.otlpEndpoint;
 				void this._promptReload(endpointChanged
 					? vscode.l10n.t("Copilot OTel endpoint will change to {0} after reload.", String(endpoint))
-					: vscode.l10n.t("Copilot OTel settings changed - a reload is required for the change to take effect."), false);
+					: vscode.l10n.t("Copilot OTel settings changed - a reload is required for the change to take effect."), false, beforeReload);
 			},
 			notifyPolicyRestarted: () => {
 				this._logService.info('[OTel] Extensions were restarted to apply enterprise telemetry policy.');
@@ -163,13 +167,14 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 		scheduler.schedule();
 	}
 
-	private async _promptReload(message: string, warning: boolean): Promise<void> {
+	private async _promptReload(message: string, warning: boolean, beforeReload?: () => Promise<void>): Promise<void> {
 		try {
 			const reloadWindowLabel = vscode.l10n.t("Reload Window");
 			const selection = warning
 				? await vscode.window.showWarningMessage(message, reloadWindowLabel)
 				: await vscode.window.showInformationMessage(message, reloadWindowLabel);
 			if (selection === reloadWindowLabel) {
+				await beforeReload?.();
 				await vscode.commands.executeCommand('workbench.action.reloadWindow');
 			}
 		} catch (error) {

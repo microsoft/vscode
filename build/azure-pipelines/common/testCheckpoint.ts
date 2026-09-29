@@ -9,7 +9,7 @@ import path from 'node:path';
 import { retry } from './retry.ts';
 
 /**
- * Test tasks of the Windows x64 test jobs that record a checkpoint once they
+ * Test tasks of the product x64 test jobs that record a checkpoint once they
  * pass.
  */
 export const testIds = [
@@ -17,6 +17,7 @@ export const testIds = [
 	'unit-node',
 	'unit-browser-chromium',
 	'integration-electron',
+	'integration-browser-chromium',
 	'integration-browser-firefox',
 	'integration-remote',
 	'smoke-electron',
@@ -71,6 +72,18 @@ function setVariable(log: (message: string) => void, name: string, value: string
 	log(`##vso[task.setvariable variable=${name}]${escaped}`);
 }
 
+function checkpointTarget(env: NodeJS.ProcessEnv): string {
+	if (env.VSCODE_ARCH !== 'x64') {
+		throw new Error('Test checkpoints require x64');
+	}
+
+	switch (env.AGENT_OS) {
+		case 'Windows_NT': return 'win32-x64';
+		case 'Linux': return 'linux-x64';
+		default: throw new Error('Test checkpoints require Windows or Linux');
+	}
+}
+
 /**
  * Restores, records and collects test checkpoints of the current pipeline run.
  * Only published artifacts from this run count as checkpoints; local files and
@@ -82,11 +95,7 @@ export async function testCheckpoint(
 	request: typeof fetch = fetch,
 	log: (message: string) => void = console.log,
 ): Promise<void> {
-	if (env.AGENT_OS !== 'Windows_NT' || env.VSCODE_ARCH !== 'x64') {
-		throw new Error('Test checkpoints require Windows x64');
-	}
-
-	const target = 'win32-x64';
+	const target = checkpointTarget(env);
 	const [command, testId] = args;
 	if (!((command === 'restore' || command === 'collect-results') && args.length === 1)
 		&& !(command === 'record' && args.length === 2 && testIds.some(id => id === testId))) {

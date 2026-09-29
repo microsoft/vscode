@@ -12,14 +12,16 @@ export interface IOTelPolicyRestartRecord {
 	readonly sessionId: string;
 	readonly fingerprint: string;
 	readonly acknowledged: boolean;
+	readonly reloadRequested?: boolean;
+	readonly reloadAttempted?: boolean;
 }
 
 export interface IOTelStaleConfigHost {
 	getRestartRecord(): IOTelPolicyRestartRecord | undefined;
 	setRestartRecord(record: IOTelPolicyRestartRecord | undefined): Promise<void>;
 	restartExtensionHost(): Promise<void>;
-	warnPolicyNotApplied(): void;
-	promptReload(current: IResolvedOTelConfig): void;
+	warnPolicyNotApplied(beforeReload?: () => Promise<void>): void;
+	promptReload(current: IResolvedOTelConfig, beforeReload?: () => Promise<void>): void;
 	notifyPolicyRestarted(): void;
 }
 
@@ -28,12 +30,15 @@ export class OTelStaleConfigMonitor {
 	private _handledFingerprint: string | undefined;
 	private _pendingCheck: Promise<OTelConfigDrift> = Promise.resolve(OTelConfigDrift.None);
 	private _policyNoticeShown = false;
+	private _baseline: IResolvedOTelConfig;
 
 	constructor(
 		private readonly _resolver: IOTelConfigResolver,
 		private readonly _host: IOTelStaleConfigHost,
 		private readonly _logService: ILogService,
-	) { }
+	) {
+		this._baseline = _resolver.activeResolution;
+	}
 
 	check(): Promise<OTelConfigDrift> {
 		const check = this._pendingCheck.then(() => this._check());
@@ -43,18 +48,39 @@ export class OTelStaleConfigMonitor {
 	}
 
 	private async _check(): Promise<OTelConfigDrift> {
-		const active = this._resolver.activeResolution;
+		let active = this._baseline;
 		const current = this._resolver.resolve();
+		if (isPolicyRefreshPlaceholder(current)) {
+			// Forced remote refresh temporarily publishes restrictive policy values.
+			// Wait for the settled configuration event rather than showing a reload
+			// notification that would outlive a successful Extension Host restart.
+			return OTelConfigDrift.None;
+		}
 		const drift = classifyOTelConfigDrift(active, current);
+		if (drift === OTelConfigDrift.None && active.hasEnterpriseSettings && !current.hasEnterpriseSettings) {
+			// A forced remote refresh starts fail-closed, so service construction can
+			// observe restrictive policy-slot defaults before the successful response
+			// removes them. When that transition does not change the running exporter,
+			// use the settled provenance for subsequent late-policy recovery.
+			this._baseline = current;
+			active = current;
+		}
+		let record = this._host.getRestartRecord();
+		if (record && record.sessionId !== active.config.sessionId) {
+			// Carry a user-requested reload into its successor, not every future editor session.
+			record = record.reloadRequested && !record.acknowledged
+				? { ...record, sessionId: active.config.sessionId, reloadRequested: false, reloadAttempted: true }
+				: undefined;
+			await this._host.setRestartRecord(record);
+		}
 		if (drift === OTelConfigDrift.None) {
 			this._handledFingerprint = undefined;
 			this._policyNoticeShown = false;
-			const record = this._host.getRestartRecord();
 			if (record?.sessionId === active.config.sessionId && record.fingerprint === fingerprintOf(active) && !record.acknowledged) {
 				try {
 					// Retain the session budget after success; future policy updates must not
 					// cause another automatic restart in this editor session.
-					await this._host.setRestartRecord({ ...record, acknowledged: true });
+					await this._host.setRestartRecord({ ...record, acknowledged: true, reloadRequested: false });
 					this._host.notifyPolicyRestarted();
 				} catch (error) {
 					this._logService.warn(`[OTel] Failed to acknowledge the telemetry policy restart: ${error}`);
@@ -72,21 +98,25 @@ export class OTelStaleConfigMonitor {
 			this._host.promptReload(current);
 			return drift;
 		}
-		if (active.hasEnterpriseSettings || active.config.enabledExplicitly || !isPolicyEnabledOtlp(current)) {
+		if (record?.fingerprint === fingerprint && record.reloadAttempted && !record.acknowledged) {
+			this._handledFingerprint = fingerprint;
+			this._logService.warn('[OTel] Telemetry policy is still not applied after reloading. Not prompting for another window reload.');
+			this._warnPolicyNotApplied();
+			return drift;
+		}
+		if ((active.hasEnterpriseSettings && !isPolicyRefreshPlaceholder(active)) || active.config.enabledExplicitly || !isPolicyEnabledOtlp(current)) {
 			this._handledFingerprint = fingerprint;
 			if (!this._policyNoticeShown) {
 				this._policyNoticeShown = true;
-				this._host.promptReload(current);
+				this._host.promptReload(current, () => this._recordReload());
 			}
 			return drift;
 		}
-
 		const changed = describeOTelConfigDrift(active.config, current.config).join(', ');
-		const record = this._host.getRestartRecord();
 		if (record?.sessionId === active.config.sessionId) {
 			this._handledFingerprint = fingerprint;
 			this._logService.warn(`[OTel] Automatic telemetry recovery was already attempted in this editor session (${changed}). Not restarting again.`);
-			this._warnPolicyNotApplied();
+			this._warnPolicyNotApplied(current);
 			return drift;
 		}
 
@@ -94,7 +124,7 @@ export class OTelStaleConfigMonitor {
 			await this._host.setRestartRecord({ sessionId: active.config.sessionId, fingerprint, acknowledged: false });
 		} catch (error) {
 			this._logService.warn(`[OTel] Cannot store the telemetry policy restart guard: ${error}`);
-			this._warnPolicyNotApplied();
+			this._warnPolicyNotApplied(current);
 			return drift;
 		}
 
@@ -107,16 +137,34 @@ export class OTelStaleConfigMonitor {
 		} catch (error) {
 			this._logService.warn(`[OTel] Failed to restart the extension host: ${error}`);
 		}
-		this._warnPolicyNotApplied();
+		this._warnPolicyNotApplied(current);
 		return drift;
 	}
 
-	private _warnPolicyNotApplied(): void {
+	private async _recordReload(): Promise<void> {
+		const current = this._resolver.resolve();
+		await this._host.setRestartRecord({
+			sessionId: current.config.sessionId,
+			fingerprint: fingerprintOf(current),
+			acknowledged: false,
+			reloadRequested: true,
+		});
+	}
+
+	private _warnPolicyNotApplied(current?: IResolvedOTelConfig): void {
 		if (!this._policyNoticeShown) {
 			this._policyNoticeShown = true;
-			this._host.warnPolicyNotApplied();
+			this._host.warnPolicyNotApplied(current ? () => this._recordReload() : undefined);
 		}
 	}
+}
+
+function isPolicyRefreshPlaceholder(resolution: IResolvedOTelConfig): boolean {
+	// The policy gate's fail-closed OTel protocol value is the invalid empty
+	// string. Settled configuration resolves the absent protocol to otlp-http.
+	return resolution.hasEnterpriseSettings
+		&& resolution.config.enabled === false
+		&& resolution.defaultValues.exporterType === '';
 }
 
 function isPolicyEnabledOtlp(resolution: IResolvedOTelConfig): boolean {
@@ -132,7 +180,8 @@ function isPolicyEnabledOtlp(resolution: IResolvedOTelConfig): boolean {
 
 function fingerprintOf(resolution: IResolvedOTelConfig): string {
 	const sha = new StringSHA1();
-	sha.update(JSON.stringify([resolution.config, resolution.defaultValues], (_key, value) =>
+	const { sessionId: _, ...config } = resolution.config;
+	sha.update(JSON.stringify([config, resolution.defaultValues], (_key, value) =>
 		value && typeof value === 'object' && !Array.isArray(value)
 			? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0))
 			: value));
