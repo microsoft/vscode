@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { spy } from 'sinon';
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../../../../../platform/contextview/browser/contextView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { extractIssueData } from '../../browser/issueFormService.js';
@@ -126,6 +128,48 @@ suite('IssueReporterOverlay', () => {
 		container.querySelector<HTMLElement>('.wizard-screenshot-card')!.click();
 		const afterCurrentCard = container.querySelectorAll('.issue-reporter-annotation-overlay').length;
 		assert.deepStrictEqual({ afterOldCard, afterCurrentCard }, { afterOldCard: 0, afterCurrentCard: 1 });
+	});
+
+	test('stops responding to issue data requests after disposal', async () => {
+		const overlay = store.add(new IssueReporterOverlay(
+			{
+				styles: {},
+				zoomLevel: 0,
+				enabledExtensions: [],
+				restrictedMode: false,
+				isInstallationPure: true,
+				isSessionsWindow: false,
+				githubAccessToken: '',
+				issueTitle: 'Screenshot annotation',
+			},
+			false,
+			document.createElement('div'),
+			new TestContextViewService()
+		));
+		overlay.updateModel({ issueDescription: 'An annotated screenshot report' });
+
+		const requestIssueData = (): Promise<{ issueTitle: string; issueBody: string }[]> => new Promise(resolve => {
+			const responses: { issueTitle: string; issueBody: string }[] = [];
+			const listener = store.add(addDisposableListener(mainWindow, 'message', event => {
+				if (event.data?.replyChannel === 'vscode:triggerIssueDataResponse') {
+					responses.push(event.data.data);
+				} else if (event.data === 'issue-reporter-test-barrier') {
+					listener.dispose();
+					resolve(responses);
+				}
+			}));
+			mainWindow.dispatchEvent(new MessageEvent('message', { data: { sendChannel: 'vscode:triggerIssueData' } }));
+			// Drain replies queued by the synchronous request before checking their count.
+			mainWindow.postMessage('issue-reporter-test-barrier', '*');
+		});
+
+		const before = await requestIssueData();
+		overlay.dispose();
+		const after = await requestIssueData();
+		assert.deepStrictEqual({ before, after }, {
+			before: [{ issueTitle: 'Screenshot annotation', issueBody: 'An annotated screenshot report' }],
+			after: [],
+		});
 	});
 
 	test('includes standalone extension data in a VS Code issue', () => {
