@@ -263,21 +263,41 @@
 .agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-secondary-toolbar {
 	order: 1;
 	padding: 0;
-	flex: 0 1 auto;
-	min-width: 0;
+	flex: 0 0 auto;
+	min-width: max-content;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-secondary-toolbar .actions-container:first-child {
 	margin-right: 0;
 }
 
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-secondary-toolbar .chat-responsive-picker-container {
+	flex: 0 0 auto;
+	width: max-content;
+	min-width: max-content;
+}
+
 .agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-relocated-model-picker {
 	order: 2;
 	flex: 0 0 auto;
-	min-width: 0;
+	min-width: min-content;
 	display: flex;
 	align-items: center;
 	margin-left: auto;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-relocated-model-picker .monaco-action-bar .action-item.compact-picker.model-picker-item {
+	width: auto;
+	min-width: min-content;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-relocated-model-picker .monaco-action-bar .action-item.compact-picker.model-picker-item .action-label {
+	width: auto;
+	min-width: min-content;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-relocated-model-picker .monaco-action-bar .action-item.compact-picker.model-picker-item .model-picker-config .chat-input-picker-label {
+	display: inline;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-execute-toolbar {
