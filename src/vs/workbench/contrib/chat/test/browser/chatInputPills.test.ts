@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Action, SubmenuAction, toAction, type IAction } from '../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -18,7 +19,6 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatInputPills, createChatInputPillSource, StandardChatInputPillSources, type IStandardChatInputPillsData } from '../../browser/chatInputPills.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../browser/sessionPullRequestPill.js';
-import { aiCustomizationViewIcon } from '../../browser/aiCustomization/aiCustomizationIcons.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../common/sessionChatPills.js';
 
 suite('StandardChatInputPillSources', () => {
@@ -157,7 +157,7 @@ suite('StandardChatInputPillSources', () => {
 		})));
 	});
 
-	test('renders the Customizations pill with the Customizations view icon', () => {
+	test('renders the Customizations pill with the Agents Window Customizations icon', () => {
 		const pills = createPills({
 			customizations: {
 				sections: constObservable([{
@@ -168,7 +168,7 @@ suite('StandardChatInputPillSources', () => {
 		});
 		pills.visibility.toggle(SessionChatPillKind.Customizations);
 
-		assert.strictEqual(pills.inputPills.element.querySelector('.chat-pill-icon')?.classList.contains(`codicon-${aiCustomizationViewIcon.id}`), true);
+		assert.strictEqual(pills.inputPills.element.querySelector('.chat-pill-icon')?.classList.contains(`codicon-${Codicon.extensions.id}`), true);
 	});
 
 	test('offers checked pull request options in a separate group below Hide for mouse and keyboard', async () => {
