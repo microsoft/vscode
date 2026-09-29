@@ -65,18 +65,23 @@ extends:
           # macOS
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: macos_x64
-              displayName: MacOS x64 (no runtime)
+              name: macos_arm64_sequoia
+              displayName: macOS ARM64 - Sequoia
               poolName: AcesShared
+              poolImage: ACES_VM_SharedPool_Sequoia
               os: macOS
-              args: --no-detection --grep "darwin-x64"
+              args: --fgrep desktop-darwin-arm64-dmg
+              continueOnError: false
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: macos_arm64
-              displayName: MacOS arm64
+              name: macos_arm64_tahoe
+              displayName: macOS ARM64 - Tahoe
               poolName: AcesShared
+              poolImage: ACES_VM_SharedPool_Tahoe
               os: macOS
+              args: --fgrep desktop-darwin-arm64-dmg
+              continueOnError: false
 
           # Windows
           - template: build/azure-pipelines/common/sanity-tests.yml@self

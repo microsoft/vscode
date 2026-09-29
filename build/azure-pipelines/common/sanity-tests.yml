@@ -5,6 +5,9 @@ parameters:
     type: string
   - name: poolName
     type: string
+  - name: poolImage
+    type: string
+    default: ""
   - name: os
     type: string
     default: linux
@@ -29,10 +32,14 @@ parameters:
 jobs:
   - job: ${{ parameters.name }}
     displayName: ${{ parameters.displayName }}
+    condition: and(succeeded(), startsWith('${{ parameters.name }}', 'macos_arm64_'))
     continueOnError: ${{ parameters.continueOnError }}
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
+      ${{ if ne(parameters.poolImage, '') }}:
+        demands:
+          - ImageOverride -equals ${{ parameters.poolImage }}
     timeoutInMinutes: 30
     templateContext:
       outputs:
@@ -190,12 +197,43 @@ jobs:
 
       # macOS
       - ${{ if eq(parameters.os, 'macOS') }}:
+        - bash: |
+            sw_vers
+            uname -a
+            sysctl hw.model hw.ncpu hw.physicalcpu hw.logicalcpu hw.memsize kern.osversion
+            uptime
+            vm_stat
+            iostat -w 1 -c 2
+            spctl --status
+            systemextensionsctl list
+            if command -v mdatp >/dev/null 2>&1; then
+              mdatp health --field app_version
+              mdatp health --field engine_version
+              mdatp health --field definitions_version
+              mdatp health --field real_time_protection_enabled
+            else
+              echo "mdatp is not available on PATH"
+            fi
+            ps -axo pid,ppid,pcpu,pmem,comm | sort -k3,3nr | head -n 30
+          displayName: Capture macOS image and resource details
+          continueOnError: true
+
         - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
           env:
             GITHUB_ACCOUNT: $(sanity-tests-account)
             GITHUB_PASSWORD: $(sanity-tests-password)
+
+        - bash: |
+            uptime
+            vm_stat
+            iostat -w 1 -c 2
+            ps -axo pid,ppid,pcpu,pmem,comm | sort -k3,3nr | head -n 30
+            hdiutil info
+          displayName: Capture macOS resources after sanity tests
+          condition: always()
+          continueOnError: true
 
       # Native Linux host
       - ${{ if and(eq(parameters.container, ''), eq(parameters.os, 'linux')) }}:
