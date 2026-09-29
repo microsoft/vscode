@@ -16,26 +16,17 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { ITerminalService, NullTerminalService } from '../../../../platform/terminal/common/terminalService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
-
-// The .ps1 asset cannot be parsed by Vite's transform pipeline,
-// so we need to tell Vite to treat .ps1 files as raw text via a mock
-vi.mock('../copilotCLIShim.ps1', () => ({ default: '# mock powershell script' }));
+import * as path from '../../../../util/vs/base/common/path';
 
 // Mock fs operations to avoid real filesystem access during tests
-const { mockMkdir, mockWriteFile, mockCopyFile, mockChmod, mockStat } = vi.hoisted(() => ({
-	mockMkdir: vi.fn(async () => { }),
-	mockWriteFile: vi.fn(async () => { }),
-	mockCopyFile: vi.fn(async () => { }),
-	mockChmod: vi.fn(async () => { }),
+const { mockRm, mockStat } = vi.hoisted(() => ({
+	mockRm: vi.fn(async () => { }),
 	mockStat: vi.fn(async () => ({ isFile: () => true })),
 }));
 
 vi.mock('fs', () => ({
 	promises: {
-		mkdir: mockMkdir,
-		writeFile: mockWriteFile,
-		copyFile: mockCopyFile,
-		chmod: mockChmod,
+		rm: mockRm,
 		stat: mockStat,
 	}
 }));
@@ -65,7 +56,16 @@ vi.mock('../../../../platform/workspace/common/workspaceService', () => ({
 
 import type { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { PythonTerminalService } from '../copilotCLIPythonTerminalService';
-import { CopilotCLITerminalIntegration } from '../copilotCLITerminalIntegration';
+import { CopilotCLITerminalIntegration, getNativeCopilotShimPath } from '../copilotCLITerminalIntegration';
+
+const expectedShimPath = getNativeCopilotShimPath(process.platform, process.execPath, '');
+
+/**
+ * Mirrors how the integration quotes a command for POSIX shells.
+ */
+function escapeForPosixShell(value: string): string {
+	return /[\s"'$`\\|&;()<>]/.test(value) ? `"${value.replace(/["\\]/g, '\\$&')}"` : value;
+}
 
 interface MockTerminal extends Pick<Terminal, 'show' | 'sendText' | 'dispose'> {
 	show: Mock;
@@ -185,6 +185,23 @@ describe('CopilotCLITerminalIntegration', () => {
 	let integration: CopilotCLITerminalIntegration;
 	let authService: MockAuthenticationService;
 
+	async function createIntegration(): Promise<CopilotCLITerminalIntegration> {
+		const result = new CopilotCLITerminalIntegration(
+			new TestExtensionContext() as unknown as IVSCodeExtensionContext,
+			authService as unknown as IAuthenticationService,
+			terminalService as unknown as ITerminalService,
+			envService as unknown as IEnvService,
+			{ trace: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), createSubLogger: () => ({}) } as unknown as ILogService,
+			telemetryService as unknown as ITelemetryService,
+			{ getConfig: () => true } as unknown as IConfigurationService,
+			{ requestResourceTrust: vi.fn().mockResolvedValue(true) } as unknown as IWorkspaceService,
+			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+		);
+		disposables.add(result);
+		await (result as any).initialization;
+		return result;
+	}
+
 	beforeEach(async () => {
 		vi.clearAllMocks();
 
@@ -197,23 +214,7 @@ describe('CopilotCLITerminalIntegration', () => {
 			zsh: { path: 'zsh' },
 		});
 
-		integration = new CopilotCLITerminalIntegration(
-			new TestExtensionContext() as unknown as IVSCodeExtensionContext,
-			authService as unknown as IAuthenticationService,
-			terminalService as unknown as ITerminalService,
-			envService as unknown as IEnvService,
-			{ trace: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), createSubLogger: () => ({}) } as unknown as ILogService,
-			telemetryService as unknown as ITelemetryService,
-			{ getConfig: () => true } as unknown as IConfigurationService,
-
-			{ requestResourceTrust: vi.fn().mockResolvedValue(true) } as unknown as IWorkspaceService,
-
-			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
-		);
-		disposables.add(integration);
-
-		// Wait for initialization to complete
-		await (integration as any).initialization;
+		integration = await createIntegration();
 	});
 
 	afterEach(() => {
@@ -315,6 +316,7 @@ describe('CopilotCLITerminalIntegration', () => {
 			expect(event).toBeDefined();
 			expect(event!.properties.terminalCreationMethod).toBe('pythonTerminal');
 			expect(event!.properties.shell).toBe('zsh');
+			expect(mockPythonTerminal.sendText).toHaveBeenCalledWith(` clear && ${escapeForPosixShell(expectedShimPath)}  && exit`);
 		});
 
 		it('should use shellArgsTerminal method when python terminal is not available', async () => {
@@ -325,17 +327,11 @@ describe('CopilotCLITerminalIntegration', () => {
 			expect(event!.properties.terminalCreationMethod).toBe('shellArgsTerminal');
 		});
 
-		it('should prepend --clear to cliArgs', async () => {
+		it('should pass the CLI args to the native shim without --clear', async () => {
 			await integration.openTerminal('Test Terminal', ['--resume', 'sess-1']);
 
-			// For shellArgs terminal path, --clear gets removed before getShellInfo,
-			// but the final shell args should contain the original CLI args
 			const callArgs = terminalService.createTerminalSpy.mock.calls[0][0] as TerminalOptions;
-			const shellArgs = callArgs.shellArgs as string[];
-			// Shell args should contain the cli args (--resume, sess-1) but not --clear
-			const joinedArgs = shellArgs.join(' ');
-			expect(joinedArgs).toContain('--resume');
-			expect(joinedArgs).toContain('sess-1');
+			expect(callArgs.shellArgs).toEqual(['-ci', `${escapeForPosixShell(expectedShimPath)} --resume sess-1`]);
 		});
 
 		it('should use editor location by default', async () => {
@@ -373,16 +369,62 @@ describe('CopilotCLITerminalIntegration', () => {
 			expect(event).toBeDefined();
 			expect(event!.properties.shell).toBe('bash');
 		});
+
+		it('should run the native shim through PowerShell with literal arguments', async () => {
+			setupTerminalConfig('PowerShell', { PowerShell: { path: 'pwsh' } });
+			envService.shell = 'pwsh';
+			const pwshIntegration = await createIntegration();
+
+			await pwshIntegration.openTerminal('PowerShell Terminal', ['--resume', 'it\'s 1']);
+
+			const callArgs = terminalService.createTerminalSpy.mock.calls[0][0] as TerminalOptions;
+			expect(callArgs.shellArgs).toEqual(['-Command', `& '${expectedShimPath}' '--resume' 'it''s 1'`]);
+		});
+
+		it.runIf(process.platform === 'win32')('should run the native shim through cmd', async () => {
+			setupTerminalConfig('Command Prompt', { 'Command Prompt': { path: 'cmd.exe' } });
+			envService.shell = 'C:\\Windows\\System32\\cmd.exe';
+			const cmdIntegration = await createIntegration();
+
+			await cmdIntegration.openTerminal('Cmd Terminal', ['--resume', 'sess-1']);
+
+			const callArgs = terminalService.createTerminalSpy.mock.calls[0][0] as TerminalOptions;
+			expect(callArgs.shellArgs).toEqual(['/c', expectedShimPath, '--resume', 'sess-1']);
+		});
+
+		it('should run copilot from PATH when the native shim is missing', async () => {
+			mockStat.mockRejectedValueOnce(new Error('ENOENT'));
+			const pathIntegration = await createIntegration();
+
+			await pathIntegration.openTerminal('Path Terminal', ['--resume', 'sess-1']);
+
+			const callArgs = terminalService.createTerminalSpy.mock.calls[0][0] as TerminalOptions;
+			expect(callArgs.shellArgs).toEqual(['-ci', 'copilot --resume sess-1']);
+			const event = telemetryService.events.find(e => e.name === 'copilotcli.terminal.open');
+			expect(event!.properties.shim).toBe('path');
+		});
 	});
 
 	describe('initialize', () => {
-		it('should contribute path to terminal service', async () => {
+		it('should contribute the native shim directory to the terminal PATH', async () => {
 			expect(terminalService.contributePathSpy).toHaveBeenCalledWith(
 				'copilot-cli',
-				expect.stringContaining('copilotCli'),
-				expect.objectContaining({ command: 'copilot' }),
-				true,
+				path.dirname(expectedShimPath),
+				{ command: 'copilot' },
+				undefined,
 			);
+		});
+
+		it('should not contribute to the terminal PATH when the native shim is missing', async () => {
+			terminalService.contributePathSpy.mockClear();
+			mockStat.mockRejectedValueOnce(new Error('ENOENT'));
+			await createIntegration();
+
+			expect(terminalService.contributePathSpy).not.toHaveBeenCalled();
+		});
+
+		it('should remove the legacy script shims', async () => {
+			expect(mockRm).toHaveBeenCalledWith(path.join('/tmp/test-global-storage', 'copilotCli'), { recursive: true, force: true });
 		});
 
 		it('should register a terminal profile provider', async () => {
@@ -390,6 +432,20 @@ describe('CopilotCLITerminalIntegration', () => {
 				'copilot-cli',
 				expect.objectContaining({ provideTerminalProfile: expect.any(Function) }),
 			);
+		});
+	});
+
+	describe('getNativeCopilotShimPath', () => {
+		it('should resolve the shim next to the code command on each platform', () => {
+			expect({
+				win32: getNativeCopilotShimPath('win32', 'C:\\Program Files\\Microsoft VS Code\\Code.exe', 'C:\\Program Files\\Microsoft VS Code\\1a2b3c4d5e\\resources\\app'),
+				darwin: getNativeCopilotShimPath('darwin', '/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin)', '/Applications/Visual Studio Code.app/Contents/Resources/app'),
+				linux: getNativeCopilotShimPath('linux', '/usr/share/code/code', '/usr/share/code/resources/app'),
+			}).toEqual({
+				win32: 'C:\\Program Files\\Microsoft VS Code\\bin\\copilot-shim\\copilot.exe',
+				darwin: '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/copilot',
+				linux: '/usr/share/code/bin/copilot-shim/copilot',
+			});
 		});
 	});
 

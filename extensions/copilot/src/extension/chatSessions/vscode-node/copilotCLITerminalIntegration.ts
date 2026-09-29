@@ -23,12 +23,28 @@ import { windowsToGitBashPath } from '../../../util/vs/workbench/contrib/termina
 import { PythonTerminalService } from './copilotCLIPythonTerminalService';
 import { CopilotCLITerminalLinkProvider, SessionDirResolver } from './copilotCLITerminalLinkProvider';
 
-//@ts-ignore
-import powershellScript from './copilotCLIShim.ps1';
-
-const COPILOT_CLI_SHIM_JS = 'copilotCLIShim.js';
 const COPILOT_CLI_COMMAND = 'copilot';
+const COPILOT_SHIM_DIRECTORY = 'copilot-shim';
 const COPILOT_ICON = new ThemeIcon('copilot');
+
+/**
+ * Directory in global storage where earlier versions wrote script shims. It is removed on startup.
+ */
+const LEGACY_SHIM_DIRECTORY = 'copilotCli';
+
+/**
+ * Returns where the native `copilot` shim ships: a `copilot-shim` folder in the `bin` folder that contains the `code`
+ * command. On macOS the `bin` folder is under the app root; elsewhere it is next to the application executable.
+ */
+export function getNativeCopilotShimPath(platform: NodeJS.Platform, execPath: string, appRoot: string): string {
+	if (platform === 'win32') {
+		return path.win32.join(path.win32.dirname(execPath), 'bin', COPILOT_SHIM_DIRECTORY, `${COPILOT_CLI_COMMAND}.exe`);
+	}
+	if (platform === 'darwin') {
+		return path.posix.join(appRoot, 'bin', COPILOT_SHIM_DIRECTORY, COPILOT_CLI_COMMAND);
+	}
+	return path.posix.join(path.posix.dirname(execPath), 'bin', COPILOT_SHIM_DIRECTORY, COPILOT_CLI_COMMAND);
+}
 
 export type TerminalOpenLocation = 'panel' | 'editor' | 'editorBeside';
 
@@ -51,6 +67,10 @@ type IShellInfo = {
 	shellArgs: string[];
 	iconPath?: ThemeIcon;
 	copilotCommand: string;
+	/**
+	 * Clears the screen before `copilotCommand` when the command is typed into an interactive shell.
+	 */
+	clearCommand: string;
 	exitCommand: string | undefined;
 };
 
@@ -59,14 +79,10 @@ export const ICopilotCLITerminalIntegration = createServiceIdentifier<ICopilotCL
 export class CopilotCLITerminalIntegration extends Disposable implements ICopilotCLITerminalIntegration {
 	declare _serviceBrand: undefined;
 	private readonly initialization: Promise<void>;
-	private shellScriptPath: string | undefined;
 	/**
-	 * On Windows only: a POSIX shell script (no extension) that Git Bash / MSYS bash
-	 * can execute. Used when the user's default shell is `bash.exe`, since bash cannot
-	 * run the `copilot.bat` shim.
+	 * The native shim when it ships with this build; otherwise `copilot`, resolved from PATH.
 	 */
-	private posixShellScriptPath: string | undefined;
-	private powershellScriptPath: string | undefined;
+	private copilotCommand: string = COPILOT_CLI_COMMAND;
 	private readonly pythonTerminalService: PythonTerminalService;
 	private readonly _linkProvider: CopilotCLITerminalLinkProvider | undefined;
 	constructor(
@@ -74,7 +90,7 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@IEnvService private readonly envService: IEnvService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceService workspaceService: IWorkspaceService,
@@ -90,46 +106,16 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 	}
 
 	private async initialize(): Promise<void> {
-		const globalStorageUri = this.context.globalStorageUri;
-		if (!globalStorageUri) {
-			// globalStorageUri is not available in extension tests
-			return;
-		}
+		await this.removeLegacyShims();
 
-		const storageLocation = path.join(globalStorageUri.fsPath, 'copilotCli');
-		this.terminalService.contributePath('copilot-cli', storageLocation, { command: COPILOT_CLI_COMMAND }, true);
-
-		await fs.mkdir(storageLocation, { recursive: true });
-
-		if (process.platform === 'win32') {
-			this.powershellScriptPath = path.join(storageLocation, `${COPILOT_CLI_COMMAND}.ps1`);
-			await fs.writeFile(this.powershellScriptPath, powershellScript);
-			const copilotPowershellScript = `@echo off
-powershell -ExecutionPolicy Bypass -File "${this.powershellScriptPath}" %*
-`;
-			this.shellScriptPath = path.join(storageLocation, `${COPILOT_CLI_COMMAND}.bat`);
-			await fs.writeFile(this.shellScriptPath, copilotPowershellScript);
-
-			// Also create a POSIX shell script for Git Bash on Windows. Bash cannot
-			// execute the .bat shim directly inside a `bash -c` string, and we cannot run
-			// the JS shim via Electron-as-node here because Electron on Windows does not
-			// support console stdin (see copilotCLIShim.ts header). Instead, delegate to
-			// the existing .bat shim, which routes through cmd.exe -> PowerShell where
-			// console stdin works correctly.
-			const posixBatPath = windowsToGitBashPath(this.shellScriptPath);
-			const copilotBashScript = `#!/bin/sh\nexec "${posixBatPath}" "$@"\n`;
-			this.posixShellScriptPath = path.join(storageLocation, COPILOT_CLI_COMMAND);
-			await fs.writeFile(this.posixShellScriptPath, copilotBashScript);
+		const shimPath = getNativeCopilotShimPath(process.platform, process.execPath, this.envService.appRoot);
+		if (await isFile(shimPath)) {
+			this.copilotCommand = shimPath;
+			this.terminalService.contributePath('copilot-cli', path.dirname(shimPath), { command: COPILOT_CLI_COMMAND });
 		} else {
-			const copilotShellScript = `#!/bin/sh
-unset NODE_OPTIONS
-ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "${path.join(storageLocation, COPILOT_CLI_SHIM_JS)}" "$@"`;
-			await fs.copyFile(path.join(__dirname, COPILOT_CLI_SHIM_JS), path.join(storageLocation, COPILOT_CLI_SHIM_JS));
-			this.shellScriptPath = path.join(storageLocation, COPILOT_CLI_COMMAND);
-			this.powershellScriptPath = path.join(storageLocation, `copilotCLIShim.ps1`);
-			await fs.writeFile(this.shellScriptPath, copilotShellScript);
-			await fs.writeFile(this.powershellScriptPath, powershellScript);
-			await fs.chmod(this.shellScriptPath, 0o750);
+			// Also drops a PATH contribution persisted by earlier versions that pointed at the legacy script shims.
+			this.terminalService.removePathContribution('copilot-cli');
+			this.logService.info(`[CopilotCLITerminalIntegration] The native copilot shim was not found at ${shimPath}; terminals run copilot from PATH.`);
 		}
 
 		const provideTerminalProfile = async () => {
@@ -153,7 +139,20 @@ ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "${path.join(storageLocation, COPIL
 			});
 		};
 		this._register(window.registerTerminalProfileProvider('copilot-cli', { provideTerminalProfile }));
+	}
 
+	private async removeLegacyShims(): Promise<void> {
+		const globalStorageUri = this.context.globalStorageUri;
+		if (!globalStorageUri) {
+			// globalStorageUri is not available in extension tests
+			return;
+		}
+
+		try {
+			await fs.rm(path.join(globalStorageUri.fsPath, LEGACY_SHIM_DIRECTORY), { recursive: true, force: true });
+		} catch (error) {
+			this.logService.warn(`[CopilotCLITerminalIntegration] Failed to remove the legacy copilot shims: ${error}`);
+		}
 	}
 
 	public setTerminalSessionDir(terminal: Terminal, sessionDir: Uri): void {
@@ -165,18 +164,11 @@ ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "${path.join(storageLocation, COPIL
 	}
 
 	public async openTerminal(name: string, cliArgs: string[] = [], cwd?: string, location: TerminalOpenLocation = 'editor'): Promise<Terminal | undefined> {
-		// Capture session type before mutating cliArgs.
 		// If cliArgs are provided (e.g. --resume), we are resuming a session; otherwise it's a new session.
 		const sessionType = cliArgs.length > 0 ? 'resume' : 'new';
 
-		// Generate another set of shell args, but with --clear to clear the terminal before running the command.
-		// We'd like to hide all of the custom shell commands we send to the terminal from the user.
-		cliArgs.unshift('--clear');
-
-		let [shellPathAndArgs] = await Promise.all([
-			this.getShellInfo(cliArgs),
-			this.initialization
-		]);
+		await this.initialization;
+		const shellPathAndArgs = await this.getShellInfo(cliArgs);
 
 		const options = await getCommonTerminalOptions(name, this._authenticationService, this._otelService, location);
 		options.cwd = cwd;
@@ -189,7 +181,7 @@ ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "${path.join(storageLocation, COPIL
 			if (terminal) {
 				this._register(terminal);
 				this._linkProvider?.registerTerminal(terminal);
-				const command = this.buildCommandForPythonTerminal(shellPathAndArgs?.copilotCommand, cliArgs, shellPathAndArgs);
+				const command = this.buildCommandForPythonTerminal(shellPathAndArgs.copilotCommand, cliArgs, shellPathAndArgs);
 				await this.sendCommandToTerminal(terminal, command, true, shellPathAndArgs);
 				this.sendTerminalOpenTelemetry(sessionType, shellPathAndArgs.shell, 'pythonTerminal', location);
 				return terminal;
@@ -199,26 +191,19 @@ ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "${path.join(storageLocation, COPIL
 		if (!shellPathAndArgs) {
 			const terminal = this._register(this.terminalService.createTerminal(options));
 			this._linkProvider?.registerTerminal(terminal);
-			cliArgs.shift(); // Remove --clear as we can't run it without a shell integration
-			const command = this.buildCommandForTerminal(terminal, COPILOT_CLI_COMMAND, cliArgs);
+			const command = this.buildCommandForTerminal(terminal, this.copilotCommand, cliArgs);
 			await this.sendCommandToTerminal(terminal, command, false, shellPathAndArgs);
 			this.sendTerminalOpenTelemetry(sessionType, 'unknown', 'fallbackTerminal', location);
 			return terminal;
 		}
 
-		cliArgs.shift(); // Remove --clear as we are creating a new terminal with our own args.
-		shellPathAndArgs = await this.getShellInfo(cliArgs);
-		if (shellPathAndArgs) {
-			options.shellPath = shellPathAndArgs.shellPath;
-			options.shellArgs = shellPathAndArgs.shellArgs;
-			const terminal = this._register(this.terminalService.createTerminal(options));
-			this._linkProvider?.registerTerminal(terminal);
-			terminal.show();
-			this.sendTerminalOpenTelemetry(sessionType, shellPathAndArgs.shell, 'shellArgsTerminal', location);
-			return terminal;
-		}
-
-		return undefined;
+		options.shellPath = shellPathAndArgs.shellPath;
+		options.shellArgs = shellPathAndArgs.shellArgs;
+		const terminal = this._register(this.terminalService.createTerminal(options));
+		this._linkProvider?.registerTerminal(terminal);
+		terminal.show();
+		this.sendTerminalOpenTelemetry(sessionType, shellPathAndArgs.shell, 'shellArgsTerminal', location);
+		return terminal;
 	}
 
 	private sendTerminalOpenTelemetry(sessionType: string, shell: string, terminalCreationMethod: string, location: TerminalOpenLocation): void {
@@ -229,14 +214,16 @@ ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "${path.join(storageLocation, COPIL
 				"sessionType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the terminal is for a new session or resuming an existing one." },
 				"shell" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The shell type used for the terminal." },
 				"terminalCreationMethod" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How the terminal was created." },
-				"location" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Where the terminal was opened - panel, editor area (active), or editor area (beside)." }
+				"location" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Where the terminal was opened - panel, editor area (active), or editor area (beside)." },
+				"shim" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the terminal runs the native copilot shim that ships with VS Code or resolves copilot from PATH." }
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('copilotcli.terminal.open', {
 			sessionType,
 			shell,
 			terminalCreationMethod,
-			location
+			location,
+			shim: this.copilotCommand === COPILOT_CLI_COMMAND ? 'path' : 'native'
 		});
 	}
 
@@ -246,14 +233,15 @@ ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "${path.join(storageLocation, COPIL
 			// Starting with empty space to hide from terminal history
 			commandPrefix = ' ';
 		}
+		let invocationPrefix = '';
 		if (shellInfo.shell === 'powershell' || shellInfo.shell === 'pwsh') {
-			// Run powershell script
-			commandPrefix = '& ';
+			invocationPrefix = '& ';
 		}
 
 		const exitCommand = shellInfo.exitCommand || '';
 
-		return `${commandPrefix}${quoteArgsForShell(copilotCommand, [])} ${cliArgs.join(' ')} ${exitCommand}`;
+		// Clear the screen first to hide the environment activation commands sent to the terminal.
+		return `${commandPrefix}${shellInfo.clearCommand}${invocationPrefix}${quoteArgsForShell(copilotCommand, [])} ${cliArgs.join(' ')} ${exitCommand}`;
 	}
 
 	private buildCommandForTerminal(terminal: Terminal, copilotCommand: string, cliArgs: string[]) {
@@ -322,68 +310,73 @@ ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "${path.join(storageLocation, COPIL
 			? path.basename(shellPath).toLowerCase()
 			: path.basename(shellPath);
 		const iconPath = COPILOT_ICON;
+		const copilotCommand = this.copilotCommand;
 
-		if (shellBasename === 'zsh' && this.shellScriptPath) {
+		if (shellBasename === 'zsh') {
 			return {
 				shell: 'zsh',
 				shellPath,
-				shellArgs: [`-ci${shellArgs.includes('-l') ? 'l' : ''}`, quoteArgsForShell(this.shellScriptPath, cliArgs)],
+				shellArgs: [`-ci${shellArgs.includes('-l') ? 'l' : ''}`, quoteArgsForShell(copilotCommand, cliArgs)],
 				iconPath,
-				copilotCommand: this.shellScriptPath,
+				copilotCommand,
+				clearCommand: 'clear && ',
 				exitCommand: `&& exit`
 			};
-		} else if ((shellBasename === 'bash' || shellBasename === 'bash.exe') && (configPlatform === 'windows' ? this.posixShellScriptPath : this.shellScriptPath)) {
-			// On Windows (Git Bash), use the POSIX shim and reference it by its MSYS path,
-			// since the path lives inside the `-ic` shell-string and is not translated by MSYS.
-			const scriptPath = configPlatform === 'windows' ? this.posixShellScriptPath! : this.shellScriptPath!;
-			const bashScriptPath = configPlatform === 'windows' ? windowsToGitBashPath(scriptPath) : scriptPath;
+		} else if (shellBasename === 'bash' || shellBasename === 'bash.exe') {
+			// Git Bash on Windows doesn't translate a Windows path inside the `-ic` shell string, so use its MSYS form.
+			const bashCommand = configPlatform === 'windows' ? windowsToGitBashPath(copilotCommand) : copilotCommand;
 			return {
 				shell: 'bash',
 				shellPath,
-				shellArgs: [`-${shellArgs.includes('-l') ? 'l' : ''}ic`, quoteArgsForShell(bashScriptPath, cliArgs)],
+				shellArgs: [`-${shellArgs.includes('-l') ? 'l' : ''}ic`, quoteArgsForShell(bashCommand, cliArgs)],
 				iconPath,
-				copilotCommand: bashScriptPath,
+				copilotCommand: bashCommand,
+				clearCommand: 'clear && ',
 				exitCommand: `&& exit`
 			};
-		} else if (shellBasename === 'fish' && this.shellScriptPath) {
+		} else if (shellBasename === 'fish') {
 			const fishArgs: string[] = [];
 			if (shellArgs.includes('-l')) {
 				fishArgs.push('-l');
 			}
-			fishArgs.push('-c', quoteArgsForShell(this.shellScriptPath, cliArgs));
+			fishArgs.push('-c', quoteArgsForShell(copilotCommand, cliArgs));
 			return {
 				shell: 'fish',
 				shellPath,
 				shellArgs: fishArgs,
 				iconPath,
-				copilotCommand: this.shellScriptPath,
+				copilotCommand,
+				clearCommand: 'clear; ',
 				exitCommand: `; and exit`
 			};
-		} else if ((shellBasename === 'pwsh' || shellBasename === 'pwsh.exe') && this.powershellScriptPath) {
+		} else if (shellBasename === 'pwsh' || shellBasename === 'pwsh.exe') {
 			return {
 				shell: 'pwsh',
 				shellPath,
-				shellArgs: ['-File', this.powershellScriptPath, ...cliArgs],
+				shellArgs: ['-Command', quoteArgsForPowerShell(copilotCommand, cliArgs)],
 				iconPath,
-				copilotCommand: this.powershellScriptPath,
+				copilotCommand,
+				clearCommand: 'Clear-Host; ',
 				exitCommand: `&& exit`
 			};
-		} else if ((shellBasename === 'powershell' || shellBasename === 'powershell.exe') && this.powershellScriptPath && configPlatform === 'windows') {
+		} else if ((shellBasename === 'powershell' || shellBasename === 'powershell.exe') && configPlatform === 'windows') {
 			return {
 				shell: 'powershell',
 				shellPath,
-				shellArgs: ['-File', this.powershellScriptPath, ...cliArgs],
+				shellArgs: ['-Command', quoteArgsForPowerShell(copilotCommand, cliArgs)],
 				iconPath,
-				copilotCommand: this.powershellScriptPath,
+				copilotCommand,
+				clearCommand: 'Clear-Host; ',
 				exitCommand: `&& exit`
 			};
-		} else if ((shellBasename === 'cmd' || shellBasename === 'cmd.exe') && this.shellScriptPath && configPlatform === 'windows') {
+		} else if ((shellBasename === 'cmd' || shellBasename === 'cmd.exe') && configPlatform === 'windows') {
 			return {
 				shell: 'cmd',
 				shellPath,
-				shellArgs: ['/c', this.shellScriptPath, ...cliArgs],
+				shellArgs: ['/c', copilotCommand, ...cliArgs],
 				iconPath,
-				copilotCommand: this.shellScriptPath,
+				copilotCommand,
+				clearCommand: 'cls && ',
 				exitCommand: '&& exit'
 			};
 		}
@@ -404,6 +397,23 @@ function quoteArgsForShell(shellScript: string, args: string[]): string {
 
 	const escapedArgs = args.map(escapeArg);
 	return args.length ? `${escapeArg(shellScript)} ${escapedArgs.join(' ')}` : escapeArg(shellScript);
+}
+
+/**
+ * Builds a PowerShell command that runs `command` with `args`. Single-quoted strings are literal in PowerShell, so
+ * only embedded single quotes need escaping.
+ */
+function quoteArgsForPowerShell(command: string, args: string[]): string {
+	const quote = (value: string) => `'${value.replace(/'/g, `''`)}'`;
+	return ['&', quote(command), ...args.map(quote)].join(' ');
+}
+
+async function isFile(filePath: string): Promise<boolean> {
+	try {
+		return (await fs.stat(filePath)).isFile();
+	} catch {
+		return false;
+	}
 }
 
 async function getCommonTerminalOptions(name: string, authenticationService: IAuthenticationService, otelService: IOTelService, location: TerminalOpenLocation = 'editor'): Promise<TerminalOptions> {

@@ -38,7 +38,6 @@ import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionParticipant,
 import { PullRequestDetectionService } from '../pullRequestDetectionService';
 import { ISessionOptionGroupBuilder } from '../sessionOptionGroupBuilder';
 import { ISessionRequestLifecycle } from '../sessionRequestLifecycle';
-vi.mock('../copilotCLIShim.ps1', () => ({ default: '# mock powershell script' }));
 
 beforeAll(() => {
 	(vscodeShim as Record<string, unknown>).chat = {
