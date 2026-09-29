@@ -628,8 +628,8 @@ async function getPipelineTimeline(): Promise<Timeline> {
 
 /**
  * Artifacts that can only be published once a job succeeded, by job name. The
- * x64 test jobs run in parallel with the jobs that produce these artifacts
- * (see win32/product-build-win32.yml and linux/product-build-linux-jobs.yml).
+ * platform test jobs run in parallel with the jobs that produce these artifacts
+ * (see the platform-specific product-build job templates).
  */
 const artifactsByGatingJob: Readonly<Record<string, readonly string[]>> = {
 	'Windows_x64_Test': [
@@ -648,6 +648,15 @@ const artifactsByGatingJob: Readonly<Record<string, readonly string[]>> = {
 		'vscode_server_linux_x64_archive-unsigned',
 		'vscode_web_linux_x64_archive-unsigned',
 		'vscode_cli_linux_x64_cli',
+	],
+	'macOS_arm64_Test': [
+		'vscode_client_darwin_arm64_archive',
+		'vscode_client_darwin_arm64_dmg',
+		'vscode_server_darwin_arm64_archive',
+		'vscode_web_darwin_arm64_archive',
+		'vscode_cli_darwin_arm64_cli',
+		'vscode_client_darwin_universal_archive',
+		'vscode_client_darwin_universal_dmg',
 	],
 };
 
