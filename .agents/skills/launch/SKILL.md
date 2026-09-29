@@ -255,12 +255,12 @@ The script returns `{ focused, focusChanged, focusInvoked, shortcutInvoked, comm
 
 `fill` and `type` **silently fail** on Code OSS — Monaco's `native-edit-context` element doesn't react to Playwright's default input pipeline. Use one of these alternatives:
 
-- **`scripts/monaco-paste.mjs` helper** (recommended — cross-platform, fast, no system clipboard, parallel-safe). Reads text from a positional arg or stdin and dispatches a `ClipboardEvent('paste')` with a `DataTransfer` payload into the focused chat-input Monaco editor. Honors `--session NAME` or `PW_SESSION` so it stays inside the same `-s=` session as everything else. The Bash wrapper `scripts/monaco-paste.sh` remains available for compatibility.
+- **`scripts/monaco-paste.ts` helper** (recommended — cross-platform, fast, no system clipboard, parallel-safe). Reads text from a positional arg or stdin and dispatches a `ClipboardEvent('paste')` with a `DataTransfer` payload into the focused chat-input Monaco editor. Honors `--session NAME` or `PW_SESSION` so it stays inside the same `-s=` session as everything else. The Bash wrapper `scripts/monaco-paste.sh` remains available for compatibility.
 
   ```bash
   LAUNCH_DIR=<dir-of-this-SKILL.md>           # the same dir that holds scripts/launch.sh
   FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
-  PASTE="$LAUNCH_DIR/scripts/monaco-paste.mjs"
+  PASTE="$LAUNCH_DIR/scripts/monaco-paste.ts"
   export PW_SESSION                            # helper reads this env var
 
   # Send a prompt:
@@ -283,7 +283,7 @@ The script returns `{ focused, focusChanged, focusInvoked, shortcutInvoked, comm
   ```
 
   ```powershell
-  $paste = Join-Path $skillDir 'scripts\monaco-paste.mjs'
+  $paste = Join-Path $skillDir 'scripts\monaco-paste.ts'
   node $paste --session $pwSession 'Please respond with OK.'
   npx @playwright/cli "-s=$pwSession" press Enter
   ```
@@ -319,7 +319,7 @@ Because the launch skill is built around isolation, the natural workload is **ma
 ```bash
 LAUNCH_DIR=<dir-of-this-SKILL.md>
 FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
-PASTE="$LAUNCH_DIR/scripts/monaco-paste.mjs"
+PASTE="$LAUNCH_DIR/scripts/monaco-paste.ts"
 export PW_SESSION
 
 # In agent A's shell:

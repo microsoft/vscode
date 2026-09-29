@@ -1,6 +1,10 @@
 #!/usr/bin/env node
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
-import { spawnSync } from 'node:child_process';
+import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -10,20 +14,24 @@ import { fileURLToPath } from 'node:url';
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const focusChatScript = join(scriptDirectory, '..', 'playwrightScripts', 'focus-chat-input.ts');
 const require = createRequire(import.meta.url);
-let playwrightCli;
+let playwrightCli: string | undefined;
 
 let append = false;
 let verify = true;
 let session = process.env.PW_SESSION ?? '';
-let text;
+let text: string | undefined;
 
-const fail = (message, exitCode = 1, details) => {
+function fail(message: string, exitCode = 1, details?: string): never {
 	process.stdout.write(`${JSON.stringify({ ok: false, error: message })}\n`);
 	if (details) {
 		process.stderr.write(details);
 	}
 	process.exit(exitCode);
-};
+}
+
+function getErrorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
 
 for (let index = 2; index < process.argv.length; index++) {
 	const argument = process.argv[index];
@@ -50,7 +58,7 @@ for (let index = 2; index < process.argv.length; index++) {
 		}
 		case '--help':
 		case '-h':
-			process.stdout.write(`Usage: monaco-paste.mjs [--append] [--no-verify] [--session NAME] [text]
+			process.stdout.write(`Usage: monaco-paste.ts [--append] [--no-verify] [--session NAME] [text]
 
 Pastes text into the focused Code OSS Chat input through an attached
 @playwright/cli session. If text is omitted, it is read from stdin.
@@ -77,11 +85,11 @@ if (!text) {
 }
 
 const sessionArguments = session ? [`-s=${session}`] : [];
-const runCli = args => {
+function runCli(args: readonly string[]): SpawnSyncReturns<string> {
 	try {
 		playwrightCli ??= require.resolve('@playwright/cli/playwright-cli.js');
 	} catch (error) {
-		fail(`could not resolve @playwright/cli from the launch skill: ${error.message}`, 1);
+		fail(`could not resolve @playwright/cli from the launch skill: ${getErrorMessage(error)}`, 1);
 	}
 	const result = spawnSync(process.execPath, [playwrightCli, ...sessionArguments, ...args], {
 		encoding: 'utf8',
@@ -91,7 +99,7 @@ const runCli = args => {
 		fail(`failed to run @playwright/cli: ${result.error.message}`, 1);
 	}
 	return result;
-};
+}
 
 const focusResult = runCli(['run-code', `--filename=${focusChatScript}`]);
 if (focusResult.status !== 0) {
@@ -176,13 +184,14 @@ const code = `async page => page.evaluate(async ({ text, verify }) => {
 
 const temporaryDirectory = mkdtempSync(join(tmpdir(), 'code-oss-monaco-paste-'));
 const codeFile = join(temporaryDirectory, 'paste.js');
-let pasteResult;
-try {
-	writeFileSync(codeFile, code);
-	pasteResult = runCli(['run-code', `--filename=${codeFile}`]);
-} finally {
-	rmSync(temporaryDirectory, { recursive: true, force: true });
-}
+const pasteResult = (() => {
+	try {
+		writeFileSync(codeFile, code);
+		return runCli(['run-code', `--filename=${codeFile}`]);
+	} finally {
+		rmSync(temporaryDirectory, { recursive: true, force: true });
+	}
+})();
 if (pasteResult.status !== 0) {
 	fail('@playwright/cli run-code failed', 1, pasteResult.stderr || pasteResult.stdout);
 }
@@ -192,15 +201,20 @@ if (!resultMatch) {
 	fail('no ### Result section in run-code output', 1, pasteResult.stdout);
 }
 
-let result;
+let result: unknown;
 try {
 	result = JSON.parse(resultMatch[1]);
 	if (typeof result === 'string') {
 		result = JSON.parse(result);
 	}
 } catch (error) {
-	fail(`failed to parse result line: ${error.message}`, 1, pasteResult.stdout);
+	fail(`failed to parse result line: ${getErrorMessage(error)}`, 1, pasteResult.stdout);
+}
+
+const ok = result && typeof result === 'object' ? Object.getOwnPropertyDescriptor(result, 'ok')?.value : undefined;
+if (typeof ok !== 'boolean') {
+	fail('run-code result did not contain a boolean ok property', 1, pasteResult.stdout);
 }
 
 process.stdout.write(`${JSON.stringify(result)}\n`);
-process.exit(result.ok ? 0 : 1);
+process.exit(ok ? 0 : 1);
