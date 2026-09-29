@@ -180,6 +180,40 @@ suite('WorkspaceContextContribution', () => {
 		});
 	});
 
+	test('prepares every first turn that was waiting for the same worktree', async () => {
+		const context = setupContext({ worktreePending: true });
+		const started = recordEnumerations(context, root => [URI.joinPath(root, 'meta.json')]);
+		const peer = buildChatUri(context.session, 'peer');
+		context.state.addChat(context.session, peer, { title: 'Peer', origin: { kind: ChatOriginKind.User } });
+		context.accept();
+		context.accept(peer);
+		context.worktreeIsolation.resolve(AgentSession.id(context.session), URI.file('/worktrees/agent'));
+		await timeout(0);
+		const results = [await context.send(context.chat, [URI.file('/worktrees/agent')]), await context.send(peer, [URI.file('/worktrees/agent')])];
+		assert.deepStrictEqual({ roots: started.map(e => e.root), snapshots: results.map(result => !!result.instructions?.length) }, {
+			roots: ['/worktrees/agent', '/worktrees/agent'], snapshots: [true, true],
+		});
+	});
+
+	test('builds a large file list in batches that yield instead of blocking the send', async () => {
+		const files = Array.from({ length: 5000 }, (_, i) => `/workspace/src/file-${String(i).padStart(4, '0')}.ts`);
+		const context = setupContext({ files });
+		const peer = buildChatUri(context.session, 'peer');
+		context.state.addChat(context.session, peer, { title: 'Peer', origin: { kind: ChatOriginKind.User } });
+		context.accept();
+		// Drain microtasks only: a synchronous build would have finished by now.
+		for (let i = 0; i < 20; i++) {
+			await Promise.resolve();
+		}
+		const whileBuilding = await context.send();
+		context.accept(peer);
+		await timeout(20);
+		const afterBuilding = await context.send(peer);
+		assert.deepStrictEqual({ whileBuilding: !!whileBuilding.instructions?.length, afterBuilding: !!afterBuilding.instructions?.length }, {
+			whileBuilding: false, afterBuilding: true,
+		});
+	});
+
 	test('sends only what is already prepared, without waiting', async () => {
 		const context = setupContext({ roots: ['/workspace', '/other'].map(path => URI.file(path).toString()) });
 		const started: { root: string; token: CancellationToken }[] = [];

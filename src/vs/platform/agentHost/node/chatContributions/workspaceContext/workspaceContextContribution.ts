@@ -17,7 +17,7 @@ import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
-import { AgentHostWorkspaceFiles, type IAgentHostWorkspaceFilesResult } from '../../agentHostWorkspaceFiles.js';
+import { AgentHostWorkspaceFiles } from '../../agentHostWorkspaceFiles.js';
 import { IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
 
 const firstTurnSeenMemento = createChatMementoKey<boolean>('firstTurnSeen', () => false);
@@ -57,7 +57,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	private readonly _workspaceFiles: AgentHostWorkspaceFiles;
 	private readonly _prepared = this._register(new DisposableMap<ProtocolURI, IPreparedSnapshot>());
 	/** First-turn chats whose session is creating its worktree, keyed by session id. */
-	private readonly _awaitingWorktree = new Map<string, ProtocolURI>();
+	private readonly _awaitingWorktree = new Map<string, Set<ProtocolURI>>();
 
 	constructor(
 		private readonly _context: IAgentHostChatContributionContext,
@@ -88,7 +88,12 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		}
 		const sessionId = AgentSession.id(session);
 		if (this._worktreeIsolation.isWorkingDirectoryPending(sessionId)) {
-			this._awaitingWorktree.set(sessionId, channel);
+			let awaiting = this._awaitingWorktree.get(sessionId);
+			if (!awaiting) {
+				awaiting = new Set();
+				this._awaitingWorktree.set(sessionId, awaiting);
+			}
+			awaiting.add(channel);
 			return;
 		}
 		// The session's worktree may already exist, e.g. when its creation finished before this hook ran.
@@ -148,25 +153,26 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		return turns;
 	}
 
-	/** Starts preparing a first turn's snapshot in the worktree its session just created. */
+	/** Starts preparing the first-turn snapshots that were waiting for the worktree their session just created. */
 	private _onWorktreeResolved(sessionId: string): void {
-		const chat = this._awaitingWorktree.get(sessionId);
-		if (!chat || this._worktreeIsolation.isWorkingDirectoryPending(sessionId)) {
+		const awaiting = this._awaitingWorktree.get(sessionId);
+		if (!awaiting || this._worktreeIsolation.isWorkingDirectoryPending(sessionId)) {
 			return;
 		}
 		this._awaitingWorktree.delete(sessionId);
-		const workingDirectories = this._firstTurnWorkingDirectories(chat);
-		if (!workingDirectories) {
-			return;
-		}
 		const worktree = this._worktreeIsolation.getResolvedWorktree(sessionId);
-		this._prepare(chat, worktree ? withProcessRoot(worktree, workingDirectories) : workingDirectories);
+		for (const chat of awaiting) {
+			const workingDirectories = this._firstTurnWorkingDirectories(chat);
+			if (workingDirectories) {
+				this._prepare(chat, worktree ? withProcessRoot(worktree, workingDirectories) : workingDirectories);
+			}
+		}
 	}
 
 	/** Stops a chat's preparation, including a pending wait for its worktree. */
 	private _release(chat: ProtocolURI): void {
 		for (const [sessionId, awaiting] of this._awaitingWorktree) {
-			if (awaiting === chat) {
+			if (awaiting.delete(chat) && awaiting.size === 0) {
 				this._awaitingWorktree.delete(sessionId);
 			}
 		}
@@ -210,11 +216,12 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	private async _prepareRoot(root: URI, budget: number, token: CancellationToken): Promise<string | undefined> {
 		try {
 			const result = await this._workspaceFiles.enumerate(root, token);
-			if (token.isCancellationRequested) {
+			const workspaceTree = await buildWorkspaceTree(root, result.files, token);
+			if (!workspaceTree) {
 				return undefined;
 			}
 			const heading = JSON.stringify(root.fsPath).slice(1, -1);
-			const tree = renderWorkspaceTree(root, result, budget - heading.length - 3);
+			const tree = renderWorkspaceTree(workspaceTree, result.isTruncated, budget - heading.length - 3);
 			return tree ? `${heading}\n${tree}` : undefined;
 		} catch (err) {
 			if (!isCancellationError(err)) {
@@ -247,24 +254,45 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 interface IWorkspaceNode {
 	readonly name: string;
 	readonly children: Map<string, IWorkspaceNode>;
-}
-
-function sortedChildren(node: IWorkspaceNode): IWorkspaceNode[] {
-	return [...node.children.values()].sort((a, b) => Number(a.children.size > 0) - Number(b.children.size > 0) || compare(a.name, b.name));
+	/** Children in display order, computed once when first rendered. */
+	sorted?: readonly IWorkspaceNode[];
 }
 
 /**
- * Builds the tree from plain path segments rather than URIs: the file list can
- * hold tens of thousands of entries, and this runs synchronously on the host.
+ * Paths added to the tree between yields to the event loop. Listing can
+ * return tens of thousands of paths per root, so building in batches lets the
+ * provider send and other host work run while a snapshot is prepared.
  */
-function buildWorkspaceTree(root: URI, files: readonly URI[]): IWorkspaceNode {
+const BUILD_BATCH_SIZE = 2000;
+
+function yieldToEventLoop(): Promise<void> {
+	return new Promise(resolve => setImmediate(resolve));
+}
+
+function sortedChildren(node: IWorkspaceNode): readonly IWorkspaceNode[] {
+	node.sorted ??= [...node.children.values()].sort((a, b) => Number(a.children.size > 0) - Number(b.children.size > 0) || compare(a.name, b.name));
+	return node.sorted;
+}
+
+/**
+ * Builds the tree from plain path segments rather than URIs, in batches that
+ * yield to the event loop. Returns `undefined` once `token` is cancelled.
+ */
+async function buildWorkspaceTree(root: URI, files: readonly URI[], token: CancellationToken): Promise<IWorkspaceNode | undefined> {
 	const tree: IWorkspaceNode = { name: '', children: new Map() };
 	const prefix = root.path.endsWith('/') ? root.path : `${root.path}/`;
-	for (const file of files) {
-		if (!file.path.startsWith(prefix)) {
+	for (let index = 0; index < files.length; index++) {
+		if (index > 0 && index % BUILD_BATCH_SIZE === 0) {
+			await yieldToEventLoop();
+		}
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		const path = files[index].path;
+		if (!path.startsWith(prefix)) {
 			continue;
 		}
-		const segments = file.path.slice(prefix.length).split(/[\\/]/);
+		const segments = path.slice(prefix.length).split(/[\\/]/);
 		if (segments.some(segment => !segment || segment.startsWith('.') || segment === 'node_modules')) {
 			continue;
 		}
@@ -278,19 +306,18 @@ function buildWorkspaceTree(root: URI, files: readonly URI[]): IWorkspaceNode {
 			node = child;
 		}
 	}
-	return tree;
+	return token.isCancellationRequested ? undefined : tree;
 }
 
-function renderWorkspaceTree(root: URI, result: IAgentHostWorkspaceFilesResult, maxLength: number): string {
+/** Renders at most `maxLength` characters of `tree`, breadth first, so top-level orientation survives truncation. */
+function renderWorkspaceTree(tree: IWorkspaceNode, isTruncated: boolean, maxLength: number): string {
 	if (maxLength < 4) {
 		return '';
 	}
-	const tree = buildWorkspaceTree(root, result.files);
-
 	const selected = new Map<IWorkspaceNode, string>();
 	const queue = sortedChildren(tree).map(node => ({ node, depth: 0 }));
 	let length = 0;
-	let truncated = result.isTruncated;
+	let truncated = isTruncated;
 	for (let index = 0; index < queue.length; index++) {
 		const { node, depth } = queue[index];
 		const name = JSON.stringify(node.name).slice(1, -1);
