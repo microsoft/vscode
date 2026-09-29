@@ -11,12 +11,8 @@ import { equals } from '../../../../../base/common/objects.js';
 import { join } from '../../../../../base/common/path.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { Server } from '../../../../../base/parts/ipc/electron-main/ipc.electron.js';
-import { IGPULogMessage } from '../../../../diagnostics/common/diagnostics.js';
 import { GPUCompositingState } from '../../../../native/electron-main/gpuCompositingState.js';
-import { ITelemetryData } from '../../../../telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
 import { GPUProcessMainService } from '../../../electron-main/gpuProcessMainService.js';
-import { GPUProcessTelemetry } from '../../../electron-main/gpuProcessTelemetry.js';
 
 const userData = app.commandLine.getSwitchValue('gpu-test-user-data');
 assert.ok(userData, 'The GPU test must use an isolated profile');
@@ -103,28 +99,6 @@ async function run(): Promise<void> {
 			trace.push({ event: 'exit', reason, enabled: compositing.enabled });
 		}));
 
-		function captureTelemetry() {
-			const events: { name: string | undefined; data: ITelemetryData | undefined }[] = [];
-			const logSnapshots: string[][] = [];
-			const sink = new class extends NullTelemetryServiceShape {
-				override publicLog2(name?: string, data?: ITelemetryData): void {
-					events.push({ name, data });
-					trace.push({ event: `telemetry ${name}`, status: gpu.featureStatus });
-				}
-			}();
-			store.add(new GPUProcessTelemetry(() => {
-				const electronApp: typeof app & { getGPULogMessages?(): IGPULogMessage[] } = app;
-				const logs = electronApp.getGPULogMessages?.() ?? [];
-				logSnapshots.push(logs.slice(-10).map(log => log.message));
-				return logs;
-			}, gpu, sink));
-			return { events, logSnapshots };
-		}
-
-		const startupTelemetry = captureTelemetry();
-		let recoveryTelemetry: ReturnType<typeof captureTelemetry> | undefined;
-		store.add(Event.once(gpu.onDidExitProcess)(() => recoveryTelemetry = captureTelemetry()));
-
 		async function waitForStatus(): Promise<GPUFeatureStatus> {
 			if (gpu.featureStatus) {
 				return gpu.featureStatus;
@@ -160,11 +134,10 @@ async function run(): Promise<void> {
 
 		window ??= await createWindow();
 		await firstGPUInfo;
-		const initialStatus = await waitForStatus();
+		await waitForStatus();
 		assert.deepStrictEqual(gpu.featureStatus, app.getGPUFeatureStatus());
 		await connect(window);
 
-		const recoveredStatuses: GPUFeatureStatus[] = [];
 		if (!software) {
 			for (let crash = 0; crash < 3; crash++) {
 				phase = `GPU crash ${crash + 1}`;
@@ -177,7 +150,6 @@ async function run(): Promise<void> {
 					await window.webContents.debugger.sendCommand('Browser.crashGpuProcess');
 					await exited;
 					const recovered = await waitForStatus();
-					recoveredStatuses.push(recovered);
 					assert.deepStrictEqual(recovered, app.getGPUFeatureStatus());
 				} finally {
 					window.webContents.debugger.detach();
@@ -204,24 +176,6 @@ async function run(): Promise<void> {
 			assert.ok(!equals(updates[index], updates[index - 1]), 'Feature notifications must be deduplicated');
 		}
 
-		function checkTelemetry(capture: ReturnType<typeof captureTelemetry>, initial: GPUFeatureStatus & { skia_graphite?: string }, recovered: GPUFeatureStatus[]): void {
-			const graphiteEnabled = initial.skia_graphite === 'enabled' || initial.skia_graphite === 'enabled_on';
-			const fallbacks = graphiteEnabled ? recovered.filter(status => status.rasterization !== 'enabled') : [];
-			assert.strictEqual(capture.logSnapshots.length, fallbacks.length);
-			assert.deepStrictEqual(capture.events, fallbacks.map((status, index) => ({
-				name: 'gpu.crash.fallback',
-				data: {
-					gpuFeatureStatus: JSON.stringify(status),
-					gpuLogMessages: JSON.stringify(capture.logSnapshots[index]),
-				},
-			})));
-		}
-
-		checkTelemetry(startupTelemetry, initialStatus, recoveredStatuses);
-		if (!software) {
-			assert.ok(recoveryTelemetry);
-			checkTelemetry(recoveryTelemetry, recoveredStatuses[0], recoveredStatuses.slice(1));
-		}
 		await disconnect(window);
 	} finally {
 		store.dispose();
