@@ -6,7 +6,7 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
@@ -36,6 +36,7 @@ import {
 	IBrowserViewFaviconChangeEvent,
 	IBrowserViewDevToolsStateEvent,
 	IBrowserViewService,
+	BrowserViewEventData,
 	BrowserViewStorageScope,
 	isInMemoryStorageScope,
 	IBrowserViewCaptureScreenshotOptions,
@@ -468,7 +469,54 @@ export interface IBrowserViewModel extends IDisposable {
 	setDevice(device: IBrowserDeviceProfile | undefined): Promise<void>;
 }
 
+export type BrowserViewEventEmitters = { [K in keyof BrowserViewEventData]: Emitter<BrowserViewEventData[K]> };
+
+export function createBrowserViewEventEmitters(store: DisposableStore): BrowserViewEventEmitters {
+	return {
+		onDidChangeAreaSelectionActive: store.add(new Emitter<BrowserViewEventData['onDidChangeAreaSelectionActive']>()),
+		onDidChangeAudiences: store.add(new Emitter<BrowserViewEventData['onDidChangeAudiences']>()),
+		onDidChangeDeviceEmulation: store.add(new Emitter<BrowserViewEventData['onDidChangeDeviceEmulation']>()),
+		onDidChangeDevToolsState: store.add(new Emitter<BrowserViewEventData['onDidChangeDevToolsState']>()),
+		onDidChangeElementSelectionState: store.add(new Emitter<BrowserViewEventData['onDidChangeElementSelectionState']>()),
+		onDidChangeFavicon: store.add(new Emitter<BrowserViewEventData['onDidChangeFavicon']>()),
+		onDidChangeFocus: store.add(new Emitter<BrowserViewEventData['onDidChangeFocus']>()),
+		onDidChangeLoadingState: store.add(new Emitter<BrowserViewEventData['onDidChangeLoadingState']>()),
+		onDidChangeOwner: store.add(new Emitter<BrowserViewEventData['onDidChangeOwner']>()),
+		onDidChangePermissions: store.add(new Emitter<BrowserViewEventData['onDidChangePermissions']>()),
+		onDidChangeRemoteStatus: store.add(new Emitter<BrowserViewEventData['onDidChangeRemoteStatus']>()),
+		onDidChangeTitle: store.add(new Emitter<BrowserViewEventData['onDidChangeTitle']>()),
+		onDidChangeVisibility: store.add(new Emitter<BrowserViewEventData['onDidChangeVisibility']>()),
+		onDidClose: store.add(new Emitter<BrowserViewEventData['onDidClose']>()),
+		onDidFindInPage: store.add(new Emitter<BrowserViewEventData['onDidFindInPage']>()),
+		onDidKeyCommand: store.add(new Emitter<BrowserViewEventData['onDidKeyCommand']>()),
+		onDidNavigate: store.add(new Emitter<BrowserViewEventData['onDidNavigate']>()),
+		onDidPickArea: store.add(new Emitter<BrowserViewEventData['onDidPickArea']>()),
+		onDidRemoveElementComment: store.add(new Emitter<BrowserViewEventData['onDidRemoveElementComment']>()),
+		onDidRequestPermission: store.add(new Emitter<BrowserViewEventData['onDidRequestPermission']>()),
+		onDidSelectElement: store.add(new Emitter<BrowserViewEventData['onDidSelectElement']>()),
+	};
+}
+
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
+	readonly onDidChangeAreaSelectionActive = this._remoteEvents.onDidChangeAreaSelectionActive.event;
+	readonly onDidChangeDevToolsState = this._remoteEvents.onDidChangeDevToolsState.event;
+	readonly onDidChangeElementSelectionState = this._remoteEvents.onDidChangeElementSelectionState.event;
+	readonly onDidChangeFavicon = this._remoteEvents.onDidChangeFavicon.event;
+	readonly onDidChangeFocus = this._remoteEvents.onDidChangeFocus.event;
+	readonly onDidChangeLoadingState = this._remoteEvents.onDidChangeLoadingState.event;
+	readonly onDidChangeOwner = this._remoteEvents.onDidChangeOwner.event;
+	readonly onDidChangeRemoteStatus = this._remoteEvents.onDidChangeRemoteStatus.event;
+	readonly onDidChangeTitle = this._remoteEvents.onDidChangeTitle.event;
+	readonly onDidChangeVisibility = this._remoteEvents.onDidChangeVisibility.event;
+	readonly onDidClose = this._remoteEvents.onDidClose.event;
+	readonly onDidFindInPage = this._remoteEvents.onDidFindInPage.event;
+	readonly onDidKeyCommand = this._remoteEvents.onDidKeyCommand.event;
+	readonly onDidNavigate = this._remoteEvents.onDidNavigate.event;
+	readonly onDidPickArea = this._remoteEvents.onDidPickArea.event;
+	readonly onDidRemoveElementComment = this._remoteEvents.onDidRemoveElementComment.event;
+	readonly onDidRequestPermission = this._remoteEvents.onDidRequestPermission.event;
+	readonly onDidSelectElement = this._remoteEvents.onDidSelectElement.event;
+
 	private _url: string = '';
 	private _owner: IBrowserViewOwner;
 	private _title: string = '';
@@ -518,6 +566,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		readonly associatedResource: URI | undefined,
 		initialState: IBrowserViewState,
 		private readonly browserViewService: IBrowserViewService,
+		private readonly _remoteEvents: BrowserViewEventEmitters,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -570,7 +619,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		// Permissions are synced via browser-view state + a dynamic event rather
 		// than storage, so they work for ephemeral sessions (which never persist).
 		this.permissions.hydrate(initialState.permissions);
-		this._register(this.browserViewService.onDynamicDidChangePermissions(this.id)(
+		this._register(this._remoteEvents.onDidChangePermissions.event(
 			snapshot => this.permissions.hydrate(snapshot)));
 
 		// Sync initial zoom
@@ -644,7 +693,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._visible = visible;
 		}));
 
-		this._register(this.browserViewService.onDynamicDidChangeDeviceEmulation(this.id)(device => {
+		this._register(this._remoteEvents.onDidChangeDeviceEmulation.event(device => {
 			if (!structuralEquals(this._device, device)) {
 				this._device = device;
 				this._onDidChangeDevice.fire(device);
@@ -662,7 +711,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._isAreaSelectionActive = active;
 		}));
 
-		this._register(this.browserViewService.onDynamicDidChangeAudiences(this.id)(audiences => {
+		this._register(this._remoteEvents.onDidChangeAudiences.event(audiences => {
 			this._audiences = audiences;
 			this._updateSharingState();
 		}));
@@ -714,58 +763,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get elementSelectionState(): IBrowserElementSelectionState { return this._elementSelectionState; }
 	get isAreaSelectionActive(): boolean { return this._isAreaSelectionActive; }
 	get device(): IBrowserDeviceProfile | undefined { return this._device; }
-
-	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
-		return this.browserViewService.onDynamicDidNavigate(this.id);
-	}
-
-	get onDidChangeLoadingState(): Event<IBrowserViewLoadingEvent> {
-		return this.browserViewService.onDynamicDidChangeLoadingState(this.id);
-	}
-
-	get onDidChangeFocus(): Event<IBrowserViewFocusEvent> {
-		return this.browserViewService.onDynamicDidChangeFocus(this.id);
-	}
-
-	get onDidChangeDevToolsState(): Event<IBrowserViewDevToolsStateEvent> {
-		return this.browserViewService.onDynamicDidChangeDevToolsState(this.id);
-	}
-
-	get onDidKeyCommand(): Event<IBrowserViewKeyDownEvent> {
-		return this.browserViewService.onDynamicDidKeyCommand(this.id);
-	}
-
-	get onDidChangeTitle(): Event<IBrowserViewTitleChangeEvent> {
-		return this.browserViewService.onDynamicDidChangeTitle(this.id);
-	}
-
-	get onDidChangeFavicon(): Event<IBrowserViewFaviconChangeEvent> {
-		return this.browserViewService.onDynamicDidChangeFavicon(this.id);
-	}
-
-	get onDidChangeOwner(): Event<IBrowserViewOwner> {
-		return this.browserViewService.onDynamicDidChangeOwner(this.id);
-	}
-
-	get onDidFindInPage(): Event<IBrowserViewFindInPageResult> {
-		return this.browserViewService.onDynamicDidFindInPage(this.id);
-	}
-
-	get onDidChangeVisibility(): Event<IBrowserViewVisibilityEvent> {
-		return this.browserViewService.onDynamicDidChangeVisibility(this.id);
-	}
-
-	get onDidClose(): Event<void> {
-		return this.browserViewService.onDynamicDidClose(this.id);
-	}
-
-	get onDidChangeRemoteStatus(): Event<boolean> {
-		return this.browserViewService.onDynamicDidChangeRemoteStatus(this.id);
-	}
-
-	get onDidRequestPermission(): Event<IBrowserViewPermissionRequestEvent> {
-		return this.browserViewService.onDynamicDidRequestPermission(this.id);
-	}
 
 	async layout(bounds: IBrowserViewBounds): Promise<void> {
 		return this.browserViewService.layout(this.id, bounds);
@@ -932,26 +929,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async toggleAreaSelection(enabled?: boolean): Promise<void> {
 		return this.browserViewService.toggleAreaSelection(this.id, enabled);
-	}
-
-	get onDidSelectElement(): Event<IElementData> {
-		return this.browserViewService.onDynamicDidSelectElement(this.id);
-	}
-
-	get onDidRemoveElementComment(): Event<string> {
-		return this.browserViewService.onDynamicDidRemoveElementComment(this.id);
-	}
-
-	get onDidChangeElementSelectionState(): Event<IBrowserElementSelectionState> {
-		return this.browserViewService.onDynamicDidChangeElementSelectionState(this.id);
-	}
-
-	get onDidPickArea(): Event<IBrowserViewRect | undefined> {
-		return this.browserViewService.onDynamicDidPickArea(this.id);
-	}
-
-	get onDidChangeAreaSelectionActive(): Event<boolean> {
-		return this.browserViewService.onDynamicDidChangeAreaSelectionActive(this.id);
 	}
 
 	async setDevice(device: IBrowserDeviceProfile | undefined): Promise<void> {

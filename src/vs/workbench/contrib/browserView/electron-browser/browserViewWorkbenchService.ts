@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
-import { BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions } from '../common/browserView.js';
+import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { process } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -41,7 +41,7 @@ import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
@@ -74,9 +74,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	private readonly _browserViewService: IBrowserViewService;
 	private readonly _known = new Map<string, BrowserEditorInput>();
+	private readonly _remoteEvents = this._register(new DisposableMap<string, IDisposable & { emitters: BrowserViewEventEmitters }>());
 	private readonly _contextualFilters = new Set<IBrowserViewContextualFilter>();
 	private readonly _openHandlers = new Set<IBrowserViewOpenHandler>();
 	private readonly _mainWindowId: number;
+	private readonly _browserViewsReady = new DeferredPromise<void>();
 
 	/** Latest tunnel-proxy credentials pushed from the local extension host. */
 	private _remoteProxyInfo: ITunnelProxyInfo | undefined;
@@ -179,27 +181,34 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 		}));
 
-		// Start asynchronously creating models for all views we already own.
-		void this._initializeExistingViews().catch(e => {
-			this.logService.error('[BrowserViewWorkbenchService] Failed to initialize existing browser views.', e);
-		});
-
-		// Listen for new browser views
-		this._register(this._browserViewService.onDidCreateBrowserView(e => {
-			if (e.info.host.windowId !== this._mainWindowId) {
-				return; // Not for this window
+		this._register(this._browserViewService.onDynamicBrowserViewEvent(this._mainWindowId)(([event, screenshots]) => {
+			if (event.type === 'snapshot') {
+				try {
+					for (const [index, info] of event.views.entries()) {
+						this._createModel(reviveBrowserViewInfo(info, screenshots[index]));
+					}
+					void this._browserViewsReady.complete();
+				} catch (error) {
+					void this._browserViewsReady.error(error);
+				}
+				return;
 			}
-
-			// Eagerly create the model from the state we already have
-			this._createModel(e.info, e.initialUrl);
-
-			const editor = this._known.get(e.info.id);
-			if (editor && e.editorOpenRequest) {
-				void this._openEditorForCreatedView(editor, e.info.owner, e.editorOpenRequest).catch(error => {
-					this.logService.error('[BrowserViewWorkbenchService] Failed to open editor for created browser view.', error);
-				});
+			if (event.type === 'created') {
+				const e = event.data;
+				this._createModel(reviveBrowserViewInfo(e.info, screenshots[0]), e.initialUrl ?? this._known.get(e.info.id)?.url);
+				const editor = this._known.get(e.info.id);
+				if (editor && e.editorOpenRequest) {
+					void this._openEditorForCreatedView(editor, e.info.owner, e.editorOpenRequest).catch(error => {
+						this.logService.error('[BrowserViewWorkbenchService] Failed to open editor for created browser view.', error);
+					});
+				}
+			} else {
+				this._dispatchEvent(event);
 			}
 		}));
+		void this._browserViewsReady.p.catch(error => {
+			this.logService.error('[BrowserViewWorkbenchService] Failed to initialize browser view event stream.', error);
+		});
 	}
 
 	willUseRemoteProxy(): boolean {
@@ -371,7 +380,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		const { id, associatedResource } = data;
 		if (!this._known.has(id)) {
 			const input = this.instantiationService.createInstance(BrowserEditorInput, data, async () => {
-				const info = await this._browserViewService.getOrCreateBrowserView(
+				await this._browserViewsReady.p;
+				await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
 						host: {
@@ -385,7 +395,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 						openSource: createOptions?.openSource
 					}
 				);
-				return this._createModel(info);
+				const model = this._known.get(id)?.model;
+				if (!model) {
+					throw new Error(`Browser view ${id} closed during creation`);
+				}
+				return model;
 			});
 			input.onWillDispose(() => {
 				this._known.delete(id);
@@ -434,15 +448,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return dataStorage;
 	}
 
-	/**
-	 * Fetch all views owned by this window from the main service and create
-	 * models for them so they are available synchronously.
-	 */
-	private async _initializeExistingViews(): Promise<void> {
-		const views = await this._browserViewService.getBrowserViews(this._mainWindowId);
-		for (const info of views) {
-			this._createModel(info);
-		}
+	private _dispatchEvent<K extends keyof BrowserViewEventData>(event: BrowserViewChangeEvent<K>): void {
+		this._remoteEvents.get(event.id)?.emitters[event.event].fire(event.data);
 	}
 
 	private _createModel(info: IBrowserViewInfo, initialUrl?: string): IBrowserViewModel {
@@ -454,17 +461,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			return existing;
 		}
 
-		const state = input
-			? {
-				...info.state,
-				url: input.url ?? info.state.url,
-				title: input.title ?? info.state.title,
-				lastFavicon: input.favicon ?? info.state.lastFavicon
-			}
-			: initialUrl
-				? { ...info.state, url: initialUrl }
-				: info.state;
-		const model = this.instantiationService.createInstance(BrowserViewModel, info.id, info.host, info.owner, associatedResource, state, this._browserViewService);
+		const state = initialUrl ? { ...info.state, url: initialUrl } : info.state;
+		const store = new DisposableStore();
+		const emitters = createBrowserViewEventEmitters(store);
+		this._remoteEvents.set(info.id, { emitters, dispose: () => store.dispose() });
+		let model: BrowserViewModel;
+		try {
+			model = this.instantiationService.createInstance(BrowserViewModel, info.id, info.host, info.owner, associatedResource, state, this._browserViewService, emitters);
+		} catch (error) {
+			this._remoteEvents.deleteAndDispose(info.id);
+			throw error;
+		}
+		store.add(Event.once(model.onWillDispose)(() => this._remoteEvents.deleteAndDispose(info.id)));
 
 		// Sanity: both pass and assign the model to be sure. It will no-op if already set.
 		this._getOrCreateLazy({ id: info.id, associatedResource, url: initialUrl }, model).model = model;
