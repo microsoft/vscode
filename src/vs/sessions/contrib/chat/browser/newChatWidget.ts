@@ -8,6 +8,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -126,6 +127,12 @@ export class NewChatWidget extends Disposable {
 	private _workspaceRepositoryControlsHost: HTMLElement | undefined;
 	private _workspaceSessionOptionsHost: HTMLElement | undefined;
 	private readonly _sessionOptionsExpanded = observableValue(this, true);
+	/**
+	 * Transient expansion driven by hovering or focusing the workspace picker. Overlays the
+	 * persisted {@link _sessionOptionsExpanded} state so previewing the options never overwrites
+	 * the user's remembered choice.
+	 */
+	private readonly _hoverExpanded = observableValue(this, false);
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
@@ -1280,6 +1287,25 @@ export class NewChatWidget extends Disposable {
 		toggle.element.classList.add('new-chat-session-options-toggle');
 		toggle.element.setAttribute('aria-controls', sessionOptions.id);
 		store.add(toggle.onDidClick(() => this._sessionOptionsExpanded.set(!this._sessionOptionsExpanded.get(), undefined)));
+		// Hovering or focusing the workspace picker row transiently reveals the session options so
+		// they can be previewed; leaving both pointer and focus collapses them again after a short
+		// delay. This never touches the persisted expanded state.
+		const COLLAPSE_AFTER_HOVER_MS = 2500;
+		const collapseAfterHover = store.add(new MutableDisposable());
+		let pointerInsideRow = false;
+		let focusInsideRow = false;
+		const updateHoverExpanded = () => {
+			if (pointerInsideRow || focusInsideRow) {
+				collapseAfterHover.clear();
+				this._hoverExpanded.set(true, undefined);
+			} else if (this._hoverExpanded.get()) {
+				collapseAfterHover.value = disposableTimeout(() => this._hoverExpanded.set(false, undefined), COLLAPSE_AFTER_HOVER_MS);
+			}
+		};
+		store.add(dom.addDisposableListener(row, dom.EventType.MOUSE_ENTER, () => { pointerInsideRow = true; updateHoverExpanded(); }));
+		store.add(dom.addDisposableListener(row, dom.EventType.MOUSE_LEAVE, () => { pointerInsideRow = false; updateHoverExpanded(); }));
+		store.add(dom.addDisposableListener(row, dom.EventType.FOCUS_IN, () => { focusInsideRow = true; updateHoverExpanded(); }));
+		store.add(dom.addDisposableListener(row, dom.EventType.FOCUS_OUT, () => { focusInsideRow = false; updateHoverExpanded(); }));
 		store.add(dom.addDisposableListener(row, dom.EventType.KEY_DOWN, event => {
 			if (!this._useExperimentalComposerLayout.get() || event.altKey || event.ctrlKey || event.metaKey || !['Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
 				return;
@@ -1322,7 +1348,9 @@ export class NewChatWidget extends Disposable {
 			// Screen reader users should never have the options collapsed out of the accessibility
 			// tree: keep the tray expanded and drop the disclosure toggle entirely.
 			const disclosureAvailable = useExperimentalLayout && !screenReaderOptimized;
-			const expanded = this._sessionOptionsExpanded.read(reader);
+			// The persisted choice is overlaid by a transient hover/focus expansion so previewing
+			// the options never overwrites the user's remembered collapsed state.
+			const expanded = this._sessionOptionsExpanded.read(reader) || (disclosureAvailable && this._hoverExpanded.read(reader));
 			// The icons-vs-hidden setting only changes what a collapsed tray shows, so log the
 			// experiment trigger when the composer actually reaches that collapsed state — before
 			// reading the setting, so both arms count and users who never collapse don't dilute it.
