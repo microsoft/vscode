@@ -709,7 +709,7 @@ suite('PromptValidator', () => {
 				'name: "GitHub_Copilot_Custom_Agent"',
 				'description: "GitHub Copilot agent"',
 				'target: github-copilot',
-				"model: ['MAE 4.1 (copilot)', 'MAE 4 (olama)']",
+				'model: ["MAE 4.1 (copilot)", "MAE 4 (olama)"]',
 				`tools: ['shell', 'edit', 'search', 'custom-agent']`,
 				'mcp-servers: []',
 				'---',
