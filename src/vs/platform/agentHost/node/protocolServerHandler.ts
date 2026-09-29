@@ -382,6 +382,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private readonly _baselineDebt = new Map<string, Set<string>>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
 	private readonly _canvasSnapshots = new Map<string, IAgentCanvasSnapshot>();
+	private readonly _canvasSnapshotChatsByClient = new Map<string, Set<string>>();
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _managedSettingsOwnerId = generateUuid();
 	private readonly _connectionDisposables = this._register(new DisposableMap<IProtocolTransport, DisposableStore>());
@@ -492,16 +493,19 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					let responsePromise: Promise<unknown>;
 					try {
 						const result = this._handleReconnect(msg.params, transport, disposables);
-						client = result.client;
+						const reconnectClient = result.client;
+						client = reconnectClient;
 						responsePromise = this._trackRequest(result.responsePromise);
+						responsePromise.then(
+							response => {
+								transport.send(jsonRpcSuccess(msg.id, response));
+								this._sendCurrentCanvasSnapshots(reconnectClient);
+							},
+							err => transport.send(jsonRpcErrorFrom(msg.id, err)),
+						);
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
-						return;
 					}
-					responsePromise.then(
-						response => transport.send(jsonRpcSuccess(msg.id, response)),
-						err => transport.send(jsonRpcErrorFrom(msg.id, err)),
-					);
 					return;
 				}
 
@@ -1300,6 +1304,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				} else {
 					this._clients.delete(client.clientId);
 					this._baselineDebt.delete(client.clientId);
+					this._canvasSnapshotChatsByClient.delete(client.clientId);
 				}
 			}
 		}
@@ -1419,7 +1424,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _supportsCanvases(client: IConnectedClient): boolean {
-		return client.telemetryContext.connectionKind === AgentHostClientConnectionKind.Local;
+		return client.telemetryContext.connectionKind === AgentHostClientConnectionKind.Local
+			&& client.telemetryContext.transportKind === AgentHostTransportKind.MessagePort;
 	}
 
 	private _createClientTelemetryContext(clientInfo: Implementation | undefined, meta: Record<string, unknown> | undefined, transport: IProtocolTransport, fallbackConnectionKind = AgentHostClientConnectionKind.Unknown): IAgentHostClientTelemetryContext {
@@ -1481,6 +1487,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				record.disconnectTimeouts.dispose();
 				this._clients.delete(clientId);
 				this._baselineDebt.delete(clientId);
+				this._canvasSnapshotChatsByClient.delete(clientId);
 			}
 		}
 	}
@@ -2324,15 +2331,30 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (!this._supportsCanvases(client)) {
 			return;
 		}
+		const staleChats = new Set(this._canvasSnapshotChatsByClient.get(client.clientId));
 		for (const snapshot of this._canvasSnapshots.values()) {
+			staleChats.delete(snapshot.chat.toString());
 			this._sendCanvasSnapshot(client, {
 				chat: snapshot.chat.toString(),
 				canvases: [...snapshot.canvases],
 			});
 		}
+		for (const chat of staleChats) {
+			this._sendCanvasSnapshot(client, { chat, canvases: [] });
+		}
 	}
 
 	private _sendCanvasSnapshot(client: IConnectedClient, params: IAgentHostCanvasesChangedParams): void {
+		let chats = this._canvasSnapshotChatsByClient.get(client.clientId);
+		if (!chats) {
+			chats = new Set();
+			this._canvasSnapshotChatsByClient.set(client.clientId, chats);
+		}
+		if (params.canvases.length > 0) {
+			chats.add(params.chat);
+		} else {
+			chats.delete(params.chat);
+		}
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		const message = { jsonrpc: '2.0' as const, method: AgentHostCanvasesChangedNotification, params } as unknown as AhpServerNotification;
 		client.transport.send(message);
@@ -2491,6 +2513,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		this._pendingReverseRequests.clear();
 		this._replayBuffer.length = 0;
 		this._canvasSnapshots.clear();
+		this._canvasSnapshotChatsByClient.clear();
 		super.dispose();
 	}
 }

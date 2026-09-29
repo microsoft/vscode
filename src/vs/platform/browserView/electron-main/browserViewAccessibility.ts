@@ -20,54 +20,56 @@ export async function readBrowserViewAccessibilityTree(sendCommand: Accessibilit
 	if (maxNodes <= 0) {
 		return { nodes: [], truncated: true };
 	}
-	const { node: root } = await sendCommand('Accessibility.getRootAXNode') as { node: AXNode };
-	const nodes: AXNode[] = [];
-	const pending: string[] = [];
-	const discovered = new Set<string>([root.nodeId]);
-	let truncated = false;
+	await sendCommand('Accessibility.enable');
+	try {
+		const { node: root } = await sendCommand('Accessibility.getRootAXNode') as { node: AXNode };
+		const nodes: AXNode[] = [root];
+		const nodeIndexes = new Map<string, number>([[root.nodeId, 0]]);
+		const pending = root.childIds?.length ? [root.nodeId] : [];
+		const discovered = new Set<string>([root.nodeId]);
+		let truncated = false;
 
-	const appendNode = (node: AXNode) => {
-		nodes.push(node);
-		const childIds = node.childIds ?? [];
-		const retainedChildIds: string[] = [];
-		for (const childId of childIds) {
-			if (discovered.has(childId)) {
-				retainedChildIds.push(childId);
-				continue;
+		while (pending.length > 0 && nodes.length < maxNodes) {
+			const parentIds = pending.splice(0, accessibilityFetchBatchSize);
+			const responses = await Promise.all(parentIds.map(async id => ({
+				id,
+				response: await sendCommand('Accessibility.getChildAXNodes', { id }) as { nodes: AXNode[] },
+			})));
+			for (const { id, response } of responses) {
+				const retainedChildIds: string[] = [];
+				for (const child of response.nodes) {
+					if (discovered.has(child.nodeId)) {
+						retainedChildIds.push(child.nodeId);
+						continue;
+					}
+					if (nodes.length >= maxNodes) {
+						truncated = true;
+						continue;
+					}
+					discovered.add(child.nodeId);
+					nodeIndexes.set(child.nodeId, nodes.length);
+					nodes.push(child);
+					retainedChildIds.push(child.nodeId);
+					if (child.childIds?.length) {
+						pending.push(child.nodeId);
+					}
+				}
+				const parentIndex = nodeIndexes.get(id);
+				if (parentIndex !== undefined) {
+					const parent = nodes[parentIndex];
+					if (retainedChildIds.length !== (parent.childIds?.length ?? 0)) {
+						nodes[parentIndex] = { ...parent, childIds: retainedChildIds };
+					}
+				}
 			}
-			if (nodes.length + pending.length >= maxNodes) {
-				truncated = true;
-				continue;
-			}
-			discovered.add(childId);
-			pending.push(childId);
-			retainedChildIds.push(childId);
 		}
-		if (retainedChildIds.length !== childIds.length) {
-			nodes[nodes.length - 1] = { ...node, childIds: retainedChildIds };
+		if (pending.length > 0) {
+			truncated = true;
 		}
-	};
-
-	appendNode(root);
-	while (pending.length > 0 && nodes.length < maxNodes) {
-		const nodeIds = pending.splice(0, Math.min(accessibilityFetchBatchSize, maxNodes - nodes.length));
-		const responses = await Promise.all(nodeIds.map(async nodeId => ({
-			nodeId,
-			response: await sendCommand('Accessibility.getPartialAXTree', { nodeId, fetchRelatives: false }) as { nodes: AXNode[] },
-		})));
-		for (const { nodeId, response } of responses) {
-			const node = response.nodes.find(candidate => candidate.nodeId === nodeId);
-			if (!node) {
-				truncated = true;
-				continue;
-			}
-			appendNode(node);
-		}
+		return { nodes, truncated };
+	} finally {
+		await sendCommand('Accessibility.disable');
 	}
-	if (pending.length > 0) {
-		truncated = true;
-	}
-	return { nodes, truncated };
 }
 
 export function formatBrowserViewAccessibility(nodes: readonly AXNode[], sourceTruncated = false): IBrowserViewAccessibilitySnapshot {

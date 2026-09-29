@@ -434,8 +434,8 @@ suite('ProtocolServerHandler', () => {
 		};
 	}
 
-	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>): MockProtocolTransport {
-		const transport = new MockProtocolTransport();
+	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>, transportKind = AgentHostTransportKind.Unknown): MockProtocolTransport {
+		const transport = new MockProtocolTransport(transportKind);
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', {
 			protocolVersions: [PROTOCOL_VERSION],
@@ -521,10 +521,12 @@ suite('ProtocolServerHandler', () => {
 			}],
 		};
 		agentService.fireCanvasSnapshot(snapshot);
-		const remote = connectClient('canvas-remote');
+		const remote = connectClient('canvas-remote', undefined, undefined, {
+			'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local,
+		}, AgentHostTransportKind.WebSocket);
 		const local = connectClient('canvas-local', undefined, undefined, {
 			'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local,
-		});
+		}, AgentHostTransportKind.MessagePort);
 		const remoteInitialize = findResponse(remote.sent, 1);
 		const localInitialize = findResponse(local.sent, 1);
 		assert.ok(remoteInitialize && hasKey(remoteInitialize, { result: true }));
@@ -566,6 +568,64 @@ suite('ProtocolServerHandler', () => {
 			},
 			resolveCalls: [{ chat: defaultChatUri, instanceId: 'preview-1', revision: 4 }],
 		});
+	});
+
+	test('canvas reconnect replays current snapshots and clears snapshots removed while disconnected', async () => {
+		const removedChat = URI.parse(defaultChatUri);
+		const currentChat = URI.parse(buildChatUri('copilotcli:/session-1', 'peer-1'));
+		const removedSnapshot: IAgentCanvasSnapshot = {
+			chat: removedChat,
+			canvases: [{
+				instanceId: 'removed',
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+				revision: 1,
+				availability: AgentCanvasAvailability.Ready,
+			}],
+		};
+		const currentSnapshot: IAgentCanvasSnapshot = {
+			chat: currentChat,
+			canvases: [{
+				instanceId: 'current',
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+				revision: 1,
+				availability: AgentCanvasAvailability.Ready,
+			}],
+		};
+		agentService.fireCanvasSnapshot(removedSnapshot);
+		agentService.fireCanvasSnapshot(currentSnapshot);
+		const initial = connectClient('canvas-reconnect', undefined, undefined, {
+			'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local,
+		}, AgentHostTransportKind.MessagePort);
+		initial.simulateClose();
+
+		agentService.fireCanvasSnapshot({ chat: removedChat, canvases: [] });
+		const updatedCurrentSnapshot: IAgentCanvasSnapshot = {
+			...currentSnapshot,
+			canvases: [{ ...currentSnapshot.canvases[0], revision: 2 }],
+		};
+		agentService.fireCanvasSnapshot(updatedCurrentSnapshot);
+
+		const reconnected = new MockProtocolTransport(AgentHostTransportKind.MessagePort);
+		server.simulateConnection(reconnected);
+		const responsePromise = waitForResponse(reconnected, 2);
+		reconnected.simulateMessage(request(2, 'reconnect', {
+			clientId: 'canvas-reconnect',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+			_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local },
+		}));
+		await responsePromise;
+		await handler.whenIdle();
+
+		assert.deepStrictEqual(
+			findNotifications(reconnected.sent, AgentHostCanvasesChangedNotification).map(notification => notification.params),
+			[
+				{ chat: currentChat.toString(), canvases: updatedCurrentSnapshot.canvases },
+				{ chat: removedChat.toString(), canvases: [] },
+			],
+		);
 	});
 
 	test('Dev Containers enforce initiating transport trust, ownership, and disconnect cleanup', async () => {

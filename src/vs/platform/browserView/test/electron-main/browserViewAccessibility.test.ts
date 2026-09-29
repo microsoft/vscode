@@ -44,18 +44,25 @@ suite('BrowserView user accessibility', () => {
 	test('reads the accessibility tree incrementally up to the node limit', async () => {
 		const calls: Array<{ method: string; params?: object }> = [];
 		const nodes = new Map<string, AXNode>([
-			['1', { ...node('1', 'RootWebArea', 'Root'), childIds: ['2', '3', '4'] }],
-			['2', node('2', 'heading', 'First')],
+			['1', { ...node('1', 'RootWebArea', 'Root'), childIds: ['2'] }],
+			['2', { ...node('2', 'heading', 'First'), childIds: ['3', '4'] }],
 			['3', node('3', 'button', 'Second')],
 			['4', node('4', 'link', 'Omitted')],
 		]);
 		const tree = await readBrowserViewAccessibilityTree(async (method, params) => {
 			calls.push({ method, params });
+			if (method === 'Accessibility.enable' || method === 'Accessibility.disable') {
+				return {};
+			}
 			if (method === 'Accessibility.getRootAXNode') {
 				return { node: nodes.get('1')! };
 			}
-			const nodeId = (params as { nodeId: string }).nodeId;
-			return { nodes: [nodes.get(nodeId)!] };
+			const id = (params as { id: string }).id;
+			return {
+				nodes: id === '1'
+					? [nodes.get('2')!]
+					: [nodes.get('3')!, nodes.get('4')!],
+			};
 		}, 3);
 
 		assert.deepStrictEqual({
@@ -66,9 +73,11 @@ suite('BrowserView user accessibility', () => {
 			nodeIds: ['1', '2', '3'],
 			truncated: true,
 			calls: [
+				{ method: 'Accessibility.enable', params: undefined },
 				{ method: 'Accessibility.getRootAXNode', params: undefined },
-				{ method: 'Accessibility.getPartialAXTree', params: { nodeId: '2', fetchRelatives: false } },
-				{ method: 'Accessibility.getPartialAXTree', params: { nodeId: '3', fetchRelatives: false } },
+				{ method: 'Accessibility.getChildAXNodes', params: { id: '1' } },
+				{ method: 'Accessibility.getChildAXNodes', params: { id: '2' } },
+				{ method: 'Accessibility.disable', params: undefined },
 			],
 		});
 	});
