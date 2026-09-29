@@ -62,3 +62,13 @@
 		display: block;
 	}
 }
+
+.chat-working-logo-draw.chat-working-logo-draw-assembled {
+	> .chat-working-logo-face {
+		display: block;
+	}
+
+	> .chat-working-logo-draw-container {
+		display: none;
+	}
+}

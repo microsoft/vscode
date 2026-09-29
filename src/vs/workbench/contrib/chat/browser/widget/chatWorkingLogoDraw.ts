@@ -10,6 +10,7 @@ export interface IChatWorkingLogoDrawFrame {
 	readonly paths: Readonly<Record<ChatWorkingLogoDrawBand, string>>;
 	readonly tail: number;
 	readonly head: number;
+	readonly assembled: boolean;
 }
 
 interface ICrossSection {
@@ -429,14 +430,14 @@ export function getChatWorkingLogoDrawFrame(progress: number): IChatWorkingLogoD
 	const wrapped = progress >= 0 && progress < 1 ? progress : ((progress % 1) + 1) % 1;
 	if (wrapped < tieDuration) {
 		const head = drawRibbon.length * easeOutCubic(wrapped / tieDuration);
-		return { paths: head > 0 ? drawRibbon.bands(0, head) : emptyPaths, tail: 0, head };
+		return { paths: head > 0 ? drawRibbon.bands(0, head) : emptyPaths, tail: 0, head, assembled: false };
 	}
 	if (wrapped < holdEnd) {
-		return { paths: tiedPaths, tail: 0, head: drawRibbon.length };
+		return { paths: tiedPaths, tail: 0, head: drawRibbon.length, assembled: true };
 	}
 	if (wrapped < untieEnd) {
 		const tail = drawRibbon.length * easeInCubic((wrapped - holdEnd) / (untieEnd - holdEnd));
-		return { paths: drawRibbon.bands(tail, drawRibbon.length), tail, head: drawRibbon.length };
+		return { paths: drawRibbon.bands(tail, drawRibbon.length), tail, head: drawRibbon.length, assembled: false };
 	}
-	return { paths: emptyPaths, tail: drawRibbon.length, head: drawRibbon.length };
+	return { paths: emptyPaths, tail: drawRibbon.length, head: drawRibbon.length, assembled: false };
 }

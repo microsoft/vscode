@@ -1505,8 +1505,15 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	if (shouldAnimate && !noIcon && drawPathData.every((path, index) => path === initialDrawPathData[index])) {
 		throw new Error(`${progressAnimation} progress did not advance its Draw paths`);
 	}
-	if (!shouldAnimate && !noIcon && drawPathData.some(path => path.length === 0)) {
-		throw new Error(`${progressAnimation} progress did not resolve to the assembled reduced-motion mark`);
+	if (!shouldAnimate && !noIcon) {
+		const face = logo.querySelector<HTMLElement>('.chat-working-logo-face');
+		const drawContainer = logo.querySelector<HTMLElement>('.chat-working-logo-draw-container');
+		if (!logo.classList.contains('chat-working-logo-draw-assembled')
+			|| !face || targetWindow.getComputedStyle(face).display === 'none'
+			|| !drawContainer || targetWindow.getComputedStyle(drawContainer).display !== 'none'
+			|| [...face.querySelectorAll('path')].some(path => path.hasAttribute('mask'))) {
+			throw new Error(`${progressAnimation} progress did not resolve to the unmasked assembled product mark`);
+		}
 	}
 	if ((targetWindow.getComputedStyle(textElement).animationName !== 'none') !== shouldAnimate) {
 		throw new Error(`Persistent progress text animation did not match reducedMotion=${reducedMotion}`);

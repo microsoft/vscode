@@ -1904,6 +1904,34 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('hidden retained progress stops Draw motion when the response completes', async () => {
+		const { request, container, renderer, template, node } = createPersistentProgressRenderer();
+		container.classList.remove('monaco-reduce-motion');
+		container.classList.add('monaco-enable-motion');
+		renderer.renderElement(node, 0, template);
+		const footer = template.value.querySelector<HTMLElement>('.chat-working-progress');
+		const logo = footer?.querySelector<HTMLElement>('.chat-working-logo');
+		assert.ok(footer && logo);
+		container.style.display = 'none';
+		request.response?.complete();
+		const pathsAfterCompletion = [...logo.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+		const pathsAfterFrames = [...logo.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		assert.deepStrictEqual({
+			sameLogo: footer.querySelector('.chat-working-logo') === logo,
+			active: logo.classList.contains('chat-working-logo-active'),
+			progressActive: footer.classList.contains('chat-working-progress-active'),
+			assembled: logo.classList.contains('chat-working-logo-draw-assembled'),
+			pathsStopped: pathsAfterFrames.every((path, index) => path === pathsAfterCompletion[index]),
+		}, {
+			sameLogo: true,
+			active: false,
+			progressActive: false,
+			assembled: true,
+			pathsStopped: true,
+		});
+	});
+
 	test('persistent progress off restores the legacy row after an animation is selected', () => {
 		const { configurationService, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 		const snapshots = [];

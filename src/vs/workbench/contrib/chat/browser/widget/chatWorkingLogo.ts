@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, getWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, getWindow } from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -26,10 +26,43 @@ function isDrawAnimation(animation: ChatProgressAnimation): boolean {
 	return animation === ChatProgressAnimation.Draw || animation === ChatProgressAnimation.DrawMonochrome;
 }
 
+function observeVisibility(element: HTMLElement, onDidChange: (visible: boolean) => void): IDisposable {
+	let disposed = false;
+	let observer: IntersectionObserver | undefined;
+	let visibilityListener: IDisposable | undefined;
+	onDidChange(false);
+	queueMicrotask(() => {
+		if (disposed) {
+			return;
+		}
+		const targetWindow = getWindow(element);
+		if (typeof targetWindow.IntersectionObserver !== 'function') {
+			onDidChange(true);
+			return;
+		}
+		let intersecting = false;
+		const update = () => onDidChange(!targetWindow.document.hidden && intersecting);
+		observer = new targetWindow.IntersectionObserver(entries => {
+			const entry = entries.find(entry => entry.target === element);
+			if (entry) {
+				intersecting = entry.isIntersecting;
+				update();
+			}
+		});
+		visibilityListener = addDisposableListener(targetWindow.document, 'visibilitychange', update);
+		observer.observe(element);
+	});
+	return toDisposable(() => {
+		disposed = true;
+		observer?.disconnect();
+		visibilityListener?.dispose();
+	});
+}
+
 /** Animates the fixed product mark or the same mark assembled as one continuous ribbon. */
 export class ChatWorkingLogo extends Disposable {
 	readonly domNode: HTMLElement;
-	readonly drawDurationMs = 4000;
+	readonly drawDurationMs = 2667;
 
 	private animationFrame: MutableDisposable<IDisposable> | undefined;
 	private drawPaths: Map<ChatWorkingLogoDrawBand, SVGPathElement> | undefined;
@@ -39,6 +72,7 @@ export class ChatWorkingLogo extends Disposable {
 	private readonly isMotionReducedOverride: (() => boolean) | undefined;
 	private animation = ChatProgressAnimation.Off;
 	private active = false;
+	private visible = false;
 	private animationStartedAt = 0;
 
 	constructor(
@@ -48,6 +82,7 @@ export class ChatWorkingLogo extends Disposable {
 			readonly now?: () => number;
 			readonly scheduleFrame?: (targetWindow: Window, runner: () => void) => IDisposable;
 			readonly isMotionReduced?: () => boolean;
+			readonly observeVisibility?: (element: HTMLElement, onDidChange: (visible: boolean) => void) => IDisposable;
 		} = {},
 	) {
 		super();
@@ -63,6 +98,12 @@ export class ChatWorkingLogo extends Disposable {
 		const wrapper = append(this.domNode, $('span.chat-working-logo-face'));
 		wrapper.appendChild($.SVG<SVGSVGElement>('svg', { viewBox: '6 6 84 84', width: '100%', height: '100%', focusable: 'false' },
 			...facePaths.map(path => $.SVG<SVGPathElement>('path', { d: path, fill: 'currentColor' }))));
+		this._register((animationOptions.observeVisibility ?? observeVisibility)(this.domNode, visible => {
+			if (this.visible !== visible) {
+				this.visible = visible;
+				this.restartDrawAnimation();
+			}
+		}));
 		this.setAnimation(animation);
 		this.setActive(true);
 	}
@@ -158,6 +199,9 @@ export class ChatWorkingLogo extends Disposable {
 			this.renderDrawFrame(0.5);
 			return;
 		}
+		if (!this.visible) {
+			return;
+		}
 		this.animationStartedAt = this.now();
 		this.renderDrawFrame(0);
 		this.queueAnimationFrame();
@@ -165,7 +209,7 @@ export class ChatWorkingLogo extends Disposable {
 
 	private queueAnimationFrame(): void {
 		const animationFrame = this.animationFrame;
-		if (!animationFrame || animationFrame.value || !this.active || !isDrawAnimation(this.animation)) {
+		if (!animationFrame || animationFrame.value || !this.active || !this.visible || !isDrawAnimation(this.animation)) {
 			return;
 		}
 		animationFrame.value = this.scheduleFrame(getWindow(this.domNode), () => {
@@ -175,7 +219,7 @@ export class ChatWorkingLogo extends Disposable {
 	}
 
 	private renderNextDrawFrame(): void {
-		if (!this.active || !isDrawAnimation(this.animation)) {
+		if (!this.active || !this.visible || !isDrawAnimation(this.animation)) {
 			return;
 		}
 		if (this.isMotionReduced()) {
@@ -191,6 +235,10 @@ export class ChatWorkingLogo extends Disposable {
 			return;
 		}
 		const frame = getChatWorkingLogoDrawFrame(progress);
+		this.domNode.classList.toggle('chat-working-logo-draw-assembled', frame.assembled);
+		if (frame.assembled) {
+			return;
+		}
 		for (const band of CHAT_WORKING_LOGO_DRAW_PAINT_ORDER) {
 			const pathData = frame.paths[band];
 			if (this.drawPathData?.get(band) === pathData) {
