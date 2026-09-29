@@ -13,12 +13,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
-import { ChangesViewService } from '../../browser/changesViewService.js';
+import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
 import { ChangesViewMode } from '../../common/changes.js';
 
 suite('ChangesViewService', () => {
@@ -143,16 +144,17 @@ suite('ChangesViewService', () => {
 				return constObservable({ kind: PRReviewStateKind.None } as const);
 			}
 		}();
+		const contextKeyService = disposables.add(new MockContextKeyService());
 		const service = disposables.add(new ChangesViewService(
 			agentFeedbackService,
 			codeReviewService,
-			disposables.add(new MockContextKeyService()),
+			contextKeyService,
 			sessionsService,
 			storageService,
 			sessionsManagementService,
 		));
 
-		return { activeSession, onDidDeleteChat, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
+		return { activeSession, contextKeyService, onDidDeleteChat, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
 	}
 
 	test('restores section collapse state independently per session', () => {
@@ -356,6 +358,21 @@ suite('ChangesViewService', () => {
 				selected: 'turn:request',
 			},
 		});
+	});
+
+	test('publishes reviewed files by their file resource, including deleted files', () => {
+		const changes: readonly IChatSessionFileChange2[] = [
+			{ uri: URI.file('/repo/modified.ts'), modifiedUri: URI.file('/repo/modified.ts'), originalUri: URI.parse('git-blob:/repo/modified.ts'), insertions: 1, deletions: 1, reviewed: true },
+			{ uri: URI.file('/repo/deleted.ts'), modifiedUri: undefined, originalUri: URI.parse('git-blob:/repo/deleted.ts'), insertions: 0, deletions: 3, reviewed: true },
+			{ uri: URI.file('/repo/unreviewed.ts'), modifiedUri: URI.file('/repo/unreviewed.ts'), originalUri: undefined, insertions: 2, deletions: 0, reviewed: false },
+		];
+		const changeset = createChangeset([], { changes: constObservable(changes) });
+		const { contextKeyService } = createHarness(createSession('reviewed', { changesets: [changeset] }));
+
+		assert.deepStrictEqual(contextKeyService.getContextKeyValue(ChangesetReviewedFilesContext.key), [
+			'file:///repo/modified.ts',
+			'file:///repo/deleted.ts',
+		]);
 	});
 
 	test('surfaces cached changes while the changeset recomputes', () => {

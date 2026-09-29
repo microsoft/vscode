@@ -126,6 +126,8 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>;
 	/** Optional fixed popup width. */
 	readonly width?: number;
+	/** Context view layer used when the picker must render above another context view. */
+	readonly contextViewLayer?: number;
 	/** Optional class name to add to the tab bar element (in addition to `.tabbed-action-list-tabbar`). Must be a single class. */
 	readonly tabBarClassName?: string;
 	/**
@@ -444,6 +446,7 @@ export class TabbedActionListWidget extends Disposable {
 					}
 					list.updateItems(refreshed.items, refreshOptions?.focusItemId, {
 						preserveHover: refreshOptions?.preserveHover,
+						preserveScrollPosition: refreshOptions?.preserveScrollPosition,
 						animateItemMove: refreshOptions?.animateItemMove && !this._accessibilityService.isMotionReduced(),
 					});
 					if (sizingChanged) {
@@ -791,6 +794,7 @@ export class TabbedActionListWidget extends Disposable {
 				this._onDidHide.fire();
 			},
 			get anchorPosition() { return listRef?.anchorPosition; },
+			layer: options.contextViewLayer,
 		}, undefined, false);
 
 		if (options.showCheckedItemHover && !options.isBodyCollapsed?.()) {

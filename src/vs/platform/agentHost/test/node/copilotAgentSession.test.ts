@@ -32,7 +32,7 @@ import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck 
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentSession, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
@@ -76,7 +76,7 @@ import { IAgentHostCustomizationEnablementService, type CustomizationEnablementR
 import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
-import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
+import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
@@ -4497,6 +4497,36 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('`/wait-what` invokes a runtime skill instead of passing the raw prompt through (#331477)', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'wait-what',
+				kind: 'skill',
+				description: 'Stop. That last message did not land — re-pitch it.',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeResult = {
+			kind: 'agent-prompt',
+			prompt: 'Loaded skill instructions for wait-what.',
+			displayPrompt: '/wait-what',
+			mode: 'interactive',
+		};
+
+		await session.send('/wait-what', undefined, 'turn-wait-what');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'wait-what' }],
+			sendRequests: [{ prompt: 'Loaded skill instructions for wait-what.', attachments: undefined }],
+		});
+	});
+
 	test('`/security-review` falls through to normal send when runtime command is unavailable', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = { commands: [] };
@@ -5611,11 +5641,79 @@ suite('CopilotAgentSession', () => {
 	}
 
 	for (const restored of [false, true]) {
+		test(`uses the subagent chat title for tool activity and notifications (restored=${restored})`, async () => {
+			const agentId = 'agent-take-all';
+			const parameters = { agent_type: 'general-purpose', name: 'take-all', description: 'Fix Take-all ground pickup' };
+			const task = { toolCallId: 'tc-task', toolName: 'task', arguments: parameters };
+			const identity = { toolCallId: 'tc-task', agentName: 'general-purpose', agentDisplayName: 'take-all', agentDescription: 'General purpose agent' };
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				resume: restored,
+				configureMockSession: restored ? mock => {
+					mock.messages = toSessionEvents([
+						{ type: 'tool.execution_start', data: task },
+						{ type: 'subagent.started', agentId, data: identity },
+						{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: true } },
+					]);
+				} : undefined,
+			});
+			if (restored) {
+				await session.getMessages();
+			}
+			session.resetTurnState('turn-parent');
+			if (!restored) {
+				mockSession.fire('tool.execution_start', task);
+				mockSession.fire('subagent.started', identity, { agentId });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-task', success: true });
+			}
+			mockSession.fire('subagent.completed', identity, { agentId });
+			const coordinationParameters = { agent_id: agentId };
+			for (const toolName of ['read_agent', 'write_agent']) {
+				mockSession.fire('tool.execution_start', { toolCallId: toolName, toolName, arguments: coordinationParameters });
+				mockSession.fire('tool.execution_complete', { toolCallId: toolName, success: true });
+			}
+			const notificationIdentity = { agentId, agentType: 'general-purpose', displayName: 'take-all', description: 'A different SDK description' };
+			const notifications: SessionEventPayload<'system.notification'>['data']['kind'][] = [
+				{ ...notificationIdentity, type: 'agent_idle' },
+				{ ...notificationIdentity, type: 'agent_completed', status: 'completed' },
+				{ ...notificationIdentity, type: 'agent_completed', status: 'failed' },
+			];
+			for (const kind of notifications) {
+				mockSession.fire('system.notification', { content: 'Agent finished', kind });
+			}
+			assert.deepStrictEqual({
+				chatTitles: signals.flatMap(signal => signal.kind === 'subagent_started' ? [SubagentChatSignal.toSpawnEvent(signal)?.title] : []),
+				toolMessages: getActions(signals).flatMap(action => {
+					if ((action.type === ActionType.ChatToolCallReady || action.type === ActionType.ChatToolCallComplete) && action.toolCallId !== 'tc-task') {
+						return [action.type === ActionType.ChatToolCallReady ? action.invocationMessage : action.result.pastTenseMessage];
+					}
+					return [];
+				}),
+				notifications: getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification ? [action.part.content] : []),
+				coordinationParameters,
+			}, {
+				chatTitles: restored ? [] : ['Fix Take-all ground pickup'],
+				toolMessages: [
+					{ markdown: 'Read agent `Fix Take-all ground pickup`' },
+					{ markdown: 'Read agent `Fix Take-all ground pickup`' },
+					{ markdown: 'Write to agent `Fix Take-all ground pickup`' },
+					{ markdown: 'Write to agent `Fix Take-all ground pickup`' },
+				],
+				notifications: [
+					'Background agent `Fix Take-all ground pickup` is complete',
+					'Background agent `Fix Take-all ground pickup` completed',
+					'Background agent `Fix Take-all ground pickup` failed',
+				],
+				coordinationParameters: { agent_id: agentId },
+			});
+		});
+	}
+
+	for (const restored of [false, true]) {
 		test(`names write-agent recipients known from completion notifications (restored=${restored})`, async () => {
 			const agentId = '37241a58-7d95-4763-a3fb-2494dcfcf540';
 			const notification: SessionEventPayload<'system.notification'>['data'] = {
 				content: 'Agent finished',
-				kind: { type: 'agent_idle', agentId, agentType: 'code-review', displayName: 'Renderer reviewer' },
+				kind: { type: 'agent_idle', agentId, agentType: 'code-review', displayName: 'Renderer reviewer', description: 'Review the renderer' },
 			};
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				resume: restored,
@@ -5639,13 +5737,13 @@ suite('CopilotAgentSession', () => {
 						? [action.result.pastTenseMessage] : []),
 				parameters,
 			}, {
-				messages: [{ markdown: 'Write to agent `Renderer reviewer`' }, { markdown: 'Write to agent `Renderer reviewer`' }],
+				messages: [{ markdown: 'Write to agent `Review the renderer`' }, { markdown: 'Write to agent `Review the renderer`' }],
 				parameters: { agent_id: agentId, message: 'Follow up' },
 			});
 		});
 	}
 
-	test('uses runtime task names for writes when no start event was observed', async () => {
+	test('uses runtime task descriptions for writes when no start event was observed', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		session.resetTurnState('turn-parent');
 		mockSession.backgroundTasks = [{
@@ -5661,8 +5759,8 @@ suite('CopilotAgentSession', () => {
 			? [action.invocationMessage]
 			: action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'write'
 				? [action.result.pastTenseMessage] : []), [
-			{ markdown: 'Write to agent `History reviewer`' },
-			{ markdown: 'Write to agent `History reviewer`' },
+			{ markdown: 'Write to agent `Review the history`' },
+			{ markdown: 'Write to agent `Review the history`' },
 		]);
 	});
 
@@ -9830,7 +9928,7 @@ Use the attached image as context.
 					kind: { type: 'agent_completed', agentId: 'agent-a', agentType: 'task', displayName: 'Lifecycle reviewer', description: 'Review lifecycle', status: 'completed' },
 				},
 			}), {
-				messageText: 'Background agent `Lifecycle reviewer` completed',
+				messageText: 'Background agent `Review lifecycle` completed',
 				startsTurn: true,
 			});
 
@@ -9853,6 +9951,26 @@ Use the attached image as context.
 				},
 			}), {
 				messageText: 'Background agent `task` is complete',
+				startsTurn: true,
+			});
+
+			assert.deepStrictEqual(buildCopilotSystemNotification({
+				...base,
+				data: {
+					content: 'Workflow done',
+					kind: {
+						type: 'workflow_completed',
+						attempt: 1,
+						consumedNanoAiu: 0,
+						consumedSubagents: 0,
+						elapsedMs: 42,
+						runId: 'workflow-run-a',
+						status: 'completed',
+						workflowName: 'review-changes',
+					},
+				},
+			}), {
+				messageText: 'Workflow review-changes completed',
 				startsTurn: true,
 			});
 
@@ -9932,13 +10050,39 @@ Use the attached image as context.
 				type: 'system.notification',
 				data: { content: 'Agent finished', kind },
 			})), [
-				{ messageText: 'Background agent `Astra picker review` is complete', startsTurn: true },
+				{ messageText: 'Background agent `Review the picker` is complete', startsTurn: true },
 				{ messageText: 'Background agent `Review the picker` is complete', startsTurn: true },
 				{ messageText: 'Background agent `code-review` is complete', startsTurn: true },
 				{ messageText: 'Background agent `` Review `permissions` `` is complete', startsTurn: true },
 				{ messageText: 'Background agent is complete', startsTurn: true },
 				{ messageText: 'Background agent completed', startsTurn: true },
 				{ messageText: 'Background agent failed', startsTurn: true },
+			]);
+		});
+
+		test('agent activity titles retain the chat title truncation and markdown escaping', () => {
+			const descriptions = ['  Review `permissions`  ', `  ${'a'.repeat(80)}  `, '   '];
+			const titles = ['Review `permissions`', `${'a'.repeat(60)}\u2026`, 'reviewer'];
+			const observations = descriptions.map(description => {
+				const notification: SessionEventPayload<'system.notification'> = {
+					id: 'notification', parentId: null, timestamp: '2026-09-08T00:00:00.000Z', type: 'system.notification',
+					data: { content: 'Agent finished', kind: { type: 'agent_idle', agentId: 'agent', agentType: 'code-review', displayName: 'notification fallback' } },
+				};
+				const events = toSessionEvents([
+					{ type: 'system.notification', data: notification.data },
+					{ type: 'subagent.started', agentId: 'agent', data: { toolCallId: 'task', agentName: 'code-review', agentDisplayName: 'reviewer', agentDescription: 'Code reviewer' } },
+					{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { description } } },
+				]);
+				const names = getCopilotSubagentDisplayNames(events);
+				return {
+					title: names.get('agent'),
+					notification: buildCopilotSystemNotification(notification, id => names.get(id))?.messageText,
+				};
+			});
+			assert.deepStrictEqual(observations, [
+				{ title: titles[0], notification: 'Background agent `` Review `permissions` `` is complete' },
+				{ title: titles[1], notification: `Background agent \`${titles[1]}\` is complete` },
+				{ title: titles[2], notification: 'Background agent `reviewer` is complete' },
 			]);
 		});
 

@@ -249,6 +249,7 @@ suite('SessionChatInputToolbar', () => {
 	test('adds rich GitHub hovers only when live details are available', async () => {
 		const commands: { readonly id: string; readonly args: readonly unknown[] }[] = [];
 		const clipboardWrites: string[] = [];
+		const recordedOpenIds: string[] = [];
 		const commandService = upcastPartial<ICommandService>({
 			executeCommand: async (id, ...args) => {
 				commands.push({ id, args });
@@ -264,6 +265,7 @@ suite('SessionChatInputToolbar', () => {
 			number: 332982,
 			uri: URI.parse('https://github.com/microsoft/vscode/pull/332982'),
 			title: 'Recorded pull request title',
+			recordedReferenceId: 'pull-request-artifact',
 		};
 		const pullRequest: IGitHubPullRequest = {
 			number: pullRequestRef.number,
@@ -287,6 +289,7 @@ suite('SessionChatInputToolbar', () => {
 			number: 42,
 			uri: URI.parse('https://github.com/microsoft/vscode/issues/42'),
 			title: 'Recorded issue title',
+			recordedReferenceId: 'issue-artifact',
 		};
 		const issue: IGitHubIssue = {
 			number: issueRef.number,
@@ -306,6 +309,7 @@ suite('SessionChatInputToolbar', () => {
 			clipboardService,
 			openerService,
 			sessionsService,
+			{ recordOpen: id => recordedOpenIds.push(id) },
 		).flatMap(section => section.entries)[0];
 		const unresolvedPullRequestEntry = buildSessionPullRequestSections(
 			[{ ref: pullRequestRef, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} }],
@@ -322,6 +326,7 @@ suite('SessionChatInputToolbar', () => {
 			clipboardService,
 			openerService,
 			sessionsService,
+			{ recordOpen: id => recordedOpenIds.push(id) },
 		).flatMap(section => section.entries)[0];
 		const issueHoverCache = new WeakMap<IGitHubIssueRef, { readonly element: HTMLElement; readonly tabbableElements: readonly HTMLElement[] }>();
 		const cachedIssueEntry = buildSessionIssueSections(
@@ -404,6 +409,8 @@ suite('SessionChatInputToolbar', () => {
 		const cachedIssueDropdownHover = renderDropdownHover(cachedIssueEntry);
 		const refreshedCachedIssueDropdownHover = renderDropdownHover(refreshedCachedIssueEntry);
 		pullRequestHover?.querySelectorAll<HTMLButtonElement>('.sessions-pr-hover-branch').forEach(branch => branch.click());
+		pullRequestHover?.querySelector<HTMLElement>('.sessions-pr-hover-reference')?.click();
+		issueHover?.querySelector<HTMLElement>('.sessions-issue-hover-reference')?.click();
 		pullRequestEntry?.open();
 		unresolvedIssueEntry?.open();
 
@@ -505,6 +512,7 @@ suite('SessionChatInputToolbar', () => {
 				statusKind: notPlannedIssueHover?.querySelector<HTMLElement>('.sessions-issue-hover-status')?.dataset.state,
 				ariaDescription: notPlannedIssueEntry?.ariaDescription,
 			},
+			recordedOpenIds,
 		}, {
 			pullRequest: {
 				label: 'Restore rich pill hovers',
@@ -625,6 +633,7 @@ suite('SessionChatInputToolbar', () => {
 				statusKind: 'notPlanned',
 				ariaDescription: 'Not planned. https://github.com/microsoft/vscode/issues/42',
 			},
+			recordedOpenIds: ['pull-request-artifact', 'issue-artifact', 'pull-request-artifact'],
 		});
 	});
 
@@ -995,6 +1004,7 @@ suite('SessionChatInputToolbar', () => {
 		const removed: string[] = [];
 		const copied: string[] = [];
 		const opened: object[] = [];
+		const recordedOpenIds: string[] = [];
 		const pullRequests = refs.map(ref => ({ ref, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} }));
 		const commandService = upcastPartial<ICommandService>({
 			executeCommand: async (_command, arg) => {
@@ -1008,9 +1018,11 @@ suite('SessionChatInputToolbar', () => {
 		const sessionsService = upcastPartial<ISessionsService>({});
 		const entries = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService, {
 			remove: async ids => { removed.push(...ids); },
+			recordOpen: id => recordedOpenIds.push(id),
 		})[0].entries;
 		const issueEntry = buildSessionIssueSections([{ ref: issueRef, issue: undefined }], undefined, commandService, clipboardService, openerService, sessionsService, {
 			remove: async ids => { removed.push(...ids); },
+			recordOpen: id => recordedOpenIds.push(id),
 		})[0].entries[0];
 		const unsupported = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService)[0].entries;
 		await entries[0].promotedAction?.run();
@@ -1018,13 +1030,15 @@ suite('SessionChatInputToolbar', () => {
 		await issueEntry.promotedAction?.run();
 		await entries[0].toolbarActions?.[0].run();
 		entries[0].open();
+		entries[2].open();
+		issueEntry.open();
 
 		assert.deepStrictEqual({
 			ids: entries.map(entry => entry.id),
 			removable: [...entries.map(entry => !!entry.promotedAction), !!issueEntry.promotedAction],
 			removeLabels: [...entries, issueEntry].map(entry => entry.promotedAction && [entry.promotedAction.label, entry.promotedAction.hoverLabel]),
 			unsupported: unsupported.map(entry => !!entry.promotedAction),
-			removed, copied, opened,
+			removed, copied, recordedOpenIds, opened,
 		}, {
 			ids: ['reference-a', 'reference-b', refs[2].uri.toString()],
 			removable: [true, true, false, true],
@@ -1037,7 +1051,12 @@ suite('SessionChatInputToolbar', () => {
 			unsupported: [false, false, false],
 			removed: ['reference-a', 'reference-b', 'issue-reference'],
 			copied: [refs[0].uri.toString(true)],
-			opened: [{ pullRequest: refs[0] }],
+			recordedOpenIds: ['reference-a', 'issue-reference'],
+			opened: [
+				{ pullRequest: refs[0] },
+				{ pullRequest: refs[2] },
+				{ issue: issueRef },
+			],
 		});
 	});
 

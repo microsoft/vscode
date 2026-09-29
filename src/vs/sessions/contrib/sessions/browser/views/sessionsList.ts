@@ -141,7 +141,6 @@ export const SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING = 'sessions.list.sho
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
-export const SessionShowsArchivedChatsContext = new RawContextKey<boolean>('sessionItem.showsArchivedChats', false);
 export const SessionChatItemCanRenameContext = new RawContextKey<boolean>('sessionChatItem.canRename', false);
 export const SessionChatItemCanArchiveContext = new RawContextKey<boolean>('sessionChatItem.canArchive', false);
 export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
@@ -636,7 +635,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly onDidFinishRename: () => void,
 		private readonly getSummaryHoverOptions: (item: ISessionChatItem) => IDelayedHoverOptions,
 		private readonly compact: () => boolean,
-		private readonly showArchivedChats: (session: ISession) => boolean,
+		private readonly showArchivedChats: () => boolean,
 		/**
 		 * Session IDs whose hierarchy indent/connector guides should be shown —
 		 * i.e. the session (or one of its chats) is currently hovered or
@@ -700,7 +699,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.clear();
 		template.titleToolbar.context = element;
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
-		const chats = getSessionListChats(element.session, undefined, this.showArchivedChats(element.session));
+		const chats = getSessionListChats(element.session, undefined, this.showArchivedChats());
 		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
 		let hadFolderRow: boolean | undefined;
 		template.elementDisposables.add(autorun(reader => {
@@ -3243,8 +3242,6 @@ export interface ISessionsList {
 	isStatusExcluded(status: SessionStatus): boolean;
 	setExcludeArchived(exclude: boolean): void;
 	isExcludeArchived(): boolean;
-	setSessionArchivedChatsVisible(session: ISession, visible: boolean): void;
-	isSessionArchivedChatsVisible(session: ISession): boolean;
 	setExcludeRead(exclude: boolean): void;
 	isExcludeRead(): boolean;
 	setShowEmptyGroups(show: boolean): void;
@@ -3332,7 +3329,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly onboardingTarget = observableValue<ISessionOnboardingTarget | undefined>(this, undefined);
 	private readonly excludedSessionTypes: Set<string>;
 	private readonly excludedStatuses: Set<SessionStatus>;
-	private readonly sessionArchivedChatVisibilityOverrides = new Map<string, boolean>();
 	private _excludeArchived: boolean;
 	/** Whether the archived filter still follows {@link SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING} because the user has not chosen one. */
 	private _excludeArchivedIsDefault: boolean;
@@ -3550,7 +3546,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.preferencesService,
 			)),
 			() => this.isCompact(),
-			session => this.isSessionArchivedChatsVisible(session),
+			() => !this._excludeArchived,
 			this.activeGuideSessionIds,
 		);
 		this._chatRenderer = chatRenderer;
@@ -3759,7 +3755,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 				overrideStyles: this.options.overrideStyles,
 				renderIndentGuides: RenderIndentGuides.None,
-				twistieAdditionalCssClass: element => isSessionItem(element) && getSessionListChats(element, undefined, this.isSessionArchivedChatsVisible(element)).length > 0
+				twistieAdditionalCssClass: element => isSessionItem(element) && getSessionListChats(element, undefined, !this._excludeArchived).length > 0
 					? 'session-chat-twistie'
 					: 'force-no-twistie',
 			}
@@ -4060,7 +4056,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		let initialized = false;
 		this.sessionChatsObserver.value = autorun(reader => {
 			for (const session of this.sessions) {
-				getSessionListChats(session, reader, this.isSessionArchivedChatsVisible(session));
+				getSessionListChats(session, reader, !this._excludeArchived);
 				session.isExternal?.read(reader);
 			}
 			if (initialized && this.visible) {
@@ -4076,12 +4072,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	update(expandAll?: boolean): void {
-		for (const sessionId of this.sessionArchivedChatVisibilityOverrides.keys()) {
-			const session = this.sessions.find(candidate => candidate.sessionId === sessionId);
-			if (!session) {
-				this.sessionArchivedChatVisibilityOverrides.delete(sessionId);
-			}
-		}
 		const activeSession = this._sessionsService.activeSession.get();
 		const onboardingSession = this.onboardingTarget.get()?.session;
 		const nextNestedSessionResources = new Set(
@@ -4243,7 +4233,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
 			sessions.map(session => {
-				const chats = getSessionListChats(session, undefined, this.isSessionArchivedChatsVisible(session));
+				const chats = getSessionListChats(session, undefined, !this._excludeArchived);
 				const resource = session.resource.toString();
 				const wasNested = this.nestedSessionResources.has(resource);
 				const persistedCollapsed = this.collapsedSessionResources.has(resource);
@@ -5175,16 +5165,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		const selectedSessions = this.getMultiSelectedSessions(element);
-		if (!this.sessionArchivedChatVisibilityOverrides.has(element.sessionId)) {
-			// The menu's Show Done Chats option then follows the Done filter default.
-			this.reportArchivedFilterShown();
-		}
 
 		const inGroup = this._sessionGroupsService.getGroupOfSession(element.sessionId) !== undefined;
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionItemIsMultiSelectionContext.key, selectedSessions.length > 1],
-			[SessionShowsArchivedChatsContext.key, this.isSessionArchivedChatsVisible(element)],
 			[SessionIsArchivedContext.key, element.isArchived.get()],
 			[SessionIsReadContext.key, element.isRead.get()],
 			[SessionItemInGroupContext.key, inGroup],
@@ -5558,9 +5543,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	// -- Archived / Read filtering --
 
 	setExcludeArchived(exclude: boolean): void {
-		if (this._excludeArchived !== exclude) {
-			this.sessionArchivedChatVisibilityOverrides.clear();
-		}
 		this._excludeArchived = exclude;
 		this._excludeArchivedIsDefault = false;
 		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
@@ -5576,21 +5558,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this._excludeArchivedIsDefault) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING);
 		}
-	}
-
-	setSessionArchivedChatsVisible(session: ISession, visible: boolean): void {
-		if (this.isSessionArchivedChatsVisible(session) === visible) {
-			return;
-		}
-		this.sessionArchivedChatVisibilityOverrides.set(session.sessionId, visible);
-		this.update();
-		if (visible && this.tree.hasElement(session)) {
-			this.tree.expand(session);
-		}
-	}
-
-	isSessionArchivedChatsVisible(session: ISession): boolean {
-		return this.sessionArchivedChatVisibilityOverrides.get(session.sessionId) ?? !this._excludeArchived;
 	}
 
 	setExcludeRead(exclude: boolean): void {
@@ -5620,7 +5587,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.saveExcludedStatuses();
 		this._excludeArchived = true;
 		this._excludeArchivedIsDefault = false;
-		this.sessionArchivedChatVisibilityOverrides.clear();
 		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 		this._excludeRead = false;
 		this.storageService.store(SessionsList.EXCLUDE_READ_KEY, false, StorageScope.PROFILE, StorageTarget.USER);

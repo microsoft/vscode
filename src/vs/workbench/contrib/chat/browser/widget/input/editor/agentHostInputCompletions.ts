@@ -14,7 +14,7 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { CompletionItem, CompletionItemKind } from '../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
-import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -65,7 +65,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
-		this._register(CommandsRegistry.registerCommand(AgentHostInputCompletions.addReferenceCommand, (_services, arg) => {
+		this._register(CommandsRegistry.registerCommand(AgentHostInputCompletions.addReferenceCommand, async (accessor, arg) => {
 			assertType(arg instanceof AgentHostReferenceArgument);
 			arg.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 				id: arg.id,
@@ -76,6 +76,11 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				data: arg.data,
 				_meta: arg._meta,
 			});
+			if (arg.submitOnAccept) {
+				await arg.widget.acceptInput();
+			} else if (arg.retriggerSuggestions) {
+				await accessor.get(ICommandService).executeCommand('editor.action.triggerSuggest');
+			}
 		}));
 
 		// Accept handler for config-action completions (permission/mode toggles).
@@ -169,6 +174,14 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		const replaceRange = AgentHostInputCompletions.computeRange(position, item);
 		const attachment = item.attachment;
 		switch (attachment.kind) {
+			case 'text':
+				return {
+					label: item.label ?? item.insertText,
+					insertText: item.insertText,
+					filterText: item.label ?? item.insertText,
+					range: replaceRange,
+					kind: CompletionItemKind.Text,
+				};
 			case 'command': {
 				const action = getCompletionAction(attachment._meta);
 				if (action) {
@@ -210,7 +223,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 					command: {
 						id: AgentHostInputCompletions.addReferenceCommand,
 						title: '',
-						arguments: [AgentHostReferenceArgument.forCommand(widget, attachment.command, attachment.description, AgentHostInputCompletions._insertedTokenRange(replaceRange, item.insertText), attachment._meta)],
+						arguments: [AgentHostReferenceArgument.forCommand(widget, attachment.command, attachment.description, AgentHostInputCompletions._insertedTokenRange(replaceRange, item.insertText), attachment._meta, attachment.retriggerSuggestions, attachment.submitOnAccept)],
 					},
 				};
 			}
@@ -283,6 +296,8 @@ class AgentHostReferenceArgument {
 		readonly isDirectory: boolean,
 		readonly range: Range,
 		readonly _meta: Record<string, unknown> | undefined,
+		readonly retriggerSuggestions: boolean = false,
+		readonly submitOnAccept: boolean = false,
 	) { }
 
 	static forResource(widget: IChatWidget, uri: URI, displayName: string | undefined, isDirectory: boolean, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
@@ -294,9 +309,9 @@ class AgentHostReferenceArgument {
 		return new AgentHostReferenceArgument(widget, entry.id, entry.value, displayName, false, false, range, _meta);
 	}
 
-	static forCommand(widget: IChatWidget, command: string, description: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
+	static forCommand(widget: IChatWidget, command: string, description: string | undefined, range: Range, _meta: Record<string, unknown> | undefined, retriggerSuggestions = false, submitOnAccept = false): AgentHostReferenceArgument {
 		const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, description ?? command, command, _meta);
-		return new AgentHostReferenceArgument(widget, entry.id, entry.value, description, false, false, range, _meta);
+		return new AgentHostReferenceArgument(widget, entry.id, entry.value, description, false, false, range, _meta, retriggerSuggestions, submitOnAccept);
 	}
 
 	static forChat(widget: IChatWidget, uri: URI, endTurn: string | undefined, title: string, displayName: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {

@@ -273,6 +273,4 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 	};
 }
 
-const artifactToolDiscoveryInstruction = `List/remove (discover if needed): \`${ArtifactServerToolName.ListArtifactsAndReferences}\`, \`${ArtifactServerToolName.RemoveArtifactOrReference}\`.`;
 
-export const ARTIFACT_TOOLS_INSTRUCTION = `Record notable artifacts and references with \`${ArtifactServerToolName.AddArtifactOrReference}\` so they are surfaced next to the chat input. Registration is optional, not an inventory of everything saved; default to no registration. ${artifactClassification} Other artifacts are deliverables the user explicitly requested or standalone results the user is clearly likely to reopen, download, or reuse; references are existing resources the user will likely want to view. Batch related entries in one call when practical. Do not record routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables; persistence or location outside the workspace is not an eligibility signal. Do not record incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools. Never create, copy, or relocate a file solely to have an artifact to register. ${artifactToolDiscoveryInstruction}`;

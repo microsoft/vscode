@@ -17,6 +17,10 @@ class TestContextViewProvider extends Disposable implements IContextViewProvider
 	private readonly view = this._register(new MutableDisposable<IDisposable>());
 	private delegate: IDelegate | undefined;
 
+	get activeLayer(): number | undefined {
+		return this.delegate?.layer;
+	}
+
 	constructor() {
 		super();
 		document.body.appendChild(this.container);
@@ -85,5 +89,23 @@ suite('SelectBoxList', () => {
 			detailsDisplay: 'none',
 			cancelledText: 'Pick an option',
 		});
+	});
+
+	test('passes the requested context view layer to the dropdown', () => {
+		const contextViewProvider = disposables.add(new TestContextViewProvider());
+		const selectBox = disposables.add(new SelectBoxList(
+			[{ text: 'One' }, { text: 'Two' }],
+			0,
+			contextViewProvider,
+			unthemedSelectBoxStyles,
+			{ contextViewLayer: 1 }
+		));
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		selectBox.render(container);
+		container.querySelector('select')?.click();
+
+		assert.strictEqual(contextViewProvider.activeLayer, 1);
 	});
 });

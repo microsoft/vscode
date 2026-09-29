@@ -211,18 +211,17 @@ export class ReleaseNotesTryouts extends Disposable {
 	}
 
 	async openLink(uri: URI): Promise<void> {
+		let id: string | undefined;
 		try {
-			const id = parseTryoutLink(uri);
-			const link = [...this._links].find(([, value]) => value === id);
-			if (!id || !link) {
-				throw new Error(localize('releaseNotes.tryout.invalidLink', "This feature example link is invalid."));
-			}
-			await this.interact(id, link[0], 'run');
-		} catch (error) {
-			if (!this._store.isDisposed) {
-				this._notificationService.error(error);
-			}
+			id = parseTryoutLink(uri);
+		} catch {
+			return;
 		}
+		const link = [...this._links].find(([, value]) => value === id);
+		if (!id || !link) {
+			return;
+		}
+		await this.interact(id, link[0], 'run');
 	}
 
 	private async interact(id: string, index: number, action: 'run' | 'setup'): Promise<void> {

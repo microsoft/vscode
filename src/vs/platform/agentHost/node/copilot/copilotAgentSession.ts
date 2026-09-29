@@ -43,7 +43,7 @@ import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
@@ -1149,6 +1149,7 @@ export class CopilotAgentSession extends Disposable {
 	private _wrapper!: CopilotSessionWrapper;
 	private _workingDirectoryMutationInProgress = false;
 	private _requiresRestartAfterWorkingDirectoryChange = false;
+	private _requiresRestartAfterModelChange = false;
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
@@ -1826,7 +1827,7 @@ export class CopilotAgentSession extends Disposable {
 				if (task.type !== 'agent') {
 					continue;
 				}
-				const displayName = task.displayName?.trim() || task.description.trim();
+				const displayName = subagentChatTitle(task.description, task.displayName);
 				if (displayName && !this._subagentDisplayNamesByAgentId.get(task.id)?.trim()) {
 					this._subagentDisplayNamesByAgentId.set(task.id, displayName);
 				}
@@ -2321,6 +2322,14 @@ export class CopilotAgentSession extends Disposable {
 
 	get requiresRestartAfterWorkingDirectoryChange(): boolean {
 		return this._requiresRestartAfterWorkingDirectoryChange;
+	}
+
+	get requiresRestartAfterModelChange(): boolean {
+		return this._requiresRestartAfterModelChange;
+	}
+
+	markModelChangeRequiresRestart(): void {
+		this._requiresRestartAfterModelChange = true;
 	}
 
 	get requiresMcpLaunchConfigurationRefresh(): boolean {
@@ -3213,8 +3222,14 @@ export class CopilotAgentSession extends Disposable {
 				await this._startFleet(slashCommand.rest, attachments, mode, abortToken);
 				return;
 			}
-			// Skills can be passed as is to the runtime.
-			if (runtimeSlashCommand && runtimeSlashCommand.kind !== 'skill') {
+			// Skills are routed through `commands.invoke` like every other runtime
+			// command rather than passed through as raw prompt text. A skill with
+			// `disable-model-invocation: true` is intentionally omitted from the
+			// runtime's own model-facing skill listing, so the model itself would
+			// never recognize a bare `/name` in the prompt and load it. `commands.invoke`
+			// is the host-directed path that deterministically loads the skill
+			// regardless of that model-invocation gating (see #331477).
+			if (runtimeSlashCommand) {
 				const invocation = runtimeSlashCommand.getInvocation?.(slashCommand.rawRest) ?? {
 					name: runtimeSlashCommand.name,
 					...(slashCommand.rawRest.length > 0 ? { input: slashCommand.rawRest } : {}),
@@ -5557,7 +5572,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSystemNotification(e => {
 			this._seedSubagentDisplayNames([e]);
-			const notification = buildCopilotSystemNotification(e);
+			const notification = buildCopilotSystemNotification(e, this._resolveAgentName);
 			if (!notification) {
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring system.notification kind=${e.data.kind.type}`);
 				return;
@@ -6424,9 +6439,10 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.error(`[Copilot:${sessionId}] subagent.started emitted after cancellation; dropping`);
 				return;
 			}
+			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (e.agentId) {
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
-				this._subagentDisplayNamesByAgentId.set(e.agentId, e.data.agentDisplayName);
+				this._subagentDisplayNamesByAgentId.set(e.agentId, subagentChatTitle(tracked?.meta?.subagentDescription, e.data.agentDisplayName));
 				this._activeSubagentAgentIds.add(e.agentId);
 				this._subagentTaskCompletionSchedulers.deleteAndDispose(e.agentId);
 			}
@@ -6434,7 +6450,6 @@ export class CopilotAgentSession extends Disposable {
 				this._rootTurnIdBySubagentToolCallId.set(e.data.toolCallId, this._currentTurn.value.id);
 			}
 			this._logService.info(`[Copilot:${sessionId}] Subagent started: toolCallId=${e.data.toolCallId}, agent=${e.data.agentName}`);
-			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			this._onDidSessionProgress.fire({
 				kind: 'subagent_started',
 				chat: this._chatChannelUri,

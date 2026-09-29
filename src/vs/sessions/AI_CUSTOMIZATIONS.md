@@ -79,6 +79,8 @@ When a new descriptor field is added, update every descriptor factory and both w
 
 `IMcpWorkspaceInstallTargetService` supplies supported workspace MCP install destinations to both the shared pickers and installation validation. The editor implementation offers project folders and the workspace configuration when present; the Sessions implementation offers only project folders, excluding its synthetic window-settings workspace. Configuration-format feature gates remain separate from destination eligibility.
 
+Customization source-folder providers may assign an opaque workspace group identity to creation folders and discovered migration candidates. Migration uses that identity to keep each workspace customization in its originating root without inferring provenance from URI path similarity.
+
 `AICustomizationSource` distinguishes local, user, extension, plugin, and built-in items. Source providers and workspace services apply their applicable discovery policy before view-model grouping. Filtering changes presentation only; it does not mutate the underlying customization.
 
 ## Item pipeline

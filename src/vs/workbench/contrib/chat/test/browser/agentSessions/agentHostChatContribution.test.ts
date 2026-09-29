@@ -17647,6 +17647,117 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('preserves the follow-up suggestion hint on command completions', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			(agentHostService as unknown as { completions: (p: CompletionsParams) => Promise<CompletionsResult> }).completions = async () => ({
+				items: [{
+					insertText: 'enable ',
+					rangeStart: 5,
+					rangeEnd: 5,
+					attachment: {
+						type: MessageAttachmentKind.Simple,
+						label: 'enable',
+						_meta: {
+							command: 'mcp',
+							description: 'Enable an MCP server',
+							retriggerSuggestions: true,
+						},
+					},
+				}],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/abc' });
+			const result = await sessionHandler.provideChatInputCompletions(
+				sessionResource,
+				{ text: '/mcp ', offset: 5 },
+				CancellationToken.None,
+			);
+
+			assert.deepStrictEqual(result?.items[0].attachment, {
+				kind: 'command',
+				command: 'mcp',
+				description: 'Enable an MCP server',
+				retriggerSuggestions: true,
+				_meta: {
+					command: 'mcp',
+					description: 'Enable an MCP server',
+					retriggerSuggestions: true,
+				},
+			});
+		});
+
+		test('preserves the submit-on-accept hint on command completions', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			(agentHostService as unknown as { completions: (p: CompletionsParams) => Promise<CompletionsResult> }).completions = async () => ({
+				items: [{
+					insertText: 'list ',
+					rangeStart: 8,
+					rangeEnd: 8,
+					attachment: {
+						type: MessageAttachmentKind.Simple,
+						label: 'list',
+						_meta: {
+							command: 'skills',
+							description: 'List skills',
+							submitOnAccept: true,
+						},
+					},
+				}],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/abc' });
+			const result = await sessionHandler.provideChatInputCompletions(
+				sessionResource,
+				{ text: '/skills ', offset: 8 },
+				CancellationToken.None,
+			);
+
+			assert.deepStrictEqual(result?.items[0].attachment, {
+				kind: 'command',
+				command: 'skills',
+				description: 'List skills',
+				submitOnAccept: true,
+				_meta: {
+					command: 'skills',
+					description: 'List skills',
+					submitOnAccept: true,
+				},
+			});
+		});
+
+		test('maps simple attachments without metadata to plain text completions', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			(agentHostService as unknown as { completions: (p: CompletionsParams) => Promise<CompletionsResult> }).completions = async () => ({
+				items: [{
+					insertText: 'microsoft/playwright-mcp',
+					rangeStart: 12,
+					rangeEnd: 12,
+					attachment: {
+						type: MessageAttachmentKind.Simple,
+						label: 'microsoft/playwright-mcp',
+					},
+				}],
+			});
+
+			const result = await sessionHandler.provideChatInputCompletions(
+				URI.from({ scheme: 'agent-host-copilot', path: '/abc' }),
+				{ text: '/mcp enable ', offset: 12 },
+				CancellationToken.None,
+			);
+
+			assert.deepStrictEqual(result, {
+				items: [{
+					insertText: 'microsoft/playwright-mcp',
+					start: { lineNumber: 1, column: 13 },
+					end: { lineNumber: 1, column: 13 },
+					attachment: { kind: 'text' },
+				}],
+			});
+		});
+
 		test('uses a command attachment label when it differs from the inserted text', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
