@@ -27,7 +27,12 @@ function findFreePort(startPort: number): Promise<number> {
 	});
 }
 
-const port = await findFreePort(5123);
+const configuredStartPort = process.env['COMPONENT_EXPLORER_PORT_START'];
+const startPort = configuredStartPort === undefined ? 5123 : Number(configuredStartPort);
+if (!Number.isInteger(startPort) || startPort < 1 || startPort > 65535) {
+	throw new Error(`Invalid COMPONENT_EXPLORER_PORT_START: ${configuredStartPort}`);
+}
+const port = await findFreePort(startPort);
 
 export default {
 	context: repoRoot,

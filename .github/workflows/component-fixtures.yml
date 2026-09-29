@@ -150,7 +150,7 @@ jobs:
         run: npx playwright install chromium
 
       - name: Capture screenshots
-        run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json
+        run: node test/componentFixtures/renderFixtures.mts
 
       - name: Check fixture errors
         id: fixture_errors
