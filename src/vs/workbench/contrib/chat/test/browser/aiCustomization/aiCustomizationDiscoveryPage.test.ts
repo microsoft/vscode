@@ -52,6 +52,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		configurationDependencies: [ChatConfiguration.StrictMarketplaces],
 	};
 	const sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed, CustomizationMarketplaceSources.CopilotConnectors, secondSource, pluginSource];
+	const testIcon = URI.parse('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==');
 
 	function resource(identifier: string, overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 		return {
@@ -254,6 +255,33 @@ suite('AICustomizationDiscoveryPage', () => {
 		};
 	}
 
+	function assertImageReplacesFallback(container: HTMLElement, iconSelector: string): void {
+		const icon = container.querySelector<HTMLElement>(iconSelector);
+		const image = icon?.querySelector<HTMLImageElement>('img');
+		const fallback = icon?.querySelector<HTMLElement>('.codicon');
+		assert.ok(icon);
+		assert.ok(image);
+		assert.ok(fallback);
+
+		image.dispatchEvent(new mainWindow.Event(DOM.EventType.LOAD));
+		const loaded = {
+			isFallback: icon.classList.contains('is-fallback'),
+			fallbackHidden: mainWindow.getComputedStyle(fallback).display === 'none',
+			imagePresent: icon.contains(image),
+		};
+		image.dispatchEvent(new mainWindow.Event(DOM.EventType.ERROR));
+		const failed = {
+			isFallback: icon.classList.contains('is-fallback'),
+			fallbackHidden: mainWindow.getComputedStyle(fallback).display === 'none',
+			imagePresent: icon.contains(image),
+		};
+
+		assert.deepStrictEqual({ loaded, failed }, {
+			loaded: { isFallback: false, fallbackHidden: true, imagePresent: true },
+			failed: { isFallback: true, fallbackHidden: false, imagePresent: false },
+		});
+	}
+
 	for (const [action, type] of [
 		['newAgent', PromptsType.agent],
 		['newSkill', PromptsType.skill],
@@ -310,6 +338,17 @@ suite('AICustomizationDiscoveryPage', () => {
 			pageSize: 100,
 			featured: ['azure-mcp', 'github-plugin', 'microsoft-skill', 'fabric-mcp'],
 		});
+	});
+
+	test('browse card images replace fallback icons and restore them on error', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('with-icon', { publisher: 'GitHub', icon: testIcon })],
+		});
+		await timeout(0);
+
+		assertImageReplacesFallback(fixture.container, '.customization-discovery-card-icon');
 	});
 
 	async function setEnabled(configuration: TestConfigurationService, setting: string, enabled: boolean): Promise<void> {
@@ -661,6 +700,18 @@ suite('AICustomizationDiscoveryPage', () => {
 			openedDetails: ['unity'],
 			openedExternal: [setupUrl],
 		});
+	});
+
+	test('search result images replace fallback icons and restore them on error', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setSearchQuery('icon');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('with-icon', { icon: testIcon })],
+		});
+		await timeout(0);
+
+		assertImageReplacesFallback(fixture.container, '.customization-discovery-result-icon');
 	});
 
 	test('catalog-backed installed skills open their installed detail page', async () => {
