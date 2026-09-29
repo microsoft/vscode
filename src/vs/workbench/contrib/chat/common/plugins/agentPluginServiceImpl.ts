@@ -800,7 +800,21 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 		this._enablementModel = enablementModel;
 		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
 		this._register(autorun(reader => {
-			this._pluginMarketplaceService.installedPlugins.read(reader);
+			const installed = this._pluginMarketplaceService.installedPlugins.read(reader);
+			const watchedParents: URI[] = [];
+			for (const entry of installed) {
+				const parent = dirname(entry.pluginUri);
+				if (watchedParents.some(candidate => isEqual(candidate, parent))) {
+					continue;
+				}
+				watchedParents.push(parent);
+				const watcher = reader.store.add(this._fileService.createWatcher(parent, { recursive: false, excludes: [] }));
+				reader.store.add(watcher.onDidChange(change => {
+					if (installed.some(candidate => isEqual(dirname(candidate.pluginUri), parent) && change.affects(candidate.pluginUri))) {
+						scheduler.schedule();
+					}
+				}));
+			}
 			scheduler.schedule();
 		}));
 		scheduler.schedule();
