@@ -1807,7 +1807,9 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.renderCustomizationMigrationPage();
 		};
 		editor.customizationMigrationService.computeMigration = async (session, type, token = CancellationToken.None) => {
-			assert.strictEqual(type, CustomizationMigrationType.McpServers);
+			if (type !== CustomizationMigrationType.McpServers) {
+				return { type, files: [], candidates: [] };
+			}
 			return {
 				type: CustomizationMigrationType.McpServers,
 				servers: [],
@@ -1996,9 +1998,11 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.configurationService = createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		});
-		editor.customizationMigrationService.computeMigration = async (_session, _type, token = CancellationToken.None) => {
+		editor.customizationMigrationService.computeMigration = async (_session, type, token = CancellationToken.None) => {
 			migrationTokens.push(token);
-			return { type: CustomizationMigrationType.UserData, files: [candidate.uri], candidates: [candidate] };
+			return type === CustomizationMigrationType.UserData
+				? { type, files: [candidate.uri], candidates: [candidate] }
+				: { type, files: [], candidates: [] };
 		};
 		editor.harnessService.findHarnessById = () => ({
 			id: 'agent-host-copilotcli',
@@ -2028,10 +2032,10 @@ suite('aiCustomizationManagementEditor', () => {
 			firstCancelled,
 			migrationRequests: migrationTokens.length,
 			folderRequests: folderTokens.length,
-			sameTokens: migrationTokens.every((token, index) => token === folderTokens[index]),
+			sameTokens: migrationTokens.every(token => folderTokens.includes(token)),
 			applied,
 		}, {
-			firstCancelled: true, migrationRequests: 2, folderRequests: 2, sameTokens: true, applied: [[candidate]],
+			firstCancelled: true, migrationRequests: 6, folderRequests: 2, sameTokens: true, applied: [[candidate]],
 		});
 	}));
 

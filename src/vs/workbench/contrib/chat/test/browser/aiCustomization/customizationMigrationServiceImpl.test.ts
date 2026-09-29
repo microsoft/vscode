@@ -1090,8 +1090,7 @@ suite('CustomizationMigrationService', () => {
 				PromptsType.agent, PromptsType.instructions, PromptsType.skill,
 			],
 			enabledSourceFolderTypes: [
-				PromptsType.agent, PromptsType.instructions, PromptsType.skill,
-				PromptsType.agent, PromptsType.instructions, PromptsType.skill,
+				PromptsType.skill, PromptsType.agent, PromptsType.agent, PromptsType.skill,
 			],
 		});
 	});

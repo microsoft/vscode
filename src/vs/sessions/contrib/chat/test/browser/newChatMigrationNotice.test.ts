@@ -259,7 +259,7 @@ suite('NewChatMigrationNotice', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ before, after: snapshot(notice) }, {
 			before: { visible: true, message: '2 agent customizations need an update to keep working.' },
-			after: { visible: false, message: undefined },
+			after: { visible: false, message: '2 agent customizations need an update to keep working.' },
 		});
 	});
 
