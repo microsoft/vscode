@@ -1009,6 +1009,7 @@ export class AICustomizationListWidget extends Disposable {
 			this.sectionLoading = false;
 			this.currentSectionSubscription.clear();
 			this.allItems = [];
+			this.element.classList.remove('show-item-type-icons');
 			const matchCount = this.filterItems();
 			this._onDidChangeItemCount.fire(0);
 			this.updateAddButton();
@@ -1021,6 +1022,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.currentSectionSubscription.value = autorun(reader => {
 			const items = observable.read(reader);
 			this.allItems = items;
+			this.element.classList.toggle('show-item-type-icons', items.some(item => !!item.marketplace?.resource.icon));
 			const matchCount = this.filterItems();
 			this._onDidChangeItemCount.fire(items.length);
 			if (!this.sectionLoading) {

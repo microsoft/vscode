@@ -12,6 +12,7 @@ import { derived, observableValue } from '../../../../../../base/common/observab
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -735,6 +736,83 @@ suite('aiCustomizationListWidget', () => {
 				statusDisplay: 'none',
 				hasOverflowAction: true,
 				descriptionDisplay: '',
+			});
+		});
+
+		test('shows one aligned icon per item when a marketplace skill has an icon', async () => {
+			const marketplaceUri = URI.file('/workspace/.github/skills/marketplace/SKILL.md');
+			const plainUri = URI.file('/workspace/.github/skills/plain/SKILL.md');
+			const marketplaceItem: IAICustomizationListItem = {
+				id: 'marketplace',
+				uri: marketplaceUri,
+				name: 'Marketplace Skill',
+				filename: 'SKILL.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+				marketplace: {
+					resource: {
+						sourceId: 'testSource',
+						identifier: 'marketplace',
+						displayName: 'Marketplace Skill',
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.Skill,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+						icon: URI.parse('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='),
+					},
+					state: { kind: 'installed', target: { kind: 'skill', uri: marketplaceUri } },
+				},
+			};
+			const plainItem: IAICustomizationListItem = {
+				id: 'plain',
+				uri: plainUri,
+				name: 'Plain Skill',
+				filename: 'SKILL.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			};
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [marketplaceItem, plainItem]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 2),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(800, 500);
+			const rows = [...widget.element.querySelectorAll<HTMLElement>('.ai-customization-list-item')];
+			const withMarketplaceIcon = widget.element.classList.contains('show-item-type-icons');
+			const iconState = rows.map(row => {
+				const icon = row.querySelector<HTMLElement>('.item-type-icon')!;
+				return {
+					name: row.querySelector('.item-name')?.textContent,
+					image: !!icon.querySelector('img'),
+					fallbackDisplay: icon.querySelector<HTMLElement>('.codicon')?.style.display,
+					visibleChildren: [...icon.children].filter(child => !(child instanceof HTMLElement) || !child.hidden).length,
+				};
+			});
+			items.set([plainItem], undefined);
+
+			assert.deepStrictEqual({
+				withMarketplaceIcon,
+				iconState,
+				withoutMarketplaceIcon: widget.element.classList.contains('show-item-type-icons'),
+			}, {
+				withMarketplaceIcon: true,
+				iconState: [
+					{ name: 'Marketplace Skill', image: true, fallbackDisplay: 'none', visibleChildren: 1 },
+					{ name: 'Plain Skill', image: false, fallbackDisplay: '', visibleChildren: 1 },
+				],
+				withoutMarketplaceIcon: false,
 			});
 		});
 

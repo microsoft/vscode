@@ -24,6 +24,7 @@ export function renderCustomizationMarketplaceIcon(
 	fallback.classList.add(...ThemeIcon.asClassNameArray(fallbackIcon));
 	fallback.setAttribute('aria-hidden', 'true');
 	fallback.hidden = !!icon;
+	fallback.style.display = icon ? 'none' : '';
 	if (!icon) {
 		return;
 	}
@@ -36,6 +37,7 @@ export function renderCustomizationMarketplaceIcon(
 	}));
 	disposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => {
 		fallback.hidden = false;
+		fallback.style.display = '';
 		container.classList.add('is-fallback');
 		image.remove();
 	}));

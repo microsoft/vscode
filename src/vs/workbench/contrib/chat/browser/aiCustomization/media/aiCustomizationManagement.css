@@ -854,7 +854,7 @@ per-word capitalization does not survive translation. */
 	display: none;
 }
 
-.ai-customization-list-item .item-type-icon.has-custom-icon {
+.ai-customization-list-widget.show-item-type-icons .ai-customization-list-item .item-type-icon {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -863,14 +863,14 @@ per-word capitalization does not survive translation. */
 	height: var(--vscode-spacing-size240);
 }
 
-.ai-customization-list-item .item-type-icon.has-custom-icon img {
+.ai-customization-list-widget.show-item-type-icons .ai-customization-list-item .item-type-icon img {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.ai-customization-list-item .item-type-icon.has-custom-icon .codicon {
+.ai-customization-list-widget.show-item-type-icons .ai-customization-list-item .item-type-icon .codicon {
 	font-size: var(--vscode-codiconFontSize);
 }
 
