@@ -57,6 +57,7 @@ import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAtt
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
+import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
@@ -3206,12 +3207,15 @@ suite('CopilotAgentSession', () => {
 	});
 
 	test('`/compact` runs the history compact RPC and completes the turn with output', async () => {
-		const { session, mockSession, signals } = await createAgentSession(disposables);
+		const database = new TestSessionDatabase();
+		await database.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 }));
+		const { session, mockSession, signals } = await createAgentSession(disposables, { sessionDatabase: database });
 
 		await session.send('/compact', undefined, 'turn-compact');
 
 		// The compact command is handled inline via the history RPC and must
 		// not fall through to a normal SDK `send()` turn.
+		assert.strictEqual(await database.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY), undefined);
 		assert.strictEqual(mockSession.compactCalls.length, 1);
 		assert.deepStrictEqual(mockSession.sendRequests, []);
 
@@ -4561,6 +4565,291 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('does not invoke a runtime command until the first SDK operation marker is cleared', async () => {
+		const database = new class extends TestSessionDatabase {
+			deleteAttempts = 0;
+
+			override async deleteMetadata(keys: readonly string[]): Promise<void> {
+				this.deleteAttempts++;
+				if (this.deleteAttempts === 1) {
+					throw new Error('marker clear failed');
+				}
+				await super.deleteMetadata(keys);
+			}
+		};
+		await database.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 }));
+		const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase: database });
+		mockSession.commandListResult = {
+			commands: [{ name: 'env', kind: 'builtin', description: 'Show environment', allowDuringAgentExecution: true }],
+		};
+
+		await assert.rejects(() => session.send('/env', undefined, 'turn-runtime-command', 'interactive'), /marker clear failed/);
+		await session.send('/env', undefined, 'turn-runtime-command-retry', 'interactive');
+
+		assert.deepStrictEqual({
+			deleteAttempts: database.deleteAttempts,
+			marker: await database.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY),
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+		}, {
+			deleteAttempts: 2,
+			marker: undefined,
+			commandInvokeCalls: [{ name: 'env' }],
+			sendRequests: [],
+		});
+	});
+
+	suite('SDK execution boundary', () => {
+		test('preserves the deferred marker when turn preparation fails before execution', async () => {
+			const marker = JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 });
+			const database = new TestSessionDatabase();
+			await database.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, marker);
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionDatabase: database,
+				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+			});
+			const error = new Error('Injected preflight failure');
+			mockSession.permissionModeSetError = error;
+
+			await assert.rejects(() => session.send('hello', undefined, 'turn-preflight'), error);
+
+			assert.deepStrictEqual({
+				marker: await database.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY),
+				sendRequests: mockSession.sendRequests,
+			}, {
+				marker,
+				sendRequests: [],
+			});
+		});
+
+		test('clears the deferred marker before a normal send and a continuation', async () => {
+			const sendDatabase = new TestSessionDatabase();
+			await sendDatabase.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 }));
+			const normal = await createAgentSession(disposables, { sessionDatabase: sendDatabase });
+
+			await normal.session.send('start', undefined, 'turn-send');
+
+			const continuationDatabase = new TestSessionDatabase();
+			await continuationDatabase.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 }));
+			const continuation = await createAgentSession(disposables, { sessionDatabase: continuationDatabase });
+
+			await continuation.session.resume('turn-resume');
+
+			assert.deepStrictEqual({
+				normalMarker: await sendDatabase.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY),
+				normalSendRequests: normal.mockSession.sendRequests,
+				continuationMarker: await continuationDatabase.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY),
+				continuationSendMessagesRequests: continuation.mockSession.sendMessagesRequests,
+			}, {
+				normalMarker: undefined,
+				normalSendRequests: [{ prompt: 'start', attachments: undefined }],
+				continuationMarker: undefined,
+				continuationSendMessagesRequests: [{ messages: [] }],
+			});
+		});
+
+		test('does not dispatch an executable SDK operation before the durable transition completes', async () => {
+			const executions: ReadonlyArray<{
+				readonly name: string;
+				readonly configure: (mockSession: MockCopilotSession) => void;
+				readonly start: (session: CopilotAgentSession) => Promise<void>;
+				readonly wasDispatched: (mockSession: MockCopilotSession) => boolean;
+			}> = [
+					{
+						name: 'send',
+						configure: () => { },
+						start: session => session.send('start', undefined, 'turn-send'),
+						wasDispatched: mockSession => mockSession.sendRequests.length > 0,
+					},
+					{
+						name: 'sendMessages',
+						configure: () => { },
+						start: session => session.resume('turn-resume'),
+						wasDispatched: mockSession => mockSession.sendMessagesRequests.length > 0,
+					},
+					{
+						name: 'invokeCommand',
+						configure: mockSession => {
+							mockSession.commandListResult = { commands: [{ name: 'env', kind: 'builtin', description: 'Show environment', allowDuringAgentExecution: true }] };
+						},
+						start: session => session.send('/env', undefined, 'turn-command', 'interactive'),
+						wasDispatched: mockSession => mockSession.commandInvokeCalls.length > 0,
+					},
+					{
+						name: 'startFleet',
+						configure: mockSession => {
+							mockSession.commandListResult = { commands: [{ name: 'fleet', kind: 'builtin', description: 'Start fleet', allowDuringAgentExecution: false }] };
+						},
+						start: session => session.send('/fleet', undefined, 'turn-fleet', 'interactive'),
+						wasDispatched: mockSession => mockSession.fleetStartCalls.length > 0,
+					},
+					{
+						name: 'compact',
+						configure: () => { },
+						start: session => session.send('/compact', undefined, 'turn-compact'),
+						wasDispatched: mockSession => mockSession.compactCalls.length > 0,
+					},
+					{
+						name: 'steering send',
+						configure: () => { },
+						start: session => session.sendSteering({ id: 'steering', message: { text: 'steer', origin: { kind: MessageKind.User } } }),
+						wasDispatched: mockSession => mockSession.sendRequests.length > 0,
+					},
+				];
+
+			for (const execution of executions) {
+				const database = new class extends TestSessionDatabase {
+					readonly entered = new DeferredPromise<void>();
+					readonly release = new DeferredPromise<void>();
+
+					override async deleteMetadata(keys: readonly string[]): Promise<void> {
+						this.entered.complete();
+						await this.release.p;
+						await super.deleteMetadata(keys);
+					}
+				};
+				await database.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 }));
+				const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase: database });
+				execution.configure(mockSession);
+
+				const pending = execution.start(session);
+				await database.entered.p;
+				assert.deepStrictEqual({ name: execution.name, dispatched: execution.wasDispatched(mockSession) }, { name: execution.name, dispatched: false });
+				database.release.complete();
+				await pending;
+				assert.deepStrictEqual({ name: execution.name, dispatched: execution.wasDispatched(mockSession) }, { name: execution.name, dispatched: true });
+			}
+		});
+
+		test('shares a pending durable transition across concurrent steering executions', async () => {
+			const database = new class extends TestSessionDatabase {
+				readonly entered = new DeferredPromise<void>();
+				readonly release = new DeferredPromise<void>();
+				deleteAttempts = 0;
+
+				override async deleteMetadata(keys: readonly string[]): Promise<void> {
+					this.deleteAttempts++;
+					this.entered.complete();
+					await this.release.p;
+					await super.deleteMetadata(keys);
+				}
+			};
+			await database.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 }));
+			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase: database });
+
+			const first = session.sendSteering({ id: 'steer-one', message: { text: 'first', origin: { kind: MessageKind.User } } });
+			await database.entered.p;
+			const second = session.sendSteering({ id: 'steer-two', message: { text: 'second', origin: { kind: MessageKind.User } } });
+			assert.deepStrictEqual(mockSession.sendRequests, []);
+
+			database.release.complete();
+			await Promise.all([first, second]);
+
+			assert.deepStrictEqual({
+				deleteAttempts: database.deleteAttempts,
+				marker: await database.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY),
+				sendRequests: mockSession.sendRequests,
+			}, {
+				deleteAttempts: 1,
+				marker: undefined,
+				sendRequests: [
+					{ prompt: 'first', attachments: undefined, mode: 'immediate' },
+					{ prompt: 'second', attachments: undefined, mode: 'immediate' },
+				],
+			});
+		});
+
+		test('preserves recovery after cancellation races the durable transition', async () => {
+			const entered = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const database = new class extends TestSessionDatabase {
+				override async deleteMetadata(keys: readonly string[]): Promise<void> {
+					entered.complete();
+					await release.p;
+					await super.deleteMetadata(keys);
+				}
+			};
+			const marker = JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 });
+			await database.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, marker);
+			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase: database });
+			const send = session.send('cancel me', undefined, 'turn-cancel');
+			await entered.p;
+			await session.abort();
+			release.complete();
+			await send;
+
+			assert.deepStrictEqual({
+				sendRequests: mockSession.sendRequests,
+				marker: await database.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY),
+			}, { sendRequests: [], marker });
+		});
+
+		test('serializes a new execution behind recovery-marker restoration', async () => {
+			const database = new class extends TestSessionDatabase {
+				readonly deleting = new DeferredPromise<void>();
+				readonly releaseDelete = new DeferredPromise<void>();
+				readonly restoring = new DeferredPromise<void>();
+				readonly releaseRestore = new DeferredPromise<void>();
+				deleteAttempts = 0;
+
+				override async deleteMetadata(keys: readonly string[]): Promise<void> {
+					this.deleteAttempts++;
+					this.deleting.complete();
+					await this.releaseDelete.p;
+					await super.deleteMetadata(keys);
+				}
+
+				override async setMetadata(key: string, value: string): Promise<void> {
+					if (this.deleteAttempts > 0) {
+						this.restoring.complete();
+						await this.releaseRestore.p;
+					}
+					await super.setMetadata(key, value);
+				}
+			};
+			await database.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 }));
+			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase: database });
+			const cancelled = session.send('cancel me', undefined, 'turn-cancel');
+			await database.deleting.p;
+			await session.abort();
+			database.releaseDelete.complete();
+			await database.restoring.p;
+
+			const retry = session.send('retry', undefined, 'turn-retry');
+			assert.deepStrictEqual(mockSession.sendRequests, []);
+			database.releaseRestore.complete();
+			await Promise.all([cancelled, retry]);
+
+			assert.deepStrictEqual({
+				sendRequests: mockSession.sendRequests,
+				marker: await database.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY),
+				deleteAttempts: database.deleteAttempts,
+			}, {
+				sendRequests: [{ prompt: 'retry', attachments: undefined }],
+				marker: undefined,
+				deleteAttempts: 2,
+			});
+		});
+
+		test('does not wait for SDK completion before dispatching another execution', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			const release = new DeferredPromise<void>();
+			mockSession.sendGate = release.p;
+			const first = session.sendSteering({ id: 'first', message: { text: 'first', origin: { kind: MessageKind.User } } });
+			try {
+				while (mockSession.sendRequests.length === 0) {
+					await timeout(0);
+				}
+				mockSession.sendGate = undefined;
+				await session.sendSteering({ id: 'second', message: { text: 'second', origin: { kind: MessageKind.User } } });
+				assert.strictEqual(mockSession.sendRequests.length, 2);
+			} finally {
+				release.complete();
+				await first;
+			}
+		});
+	});
+
 	suite('/fleet lifecycle (issue #8837)', () => {
 		const fleetCommand = (aliases?: string[]) => ({
 			name: 'fleet',
@@ -4571,12 +4860,15 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('canonical built-in /fleet starts via rpc.fleet.start, keeps the turn open, and completes once on idle', async () => {
-			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const database = new TestSessionDatabase();
+			await database.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 }));
+			const { session, mockSession, signals } = await createAgentSession(disposables, { sessionDatabase: database });
 			mockSession.commandListResult = { commands: [fleetCommand()] };
 
 			await session.send('/fleet the full analysis', undefined, 'turn-fleet', 'interactive');
 
 			assert.deepStrictEqual({
+				marker: await database.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY),
 				fleetStartCalls: mockSession.fleetStartCalls,
 				commandInvokeCalls: mockSession.commandInvokeCalls,
 				sendRequests: mockSession.sendRequests,
@@ -4584,6 +4876,7 @@ suite('CopilotAgentSession', () => {
 				hasActiveTurn: session.hasActiveTurn,
 				diagnostics: session.getTurnDiagnosticSnapshot('turn-fleet'),
 			}, {
+				marker: undefined,
 				fleetStartCalls: [{ prompt: 'the full analysis' }],
 				commandInvokeCalls: [],
 				sendRequests: [],
@@ -4635,6 +4928,31 @@ suite('CopilotAgentSession', () => {
 				fleetStartCount: 1,
 				invokedGenericCommand: false,
 				sentThroughNormalSend: false,
+			});
+		});
+
+		test('does not start fleet until the first SDK operation marker is cleared', async () => {
+			const database = new class extends TestSessionDatabase {
+				override async deleteMetadata(_keys: readonly string[]): Promise<void> {
+					throw new Error('marker clear failed');
+				}
+			};
+			await database.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 }));
+			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase: database });
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+
+			await assert.rejects(() => session.send('/fleet go', undefined, 'turn-fleet', 'interactive'), /marker clear failed/);
+
+			assert.deepStrictEqual({
+				marker: await database.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY),
+				fleetStartCalls: mockSession.fleetStartCalls,
+				commandInvokeCalls: mockSession.commandInvokeCalls,
+				sendRequests: mockSession.sendRequests,
+			}, {
+				marker: JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 }),
+				fleetStartCalls: [],
+				commandInvokeCalls: [],
+				sendRequests: [],
 			});
 		});
 
