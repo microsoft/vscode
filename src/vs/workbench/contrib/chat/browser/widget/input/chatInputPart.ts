@@ -3370,7 +3370,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Lift the secondary controls into the input so it matches the Agents new-session
 			// composer: the mode / permissions pickers lead the input toolbar row, and the
 			// context-usage widget becomes a direct child of the input container so it can sit in
-			// the input's top-right corner (positioned via CSS).
+			// the input's top-right corner (positioned via CSS). The marker class binds that
+			// out-of-flow positioning to the reparent itself, so the widget can never render
+			// in-flow and widen the input (which previously caused a composer/editor width
+			// mismatch — see microsoft/vscode#337490).
+			inputContainer.classList.add('chat-secondary-controls-in-input');
 			toolbarsContainer.prepend(responsivePickerContainer);
 			inputContainer.appendChild(this.contextUsageWidgetContainer);
 		}
