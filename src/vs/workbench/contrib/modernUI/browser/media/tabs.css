@@ -278,6 +278,10 @@
 	display: block;
 }
 
+.modern-ui-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.last-in-row) + .tab > .tab-divider {
+	display: none;
+}
+
 /* Tab fills retain the theme's transparency. The action overlay uses a separately flattened
  * version of the same color so labels beneath the close button cannot show through. */
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container.active .tabs-container > .tab:not(.selected):not(.active) > .tab-fill,
@@ -837,6 +841,10 @@
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab,
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .modern-ui-editor-tab {
 	outline: none !important;
+}
+
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):not(.selected):not(:focus):not(:hover) > .tab-fill {
+	border-color: var(--vscode-tab-border);
 }
 
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs) .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:is(.active, .selected):not(:focus) > .tab-fill,

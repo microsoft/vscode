@@ -930,6 +930,15 @@ function renderWrappedConnectedSurface(activeTabIndex: number, forcedHoverTab?: 
 	});
 }
 
+function renderWrappedConnectedBorderOwnership(): (ctx: ComponentFixtureContext) => void {
+	return renderConnectedSurface(0, undefined, undefined, {
+		width: 820,
+		editors: manyEditorSpecs().slice(0, 10).map((spec, index) => ({ ...spec, active: index === 0 })),
+		partOptions: { wrapTabs: true, editorActionsLocation: 'hidden' },
+		colorCustomizations: getLegacyEditorTabBorderCustomizations(),
+	});
+}
+
 function renderWrappedConnectedCloseActionHover(activeTabIndex: number): (ctx: ComponentFixtureContext) => void {
 	return renderConnectedSurface(activeTabIndex, activeTabIndex, undefined, {
 		width: 820,
@@ -1008,7 +1017,11 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		Pill: defineComponentFixture({
 			render: renderBorderOwnership(true, ModernUIEditorTabStyle.Pill),
 			themes: ['dark'],
-			expectedVisualDescriptions: ['Pill tabs hide the standard indicators and paint the customized yellow outline around every inset rounded fill. Inset cyan and pink accents stop before the rounded corners, and a short white divider appears at every shared boundary, including beside the active pill.'],
+			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			expectedVisualDescriptions: [
+				'In the standard dark theme, Pill tabs hide the standard indicators and paint the customized yellow outline around every inset rounded fill. Inset cyan and pink accents stop before the rounded corners, and a short white divider appears at every shared boundary, including beside the active pill.',
+				'In High Contrast themes, default theme colors are used without customization. Every pill retains its complete theme boundary, and the dedicated divider remains hidden.',
+			],
 		}),
 		Connected: defineComponentFixture({
 			render: renderBorderOwnership(true, ModernUIEditorTabStyle.Connected),
@@ -1016,8 +1029,13 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: [
 				'In the standard dark theme, the active connected cap alone owns the customized yellow tab boundary, cyan top border, and pink bottom indicator. Five short white dividers span the long run of adjacent inactive tabs, whose fills remain unoutlined.',
-				'In High Contrast themes, default theme colors are used without customization. Explicit contrast and focus outlines keep every tab distinguishable, and inactive dividers inherit the active editor group accent.',
+				'In High Contrast themes, default theme colors are used without customization. Every tab retains its explicit theme boundary, and the dedicated divider remains hidden to avoid duplicating shared edges.',
 			],
+		}),
+		ConnectedWrapped: defineComponentFixture({
+			render: renderWrappedConnectedBorderOwnership(),
+			themes: ['dark'],
+			expectedVisualDescriptions: ['The active tab in the upper wrapped row retains rounded pill geometry. Its cyan top and inset pink bottom accents stop before the corners instead of drawing full-width straight indicators.'],
 		}),
 	}),
 	ConnectedBorderContinuity: defineThemedFixtureGroup({

@@ -2643,7 +2643,7 @@ suite('ModernUIContribution', () => {
 		const title = appendElement(group, 'title tabs');
 		const row = appendElement(title, 'tabs-and-actions-container');
 		const tabs = appendElement(row, 'tabs-container');
-		const firstFill = appendElement(appendElement(tabs, 'tab'), 'tab-fill');
+		const firstFill = appendElement(appendElement(tabs, 'tab first-in-row'), 'tab-fill');
 		const tab = appendElement(tabs, 'tab active connected-tab-top-row');
 		tab.style.width = '120px';
 		const fill = appendElement(tab, 'tab-fill');
@@ -2752,7 +2752,7 @@ suite('ModernUIContribution', () => {
 		const title = appendElement(group, 'title tabs');
 		const row = appendElement(title, 'tabs-and-actions-container');
 		const tabs = appendElement(row, 'tabs-container');
-		const tab = appendElement(tabs, 'tab');
+		const tab = appendElement(tabs, 'tab first-in-row');
 		tab.style.position = 'relative';
 		tab.style.width = '120px';
 		const fill = appendElement(tab, 'tab-fill');
@@ -2853,7 +2853,7 @@ suite('ModernUIContribution', () => {
 		const group = appendElement(content, 'editor-group-container active');
 		const title = appendElement(group, 'title tabs');
 		const tabs = appendElement(title, 'tabs-container');
-		const firstTab = appendElement(tabs, 'tab active');
+		const firstTab = appendElement(tabs, 'tab active first-in-row');
 		const firstFill = appendElement(firstTab, 'tab-fill');
 		const middleTab = appendElement(tabs, 'tab');
 		const middleFill = appendElement(middleTab, 'tab-fill');
@@ -2903,13 +2903,14 @@ suite('ModernUIContribution', () => {
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
-		const editor = appendElement(root, 'part editor');
+		const gridView = appendElement(root, 'monaco-grid-view');
+		const editor = appendElement(gridView, 'part editor');
 		const content = appendElement(editor, 'content');
 		const group = appendElement(content, 'editor-group-container active');
 		const title = appendElement(group, 'title tabs');
 		const row = appendElement(title, 'tabs-and-actions-container wrapping');
 		const tabs = appendElement(row, 'tabs-container');
-		const upperTab = appendElement(tabs, 'tab active connected-tab-upper-row connected-tab-top-row');
+		const upperTab = appendElement(tabs, 'tab active connected-tab-upper-row connected-tab-top-row first-in-row');
 		const upperFill = appendElement(upperTab, 'tab-fill');
 		const inactiveBottomTab = appendElement(tabs, 'tab');
 		const inactiveBottomFill = appendElement(inactiveBottomTab, 'tab-fill');
@@ -2951,13 +2952,14 @@ suite('ModernUIContribution', () => {
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
-		const editor = appendElement(root, 'part editor');
+		const gridView = appendElement(root, 'monaco-grid-view');
+		const editor = appendElement(gridView, 'part editor');
 		const content = appendElement(editor, 'content');
 		const group = appendElement(content, 'editor-group-container active');
 		const title = appendElement(group, 'title tabs');
 		const row = appendElement(title, 'tabs-and-actions-container');
 		const tabs = appendElement(row, 'tabs-container');
-		const tab = appendElement(tabs, 'tab active connected-tab-top-row');
+		const tab = appendElement(tabs, 'tab active connected-tab-top-row first-in-row');
 		const fill = appendElement(tab, 'tab-fill');
 		const targetWindow = getWindow(root);
 		const outlines = [];
@@ -2998,7 +3000,7 @@ suite('ModernUIContribution', () => {
 		const rowEndTab = appendElement(tabs, 'tab active last-in-row');
 		const rowEndFill = appendElement(rowEndTab, 'tab-fill');
 		const rowEndEdge = appendElement(rowEndTab, 'tab-connected-edge');
-		const rowStartTab = appendElement(tabs, 'tab');
+		const rowStartTab = appendElement(tabs, 'tab first-in-row');
 		const rowStartFill = appendElement(rowStartTab, 'tab-fill');
 		const rowStartEdge = appendElement(rowStartTab, 'tab-connected-edge');
 		appendElement(appendElement(tabs, 'tab'), 'tab-fill');
@@ -3705,8 +3707,8 @@ suite('ModernUIContribution', () => {
 			paneForeground: getWindow(paneAction.actionLabel).getComputedStyle(paneAction.actionLabel).color,
 			activeBackground: getWindow(activeFill).getComputedStyle(activeFill).backgroundColor,
 			activeForeground: getWindow(activeLabelAnchor).getComputedStyle(activeLabelAnchor).color,
-			activeBorderTop: getWindow(activeFill).getComputedStyle(activeFill).borderTopColor,
-			activeBorderBottom: getWindow(activeFill).getComputedStyle(activeFill).borderBottomColor,
+			activeBorderTop: getWindow(activeFill).getComputedStyle(activeFill, '::before').backgroundColor,
+			activeBorderBottom: getWindow(activeFill).getComputedStyle(activeFill, '::after').backgroundColor,
 			inactiveBackground: getWindow(inactiveFill).getComputedStyle(inactiveFill).backgroundColor,
 			inactiveForeground: getWindow(inactiveLabelAnchor).getComputedStyle(inactiveLabelAnchor).color,
 			unfocusedActiveBackground: getWindow(unfocusedFill).getComputedStyle(unfocusedFill).backgroundColor,

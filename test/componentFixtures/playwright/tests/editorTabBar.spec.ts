@@ -171,9 +171,37 @@ for (const [style, expected] of [
 }
 
 for (const [theme, expected] of [
-	['DarkHighContrast', { activeTop: 'rgb(243, 133, 24)', accent: 'rgb(243, 133, 24)' }],
-	['LightHighContrast', { activeTop: 'rgb(181, 32, 13)', accent: 'rgb(0, 107, 189)' }],
+	['DarkHighContrast', { activeTop: 'rgb(243, 133, 24)', accent: 'rgb(243, 133, 24)', tabBorder: 'rgb(111, 195, 223)' }],
+	['LightHighContrast', { activeTop: 'rgb(181, 32, 13)', accent: 'rgb(0, 107, 189)', tabBorder: 'rgb(15, 74, 133)' }],
 ] as const) {
+	test(`pill borders retain high contrast ownership in ${theme}`, async ({ page }) => {
+		await openFixture(page, `editor/editorTabBar/editorTabBar/BorderOwnership/Pill/${theme}`, '.tabs-container > .tab.active');
+		const ownership = await page.locator('.tabs-container').evaluate(tabs => {
+			const activeFill = tabs.querySelector<HTMLElement>('.tab.active > .tab-fill');
+			const inactiveFill = tabs.querySelector<HTMLElement>('.tab:not(.active) > .tab-fill');
+			if (!activeFill || !inactiveFill) {
+				throw new Error('Expected active and inactive pill tab fills');
+			}
+			return {
+				active: {
+					top: getComputedStyle(activeFill).borderTopColor,
+					side: getComputedStyle(activeFill).borderRightColor,
+				},
+				inactive: {
+					top: getComputedStyle(inactiveFill).borderTopColor,
+					side: getComputedStyle(inactiveFill).borderRightColor,
+				},
+				visibleDividers: [...tabs.querySelectorAll<HTMLElement>('.tab-divider')]
+					.filter(element => getComputedStyle(element).display !== 'none').length,
+			};
+		});
+		expect(ownership).toEqual({
+			active: { top: expected.accent, side: expected.accent },
+			inactive: { top: expected.tabBorder, side: expected.tabBorder },
+			visibleDividers: 0,
+		});
+	});
+
 	test(`connected borders retain high contrast ownership in ${theme}`, async ({ page }) => {
 		await openFixture(page, `editor/editorTabBar/editorTabBar/BorderOwnership/Connected/${theme}`, '.tabs-container > .tab.active');
 		const ownership = await page.locator('.editor-group-container').evaluate(group => {
@@ -209,14 +237,49 @@ for (const [theme, expected] of [
 				bottom: 'rgba(0, 0, 0, 0)',
 			},
 			inactive: {
-				top: 'rgba(0, 0, 0, 0)',
-				side: 'rgba(0, 0, 0, 0)',
+				top: expected.tabBorder,
+				side: expected.tabBorder,
 			},
 			frame: expected.accent,
-			visibleDividers: Array(5).fill(expected.accent),
+			visibleDividers: [],
 		});
 	});
 }
+
+test('wrapped upper connected tabs inset customized border accents', async ({ page }) => {
+	await openFixture(page, 'editor/editorTabBar/editorTabBar/BorderOwnership/ConnectedWrapped/Dark', '.tabs-container > .tab.active.connected-tab-upper-row');
+	const ownership = await page.locator('.tab.active.connected-tab-upper-row').evaluate(active => {
+		const fill = active.querySelector<HTMLElement>('.tab-fill');
+		const top = active.querySelector<HTMLElement>('.tab-border-top-container');
+		const bottom = active.querySelector<HTMLElement>('.tab-border-bottom-container');
+		if (!fill || !top || !bottom) {
+			throw new Error('Expected wrapped active tab border elements');
+		}
+		const bottomAccent = getComputedStyle(fill, '::after');
+		return {
+			topIndicator: getComputedStyle(top).display,
+			topColor: getComputedStyle(fill).borderTopColor,
+			bottomIndicator: getComputedStyle(bottom).display,
+			bottomAccent: {
+				color: bottomAccent.backgroundColor,
+				left: bottomAccent.left,
+				right: bottomAccent.right,
+				height: bottomAccent.height,
+			},
+		};
+	});
+	expect(ownership).toEqual({
+		topIndicator: 'none',
+		topColor: 'rgb(34, 211, 238)',
+		bottomIndicator: 'none',
+		bottomAccent: {
+			color: 'rgb(244, 63, 94)',
+			left: '4px',
+			right: '4px',
+			height: '1px',
+		},
+	});
+});
 
 for (const [fixture, expected] of [
 	['FirstActive', {

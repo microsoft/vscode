@@ -74,8 +74,8 @@
 	display: block;
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab > .tab-divider {
-	background-color: var(--modern-ui-connected-tab-border);
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.active):not(.last-in-row) + .tab:not(.active) > .tab-divider {
+	display: none;
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.multi-selected:not(:focus) > .tab-fill {
@@ -660,6 +660,21 @@
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.connected-tab-upper-row > .tab-fill::before,
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.connected-tab-upper-row > .tab-fill::after {
 	content: none;
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-upper-row.tab-border-bottom > .tab-border-bottom-container {
+	display: none;
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-upper-row.tab-border-bottom > .tab-fill::after {
+	content: '';
+	position: absolute;
+	right: var(--vscode-cornerRadius-small);
+	bottom: calc(-1 * var(--vscode-strokeThickness));
+	left: var(--vscode-cornerRadius-small);
+	height: var(--vscode-strokeThickness);
+	background-color: var(--tab-border-bottom-color);
+	pointer-events: none;
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.connected-tab-upper-row > .tab-connected-edge {

@@ -160,9 +160,11 @@ suite('MultiEditorTabsControl', () => {
 		mainWindow.document.body.appendChild(root);
 		disposables.add(toDisposable(() => root.remove()));
 		const editor = $('.part.editor.editor-tabs-multiple');
+		const gridView = $('.monaco-grid-view');
 		const content = $('.content');
 		const group = $('.editor-group-container.active');
-		root.appendChild(editor);
+		root.appendChild(gridView);
+		gridView.appendChild(editor);
 		editor.appendChild(content);
 		content.appendChild(group);
 		group.appendChild(container);
@@ -986,7 +988,7 @@ suite('MultiEditorTabsControl', () => {
 							...context,
 							insets: [0, 0, 0],
 							corners: [rowStart ? '0px' : radius, radius, active && !upper ? '0px' : '4px', rowStart || active && !upper ? '0px' : '4px'],
-							leftBorder: rowStart ? active ? 'rgb(0, 0, 0)' : 'rgba(0, 0, 0, 0)' : undefined,
+							leftBorder: rowStart ? 'rgba(0, 0, 0, 0)' : undefined,
 						});
 					}
 				}
