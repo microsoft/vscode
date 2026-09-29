@@ -1462,6 +1462,7 @@ suite('CustomizationMigrationService', () => {
 				new NullLogService() as ILogService,
 				{ onDidDisposeSession: Event.None } as Partial<IChatService> as IChatService,
 				activeClientService,
+				{} as IMcpService,
 			));
 			const migrationService = store.add(new CustomizationMigrationService(
 				store.add(new TestPromptsService([])),

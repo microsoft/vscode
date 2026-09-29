@@ -206,3 +206,9 @@
 
 #### workbench/activityBarMenu/CompactActivityBarMenu_DefaultDensity/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/2786fba1b7f0b41a26e238ea678ef381bd004d977f16abcb600239e142d1488e)
+
+#### workbench/statusBar/statusBar/CompactDensity/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/b8d16bfa494f5199f0f12641dbeb4cd46253302adee8420b6377a8f80c8418cc)
+
+#### workbench/statusBar/statusBar/DefaultDensity/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/0868da3910e76f140c77881af39dfc566aca0dd1222f075937c7be1f02d2adf2)

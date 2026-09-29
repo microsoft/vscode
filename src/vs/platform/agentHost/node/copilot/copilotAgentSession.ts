@@ -34,6 +34,7 @@ import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { getCopilotHomePath, getCopilotMcpConfigurationPath } from '../../../environment/common/copilotHome.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import type { AutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
@@ -98,7 +99,7 @@ import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { IAgentHostPromptCache } from '../agentHostPromptCache.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { getCopilotCustomizationCommandHandler } from './copilotCustomizationCommandDisplay.js';
@@ -1186,6 +1187,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _appliedPluginDirectories: readonly URI[];
 	private readonly _projectedMcpServerLaunchEnablement: ReadonlyMap<string, boolean>;
 	private _mcpLaunchConfigurationDirty = false;
+	private readonly _observedMcpEnablementOverrides = new Map<string, boolean>();
+	private readonly _expectedMcpEnablementChanges = new Map<string, boolean>();
 	/** Secondary filesystem roots successfully applied by the launch transaction. */
 	private readonly _appliedAdditionalDirectories: readonly URI[];
 	/**
@@ -3337,6 +3340,31 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
+	private _syncObservedMcpServerEnablement(serverName: string, previousEnabled: boolean | undefined, enabled: boolean): void {
+		if (previousEnabled === undefined || previousEnabled === enabled) {
+			return;
+		}
+		const desired = this._getDesiredMcpServerEnablementByName().get(serverName);
+		if (desired === undefined || desired === enabled) {
+			return;
+		}
+		const server = this._mcpCustomizations.customizationForServer(serverName);
+		if (!server) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Cannot record observed enablement for unknown MCP server ${serverName}`);
+			return;
+		}
+		this._observedMcpEnablementOverrides.set(serverName, enabled);
+		this._emitAction({
+			type: ActionType.SessionCustomizationToggled,
+			id: server.id,
+			enablement: withCustomizationEnablement(
+				server.enablement,
+				CustomizationEnablementKind.Global,
+				{ kind: CustomizationEnablementKind.Global, enabled },
+			),
+		});
+	}
+
 	async resume(turnId: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false): Promise<void> {
 		this._resetAbortToken();
 		const abortToken = this._abortToken;
@@ -4098,7 +4126,7 @@ export class CopilotAgentSession extends Disposable {
 					// connect live (`pending` -> `connected`/`failed`), so no
 					// optimistic state is written here.
 					changed = true;
-					await this._wrapper.session.rpc.mcp.enable({ serverName });
+					await this._enableMcpServer(serverName);
 				} else {
 					if (enabled === false) {
 						continue;
@@ -4158,6 +4186,13 @@ export class CopilotAgentSession extends Disposable {
 		for (const name of this._launchPlan.disabledRootMcpServers ?? []) {
 			result.set(name, false);
 		}
+		for (const [name, observed] of this._observedMcpEnablementOverrides) {
+			if (result.get(name) === observed) {
+				this._observedMcpEnablementOverrides.delete(name);
+			} else {
+				result.set(name, observed);
+			}
+		}
 		return result;
 	}
 
@@ -4175,11 +4210,31 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	private async _enableMcpServer(serverName: string): Promise<void> {
+		this._expectedMcpEnablementChanges.set(serverName, true);
+		try {
+			await this._wrapper.session.rpc.mcp.enable({ serverName });
+		} catch (error) {
+			if (this._expectedMcpEnablementChanges.get(serverName) === true) {
+				this._expectedMcpEnablementChanges.delete(serverName);
+			}
+			throw error;
+		}
+	}
+
 	private async _disableMcpServer(serverName: string): Promise<void> {
 		// disable() hangs until pending auth requests have resolved.
 		// reported to the SDK folks though arguable whether it's a bug or not...
 		this._cancelPendingMcpAuthRequestsForServer(serverName);
-		await this._wrapper.session.rpc.mcp.disable({ serverName });
+		this._expectedMcpEnablementChanges.set(serverName, false);
+		try {
+			await this._wrapper.session.rpc.mcp.disable({ serverName });
+		} catch (error) {
+			if (this._expectedMcpEnablementChanges.get(serverName) === false) {
+				this._expectedMcpEnablementChanges.delete(serverName);
+			}
+			throw error;
+		}
 	}
 
 	async stopMcpServer(id: string): Promise<void> {
@@ -6959,6 +7014,7 @@ export class CopilotAgentSession extends Disposable {
 				this._lastMcpAuthRequirements.set(e.data.serverName, { ...requirement, acceptsTokenCompletion: false });
 			}
 			this._logMcpServerLifecycle({ name: e.data.serverName, status: e.data.status, error: e.data.error, origin: 'statusChanged' });
+			const previousEnabled = this._mcpCustomizations.enabledForServer(e.data.serverName);
 			const server = this._toSdkMcpServer({
 				name: e.data.serverName,
 				status: e.data.status,
@@ -6969,6 +7025,12 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			this._mcpCustomizations.applyOne(server);
+			const enabled = server.enabled ?? true;
+			if (this._expectedMcpEnablementChanges.get(e.data.serverName) === enabled) {
+				this._expectedMcpEnablementChanges.delete(e.data.serverName);
+			} else {
+				this._syncObservedMcpServerEnablement(e.data.serverName, previousEnabled, enabled);
+			}
 		}));
 		this._register(wrapper.onMcpOAuthCompleted(e => {
 			this._handleMcpOAuthCompleted(e.data.requestId, e.data.outcome);
@@ -7190,7 +7252,7 @@ export class CopilotAgentSession extends Disposable {
 			name: server.name,
 			state: this._translateSdkMcpStatus(server.name, server.status, server.error, hasPendingAuthentication),
 			...(server.status === 'pending' && !hasPendingAuthentication ? { allowAuthRequiredToStarting: true } : {}),
-			enabled: server.status !== 'disabled',
+			enabled: server.status !== 'disabled' && server.status !== 'not_configured',
 			...source,
 			pluginName: server.sourcePlugin,
 			pluginVersion: server.sourcePluginVersion,

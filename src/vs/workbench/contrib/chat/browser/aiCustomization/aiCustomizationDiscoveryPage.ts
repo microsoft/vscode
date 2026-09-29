@@ -379,17 +379,19 @@ class DiscoveryResultRenderer implements IListRenderer<IInstalledDiscoveryItem |
 		const fallback = DOM.append(templateData.icon, $('.codicon'));
 		fallback.classList.add(...ThemeIcon.asClassNameArray(type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : type === 'skill' ? Codicon.lightbulb : Codicon.file));
 		fallback.setAttribute('aria-hidden', 'true');
-		templateData.icon.classList.add('is-fallback');
+		templateData.icon.classList.toggle('is-fallback', !resource?.icon);
 		if (resource?.icon) {
 			const image = DOM.append(templateData.icon, $('img')) as HTMLImageElement;
 			image.alt = '';
 			image.loading = 'lazy';
 			image.referrerPolicy = 'no-referrer';
 			templateData.elementDisposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => {
-				fallback.hidden = true;
 				templateData.icon.classList.remove('is-fallback');
 			}));
-			templateData.elementDisposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => image.remove()));
+			templateData.elementDisposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => {
+				templateData.icon.classList.add('is-fallback');
+				image.remove();
+			}));
 			image.src = resource.icon.toString(true);
 		}
 
@@ -1509,17 +1511,19 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const fallback = DOM.append(icon, $('.codicon'));
 		fallback.classList.add(...ThemeIcon.asClassNameArray(type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : Codicon.lightbulb));
 		fallback.setAttribute('aria-hidden', 'true');
-		icon.classList.add('is-fallback');
+		icon.classList.toggle('is-fallback', !item.icon);
 		if (item.icon) {
 			const image = DOM.append(icon, $('img')) as HTMLImageElement;
 			image.alt = '';
 			image.loading = 'lazy';
 			image.referrerPolicy = 'no-referrer';
 			this.browseDisposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => {
-				fallback.hidden = true;
 				icon.classList.remove('is-fallback');
 			}));
-			this.browseDisposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => image.remove()));
+			this.browseDisposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => {
+				icon.classList.add('is-fallback');
+				image.remove();
+			}));
 			image.src = item.icon.toString(true);
 		}
 		const body = DOM.append(primaryAction, $('.customization-discovery-card-body'));
