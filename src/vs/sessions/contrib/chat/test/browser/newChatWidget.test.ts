@@ -256,6 +256,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	_workspacePickerRow: HTMLElement | undefined;
 	_workspaceSessionOptionsHost: HTMLElement | undefined;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
+	readonly _hoverExpanded: ReturnType<typeof observableValue<boolean>>;
 	readonly _useExperimentalComposerLayout: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
@@ -417,6 +418,7 @@ suite('NewChatWidget', () => {
 			_workspacePickerRow: undefined,
 			_workspaceSessionOptionsHost: undefined,
 			_sessionOptionsExpanded: observableValue('sessionOptionsExpanded', false),
+			_hoverExpanded: observableValue('hoverExpanded', false),
 			_useExperimentalComposerLayout: observableValue('experimentalComposerLayout', false),
 			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
 			// Keep this test focused on the fully-hidden collapse; the icon rail has its own test.

@@ -1293,18 +1293,38 @@ export class NewChatWidget extends Disposable {
 		const COLLAPSE_AFTER_HOVER_MS = 2500;
 		const collapseAfterHover = store.add(new MutableDisposable());
 		let pointerInsideRow = false;
-		let focusInsideRow = false;
 		// Set when the user explicitly collapses while the pointer is still over the row, so that
 		// same hover does not immediately re-expand it. Cleared once the pointer leaves.
 		let hoverPreviewSuppressed = false;
+		// The preview must stay open while the pointer is over the row, focus is anywhere inside it,
+		// or a picker opened from it is still expanded — its dropdown overlay steals focus outside the
+		// row, but its in-row trigger stays marked aria-expanded. Computed live so it can never
+		// desync from the real focus/open state (the disclosure toggle carries its own aria-expanded,
+		// so it is excluded). Only when none of these hold may the tray collapse.
+		const isInteractingWithRow = () =>
+			pointerInsideRow
+			|| row.contains(dom.getActiveElement())
+			|| !!row.querySelector('[aria-expanded="true"]:not(.new-chat-session-options-toggle)');
 		const updateHoverExpanded = () => {
 			if (pointerInsideRow && !hoverPreviewSuppressed) {
 				this._hoverExpanded.set(true, undefined);
 			}
-			if ((pointerInsideRow || focusInsideRow) && this._hoverExpanded.get()) {
+			if (!this._hoverExpanded.get()) {
 				collapseAfterHover.clear();
-			} else if (this._hoverExpanded.get()) {
-				collapseAfterHover.value = disposableTimeout(() => this._hoverExpanded.set(false, undefined), COLLAPSE_AFTER_HOVER_MS);
+				return;
+			}
+			if (isInteractingWithRow()) {
+				collapseAfterHover.clear();
+			} else {
+				collapseAfterHover.value = disposableTimeout(() => {
+					// Re-check at fire time: focus may have moved into a picker (or a picker opened an
+					// overlay) after the timer was scheduled, so never collapse out from under the user.
+					if (isInteractingWithRow()) {
+						updateHoverExpanded();
+					} else {
+						this._hoverExpanded.set(false, undefined);
+					}
+				}, COLLAPSE_AFTER_HOVER_MS);
 			}
 		};
 		store.add(toggle.onDidClick(() => {
@@ -1325,8 +1345,8 @@ export class NewChatWidget extends Disposable {
 		}));
 		store.add(dom.addDisposableListener(row, dom.EventType.MOUSE_ENTER, () => { pointerInsideRow = true; updateHoverExpanded(); }));
 		store.add(dom.addDisposableListener(row, dom.EventType.MOUSE_LEAVE, () => { pointerInsideRow = false; hoverPreviewSuppressed = false; updateHoverExpanded(); }));
-		store.add(dom.addDisposableListener(row, dom.EventType.FOCUS_IN, () => { focusInsideRow = true; updateHoverExpanded(); }));
-		store.add(dom.addDisposableListener(row, dom.EventType.FOCUS_OUT, () => { focusInsideRow = false; updateHoverExpanded(); }));
+		store.add(dom.addDisposableListener(row, dom.EventType.FOCUS_IN, () => updateHoverExpanded()));
+		store.add(dom.addDisposableListener(row, dom.EventType.FOCUS_OUT, () => updateHoverExpanded()));
 		store.add(dom.addDisposableListener(row, dom.EventType.KEY_DOWN, event => {
 			if (!this._useExperimentalComposerLayout.get() || event.altKey || event.ctrlKey || event.metaKey || !['Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
 				return;
