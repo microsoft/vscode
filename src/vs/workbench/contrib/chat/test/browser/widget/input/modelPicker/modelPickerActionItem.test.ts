@@ -20,6 +20,7 @@ suite('ModelPickerActionItem', () => {
 	test('renders and opens the owned widget and disposes it with the action item', () => {
 		const widgetElement = $('button');
 		const anchors: (HTMLElement | undefined)[] = [];
+		const contextViewLayers: (number | undefined)[] = [];
 		let disposed = 0;
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stubInstance(ModelPickerWidget, {
@@ -30,6 +31,7 @@ suite('ModelPickerActionItem', () => {
 			minimumWidth: 60,
 			setSelectedModel: () => { },
 			setCompact: () => { },
+			setContextViewLayer: layer => contextViewLayers.push(layer),
 			render: container => container.appendChild(widgetElement),
 			show: anchor => anchors.push(anchor),
 			dispose: () => disposed++,
@@ -51,7 +53,7 @@ suite('ModelPickerActionItem', () => {
 		const item = disposables.add(new ModelPickerActionItem(
 			action,
 			delegate,
-			{ compact: constObservable(false) },
+			{ compact: constObservable(false), contextViewLayer: 1 },
 			instantiationService,
 			new MockContextKeyService(),
 			new MockKeybindingService(),
@@ -70,11 +72,13 @@ suite('ModelPickerActionItem', () => {
 			rendered,
 			defaultAnchor: anchors[0] === widgetElement,
 			explicitAnchor: anchors[1] === second,
+			contextViewLayers,
 			disposed,
 		}, {
 			rendered: { first: 0, second: true },
 			defaultAnchor: true,
 			explicitAnchor: true,
+			contextViewLayers: [1],
 			disposed: 1,
 		});
 	});

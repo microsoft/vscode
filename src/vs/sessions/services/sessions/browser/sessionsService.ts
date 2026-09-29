@@ -1007,6 +1007,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 			options = { ...options, chatResource: resolved.chatUri };
 		}
 		const visible = this.visibleSessions.get();
+		if (options?.forceMainChat && !options.chatResource && visible.some(candidate => candidate?.sessionId === session.sessionId)) {
+			await this.openChatToSide(session, session.mainChat.get().resource, { preserveFocus: options.preserveFocus });
+			return;
+		}
 		const reference = visible.find(candidate => candidate?.sessionId === options?.referenceSessionId) ?? visible[visible.length - 1];
 		if (reference && reference.sessionId !== session.sessionId) {
 			this.insertAt(session, reference.sessionId, 'right');

@@ -114,6 +114,7 @@ export enum ChatConfiguration {
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
 	CopilotHarnessIntroductionMode = 'chat.copilotHarnessIntroduction.mode',
+	HarnessSwitchFeedbackSurveyEnabled = 'chat.harnessSwitchFeedbackSurvey.enabled',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	ChatCustomizationsToggleStyle = 'chat.experimental.customizations.toggleStyle',
@@ -269,11 +270,9 @@ export enum ThinkingDisplayMode {
 
 export enum ChatProgressAnimation {
 	Off = 'off',
-	Weave = 'weave',
 	Draw = 'draw',
-	Orbit = 'orbit',
-	Accordion = 'accordion',
-	Dial = 'dial',
+	DrawMonochrome = 'drawMonochrome',
+	DrawMonochromeNoIcon = 'drawMonochromeNoIcon',
 }
 
 export enum ChatProgressVerbosity {
