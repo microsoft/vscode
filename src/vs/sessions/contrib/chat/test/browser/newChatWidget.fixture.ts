@@ -13,7 +13,6 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
-import { equals } from '../../../../../base/common/objects.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -677,31 +676,54 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		assert(!harnessLabel || targetWindow.getComputedStyle(harnessLabel).marginLeft === '0px',
 			'The harness must use the picker gap without an additional label margin.');
 		if (expandSessionOptions && withControlPickers && width < 400 && !phoneLayout) {
-			assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => !label.checkVisibility()),
-				'Narrow trays must show repository and harness icons without labels.');
-			const states: boolean[][] = [];
-			for (const resizedWidth of [800, 450, 410, 375, 410, 450, 800]) {
-				container.style.width = `${resizedWidth}px`;
-				view.layout(resizedWidth, height, 0, 0);
+			// Verify the compaction behaviour by its width-independent invariants instead of
+			// hardcoded pixel breakpoints, which drift between platforms (macOS vs CI Ubuntu)
+			// as font metrics shift the exact widths at which labels collapse to icons.
+			const relayout = async (w: number) => {
+				container.style.width = `${w}px`;
+				view.layout(w, height, 0, 0);
 				await nextFrame();
 				await nextFrame();
-				states.push([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].map(label => label.checkVisibility()));
+				return [...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].map(label => label.checkVisibility());
+			};
+			// Visible labels must always form a left-aligned prefix: once a label collapses,
+			// every label to its right is collapsed too (compaction runs right to left).
+			const compactsRightToLeft = (states: boolean[]) => states.every((visible, index) => visible || index + 1 >= states.length || !states[index + 1]);
+			const visibleCount = (states: boolean[]) => states.filter(Boolean).length;
+
+			const wide = await relayout(800);
+			assert(wide.length > 0 && wide.every(visible => visible),
+				'A wide tray must show every repository and harness label.');
+
+			// Narrow through a few representative widths: labels only ever collapse (never
+			// reappear) and always keep a left-aligned prefix, until the tray fully compacts.
+			let previousVisible = visibleCount(wide);
+			let fullyCompacted = false;
+			for (const w of [520, 420, 360, 300, 220]) {
+				const states = await relayout(w);
+				assert(compactsRightToLeft(states), 'Pickers must compact one at a time from right to left.');
+				const currentVisible = visibleCount(states);
+				assert(currentVisible <= previousVisible, 'Narrowing the tray must not reveal a previously hidden label.');
+				previousVisible = currentVisible;
+				fullyCompacted ||= currentVisible === 0;
 			}
-			assert(equals(states, [
-				[true, true, true],
-				[true, true, false],
-				[true, false, false],
-				[false, false, false],
-				[true, false, false],
-				[true, true, false],
-				[true, true, true],
-			]), 'Pickers must compact one at a time from right to left and restore as the chat widens.');
+			assert(fullyCompacted, 'Narrow trays must be able to show repository and harness icons without labels.');
+
+			// Widen back through the same widths: labels only ever reappear (never collapse)
+			// and restore left to right until every label is visible again.
+			for (const w of [300, 360, 420, 520, 800]) {
+				const states = await relayout(w);
+				assert(compactsRightToLeft(states), 'Pickers must restore one at a time from left to right.');
+				const currentVisible = visibleCount(states);
+				assert(currentVisible >= previousVisible, 'Widening the tray must not hide a previously visible label.');
+				previousVisible = currentVisible;
+			}
+			assert(previousVisible === wide.length, 'A wide tray must restore every label as the chat widens.');
+
 			container.style.width = `${width}px`;
 			view.layout(width, height, 0, 0);
 			await nextFrame();
 			await nextFrame();
-			assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => !label.checkVisibility()),
-				'Picker labels must compact again when the tray narrows.');
 		}
 	}
 	if (withConfiguredModel && withControlPickers && width >= 800) {
