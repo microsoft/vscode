@@ -266,6 +266,14 @@
 	margin-left: auto;
 }
 
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-toolbar .agent-host-mode-permissions-trigger .agent-host-permissions-button {
+	margin-left: 0;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-toolbar .agent-host-mode-permissions-trigger .agent-host-permissions-button::before {
+	display: none;
+}
+
 .sessions-chat-config-toolbar .monaco-toolbar {
 	height: auto;
 	min-width: 0;
