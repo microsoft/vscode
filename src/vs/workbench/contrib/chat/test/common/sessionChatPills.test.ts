@@ -28,6 +28,7 @@ suite('SessionChatPills', () => {
 				{ kind: SessionChatPillKind.Artifacts, label: 'Artifacts', checked: true },
 				{ kind: SessionChatPillKind.References, label: 'References', checked: true },
 				{ kind: SessionChatPillKind.Customizations, label: 'Customizations', checked: true },
+				{ kind: SessionChatPillKind.McpServers, label: 'MCP Servers', checked: true },
 				{ kind: SessionChatPillKind.Browsers, label: 'Browsers', checked: true },
 			],
 		});
@@ -71,12 +72,14 @@ suite('SessionChatPills', () => {
 
 		assert.deepStrictEqual({
 			customizations: visibility.isVisible(SessionChatPillKind.Customizations, undefined),
+			mcpServers: visibility.isVisible(SessionChatPillKind.McpServers, undefined),
 			subagents: visibility.isVisible(SessionChatPillKind.Subagents, undefined),
 			artifacts: visibility.isVisible(SessionChatPillKind.Artifacts, undefined),
 			references: visibility.isVisible(SessionChatPillKind.References, undefined),
 			changes: visibility.isVisible(SessionChatPillKind.Changes, undefined),
 		}, {
 			customizations: false,
+			mcpServers: true,
 			subagents: false,
 			artifacts: true,
 			references: true,

@@ -100,6 +100,15 @@ export const sessionCustomizationsPillOptions: IChatDropdownPillOptions = {
 	singleEntry: ChatPillSingleEntry.Summary,
 };
 
+/** Only MCP servers requiring authentication contribute entries to this pill. */
+export const sessionMcpServersPillOptions: IChatDropdownPillOptions = {
+	widgetId: 'sessionMcpServers',
+	icon: Codicon.mcp,
+	title: localize('sessionMcpServers.title', "MCP Servers Requiring Sign-In"),
+	summaryLabel: count => localize('sessionMcpServers.count', "{0} MCP Servers Need Sign-In", count),
+	summaryAriaLabel: count => localize('sessionMcpServers.show', "Show {0} MCP servers requiring sign-in", count),
+};
+
 /** Shared presentation of the subagents pill. */
 export const sessionSubagentsPillOptions: IChatDropdownPillOptions = {
 	widgetId: 'sessionSubagents',

@@ -29,6 +29,7 @@ import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type 
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { SessionCustomizations } from './sessionCustomizations.js';
+import { SessionMcpServers } from './sessionMcpServers.js';
 import { localize } from '../../../../nls.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, getChatPillResourceLocation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
 import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
@@ -397,6 +398,7 @@ export class SessionChatInputToolbar extends Disposable {
 		this._referenceSections = sessionArtifacts.referenceSections;
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
 		this._customizationSections = sessionCustomizations.sections;
+		const sessionMcpServers = this._register(instantiationService.createInstance(SessionMcpServers, this._session));
 
 		const pillsVisible = derived(this, reader => this._debugData.read(reader) !== undefined || !this._isSubagentChat.read(reader));
 		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, pillsEnabled, constObservable(true)));
@@ -521,6 +523,7 @@ export class SessionChatInputToolbar extends Disposable {
 				},
 			},
 			customizations: { sections: this._customizationSections },
+			mcpServers: sessionMcpServers,
 			browsers: { sections: this._browsers.sections },
 			subagents: this._backgroundActivities,
 		}, SESSION_CHAT_PILL_KINDS));

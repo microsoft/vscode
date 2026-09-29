@@ -22,7 +22,7 @@ import { ChatPillsRow, ChatPillsWidget, getChatPillEntries, type ChatPillsCompac
 import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../browser/chatDropdownPill.js';
 import { getSessionChatPillLabel, getSessionChatPillMenu, ISessionChatPillVisibilityService, type ISessionChatPillMenuEntry, SessionChatPillKind } from '../common/sessionChatPills.js';
 import { chatArtifactPillOptions } from './widget/chatTurnPills.js';
-import { sessionBrowsersPillOptions, sessionCustomizationsPillOptions, sessionIssuesPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions } from './sessionChatPillOptions.js';
+import { sessionBrowsersPillOptions, sessionCustomizationsPillOptions, sessionIssuesPillOptions, sessionMcpServersPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions } from './sessionChatPillOptions.js';
 
 export interface IChatInputPillSource {
 	readonly kind?: SessionChatPillKind;
@@ -69,6 +69,7 @@ export interface IStandardChatInputPillsData {
 	readonly artifacts?: IStandardChatInputPillSections;
 	readonly references?: IStandardChatInputPillSections;
 	readonly customizations?: IStandardChatInputPillSections;
+	readonly mcpServers?: IStandardChatInputPillSections;
 	readonly browsers?: IStandardChatInputPillSections;
 	readonly subagents?: IStandardChatInputPillSections;
 }
@@ -150,6 +151,7 @@ export class StandardChatInputPillSources extends Disposable {
 		addSections(SessionChatPillKind.Artifacts, data.artifacts, chatArtifactPillOptions);
 		addSections(SessionChatPillKind.References, data.references, sessionReferencesPillOptions);
 		addSections(SessionChatPillKind.Customizations, data.customizations, sessionCustomizationsPillOptions);
+		addSections(SessionChatPillKind.McpServers, data.mcpServers, sessionMcpServersPillOptions);
 		addSections(SessionChatPillKind.Browsers, data.browsers, sessionBrowsersPillOptions);
 		addSections(SessionChatPillKind.Subagents, data.subagents, sessionSubagentsPillOptions);
 		this.sources = sources;
