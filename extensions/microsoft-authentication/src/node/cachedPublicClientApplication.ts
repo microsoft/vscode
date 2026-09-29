@@ -63,8 +63,26 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				broker = { nativeBrokerPlugin };
 			}
 		}
+		// MSAL validates the Authority Host via Instance Discovery against the public
+		// Microsoft Entra endpoint (login.microsoftonline.com) which confirms that this
+		// iw well known - but this won't succeed for custom authorities.
+		// Therefore, when Instance Discovery is disabled via settings, we trust the
+		// configured Authority Host for this Custom Environment instead - mirroring the
+		// approach used by other Azure tooling which allows disabling Instance Discovery.
+		let knownAuthorities: string[] | undefined;
+		if (workspace.getConfiguration('microsoft-authentication').get<boolean>('instanceDiscovery') === false) {
+			const customEnv = workspace.getConfiguration('microsoft-sovereign-cloud').get<{ activeDirectoryEndpointUrl?: string }>('customEnvironment');
+			if (customEnv?.activeDirectoryEndpointUrl) {
+				try {
+					knownAuthorities = [new URL(customEnv.activeDirectoryEndpointUrl).host];
+					this._logger.info(`[${this._clientId}] Instance Discovery disabled via settings; trusting authority host: ${knownAuthorities[0]}`);
+				} catch {
+					this._logger.warn(`[${this._clientId}] Instance Discovery disabled but the custom environment's activeDirectoryEndpointUrl is not a valid URL; falling back to Instance Discovery`);
+				}
+			}
+		}
 		this._pca = new PublicClientApplication({
-			auth: { clientId: _clientId },
+			auth: { clientId: _clientId, knownAuthorities },
 			system: {
 				loggerOptions: {
 					correlationId: _clientId,
