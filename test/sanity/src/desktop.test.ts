@@ -282,9 +282,12 @@ export function setup(context: TestContext) {
 		args.push(test.workspaceDir);
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
+		const startTime = Date.now();
 		const app = await _electron.launch({ executablePath: entryPoint, args });
+		context.log(`Electron launch completed after ${Date.now() - startTime}ms`);
 		try {
-			const window = await context.getPage(app.firstWindow());
+			const window = await context.getPage(app.firstWindow({ timeout: 180_000 }));
+			context.log(`First window ready after ${Date.now() - startTime}ms from launch`);
 			await test.run(window);
 		} finally {
 			await context.closeElectronApp(app);
