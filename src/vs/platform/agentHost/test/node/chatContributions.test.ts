@@ -64,7 +64,6 @@ import { SessionTitleContribution } from '../../node/chatContributions/sessionTi
 import { SideChatContribution } from '../../node/chatContributions/sideChat/sideChatContribution.js';
 import { TurnDelegationContribution } from '../../node/chatContributions/turnDelegation/turnDelegationContribution.js';
 import { injectSideChatContext } from '../../node/chatContributions/sideChat/sideChatContext.js';
-import { ARTIFACT_TOOLS_INSTRUCTION } from '../../node/shared/artifactServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
@@ -1752,9 +1751,6 @@ suite('AgentHostChatContributions', () => {
 			if (instruction.includes('<rich_plan_markdown>')) {
 				return 'markdownPlanRichLinks';
 			}
-			if (instruction === ARTIFACT_TOOLS_INSTRUCTION) {
-				return 'artifactTools';
-			}
 			if (instruction.includes('<terminal_chat>')) {
 				return 'chatSurface';
 			}
@@ -1765,7 +1761,7 @@ suite('AgentHostChatContributions', () => {
 				return 'sessionTitle';
 			}
 			return undefined;
-		}), ['markdownPlanRichLinks', 'artifactTools', 'chatSurface', 'remoteSessionOrigin', 'sessionTitle']);
+		}), ['markdownPlanRichLinks', 'chatSurface', 'remoteSessionOrigin', 'sessionTitle']);
 		assert.deepStrictEqual(result.message, { text: injectSideChatContext('built-in-send-order'), origin: { kind: MessageKind.User } });
 	});
 
@@ -1876,65 +1872,6 @@ suite('AgentHostChatContributions', () => {
 			message: { text: 'Continue', origin: { kind: MessageKind.User } },
 		});
 		assert.deepStrictEqual(observed, ['adopted', 'following']);
-	});
-
-	test('adds artifact guidance only to the first turn of a chat', async () => {
-		const contributions = createBuiltInContributions(disposables, undefined, true);
-		const defaultChat = buildDefaultChatUri(contributions.session);
-		const peerChat = buildChatUri(contributions.session, 'peer-artifacts');
-		const restoredChat = buildChatUri(contributions.session, 'restored-artifacts');
-		const emptyRestoredChat = buildChatUri(contributions.session, 'empty-restored-artifacts');
-		for (const [chat, title] of [[peerChat, 'Peer'], [restoredChat, 'Restored'], [emptyRestoredChat, 'Empty']] as const) {
-			contributions.stateManager.addChat(contributions.session, chat, {
-				title,
-				origin: { kind: ChatOriginKind.User },
-			});
-		}
-		await contributions.service.hydrateTurns({ session: contributions.session, chat: restoredChat }, [hydrationTurn('restored-turn')]);
-		await contributions.service.hydrateTurns({ session: contributions.session, chat: emptyRestoredChat }, []);
-		const getArtifactInstructions = async (chat: string, turnId: string) => {
-			const result = await contributions.service.outgoingTurn({
-				session: contributions.session,
-				chat,
-				message: { text: turnId, origin: { kind: MessageKind.User } },
-				turnId,
-			});
-			return result.instructions?.filter(instruction => instruction === ARTIFACT_TOOLS_INSTRUCTION) ?? [];
-		};
-		const expected = [ARTIFACT_TOOLS_INSTRUCTION];
-
-		assert.deepStrictEqual({
-			firstDefault: await getArtifactInstructions(defaultChat, 'default-1'),
-			secondDefault: await getArtifactInstructions(defaultChat, 'default-2'),
-			firstPeer: await getArtifactInstructions(peerChat, 'peer-1'),
-			secondPeer: await getArtifactInstructions(peerChat, 'peer-2'),
-			restored: await getArtifactInstructions(restoredChat, 'restored-2'),
-			firstEmptyRestored: await getArtifactInstructions(emptyRestoredChat, 'empty-1'),
-			secondEmptyRestored: await getArtifactInstructions(emptyRestoredChat, 'empty-2'),
-		}, {
-			firstDefault: expected,
-			secondDefault: [],
-			firstPeer: expected,
-			secondPeer: [],
-			restored: [],
-			firstEmptyRestored: expected,
-			secondEmptyRestored: [],
-		});
-	});
-
-	test('does not mention unavailable artifact tools', async () => {
-		const contributions = createBuiltInContributions(disposables);
-		const instructions = [];
-		for (const turnId of ['first', 'second']) {
-			const result = await contributions.service.outgoingTurn({
-				session: contributions.session,
-				chat: buildDefaultChatUri(contributions.session),
-				message: { text: turnId, origin: { kind: MessageKind.User } },
-				turnId,
-			});
-			instructions.push(result.instructions);
-		}
-		assert.deepStrictEqual(instructions, [undefined, undefined]);
 	});
 
 	test('title refinement receives terminal outcomes and preserves default-chat identity', () => {

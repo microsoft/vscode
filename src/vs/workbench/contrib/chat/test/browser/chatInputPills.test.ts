@@ -6,10 +6,12 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Action, SubmenuAction, toAction, type IAction } from '../../../../../base/common/actions.js';
+import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { computePullRequestIcon, type ChatPullRequestState } from '../../../../common/chatPullRequest.js';
 import type { IChatPillSection } from '../../../../browser/chatPills.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -105,6 +107,53 @@ suite('StandardChatInputPillSources', () => {
 			full: SESSION_CHAT_PILL_KINDS,
 			editor: editorKinds,
 		});
+	});
+
+	test('all chat-input collection dropdowns prefer above without forcing placement', () => {
+		const { instantiationService, visibility } = createServices();
+		for (const kind of SESSION_CHAT_PILL_KINDS) {
+			if (!visibility.isVisible(kind, undefined)) {
+				visibility.toggle(kind);
+			}
+		}
+		const placements: { preferred: AnchorPosition | undefined; fixed: AnchorPosition | undefined }[] = [];
+		instantiationService.stub(IActionWidgetService, {
+			isVisible: false,
+			show: (_user, _preview, _items, _delegate, _anchor, _container, _actions, _accessibility, options) => {
+				placements.push({ preferred: options?.preferredAnchorPosition, fixed: options?.anchorPosition });
+			},
+			hide: () => { },
+		});
+		const sections = constObservable<readonly IChatPillSection[]>([{
+			title: 'Entries',
+			entries: ['first', 'second'].map(id => ({ id, label: id, open: () => { } })),
+		}]);
+		const sources = store.add(instantiationService.createInstance(StandardChatInputPillSources, {
+			pullRequests: { sections },
+			issues: { sections },
+			artifacts: { sections },
+			references: { sections },
+			customizations: { sections },
+			browsers: { sections },
+			subagents: { sections },
+		}, SESSION_CHAT_PILL_KINDS));
+		const inputPills = store.add(instantiationService.createInstance(ChatInputPills, undefined, {
+			debugName: 'ChatInputPills.placement.test',
+			compact: false,
+			enabled: constObservable(true),
+			sources: constObservable(sources.sources),
+			offeredKinds: SESSION_CHAT_PILL_KINDS,
+		}));
+		document.body.appendChild(inputPills.element);
+		store.add(toDisposable(() => inputPills.element.remove()));
+		for (const pill of inputPills.getPillElements()) {
+			pill.click();
+		}
+
+		assert.deepStrictEqual(placements, Array.from({ length: 7 }, () => ({
+			preferred: AnchorPosition.ABOVE,
+			fixed: undefined,
+		})));
 	});
 
 	test('offers checked pull request options in a separate group below Hide for mouse and keyboard', async () => {

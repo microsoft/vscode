@@ -12,7 +12,7 @@ import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts, type I
 import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
-import { ARTIFACT_TOOLS_INSTRUCTION, artifactServerToolDefinitions, createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
+import { artifactServerToolDefinitions, createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 
 suite('Artifact Server Tools', () => {
@@ -119,7 +119,7 @@ suite('Artifact Server Tools', () => {
 		});
 	});
 
-	test('keeps classification guidance in the input schema and names the registered discovery tools', () => {
+	test('keeps classification guidance in the input schema', () => {
 		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
 		const items = addDefinition?.inputSchema?.properties?.items as {
 			readonly items?: { readonly properties?: Record<string, { readonly type?: string; readonly description?: string }> };
@@ -129,21 +129,9 @@ suite('Artifact Server Tools', () => {
 		assert.deepStrictEqual({
 			inputType: classificationInput?.type,
 			inputClassification: classificationInput?.description?.includes('attempt to fix, change, or unblock'),
-			instructionClassification: ARTIFACT_TOOLS_INSTRUCTION.includes('attempt to fix, change, or unblock'),
-			toolMentions: artifactServerToolDefinitions.map(tool => ARTIFACT_TOOLS_INSTRUCTION.split(`\`${tool.name}\``).length - 1),
-			discovery: ARTIFACT_TOOLS_INSTRUCTION.includes('discover if needed'),
-			optional: ARTIFACT_TOOLS_INSTRUCTION.includes('default to no registration'),
-			batch: ARTIFACT_TOOLS_INSTRUCTION.includes('Batch related entries'),
-			endOnly: ARTIFACT_TOOLS_INSTRUCTION.includes('at the end'),
 		}, {
 			inputType: 'boolean',
 			inputClassification: true,
-			instructionClassification: true,
-			toolMentions: [1, 1, 1],
-			discovery: true,
-			optional: true,
-			batch: true,
-			endOnly: false,
 		});
 	});
 

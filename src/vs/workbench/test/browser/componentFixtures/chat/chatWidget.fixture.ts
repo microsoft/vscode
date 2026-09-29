@@ -115,6 +115,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly listHeight?: number;
+	/** Omit the auxiliary-bar ancestry when the caller supplies the owning workbench part. */
+	readonly useAuxiliaryBarWrapper?: boolean;
 	/** Total horizontal padding reserved when laying out response content and embedded editors. */
 	readonly contentHorizontalPadding?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
@@ -634,14 +636,18 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	// Mirror the product DOM ancestry: the chat widget lives inside
 	// `.part.auxiliarybar > .content`, where auxiliaryBarPart.css recolors
 	// inline editors with `--vscode-sideBar-background` (used by the carousel).
-	const auxBar = dom.$('.part.auxiliarybar');
-	auxBar.style.width = '100%';
-	auxBar.style.height = '100%';
-	const auxContent = dom.$('.content');
-	auxContent.style.width = '100%';
-	auxContent.style.height = '100%';
-	auxBar.appendChild(auxContent);
-	container.appendChild(auxBar);
+	let chatContainer = container;
+	if (options.useAuxiliaryBarWrapper !== false) {
+		const auxBar = dom.$('.part.auxiliarybar');
+		auxBar.style.width = '100%';
+		auxBar.style.height = '100%';
+		const auxContent = dom.$('.content');
+		auxContent.style.width = '100%';
+		auxContent.style.height = '100%';
+		auxBar.appendChild(auxContent);
+		container.appendChild(auxBar);
+		chatContainer = auxContent;
+	}
 
 	const session = dom.$('.interactive-session');
 	session.style.setProperty('--vscode-chat-list-background', listBackground);
@@ -650,7 +656,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		session.classList.add(chatFloatingPersistentContentClass);
 		session.style.setProperty(chatPersistentContentHeightVariable, `${options.persistentContentHeight}px`);
 	}
-	auxContent.appendChild(session);
+	chatContainer.appendChild(session);
 
 	// Build the input part FIRST so the widget (with its inputPart) is registered
 	// in IChatWidgetService before the list widget renders. The renderer queries
@@ -1538,7 +1544,7 @@ function defineThinkingStyleScenarios(thinkingStyle: ThinkingDisplayMode, defaul
 		PlanReview: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { expectedText: 'Plan review required' }),
 		PlanApproved: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { submitInteraction: 'planReview' }),
 		WorktreeCreation: scenario(PERSISTENT_PROGRESS_WORKTREE),
-		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: 'Waiting for 5 subagents' }, false),
+		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: '5 subagents running' }, false),
 		CompletedSubagentNotices: scenario(parallelSubagentMessages(true), {}, false),
 		// The legacy fixed-scrolling thinking container reports a ResizeObserver loop when
 		// subagent pills expand inside it (independent of this setting), which the headless
@@ -1948,20 +1954,19 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Draw
 		PlanApproved: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { submitInteraction: 'planReview' }),
 		WorktreeCreation: scenario(PERSISTENT_PROGRESS_WORKTREE),
 		McpStarting: scenario(PERSISTENT_PROGRESS_MCP_STARTING),
-		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: 'Waiting for 5 subagents' }),
-		// A single background agent is counted while the parent has nothing of its own in flight.
+		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: '5 subagents running' }),
 		BackgroundAgent: scenario(tools([
 			{ kind: 'thinking', text: '**Delegating the investigation**\nHand the faint chronology to a research agent while the plan is drafted.' },
 			{ kind: 'markdown', text: 'I started a research agent to trace every faint.' },
 			{ kind: 'subagent', id: 'faint-census', description: 'Track faint investigation' },
-		]), { expectedText: 'Waiting for 1 subagent' }),
+		]), { expectedText: '1 subagent running' }),
 		// Reading a background agent blocks the parent until the agent reports back.
 		ReadBackgroundAgent: scenario(tools([
 			{ kind: 'subagent', id: 'faint-census', description: 'Track faint investigation' },
 			{ kind: 'thinking', text: '**Reviewing the plan**\nCheck the drafted plan against the notes before reading the agent result.' },
 			{ kind: 'markdown', text: 'The plan is ready. I will wait for the research agent before deciding on the battle strategy.' },
 			tool('read_agent', 'Read agent `faint-census`'),
-		]), { expectedText: 'Waiting for 1 subagent' }),
+		]), { expectedText: '1 subagent running' }),
 		// Reading a background terminal blocks the parent on its output.
 		ReadBackgroundTerminal: scenario(tools([
 			...before,

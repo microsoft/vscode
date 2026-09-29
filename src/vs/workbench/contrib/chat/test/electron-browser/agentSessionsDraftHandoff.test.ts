@@ -56,6 +56,8 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const titleTreatment = 'chatAgentsParallelWorkBannerTitle';
 	const descriptionTreatment = 'chatAgentsParallelWorkBannerDescription';
+	const introductionCopyTreatment = 'chatCopilotHarnessIntroductionCopy';
+	const introductionButtonsTreatment = 'chatCopilotHarnessIntroductionButtons';
 	const defaultTitle = 'Run agents side by side';
 	const defaultDescription = 'Run multiple tasks in the Agents Window, in one workspace or across projects.';
 	const agentHostSessionTypes = [
@@ -251,6 +253,11 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			refetchTreatments: async () => { assignmentsRefetched.fire(); await timeout(0); },
 			setTreatments: async (title?: string, description?: string) => {
 				readTreatment = async name => name === titleTreatment ? title : name === descriptionTreatment ? description : undefined;
+				assignmentsRefetched.fire();
+				await timeout(0);
+			},
+			setIntroductionTreatments: async (copy?: string, buttons?: string) => {
+				readTreatment = async name => name === introductionCopyTreatment ? copy : name === introductionButtonsTreatment ? buttons : undefined;
 				assignmentsRefetched.fire();
 				await timeout(0);
 			},
@@ -660,6 +667,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 	test('switches reactively between introduction experiment modes', async () => {
 		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.Off, running: false });
 		h.showBanner();
+		await timeout(0);
 		const off = h.notification;
 		await h.configuration.updateValue(ChatConfiguration.CopilotHarnessIntroductionMode, CopilotHarnessIntroductionMode.NewSession);
 		const newSession = {
@@ -710,9 +718,10 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		]);
 	});
 
-	test('logs actual introduction exposure and session materialization once with correlation context', () => {
+	test('logs actual introduction exposure and session materialization once with correlation context', async () => {
 		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.AfterRequest, running: false });
 		h.showBanner();
+		await timeout(0);
 		h.sendMessage();
 		h.showCurrentNotification();
 		h.showCurrentNotification();
@@ -740,9 +749,10 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		}]);
 	});
 
-	test('keeps a new-session introduction visible after a request is sent', () => {
+	test('keeps a new-session introduction visible after a request is sent', async () => {
 		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
 		h.showBanner();
+		await timeout(0);
 		const beforeRequest = h.notificationVisible();
 		const autoDismissOnMessage = h.notification?.autoDismissOnMessage;
 		h.sendMessage();
@@ -760,9 +770,10 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
-	test('reveals an after-request introduction when the first request is sent', () => {
+	test('reveals an after-request introduction when the first request is sent', async () => {
 		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.AfterRequest, running: false });
 		h.showBanner();
+		await timeout(0);
 		const beforeRequest = h.notificationVisible();
 		h.sendMessage();
 
@@ -780,6 +791,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 	test('shows only the introduction when its mode and parallel work are both enabled', async () => {
 		const h = createHarness({ introductionMode: CopilotHarnessIntroductionMode.NewSession });
 		h.showBanner();
+		await timeout(0);
 		const introduction = {
 			count: h.notificationCount,
 			title: h.notification?.message,
@@ -798,7 +810,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			introduction: {
 				count: 1,
 				title: 'You\'re using a new Copilot experience',
-				actions: ['Learn More', '$(thumbsup) Got it!', '$(thumbsdown)'],
+				actions: ['Learn More', '$(thumbsup) Got it!'],
 			},
 			parallel: {
 				count: 1,
@@ -829,7 +841,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				ariaLabel: action.ariaLabel,
 				iconOnly: action.iconOnly,
 				leading: action.leading,
-				outlined: action.outlined,
+				filled: action.filled,
 				tooltip: action.tooltip,
 				primary: action.primary,
 				keepOpen: action.keepOpen,
@@ -841,26 +853,26 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			telemetryId: 'copilotHarnessIntroduction.newSession',
 			title: 'You\'re using a new Copilot experience',
 			description: {
-				value: 'This new implementation unlocks exciting new capabilities, while previous agent harnesses remain available. If anything seems off, [let us know](https://github.com/microsoft/vscode/issues).',
+				value: 'This agent harness opens up new ways to work across windows and apps. Continue as usual, and [let us know](https://github.com/microsoft/vscode/issues) how it goes.',
 				isTrusted: false,
 			},
-			dismissible: false,
-			hasOnDismiss: false,
+			dismissible: true,
+			hasOnDismiss: true,
 			autoDismissOnMessage: false,
 			actions: [
-				{ label: 'Learn More', ariaLabel: undefined, iconOnly: undefined, leading: true, outlined: true, tooltip: undefined, primary: false, keepOpen: true, actionId: 'docsLink' },
-				{ label: '$(thumbsup) Got it!', ariaLabel: 'Got it!', iconOnly: undefined, leading: undefined, outlined: undefined, tooltip: undefined, primary: true, keepOpen: true, actionId: 'thumbsUp' },
-				{ label: '$(thumbsdown)', ariaLabel: 'Not Helpful', iconOnly: true, leading: undefined, outlined: undefined, tooltip: 'Not Helpful', primary: false, keepOpen: true, actionId: 'thumbsDown' },
+				{ label: 'Learn More', ariaLabel: undefined, iconOnly: undefined, leading: undefined, filled: true, tooltip: undefined, primary: false, keepOpen: true, actionId: 'docsLink' },
+				{ label: '$(thumbsup) Got it!', ariaLabel: 'Got it!', iconOnly: undefined, leading: undefined, filled: undefined, tooltip: undefined, primary: true, keepOpen: true, actionId: 'thumbsUp' },
 			],
 			posts: 1,
 		});
 	});
 
-	test('recognizes remote Copilot harness drafts for education in an empty workspace', () => {
+	test('recognizes remote Copilot harness drafts for education in an empty workspace', async () => {
 		const h = createHarness({ introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
 		h.workbenchState = WorkbenchState.EMPTY;
 		h.resource = URI.from({ scheme: 'remote-test-copilotcli', path: '/untitled-draft' });
 		h.showBanner();
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			title: h.notification?.message,
@@ -871,10 +883,11 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
-	test('updates local Copilot education when the workbench state changes', () => {
+	test('updates local Copilot education when the workbench state changes', async () => {
 		const h = createHarness({ introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
 		h.workbenchState = WorkbenchState.EMPTY;
 		h.showBanner();
+		await timeout(0);
 		const emptyWorkspace = h.notification;
 		h.workbenchState = WorkbenchState.FOLDER;
 		const folderTitle = h.notification?.message;
@@ -894,6 +907,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 	test('Learn More opens documentation without dismissing the banner or changing the parallel-work experiment', async () => {
 		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
 		h.showBanner();
+		await timeout(0);
 		await h.click(0);
 		const afterOpen = { id: h.notification?.id, title: h.notification?.message };
 		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
@@ -914,11 +928,13 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 	test('Got it! suppresses future education without disabling parallel work', async () => {
 		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
 		const contribution = h.showBanner();
+		await timeout(0);
 		await h.click(1);
 		const afterFeedback = h.notification;
 		contribution.dispose();
 		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
 		h.showBanner();
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			afterFeedback,
@@ -933,22 +949,24 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		});
 	});
 
-	test('Thumbs Down suppresses future education without disabling parallel work', async () => {
+	test('X suppresses future education without disabling parallel work', async () => {
 		const h = createHarness({ introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
 		const contribution = h.showBanner();
+		await timeout(0);
 		const educationTitle = h.notification?.message;
-		await h.click(2);
-		const afterFeedback = h.notification;
+		h.dismiss();
+		const afterDismissal = h.notification;
 		contribution.dispose();
 		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
 		h.showBanner();
+		await timeout(0);
 		const nextEducation = h.notification;
 		h.status = AgentSessionStatus.InProgress;
 		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-parallel' });
 
 		assert.deepStrictEqual({
 			educationTitle,
-			afterFeedback,
+			afterDismissal,
 			nextEducation,
 			enabled: h.configuration.getValue(ChatConfiguration.AgentsParallelWorkBannerEnabled),
 			updates: h.configuration.updates,
@@ -956,7 +974,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			parallelAction: h.notification?.actions[0]?.label,
 		}, {
 			educationTitle: 'You\'re using a new Copilot experience',
-			afterFeedback: undefined,
+			afterDismissal: undefined,
 			nextEducation: undefined,
 			enabled: true,
 			updates: [],
@@ -968,7 +986,8 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 	test('developer reset restores an opted-out introduction without changing experiment settings', async () => {
 		const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
 		h.showBanner();
-		await h.click(2);
+		await timeout(0);
+		h.dismiss();
 		const afterOptOut = h.notification;
 		await h.instantiation.invokeFunction(accessor => new ResetCopilotHarnessIntroductionAction().run(accessor));
 		await timeout(0);
@@ -985,6 +1004,230 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			mode: CopilotHarnessIntroductionMode.NewSession,
 			parallelWorkEnabled: false,
 			configurationUpdates: [],
+		});
+	});
+
+	suite('Copilot introduction treatments', () => {
+		const copies = [{
+			variant: 'current',
+			title: 'You\'re using a new Copilot experience',
+			description: 'This agent harness opens up new ways to work across windows and apps. Continue as usual, and [let us know](https://github.com/microsoft/vscode/issues) how it goes.',
+		}, {
+			variant: 'capabilities',
+			title: 'You\'re using a new Copilot experience',
+			description: 'This agent harness brings new capabilities to the way you already work. If anything seems off, [let us know](https://github.com/microsoft/vscode/issues).',
+		}, {
+			variant: 'agent',
+			title: 'You\'re using a new Copilot agent',
+			description: 'Continue your sessions across windows and apps, without changing how you work. [Let us know](https://github.com/microsoft/vscode/issues) how it goes.',
+		}, {
+			variant: 'original',
+			title: 'You\'re using a new Copilot experience',
+			description: 'This new implementation unlocks exciting new capabilities, while previous agent harnesses remain available. If anything seems off, [let us know](https://github.com/microsoft/vscode/issues).',
+		}];
+
+		for (const copy of copies) {
+			for (const buttons of ['dismiss', 'feedback']) {
+				test(`selects ${copy.variant} copy independently of ${buttons} buttons and triggers only on exposure`, async () => {
+					const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
+					h.showBanner();
+					await h.setIntroductionTreatments(copy.variant, buttons);
+					const beforeExposure = [...h.triggers];
+					h.showCurrentNotification();
+					h.showCurrentNotification();
+
+					assert.deepStrictEqual({
+						title: h.notification?.message,
+						description: isMarkdownString(h.notification?.description) ? h.notification.description.value : undefined,
+						dismissible: h.notification?.dismissible,
+						hasOnDismiss: !!h.notification?.onDismiss,
+						actions: h.notification?.actions.map(action => action.telemetryActionId),
+						learnMore: {
+							leading: h.notification?.actions[0].leading,
+							outlined: h.notification?.actions[0].outlined,
+							filled: h.notification?.actions[0].filled,
+						},
+						beforeExposure,
+						triggers: h.triggers,
+					}, {
+						title: copy.title,
+						description: copy.description,
+						dismissible: buttons === 'dismiss',
+						hasOnDismiss: buttons === 'dismiss',
+						actions: buttons === 'feedback' ? ['docsLink', 'thumbsUp', 'thumbsDown'] : ['docsLink', 'thumbsUp'],
+						learnMore: buttons === 'feedback' ? { leading: true, outlined: true, filled: undefined } : { leading: undefined, outlined: undefined, filled: true },
+						beforeExposure: [],
+						triggers: [introductionCopyTreatment, introductionButtonsTreatment],
+					});
+				});
+			}
+		}
+
+		test('waits for initial assignments rather than briefly exposing the default variant', async () => {
+			const h = createHarness({ introductionMode: CopilotHarnessIntroductionMode.NewSession });
+			const pending = new DeferredPromise<string | undefined>();
+			h.readTreatment = async name => name === introductionCopyTreatment ? pending.p : name === introductionButtonsTreatment ? 'feedback' : undefined;
+			h.showBanner();
+			const before = { notification: h.notification, posts: h.posts, triggers: [...h.triggers] };
+			await pending.complete('original');
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				before,
+				description: isMarkdownString(h.notification?.description) ? h.notification.description.value : undefined,
+				dismissible: h.notification?.dismissible,
+				posts: h.posts,
+			}, {
+				before: { notification: undefined, posts: 0, triggers: [] },
+				description: copies[3].description,
+				dismissible: false,
+				posts: 1,
+			});
+		});
+
+		test('does not trigger copy or buttons while an after-request introduction is hidden', async () => {
+			const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.AfterRequest, running: false });
+			h.showBanner();
+			await h.setIntroductionTreatments('current', 'feedback');
+			const before = { visible: h.notificationVisible(), triggers: [...h.triggers] };
+			h.sendMessage();
+			h.showCurrentNotification();
+
+			assert.deepStrictEqual({ before, visible: h.notificationVisible(), triggers: h.triggers }, {
+				before: { visible: false, triggers: [] },
+				visible: true,
+				triggers: [introductionCopyTreatment, introductionButtonsTreatment],
+			});
+		});
+
+		test('does not record exposure from a notification after its contribution is disposed', async () => {
+			const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
+			const contribution = h.showBanner();
+			await h.setIntroductionTreatments('current', 'feedback');
+			const notification = h.notification;
+			contribution.dispose();
+			notification?.onDidShow?.();
+
+			assert.deepStrictEqual({ notification: h.notification, triggers: h.triggers }, {
+				notification: undefined, triggers: [],
+			});
+		});
+
+		test('refreshes each dimension independently and restores unassigned defaults', async () => {
+			const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
+			h.showBanner();
+			await h.setIntroductionTreatments('agent', 'dismiss');
+			const title = h.notification?.message;
+			await h.setIntroductionTreatments('agent', 'feedback');
+			const changedButtons = { title: h.notification?.message, dismissible: h.notification?.dismissible };
+			const posts = h.posts;
+			await h.refetchTreatments();
+			const unchanged = posts === h.posts;
+			await h.setIntroductionTreatments();
+
+			assert.deepStrictEqual({
+				title, changedButtons, unchanged,
+				defaultTitle: h.notification?.message,
+				defaultDescription: isMarkdownString(h.notification?.description) ? h.notification.description.value : undefined,
+				defaultDismissible: h.notification?.dismissible,
+			}, {
+				title: copies[2].title,
+				changedButtons: { title: copies[2].title, dismissible: false },
+				unchanged: true,
+				defaultTitle: copies[0].title,
+				defaultDescription: copies[0].description,
+				defaultDismissible: true,
+			});
+		});
+
+		for (const values of [['unknown-copy', 'unknown-buttons'], ['', '   ']] as const) {
+			test(`logs invalid selectors ${JSON.stringify(values)} and uses approved defaults`, async () => {
+				const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
+				h.showBanner();
+				await h.setIntroductionTreatments(...values);
+				assert.deepStrictEqual({
+					description: isMarkdownString(h.notification?.description) ? h.notification.description.value : undefined,
+					dismissible: h.notification?.dismissible,
+					warnings: h.treatmentWarnings.length,
+				}, { description: copies[0].description, dismissible: true, warnings: 2 });
+			});
+		}
+
+		test('logs an initial lookup failure and shows defaults, then retains resolved variants on later failures', async () => {
+			const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
+			h.readTreatment = async () => { throw new Error('Assignment unavailable'); };
+			h.showBanner();
+			await timeout(0);
+			const fallback = { title: h.notification?.message, dismissible: h.notification?.dismissible };
+			await h.setIntroductionTreatments('agent', 'feedback');
+			h.readTreatment = async () => { throw new Error('Assignment unavailable'); };
+			await h.refetchTreatments();
+
+			assert.deepStrictEqual({
+				fallback,
+				title: h.notification?.message,
+				dismissible: h.notification?.dismissible,
+				warnings: h.treatmentWarnings.length,
+			}, {
+				fallback: { title: copies[0].title, dismissible: true },
+				title: copies[2].title,
+				dismissible: false,
+				warnings: 2,
+			});
+		});
+
+		test('late assignments cannot overwrite newer copy or buttons', async () => {
+			const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
+			const pending = new DeferredPromise<string | undefined>();
+			h.readTreatment = () => pending.p;
+			h.showBanner();
+			await h.setIntroductionTreatments('agent', 'feedback');
+			await pending.complete('original');
+			await timeout(0);
+
+			assert.deepStrictEqual({ title: h.notification?.message, dismissible: h.notification?.dismissible, warnings: h.treatmentWarnings }, {
+				title: copies[2].title, dismissible: false, warnings: [],
+			});
+		});
+
+		for (const action of [1, 2]) {
+			test(`feedback action ${action} persists acknowledgement across treatment refreshes and new sessions`, async () => {
+				const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
+				h.showBanner();
+				await h.setIntroductionTreatments('current', 'feedback');
+				await h.click(action);
+				const afterFeedback = h.notification;
+				await h.setIntroductionTreatments('original', 'dismiss');
+				h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-next' });
+
+				assert.deepStrictEqual({ afterFeedback, next: h.notification, updates: h.configuration.updates }, {
+					afterFeedback: undefined, next: undefined, updates: [],
+				});
+			});
+		}
+
+		test('the feedback layout keeps Learn More open and honors the AI visibility gate', async () => {
+			const h = createHarness({ banner: false, introductionMode: CopilotHarnessIntroductionMode.NewSession, running: false });
+			h.allowed = false;
+			h.showBanner();
+			await h.setIntroductionTreatments('current', 'feedback');
+			const hidden = { notification: h.notification, triggers: [...h.triggers] };
+			h.allowed = true;
+			await h.click(0);
+
+			assert.deepStrictEqual({
+				hidden,
+				opened: h.openedResources,
+				title: h.notification?.message,
+				actions: h.notification?.actions.length,
+				updates: h.configuration.updates,
+			}, {
+				hidden: { notification: undefined, triggers: [] },
+				opened: ['https://aka.ms/vscode-copilot-harness'],
+				title: copies[0].title,
+				actions: 3,
+				updates: [],
+			});
 		});
 	});
 
@@ -1683,7 +1926,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			assert.deepStrictEqual({
 				queries: h.treatmentNames, title: h.notification?.message, description: h.notification?.description, warnings: h.treatmentWarnings,
 			}, {
-				queries: [titleTreatment, descriptionTreatment],
+				queries: [titleTreatment, descriptionTreatment, introductionCopyTreatment, introductionButtonsTreatment],
 				title: scenario.title ?? defaultTitle, description: scenario.description ?? defaultDescription, warnings: [],
 			});
 		});

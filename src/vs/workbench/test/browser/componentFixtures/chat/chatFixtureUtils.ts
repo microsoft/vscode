@@ -376,7 +376,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() { override register() { return { dispose() { } }; } }());
 	reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 		override readonly onDidChange = Event.None;
-		override getActiveNotification() { return options.notification; }
+		override getActiveNotification(filter?: (notification: IChatInputNotification) => boolean) {
+			const notification = options.notification;
+			return notification && (!filter || filter(notification)) ? notification : undefined;
+		}
 		override announceRendered() { }
 	}());
 	reg.defineInstance(IAgentSdkSetupService, new class extends mock<IAgentSdkSetupService>() {

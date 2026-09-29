@@ -97,14 +97,15 @@ export class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements 
 		this.fire(uri);
 	}
 
-	public async waitForCode(logger: Log, scopes: string, nonce: string, token: vscode.CancellationToken) {
-		const existingNonces = this._pendingNonces.get(scopes) || [];
-		this._pendingNonces.set(scopes, [...existingNonces, nonce]);
+	public async waitForCode(logger: Log, scopes: string, nonce: string, token: vscode.CancellationToken, baseUri: vscode.Uri) {
+		const scopeKey = `${baseUri.toString()} ${scopes}`;
+		const existingNonces = this._pendingNonces.get(scopeKey) || [];
+		this._pendingNonces.set(scopeKey, [...existingNonces, nonce]);
 
-		let codeExchangePromise = this._codeExchangePromises.get(scopes);
+		let codeExchangePromise = this._codeExchangePromises.get(scopeKey);
 		if (!codeExchangePromise) {
-			codeExchangePromise = promiseFromEvent(this.event, this.handleEvent(logger, scopes));
-			this._codeExchangePromises.set(scopes, codeExchangePromise);
+			codeExchangePromise = promiseFromEvent(this.event, this.handleEvent(logger, scopeKey));
+			this._codeExchangePromises.set(scopeKey, codeExchangePromise);
 		}
 
 		try {
@@ -114,9 +115,9 @@ export class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements 
 				promiseFromEvent<void, string>(token.onCancellationRequested, (_, __, reject) => { reject(USER_CANCELLATION_ERROR); }).promise
 			]);
 		} finally {
-			this._pendingNonces.delete(scopes);
+			this._pendingNonces.delete(scopeKey);
 			codeExchangePromise?.cancel.fire();
-			this._codeExchangePromises.delete(scopes);
+			this._codeExchangePromises.delete(scopeKey);
 		}
 	}
 
@@ -153,7 +154,8 @@ function generateSessionId(): string {
 	return crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), '');
 }
 
-export class GitHubAuthenticationProvider implements vscode.AuthenticationProvider, vscode.Disposable {
+/** Holds authentication sessions and token flows for one GitHub instance. */
+export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscode.Disposable {
 	private readonly _sessionChangeEmitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 	private readonly _logger: Log;
 	private readonly _githubServer: IGitHubServer;
@@ -200,18 +202,19 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	constructor(
 		private readonly context: vscode.ExtensionContext,
 		uriHandler: UriEventHandler,
-		ghesUri?: vscode.Uri
+		ghesUri?: vscode.Uri,
+		storageKey?: string
 	) {
 		const { aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
 		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(aiKey));
 
 		const type = ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
 
-		this._logger = new Log(type);
+		this._logger = new Log(type, ghesUri);
 
-		const serviceId = type === AuthProviderType.github
+		const serviceId = storageKey ?? (type === AuthProviderType.github
 			? `${type}.auth`
-			: `${ghesUri?.authority}${ghesUri?.path}.ghes.auth`;
+			: `${ghesUri?.authority}${ghesUri?.path}.ghes.auth`);
 
 		this._keychain = new Keychain(this.context, serviceId, this._logger);
 
@@ -235,20 +238,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return sessions;
 		});
 
-		const supportedAuthorizationServers = ghesUri
-			? [vscode.Uri.joinPath(ghesUri, '/login/oauth')]
-			: [vscode.Uri.parse('https://github.com/login/oauth')];
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
-			vscode.authentication.registerAuthenticationProvider(
-				type,
-				this._githubServer.friendlyName,
-				this,
-				{
-					supportsMultipleAccounts: true,
-					supportedAuthorizationServers
-				}
-			),
+			this._sessionChangeEmitter,
+			this._logger,
 			this.context.secrets.onDidChange(() => this.checkForUpdates()),
 			// The two sides of the Microsoft account list moving. Signing in makes a restore that was
 			// impossible a moment ago possible, so whatever we gave up on is worth another try.
@@ -279,6 +272,11 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	get onDidChangeSessions() {
 		return this._sessionChangeEmitter.event;
+	}
+
+	/** Returns locally held sessions without restoring or renewing tokens. */
+	async getCachedSessions(): Promise<readonly vscode.AuthenticationSession[]> {
+		return [...await this._persistedSessionsPromise, ...this.transientSessions];
 	}
 
 	async getSessions(scopes: string[] | undefined, options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {

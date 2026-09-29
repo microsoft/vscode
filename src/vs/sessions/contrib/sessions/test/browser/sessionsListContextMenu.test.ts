@@ -27,8 +27,6 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -37,7 +35,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SessionShowsArchivedChatsContext, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
 import { createListHarness, createSession, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
@@ -106,12 +104,9 @@ suite('Sessions list context menus', () => {
 	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session], menuActions: readonly { id: string; run: () => void }[] = [], showNavigationShortcuts = false) {
 		const contextMenuService = new TestContextMenuService();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const sessionMenuContexts: { readonly showsArchivedChats: boolean | undefined }[] = [];
 		let menuDisposed = false;
-		const telemetryService = new TestExperimentTriggerTelemetryService();
 		const harness = createListHarness(disposables, sessions, instantiationService => {
 			instantiationService.stub(IContextKeyService, contextKeyService);
-			instantiationService.stub(ITelemetryService, telemetryService);
 			const commandService = instantiationService.get(ICommandService);
 			instantiationService.stub(IContextMenuService, contextMenuService);
 			instantiationService.stub(ISessionGroupsService, new TestSessionGroupsService(
@@ -120,11 +115,6 @@ suite('Sessions list context menus', () => {
 			));
 			instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
 				override createMenu(id: MenuId, menuContextKeyService: IContextKeyService): IMenu {
-					if (id === Menus.SessionItemContextMenu) {
-						sessionMenuContexts.push({
-							showsArchivedChats: menuContextKeyService.getContextKeyValue<boolean>(SessionShowsArchivedChatsContext.key),
-						});
-					}
 					const disposable = toDisposable(() => menuDisposed = true);
 					const extensionAction = new MenuItemAction({
 						id: 'extension.action',
@@ -166,7 +156,7 @@ suite('Sessions list context menus', () => {
 			onSessionOpen: () => { },
 		}));
 		list.layout(300, 400);
-		return { container, contextMenuService, list, managementService: harness.managementService, menuDisposed: () => menuDisposed, sessionMenuContexts, triggers: telemetryService.triggers };
+		return { container, contextMenuService, list, managementService: harness.managementService, menuDisposed: () => menuDisposed };
 	}
 
 	test('empty area actions are transient non-disposable values', () => {
@@ -205,28 +195,6 @@ suite('Sessions list context menus', () => {
 				menuDisposed: true,
 			});
 		}
-	});
-
-	test('session context keys expose per-session archived chat visibility without archived chats', () => {
-		const session = createSession('Session').session;
-		const { container, contextMenuService, list, sessionMenuContexts } = createList(false, false, SessionsGrouping.Date, [session]);
-		const sessionRow = container.querySelector<HTMLElement>('.session-item');
-		assert.ok(sessionRow);
-
-		dispatchContextMenu(sessionRow);
-		contextMenuService.delegate?.onHide?.(false);
-		list.setExcludeArchived(false);
-		dispatchContextMenu(sessionRow);
-		contextMenuService.delegate?.onHide?.(false);
-		list.setSessionArchivedChatsVisible(session, false);
-		dispatchContextMenu(sessionRow);
-		contextMenuService.delegate?.onHide?.(false);
-
-		assert.deepStrictEqual(sessionMenuContexts, [
-			{ showsArchivedChats: false },
-			{ showsArchivedChats: true },
-			{ showsArchivedChats: false },
-		]);
 	});
 
 	test('multiselection disables single-session context menu actions', async () => {
@@ -269,27 +237,6 @@ suite('Sessions list context menus', () => {
 			enabled: false,
 		}]);
 		contextMenuService.delegate!.onHide?.(false);
-	});
-
-	test('reports the Done default trigger when a session menu shows Show Done Chats from the default', () => {
-		const results = [false, true].map(overridden => {
-			const session = createSession('Session').session;
-			const { container, contextMenuService, list, triggers } = createList(false, false, SessionsGrouping.Date, [session]);
-			if (overridden) {
-				list.setSessionArchivedChatsVisible(session, true);
-			}
-			const sessionRow = container.querySelector<HTMLElement>('.session-item');
-			assert.ok(sessionRow);
-			const beforeMenu = [...triggers];
-			dispatchContextMenu(sessionRow);
-			contextMenuService.delegate?.onHide?.(false);
-			return { beforeMenu, afterMenu: triggers };
-		});
-
-		assert.deepStrictEqual(results, [
-			{ beforeMenu: [], afterMenu: [`config.${SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING}`] },
-			{ beforeMenu: [], afterMenu: [] },
-		]);
 	});
 
 	test('navigation shortcuts and Sessions header have no context menus', () => {

@@ -79,6 +79,7 @@ import { IAuthenticationService } from '../../../../workbench/services/authentic
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
+import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 
 // #region --- New Chat Widget ---
 
@@ -179,6 +180,7 @@ export class NewChatWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@ISessionsRecentWorkspacesService private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -1560,7 +1562,8 @@ export class NewChatWidget extends Disposable {
 		// (see below) to keep the composer's pickers functional. Quick chats
 		// have no workspace, so they re-seed via openQuickChat instead.
 		const wasQuickChat = this._isQuickChatComposer.get();
-		const reseedFolderUri = background && !wasQuickChat ? this._workspacePicker.selectedFolderUri : undefined;
+		const folderUri = wasQuickChat ? undefined : this._workspacePicker.selectedFolderUri;
+		const reseedFolderUri = background ? folderUri : undefined;
 		const sendOptions = {
 			query: request,
 			attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined,
@@ -1572,6 +1575,11 @@ export class NewChatWidget extends Disposable {
 				this.agentFeedbackService.removeFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, item.id);
 			}
 		};
+		const restoreWorkspace = () => {
+			if (folderUri) {
+				this.recentWorkspacesService.restoreDismissedWorkspace(folderUri);
+			}
+		};
 		// A background send is fire-and-forget and the composer immediately reseeds
 		// for the next one, so several can be in flight at once. Each is tracked
 		// separately, keyed by the options object it was started with, so one
@@ -1581,6 +1589,7 @@ export class NewChatWidget extends Disposable {
 				Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === sendOptions)
 			)(() => {
 				clearFeedback();
+				restoreWorkspace();
 				this._pendingBackgroundSends.deleteAndDispose(sendOptions);
 			}));
 		}
@@ -1601,6 +1610,7 @@ export class NewChatWidget extends Disposable {
 
 		if (!background) {
 			clearFeedback();
+			restoreWorkspace();
 		}
 		this._workspacePicker.clearAttachedContext();
 

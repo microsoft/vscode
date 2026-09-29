@@ -36,7 +36,7 @@ import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizatio
 import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IMcpServer, IMcpService, IMcpWorkbenchService, IMcpSamplingService, IWorkbenchMcpServer, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerInstallState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpWorkbenchService, IMcpSamplingService, IWorkbenchMcpServer, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerDefinition, McpServerInstallState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
 import { DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction } from '../../../../mcp/browser/mcpServerActions.js';
 import {
 	AgentHostMcpServer,
@@ -72,7 +72,7 @@ import {
 	shouldLoadMcpGallerySnapshot,
 	setPrimaryMcpServerEnablement,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
-import { getEffectiveMcpServerCount } from '../../../browser/aiCustomization/mcpServerCount.js';
+import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
 
@@ -500,6 +500,35 @@ suite('mcpListWidget', () => {
 		const count = derived(reader => getEffectiveMcpServerCount([], servers, reader, undefined));
 
 		assert.strictEqual(count.get(), 1);
+	});
+
+	test('one native publication per source matches local rows and preserves disabled counts', () => {
+		const names = ['automation', 'explorer'];
+		const localServers = names.map(name => new class extends mock<IMcpServer>() {
+			override readonly definition = new class extends mock<McpServerDefinition>() {
+				override readonly id = `local-${name}`;
+				override readonly label = name;
+			}();
+			override readonly collection = new class extends mock<McpCollectionDefinition>() {
+				override readonly id = 'workspace';
+			}();
+			override readonly enablement = observableValue(this, ContributionEnablementState.EnabledProfile);
+		}());
+		const servers = [
+			...names.map(name => createAgentHostServer({
+				id: `session/file:///workspace/.mcp.json#mcp=${name}`, name, enabled: false,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			})),
+			...Array.from({ length: 11 }, (_, index) => createAgentHostServer({ id: `session/server-${index}`, name: `server-${index}` })),
+		];
+		const matcher = new ActiveSessionMcpServerMatcher(servers);
+		const matched = localServers.map(server => matcher.take(getRuntimeServerMatchKeys(server)));
+		const count = derived(reader => getEffectiveMcpServerCount(localServers, servers, reader, undefined));
+		assert.deepStrictEqual({
+			matched: matched.map(server => server?.id),
+			rows: matched.length + matcher.unmatched('').length,
+			enabled: count.get(),
+		}, { matched: servers.slice(0, 2).map(server => server.id), rows: 13, enabled: 11 });
 	});
 
 	test('classifies active-session-only MCP servers as built-in entries', () => {

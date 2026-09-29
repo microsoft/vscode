@@ -7,7 +7,7 @@ import assert from 'assert';
 import type { PermissionRequest } from '@github/copilot-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
@@ -510,10 +510,10 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 	});
 
 	for (const [toolName, verb] of [['read_agent', 'Read agent'], ['write_agent', 'Write to agent']]) {
-		test(`uses the canonical agent name in streaming, ready, and completed ${toolName} messages`, () => {
+		test(`uses the subagent chat title in streaming, ready, and completed ${toolName} messages`, () => {
 			const agentId = '37241a58-7d95-4763-a3fb-2494dcfcf540';
 			const parameters = { agent_id: agentId };
-			const resolveAgentName = (id: string) => id === agentId ? 'catalog-perf' : undefined;
+			const resolveAgentName = (id: string) => id === agentId ? 'Profile catalog rendering' : undefined;
 			const displayName = getToolDisplayName(toolName);
 			const messages = [
 				getStreamingInvocationMessage(toolName, displayName, parameters, undefined, resolveAgentName),
@@ -522,7 +522,7 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 			].map(message => typeof message === 'string' ? message : message.markdown);
 
 			assert.deepStrictEqual({ messages, parameters }, {
-				messages: Array(3).fill(`${verb} \`catalog-perf\``),
+				messages: Array(3).fill(`${verb} \`Profile catalog rendering\``),
 				parameters: { agent_id: agentId },
 			});
 		});
@@ -537,6 +537,18 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 			unknown: { markdown: 'Read agent `unknown-agent`' },
 			blank: { markdown: 'Read agent `blank-agent`' },
 		});
+	});
+
+	test('extracts subagent task metadata from valid SDK arguments only', () => {
+		assert.deepStrictEqual([
+			getSubagentMetadata({ agent_type: 'research', name: 'catalog-perf', description: 'Profile catalog rendering' }),
+			getSubagentMetadata({ agent_type: false, description: 123 }),
+			...[undefined, null, [], 'task', 123].map(getSubagentMetadata),
+		], [
+			{ agentName: 'research', description: 'Profile catalog rendering' },
+			{ agentName: undefined, description: undefined },
+			{}, {}, {}, {}, {},
+		]);
 	});
 
 	test('names each recipient of a multi-agent write without changing routing arguments', () => {

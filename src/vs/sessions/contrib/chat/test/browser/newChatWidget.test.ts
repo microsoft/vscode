@@ -8,7 +8,7 @@ import { DeferredPromise, raceCancellationError, timeout } from '../../../../../
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -16,7 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
@@ -215,7 +215,8 @@ interface ISessionOptionsPersistenceHarness {
 
 interface ISendHarness {
 	readonly notificationService: { error(message: string): void };
-	readonly _pendingBackgroundSends: { deleteAndDispose(key: object): void };
+	readonly _pendingBackgroundSends: { set(key: object, value: IDisposable): void; deleteAndDispose(key: object): void };
+	readonly recentWorkspacesService: { restoreDismissedWorkspace(folderUri: URI): void };
 	readonly newSessionComposerService: { notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void };
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _feedbackItems: IObservable<readonly never[]>;
@@ -227,9 +228,11 @@ interface ISendHarness {
 	};
 	readonly _isQuickChatComposer: IObservable<boolean>;
 	readonly agentFeedbackService: { removeFeedback(resource: URI, id: string): void };
-	readonly sessionsManagementService: { sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> };
+	readonly sessionsManagementService: { readonly onDidSendRequest: Event<ISendRequestSentEvent>; sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> };
 	readonly logService: { error(message: string, ...args: unknown[]): void };
 	_getWorkspaceRoots(session: ISession): readonly URI[];
+	_createNewSession?(folderUri: URI): Promise<void>;
+	_openQuickChat?(): void;
 }
 
 interface IRenderSessionTypePickerHarness {
@@ -1823,7 +1826,8 @@ suite('NewChatWidget', () => {
 
 		const result = await send.call({
 			notificationService: { error: () => { } },
-			_pendingBackgroundSends: { deleteAndDispose: () => { } },
+			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
+			recentWorkspacesService: { restoreDismissedWorkspace: uri => stages.push(`restore:${uri.toString()}`) },
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
@@ -1842,6 +1846,7 @@ suite('NewChatWidget', () => {
 				}
 			},
 			sessionsManagementService: {
+				onDidSendRequest: Event.None,
 				sendNewChatRequest: async (_session, options) => {
 					sentOptions = options;
 					stages.push('send');
@@ -1870,7 +1875,7 @@ suite('NewChatWidget', () => {
 			})),
 		}, {
 			result: true,
-			stages: ['prepare', 'send'],
+			stages: ['prepare', 'send', `restore:${primaryFolder.toString()}`],
 			preparedExactOptions: true,
 			preparedExactSelection: true,
 			clearAttachedContextCount: 1,
@@ -1890,7 +1895,8 @@ suite('NewChatWidget', () => {
 
 		const result = await send.call({
 			notificationService: { error: () => { } },
-			_pendingBackgroundSends: { deleteAndDispose: () => { } },
+			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
+			recentWorkspacesService: { restoreDismissedWorkspace: () => assert.fail('No session was sent') },
 			_session: constObservable(undefined),
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
@@ -1902,6 +1908,7 @@ suite('NewChatWidget', () => {
 			agentFeedbackService: { removeFeedback: () => { } },
 			newSessionComposerService: { notifyWillSendRequest: () => { } },
 			sessionsManagementService: {
+				onDidSendRequest: Event.None,
 				sendNewChatRequest: async () => {
 					sendCount++;
 				},
@@ -1927,14 +1934,15 @@ suite('NewChatWidget', () => {
 			const harness: ISendHarness & { send: typeof send } = {
 				send,
 				notificationService: { error: message => notifications.push(message) },
-				_pendingBackgroundSends: { deleteAndDispose: () => { } },
+				_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
+				recentWorkspacesService: { restoreDismissedWorkspace: () => assert.fail('Failed sends must not restore dismissed workspaces') },
 				_session: constObservable(session),
 				_feedbackItems: constObservable([]),
-				_workspacePicker: { selectedFolderUri: undefined, clearAttachedContext: () => cleared++, showPicker: () => { } },
+				_workspacePicker: { selectedFolderUri: URI.file('/dismissed'), clearAttachedContext: () => cleared++, showPicker: () => { } },
 				_isQuickChatComposer: constObservable(false),
 				agentFeedbackService: { removeFeedback: () => { } },
 				newSessionComposerService: { notifyWillSendRequest: () => { } },
-				sessionsManagementService: { sendNewChatRequest: async () => { throw error; } },
+				sessionsManagementService: { onDidSendRequest: Event.None, sendNewChatRequest: async () => { throw error; } },
 				logService: { error: (_message, error) => errors.push(error) },
 				_getWorkspaceRoots: () => [],
 			};
@@ -1945,6 +1953,43 @@ suite('NewChatWidget', () => {
 			notifications: ['Failed to start session: Container build failed'],
 			cleared: 0,
 			errors: 1,
+		});
+	});
+
+	test('restores only the captured workspace after its background send succeeds', async () => {
+		const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
+		const pendingSends = disposables.add(new DisposableMap<object, IDisposable>());
+		const folderUri = URI.file('/dismissed');
+		const restored: URI[] = [];
+		const session = upcastPartial<ISession>({ sessionId: 'draft' });
+		let sentOptions: ISendRequestOptions | undefined;
+		const picker = { selectedFolderUri: folderUri, clearAttachedContext: () => { }, showPicker: () => { } };
+		const harness: ISendHarness = {
+			notificationService: { error: () => assert.fail('Unexpected error') },
+			_pendingBackgroundSends: pendingSends,
+			recentWorkspacesService: { restoreDismissedWorkspace: uri => restored.push(uri) },
+			_session: constObservable(session),
+			_feedbackItems: constObservable([]),
+			_workspacePicker: picker,
+			_isQuickChatComposer: constObservable(false),
+			agentFeedbackService: { removeFeedback: () => { } },
+			newSessionComposerService: { notifyWillSendRequest: () => { } },
+			sessionsManagementService: {
+				onDidSendRequest: onDidSendRequest.event,
+				sendNewChatRequest: async (_session, options) => { sentOptions = options; },
+			},
+			logService: { error: () => assert.fail('Unexpected error') },
+			_getWorkspaceRoots: () => [folderUri],
+			_createNewSession: async () => { picker.selectedFolderUri = URI.file('/different-workspace'); },
+		};
+		await send.call(harness, 'hello', undefined, true);
+		const beforeSuccess = [...restored];
+		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: { query: 'unrelated' } }));
+		const afterUnrelatedSend = [...restored];
+		assert.ok(sentOptions);
+		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions }));
+		assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size }, {
+			beforeSuccess: [], afterUnrelatedSend: [], restored: [folderUri], pending: 0,
 		});
 	});
 

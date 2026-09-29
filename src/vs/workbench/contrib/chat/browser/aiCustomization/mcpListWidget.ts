@@ -2440,31 +2440,39 @@ export class McpListWidget extends Disposable {
 
 		const showGallery = !this.isGalleryDiscoveryEnabled();
 		const allInstalledEntries = this.installedEntries.map(presentation => presentation.entry);
+		const grouped = new Map<string, IMcpSectionEntry[]>([
+			['user', []],
+			['workspace', []],
+			['plugins', []],
+			['extensions', []],
+			['builtin', []],
+			['available', showGallery ? this.getAvailableGalleryServers().map(server => ({ type: 'marketplace-item', server })) : []],
+		]);
+
+		for (const entry of allInstalledEntries) {
+			grouped.get(getMcpEntryGroup(entry))!.push(entry);
+		}
+
 		const definitions = [
-			{
-				id: 'installed',
-				label: localize('installedMcpServersSection', "Installed"),
-				description: localize('installedMcpServersSectionDescription', "MCP servers installed or provided by the active workspace, plugins, extensions, and agent host."),
-				icon: mcpServerIcon,
-				entries: allInstalledEntries,
-			},
-			...(showGallery ? [{
-				id: 'available',
-				label: localize('availableMcpServersSection', "Available"),
-				description: localize('availableMcpServersSectionDescription', "Browse and install MCP servers from the marketplace."),
-				icon: Codicon.globe,
-				entries: this.getAvailableGalleryServers().map(server => ({ type: 'marketplace-item' as const, server })),
-			}] : []),
-		];
+			{ id: 'workspace', label: localize('workspaceMcpServersGroup', "Workspace"), description: localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace."), icon: Codicon.folder },
+			{ id: 'user', label: localize('userMcpServersGroup', "User"), description: localize('userMcpServersGroupDescription', "MCP servers configured for your profile and available across workspaces."), icon: Codicon.account },
+			{ id: 'plugins', label: localize('pluginMcpServersGroup', "Plugins"), description: localize('pluginMcpServersGroupDescription', "MCP servers provided by installed plugins."), icon: Codicon.plug },
+			{ id: 'extensions', label: localize('extensionMcpServersGroup', "Extensions"), description: localize('extensionMcpServersGroupDescription', "MCP servers provided by installed extensions."), icon: Codicon.extensions },
+			{ id: 'builtin', label: localize('builtinMcpServersGroup', "Built-In"), description: localize('builtinMcpServersGroupDescription', "MCP servers built into the application or active agent host."), icon: mcpServerIcon },
+			{ id: 'available', label: localize('availableMcpServersSection', "Available"), description: localize('availableMcpServersSectionDescription', "Browse and install MCP servers from the marketplace."), icon: Codicon.globe },
+		].filter(group => group.id === 'available'
+			? showGallery
+			: group.id === 'user' || group.id === 'workspace' || grouped.get(group.id)!.length > 0);
 
 		this.currentTreeGroups = definitions.map((group, index): ICustomizationTreeGroup<IMcpSectionEntry> => {
+			const entries = grouped.get(group.id)!;
 			const element: IMcpGroupHeaderEntry = {
 				type: 'group-header',
 				id: `mcp-group-${group.id}`,
 				group: group.id,
 				label: group.label,
 				icon: group.icon,
-				count: group.entries.length,
+				count: entries.length,
 				isFirst: index === 0,
 				description: group.description,
 				collapsed: false,
@@ -2473,9 +2481,9 @@ export class McpListWidget extends Disposable {
 				id: group.id,
 				label: group.label,
 				description: group.description,
-				count: group.entries.length,
+				count: entries.length,
 				element,
-				children: group.entries,
+				children: entries,
 			};
 		});
 
@@ -2526,7 +2534,7 @@ export class McpListWidget extends Disposable {
 	}
 
 	private renderMcpTreeGroupActions(entry: IMcpGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
-		if (entry.group !== 'installed') {
+		if (entry.group !== 'user' && entry.group !== 'workspace') {
 			return;
 		}
 		this.renderInstalledSectionActionsWithDisposables(container, disposables);

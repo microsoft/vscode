@@ -12,7 +12,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { OnboardingOutcome } from '../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
-import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
+import { IOnboardingScenarioService, isOnboardingDeveloperModeEnabled, ONBOARDING_ENABLED_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -22,7 +22,7 @@ import { ISession } from '../../../services/sessions/common/session.js';
 import { getSessionOnboardingTargetId } from '../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './tours/newSessionTour.js';
-import { createNewSessionViewV2ParallelWorkTour } from './tours/newSessionViewV2Tour.js';
+import { createNewSessionViewV2ParallelWorkTour, NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID } from './tours/newSessionViewV2Tour.js';
 
 /** Keeps the banner handoff ahead of automatic onboarding, then introduces the running session. */
 export class ParallelWorkOnboarding extends Disposable {
@@ -62,7 +62,7 @@ export class ParallelWorkOnboarding extends Disposable {
 		if (token.isCancellationRequested) {
 			return;
 		}
-		if (!this._isEnabled() || this._onboardingService.hasBeenShown(NEW_SESSION_ONBOARDING_SEEN_KEY)) {
+		if (!this._isEnabled() || this._hasBeenShown()) {
 			await raceCancellation(handoff(), token);
 			return;
 		}
@@ -116,6 +116,11 @@ export class ParallelWorkOnboarding extends Disposable {
 		return this._isEnabled()
 			&& this._chatEntitlementService.entitlement !== ChatEntitlement.Unknown
 			&& !this._sessionsService.activeSession.get()?.isCreated.get()
-			&& !this._onboardingService.hasBeenShown(NEW_SESSION_ONBOARDING_SEEN_KEY);
+			&& !this._hasBeenShown();
+	}
+
+	private _hasBeenShown(): boolean {
+		return !isOnboardingDeveloperModeEnabled(this._configurationService, NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID)
+			&& this._onboardingService.hasBeenShown(NEW_SESSION_ONBOARDING_SEEN_KEY);
 	}
 }
