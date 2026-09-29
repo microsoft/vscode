@@ -585,6 +585,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.layoutForToolbarChange();
 	}
 
+	/**
+	 * Moves the model picker out of the add-context input toolbar into a right-aligned slot in the
+	 * toolbar row, so the experimental Agents layout matches the composer order
+	 * ("+ Add Context", mode/permissions, then a right-aligned model before the execute controls).
+	 * The model picker is a MenuId.ChatInput item the toolbar recreates on every menu change, so
+	 * this is re-applied from {@link inputActionsToolbar}'s onDidChangeMenuItems. Marker classes
+	 * drive the flex order/right-alignment in CSS. The toolbar tracks its items by index rather than
+	 * DOM position, so relocating the element does not break responsive compaction.
+	 */
+	private _relocateModelPickerForInputLayout(toolbarsContainer: HTMLElement): void {
+		const modelElement = this.modelWidget?.element;
+		if (!modelElement) {
+			return;
+		}
+		modelElement.classList.add('chat-input-relocated-model-picker');
+		if (modelElement.parentElement !== toolbarsContainer) {
+			toolbarsContainer.appendChild(modelElement);
+		}
+	}
+
 	get customizationMigrationNoticeContainerElement(): HTMLElement {
 		return this.chatCustomizationMigrationNoticeContainer;
 	}
@@ -3778,8 +3798,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this.options.renderSecondaryControlsInInput) {
 			// Place the mode / permissions pickers immediately after the add-context toolbar so the
 			// input row matches the Agents composer order ("+ Add Context", then mode/permissions,
-			// then the execute controls) without displacing the add-context button.
+			// then the model, then the execute controls) without displacing the add-context button.
+			// The model picker is a MenuId.ChatInput item nested inside the add-context toolbar, so
+			// it is relocated to a right-aligned slot in the toolbar row (see
+			// _relocateModelPickerForInputLayout) — CSS order/margin can't reach it in place.
 			this.inputActionsToolbar.getElement().after(responsivePickerContainer);
+			this._relocateModelPickerForInputLayout(toolbarsContainer);
 		}
 		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
@@ -3789,6 +3813,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const primaryPickerContainer = toolbarElement.querySelector('.chat-sessionPicker-container');
 			if (primaryPickerContainer) {
 				this.chatSessionPickerContainer = primaryPickerContainer as HTMLElement;
+			}
+			// The toolbar recreates its items (including the model picker) on menu changes, so move
+			// the model picker back into its right-aligned slot after every rebuild.
+			if (this.options.renderSecondaryControlsInInput) {
+				this._relocateModelPickerForInputLayout(toolbarsContainer);
 			}
 			if (this.cachedWidth && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
 				this._toolbarRelayoutScheduler.schedule();
