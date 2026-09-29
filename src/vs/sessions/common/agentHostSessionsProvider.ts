@@ -219,6 +219,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
 	/** Waits for a draft's authentication and configuration resolution, rejecting if configuration is unavailable. */
 	whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
+	/** Canceled when the draft is disposed, including when its provider disconnects. */
+	getNewSessionCancellationToken(sessionId: string): CancellationToken;
 	/** Effective runtime sandbox policy, refreshed with session configuration notifications. */
 	getSessionSandboxPolicy?(sessionId: string): ISessionSandboxPolicy | undefined;
 	/** Last sandbox enablement successfully applied by the host. */

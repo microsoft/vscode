@@ -4626,6 +4626,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._runningSessionConfigs.get(sessionId);
 	}
 
+	getNewSessionCancellationToken(sessionId: string): CancellationToken {
+		const newSession = this._getNewSession(sessionId);
+		if (!newSession) {
+			throw new Error(`Cannot get cancellation token for unknown new session '${sessionId}'.`);
+		}
+		return newSession.cancellationToken;
+	}
+
 	async whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult> {
 		const newSession = this._getNewSession(sessionId);
 		if (!newSession) {

@@ -4397,6 +4397,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}
 			override isSessionConfigResolving() { return constObservable(false); }
 			override async whenSessionConfigResolved() { return this.getSessionConfig(); }
+			override getNewSessionCancellationToken() { return CancellationToken.None; }
 			override getSessionConfig(): ResolveSessionConfigResult {
 				return {
 					schema: {

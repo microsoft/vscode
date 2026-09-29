@@ -324,12 +324,13 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			});
 			const discardReplacement = () => targetProvider.deleteNewSession(replacement.sessionId);
 			deleteReplacement = discardReplacement;
+			const replacementToken = targetProvider.getNewSessionCancellationToken(replacement.sessionId);
 			if (detachedWorktree) {
 				await detachedWorktree.connection.claimDetachedWorktree!(detachedWorktree.handle);
 			}
 			let targetConfig = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
 			if (detachedWorktree) {
-				await targetProvider.setSessionConfigValue(replacement.sessionId, SessionConfigKey.Isolation, 'folder');
+				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, SessionConfigKey.Isolation, 'folder'), replacementToken);
 				targetConfig = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
 			}
 			for (const [property, value] of Object.entries(sourceConfig.values)) {
@@ -340,7 +341,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 				if (!targetProperty || targetProperty.readOnly) {
 					continue;
 				}
-				await targetProvider.setSessionConfigValue(replacement.sessionId, property, value);
+				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, property, value), replacementToken);
 			}
 			const sourceChat = draft.session.mainChat.get();
 			const replacementChat = replacement.mainChat.get();
@@ -363,7 +364,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			if (targetAgent) {
 				targetProvider.setAgent?.(replacement.sessionId, { uri: targetAgent.uri, name: targetAgent.name });
 			}
-			if (token.isCancellationRequested) {
+			if (token.isCancellationRequested || replacementToken.isCancellationRequested) {
 				throw new CancellationError();
 			}
 			return {

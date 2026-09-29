@@ -1337,6 +1337,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				override deleteNewSession(sessionId: string): void { events.push(`discard:${sessionId}`); }
 				override isSessionConfigResolving() { return constObservable(false); }
 				override async whenSessionConfigResolved() { return this.getSessionConfig(); }
+				override getNewSessionCancellationToken() { return CancellationToken.None; }
 				override getSessionConfig(): ResolveSessionConfigResult {
 					return {
 						schema: {
@@ -1412,8 +1413,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		let replacementCreated: DeferredPromise<ISession>;
 		let releases: number;
 		let sentConfigs: (Record<string, unknown> | undefined)[];
+		let onTargetConfigWrite: (() => Promise<void>) | undefined;
 
 		setup(async () => {
+			onTargetConfigWrite = undefined;
 			const schema: ResolveSessionConfigResult['schema'] = {
 				type: 'object',
 				required: ['mode'],
@@ -1430,6 +1433,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				override async resolveSessionConfig(params?: Parameters<IAgentConnection['resolveSessionConfig']>[0]): Promise<ResolveSessionConfigResult> {
 					if (this.failResolveSessionConfig) {
 						throw new Error('resolveSessionConfig unavailable');
+					}
+					if (params?.config?.isolation === 'folder') {
+						await onTargetConfigWrite?.();
 					}
 					return { schema, values: { isolation: 'worktree', autoApprove: 'autoApprove', ...params?.config } };
 				}
@@ -1515,6 +1521,34 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				await rejected;
 
 				assert.deepStrictEqual({ releases, config: target.getSessionConfig(replacement.sessionId), sentConfigs }, { releases: 1, config: undefined, sentConfigs: [] });
+			});
+		}
+
+		for (const reason of ['draft disposal', 'disconnect']) {
+			test(`abandons the handoff on ${reason} during a configuration write`, async () => {
+				const writing = new DeferredPromise<void>();
+				const pendingWrite = new DeferredPromise<void>();
+				onTargetConfigWrite = async () => {
+					await writing.complete();
+					await pendingWrite.p;
+				};
+				target.setAuthenticationPending(false);
+				const preparation = source.prepareNewSession(draft.sessionId, CancellationToken.None, 'Run hostname');
+				const rejected = assert.rejects(preparation, /Canceled/);
+				try {
+					const replacement = await replacementCreated.p;
+					await writing.p;
+					if (reason === 'draft disposal') {
+						target.deleteNewSession(replacement.sessionId);
+					} else {
+						target.clearConnection();
+					}
+					await rejected;
+
+					assert.deepStrictEqual({ releases, config: target.getSessionConfig(replacement.sessionId), sentConfigs }, { releases: 1, config: undefined, sentConfigs: [] });
+				} finally {
+					await pendingWrite.complete();
+				}
 			});
 		}
 
