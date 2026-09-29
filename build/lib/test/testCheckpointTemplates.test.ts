@@ -15,6 +15,7 @@ const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const pipelineRoot = path.join(repositoryRoot, 'build/azure-pipelines');
 const windowsTestFile = 'win32/steps/product-build-win32-test.yml';
 const linuxTestFile = 'linux/steps/product-build-linux-test.yml';
+const darwinTestFile = 'darwin/steps/product-build-darwin-test.yml';
 
 interface ScriptStep {
 	[key: string]: unknown;
@@ -54,19 +55,19 @@ function calls(value: unknown): CheckpointParameters[] {
 	).map(record => record.parameters as CheckpointParameters);
 }
 
-function copilotCalls(os: 'linux' | 'win32'): CheckpointParameters[] {
+function copilotCalls(os: 'darwin' | 'linux' | 'win32'): CheckpointParameters[] {
 	const steps = readTemplate('copilot/test-integration-steps.yml').steps;
 	return calls(steps.filter(step => Object.hasOwn(step, `\${{ if eq(parameters.OS, '${os}') }}`)));
 }
 
-function allCalls(testFile: string, os: 'linux' | 'win32'): CheckpointParameters[] {
+function allCalls(testFile: string, os: 'darwin' | 'linux' | 'win32'): CheckpointParameters[] {
 	return [...calls(readTemplate(testFile)), ...copilotCalls(os)];
 }
 
 const wrapper = readTemplate('common/run-test-with-checkpoint.yml');
 
 suite('Product test checkpoint templates', () => {
-	test('only the Linux and Windows test steps use checkpoints', () => {
+	test('only the product test steps use checkpoints', () => {
 		const users: string[] = [];
 		for (const file of globSync('**/*.yml', { cwd: pipelineRoot }).sort()) {
 			for (const record of records(readTemplate(file))) {
@@ -79,13 +80,16 @@ suite('Product test checkpoint templates', () => {
 		assert.deepStrictEqual({
 			users: [...new Set(users)],
 			unsupportedCopilotCalls: calls(copilot.filter(step =>
-				!Object.hasOwn(step, '${{ if eq(parameters.OS, \'linux\') }}')
+				!Object.hasOwn(step, '${{ if eq(parameters.OS, \'darwin\') }}')
+				&& !Object.hasOwn(step, '${{ if eq(parameters.OS, \'linux\') }}')
 				&& !Object.hasOwn(step, '${{ if eq(parameters.OS, \'win32\') }}')
 			)).length,
 		}, {
 			users: [
 				'common/run-test-with-checkpoint.yml -> publish-test-checkpoint.yml',
 				'copilot/test-integration-steps.yml -> run-test-with-checkpoint.yml',
+				`${darwinTestFile} -> restore-test-checkpoints.yml`,
+				`${darwinTestFile} -> run-test-with-checkpoint.yml`,
 				`${linuxTestFile} -> restore-test-checkpoints.yml`,
 				`${linuxTestFile} -> run-test-with-checkpoint.yml`,
 				`${windowsTestFile} -> restore-test-checkpoints.yml`,
@@ -125,7 +129,7 @@ suite('Product test checkpoint templates', () => {
 	});
 
 	test('test results are only published when an attempt produced them', () => {
-		const observed = [windowsTestFile, linuxTestFile].map(file => {
+		const observed = [windowsTestFile, linuxTestFile, darwinTestFile].map(file => {
 			const steps = readTemplate(file).steps;
 			const index = steps.findIndex(step => step.task === 'PublishTestResults@2');
 			assert.ok(index > 0);
@@ -141,6 +145,14 @@ suite('Product test checkpoint templates', () => {
 			condition: 'and(succeededOrFailed(), eq(variables[\'TEST_CHECKPOINT_RESULTS_AVAILABLE\'], \'true\'))',
 		}, {
 			file: linuxTestFile,
+			collector: {
+				script: 'node build/azure-pipelines/common/testCheckpoint.ts collect-results',
+				displayName: 'Check test output availability',
+				condition: 'succeededOrFailed()',
+			},
+			condition: 'and(succeededOrFailed(), eq(variables[\'TEST_CHECKPOINT_RESULTS_AVAILABLE\'], \'true\'))',
+		}, {
+			file: darwinTestFile,
 			collector: {
 				script: 'node build/azure-pipelines/common/testCheckpoint.ts collect-results',
 				displayName: 'Check test output availability',
@@ -163,15 +175,22 @@ suite('Product test checkpoint templates', () => {
 			'smoke-electron', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
+		const darwinExpected = [
+			'unit-electron', 'unit-node', 'unit-browser-webkit',
+			'integration-electron', 'integration-browser-webkit', 'integration-remote',
+			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-browser-chromium', 'smoke-remote',
+			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
+		];
 		const allExpected = [
-			'unit-electron', 'unit-node', 'unit-browser-chromium',
-			'integration-electron', 'integration-browser-chromium', 'integration-browser-firefox', 'integration-remote',
-			'smoke-electron', 'smoke-browser-chromium', 'smoke-remote',
+			'unit-electron', 'unit-node', 'unit-browser-chromium', 'unit-browser-webkit',
+			'integration-electron', 'integration-browser-chromium', 'integration-browser-firefox', 'integration-browser-webkit', 'integration-remote',
+			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const targets = [
-			{ file: windowsTestFile, os: 'win32' as const, expected: windowsExpected, agentOS: 'Windows_NT', stage: 'Windows', job: 'Windows_x64_Test' },
-			{ file: linuxTestFile, os: 'linux' as const, expected: linuxExpected, agentOS: 'Linux', stage: 'LinuxX64', job: 'Linux_x64_Test' },
+			{ file: windowsTestFile, os: 'win32' as const, expected: windowsExpected, agentOS: 'Windows_NT', arch: 'x64', target: 'win32-x64', stage: 'Windows', job: 'Windows_x64_Test' },
+			{ file: linuxTestFile, os: 'linux' as const, expected: linuxExpected, agentOS: 'Linux', arch: 'x64', target: 'linux-x64', stage: 'LinuxX64', job: 'Linux_x64_Test' },
+			{ file: darwinTestFile, os: 'darwin' as const, expected: darwinExpected, agentOS: 'Darwin', arch: 'arm64', target: 'darwin-arm64', stage: 'macOSARM64', job: 'macOS_arm64_Test' },
 		];
 		const publishedIds = readTemplate('common/publish-test-checkpoint.yml').parameters?.find(parameter => parameter.name === 'testId')?.values;
 		assert.deepStrictEqual({
@@ -200,6 +219,12 @@ suite('Product test checkpoint templates', () => {
 				firstStep: { template: '../../common/restore-test-checkpoints.yml@self' },
 				restores: 1,
 				copilot: { OS: 'linux' },
+			}, {
+				file: darwinTestFile,
+				calls: darwinExpected,
+				firstStep: { template: '../../common/restore-test-checkpoints.yml@self' },
+				restores: 1,
+				copilot: { OS: 'darwin' },
 			}],
 			publishedIds: allExpected,
 			scriptIds: allExpected,
@@ -210,7 +235,7 @@ suite('Product test checkpoint templates', () => {
 		const restoredTargets: { target: string; hits: string[] }[] = [];
 		for (const target of targets) {
 			const env: NodeJS.ProcessEnv = {
-				AGENT_OS: target.agentOS, VSCODE_ARCH: 'x64', BUILD_BUILDID: '123',
+				AGENT_OS: target.agentOS, VSCODE_ARCH: target.arch, BUILD_BUILDID: '123',
 				SYSTEM_STAGENAME: target.stage, SYSTEM_JOBNAME: target.job, SYSTEM_JOBATTEMPT: '1', SYSTEM_STAGEATTEMPT: '1',
 				BUILD_SOURCEVERSION: 'source', AGENT_TEMPDIRECTORY: temp,
 				SYSTEM_COLLECTIONURI: 'https://dev.azure.com/organization/', SYSTEM_TEAMPROJECTID: 'project', SYSTEM_ACCESSTOKEN: 'test-token',
@@ -226,12 +251,12 @@ suite('Product test checkpoint templates', () => {
 			const restored: string[] = [];
 			await testCheckpoint(['restore'], { ...env, SYSTEM_JOBATTEMPT: '2' }, async () => Response.json({ value: artifacts }), message => restored.push(message));
 			restoredTargets.push({
-				target: `${target.os}-x64`,
+				target: target.target,
 				hits: restored.filter(message => message.endsWith('_HIT]true')).sort(),
 			});
 		}
 		assert.deepStrictEqual(restoredTargets, targets.map(target => ({
-			target: `${target.os}-x64`,
+			target: target.target,
 			hits: target.expected.map(id => `##vso[task.setvariable variable=TEST_CHECKPOINT_${id.replaceAll('-', '_').toUpperCase()}_HIT]true`).sort(),
 		})));
 	});

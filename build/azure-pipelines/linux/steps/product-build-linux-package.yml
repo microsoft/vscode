@@ -12,12 +12,12 @@ parameters:
 
 steps:
   - ${{ if eq(parameters.VSCODE_WAIT_FOR_CLI, true) }}:
-    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux CLI (${{ upper(parameters.VSCODE_ARCH) }})" $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact (background)
 
-    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux CLI (${{ upper(parameters.VSCODE_ARCH) }})" $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact
