@@ -3125,7 +3125,7 @@ suite('Sessions - SessionsList', () => {
 				archiveDisplay: archive ? mainWindow.getComputedStyle(archive).display : undefined,
 			}, {
 				title: 'Improve the picker',
-				summary: 'Comparison · Starting 2 attempts',
+				summary: 'Comparison · Starting attempts · 1 of 2 ready',
 				comparisonGroups: 1,
 				sessionRows: 0,
 				archiveDisplay: 'none',

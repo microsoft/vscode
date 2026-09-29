@@ -6096,8 +6096,13 @@ function isComparisonLaunchPending(comparison: ISessionComparison): boolean {
 
 function getComparisonGroupSummary(comparison: ISessionComparison, sessions: readonly ISession[], reader?: IReader): string {
 	if (comparison.launching) {
-		const attemptCount = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt).length;
-		return localize('comparisonGroup.startingAttempts', "Comparison · Starting {0} attempts", attemptCount);
+		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+		const readyAttemptCount = attempts.filter(participant =>
+			participant.sessionResource
+			&& sessions.some(session => isEqual(session.resource, participant.sessionResource))).length;
+		return readyAttemptCount === 0
+			? localize('comparisonGroup.startingAttempts', "Comparison · Starting {0} attempts", attempts.length)
+			: localize('comparisonGroup.startingAttemptsProgress', "Comparison · Starting attempts · {0} of {1} ready", readyAttemptCount, attempts.length);
 	}
 	if (comparison.verdict) {
 		return localize('comparisonGroup.reviewReady', "Comparison · Review ready");
