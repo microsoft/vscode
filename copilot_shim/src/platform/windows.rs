@@ -414,9 +414,10 @@ fn create_process_command_line(command: &CommandSpec) -> Vec<u16> {
 			switches,
 			raw_command_tail,
 		} => {
+			// The switches are fixed tokens; cmd.exe ignores quoted switches such as "/S".
 			for argument in switches {
 				line.push(u16::from(b' '));
-				line.extend(quote_process_argument(argument));
+				line.extend(argument.encode_wide());
 			}
 			line.push(u16::from(b' '));
 			line.extend(raw_command_tail.encode_wide());

@@ -10,6 +10,7 @@ use std::ffi::{c_void, OsStr, OsString};
 use std::fs::{self, File};
 use std::io;
 use std::mem::size_of;
+use std::net::TcpListener;
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::os::windows::io::AsRawHandle;
 use std::path::{Path, PathBuf};
@@ -23,19 +24,20 @@ use windows_sys::Win32::Foundation::{
 	CloseHandle, SetHandleInformation, HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE,
 	WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
-use windows_sys::Win32::Storage::FileSystem::{ReadFile, WriteFile, SYNCHRONIZE};
+use windows_sys::Win32::Storage::FileSystem::{ReadFile, WriteFile};
 use windows_sys::Win32::System::Console::{ClosePseudoConsole, CreatePseudoConsole, COORD, HPCON};
 use windows_sys::Win32::System::Pipes::CreatePipe;
 use windows_sys::Win32::System::Threading::{
 	CreateProcessW, DeleteProcThreadAttributeList, GetExitCodeProcess,
-	InitializeProcThreadAttributeList, OpenProcess, TerminateProcess, UpdateProcThreadAttribute,
+	InitializeProcThreadAttributeList, TerminateProcess, UpdateProcThreadAttribute,
 	WaitForSingleObject, CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT,
 	LPPROC_THREAD_ATTRIBUTE_LIST, PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
-	STARTUPINFOEXW,
+	STARTF_USESTDHANDLES, STARTUPINFOEXW,
 };
 
 const IO_TIMEOUT: Duration = Duration::from_secs(15);
-const INSTALL_PROMPT: &[u8] = b"Install GitHub Copilot CLI? [y/N] ";
+// ConPTY may render the prompt's trailing space as a cursor movement, so the marker omits it.
+const INSTALL_PROMPT: &[u8] = b"Install GitHub Copilot CLI? [y/N]";
 
 struct OwnedHandle(HANDLE);
 
@@ -181,6 +183,12 @@ impl ConPtyProcess {
 			AttributeList::new(pseudo_console.raw()).expect("create ConPTY process attribute list");
 		let mut startup = STARTUPINFOEXW::default();
 		startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
+		// Without explicit invalid handles, a child can inherit the test runner's redirected stdio (as in CI) instead of
+		// attaching to the pseudoconsole.
+		startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+		startup.StartupInfo.hStdInput = INVALID_HANDLE_VALUE;
+		startup.StartupInfo.hStdOutput = INVALID_HANDLE_VALUE;
+		startup.StartupInfo.hStdError = INVALID_HANDLE_VALUE;
 		startup.lpAttributeList = attributes.pointer;
 		let executable = PathBuf::from(env!("CARGO_BIN_EXE_copilot"));
 		let mut application_name = wide_null(executable.as_os_str());
@@ -376,7 +384,7 @@ fn windows_conpty_prompt_and_cli_interaction() {
 	}
 
 	let mut prompt = ConPtyProcess::spawn(
-		&[OsString::from("--clear")],
+		&[OsString::from("--vscode-shim"), OsString::from("clear")],
 		empty_path.as_os_str(),
 		&working_directory,
 		&[],
@@ -394,7 +402,8 @@ fn windows_conpty_prompt_and_cli_interaction() {
 	let helper = cli_path.join("copilot.exe");
 	build_native_helper(&helper, native_helper_source());
 	let arguments = vec![
-		OsString::from("--clear"),
+		OsString::from("--vscode-shim"),
+		OsString::from("clear"),
 		OsString::new(),
 		OsString::from("with spaces"),
 		OsString::from("double\"quote"),
@@ -415,15 +424,13 @@ fn windows_conpty_prompt_and_cli_interaction() {
 	cli.write(b"synchronized-input\r");
 	cli.wait_for(b"CLI_STDERR_EXACT");
 	let exit_code = cli.wait_for_exit();
-	let expected_arguments = encode_wide_values(&arguments[1..]);
-	let expected_working_directory =
-		fs::canonicalize(&working_directory).expect("canonicalize working directory");
+	let expected_arguments = encode_wide_values(&arguments[2..]);
 	assert_eq!(
 		(
 			exit_code,
 			read_string(&state.join("stdin")),
 			read_string(&state.join("environment")),
-			read_string(&state.join("cwd")),
+			observed_directory(&state),
 			read_string(&state.join("arguments")),
 			contains_bytes(cli.transcript(), b"CLI_STDOUT_EXACT"),
 			contains_bytes(cli.transcript(), b"CLI_STDERR_EXACT"),
@@ -432,7 +439,7 @@ fn windows_conpty_prompt_and_cli_interaction() {
 			301,
 			String::from("synchronized-input"),
 			encode_wide_values(&[OsString::from("inherited")]),
-			encode_wide_values(&[expected_working_directory.into_os_string()]),
+			fs::canonicalize(&working_directory).expect("canonicalize working directory"),
 			expected_arguments,
 			true,
 			true,
@@ -444,12 +451,6 @@ fn windows_conpty_prompt_and_cli_interaction() {
 
 #[test]
 fn windows_conpty_ctrl_c_cancels_without_fallback() {
-	let Some(power_shell) = compatible_power_shell() else {
-		eprintln!(
-			"Windows ConPTY cancellation runtime unavailable: PowerShell 7.3+ or Windows PowerShell 5.1 was not found"
-		);
-		return;
-	};
 	let root = tempfile::tempdir().expect("create cancellation test directory");
 	let tools = root.path().join("tools");
 	let working_directory = root.path().join("working");
@@ -457,42 +458,52 @@ fn windows_conpty_ctrl_c_cancels_without_fallback() {
 	for directory in [&tools, &working_directory, &state] {
 		fs::create_dir_all(directory).expect("create cancellation test directory");
 	}
-	build_native_helper(&tools.join("winget.exe"), native_helper_source());
 	fs::write(
 		tools.join("copilot.cmd"),
 		b"@echo off\r\nif \"%~1\"==\"--version\" exit /b 9\r\ntype nul > \"%COPILOT_SHIM_TEST_STATE%\\final-cli\"\r\nexit /b 0\r\n",
 	)
 	.expect("write failing fake CLI");
-	let path = env::join_paths([
-		tools.as_path(),
-		power_shell.parent().expect("PowerShell parent directory"),
-	])
-	.expect("join cancellation PATH");
+	// A release server that accepts the connection and never answers keeps the MSI install waiting for Ctrl+C.
+	let listener = TcpListener::bind("127.0.0.1:0").expect("bind fake release server");
+	let releases_url = OsString::from(format!(
+		"http://{}/releases",
+		listener.local_addr().expect("fake release server address")
+	));
+	let (connected, accepted) = mpsc::channel();
+	let _server = thread::spawn(move || {
+		if let Ok((connection, _)) = listener.accept() {
+			let _ = connected.send(());
+			thread::sleep(IO_TIMEOUT);
+			drop(connection);
+		}
+	});
+	let path = env::join_paths([tools.as_path()]).expect("join cancellation PATH");
 
 	let mut process = ConPtyProcess::spawn(
 		&[],
 		&path,
 		&working_directory,
-		&[("COPILOT_SHIM_TEST_STATE", state.as_os_str())],
+		&[
+			("COPILOT_SHIM_TEST_STATE", state.as_os_str()),
+			("VSCODE_COPILOT_SHIM_RELEASES_URL", releases_url.as_os_str()),
+		],
 	);
 	process.wait_for(INSTALL_PROMPT);
 	process.write(b"y\r");
-	process.wait_for(b"WINGET_READY");
+	process.wait_for(b"Finding the latest GitHub Copilot CLI release");
+	accepted
+		.recv_timeout(IO_TIMEOUT)
+		.expect("the install should contact the release server");
 	process.write(&[3]);
 	let exit_code = process.wait_for_exit();
-	let winget_pid = read_string(&state.join("winget-pid"))
-		.parse::<u32>()
-		.expect("numeric winget PID");
 
 	assert_eq!(
 		(
 			exit_code,
-			process_running(winget_pid),
-			state.join("winget-completed").exists(),
 			state.join("final-cli").exists(),
 			count_bytes(process.transcript(), INSTALL_PROMPT),
 		),
-		(130, false, false, false, 1),
+		(130, false, 1),
 		"ConPTY transcript:\n{}",
 		String::from_utf8_lossy(process.transcript())
 	);
@@ -680,20 +691,29 @@ fn assert_wide_observation(observation: &AdapterObservation, arguments: &[OsStri
 }
 
 fn assert_wide_io_observation(observation: &AdapterObservation) {
-	let expected_working_directory =
-		fs::canonicalize(&observation.working_directory).expect("canonicalize adapter cwd");
 	assert_eq!(
 		(
 			read_string(&observation.state.join("stdin")),
 			read_string(&observation.state.join("environment")),
-			read_string(&observation.state.join("cwd")),
+			observed_directory(&observation.state),
 		),
 		(
 			String::from("synchronized-input"),
 			encode_wide_values(&[OsString::from("adapter-environment")]),
-			encode_wide_values(&[expected_working_directory.into_os_string()]),
+			fs::canonicalize(&observation.working_directory).expect("canonicalize adapter cwd"),
 		)
 	);
+}
+
+/// Canonicalizes the working directory the helper observed, because `TEMP` can use 8.3 short names.
+fn observed_directory(state: &Path) -> PathBuf {
+	let observed = decode_wide_values(&read_string(&state.join("cwd")));
+	assert_eq!(
+		observed.len(),
+		1,
+		"the helper records one working directory"
+	);
+	fs::canonicalize(&observed[0]).expect("canonicalize observed working directory")
 }
 
 #[derive(Default)]
@@ -739,20 +759,21 @@ fn run_power_shell_adapter_scenarios(root: &Path) {
 	}
 }
 
+/// Arguments after the embedded quote are the last ones, because Windows PowerShell 5.1 passes the quote through
+/// unescaped and the native helper then joins everything that follows it.
 fn legacy_power_shell_arguments() -> Vec<OsString> {
 	[
 		"empty-before",
 		"",
 		"empty-after",
-		"quote-before",
-		"embedded\"quote",
-		"quote-after",
 		"with spaces",
 		"Grüße-東京",
 		r"trailing\\",
 		"&|<>()^%!;",
 		"duplicate",
 		"duplicate",
+		"quote-before",
+		"embedded\"quote",
 	]
 	.into_iter()
 	.map(OsString::from)
@@ -765,22 +786,12 @@ fn assert_legacy_power_shell_observation(observation: &AdapterObservation) {
 	let empty_after = actual
 		.iter()
 		.position(|argument| argument == "empty-after")
-		.expect("legacy empty-after marker");
-	assert_eq!(
-		actual.first().map(OsString::as_os_str),
-		Some(OsStr::new("empty-before"))
-	);
-	let empty_behavior = &actual[1..empty_after];
-	assert_eq!(
-		actual.get(empty_after + 1).map(OsString::as_os_str),
-		Some(OsStr::new("quote-before"))
-	);
-	let quote_after = actual
+		.unwrap_or_else(|| panic!("legacy empty-after marker in {actual:?}"));
+	let quote_before = actual
 		.iter()
-		.position(|argument| argument == "quote-after")
-		.expect("legacy quote-after marker");
-	let quote_behavior = &actual[empty_after + 2..quote_after];
-	let required_tail: Vec<OsString> = [
+		.position(|argument| argument == "quote-before")
+		.unwrap_or_else(|| panic!("legacy quote-before marker in {actual:?}"));
+	let required: Vec<OsString> = [
 		"with spaces",
 		"Grüße-東京",
 		r"trailing\\",
@@ -791,7 +802,16 @@ fn assert_legacy_power_shell_observation(observation: &AdapterObservation) {
 	.into_iter()
 	.map(OsString::from)
 	.collect();
-	assert_eq!(&actual[quote_after + 1..], required_tail);
+	assert_eq!(
+		(
+			actual.first().map(OsString::as_os_str),
+			actual.get(empty_after + 1..quote_before),
+		),
+		(Some(OsStr::new("empty-before")), Some(required.as_slice())),
+		"legacy arguments {actual:?}"
+	);
+	let empty_behavior = &actual[1..empty_after];
+	let quote_behavior = &actual[quote_before + 1..];
 	eprintln!(
 		"ADAPTER_WINDOWS_POWERSHELL_5_1_EMPTY_ARGUMENTS {}",
 		encode_wide_values(empty_behavior)
@@ -829,6 +849,14 @@ fn create_pipe() -> io::Result<(OwnedHandle, OwnedHandle)> {
 fn environment_block(path: &OsStr, overrides: &[(&str, &OsStr)]) -> Vec<u16> {
 	let mut variables: Vec<(OsString, OsString)> = env::vars_os().collect();
 	set_environment_variable(&mut variables, OsStr::new("PATH"), path);
+	// The shim also searches %LOCALAPPDATA%\GitHubCopilotCLI; keep a Copilot CLI installed on this machine out of tests.
+	let local_app_data = env::temp_dir().join("copilot-shim-test-localappdata");
+	fs::create_dir_all(&local_app_data).expect("create isolated LOCALAPPDATA");
+	set_environment_variable(
+		&mut variables,
+		OsStr::new("LOCALAPPDATA"),
+		local_app_data.as_os_str(),
+	);
 	for (name, value) in overrides {
 		set_environment_variable(&mut variables, OsStr::new(name), value);
 	}
@@ -932,11 +960,6 @@ fn build_native_helper(output: &Path, source: &str) {
 		"native helper build failed with {status}:\n{}",
 		read_string(&capture)
 	);
-}
-
-fn compatible_power_shell() -> Option<PathBuf> {
-	let hosts = power_shell_hosts();
-	hosts.modern.or(hosts.legacy)
 }
 
 fn power_shell_hosts() -> PowerShellHosts {
@@ -1049,14 +1072,6 @@ fn first_version(bytes: &[u8]) -> Option<(u32, u32, u32)> {
 	None
 }
 
-fn process_running(process_id: u32) -> bool {
-	let handle = unsafe { OpenProcess(SYNCHRONIZE, 0, process_id) };
-	let Ok(handle) = OwnedHandle::new(handle) else {
-		return false;
-	};
-	(unsafe { WaitForSingleObject(handle.raw(), 0) }) == WAIT_TIMEOUT
-}
-
 fn encode_wide_values(values: &[OsString]) -> String {
 	let mut encoded = String::new();
 	for value in values {
@@ -1089,12 +1104,11 @@ fn decode_wide_values(encoded: &str) -> Vec<OsString> {
 
 fn native_helper_source() -> &'static str {
 	r#"use std::env;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Write};
 use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
-use std::thread;
 
 fn encode(values: &[OsString]) -> String {
 	let mut encoded = String::new();
@@ -1110,15 +1124,6 @@ fn encode(values: &[OsString]) -> String {
 
 fn main() {
 	let state = PathBuf::from(env::var_os("COPILOT_SHIM_TEST_STATE").unwrap());
-	let executable = env::current_exe().unwrap();
-	if executable.file_name().and_then(OsStr::to_str).is_some_and(|name| name.eq_ignore_ascii_case("winget.exe")) {
-		fs::write(state.join("winget-pid"), std::process::id().to_string()).unwrap();
-		println!("WINGET_READY");
-		io::stdout().flush().unwrap();
-		loop {
-			thread::park();
-		}
-	}
 	let arguments: Vec<OsString> = env::args_os().skip(1).collect();
 	if arguments.first().is_some_and(|argument| argument == "--version") {
 		println!("1.0.82");

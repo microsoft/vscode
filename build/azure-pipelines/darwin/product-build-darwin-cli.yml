@@ -92,12 +92,29 @@ jobs:
             OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-osx/lib
             OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-osx/include
 
+    - template: ../copilot-shim/copilot-shim-compile.yml@self
+      parameters:
+        ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+          COPILOT_SHIM_TARGET: x86_64-apple-darwin
+        ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+          COPILOT_SHIM_TARGET: aarch64-apple-darwin
+        COPILOT_SHIM_ARTIFACT: unsigned_copilot_shim_darwin_$(VSCODE_ARCH)
+        COPILOT_SHIM_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+
     - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
       - template: ../common/publish-artifact.yml@self
         parameters:
           targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
           artifactName: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
           displayName: Publish unsigned CLI
+          sbomEnabled: false
+
+      # The macOS compile job adds the Copilot shim to the client and server builds, which signs it.
+      - template: ../common/publish-artifact.yml@self
+        parameters:
+          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_copilot_shim_darwin_$(VSCODE_ARCH).zip
+          artifactName: unsigned_copilot_shim_darwin_$(VSCODE_ARCH)
+          displayName: Publish unsigned Copilot shim
           sbomEnabled: false
 
       - script: |
@@ -143,3 +160,6 @@ jobs:
           mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_cli_darwin_$(VSCODE_ARCH)_cli
           mv $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip $(Build.ArtifactStagingDirectory)/out/vscode_cli_darwin_$(VSCODE_ARCH)_cli/vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
         displayName: Rename signed artifact
+
+    - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - template: ../copilot-shim/copilot-shim-quality.yml@self

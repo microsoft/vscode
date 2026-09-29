@@ -529,6 +529,13 @@ mod tests {
 		["VSCODE_COPILOT_", "RUST_SHIM_V1"].concat().into_bytes()
 	}
 
+	/// The file name discovery looks for in each PATH directory on this platform.
+	const CANDIDATE: &str = if cfg!(windows) {
+		"copilot.exe"
+	} else {
+		"copilot"
+	};
+
 	fn write_executable(path: &Path, content: &[u8]) {
 		fs::write(path, content).expect("write executable");
 		#[cfg(unix)]
@@ -559,6 +566,8 @@ mod tests {
 			.collect()
 	}
 
+	// Uses Unix file names and legacy scripts; Windows discovery only considers `.exe`, `.cmd`, `.bat`, and `.ps1`.
+	#[cfg(unix)]
 	#[test]
 	fn self_and_legacy_matrix() {
 		let directory = TestDirectory::new("self-and-legacy");
@@ -727,10 +736,10 @@ mod tests {
 	fn path_entries_preserve_native_order_and_first_duplicate() {
 		let directory = TestDirectory::new("path-order");
 		let current = create_current_executable(&directory, b"current without marker");
-		let cwd_candidate = directory.child("copilot");
+		let cwd_candidate = directory.child(CANDIDATE);
 		write_executable(&cwd_candidate, b"cwd");
 		let relative_directory = directory.directory("relative");
-		write_executable(&relative_directory.join("copilot"), b"relative");
+		write_executable(&relative_directory.join(CANDIDATE), b"relative");
 		let non_directory = directory.child("not-a-directory");
 		fs::write(&non_directory, b"file").expect("write non-directory PATH entry");
 
@@ -763,7 +772,7 @@ mod tests {
 
 		let runtime = TestRuntime::new(Some(joined_path(entries)), current, directory.path.clone());
 		let result = discover(&runtime, &shim_marker()).expect("discover candidates");
-		let expected = vec![cwd_candidate, relative_directory.join("copilot")];
+		let expected = vec![cwd_candidate, relative_directory.join(CANDIDATE)];
 		#[cfg(unix)]
 		let expected = {
 			let mut expected = expected;
@@ -783,6 +792,8 @@ mod tests {
 		);
 	}
 
+	// Relies on Unix executable bits; on Windows every regular file is executable.
+	#[cfg(unix)]
 	#[test]
 	fn invalid_candidates_continue_to_a_valid_later_candidate() {
 		let directory = TestDirectory::new("invalid-candidates");
@@ -879,13 +890,13 @@ mod tests {
 		let marker = shim_marker();
 		let current = create_current_executable(&directory, &marker);
 		let hard_link_directory = directory.directory("hard-link");
-		let hard_link = hard_link_directory.join("copilot");
+		let hard_link = hard_link_directory.join(CANDIDATE);
 		fs::hard_link(&current, &hard_link).expect("create hard link");
 		let metadata_error_directory = directory.directory("metadata-error");
-		let metadata_error = metadata_error_directory.join("copilot");
+		let metadata_error = metadata_error_directory.join(CANDIDATE);
 		write_executable(&metadata_error, b"candidate");
 		let valid_directory = directory.directory("valid");
-		let valid = valid_directory.join("copilot");
+		let valid = valid_directory.join(CANDIDATE);
 		write_executable(&valid, b"valid");
 
 		let mut runtime = TestRuntime::new(

@@ -30,10 +30,10 @@ steps:
 
   # The CLI is built by the parallel CLI job and mixed into the client below.
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" "--producer=unsigned_copilot_shim_darwin_$(VSCODE_ARCH)=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI"
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      displayName: Wait for CLI artifact (background)
+      displayName: Wait for CLI and Copilot shim artifacts (background)
 
   # Start pulling the CG-generated NOTICE from the parallel Quality stage
   # in the background (overwrites repo-root ThirdPartyNotices.txt before packaging).
@@ -136,12 +136,33 @@ steps:
   # The unsigned client is published as soon as it is built, since the macOS
   # (UNIVERSAL) job only waits a limited amount of time for it.
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" "--producer=unsigned_copilot_shim_darwin_$(VSCODE_ARCH)=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI"
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      displayName: Wait for CLI artifact
+      displayName: Wait for CLI and Copilot shim artifacts
 
     - template: product-build-darwin-mixin-cli.yml@self
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: unsigned_copilot_shim_darwin_$(VSCODE_ARCH)
+        patterns: "**"
+        path: $(Build.ArtifactStagingDirectory)/copilot-shim
+      displayName: Download Copilot shim
+
+    # Hardened entitlements and Codesign & Notarize sign the shim with the client, and Sign server binaries with the
+    # server.
+    - script: |
+        set -e
+        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME"
+        unzip $(Build.ArtifactStagingDirectory)/copilot-shim/*.zip -d $(Build.ArtifactStagingDirectory)/copilot-shim
+        for SHIM_DIRECTORY in "$APP_PATH/Contents/Resources/app/bin/copilot-shim" "$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)/bin/copilot-shim"; do
+          mkdir -p "$SHIM_DIRECTORY"
+          install -m 755 "$(Build.ArtifactStagingDirectory)/copilot-shim/copilot" "$SHIM_DIRECTORY/copilot"
+        done
+      displayName: Mix in Copilot shim
 
     - script: |
         set -e

@@ -85,3 +85,29 @@ jobs:
             artifactName: unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
             displayName: Publish unsigned CLI
             sbomEnabled: false
+
+      - template: ../copilot-shim/copilot-shim-compile.yml@self
+        parameters:
+          ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+            COPILOT_SHIM_TARGET: x86_64-pc-windows-msvc
+          ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+            COPILOT_SHIM_TARGET: aarch64-pc-windows-msvc
+          COPILOT_SHIM_ARTIFACT: unsigned_copilot_shim_win32_$(VSCODE_ARCH)
+          COPILOT_SHIM_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+          COPILOT_SHIM_ENV:
+            ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+              RUSTFLAGS: "-Ctarget-feature=+crt-static -Clink-args=/guard:cf -Clink-args=/CETCOMPAT"
+            ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+              RUSTFLAGS: "-Ctarget-feature=+crt-static -Clink-args=/guard:cf -Clink-args=/CETCOMPAT:NO"
+
+      # The Windows sign job adds the Copilot shim to the client and server builds, which signs it.
+      - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+        - template: ../common/publish-artifact.yml@self
+          parameters:
+            targetPath: $(Build.ArtifactStagingDirectory)/unsigned_copilot_shim_win32_$(VSCODE_ARCH).zip
+            artifactName: unsigned_copilot_shim_win32_$(VSCODE_ARCH)
+            displayName: Publish unsigned Copilot shim
+            sbomEnabled: false
+
+      - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+        - template: ../copilot-shim/copilot-shim-quality.yml@self

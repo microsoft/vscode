@@ -8,9 +8,11 @@ mod candidate;
 mod command;
 mod identity;
 mod install;
+mod invocation;
 mod legacy;
 mod model;
 mod runtime;
+mod setup;
 mod version;
 
 use std::ffi::OsString;

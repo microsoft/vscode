@@ -1,6 +1,6 @@
-# Adds the CLI to the client build, code signs the client, server and web
-# server builds, and packages them together with the signed setup packages
-# and the standalone CLI.
+# Adds the CLI to the client build and the Copilot shim to the client and
+# server builds, code signs the client, server and web server builds, and
+# packages them together with the signed setup packages and the standalone CLI.
 steps:
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -20,6 +20,25 @@ steps:
       $AppName = $AppProductJson.applicationName
       Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
     displayName: Move VS Code CLI
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: unsigned_copilot_shim_win32_$(VSCODE_ARCH)
+      patterns: "**"
+      path: $(Build.ArtifactStagingDirectory)/copilot-shim
+    displayName: Download Copilot shim
+
+  # Codesign signs the shim with the rest of the builds, and the setup packages include it when it exists.
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      Expand-Archive -Path "$(Build.ArtifactStagingDirectory)/copilot-shim/unsigned_copilot_shim_win32_$(VSCODE_ARCH).zip" -DestinationPath "$(Build.ArtifactStagingDirectory)/copilot-shim"
+      foreach ($Build in "VSCode-win32-$(VSCODE_ARCH)", "vscode-server-win32-$(VSCODE_ARCH)") {
+        $ShimDirectory = "$(Agent.BuildDirectory)/$Build/bin/copilot-shim"
+        New-Item -ItemType Directory -Path $ShimDirectory -Force | Out-Null
+        Copy-Item -Path "$(Build.ArtifactStagingDirectory)/copilot-shim/copilot.exe" -Destination "$ShimDirectory/copilot.exe"
+      }
+    displayName: Mix in Copilot shim
 
   - task: UseDotNet@2
     inputs:

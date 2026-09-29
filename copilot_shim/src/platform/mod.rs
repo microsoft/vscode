@@ -124,85 +124,92 @@ fn spawn_error(command: &CommandSpec, error: &io::Error) -> ProcessError {
 	}
 }
 
+/// The `cmd.exe` switches for running a `.cmd` or `.bat` candidate: command extensions on (required by the `%`
+/// neutralization below), delayed expansion off (so `!` is literal), no AutoRun, and strip only the outer quotes.
+#[cfg(any(windows, test))]
+pub(crate) const WINDOWS_COMMAND_SWITCHES: [&str; 5] = ["/E:ON", "/V:OFF", "/D", "/S", "/C"];
+
+/// Builds the command that `cmd.exe /S /C` runs for a batch script, using the same encoding as the Rust standard
+/// library's batch-file hardening (CVE-2024-24576):
+///
+/// - the script path is quoted and must not contain `"` or end with `\`;
+/// - an argument is quoted when it is empty, ends with `\`, or contains anything other than letters, digits,
+///   and `#$*+-./:?@\_`, so cmd treats metacharacters inside it as text;
+/// - a `"` is doubled, and backslashes before a `"` or the closing quote are doubled for programs that parse their
+///   command line with the Microsoft C runtime rules (for example `node.exe` behind an npm wrapper);
+/// - a `%` becomes `%%cd:~,%`, an empty substring expansion that stops cmd from expanding `%VARIABLE%`.
 #[cfg(any(windows, test))]
 pub(crate) fn encode_windows_command_tail(
 	script: &OsStr,
 	arguments: &[OsString],
 ) -> Result<OsString, CommandBuildError> {
-	let mut encoded = Vec::new();
-	for value in std::iter::once(script).chain(arguments.iter().map(OsString::as_os_str)) {
-		if contains_forbidden_unit(value) {
-			return Err(CommandBuildError::UnsupportedWindowsCommandValue);
-		}
-		let mut token = quote_windows_argument(value)?;
-		for _ in 0..2 {
-			token = escape_cmd_syntax(&token);
-		}
-		encoded.push(token);
+	let script = platform_wide(script)?;
+	if script.is_empty()
+		|| script.contains(&u16::from(b'"'))
+		|| script.last() == Some(&u16::from(b'\\'))
+		|| contains_forbidden_unit(&script)
+	{
+		return Err(CommandBuildError::UnsupportedWindowsCommandValue);
 	}
 
-	let mut command_tail = vec![u16::from(b'"')];
-	for (index, token) in encoded.into_iter().enumerate() {
-		if index != 0 {
-			command_tail.push(u16::from(b' '));
+	let mut command_tail = vec![u16::from(b'"'), u16::from(b'"')];
+	command_tail.extend(script);
+	command_tail.push(u16::from(b'"'));
+	for argument in arguments {
+		let argument = platform_wide(argument)?;
+		if contains_forbidden_unit(&argument) {
+			return Err(CommandBuildError::UnsupportedWindowsCommandValue);
 		}
-		command_tail.extend(token);
+		command_tail.push(u16::from(b' '));
+		append_batch_argument(&mut command_tail, &argument);
 	}
 	command_tail.push(u16::from(b'"'));
 	platform_string_from_wide(&command_tail)
 }
 
 #[cfg(any(windows, test))]
-fn contains_forbidden_unit(value: &OsStr) -> bool {
-	platform_wide(value)
-		.map(|units| {
-			units
-				.into_iter()
-				.any(|unit| unit == 0 || unit == u16::from(b'\r') || unit == u16::from(b'\n'))
-		})
-		.unwrap_or(true)
+fn contains_forbidden_unit(units: &[u16]) -> bool {
+	units
+		.iter()
+		.any(|unit| *unit == 0 || *unit == u16::from(b'\r') || *unit == u16::from(b'\n'))
 }
 
 #[cfg(any(windows, test))]
-fn quote_windows_argument(value: &OsStr) -> Result<Vec<u16>, CommandBuildError> {
-	let units = platform_wide(value)?;
-	let mut result = vec![u16::from(b'"')];
+fn append_batch_argument(command_tail: &mut Vec<u16>, argument: &[u16]) {
+	const UNQUOTED: &[u8] = br"#$*+-./:?@\_";
+	let quote = argument.is_empty()
+		|| argument.last() == Some(&u16::from(b'\\'))
+		|| argument.iter().any(|unit| {
+			char::from_u32(u32::from(*unit)).is_none_or(|character| {
+				character.is_control()
+					|| character.is_ascii()
+						&& !(character.is_ascii_alphanumeric()
+							|| UNQUOTED.contains(&(character as u8)))
+			})
+		});
+
+	if quote {
+		command_tail.push(u16::from(b'"'));
+	}
 	let mut backslashes = 0;
-	for unit in units {
+	for &unit in argument {
 		if unit == u16::from(b'\\') {
 			backslashes += 1;
-			continue;
-		}
-		if unit == u16::from(b'"') {
-			result.extend(std::iter::repeat_n(u16::from(b'\\'), backslashes * 2 + 1));
 		} else {
-			result.extend(std::iter::repeat_n(u16::from(b'\\'), backslashes));
+			if unit == u16::from(b'"') {
+				command_tail.extend(std::iter::repeat_n(u16::from(b'\\'), backslashes));
+				command_tail.push(u16::from(b'"'));
+			} else if unit == u16::from(b'%') {
+				command_tail.extend("%%cd:~,".encode_utf16());
+			}
+			backslashes = 0;
 		}
-		backslashes = 0;
-		result.push(unit);
+		command_tail.push(unit);
 	}
-	result.extend(std::iter::repeat_n(u16::from(b'\\'), backslashes * 2));
-	result.push(u16::from(b'"'));
-	Ok(result)
-}
-
-#[cfg(any(windows, test))]
-fn escape_cmd_syntax(value: &[u16]) -> Vec<u16> {
-	let mut result = Vec::new();
-	for &unit in value {
-		if is_cmd_metacharacter(unit) {
-			result.push(u16::from(b'^'));
-		}
-		result.push(unit);
+	if quote {
+		command_tail.extend(std::iter::repeat_n(u16::from(b'\\'), backslashes));
+		command_tail.push(u16::from(b'"'));
 	}
-	result
-}
-
-#[cfg(any(windows, test))]
-fn is_cmd_metacharacter(unit: u16) -> bool {
-	b" ()[]%!^\"`<>&|;,*?"
-		.iter()
-		.any(|metacharacter| unit == u16::from(*metacharacter))
 }
 
 #[cfg(any(windows, test))]
@@ -215,102 +222,64 @@ fn platform_string_from_wide(value: &[u16]) -> Result<OsString, CommandBuildErro
 	os_string_from_wide(value)
 }
 
+/// Decodes the output of [`encode_windows_command_tail`] back into the script and its arguments, the way a program
+/// behind a batch wrapper (parsing with the Microsoft C runtime rules) receives them.
 #[cfg(test)]
 pub(crate) fn decode_windows_command_tail(
 	value: &OsStr,
 ) -> Result<Vec<OsString>, CommandBuildError> {
+	let quote = u16::from(b'"');
+	let backslash = u16::from(b'\\');
+	let space = u16::from(b' ');
 	let wide = platform_wide(value)?;
-	if wide.len() < 2
-		|| wide.first() != Some(&u16::from(b'"'))
-		|| wide.last() != Some(&u16::from(b'"'))
-	{
+	if wide.len() < 2 || wide.first() != Some(&quote) || wide.last() != Some(&quote) {
 		return Err(CommandBuildError::UnsupportedWindowsCommandValue);
 	}
 
+	let inner = &wide[1..wide.len() - 1];
 	let mut decoded = Vec::new();
-	let mut encoded_token = Vec::new();
-	let mut carets = 0;
-	let mut index = 1;
-	while index + 1 < wide.len() {
-		let unit = wide[index];
-		if unit == u16::from(b' ') && carets % 2 == 0 {
-			decoded.push(decode_token(&encoded_token)?);
-			encoded_token.clear();
-			carets = 0;
-		} else {
-			encoded_token.push(unit);
-			if unit == u16::from(b'^') {
-				carets += 1;
-			} else {
-				carets = 0;
-			}
-		}
-		index += 1;
-	}
-	decoded.push(decode_token(&encoded_token)?);
-	Ok(decoded)
-}
-
-#[cfg(test)]
-fn decode_token(encoded: &[u16]) -> Result<OsString, CommandBuildError> {
-	let mut token = encoded.to_vec();
-	for _ in 0..2 {
-		token = unescape_cmd_syntax(&token)?;
-	}
-	if token.len() < 2
-		|| token.first() != Some(&u16::from(b'"'))
-		|| token.last() != Some(&u16::from(b'"'))
-	{
-		return Err(CommandBuildError::UnsupportedWindowsCommandValue);
-	}
-
-	let mut value = Vec::new();
-	let content = &token[1..token.len() - 1];
 	let mut index = 0;
-	while index < content.len() {
-		if content[index] != u16::from(b'\\') {
-			value.push(content[index]);
+	while index < inner.len() {
+		if inner[index] == space {
 			index += 1;
 			continue;
 		}
-
-		let start = index;
-		while index < content.len() && content[index] == u16::from(b'\\') {
+		let mut value = Vec::new();
+		if inner[index] == quote {
 			index += 1;
-		}
-		let backslashes = index - start;
-		if index == content.len() {
-			if backslashes % 2 != 0 {
-				return Err(CommandBuildError::UnsupportedWindowsCommandValue);
+			loop {
+				let start = index;
+				while inner.get(index) == Some(&backslash) {
+					index += 1;
+				}
+				let backslashes = index - start;
+				let Some(&unit) = inner.get(index) else {
+					return Err(CommandBuildError::UnsupportedWindowsCommandValue);
+				};
+				if unit == quote {
+					value.extend(std::iter::repeat_n(backslash, backslashes / 2));
+					index += 1;
+					if inner.get(index) == Some(&quote) {
+						value.push(quote);
+						index += 1;
+						continue;
+					}
+					break;
+				}
+				value.extend(std::iter::repeat_n(backslash, backslashes));
+				value.push(unit);
+				index += 1;
 			}
-			value.extend(std::iter::repeat_n(u16::from(b'\\'), backslashes / 2));
-		} else if content[index] == u16::from(b'"') {
-			if backslashes % 2 == 0 {
-				return Err(CommandBuildError::UnsupportedWindowsCommandValue);
-			}
-			value.extend(std::iter::repeat_n(u16::from(b'\\'), backslashes / 2));
-			value.push(u16::from(b'"'));
-			index += 1;
 		} else {
-			value.extend(std::iter::repeat_n(u16::from(b'\\'), backslashes));
-		}
-	}
-	platform_string_from_wide(&value)
-}
-
-#[cfg(test)]
-fn unescape_cmd_syntax(encoded: &[u16]) -> Result<Vec<u16>, CommandBuildError> {
-	let mut decoded = Vec::new();
-	let mut index = 0;
-	while index < encoded.len() {
-		if encoded[index] == u16::from(b'^') {
-			index += 1;
-			if index == encoded.len() {
-				return Err(CommandBuildError::UnsupportedWindowsCommandValue);
+			while index < inner.len() && inner[index] != space {
+				value.push(inner[index]);
+				index += 1;
 			}
 		}
-		decoded.push(encoded[index]);
-		index += 1;
+		let text = String::from_utf16(&value)
+			.map_err(|_| CommandBuildError::UnsupportedWindowsCommandValue)?
+			.replace("%%cd:~,%", "%");
+		decoded.push(OsString::from(text));
 	}
 	Ok(decoded)
 }
@@ -322,14 +291,48 @@ mod tests {
 	#[test]
 	fn windows_command_tail_decoder_round_trips_encoder_output() {
 		let script = OsStr::new(r"C:\Program Files\copilot.cmd");
-		let arguments = [OsString::from("with spaces"), OsString::from("&|<>()^%!;")];
+		let arguments = [
+			OsString::from("with spaces"),
+			OsString::from("&|<>()^%!;"),
+			OsString::from(""),
+			OsString::from(r#"quote " and \" inside"#),
+			OsString::from(r"trailing\"),
+			OsString::from("--resume"),
+		];
 		let encoded = encode_windows_command_tail(script, &arguments).expect("encode command tail");
 
 		assert_eq!(
-			decode_windows_command_tail(&encoded).expect("decode command tail"),
-			std::iter::once(script.to_os_string())
-				.chain(arguments)
-				.collect::<Vec<_>>()
+			(
+				encoded.to_string_lossy().into_owned(),
+				decode_windows_command_tail(&encoded).expect("decode command tail"),
+			),
+			(
+				String::from(
+					r#"""C:\Program Files\copilot.cmd" "with spaces" "&|<>()^%%cd:~,%!;" "" "quote "" and \\"" inside" "trailing\\" --resume""#
+				),
+				std::iter::once(script.to_os_string())
+					.chain(arguments)
+					.collect::<Vec<_>>(),
+			)
+		);
+	}
+
+	#[test]
+	fn windows_command_tail_rejects_unsafe_scripts_and_line_breaks() {
+		assert_eq!(
+			[
+				encode_windows_command_tail(OsStr::new(r#"C:\a"b.cmd"#), &[]),
+				encode_windows_command_tail(OsStr::new("C:\\dir\\"), &[]),
+				encode_windows_command_tail(
+					OsStr::new(r"C:\copilot.cmd"),
+					&[OsString::from("line\nbreak")]
+				),
+			],
+			[
+				Err(CommandBuildError::UnsupportedWindowsCommandValue),
+				Err(CommandBuildError::UnsupportedWindowsCommandValue),
+				Err(CommandBuildError::UnsupportedWindowsCommandValue),
+			]
 		);
 	}
 }

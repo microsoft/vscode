@@ -431,10 +431,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
 
-			// The native GitHub Copilot CLI shim, when the build provides it.
-			result = es.merge(result, gulp.src('.build/win32/copilot-shim/**', { base: '.build/win32/copilot-shim', allowEmpty: true })
-				.pipe(rename(f => f.dirname = path.join('bin', 'copilot-shim', f.dirname))));
-
 			if (quality === 'stable' || quality === 'insider') {
 				result = es.merge(result, gulp.src('.build/win32/appx/**', { base: '.build/win32' }));
 				const rawVersion = version.replace(/-\w+$/, '').split('.');

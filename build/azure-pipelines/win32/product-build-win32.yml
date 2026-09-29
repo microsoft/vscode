@@ -23,11 +23,12 @@ parameters:
 #      Retrying it skips the test tasks that already passed in an earlier
 #      attempt (see ../common/test-checkpoints.md).
 #   3. Sign: code signs the builds of the compilation artifact together with
-#      the CLI, packages them and publishes the product artifacts, including
-#      the standalone CLI.
+#      the CLI and the Copilot shim, packages them and publishes the product
+#      artifacts, including the standalone CLI.
 # The test job depends on the compile job. The sign job also depends on the
-# CLI job (see product-build-win32-cli.yml), which builds the unsigned CLI in
-# parallel with the compile job, so the CLI job must be part of the same stage.
+# CLI job (see product-build-win32-cli.yml), which builds the unsigned CLI and
+# Copilot shim in parallel with the compile job, so the CLI job must be part
+# of the same stage.
 # The sign and test jobs run in parallel, but the Publish stage only publishes
 # the x64 product artifacts once the test job has succeeded (see
 # artifactsByGatingJob in ../common/publish.ts).
