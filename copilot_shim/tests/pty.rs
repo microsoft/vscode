@@ -219,7 +219,7 @@ fn unix_pty_preserves_prompt_and_cli_interaction() {
 	fs::create_dir_all(&state).expect("create state directory");
 
 	let mut prompt = PtyProcess::spawn(
-		&[OsString::from("--clear")],
+		&[OsString::from("--vscode-shim"), OsString::from("clear")],
 		empty_path.as_os_str(),
 		&working_directory,
 		&[],
@@ -236,7 +236,7 @@ fn unix_pty_preserves_prompt_and_cli_interaction() {
 
 	write_executable(&cli_path.join("copilot"), compatible_cli_script());
 	let redirected = run_redirected(
-		&[OsString::from("--clear")],
+		&[OsString::from("--vscode-shim"), OsString::from("clear")],
 		cli_path.as_os_str(),
 		&working_directory,
 		root.path(),
@@ -252,7 +252,8 @@ fn unix_pty_preserves_prompt_and_cli_interaction() {
 
 	let native_argument = OsString::from_vec(b"native-\xff".to_vec());
 	let arguments = vec![
-		OsString::from("--clear"),
+		OsString::from("--vscode-shim"),
+		OsString::from("clear"),
 		OsString::new(),
 		OsString::from("with spaces"),
 		native_argument,
@@ -272,7 +273,7 @@ fn unix_pty_preserves_prompt_and_cli_interaction() {
 	let cli_status = cli.wait_for_exit();
 
 	let mut expected_arguments = Vec::new();
-	for argument in &arguments[1..] {
+	for argument in &arguments[2..] {
 		expected_arguments.extend_from_slice(argument.as_bytes());
 		expected_arguments.push(0);
 	}

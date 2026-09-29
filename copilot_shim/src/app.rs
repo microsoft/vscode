@@ -18,6 +18,7 @@ use crate::model::{
 	ProbeLimits, ProcessError, ProcessOutcome, ProcessTermination, ResolvedCandidate,
 	SupervisionMode,
 };
+use crate::runtime::prompt::INSTALL_DOCUMENTATION_URL;
 use crate::runtime::{InspectedFileType, PromptKind, PromptResponse, Runtime};
 use crate::setup;
 use crate::version::{evaluate_successful_stdout, CliVersion, SuccessfulVersion, MINIMUM_VERSION};
@@ -31,9 +32,16 @@ enum DiscoveryCycle {
 #[derive(Debug, Eq, PartialEq)]
 enum CandidateSelection {
 	Launch(Candidate),
-	Old { path: PathBuf, version: CliVersion },
+	Old {
+		candidate: Candidate,
+		version: CliVersion,
+	},
 	Missing,
 }
+
+/// Exit code when Copilot CLI is missing and there is no terminal to offer an install: the code a shell uses for a
+/// command it can't find.
+const NOT_INSTALLED_EXIT_CODE: i32 = 127;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ApplicationExit {
@@ -324,7 +332,7 @@ fn select_candidate<R: Runtime>(
 					return Ok(CandidateSelection::Launch(candidate));
 				}
 				SuccessfulVersion::Old(version) => {
-					return Ok(CandidateSelection::Old { path, version });
+					return Ok(CandidateSelection::Old { candidate, version });
 				}
 			},
 			Ok(ProcessOutcome {
@@ -361,7 +369,15 @@ fn prepare_workflow<R: Runtime>(
 			(_, CandidateSelection::Launch(candidate)) => {
 				return Ok(WorkflowAction::Launch(candidate));
 			}
-			(DiscoveryCycle::Initial, CandidateSelection::Old { version, .. }) => {
+			(DiscoveryCycle::Initial, CandidateSelection::Old { candidate, version }) => {
+				// A script can't answer the update prompt, so it runs the CLI it has.
+				if !runtime.can_prompt() {
+					runtime.write_diagnostic(&format!(
+						"warning: GitHub Copilot CLI {version} at {:?} is older than the required version {MINIMUM_VERSION}; running it anyway because there is no terminal to offer an update",
+						candidate.discovered_path()
+					));
+					return Ok(WorkflowAction::Launch(candidate));
+				}
 				match request_mutation(runtime, target, MutationKind::Update, Some(version))? {
 					PromptResponse::Declined => return Ok(WorkflowAction::Exit(0)),
 					PromptResponse::Accepted => {
@@ -379,19 +395,21 @@ fn prepare_workflow<R: Runtime>(
 			}
 			(
 				DiscoveryCycle::AfterMutation(MutationKind::Update),
-				CandidateSelection::Old { path, version },
+				CandidateSelection::Old { candidate, version },
 			) => {
 				runtime.write_diagnostic(&format!(
-						"update completed, but first-in-PATH candidate {path:?} is still version {version}; it may shadow the updated installation. Reorder PATH, remove the old installation, or invoke the new installation explicitly"
+						"update completed, but first-in-PATH candidate {:?} is still version {version}; it may shadow the updated installation. Reorder PATH, remove the old installation, or invoke the new installation explicitly",
+						candidate.discovered_path()
 					));
 				return Err(ApplicationExit::InternalFailure);
 			}
 			(
 				DiscoveryCycle::AfterMutation(MutationKind::Install),
-				CandidateSelection::Old { path, version },
+				CandidateSelection::Old { candidate, version },
 			) => {
 				runtime.write_diagnostic(&format!(
-						"installation completed, but first-in-PATH candidate {path:?} is version {version}; update or remove the old installation before retrying"
+						"installation completed, but first-in-PATH candidate {:?} is version {version}; update or remove the old installation before retrying",
+						candidate.discovered_path()
 					));
 				return Err(ApplicationExit::InternalFailure);
 			}
@@ -486,6 +504,12 @@ fn request_mutation<R: Runtime>(
 		return Err(ApplicationExit::Code(
 			setup::InstallStatus::Policy.exit_code(),
 		));
+	}
+	if kind == MutationKind::Install && !runtime.can_prompt() {
+		runtime.write_diagnostic(&format!(
+			"GitHub Copilot CLI was not found. Run copilot in a terminal to install it, or see {INSTALL_DOCUMENTATION_URL}"
+		));
+		return Err(ApplicationExit::Code(NOT_INSTALLED_EXIT_CODE));
 	}
 	let Some(target) = target else {
 		report_unsupported_target(runtime, kind, None);
@@ -785,6 +809,7 @@ mod tests {
 		clears: Cell<usize>,
 		diagnostics: RefCell<Vec<String>>,
 		policy_disabled: Cell<bool>,
+		no_terminal: Cell<bool>,
 	}
 
 	impl Default for FakeRuntime {
@@ -812,6 +837,7 @@ mod tests {
 				clears: Cell::new(0),
 				diagnostics: RefCell::new(Vec::new()),
 				policy_disabled: Cell::new(false),
+				no_terminal: Cell::new(false),
 			}
 		}
 	}
@@ -926,6 +952,10 @@ mod tests {
 		fn clear_terminal(&self) -> io::Result<()> {
 			self.clears.set(self.clears.get() + 1);
 			Ok(())
+		}
+
+		fn can_prompt(&self) -> bool {
+			!self.no_terminal.get()
 		}
 
 		fn prompt(&self, kind: PromptKind<'_>) -> io::Result<PromptResponse> {
@@ -1060,7 +1090,7 @@ mod tests {
 			),
 			(
 				CandidateSelection::Old {
-					path: PathBuf::from("/second/copilot"),
+					candidate: direct_candidate("/second/copilot"),
 					version: CliVersion {
 						major: 1,
 						minor: 0,
@@ -1441,6 +1471,57 @@ mod tests {
 	}
 
 	#[test]
+	fn without_a_terminal_a_missing_cli_exits_127_and_an_old_cli_still_runs() {
+		let name = if cfg!(windows) {
+			"copilot.exe"
+		} else {
+			"copilot"
+		};
+		let target = Some(HostTarget::LinuxGnuX64);
+		let script_runtime = |directory: &str| {
+			let runtime = FakeRuntime::default();
+			runtime.no_terminal.set(true);
+			runtime.add_directory(Path::new(directory));
+			runtime.set_path(&[Path::new(directory)]);
+			runtime
+		};
+
+		let missing = script_runtime("/empty");
+		let missing_exit = run(&missing, vec![OsString::from("-p")], target);
+
+		let old = script_runtime("/old");
+		let old_path = Path::new("/old").join(name);
+		old.add_program(&old_path);
+		old.push_process_result(Ok(captured_exit(0, b"1.0.81", b"")));
+		old.push_process_result(Ok(interactive_exit(5)));
+		let old_exit = run(&old, vec![OsString::from("-p")], target);
+
+		assert_eq!(
+			(
+				(missing_exit, missing.prompts.borrow().len(), missing.diagnostics.borrow().clone()),
+				(old_exit, old.prompts.borrow().len(), old.commands.borrow().len(), old.diagnostics.borrow().clone()),
+			),
+			(
+				(
+					127,
+					0,
+					vec![format!(
+						"GitHub Copilot CLI was not found. Run copilot in a terminal to install it, or see {INSTALL_DOCUMENTATION_URL}"
+					)]
+				),
+				(
+					5,
+					0,
+					2,
+					vec![format!(
+						"warning: GitHub Copilot CLI 1.0.81 at {old_path:?} is older than the required version 1.0.82; running it anyway because there is no terminal to offer an update"
+					)]
+				),
+			)
+		);
+	}
+
+	#[test]
 	fn policy_blocks_install_and_update_but_launches_an_installed_cli() {
 		let name = if cfg!(windows) {
 			"copilot.exe"
@@ -1657,7 +1738,8 @@ mod tests {
 		let compatible_exit = run(
 			&compatible,
 			vec![
-				OsString::from("--clear"),
+				OsString::from("--vscode-shim"),
+				OsString::from("clear"),
 				OsString::from("--clear"),
 				OsString::new(),
 				OsString::from("value"),

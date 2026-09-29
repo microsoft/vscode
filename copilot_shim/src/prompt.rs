@@ -69,12 +69,17 @@ pub(crate) fn parse_response(response: &[u8]) -> PromptResponse {
 	}
 }
 
+pub(crate) fn native_can_prompt() -> bool {
+	io::stdin().is_terminal() && io::stderr().is_terminal()
+}
+
+/// Shows the prompt on stderr, so it stays visible, and out of the output, when stdout is redirected.
 pub(crate) fn native_prompt(kind: PromptKind<'_>) -> io::Result<PromptResponse> {
 	let stdin = io::stdin();
 	let mut input = stdin.lock();
-	let interactive = stdin.is_terminal();
-	let stdout = io::stdout();
-	let mut output = stdout.lock();
+	let interactive = native_can_prompt();
+	let stderr = io::stderr();
+	let mut output = stderr.lock();
 	prompt_with_io(&mut input, &mut output, interactive, kind)
 }
 
