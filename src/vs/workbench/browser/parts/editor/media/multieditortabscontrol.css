@@ -140,10 +140,6 @@
 	transform: translateY(-50%);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.last-in-row) + .tab > .tab-divider {
-	display: block;
-}
-
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge {
 	display: none;
 }

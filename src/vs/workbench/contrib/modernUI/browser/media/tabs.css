@@ -274,6 +274,10 @@
 	border-block-width: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
 }
 
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.last-in-row) + .tab > .tab-divider {
+	display: block;
+}
+
 /* Tab fills retain the theme's transparency. The action overlay uses a separately flattened
  * version of the same color so labels beneath the close button cannot show through. */
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container.active .tabs-container > .tab:not(.selected):not(.active) > .tab-fill,

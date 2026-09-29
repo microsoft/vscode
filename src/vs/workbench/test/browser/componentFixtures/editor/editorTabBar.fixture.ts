@@ -22,7 +22,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { listErrorForeground, listWarningForeground } from '../../../../../platform/theme/common/colors/listColors.js';
-import { isDark } from '../../../../../platform/theme/common/theme.js';
+import { isDark, isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { asCssVariableName } from '../../../../../platform/theme/common/colorUtils.js';
 import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -412,7 +412,7 @@ function customizeTheme(theme: IColorTheme, customizations: Readonly<Record<stri
 }
 
 function renderBorderOwnership(modernUI: boolean, editorTabStyle?: ModernUIEditorTabStyle): (ctx: ComponentFixtureContext) => void {
-	return render(modernUI, {
+	return ctx => render(modernUI, {
 		editorTabStyle,
 		width: 1200,
 		editors: [
@@ -425,8 +425,8 @@ function renderBorderOwnership(modernUI: boolean, editorTabStyle?: ModernUIEdito
 			{ resource: file('/project/eta.ts'), pinned: true },
 			{ resource: file('/project/theta.ts'), pinned: true },
 		],
-		colorCustomizations: getLegacyEditorTabBorderCustomizations(),
-	});
+		colorCustomizations: isHighContrast(ctx.theme.type) ? undefined : getLegacyEditorTabBorderCustomizations(),
+	})(ctx);
 }
 
 function renderConnectedBorderContinuity(activeTabIndex: number): (ctx: ComponentFixtureContext) => void {
@@ -1003,7 +1003,7 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		Legacy: defineComponentFixture({
 			render: renderBorderOwnership(false),
 			themes: ['dark'],
-			expectedVisualDescriptions: ['Legacy tabs retain their standard full-width top and bottom border indicators, with a short white divider at every shared tab boundary.'],
+			expectedVisualDescriptions: ['Legacy tabs retain their standard full-width top and bottom border indicators. Their existing tab.border separators remain the sole paint owner at shared boundaries, so no dedicated divider is added.'],
 		}),
 		Pill: defineComponentFixture({
 			render: renderBorderOwnership(true, ModernUIEditorTabStyle.Pill),
@@ -1016,7 +1016,7 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: [
 				'In the standard dark theme, the active connected cap alone owns the customized yellow tab boundary, cyan top border, and pink bottom indicator. Five short white dividers span the long run of adjacent inactive tabs, whose fills remain unoutlined.',
-				'In High Contrast themes, explicit contrast and focus outlines intentionally replace the standard-theme active-only boundary policy so every tab remains distinguishable.',
+				'In High Contrast themes, default theme colors are used without customization. Explicit contrast and focus outlines keep every tab distinguishable, and inactive dividers inherit the active editor group accent.',
 			],
 		}),
 	}),

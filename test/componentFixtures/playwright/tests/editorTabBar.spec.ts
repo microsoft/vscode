@@ -103,7 +103,7 @@ for (const [style, expected] of [
 	['Legacy', {
 		topIndicator: { display: 'block', color: 'rgb(34, 211, 238)' },
 		bottomIndicator: { display: 'block', color: 'rgb(244, 63, 94)' },
-		visibleDividers: Array(7).fill('rgb(255, 255, 255)'),
+		visibleDividers: [],
 	}],
 	['Pill', {
 		topIndicator: { display: 'none' },
@@ -142,6 +142,10 @@ for (const [style, expected] of [
 			const visibleDividers = [...active.parentElement!.querySelectorAll<HTMLElement>('.tab-divider')]
 				.filter(element => getComputedStyle(element).display !== 'none')
 				.map(element => getComputedStyle(element).backgroundColor);
+			const tabsAndActions = active.closest<HTMLElement>('.tabs-and-actions-container');
+			if (!tabsAndActions) {
+				throw new Error('Expected tabs and actions container');
+			}
 			const indicatorStyle = (element: HTMLElement) => {
 				const style = getComputedStyle(element);
 				return { display: style.display, color: style.backgroundColor };
@@ -155,16 +159,20 @@ for (const [style, expected] of [
 				inactiveBorder: getComputedStyle(inactiveFill).borderRightColor,
 				topAccent: getComputedStyle(fill, '::before').backgroundColor,
 				bottomAccent: getComputedStyle(fill, '::after').backgroundColor,
+				bottomBoundaryOffset: bottom.getBoundingClientRect().bottom - tabsAndActions.getBoundingClientRect().bottom,
 				visibleDividers,
 			};
 		});
 		expect(ownership).toMatchObject(expected);
+		if (style === 'Connected') {
+			expect(ownership.bottomBoundaryOffset).toBe(0);
+		}
 	});
 }
 
-for (const [theme, expectedFocusBorder] of [
-	['DarkHighContrast', 'rgb(243, 133, 24)'],
-	['LightHighContrast', 'rgb(0, 107, 189)'],
+for (const [theme, expected] of [
+	['DarkHighContrast', { activeTop: 'rgb(243, 133, 24)', accent: 'rgb(243, 133, 24)' }],
+	['LightHighContrast', { activeTop: 'rgb(181, 32, 13)', accent: 'rgb(0, 107, 189)' }],
 ] as const) {
 	test(`connected borders retain high contrast ownership in ${theme}`, async ({ page }) => {
 		await openFixture(page, `editor/editorTabBar/editorTabBar/BorderOwnership/Connected/${theme}`, '.tabs-container > .tab.active');
@@ -177,6 +185,9 @@ for (const [theme, expectedFocusBorder] of [
 
 			const activeStyle = getComputedStyle(activeFill);
 			const inactiveStyle = getComputedStyle(inactiveFill);
+			const visibleDividers = [...group.querySelectorAll<HTMLElement>('.tab-divider')]
+				.filter(element => getComputedStyle(element).display !== 'none')
+				.map(element => getComputedStyle(element).backgroundColor);
 			return {
 				active: {
 					top: activeStyle.borderTopColor,
@@ -188,19 +199,21 @@ for (const [theme, expectedFocusBorder] of [
 					side: inactiveStyle.borderRightColor,
 				},
 				frame: getComputedStyle(group, '::after').borderColor,
+				visibleDividers,
 			};
 		});
 		expect(ownership).toEqual({
 			active: {
-				top: 'rgb(34, 211, 238)',
-				side: expectedFocusBorder,
+				top: expected.activeTop,
+				side: expected.accent,
 				bottom: 'rgba(0, 0, 0, 0)',
 			},
 			inactive: {
-				top: 'rgb(250, 204, 21)',
-				side: 'rgb(250, 204, 21)',
+				top: 'rgba(0, 0, 0, 0)',
+				side: 'rgba(0, 0, 0, 0)',
 			},
-			frame: expectedFocusBorder,
+			frame: expected.accent,
+			visibleDividers: Array(5).fill(expected.accent),
 		});
 	});
 }
