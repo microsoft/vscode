@@ -34,7 +34,7 @@ parameters:
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX_SNAP
-    displayName: "🎯 Linux x64 Snap"
+    displayName: "🎯 Linux x64 and arm64 Snap"
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX_ARM64

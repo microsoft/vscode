@@ -164,11 +164,25 @@ export function setup(context: TestContext) {
 		}
 	});
 
+	context.test('desktop-linux-snap-arm64', ['linux', 'arm64', 'snap', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('linux-snap-arm64');
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.installSnap(packagePath);
+			try {
+				context.verifySnapLauncher();
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallSnap();
+			}
+		}
+	});
+
 	context.test('desktop-linux-snap-x64', ['linux', 'x64', 'snap', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('linux-snap-x64');
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installSnap(packagePath);
 			try {
+				context.verifySnapLauncher();
 				await testDesktopApp(entryPoint);
 			} finally {
 				await context.uninstallSnap();

@@ -12,6 +12,7 @@ import * as task from './lib/gulp/task.ts';
 import packageJson from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
 import { getDependencies } from './linux/dependencies-generator.ts';
+import { getSnapBase, getSnapcraftConfig } from './linux/snapcraftConfig.ts';
 import { recommendedDeps as debianRecommendedDependencies } from './linux/debian/dep-lists.ts';
 import { recommendedDeps as rpmRecommendedDependencies } from './linux/rpm/dep-lists.ts';
 import * as path from 'path';
@@ -238,6 +239,7 @@ function getSnapBuildPath(arch: string): string {
 function prepareSnapPackage(arch: string) {
 	const binaryDir = '../VSCode-linux-' + arch;
 	const destination = getSnapBuildPath(arch);
+	const config = getSnapcraftConfig(arch, getSnapBase(process.env['VSCODE_SNAP_BASE']));
 
 	return function () {
 		// A desktop file that is placed in snap/gui will be placed into meta/gui verbatim.
@@ -267,8 +269,16 @@ function prepareSnapPackage(arch: string) {
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@VERSION@@', commit!.substr(0, 8)))
-			// Possible run-on values https://snapcraft.io/docs/architectures
-			.pipe(replace('@@ARCHITECTURE@@', arch === 'x64' ? 'amd64' : arch))
+			.pipe(replace('@@ARCHITECTURES@@', config.architectures))
+			.pipe(replace('@@SNAP_BASE@@', config.base))
+			.pipe(replace('@@MULTIARCH@@', config.multiarch))
+			.pipe(replace('@@LIBASOUND@@', config.asound))
+			.pipe(replace('@@LIBATK_BRIDGE@@', config.atkBridge))
+			.pipe(replace('@@LIBATK@@', config.atk))
+			.pipe(replace('@@LIBATSPI@@', config.atspi))
+			.pipe(replace('@@LIBCURL@@', config.curl))
+			.pipe(replace('@@LIBGLIB@@', config.glib))
+			.pipe(replace('@@LIBGTK@@', config.gtk))
 			.pipe(rename('snap/snapcraft.yaml'));
 
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })

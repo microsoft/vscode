@@ -56,6 +56,7 @@ const targetArtifacts: Readonly<Record<string, string>> = {
 	'linux-rpm-arm64': 'vscode_client_linux_arm64_rpm-package',
 	'linux-rpm-armhf': 'vscode_client_linux_armhf_rpm-package',
 	'linux-rpm-x64': 'vscode_client_linux_x64_rpm-package',
+	'linux-snap-arm64': 'vscode_client_linux_arm64_snap',
 	'linux-snap-x64': 'vscode_client_linux_x64_snap',
 	'linux-x64': 'vscode_client_linux_x64_archive-unsigned',
 	'server-alpine-arm64': 'vscode_server_alpine_arm64_archive-unsigned',
@@ -1074,6 +1075,13 @@ export class TestContext {
 		const entryPoint = `/snap/${name}/current/usr/share/${name}/${name}`;
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
+	}
+
+	/**
+	 * Checks that the installed Snap command can start through its launcher.
+	 */
+	public verifySnapLauncher() {
+		this.runNoErrors(path.join('/snap/bin', this.getLinuxBinaryName()), '--version');
 	}
 
 	/**
