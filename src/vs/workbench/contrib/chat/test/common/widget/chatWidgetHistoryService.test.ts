@@ -72,6 +72,39 @@ suite('ChatWidgetHistoryService', () => {
 		assert.strictEqual(terminalHistory[0].inputText, 'terminal query');
 	});
 
+	test('should maintain separate history per history key', () => {
+		const historyService = createHistoryService();
+		historyService.append(ChatAgentLocation.Chat, createInputState('global query'));
+		historyService.append(ChatAgentLocation.Chat, createInputState('session 1 query'), 'session-1');
+		historyService.append(ChatAgentLocation.Chat, createInputState('session 2 query'), 'session-2');
+
+		assert.deepStrictEqual({
+			global: historyService.getHistory(ChatAgentLocation.Chat).map(entry => entry.inputText),
+			session1: historyService.getHistory(ChatAgentLocation.Chat, 'session-1').map(entry => entry.inputText),
+			session2: historyService.getHistory(ChatAgentLocation.Chat, 'session-2').map(entry => entry.inputText),
+		}, {
+			global: ['global query'],
+			session1: ['session 1 query'],
+			session2: ['session 2 query'],
+		});
+	});
+
+	test('should move history between history keys', () => {
+		const historyService = createHistoryService();
+		historyService.append(ChatAgentLocation.Chat, createInputState('committed query'), 'committed-session');
+		historyService.append(ChatAgentLocation.Chat, createInputState('untitled query'), 'untitled-session');
+
+		historyService.moveHistory(ChatAgentLocation.Chat, 'untitled-session', 'committed-session');
+
+		assert.deepStrictEqual({
+			untitled: historyService.getHistory(ChatAgentLocation.Chat, 'untitled-session').map(entry => entry.inputText),
+			committed: historyService.getHistory(ChatAgentLocation.Chat, 'committed-session').map(entry => entry.inputText),
+		}, {
+			untitled: [],
+			committed: ['committed query', 'untitled query'],
+		});
+	});
+
 	test('should limit history to max entries', () => {
 		const historyService = createHistoryService();
 		for (let i = 0; i < ChatInputHistoryMaxEntries + 10; i++) {
@@ -409,5 +442,53 @@ suite('ChatHistoryNavigator', () => {
 		// nav2 should stay at 'query 1'
 		assert.strictEqual(nav2.current()?.inputText, 'query 1');
 		assert.strictEqual(nav2.values.length, 4);
+	});
+
+	test('should keep concurrent navigators separated by history key', () => {
+		const instantiationService = testDisposables.add(new TestInstantiationService());
+		const storageService = testDisposables.add(new TestStorageService());
+		instantiationService.stub(IStorageService, storageService);
+
+		const historyService = testDisposables.add(instantiationService.createInstance(ChatWidgetHistoryService));
+		instantiationService.stub(IChatWidgetHistoryService, historyService);
+
+		const nav1 = testDisposables.add(instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
+		const nav2 = testDisposables.add(instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
+		nav1.setHistoryKey('session-1');
+		nav2.setHistoryKey('session-2');
+
+		nav1.append(createInputState('session 1 query 1'));
+		nav1.append(createInputState('session 1 query 2'));
+		nav2.append(createInputState('session 2 query'));
+
+		nav1.previous();
+		nav2.append(createInputState('session 2 query 2'));
+
+		assert.deepStrictEqual({
+			nav1Current: nav1.current()?.inputText,
+			nav1Values: nav1.values.map(entry => entry.inputText),
+			nav2Values: nav2.values.map(entry => entry.inputText),
+		}, {
+			nav1Current: 'session 1 query 2',
+			nav1Values: ['session 1 query 1', 'session 1 query 2'],
+			nav2Values: ['session 2 query', 'session 2 query 2'],
+		});
+	});
+
+	test('should update navigator when scoped history moves', () => {
+		const instantiationService = testDisposables.add(new TestInstantiationService());
+		const storageService = testDisposables.add(new TestStorageService());
+		instantiationService.stub(IStorageService, storageService);
+
+		const historyService = testDisposables.add(instantiationService.createInstance(ChatWidgetHistoryService));
+		instantiationService.stub(IChatWidgetHistoryService, historyService);
+
+		const nav = testDisposables.add(instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
+		nav.setHistoryKey('committed-session');
+
+		historyService.append(ChatAgentLocation.Chat, createInputState('untitled query'), 'untitled-session');
+		historyService.moveHistory(ChatAgentLocation.Chat, 'untitled-session', 'committed-session');
+
+		assert.deepStrictEqual(nav.values.map(entry => entry.inputText), ['untitled query']);
 	});
 });

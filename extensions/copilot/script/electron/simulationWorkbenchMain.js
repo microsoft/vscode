@@ -33,6 +33,27 @@ function createWindow() {
 	});
 }
 
+/**
+ * Installs a standard application menu. This is required for the clipboard
+ * keyboard shortcuts (Cmd/Ctrl+C/V/X) to be delivered to the web contents -
+ * without an Edit menu containing the paste role, pasting into editors (e.g.
+ * the Monaco editors in the "Adhoc request sender" mode) does not work,
+ * especially on macOS.
+ */
+function setupApplicationMenu() {
+	/** @type {Electron.MenuItemConstructorOptions[]} */
+	const template = [];
+	if (process.platform === 'darwin') {
+		template.push({ role: 'appMenu' });
+	}
+	template.push({ role: 'fileMenu' });
+	template.push({ role: 'editMenu' });
+	template.push({ role: 'viewMenu' });
+	template.push({ role: 'windowMenu' });
+
+	electron.Menu.setApplicationMenu(electron.Menu.buildFromTemplate(template));
+}
+
 app.on('ready', () => {
 	if (process.argv.includes('--help')) {
 		console.log(`Options:
@@ -40,6 +61,7 @@ app.on('ready', () => {
   --grep=STRING      Pre-populates simulation workbench 'grep' input box.`);
 		app.quit();
 	}
+	setupApplicationMenu();
 	registerListeners();
 	createWindow();
 });

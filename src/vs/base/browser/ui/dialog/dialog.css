@@ -17,7 +17,7 @@
 }
 
 .monaco-dialog-modal-block.dimmed {
-	background: rgba(0, 0, 0, 0.3);
+	background: rgba(0, 0, 0, 0.5);
 }
 
 /** Dialog: Container */
@@ -126,7 +126,7 @@
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
 	font-size: 14px;
 	font-weight: 600;
-	flex: 1; /* let the message always grow */
+	flex-grow: 1; /* let the message always grow */
 	white-space: normal;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 	min-height: 22px;
@@ -139,9 +139,11 @@
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
 	line-height: 20px;
 	flex: 1; /* let the message always grow */
+	white-space: pre-wrap;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus,
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail a:focus {
 	outline-width: 1px;
 	outline-style: solid;
 }

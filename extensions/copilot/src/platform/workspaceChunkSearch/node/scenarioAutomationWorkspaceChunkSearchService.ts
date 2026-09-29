@@ -197,6 +197,10 @@ export class ScenarioAutomationWorkspaceChunkSearchService implements IWorkspace
 		return Result.ok(true);
 	}
 
+	async enableExternalIngest(): Promise<boolean> {
+		return false;
+	}
+
 	async deleteExternalIngestWorkspaceIndex(): Promise<void> {
 		// noop
 	}

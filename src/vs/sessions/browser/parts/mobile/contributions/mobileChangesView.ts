@@ -17,7 +17,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { comparePaths } from '../../../../../base/common/comparers.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { IFileDiffViewData } from './mobileDiffView.js';
 
@@ -26,8 +26,8 @@ const $ = DOM.$;
 /**
  * Command id for opening the {@link MobileChangesView}.
  *
- * Takes no arguments. The view reads the active session's changes from
- * {@link ISessionsManagementService}. Phone-only.
+ * Takes no arguments. The view reads the active chat's changes from
+ * {@link ISessionsService}. Phone-only.
  */
 export const MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID = 'sessions.mobile.openChangesView';
 
@@ -141,7 +141,7 @@ export class MobileChangesView extends Disposable {
 		workbenchContainer: HTMLElement,
 		private readonly onOpen: MobileChangesOpenHandler,
 		@IInstantiationService _instantiationService: IInstantiationService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -162,7 +162,7 @@ export class MobileChangesView extends Disposable {
 		this.viewStore.add(DOM.addDisposableListener(backBtn, TouchEventType.Tap, () => this.dispose()));
 
 		const info = DOM.append(header, $('div.mobile-overlay-header-info'));
-		DOM.append(info, $('div.mobile-overlay-header-title')).textContent = localize('changesView.title', "Session Changes");
+		DOM.append(info, $('div.mobile-overlay-header-title')).textContent = localize('changesView.title', "Changes");
 		this.subtitleEl = DOM.append(info, $('div.mobile-overlay-header-subtitle'));
 
 		// -- Body -------------------------------------------------
@@ -172,12 +172,12 @@ export class MobileChangesView extends Disposable {
 
 		this.emptyEl = DOM.append(body, $('div.mobile-overlay-empty-state'));
 		this.emptyEl.style.display = 'none';
-		this.emptyEl.textContent = localize('changesView.empty', "No changes in this session yet.");
+		this.emptyEl.textContent = localize('changesView.empty', "No changes yet.");
 
 		// -- Subscribe to live changes -----------------------------
 		this.viewStore.add(autorun(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
-			const rows = (session?.changes.read(reader) ?? []).map(toRow).sort(compareRows);
+			const session = this.sessionsService.activeSession.read(reader);
+			const rows = (session?.activeChat.read(reader).changes.read(reader) ?? []).map(toRow).sort(compareRows);
 			this.renderList(rows);
 		}));
 	}

@@ -61,7 +61,7 @@ export class ImplicitProjectConfiguration {
 
 	public readonly target: string | undefined;
 	public readonly module: string | undefined;
-	public readonly checkJs: boolean;
+	public readonly checkJs: boolean | undefined;
 	public readonly experimentalDecorators: boolean;
 	public readonly strictNullChecks: boolean;
 	public readonly strictFunctionTypes: boolean;
@@ -89,8 +89,12 @@ export class ImplicitProjectConfiguration {
 		return configuration.get<string>('js/ts.implicitProjectConfig.module');
 	}
 
-	private static readCheckJs(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('js/ts.implicitProjectConfig.checkJs', false);
+	private static readCheckJs(configuration: vscode.WorkspaceConfiguration): boolean | undefined {
+		const inspect = configuration.inspect<boolean>('js/ts.implicitProjectConfig.checkJs');
+		if (this.hasValue(inspect)) {
+			return configuration.get<boolean>('js/ts.implicitProjectConfig.checkJs');
+		}
+		return undefined;
 	}
 
 	private static readExperimentalDecorators(configuration: vscode.WorkspaceConfiguration): boolean {
@@ -107,6 +111,19 @@ export class ImplicitProjectConfiguration {
 
 	private static readImplicitStrict(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('js/ts.implicitProjectConfig.strict', true);
+	}
+
+	private static hasValue(inspect: ReturnType<vscode.WorkspaceConfiguration['inspect']>): boolean {
+		if (inspect === undefined) {
+			return false;
+		}
+
+		return inspect.globalValue !== undefined
+			|| inspect.workspaceValue !== undefined
+			|| inspect.workspaceFolderValue !== undefined
+			|| inspect.globalLanguageValue !== undefined
+			|| inspect.workspaceLanguageValue !== undefined
+			|| inspect.workspaceFolderLanguageValue !== undefined;
 	}
 }
 

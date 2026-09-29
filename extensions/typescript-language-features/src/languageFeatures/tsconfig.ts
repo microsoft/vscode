@@ -11,7 +11,7 @@ import { coalesce } from '../utils/arrays';
 import { exists, looksLikeAbsoluteWindowsPath } from '../utils/fs';
 
 function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): R[] {
-	return node && node.type === 'array' && node.children
+	return node?.type === 'array' && node.children
 		? node.children.map(f)
 		: [];
 }
@@ -96,8 +96,7 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 	}
 
 	private isPathValue(node: jsonc.Node | undefined): node is jsonc.Node {
-		return node
-			&& node.type === 'string'
+		return node?.type === 'string'
 			&& node.value
 			&& !(node.value as string).includes('*'); // don't treat globs as links.
 	}

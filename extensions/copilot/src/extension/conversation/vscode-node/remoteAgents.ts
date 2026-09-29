@@ -111,8 +111,8 @@ export class RemoteAgentContribution implements IDisposable {
 		this.disposables.add(new Disposable(() => agentRegistrations.forEach(agent => agent.dispose())));
 
 		this.refreshRemoteAgents();
-		// Refresh remote agents whenever auth changes, e.g. in case the user was initially not signed in
-		this.disposables.add(this.authenticationService.onDidAccessTokenChange(() => {
+		// Refresh remote agents whenever auth identity changes, e.g. in case the user was initially not signed in
+		this.disposables.add(this.authenticationService.onDidAuthenticationChange(() => {
 			this.refreshRemoteAgents();
 		}));
 	}

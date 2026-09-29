@@ -5,32 +5,32 @@
 
 import { assertNever } from '../../../../../base/common/assert.js';
 import { AsyncIterableProducer } from '../../../../../base/common/async.js';
+import { CachedFunction } from '../../../../../base/common/cache.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { BugIndicatingError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
+import { groupByMap } from '../../../../../base/common/collections.js';
+import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { isDefined } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { prefixedUuid } from '../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
-import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
+import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
-import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary, ProviderId, IInlineCompletionHint, InlineCompletionTriggerKind } from '../../../../common/languages.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
+import { IInlineCompletionHint, InlineCompletion, InlineCompletionContext, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletions, InlineCompletionsDisposeReason, InlineCompletionsProvider, InlineCompletionTriggerKind, LifetimeSummary, PartialAcceptInfo, ProviderId } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
+import { EditDeltaInfo } from '../../../../common/textModelEditSource.js';
 import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
 import { ErrorResult, getReadonlyEmptyArray } from '../utils.js';
-import { groupByMap } from '../../../../../base/common/collections.js';
-import { DirectedGraph } from './graph.js';
-import { CachedFunction } from '../../../../../base/common/cache.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
-import { isDefined } from '../../../../../base/common/types.js';
-import { inlineCompletionIsVisible } from './inlineCompletionIsVisible.js';
-import { EditDeltaInfo } from '../../../../common/textModelEditSource.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { InlineSuggestionEditKind } from './editKind.js';
+import { DirectedGraph } from './graph.js';
+import { inlineCompletionIsVisible } from './inlineCompletionIsVisible.js';
 import { InlineSuggestAlternativeAction } from './InlineSuggestAlternativeAction.js';
 
 export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
@@ -659,6 +659,12 @@ export class InlineSuggestionList {
 				item.reportEndOfLife();
 			}
 			this.provider.disposeInlineCompletions(this.inlineSuggestions, reason);
+		} else if (this.refCount < 0) {
+			// Invariant: every addRef must be paired with exactly one removeRef.
+			// Going negative means a removeRef without a matching addRef somewhere.
+			onUnexpectedError(new BugIndicatingError(
+				`InlineSuggestionList (provider=${this.provider.providerId?.toString()}) refCount went negative (${this.refCount}) — more removeRef than addRef calls.`
+			));
 		}
 	}
 }

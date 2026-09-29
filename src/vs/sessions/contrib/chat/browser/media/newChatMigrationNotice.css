@@ -1,0 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-customization-migration-notice.new-chat-migration-notice {
+	/* Keep the composer centered independently of the notice's height. */
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	width: auto;
+	margin-top: var(--vscode-spacing-size160);
+}
+
+.new-chat-migration-notice .chat-customization-migration-notice-content {
+	text-wrap: wrap;
+}

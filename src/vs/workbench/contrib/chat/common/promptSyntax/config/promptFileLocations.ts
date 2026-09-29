@@ -67,9 +67,24 @@ export const CLAUDE_LOCAL_MD_FILENAME = 'CLAUDE.local.md';
 export const CLAUDE_CONFIG_FOLDER = '.claude';
 
 /**
+ * Copilot configuration folder name.
+ */
+export const COPILOT_CONFIG_FOLDER = '.copilot';
+
+/**
  * Copilot custom instructions file name.
  */
 export const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
+
+/**
+ * Voice customization file name.
+ */
+export const VOICE_INSTRUCTIONS_FILENAME = 'voice.md';
+
+/**
+ * Dictation customization file name.
+ */
+export const DICTATION_INSTRUCTIONS_FILENAME = 'dictation.md';
 
 /**
  * GitHub configuration folder name.

@@ -173,6 +173,11 @@ export class GithubCodeSearchService implements IGithubCodeSearchService {
 				});
 
 				this._logService.error(`GithubCodeSearchService::getRemoteIndexState(${repoNwo}). Failed to fetch indexing status. Response: ${statusRequest.status}. ${await statusRequest.text()}`);
+
+				if (statusRequest.status === 401 || statusRequest.status === 403) {
+					return Result.error<RemoteCodeSearchError>({ type: 'not-authorized' });
+				}
+
 				return Result.error<RemoteCodeSearchError>({ type: 'generic-error', error: new Error(`Failed to fetch indexing status. Response: ${statusRequest.status}.`) });
 			}
 
@@ -254,6 +259,10 @@ export class GithubCodeSearchService implements IGithubCodeSearchService {
 			}, {
 				statusCode: response.status,
 			});
+
+			if (response.status === 401 || response.status === 403) {
+				return Result.error({ type: 'not-authorized' });
+			}
 
 			return Result.error({ type: 'generic-error', error: new Error(`Failed to request indexing for '${githubRepoId}'. Response: ${response.status}.`) });
 		}

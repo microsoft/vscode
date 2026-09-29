@@ -224,13 +224,23 @@ export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boo
  * you are in a context without services, consider to pass down the `extUri` from the
  * outside, or use `extUriBiasedIgnorePathCase` if you know what you are doing.
  */
-export function isEqualOrParent(base: string, parentCandidate: string, ignoreCase?: boolean, separator = sep): boolean {
+export function isEqualOrParent(base: string, parentCandidate: string, ignoreCase?: boolean, forcePosixSemantics = false): boolean {
+	const separator = forcePosixSemantics ? posix.sep : sep;
+
 	if (base === parentCandidate) {
 		return true;
 	}
 
 	if (!base || !parentCandidate) {
 		return false;
+	}
+
+	if (
+		base.indexOf('..') >= 0 ||
+		parentCandidate.indexOf('..') >= 0
+	) {
+		base = forcePosixSemantics ? posix.normalize(base) : normalize(base);
+		parentCandidate = forcePosixSemantics ? posix.normalize(parentCandidate) : normalize(parentCandidate);
 	}
 
 	if (parentCandidate.length > base.length) {

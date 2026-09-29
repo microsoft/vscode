@@ -3,6 +3,7 @@
 	"compilerOptions": {
 		"lib": [
 			"ES2024",
+			"ESNext.Disposable",
 			"WebWorker",
 			"Webworker.Iterable",
 			"WebWorker.AsyncIterable"

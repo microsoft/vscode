@@ -59,7 +59,6 @@ body {
 	--vscode-shadow-md: 0 0 6px rgba(0, 0, 0, 0.08);
 	--vscode-shadow-lg: 0 0 12px rgba(0, 0, 0, 0.14);
 	--vscode-shadow-xl: 0 0 20px rgba(0, 0, 0, 0.15);
-	--vscode-shadow-hover: 0 0 8px rgba(0, 0, 0, 0.12);
 	--vscode-shadow-active-tab: 0 8px 12px rgba(0, 0, 0, 0.02);
 
 	/* Panel depth shadows cast onto the editor surface */
@@ -94,16 +93,22 @@ body {
 }
 
 .monaco-workbench.border:not(.fullscreen) {
+	--window-border-width: 1px;
 	box-sizing: border-box;
 	border: 1px solid var(--window-border-color);
 }
 
-.monaco-workbench.border.mac {
-	border-radius: 10px;
+/* Native frame geometry stays fixed in screen coordinates when the workbench is zoomed. */
+.monaco-workbench.mac {
+	--window-corner-radius: calc(10px / var(--window-zoom-factor, 1));
 }
 
-.monaco-workbench.border.mac.macos-tahoe {
-	border-radius: 16px; /* macOS Tahoe increased rounded corners size */
+.monaco-workbench.mac.macos-tahoe {
+	--window-corner-radius: calc(16px / var(--window-zoom-factor, 1));
+}
+
+.monaco-workbench.border.mac {
+	border-radius: var(--window-corner-radius);
 }
 
 .monaco-workbench img {

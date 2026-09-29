@@ -121,6 +121,7 @@ suite('MainThreadAuthentication', () => {
 			$removeSession: () => Promise.resolve(),
 			$onDidChangeAuthenticationSessions: () => Promise.resolve(),
 			$registerDynamicAuthProvider: () => Promise.resolve('test'),
+			$registerXaaAuthProvider: () => Promise.resolve('test'),
 			$onDidChangeDynamicAuthProviderTokens: () => Promise.resolve(),
 			$getSessionsFromChallenges: () => Promise.resolve([]),
 			// eslint-disable-next-line local/code-no-any-casts

@@ -7,6 +7,7 @@ import type * as vscode from 'vscode';
 import * as l10n from '@vscode/l10n';
 import { ILogService } from '../../../platform/log/common/logService';
 import { CUSTOM_TOOL_SEARCH_NAME } from '../../../platform/networking/common/anthropic';
+import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { LanguageModelTextPart, LanguageModelToolResult } from '../../../vscodeTypes';
 import { ICopilotModelSpecificTool, ToolRegistry } from '../common/toolsRegistry';
 import { IToolsService } from '../common/toolsService';
@@ -15,6 +16,13 @@ import { IToolEmbeddingsComputer } from '../common/virtualTools/toolEmbeddingsCo
 export interface IToolSearchParams {
 	query: string;
 	limit?: number;
+	/** Internal Agent Host corpus; not part of the model-facing schema. */
+	candidateTools?: readonly IToolSearchCandidate[];
+}
+
+export interface IToolSearchCandidate {
+	name: string;
+	description: string;
 }
 
 const DEFAULT_SEARCH_LIMIT = 5;
@@ -23,11 +31,12 @@ export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchPara
 	constructor(
 		@IToolEmbeddingsComputer private readonly _toolEmbeddingsComputer: IToolEmbeddingsComputer,
 		@IToolsService private readonly _toolsService: IToolsService,
+		@IToolDeferralService private readonly _toolDeferralService: IToolDeferralService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<IToolSearchParams>, token: vscode.CancellationToken) {
-		const { query, limit } = options.input;
+		const { query, limit, candidateTools } = options.input;
 
 		if (!query) {
 			return new LanguageModelToolResult([
@@ -35,7 +44,17 @@ export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchPara
 			]);
 		}
 
-		const availableTools = this._toolsService.tools;
+		const availableTools: readonly vscode.LanguageModelToolInformation[] = candidateTools !== undefined
+			? candidateTools.map(tool => ({
+				name: tool.name,
+				description: tool.description,
+				inputSchema: undefined,
+				tags: [],
+				source: undefined,
+			}))
+			: this._toolsService.tools.filter(
+				tool => !this._toolDeferralService.isNonDeferredTool(tool.name),
+			);
 		const matchedToolNames = await this._toolEmbeddingsComputer.searchToolsByQuery(
 			query,
 			availableTools,
@@ -60,7 +79,7 @@ ToolRegistry.registerModelSpecificTool(
 		displayName: l10n.t('Search Tools'),
 		toolReferenceName: 'toolSearch',
 		userDescription: l10n.t('Search for relevant tools by describing what you need'),
-		description: 'Search for relevant tools by describing what you need. Returns tool references for tools matching your query. Use this when you need to find a tool but aren\'t sure of its exact name. Check the availableDeferredTools list in your instructions for the full set of deferred tools, and include relevant tool names from that list in your query for more accurate results. Use broad queries to find all related tools in a single call rather than making multiple narrow searches.',
+		description: 'Search for relevant tools by describing what you need. Returns tool references for tools matching your query. Use this when you need to find a tool but aren\'t sure of its exact name. Check the deferred tools list in your instructions for the full set of deferred tools, and include relevant tool names from that list in your query for more accurate results. Use broad queries to find all related tools in a single call rather than making multiple narrow searches.',
 		tags: [],
 		source: undefined,
 		toolSet: 'vscode',
@@ -74,19 +93,24 @@ ToolRegistry.registerModelSpecificTool(
 			},
 			required: ['query'],
 		},
+		fullReferenceName: `vscode/toolSearch`,
 		models: [
 			{ family: 'gpt-5.4' },
 			{ family: 'gpt-5.5' },
+			{ family: 'gpt-5.6-sol' },
+			{ family: 'gpt-5.6-terra' },
+			{ family: 'gpt-5.6-luna' },
+			{ family: 'claude-haiku-4.5' },
 			{ family: 'claude-sonnet-4.5' },
 			{ family: 'claude-sonnet-4.6' },
+			{ family: 'claude-sonnet-5' },
 			{ family: 'claude-opus-4.5' },
 			{ family: 'claude-opus-4.6' },
-			{ family: 'claude-opus-4.6-1m' },
 			{ family: 'claude-opus-4.7' },
-			{ family: 'claude-opus-4.7-1m' },
-			{ family: 'claude-opus-4.7-1m-internal' },
-			{ family: 'claude-opus-4.7-high' },
-			{ family: 'claude-opus-4.7-xhigh' },
+			{ family: 'claude-opus-4.8' },
+			{ family: 'claude-opus-5' },
+			{ family: 'claude-fable-5' },
+			{ family: 'claude-mythos-5' },
 		],
 	},
 	ToolSearchTool,

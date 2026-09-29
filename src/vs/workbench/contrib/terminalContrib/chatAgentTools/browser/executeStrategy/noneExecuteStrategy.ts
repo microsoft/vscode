@@ -154,6 +154,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			let output: string | undefined;
 			const additionalInformationLines: string[] = [];
 			try {
+				const startMarkerDisposed = this._startMarker.value?.line === -1;
 				output = xterm.getContentsAsText(this._startMarker.value, endMarker);
 				this._log('Fetched output via markers');
 
@@ -164,6 +165,11 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 				// sendText), and trailing lines that look like shell prompts are removed.
 				if (output !== undefined) {
 					output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this));
+				}
+
+				if (startMarkerDisposed) {
+					this._log('Start marker was disposed (output exceeded scrollback), output may be truncated from the beginning');
+					additionalInformationLines.push('Output exceeded terminal scrollback; beginning of output was lost');
 				}
 			} catch {
 				this._log('Failed to fetch output via markers');

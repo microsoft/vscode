@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { autorun } from '../../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../../base/common/observable.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressMessage, IChatToolInvocation } from '../../../../common/chatService/chatService.js';
@@ -20,6 +20,7 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
  */
 export class ChatToolStreamingSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
+	public override readonly isHidden = observableValue(this, true);
 
 	public override readonly codeblocks: IChatCodeBlockInfo[] = [];
 
@@ -64,7 +65,9 @@ export class ChatToolStreamingSubPart extends BaseChatToolInvocationSubPart {
 
 			// Don't render anything if there's no meaningful content
 			const messageText = typeof displayMessage === 'string' ? displayMessage : displayMessage.value;
-			if (!messageText || messageText.trim().length === 0) {
+			const isHidden = !messageText || messageText.trim().length === 0;
+			this.isHidden.set(isHidden, undefined);
+			if (isHidden) {
 				dom.clearNode(container);
 				return;
 			}
@@ -78,16 +81,20 @@ export class ChatToolStreamingSubPart extends BaseChatToolInvocationSubPart {
 				content
 			};
 
+			// Tool calls grouped under a thinking part rely on the thinking header for the working
+			// indicator, so their rows stay static; standalone streaming rows shimmer instead.
+			const shimmer = !toolInvocation.isAttachedToThinking;
 			const part = reader.store.add(this.instantiationService.createInstance(
 				ChatProgressContentPart,
 				progressMessage,
 				this.renderer,
 				this.context,
-				undefined,
+				shimmer ? true : undefined,
 				true,
-				this.getIcon(),
+				this.getProgressIcon(),
 				toolInvocation,
-				false
+				shimmer,
+				undefined,
 			));
 
 			dom.reset(container, part.domNode);

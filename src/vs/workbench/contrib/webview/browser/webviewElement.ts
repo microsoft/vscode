@@ -9,10 +9,10 @@ import { parentOriginHash } from '../../../../base/browser/iframe.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { COI } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { listenStream } from '../../../../base/common/stream.js';
@@ -109,7 +109,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 	});
 
-	private readonly _expectedServiceWorkerVersion = 5; // Keep this in sync with the version in service-worker.js
+	private readonly _expectedServiceWorkerVersion = 6; // Keep this in sync with the version in service-worker.js
 
 	private _element: HTMLIFrameElement | undefined;
 	protected get element(): HTMLIFrameElement | undefined { return this._element; }
@@ -138,8 +138,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
-	private readonly _resourceLoadingCts = this._register(new CancellationTokenSource());
-	private readonly _activeStreamControllers = new Set<ReadableStreamDefaultController>();
+	private readonly _resourceLoadingDisposables = this._register(new DisposableStore());
 
 	private _contextKeyService: IContextKeyService | undefined;
 
@@ -205,6 +204,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('did-click-link', ({ uri }) => {
+			if (!this.isActiveElement()) {
+				return;
+			}
 			this._onDidClickLink.fire(uri);
 		}));
 
@@ -242,14 +244,14 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('fatal-error', (e) => {
-			notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", e.message));
+			const message = this.extension
+				? localize('fatalErrorMessageWithExtension', "Error loading webview provided by '{0}': {1}", this.extension.id.value, e.message)
+				: localize('fatalErrorMessage', "Error loading webview: {0}", e.message);
+			notificationService.error(message);
 			this._onFatalError.fire({ message: e.message });
 		}));
 
 		this._register(this.on('did-keydown', (data) => {
-			// Electron: workaround for https://github.com/electron/electron/issues/14258
-			// We have to detect keyboard events in the <webview> and dispatch them to our
-			// keybinding service because these events do not bubble to the parent window anymore.
 			this.handleKeyEvent('keydown', data);
 		}));
 
@@ -292,7 +294,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 					path: decodeURIComponent(entry.path), // This gets re-encoded
 					query: entry.query ? decodeURIComponent(entry.query) : entry.query,
 				});
-				this.loadResource(entry.id, uri, { ifNoneMatch: entry.ifNoneMatch, range: entry.range }, this._resourceLoadingCts.token);
+				this.loadResource(entry.id, uri, { ifNoneMatch: entry.ifNoneMatch, range: entry.range });
 			} catch (e) {
 				this._send('did-load-resource', {
 					id: entry.id,
@@ -354,12 +356,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 		this._onDidDispose.fire();
 
-		for (const controller of this._activeStreamControllers) {
-			try { controller.close(); } catch { /* already closed */ }
-		}
-		this._activeStreamControllers.clear();
-
-		this._resourceLoadingCts.dispose(true);
+		this._resourceLoadingDisposables.dispose();
 
 		super.dispose();
 	}
@@ -713,7 +710,22 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 	}
 
+	private shouldForwardKeyEvent(event: KeyEvent): boolean {
+		return event.isTrusted || !!this._content.options.forwardUntrustedKeypressEvents;
+	}
+
+	private isActiveElement(): boolean {
+		return !!this.element && this.window?.document.activeElement === this.element;
+	}
+
 	private handleKeyEvent(type: 'keydown' | 'keyup', event: KeyEvent) {
+		if (!this.shouldForwardKeyEvent(event) || !this.isActiveElement()) {
+			return;
+		}
+
+		// Electron: workaround for https://github.com/electron/electron/issues/14258
+		// We have to detect keyboard events in the <webview> and dispatch them to our
+		// keybinding service because these events do not bubble to the parent window anymore.
 		// Create a fake KeyboardEvent from the data provided
 		const emulatedKeyboardEvent = new KeyboardEvent(type, event);
 		// Force override the target
@@ -776,10 +788,20 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 	}
 
-	private async loadResource(id: number, uri: URI, options: { ifNoneMatch: string | undefined; range?: { readonly start: number; readonly end?: number } }, token: CancellationToken) {
+	private async loadResource(id: number, uri: URI, options: { ifNoneMatch: string | undefined; range?: { readonly start: number; readonly end?: number } }) {
 		if (this._disposed) {
 			return;
 		}
+
+		const { promise: streamDone, resolve: resolveStreamDone } = promiseWithResolvers<void>();
+		let closeStream: (() => void) | undefined;
+		const cts = new CancellationTokenSource();
+		const request = this._resourceLoadingDisposables.add(toDisposable(() => {
+			closeStream?.();
+			cts.dispose(true);
+			resolveStreamDone();
+		}));
+		const token = cts.token;
 
 		try {
 			const result = await this._instantiationService.invokeFunction(loadLocalResource, uri, {
@@ -789,6 +811,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			}, token);
 
 			if (this._disposed) {
+				if (result.type === WebviewResourceResponse.Type.Success) {
+					result.stream.resume();
+				}
 				return;
 			}
 
@@ -801,42 +826,50 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 						? `bytes ${range.start}-${rangeEnd}/${result.size}`
 						: undefined;
 					if (WebviewElement._supportsTransferableStreams.value) {
+						let controller: ReadableStreamDefaultController<Uint8Array<ArrayBuffer>> | undefined;
+						let closed = false;
+						const close = () => {
+							if (!closed) {
+								closed = true;
+								if (controller) {
+									try { controller.close(); } catch { /* already closed */ }
+								}
+								resolveStreamDone();
+							}
+						};
+						closeStream = close;
 						const stream = new ReadableStream<Uint8Array<ArrayBuffer>>({
-							start: (controller) => {
-								// Track this controller so that the single
-								// cancellation handler in dispose() can close
-								// all active streams without per-stream listeners.
-								this._activeStreamControllers.add(controller);
-								let closed = false;
-								const close = () => {
-									if (!closed) {
-										closed = true;
-										this._activeStreamControllers.delete(controller);
-										try { controller.close(); } catch { /* already closed */ }
-									}
-								};
+							start: (newController) => {
+								controller = newController;
 
 								listenStream(result.stream, {
 									onData: (chunk) => {
 										if (!closed) {
 											try {
-												controller.enqueue(new Uint8Array<ArrayBuffer>(chunk.buffer.buffer as ArrayBuffer, chunk.buffer.byteOffset, chunk.buffer.byteLength));
+												controller?.enqueue(new Uint8Array(chunk.buffer));
 											} catch {
-												closed = true;
-												this._activeStreamControllers.delete(controller);
+												close();
 											}
 										}
 									},
 									onError: (err) => {
 										if (!closed) {
 											closed = true;
-											this._activeStreamControllers.delete(controller);
-											try { controller.error(err); } catch { /* already closed */ }
+											const currentController = controller;
+											if (currentController) {
+												try { currentController.error(err); } catch { /* already closed */ }
+											}
+											resolveStreamDone();
 										}
 									},
 									onEnd: () => close()
 								}, token);
-							}
+							},
+							cancel: this.platform === 'electron' ? () => {
+								// Let the file stream finish cancellation so its end/error listeners can clean up.
+								cts.cancel();
+								close();
+							} : undefined,
 						});
 						this._send('did-load-resource', {
 							id,
@@ -861,17 +894,25 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 						});
 						listenStream(result.stream, {
 							onData: (chunk) => {
-								const data = new Uint8Array(chunk.buffer.buffer, chunk.buffer.byteOffset, chunk.buffer.byteLength);
+								// Copy into a freshly-owned ArrayBuffer before transferring. `chunk`
+								// may be a view into a larger, shared ArrayBuffer (e.g. from the IPC
+								// deserialize pipeline); transferring its underlying ArrayBuffer would
+								// detach every sibling view. WebKit detaches synchronously, which
+								// previously broke webview resource loading in Safari.
+								const data = new Uint8Array(chunk.buffer);
 								this._send('did-load-resource-chunk', { id, data }, [data.buffer]);
 							},
 							onError: () => {
 								this._send('did-load-resource-end', { id, error: true });
+								resolveStreamDone();
 							},
 							onEnd: () => {
 								this._send('did-load-resource-end', { id });
+								resolveStreamDone();
 							}
 						}, token);
 					}
+					await streamDone;
 					return;
 				}
 				case WebviewResourceResponse.Type.NotModified: {
@@ -893,6 +934,8 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			}
 		} catch {
 			// noop
+		} finally {
+			this._resourceLoadingDisposables.delete(request);
 		}
 
 		return this._send('did-load-resource', {

@@ -46,4 +46,24 @@ suite('Processes', () => {
 		assert.strictEqual(env['VSCODE_PYTHON_AUTOACTIVATE_GUARD'], undefined);
 		assert.strictEqual(Object.keys(env).length, 3);
 	});
+
+	test('removeDangerousEnvVariables', () => {
+		const env = {
+			SAFE: 'value',
+			DEBUG: 'value',
+			debug: 'value',
+			NODE_OPTIONS: '--import=data:text/javascript,',
+			Node_Options: '--require=module',
+			VSCODE_NODE_OPTIONS: '--import=data:text/javascript,',
+			Vscode_Node_Options: '--require=module',
+			LD_PRELOAD: 'library',
+			ld_preload: 'library',
+			DYLD_INSERT_LIBRARIES: 'library',
+			Dyld_Insert_Libraries: 'library'
+		};
+
+		processes.removeDangerousEnvVariables(env);
+
+		assert.deepStrictEqual(env, { SAFE: 'value' });
+	});
 });

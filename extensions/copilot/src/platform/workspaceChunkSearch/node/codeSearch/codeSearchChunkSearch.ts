@@ -23,8 +23,9 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ChatResponseWarningPart } from '../../../../vscodeTypes';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { IAuthenticationChatUpgradeService } from '../../../authentication/common/authenticationUpgrade';
+import { authenticationSessionIdentityEquals } from '../../../authentication/common/enterprise';
 import { FileChunkAndScore } from '../../../chunking/common/chunk';
-import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
+import { ConfigKey, ConfigTarget, IConfigurationService } from '../../../configuration/common/configurationService';
 import { EmbeddingType } from '../../../embeddings/common/embeddingsComputer';
 import { RelativePattern } from '../../../filesystem/common/fileTypes';
 import { IGitService, ResolvedRepoRemoteInfo } from '../../../git/common/gitService';
@@ -57,10 +58,20 @@ export interface CodeSearchRemoteIndexState {
 
 	readonly repos: ReadonlyArray<RepoEntry>;
 
+	readonly externalIngestEnablement?: ExternalIngestEnablement;
+
+	readonly hasPromptedForExternalIngest?: boolean;
+
 	/**
 	 * Status of external ingest indexing for files not covered by code search.
 	 */
 	readonly externalIngestState?: ExternalIngestStatus;
+}
+
+export const enum ExternalIngestEnablement {
+	DisabledByPolicy = 'disabledByPolicy',
+	DisabledBySetting = 'disabledBySetting',
+	Enabled = 'enabled',
 }
 
 type DiffSearchResult = StrategySearchResult & {
@@ -125,6 +136,8 @@ export class CodeSearchChunkSearch extends Disposable {
 
 	private readonly _externalIngestIndex: Lazy<ExternalIngestIndex>;
 
+	private _externalIngestIndexStateListener: IDisposable | undefined;
+
 	constructor(
 		private readonly _embeddingType: EmbeddingType,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -159,18 +172,21 @@ export class CodeSearchChunkSearch extends Disposable {
 			this.closeRepo(info.repo);
 		}));
 
-		// When the github authentication state changes, update repos only if the session actually changed
+		// Refresh repository authorization when the session or its account/issuer identity changes.
 		{
-			let lastAnyGitHubSessionId = this._authenticationService.anyGitHubSession?.id;
-			let lastPermissiveGitHubSessionId = this._authenticationService.permissiveGitHubSession?.id;
+			let lastAnyGitHubSession = this._authenticationService.anyGitHubSession;
+			let lastPermissiveGitHubSession = this._authenticationService.permissiveGitHubSession;
 			this._register(this._authenticationService.onDidAuthenticationChange(() => {
-				const anySessionId = this._authenticationService.anyGitHubSession?.id;
-				const permissiveSessionId = this._authenticationService.permissiveGitHubSession?.id;
-				if (anySessionId === lastAnyGitHubSessionId && permissiveSessionId === lastPermissiveGitHubSessionId) {
+				const anySession = this._authenticationService.anyGitHubSession;
+				const permissiveSession = this._authenticationService.permissiveGitHubSession;
+				if (anySession?.id === lastAnyGitHubSession?.id
+					&& permissiveSession?.id === lastPermissiveGitHubSession?.id
+					&& authenticationSessionIdentityEquals(anySession, lastAnyGitHubSession)
+					&& authenticationSessionIdentityEquals(permissiveSession, lastPermissiveGitHubSession)) {
 					return;
 				}
-				lastAnyGitHubSessionId = anySessionId;
-				lastPermissiveGitHubSessionId = permissiveSessionId;
+				lastAnyGitHubSession = anySession;
+				lastPermissiveGitHubSession = permissiveSession;
 				this.updateRepoStatuses('github', new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAuthenticationChange'));
 			}));
 		}
@@ -204,6 +220,19 @@ export class CodeSearchChunkSearch extends Disposable {
 				})),
 			}));
 		});
+
+		this._register(this._configService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(ConfigKey.Advanced.WorkspaceEnableCodeSearchExternalIngest.fullyQualifiedId)) {
+				return;
+			}
+
+			if (this.isExternalIngestEnabled()) {
+				void this.ensureExternalIngestInitialized().finally(() => this._onDidChangeIndexState.fire());
+				return;
+			}
+
+			this._onDidChangeIndexState.fire();
+		}));
 
 		if (this.isCodeSearchEnabled()) {
 			this.initialize();
@@ -242,15 +271,7 @@ export class CodeSearchChunkSearch extends Disposable {
 						return;
 					}
 
-					// Update external ingest index with the code search repo roots (if external ingest is enabled)
-					if (this.isExternalIngestEnabled()) {
-						this.updateExternalIngestRoots();
-						this._register(this._externalIngestIndex.value.onDidChangeState(() => {
-							this._onDidChangeIndexState.fire();
-						}));
-
-						await this._externalIngestIndex.value.initialize();
-					}
+					await this.ensureExternalIngestInitialized();
 				} finally {
 					this._hasFinishedInitialization = true;
 					this._onDidFinishInitialization.fire();
@@ -268,6 +289,21 @@ export class CodeSearchChunkSearch extends Disposable {
 
 	private updateExternalIngestRoots(): void {
 		this._externalIngestIndex.rawValue?.updateCodeSearchRoots(this.getExternalIngestRoots());
+	}
+
+	private async ensureExternalIngestInitialized(): Promise<void> {
+		if (!this.isExternalIngestEnabled()) {
+			return;
+		}
+
+		this.updateExternalIngestRoots();
+		if (!this._externalIngestIndexStateListener) {
+			this._externalIngestIndexStateListener = this._register(this._externalIngestIndex.value.onDidChangeState(() => {
+				this._onDidChangeIndexState.fire();
+			}));
+		}
+
+		await this._externalIngestIndex.value.initialize();
 	}
 
 	private isInitializing(): boolean {
@@ -437,14 +473,45 @@ export class CodeSearchChunkSearch extends Disposable {
 	}
 
 	public isExternalIngestEnabled(): boolean | 'force' {
+		if (!this.canExternalIngestBeEnabled()) {
+			return false;
+		}
+
 		return this._configService.getExperimentBasedConfig<boolean>(ConfigKey.Advanced.WorkspaceEnableCodeSearchExternalIngest, this._experimentationService);
 	}
 
-	public getRemoteIndexState(): CodeSearchRemoteIndexState {
+	public canExternalIngestBeEnabled(): boolean {
+		return !!this._authenticationService.copilotToken?.isBlackbirdExternalIndexingEnabled();
+	}
+
+	public getExternalIngestEnablement(): ExternalIngestEnablement {
+		if (!this.canExternalIngestBeEnabled()) {
+			return ExternalIngestEnablement.DisabledByPolicy;
+		}
+
+		return this.isExternalIngestEnabled() ? ExternalIngestEnablement.Enabled : ExternalIngestEnablement.DisabledBySetting;
+	}
+
+	public async enableExternalIngest(): Promise<boolean> {
+		if (!this.canExternalIngestBeEnabled()) {
+			return false;
+		}
+
+		await this._configService.setConfig(ConfigKey.Advanced.WorkspaceEnableCodeSearchExternalIngest, true, ConfigTarget.Workspace);
+		await this.initialize();
+		await this.ensureExternalIngestInitialized();
+		this._onDidChangeIndexState.fire();
+		return true;
+	}
+
+	public getRemoteIndexState(hasPromptedForExternalIngest: boolean): CodeSearchRemoteIndexState {
+		const externalIngestEnablement = this.getExternalIngestEnablement();
 		if (!this.isCodeSearchEnabled() && !this.isExternalIngestEnabled()) {
 			return {
 				status: 'disabled',
 				repos: [],
+				externalIngestEnablement,
+				hasPromptedForExternalIngest,
 			};
 		}
 
@@ -460,6 +527,8 @@ export class CodeSearchChunkSearch extends Disposable {
 			return {
 				status: 'initializing',
 				repos: [],
+				externalIngestEnablement,
+				hasPromptedForExternalIngest,
 				externalIngestState,
 			};
 		}
@@ -468,6 +537,8 @@ export class CodeSearchChunkSearch extends Disposable {
 			return {
 				status: 'loaded',
 				repos: [],
+				externalIngestEnablement,
+				hasPromptedForExternalIngest,
 				externalIngestState,
 			};
 		}
@@ -479,6 +550,8 @@ export class CodeSearchChunkSearch extends Disposable {
 				return {
 					status: 'initializing',
 					repos: [],
+					externalIngestEnablement,
+					hasPromptedForExternalIngest,
 					externalIngestState,
 				};
 			}
@@ -492,6 +565,8 @@ export class CodeSearchChunkSearch extends Disposable {
 		return {
 			status: 'loaded',
 			repos,
+			externalIngestEnablement,
+			hasPromptedForExternalIngest,
 			externalIngestState,
 		};
 	}

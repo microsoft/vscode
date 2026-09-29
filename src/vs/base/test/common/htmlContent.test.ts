@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens } from '../../common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('htmlContent', () => {
@@ -56,6 +56,24 @@ suite('htmlContent', () => {
 			// these would be escaped by escapeMarkdownSyntaxTokens but must
 			// pass through here since they render literally inside `[...]`.
 			assert.strictEqual(escapeMarkdownLinkLabel('a*b_c#d-e.f!g~h+i(j)k{l}m'), 'a*b_c#d-e.f!g~h+i(j)k{l}m');
+		});
+	});
+
+	suite('escapeMarkdownSyntaxTokens', () => {
+		test('escapes inline syntax tokens anywhere', () => {
+			assert.strictEqual(escapeMarkdownSyntaxTokens('a*b_c`d[e]f(g)h#i+j!k~l{m}'), 'a\\*b\\_c\\`d\\[e\\]f\\(g\\)h\\#i\\+j\\!k\\~l\\{m\\}');
+		});
+
+		test('does not escape mid-line dashes', () => {
+			assert.strictEqual(escapeMarkdownSyntaxTokens('heap-snapshot-analysis'), 'heap-snapshot-analysis');
+			assert.strictEqual(escapeMarkdownSyntaxTokens('npm run foo-bar'), 'npm run foo-bar');
+		});
+
+		test('escapes dashes that start a line', () => {
+			assert.strictEqual(escapeMarkdownSyntaxTokens('- item'), '\\- item');
+			assert.strictEqual(escapeMarkdownSyntaxTokens('  - indented'), '  \\- indented');
+			assert.strictEqual(escapeMarkdownSyntaxTokens('---'), '\\---');
+			assert.strictEqual(escapeMarkdownSyntaxTokens('line one\n- item'), 'line one\n\\- item');
 		});
 	});
 });

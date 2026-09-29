@@ -10,7 +10,7 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { isAbsolute } from '../../../../../base/common/path.js';
 import { untildify } from '../../../../../base/common/labels.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
-import { IParsedHookCommand } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { interpolateHookCommandPluginRoot, IParsedHookCommand, PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { HookType, HOOKS_BY_TARGET, HOOK_METADATA } from './hookTypes.js';
 import { Target } from './promptTypes.js';
 import { IValue, IMapValue } from './promptFileParser.js';
@@ -37,6 +37,32 @@ export interface IHookCommand extends IParsedHookCommand {
 export type ChatRequestHooks = {
 	readonly [K in HookType]?: readonly IParsedHookCommand[];
 };
+
+export namespace ChatRequestHooks {
+	export function isEquals(a: ChatRequestHooks | undefined, b: ChatRequestHooks | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		for (const hookType of Object.values(HookType)) {
+			const aArr = a[hookType];
+			const bArr = b[hookType];
+			if (aArr?.length !== bArr?.length) {
+				return false;
+			}
+			if (aArr && bArr) {
+				for (let i = 0; i < aArr.length; i++) {
+					if (!IParsedHookCommand.isEquals(aArr[i], bArr[i])) {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
+	}
+}
 
 /**
  * Merges two sets of hooks by concatenating the command arrays for each hook type.
@@ -486,7 +512,8 @@ export function resolveHookCommand(raw: Record<string, unknown>, workspaceRootUr
 export function extractHookCommandsFromItem(
 	item: unknown,
 	workspaceRootUri: URI | undefined,
-	userHome: string
+	userHome: string,
+	plugin?: { readonly uri: URI; readonly format: PluginFormat },
 ): IHookCommand[] {
 	if (!item || typeof item !== 'object') {
 		return [];
@@ -502,7 +529,8 @@ export function extractHookCommandsFromItem(
 			if (!nestedHook || typeof nestedHook !== 'object') {
 				continue;
 			}
-			const normalized = normalizeForResolve(nestedHook as Record<string, unknown>);
+			const raw = nestedHook as Record<string, unknown>;
+			const normalized = normalizeForResolve(plugin ? interpolateHookCommandPluginRoot(raw, plugin.uri, plugin.format) : raw);
 			const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
 			if (resolved) {
 				commands.push(resolved);
@@ -510,7 +538,7 @@ export function extractHookCommandsFromItem(
 		}
 	} else {
 		// Direct command object
-		const normalized = normalizeForResolve(itemObj);
+		const normalized = normalizeForResolve(plugin ? interpolateHookCommandPluginRoot(itemObj, plugin.uri, plugin.format) : itemObj);
 		const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
 		if (resolved) {
 			commands.push(resolved);
@@ -580,6 +608,7 @@ function yamlValueToPlain(value: IValue): unknown {
  * @param workspaceRootUri Workspace root for resolving relative `cwd` paths.
  * @param userHome User home directory path for tilde expansion.
  * @param target The agent's target, used to resolve hook type names correctly.
+ * @param plugin The contributing plugin, used to resolve format-specific plugin-root variables.
  * @returns Resolved hooks organized by hook type, ready for use in {@link ChatRequestHooks}.
  */
 export function parseSubagentHooksFromYaml(
@@ -587,6 +616,7 @@ export function parseSubagentHooksFromYaml(
 	workspaceRootUri: URI | undefined,
 	userHome: string,
 	target: Target = Target.Undefined,
+	plugin?: { readonly uri: URI; readonly format: PluginFormat },
 ): ChatRequestHooks {
 	const result: Record<string, IHookCommand[]> = {};
 	const targetHookMap = HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined];
@@ -612,7 +642,7 @@ export function parseSubagentHooksFromYaml(
 			// extractHookCommandsFromItem helper can handle both direct
 			// commands and nested matcher structures.
 			const plainItem = yamlValueToPlain(item);
-			const extracted = extractHookCommandsFromItem(plainItem, workspaceRootUri, userHome);
+			const extracted = extractHookCommandsFromItem(plainItem, workspaceRootUri, userHome, plugin);
 			commands.push(...extracted);
 		}
 

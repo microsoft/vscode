@@ -28,8 +28,10 @@ export interface ILabelService {
 	getHostLabel(scheme: string, authority?: string): string;
 	getHostTooltip(scheme: string, authority?: string): string | undefined;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
+	/** Returns the display home containing `resource`. */
+	getUriHome(resource: URI): URI | undefined;
 
-	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
+	registerFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): IDisposable;
 	readonly onDidChangeFormatters: Event<IFormatterChangeEvent>;
 
 	/**
@@ -53,8 +55,25 @@ export interface IFormatterChangeEvent {
 export interface ResourceLabelFormatter {
 	scheme: string;
 	authority?: string;
+	/** URI path used as a display home. Runtime registrations only. */
+	home?: string;
 	priority?: boolean;
 	formatting: ResourceLabelFormatting;
+}
+
+export interface ResourceLabelTemplateFormatter {
+	/** URI home whose optional template parameters occupy an entire path segment, such as `/sessions/${sessionId}`. */
+	home: URI;
+	/** Fires when state used by `formatting` changes and existing labels must be recomputed. */
+	onDidChangeFormatting: Event<void>;
+	/** Resolves formatting whose label is treated as literal text. */
+	formatting(context: ResourceLabelFormattingContext): ResourceLabelFormatting | undefined;
+}
+
+export interface ResourceLabelFormattingContext {
+	readonly resource: URI;
+	readonly home: URI;
+	readonly parameters: ReadonlyMap<string, string>;
 }
 
 export interface ResourceLabelFormatting {

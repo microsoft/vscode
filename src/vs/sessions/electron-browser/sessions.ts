@@ -112,6 +112,9 @@
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
 
+		// Set product configuration as global (used e.g. to select the ASAR path in `amdX`)
+		globalThis._VSCODE_PRODUCT_JSON = { ...configuration.product };
+
 		// Dev only: CSS import map tricks
 		setupCSSImportMaps<T>(configuration, baseUrl);
 

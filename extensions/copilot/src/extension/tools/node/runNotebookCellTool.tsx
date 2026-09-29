@@ -383,7 +383,7 @@ export class RunNotebookCellOutput extends PromptElement<IRunNotebookCellOutputP
 			|| item.mime === 'application/vnd.code.notebook.stderr'
 			|| item.mime === 'application/json');
 		if (textItem) {
-			if (getCharLimit(textItem.data.byteLength) > sizing.tokenBudget / this.props.sizeLimitRatio) {
+			if (textItem.data.byteLength > getCharLimit(sizing.tokenBudget / this.props.sizeLimitRatio)) {
 				return <Tag name={`cell-output`} attrs={{ mimeType: textItem.mime }}>
 					Output {index + 1}: Output is too large to be used as context in the language model, but the user should be able to see it in the notebook.<br />
 					<br />
@@ -394,7 +394,7 @@ export class RunNotebookCellOutput extends PromptElement<IRunNotebookCellOutputP
 			</Tag>;
 		}
 
-		const largeOutput = output.items.find((item) => getCharLimit(item.data.byteLength) > sizing.tokenBudget / this.props.sizeLimitRatio);
+		const largeOutput = output.items.find((item) => item.data.byteLength > getCharLimit(sizing.tokenBudget / this.props.sizeLimitRatio));
 		if (largeOutput) {
 			return <Tag name={`cell-output`} attrs={{ mimeType: largeOutput.mime }}>
 				Output {index + 1}: Output is too large to be used as context in the language model, but the user should be able to see it in the notebook.<br />

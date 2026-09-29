@@ -26,6 +26,7 @@ import { CursorWorkspaceMcpDiscoveryAdapter } from '../common/discovery/workspac
 import { WorkspaceDotMcpDiscovery } from '../common/discovery/workspaceDotMcpDiscovery.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { mcpServerSchema } from '../common/mcpConfiguration.js';
+import { IMcpCopilotGlobalConfigurationService, McpCopilotGlobalConfigurationService } from '../common/mcpCopilotGlobalConfigurationService.js';
 import { McpContextKeysController } from '../common/mcpContextKeys.js';
 import { IMcpDevModeDebugging, McpDevModeDebugging } from '../common/mcpDevMode.js';
 import { McpLanguageModelToolContribution } from '../common/mcpLanguageModelToolContribution.js';
@@ -40,7 +41,7 @@ import { IWorkbenchMcpGatewayService } from '../common/mcpGatewayService.js';
 import { BrowserMcpGatewayService } from './mcpGatewayService.js';
 import { McpGatewayToolBrokerContribution } from './mcpGatewayToolBrokerContribution.js';
 import { McpAddContextContribution } from './mcpAddContextContribution.js';
-import { AddConfigurationAction, EditStoredInput, InstallFromManifestAction, ListMcpServerCommand, McpBrowseCommand, McpBrowseResourcesCommand, McpConfigureSamplingModels, McpConfirmationServerOptionsCommand, MCPServerActionRendering, McpServerOptionsCommand, McpSkipCurrentAutostartCommand, McpStartPromptingServerCommand, OpenRemoteUserMcpResourceCommand, OpenUserMcpResourceCommand, OpenWorkspaceFolderMcpResourceCommand, OpenWorkspaceMcpResourceCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowInstalledMcpServersCommand, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
+import { AddConfigurationAction, EditStoredInput, InstallFromManifestAction, ListMcpServerCommand, McpAgentHostServerOptionsCommand, McpBrowseCommand, McpBrowseResourcesCommand, McpConfigureSamplingModels, McpConfirmationServerOptionsCommand, MCPServerActionRendering, McpServerOptionsCommand, McpSkipCurrentAutostartCommand, McpStartPromptingServerCommand, OpenRemoteUserMcpResourceCommand, OpenUserMcpResourceCommand, OpenWorkspaceFolderMcpResourceCommand, OpenWorkspaceMcpResourceCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, SetOAuthClientSecret, ShowConfiguration, ShowInstalledMcpServersCommand, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 import { McpDiscovery } from './mcpDiscovery.js';
 import { McpElicitationService } from './mcpElicitationService.js';
 import { McpLanguageFeatures } from './mcpLanguageFeatures.js';
@@ -51,6 +52,7 @@ import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { MCPContextsInitialisation, McpWorkbenchService } from './mcpWorkbenchService.js';
 
 registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
+registerSingleton(IMcpCopilotGlobalConfigurationService, McpCopilotGlobalConfigurationService, InstantiationType.Delayed);
 registerSingleton(IMcpSandboxService, McpSandboxService, InstantiationType.Delayed);
 registerSingleton(IMcpService, McpService, InstantiationType.Delayed);
 registerSingleton(IMcpWorkbenchService, McpWorkbenchService, InstantiationType.Eager);
@@ -75,6 +77,7 @@ registerWorkbenchContribution2('mcpGatewayToolBrokerRemote', McpGatewayToolBroke
 
 registerAction2(ListMcpServerCommand);
 registerAction2(McpServerOptionsCommand);
+registerAction2(McpAgentHostServerOptionsCommand);
 registerAction2(McpConfirmationServerOptionsCommand);
 registerAction2(ResetMcpTrustCommand);
 registerAction2(ResetMcpCachedTools);
@@ -82,6 +85,7 @@ registerAction2(AddConfigurationAction);
 registerAction2(InstallFromManifestAction);
 registerAction2(RemoveStoredInput);
 registerAction2(EditStoredInput);
+registerAction2(SetOAuthClientSecret);
 registerAction2(StartServer);
 registerAction2(StopServer);
 registerAction2(ShowOutput);

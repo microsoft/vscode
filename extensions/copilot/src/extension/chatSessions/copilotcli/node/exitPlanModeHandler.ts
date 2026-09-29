@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Session, SessionOptions } from '@github/copilot/sdk';
+import type { SessionOptions } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import type { CancellationToken, ChatParticipantToolToken, TextDocument } from 'vscode';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -13,6 +13,7 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { isEqual } from '../../../../util/vs/base/common/resources';
 import { LanguageModelTextPart, Uri } from '../../../../vscodeTypes';
 import { IToolsService } from '../../../tools/common/toolsService';
+import { Session } from '../common/utils';
 
 type ExitPlanModeActionType = Parameters<NonNullable<SessionOptions['onExitPlanMode']>>[0]['actions'][number];
 
@@ -162,7 +163,7 @@ async function resolveInteractive(
 
 		const result = await toolService.invokeTool('vscode_reviewPlan', {
 			input: {
-				title: l10n.t('Review Plan'),
+				title: l10n.t('Plan summary'),
 				plan: planPath ? Uri.file(planPath).toString() : undefined,
 				content: event.summary,
 				actions,

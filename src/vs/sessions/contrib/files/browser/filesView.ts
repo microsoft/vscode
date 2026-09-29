@@ -17,13 +17,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { agentsPanelBackground } from '../../../common/theme.js';
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { IAction } from '../../../../base/common/actions.js';
-import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
-import { SyncChangesActionViewItem } from './syncChangesActionViewItem.js';
 
 const $ = dom.$;
 
@@ -45,13 +39,6 @@ export class SessionsExplorerView extends ExplorerView {
 				listBackground: agentsPanelBackground,
 			}
 		};
-	}
-
-	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
-		if (action.id === 'sessions.files.action.syncChanges') {
-			return this.instantiationService.createInstance(SyncChangesActionViewItem, action, options);
-		}
-		return super.createActionViewItem(action, options);
 	}
 }
 
@@ -76,9 +63,6 @@ export class SessionsExplorerEmptyView extends ViewPane {
 
 		const bodyContainer = dom.append(container, $('.files-empty-view-body'));
 		const welcomeContainer = dom.append(bodyContainer, $('.files-empty-welcome'));
-
-		const welcomeIcon = dom.append(welcomeContainer, $('.files-empty-welcome-icon'));
-		welcomeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.files));
 
 		const welcomeMessage = dom.append(welcomeContainer, $('.files-empty-welcome-message'));
 		welcomeMessage.textContent = localize('filesView.noFiles', "Folders and files will appear here.");

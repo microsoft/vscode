@@ -14,12 +14,14 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
+import { getExplicitFileOrImageAttachmentSummary } from '../../common/attachments/chatVariableEntries.js';
 import { IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem } from '../chat.js';
+import { getChatRequestText } from '../chatRequestText.js';
 
 export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocation: IChatToolInvocation[]) => {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -27,8 +29,15 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 
 	const acceptKb = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId, contextKeyService)?.getAriaLabel();
 	const cancelKb = keybindingService.lookupKeybinding(CancelChatActionId, contextKeyService)?.getAriaLabel();
+	const authenticationServers = toolInvocation
+		.map(invocation => invocation.state.get())
+		.filter(state => state.type === IChatToolInvocation.StateKind.WaitingForAuthentication)
+		.map(state => state.server.name);
 	const text = toolInvocation.map(v => {
 		const state = v.state.get();
+		if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+			return;
+		}
 		if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 			const detail = isToolResultInputOutputDetails(state.resultDetails)
 				? state.resultDetails.input
@@ -66,15 +75,21 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 		};
 	}).filter(isDefined);
 
-	let message = acceptKb && cancelKb
-		? localize('toolInvocationsHintKb', "Chat confirmation required: {0}. Press {1} to accept or {2} to cancel.", text.map(t => t.title).join(', '), acceptKb, cancelKb)
-		: localize('toolInvocationsHint', "Chat confirmation required: {0}", text.map(t => t.title).join(', '));
-
-	if (text.some(t => t.detail)) {
-		message += ' ' + localize('toolInvocationsHintDetails', "Details: {0}", text.map(t => t.detail ? t.detail : '').join(' '));
+	const messages: string[] = [];
+	if (text.length > 0) {
+		messages.push(acceptKb && cancelKb
+			? localize('toolInvocationsHintKb', "Chat confirmation required: {0}. Press {1} to accept or {2} to cancel.", text.map(t => t.title).join(', '), acceptKb, cancelKb)
+			: localize('toolInvocationsHint', "Chat confirmation required: {0}", text.map(t => t.title).join(', ')));
 	}
 
-	return message;
+	if (text.some(t => t.detail)) {
+		messages.push(localize('toolInvocationsHintDetails', "Details: {0}", text.map(t => t.detail ? t.detail : '').join(' ')));
+	}
+	if (authenticationServers.length > 0) {
+		messages.push(localize('toolAuthenticationHint', "MCP authentication required for {0}. Use the Authenticate button in the tool call.", authenticationServers.join(', ')));
+	}
+
+	return messages.join(' ');
 };
 
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
@@ -98,7 +113,9 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 
 	getAriaLabel(element: ChatTreeItem): string {
 		if (isRequestVM(element)) {
-			return element.messageText;
+			return getChatRequestText(element).trim()
+				|| getExplicitFileOrImageAttachmentSummary(element.variables)
+				|| '';
 		}
 
 		if (isResponseVM(element)) {
@@ -117,13 +134,24 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		if (toolInvocation.length) {
 			const waitingForConfirmation = toolInvocation.filter(v => {
 				const state = v.state.get().type;
-				return state === IChatToolInvocation.StateKind.WaitingForConfirmation || state === IChatToolInvocation.StateKind.WaitingForPostApproval;
+				return state === IChatToolInvocation.StateKind.WaitingForConfirmation
+					|| state === IChatToolInvocation.StateKind.WaitingForPostApproval
+					|| state === IChatToolInvocation.StateKind.WaitingForAuthentication;
 			});
 			if (waitingForConfirmation.length) {
 				toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocation);
 			}
 		}
-		const tableCount = marked.lexer(element.response.toString()).filter(token => token.type === 'table')?.length ?? 0;
+		const responseText = element.response.toString();
+		let tableCount = 0;
+		let codeBlockCount = 0;
+		for (const token of marked.lexer(responseText)) {
+			if (token.type === 'table') {
+				tableCount++;
+			} else if (token.type === 'code') {
+				codeBlockCount++;
+			}
+		}
 		let tableCountHint = '';
 		switch (tableCount) {
 			case 0:
@@ -157,22 +185,21 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 			elicitationHint += title + ' ' + message;
 		}
 
-		const codeBlockCount = marked.lexer(element.response.toString()).filter(token => token.type === 'code')?.length ?? 0;
 		switch (codeBlockCount) {
 			case 0:
 				label = accessibleViewHint
-					? localize('noCodeBlocksHint', "{0}{1}{2}{3}{4} {5}", toolInvocationHint, fileTreeCountHint, elicitationHint, tableCountHint, element.response.toString(), accessibleViewHint)
-					: localize('noCodeBlocks', "{0}{1}{2} {3}", fileTreeCountHint, elicitationHint, tableCountHint, element.response.toString());
+					? localize('noCodeBlocksHint', "{0}{1}{2}{3}{4} {5}", toolInvocationHint, fileTreeCountHint, elicitationHint, tableCountHint, responseText, accessibleViewHint)
+					: localize('noCodeBlocks', "{0}{1}{2} {3}", fileTreeCountHint, elicitationHint, tableCountHint, responseText);
 				break;
 			case 1:
 				label = accessibleViewHint
-					? localize('singleCodeBlockHint', "{0}{1}{2}1 code block: {3} {4}{5}", toolInvocationHint, fileTreeCountHint, elicitationHint, tableCountHint, element.response.toString(), accessibleViewHint)
-					: localize('singleCodeBlock', "{0}{1}1 code block: {2} {3}", fileTreeCountHint, elicitationHint, tableCountHint, element.response.toString());
+					? localize('singleCodeBlockHint', "{0}{1}{2}1 code block: {3} {4}{5}", toolInvocationHint, fileTreeCountHint, elicitationHint, tableCountHint, responseText, accessibleViewHint)
+					: localize('singleCodeBlock', "{0}{1}1 code block: {2} {3}", fileTreeCountHint, elicitationHint, tableCountHint, responseText);
 				break;
 			default:
 				label = accessibleViewHint
-					? localize('multiCodeBlockHint', "{0}{1}{2}{3} code blocks: {4}{5} {6}", toolInvocationHint, fileTreeCountHint, elicitationHint, tableCountHint, codeBlockCount, element.response.toString(), accessibleViewHint)
-					: localize('multiCodeBlock', "{0}{1}{2} code blocks: {3} {4}", fileTreeCountHint, elicitationHint, codeBlockCount, tableCountHint, element.response.toString());
+					? localize('multiCodeBlockHint', "{0}{1}{2}{3} code blocks: {4}{5} {6}", toolInvocationHint, fileTreeCountHint, elicitationHint, tableCountHint, codeBlockCount, responseText, accessibleViewHint)
+					: localize('multiCodeBlock', "{0}{1}{2} code blocks: {3} {4}", fileTreeCountHint, elicitationHint, codeBlockCount, tableCountHint, responseText);
 				break;
 		}
 		return label;

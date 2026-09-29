@@ -26,6 +26,8 @@ export interface CircuitBreakerOptions {
 	probeTimeoutMs: number;
 	/** Maximum reset timeout after exponential backoff on failed probes. Defaults to resetTimeoutMs (no backoff). */
 	maxResetTimeoutMs?: number;
+	/** Optional callback fired whenever the circuit state changes. */
+	onStateChange?: (from: CircuitState, to: CircuitState) => void;
 }
 
 const DEFAULT_OPTIONS: CircuitBreakerOptions = {
@@ -57,6 +59,19 @@ export class CircuitBreaker {
 	constructor(options: Partial<CircuitBreakerOptions> = {}) {
 		this.options = { ...DEFAULT_OPTIONS, ...options };
 		this.currentResetTimeoutMs = this.options.resetTimeoutMs;
+	}
+
+	private _setState(next: CircuitState): void {
+		if (this.state === next) {
+			return;
+		}
+		const prev = this.state;
+		this.state = next;
+		try {
+			this.options.onStateChange?.(prev, next);
+		} catch {
+			// Best-effort: a misbehaving listener must not break the breaker.
+		}
 	}
 
 	/**
@@ -103,7 +118,16 @@ export class CircuitBreaker {
 		this.failureCount = 0;
 		this.probeInFlight = false;
 		this.currentResetTimeoutMs = this.options.resetTimeoutMs;
-		this.state = CircuitState.CLOSED;
+		this._setState(CircuitState.CLOSED);
+	}
+
+	/**
+	 * Release a probe slot that was consumed by `canRequest()` but for which
+	 * no real result is available (e.g. the caller decided not to make a
+	 * request after all). Does not change failure count or open/closed state.
+	 */
+	cancelProbe(): void {
+		this.probeInFlight = false;
 	}
 
 	/**
@@ -111,12 +135,18 @@ export class CircuitBreaker {
 	 */
 	recordFailure(): void {
 		const wasHalfOpen = this.state === CircuitState.HALF_OPEN;
-		this.failureCount++;
+		// Clamp the failure count at the threshold once the circuit is open so
+		// it does not grow unboundedly across many failed probes (otherwise
+		// telemetry reports an ever-increasing number that suggests the breaker
+		// is permanently dead even though it is still probing).
+		if (this.failureCount < this.options.failureThreshold) {
+			this.failureCount++;
+		}
 		this.lastFailureTime = Date.now();
 		this.probeInFlight = false;
 
 		if (this.failureCount >= this.options.failureThreshold) {
-			this.state = CircuitState.OPEN;
+			this._setState(CircuitState.OPEN);
 		}
 
 		// Exponential backoff: double the probe interval after each failed probe
@@ -137,12 +167,12 @@ export class CircuitBreaker {
 	 * Force reset the circuit breaker to closed state.
 	 */
 	reset(): void {
-		this.state = CircuitState.CLOSED;
 		this.failureCount = 0;
 		this.lastFailureTime = 0;
 		this.probeInFlight = false;
 		this.probeStartTime = 0;
 		this.currentResetTimeoutMs = this.options.resetTimeoutMs;
+		this._setState(CircuitState.CLOSED);
 	}
 
 	/**
@@ -153,7 +183,7 @@ export class CircuitBreaker {
 		if (this.state === CircuitState.OPEN) {
 			const elapsed = Date.now() - this.lastFailureTime;
 			if (elapsed >= this.currentResetTimeoutMs) {
-				this.state = CircuitState.HALF_OPEN;
+				this._setState(CircuitState.HALF_OPEN);
 			}
 		}
 	}

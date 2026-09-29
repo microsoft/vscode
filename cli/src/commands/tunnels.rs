@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 use base64::{engine::general_purpose as b64, Engine as _};
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
 	net::{IpAddr, Ipv4Addr, SocketAddr},
 	str::FromStr,
+	sync::Arc,
 	time::Duration,
 };
 use sysinfo::Pid;
@@ -40,7 +41,7 @@ use crate::{
 		code_server::CodeServerArgs,
 		create_service_manager,
 		dev_tunnels::{self, DevTunnels},
-		legal, local_forwarding,
+		legal, local_forwarding, machine_status,
 		paths::get_all_servers,
 		protocol, serve_stream,
 		shutdown_signal::ShutdownRequest,
@@ -49,6 +50,7 @@ use crate::{
 			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
 		},
 		AuthRequired, Next, ServeStreamParams, ServiceContainer, ServiceManager,
+		SharedActiveAgentHost,
 	},
 	util::{
 		app_lock::AppMutex,
@@ -148,23 +150,26 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 		shutdown_reqs.push(ShutdownRequest::ParentProcessKilled(p));
 	}
 
-	// Ensure a per-machine agent host supervisor is running on the remote
-	// (the SSH/`command-shell` entry point) so the renderer that connects
-	// to the spawned VS Code server can reach the agent host via the
-	// `agentHostProxy` IPC channel. Best-effort: if the supervisor can't
-	// be started we still serve the stream so editing / extension host
-	// keep working — the renderer will just see "Unknown channel:
-	// agentHostProxy".
-	let agent_host_bridge = match ensure_supervisor_running(&ctx.paths, &ctx.log).await {
-		Ok(a) => Some(a),
-		Err(e) => {
-			warning!(
-				ctx.log,
-				"Could not start agent host supervisor; the renderer will not be able to reach it: {}",
-				e
-			);
-			None
+	// The supervisor is what lets the renderer reach the agent host via
+	// the `agentHostProxy` IPC channel on the spawned VS Code server. This
+	// future is genuinely lazy, exactly like the one built in
+	// `control_server::serve()`: nothing drives it here — a
+	// `command-shell` that nobody connects to must not spawn a standalone
+	// supervisor by itself. It's only driven once `handle_serve` awaits a
+	// clone of it on demand and mixes the bridge endpoint into the
+	// per-request `code_server_args`. On failure the renderer just won't
+	// see `agentHostProxy`; editing and the extension host still work.
+	let active_agent_host: SharedActiveAgentHost = {
+		let paths = ctx.paths.clone();
+		let log = ctx.log.clone();
+		async move {
+			ensure_supervisor_running(&paths, &log)
+				.await
+				.map(Arc::new)
+				.map_err(Arc::new)
 		}
+		.boxed()
+		.shared()
 	};
 
 	let mut params = ServeStreamParams {
@@ -177,13 +182,10 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 			.unwrap_or(AuthRequired::VSDA),
 		exit_barrier: ShutdownRequest::create_rx(shutdown_reqs),
 		code_server_args: (&ctx.args).into(),
+		active_agent_host: Some(active_agent_host),
 	};
 
 	args.server_args.apply_to(&mut params.code_server_args);
-
-	if let Some(a) = &agent_host_bridge {
-		a.apply_to_bridge(&mut params.code_server_args);
-	}
 
 	let mut listener: Box<dyn AsyncRWAccepter> =
 		match (args.on_port.first(), &args.on_host, args.on_socket) {
@@ -593,6 +595,8 @@ async fn serve_with_csa(
 	mut csa: CodeServerArgs,
 	app_mutex_name: Option<&'static str>,
 ) -> Result<i32, AnyError> {
+	machine_status::set_stdout_enabled(gateway_args.machine_status);
+
 	let log_broadcast = BroadcastLogSink::new();
 	log = log.tee(log_broadcast.clone());
 	log::install_global_logger(log.clone()); // re-install so that library logs are captured
@@ -643,6 +647,8 @@ async fn serve_with_csa(
 					log: log.clone(),
 					shutdown: shutdown.clone(),
 					stream,
+					machine_status_enabled: gateway_args.machine_status,
+					has_editor_link: !gateway_args.agent_host_only,
 				})
 				.await;
 				if should_exit {
@@ -672,8 +678,13 @@ async fn serve_with_csa(
 		{
 			dt.start_existing_tunnel(t).await
 		} else {
+			let ports = if gateway_args.agent_host_only {
+				vec![AGENT_HOST_PORT]
+			} else {
+				vec![CONTROL_PORT, AGENT_HOST_PORT]
+			};
 			tokio::select! {
-				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &[CONTROL_PORT, AGENT_HOST_PORT]) => t,
+				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &ports) => t,
 				_ = shutdown.wait() => return Ok(1),
 			}
 		}?;
@@ -686,6 +697,9 @@ async fn serve_with_csa(
 			paths: &paths,
 			code_server_args: &csa,
 			platform,
+			user_data_dir: gateway_args.user_data_dir.clone(),
+			agent_host_only: gateway_args.agent_host_only,
+			delegate_to_editor: gateway_args.delegate_to_editor,
 			log_broadcast: &log_broadcast,
 			shutdown: shutdown.clone(),
 			server: &mut server,

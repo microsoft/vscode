@@ -3,25 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import eventStream from 'event-stream';
-import vfs from 'vinyl-fs';
+import { ESLint } from 'eslint';
 import { eslintFilter } from './filters.ts';
-import gulpEslint from './gulp-eslint.ts';
 
-function eslint(): NodeJS.ReadWriteStream {
-	return vfs
-		.src(Array.from(eslintFilter), { base: '.', follow: true, allowEmpty: true })
-		.pipe(
-			gulpEslint((results) => {
-				if (results.warningCount > 0 || results.errorCount > 0) {
-					throw new Error(`eslint failed with ${results.warningCount + results.errorCount} warnings and/or errors`);
-				}
-			})
-		).pipe(eventStream.through(function () { /* noop, important for the stream to end */ }));
+export function getEslintFilePatterns(args: readonly string[]): string[] {
+	if (args.length === 0) {
+		return Array.from(eslintFilter);
+	}
+
+	return Array.from(args);
+}
+
+export function shouldErrorOnUnmatchedPattern(args: readonly string[]): boolean {
+	return args.length > 0;
+}
+
+async function eslint(args: readonly string[]): Promise<void> {
+	const started = Date.now();
+	console.log(args.length > 0
+		? `ESLint: checking ${args.length} requested target${args.length === 1 ? '' : 's'}.`
+		: 'ESLint: checking the full repository.');
+	const linter = new ESLint({
+		cache: true,
+		cacheLocation: '.eslintcache',
+		cacheStrategy: 'content',
+		concurrency: 'auto',
+		errorOnUnmatchedPattern: shouldErrorOnUnmatchedPattern(args),
+	});
+	const formatter = await linter.loadFormatter('compact');
+
+	const results = await linter.lintFiles(getEslintFilePatterns(args));
+	const message = await formatter.format(results);
+	if (message) {
+		console.log(message);
+	}
+	console.log(`ESLint: checked ${results.length} file${results.length === 1 ? '' : 's'} in ${Date.now() - started}ms.`);
+
+	let warningCount = 0;
+	let errorCount = 0;
+	for (const r of results) {
+		warningCount += r.warningCount;
+		errorCount += r.errorCount;
+	}
+	if (warningCount > 0 || errorCount > 0) {
+		throw new Error(`eslint failed with ${warningCount + errorCount} warnings and/or errors`);
+	}
 }
 
 if (import.meta.main) {
-	eslint().on('error', (err) => {
+	eslint(process.argv.slice(2)).catch((err) => {
 		console.error();
 		console.error(err);
 		process.exit(1);

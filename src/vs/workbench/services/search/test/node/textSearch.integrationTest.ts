@@ -79,7 +79,7 @@ flakySuite('TextSearch-integration', function () {
 		return doSearchTest(config, 4);
 	});
 
-	test('Text: GameOfLife (unicode escape sequences, force PCRE2)', () => {
+	test('Text: GameOfLife (PCRE2 lookbehind)', () => {
 		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -93,7 +93,6 @@ flakySuite('TextSearch-integration', function () {
 		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
-			usePCRE2: true,
 			contentPattern: { pattern: 'Life(?!P)', isRegExp: true }
 		};
 
