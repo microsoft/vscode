@@ -638,7 +638,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const progressContainer = DOM.append(header, $('.customization-discovery-progress'));
 		this.progressBar = this._register(new ProgressBar(progressContainer, {
 			...defaultProgressBarStyles,
-			ariaLabel: localize('customizationDiscovery.progress', "Searching customizations"),
+			ariaLabel: localize('customizationDiscovery.progress', "Loading customizations"),
 		}));
 		this.progressBar.hide();
 

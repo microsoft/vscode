@@ -344,6 +344,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			assert.deepStrictEqual(loadingState(fixture.container), {
 				progress: true, placeholder: false, status: ['', ''],
 			});
+			assert.strictEqual(progress.querySelector('[role="progressbar"]')?.getAttribute('aria-label'), 'Loading customizations');
 			assert.ok(fixture.page.getAccessibilityContent().includes('Loading customizations...'));
 
 			await fixture.requests[0].result.complete({
@@ -362,10 +363,14 @@ suite('AICustomizationDiscoveryPage', () => {
 
 	test('pending query and source changes preserve the progress animation across the full row', async () => {
 		const fixture = createPage();
+		// Keep the 2% progress bit an integral width: WebKit rounds percentage transform reference boxes.
+		fixture.container.querySelector<HTMLElement>('.customization-discovery-header')!.style.width = '800px';
 		fixture.page.setSearchQuery('@type:plugin mail');
 		fixture.page.setVisible(true);
 		const track = fixture.container.querySelector<HTMLElement>('.customization-discovery-progress .monaco-progress-container')!;
 		const bit = track.querySelector<HTMLElement>('.progress-bit')!;
+		const search = fixture.container.querySelector<HTMLElement>('.customization-discovery-search-row')!;
+		assert.deepStrictEqual({ trackWidth: track.getBoundingClientRect().width, searchWidth: search.getBoundingClientRect().width }, { trackWidth: 800, searchWidth: 800 });
 		const animation = bit.getAnimations()[0];
 		assert.ok(animation);
 		animation.pause();
@@ -382,7 +387,9 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, { sameAnimation: true, time: 1200, left: before });
 
 		animation.currentTime = 3999;
-		assert.ok(Math.abs(bit.getBoundingClientRect().right - track.getBoundingClientRect().right) <= 1, 'The moving bar must reach the right edge before looping.');
+		const bitBounds = bit.getBoundingClientRect();
+		const trackBounds = track.getBoundingClientRect();
+		assert.ok(Math.abs(bitBounds.right - trackBounds.right) <= 1, `The moving bar must reach the right edge before looping: bit=${bitBounds.right}, track=${trackBounds.right}.`);
 		await fixture.requests[2].result.complete({ items: [] });
 		await timeout(0);
 		assert.deepStrictEqual(loadingState(fixture.container).progress, false);
