@@ -151,6 +151,7 @@ import '../../../common/theme.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import sourceMapSupport from 'source-map-support';
+// Format stacks only for diagnostics; eager source-map loading stalls cold fixture readiness.
 sourceMapSupport.install({
 	environment: 'browser',
 	handleUncaughtExceptions: false,
@@ -1056,7 +1057,6 @@ if (logOutsideTime) {
 }
 
 let fixtureRenderCounter = 0;
-let sourceMapsInitialized = false;
 
 /** Creates themed fixtures, awaiting the render promise and virtual-time layout before reporting readiness. */
 export function defineComponentFixture(options: ComponentFixtureOptions): ThemedFixtures {
@@ -1088,11 +1088,6 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			// The tracker is global and therefore unsafe when fixtures render in parallel,
 			// so it is only enabled outside the explorer UI (e.g. in screenshot/CI mode).
 			const leakDetectionEnabled = true && context.host.kind !== 'explorer-ui';
-			if (leakDetectionEnabled && !sourceMapsInitialized) {
-				// Initialize source maps before async render timeouts start, not on the first fixture error.
-				void new Error().stack;
-				sourceMapsInitialized = true;
-			}
 			// Warm up the `ModifierKeyEmitter` singleton before the leak tracker
 			// starts so its long-lived `DisposableStore` (created on first
 			// `MenuEntryActionViewItem.render`) doesn't show up as a leak in
