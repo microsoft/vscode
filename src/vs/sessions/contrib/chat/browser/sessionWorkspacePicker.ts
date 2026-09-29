@@ -1601,7 +1601,7 @@ export class WorkspacePicker extends Disposable {
 		].slice(0, limitRecentWorkspaces ? MAX_NEW_PICKER_RECENT_WORKSPACES : undefined);
 
 		let previousRecentWorkspaceIsRepository: boolean | undefined;
-		for (const { workspace, providerId, repositoryId, isSessionWorkspace } of orderedRecentWorkspaceEntries) {
+		for (const { workspace, providerId, repositoryId } of orderedRecentWorkspaceEntries) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
 				continue;
@@ -1638,7 +1638,7 @@ export class WorkspacePicker extends Disposable {
 				disabled: this._isProviderUnavailable(providerId),
 				item,
 				submenuActions,
-				onRemove: isSessionWorkspace ? undefined : () => this._removeRecentWorkspace(folderUri),
+				onRemove: () => this._removeRecentWorkspace(folderUri),
 			});
 		}
 

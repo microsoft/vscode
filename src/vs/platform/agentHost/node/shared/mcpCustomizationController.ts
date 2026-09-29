@@ -264,9 +264,20 @@ export class McpCustomizationController extends Disposable {
 		return findMcpServerName(customizations, id);
 	}
 
+	/** Returns the currently published customization for an MCP server name. */
+	customizationForServer(serverName: string): McpServerCustomization | undefined {
+		const customizations = this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [];
+		return getMcpServerCustomizations(customizations).find(server => server.name === serverName);
+	}
+
 	/** Returns the last live state recorded for the MCP server named `serverName`. */
 	stateForServer(serverName: string): McpServerState | undefined {
 		return this._live.get().get(serverName)?.state;
+	}
+
+	/** Returns the last runtime enablement reported for the MCP server named `serverName`. */
+	enabledForServer(serverName: string): boolean | undefined {
+		return this._live.get().get(serverName)?.enabled;
 	}
 
 	/** Snapshot used by providers to reconcile desired and observed enablement. */

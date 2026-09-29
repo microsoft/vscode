@@ -87,6 +87,7 @@ import { TestSessionsList } from './testSessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
+	workspaceResource?: URI;
 	createdAt?: Date;
 	updatedAt?: Date;
 	isArchived?: boolean;
@@ -107,7 +108,7 @@ function createSession(id: string, opts: {
 		icon: Codicon.account,
 		createdAt,
 		workspace: observableValue(`workspace-${id}`, opts.workspaceLabel !== undefined ? {
-			uri: URI.parse(`session://workspace/${id}`),
+			uri: opts.workspaceResource ?? URI.parse(`session://workspace/${id}`),
 			label: opts.workspaceLabel,
 			icon: Codicon.folder,
 			folders: [],
@@ -1680,14 +1681,70 @@ suite('Sessions - SessionsList', () => {
 			assert.strictEqual(groups[1].sessions.length, 1);
 		});
 
-		test('group ids are prefixed with workspace:', () => {
+		test('uses the display label for the group id and the resource for collapse state', () => {
+			const workspaceResource = URI.parse('vscode-agent-host://stable-host/project');
 			const sessions = [
-				createSession('1', { workspaceLabel: 'MyProject' }),
+				createSession('1', { workspaceLabel: 'MyProject', workspaceResource }),
+				createSession('2', { workspaceLabel: 'MyProject', workspaceResource }),
 			];
 
 			const groups = groupByWorkspace(sessions);
 
 			assert.strictEqual(groups[0].id, 'workspace:MyProject');
+			assert.strictEqual(groups[0].collapseStateId, `workspace:${workspaceResource.toString()}`);
+		});
+
+		test('uses the display label for collapse state when grouped resources differ', () => {
+			const sessions = [
+				createSession('1', { workspaceLabel: 'MyProject', workspaceResource: URI.parse('file:///a/project') }),
+				createSession('2', { workspaceLabel: 'MyProject', workspaceResource: URI.parse('file:///b/project') }),
+			];
+
+			const groups = groupByWorkspace(sessions);
+
+			assert.strictEqual(groups[0].id, 'workspace:MyProject');
+			assert.strictEqual(groups[0].collapseStateId, undefined);
+		});
+
+		test('restores collapse state after a workspace display label changes', () => {
+			const workspaceResource = URI.parse('vscode-agent-host://stable-host/project');
+			const originalLabel = 'project [Original Host]';
+			const renamedLabel = 'project [Renamed Host]';
+			const original = createSession('1', { workspaceLabel: originalLabel, workspaceResource });
+			const renamed = createSession('1', { workspaceLabel: renamedLabel, workspaceResource });
+			const harness = createListHarness(disposables, [original]);
+			const storageService = harness.instantiationService.get(IStorageService);
+			storageService.store(
+				'sessionsListControl.sectionCollapseState',
+				JSON.stringify({ [`workspace:${originalLabel}`]: true }),
+				StorageScope.PROFILE,
+				StorageTarget.USER,
+			);
+
+			const createList = (label: string) => {
+				const container = harness.createContainer();
+				const list = harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				});
+				list.layout(300, 400);
+				return { container, list, sectionId: `workspace:${label}` };
+			};
+
+			const first = createList(originalLabel);
+			assert.strictEqual(first.list.getItemRow({ section: first.sectionId })?.getAttribute('aria-expanded'), 'false');
+			first.list.dispose();
+
+			const persisted = JSON.parse(storageService.get('sessionsListControl.sectionCollapseState', StorageScope.PROFILE)!) as Record<string, boolean>;
+			const resourceStateId = `workspace:${workspaceResource.toString()}`;
+			assert.strictEqual(persisted[resourceStateId], true);
+			assert.strictEqual(persisted[`workspace:${originalLabel}`], undefined);
+
+			harness.managementService.sessions = [renamed];
+			const second = createList(renamedLabel);
+			assert.strictEqual(second.list.getItemRow({ section: second.sectionId })?.getAttribute('aria-expanded'), 'false');
+			second.list.dispose();
 		});
 	});
 
@@ -4309,7 +4366,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('shows archived chats for only the requested session', () => {
+		test('shows archived chats for every session through the archived filter', () => {
 			const createSessionWithChats = (title: string): ISession => {
 				const main = createChat(`${title} main`);
 				const active = createChat(`${title} active`, ChatOriginKind.User);
@@ -4327,8 +4384,7 @@ suite('Sessions - SessionsList', () => {
 			};
 			const first = createSessionWithChats('First');
 			const second = createSessionWithChats('Second');
-			const empty = createTestSession('Empty').session;
-			const harness = createListHarness(disposables, [first, second, empty]);
+			const harness = createListHarness(disposables, [first, second]);
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
@@ -4336,51 +4392,19 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
-			setSessionChatsExpanded(container, false, 'First');
 
 			const initial = chatRowTitles(container).sort();
-			list.setSessionArchivedChatsVisible(first, true);
-			list.setSessionArchivedChatsVisible(empty, true);
-			const shown = chatRowTitles(container).sort();
-			const visibility = {
-				globalArchiveFilterUnchanged: list.isExcludeArchived(),
-				first: list.isSessionArchivedChatsVisible(first),
-				second: list.isSessionArchivedChatsVisible(second),
-				empty: list.isSessionArchivedChatsVisible(empty),
-				firstExpanded: [...container.querySelectorAll<HTMLElement>('.session-item')]
-					.find(item => item.querySelector('.session-title')?.textContent === 'First')
-					?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
-			};
-			list.setSessionArchivedChatsVisible(first, false);
-			const hidden = chatRowTitles(container).sort();
 			list.setExcludeArchived(false);
-			const globallyShown = chatRowTitles(container).sort();
-			list.setSessionArchivedChatsVisible(second, false);
-			const secondHidden = chatRowTitles(container).sort();
-			const globalVisibility = {
-				first: list.isSessionArchivedChatsVisible(first),
-				second: list.isSessionArchivedChatsVisible(second),
-				empty: list.isSessionArchivedChatsVisible(empty),
-			};
+			const shown = chatRowTitles(container).sort();
+			const excludesArchivedWhileShown = list.isExcludeArchived();
+			list.setExcludeArchived(true);
+			const hidden = chatRowTitles(container).sort();
 
-			assert.deepStrictEqual({ initial, shown, visibility, hidden, globallyShown, secondHidden, globalVisibility }, {
-				initial: ['Second active'],
-				shown: ['First active', 'First archived', 'Second active'],
-				visibility: {
-					globalArchiveFilterUnchanged: true,
-					first: true,
-					second: false,
-					empty: true,
-					firstExpanded: 'true',
-				},
+			assert.deepStrictEqual({ initial, shown, excludesArchivedWhileShown, hidden }, {
+				initial: ['First active', 'Second active'],
+				shown: ['First active', 'First archived', 'Second active', 'Second archived'],
+				excludesArchivedWhileShown: false,
 				hidden: ['First active', 'Second active'],
-				globallyShown: ['First active', 'First archived', 'Second active', 'Second archived'],
-				secondHidden: ['First active', 'First archived', 'Second active'],
-				globalVisibility: {
-					first: true,
-					second: false,
-					empty: true,
-				},
 			});
 		});
 

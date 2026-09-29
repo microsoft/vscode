@@ -27,6 +27,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillLocationHover, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
@@ -36,6 +37,7 @@ import { parseGitHubCommitTarget, type IGitHubCommitTarget } from '../../../../w
 import { createCommitResourceHover } from '../../../../workbench/contrib/github/browser/githubResourceHover.js';
 import { SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
 import { ISessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
@@ -66,6 +68,7 @@ const sectionOrder: readonly { readonly kind: SessionArtifactKind; readonly titl
 
 /** What an artifact entry needs from the surrounding surface to be activated. */
 export interface ISessionArtifactActions {
+	recordOpen(artifact: ISessionArtifact): void;
 	openExternal(link: URI): void;
 	openResource(uri: URI): void;
 	openImages(images: readonly ISessionArtifactImage[], startIndex: number): void;
@@ -178,6 +181,11 @@ function withRemoveAction(artifact: ISessionArtifact, entry: IChatPillEntry, act
 	};
 }
 
+function openArtifact(artifact: ISessionArtifact, actions: ISessionArtifactActions, open: () => void): void {
+	open();
+	actions.recordOpen(artifact);
+}
+
 function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, commit?: GitHubCommit): IChatPillEntry | undefined {
 	if (artifact.kind === SessionArtifactKind.File) {
 		if (!artifact.uri) {
@@ -204,7 +212,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 				run: () => actions.copy(relativePath),
 			})],
 			...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), label),
-			open: () => actions.openResource(uri),
+			open: () => openArtifact(artifact, actions, () => actions.openResource(uri)),
 		}, actions);
 	}
 
@@ -225,7 +233,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			commit,
 			density,
 			onDidClickRepository: () => actions.openExternal(URI.parse(`https://github.com/${target.owner}/${target.repo}`)),
-			onDidClickReference: () => actions.openExternal(link),
+			onDidClickReference: () => openArtifact(artifact, actions, () => actions.openExternal(link)),
 		}) : undefined;
 		const createDropdownHover = createHover ? () => {
 			const hover = createHover('compact');
@@ -255,7 +263,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
 				pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },
 			} : {}),
-			open: () => actions.openExternal(link),
+			open: () => openArtifact(artifact, actions, () => actions.openExternal(link)),
 		}, actions);
 	}
 
@@ -275,7 +283,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 				run: () => actions.copy(uri.toString(true)),
 			})],
 			...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), artifact.label),
-			open: () => actions.openResource(uri),
+			open: () => openArtifact(artifact, actions, () => actions.openResource(uri)),
 		}, actions);
 	}
 
@@ -298,7 +306,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			run: () => actions.copy(link.toString(true)),
 		}), chatPillCopyUrlHoverLabel)]
 		: [];
-	return withRemoveAction(artifact, { id: artifact.id, label: artifact.label, icon, toolbarActions: copyLinkAction, ...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), artifact.label), open: () => actions.openExternal(link) }, actions);
+	return withRemoveAction(artifact, { id: artifact.id, label: artifact.label, icon, toolbarActions: copyLinkAction, ...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), artifact.label), open: () => openArtifact(artifact, actions, () => actions.openExternal(link)) }, actions);
 }
 
 /**
@@ -372,9 +380,9 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						...(imageCarouselEnabled
 							? {
 								ariaLabel: localize('sessionArtifacts.openImage', "Open {0} in Images Preview", label),
-								open: () => actions.openImages(images, index),
+								open: () => openArtifact(artifact, actions, () => actions.openImages(images, index)),
 							}
-							: { open: () => actions.openResource(uri) }),
+							: { open: () => openArtifact(artifact, actions, () => actions.openResource(uri)) }),
 					}, actions);
 				}),
 			});
@@ -482,6 +490,7 @@ export class SessionArtifacts extends Disposable {
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ISessionsGitHubService gitHubService: ISessionsGitHubService,
 		@ILogService logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -535,6 +544,7 @@ export class SessionArtifacts extends Disposable {
 
 	private _actions(session: IActiveSession, reader: IReader): ISessionArtifactActions {
 		return {
+			recordOpen: artifact => logSessionArtifactOpen(this._telemetryService, session.sessionId, artifact.kind, artifact.isArtifact),
 			// Contributed openers make a link behave the same here as in the response
 			// markdown it came from, so a localhost page lands in the integrated
 			// browser rather than the system one.

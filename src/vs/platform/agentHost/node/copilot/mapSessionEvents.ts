@@ -716,7 +716,7 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'system.notification': {
-				const notification = buildCopilotSystemNotification(e);
+				const notification = buildCopilotSystemNotification(e, resolveAgentName);
 				if (!notification) {
 					break;
 				}

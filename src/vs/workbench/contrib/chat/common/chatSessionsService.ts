@@ -565,7 +565,14 @@ export interface IChatInputCompletionItem {
 	readonly start?: IPosition;
 	readonly end?: IPosition;
 	/** Attachment associated with the item. */
-	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment | IChatInputCompletionChatAttachment;
+	readonly attachment: IChatInputCompletionTextAttachment | IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment | IChatInputCompletionChatAttachment;
+}
+
+/**
+ * Plain text associated with a completion item.
+ */
+export interface IChatInputCompletionTextAttachment {
+	readonly kind: 'text';
 }
 
 /**
@@ -593,6 +600,8 @@ export interface IChatInputCompletionCommandAttachment {
 	readonly command: string;
 	readonly isSkill?: true;
 	readonly description: string;
+	readonly retriggerSuggestions?: true;
+	readonly submitOnAccept?: true;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
 	 * workbench when the accepted completion is sent back as part of a

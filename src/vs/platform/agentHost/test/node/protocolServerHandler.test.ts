@@ -23,14 +23,14 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
-import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
+import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
 import { AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type ChangesetState, type ChatState, type SessionState, type SessionSummary } from '../../common/state/sessionState.js';
-import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { SessionInputRequestKind, TerminalClaimKind } from '../../common/state/protocol/state.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -156,6 +156,7 @@ class MockAgentService implements IAgentService {
 	readonly handledActions: (SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction)[] = [];
 	readonly handledClientTypes: (AgentHostClientType | undefined)[] = [];
 	readonly handledClientContexts: (IAgentHostClientTelemetryContext | undefined)[] = [];
+	readonly createTerminalClientTypes: (AgentHostClientType | undefined)[] = [];
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
 	readonly readErrors = new Map<string, Error>();
@@ -337,7 +338,9 @@ class MockAgentService implements IAgentService {
 		this.watchUnsubscribeCalls.push(channel);
 		return this.liveWatchDescriptors.has(channel);
 	}
-	async createTerminal(): Promise<void> { }
+	async createTerminal(_params: CreateTerminalParams, clientType?: AgentHostClientType): Promise<void> {
+		this.createTerminalClientTypes.push(clientType);
+	}
 	async disposeTerminal(): Promise<void> { }
 	async invokeChangesetOperation(): Promise<{}> { return {}; }
 	async handleMcpRequest(): Promise<unknown> { throw new Error('Method not found'); }
@@ -1807,6 +1810,21 @@ suite('ProtocolServerHandler', () => {
 		}));
 
 		assert.deepStrictEqual(agentService.handledActions.at(-1), { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
+	});
+
+	test('createTerminal reaches the agent service with the requesting client type', async () => {
+		const vscodeClient = connectClient('vscode-terminal-client', undefined, editorWindowAgentHostClientInfo);
+		const otherClient = connectClient('other-terminal-client');
+		for (const [transport, clientId] of [[vscodeClient, 'vscode-terminal-client'], [otherClient, 'other-terminal-client']] as const) {
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createTerminal', {
+				channel: `agenthost-terminal://test/${clientId}`,
+				claim: { kind: TerminalClaimKind.Client, clientId },
+			}));
+			assert.ok(hasKey(await response, { result: true }));
+		}
+
+		assert.deepStrictEqual(agentService.createTerminalClientTypes, [AgentHostClientType.EditorWindow, AgentHostClientType.Unknown]);
 	});
 
 	test('session working-directory actions reach the agent service', () => {
