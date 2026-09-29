@@ -4,14 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { errorHandler } from '../../../../../base/common/errors.js';
 import { isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildSessionCustomizationSections } from '../../browser/sessionCustomizations.js';
-import { ISessionChatCustomization, ISessionFolder, SessionCustomizationKind } from '../../../../services/sessions/common/session.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { buildSessionCustomizationSections, SessionCustomizations } from '../../browser/sessionCustomizations.js';
+import { IChat, ISessionChatCustomization, ISessionFolder, SessionCustomizationKind } from '../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('Session Customizations', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const customization = (id: string, kind: SessionCustomizationKind, name: string): ISessionChatCustomization =>
 		({ id, kind, name, uri: URI.file(`/repo/${id}.md`) });
@@ -80,5 +87,73 @@ suite('Session Customizations', () => {
 
 	test('no customizations yields no sections', () => {
 		assert.deepStrictEqual(buildSessionCustomizationSections([], [], () => { }), []);
+	});
+
+	test('opens the Customizations editor for the current pill session after switching sessions', () => {
+		const commands: { id: string; args: readonly unknown[] }[] = [];
+		const firstResource = URI.parse('session:first');
+		const secondResource = URI.parse('session:second');
+		const session = observableValue<IActiveSession | undefined>(disposables, upcastPartial<IActiveSession>({ resource: firstResource }));
+		const model = disposables.add(new SessionCustomizations(
+			constObservable<IChat | undefined>(undefined),
+			session,
+			new class extends mock<ICommandService>() {
+				override executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+					commands.push({ id, args });
+					return Promise.resolve(undefined);
+				}
+			},
+		));
+
+		model.dropdownActions[0].open();
+		session.set(upcastPartial<IActiveSession>({ resource: secondResource }), undefined);
+		model.dropdownActions[0].open();
+
+		assert.deepStrictEqual({
+			actions: model.dropdownActions.map(action => ({
+				id: action.id,
+				label: action.label,
+				icon: action.icon?.id,
+			})),
+			commands,
+		}, {
+			actions: [{
+				id: AICustomizationManagementCommands.OpenEditor,
+				label: 'Open Customizations',
+				icon: Codicon.extensions.id,
+			}],
+			commands: [{
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{ sessionResource: firstResource }],
+			}, {
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{ sessionResource: secondResource }],
+			}],
+		});
+	});
+
+	test('reports failures opening the Customizations editor', async () => {
+		const failure = new Error('Could not open Customizations');
+		const reportedErrors: Error[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => reportedErrors.push(error));
+		try {
+			const model = disposables.add(new SessionCustomizations(
+				constObservable(undefined),
+				constObservable(undefined),
+				new class extends mock<ICommandService>() {
+					override async executeCommand<T>(): Promise<T | undefined> {
+						throw failure;
+					}
+				},
+			));
+
+			model.dropdownActions[0].open();
+			await Promise.resolve();
+
+			assert.deepStrictEqual(reportedErrors, [failure]);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
 	});
 });

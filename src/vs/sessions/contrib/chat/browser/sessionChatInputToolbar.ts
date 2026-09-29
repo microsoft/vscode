@@ -520,7 +520,7 @@ export class SessionChatInputToolbar extends Disposable {
 					return promotedAction ? [promotedAction] : [];
 				},
 			},
-			customizations: { sections: this._customizationSections },
+			customizations: { sections: this._customizationSections, dropdownActions: sessionCustomizations.dropdownActions },
 			browsers: { sections: this._browsers.sections },
 			subagents: this._backgroundActivities,
 		}, SESSION_CHAT_PILL_KINDS));

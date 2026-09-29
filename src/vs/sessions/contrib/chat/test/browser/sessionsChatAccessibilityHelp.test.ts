@@ -236,11 +236,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			keyboard: pillHelp?.includes('<keybinding:editor.action.showContextMenu>'),
 			filterRecovery: pillHelp?.includes('any other pill\'s context menu or the toolbar context menu'),
 			subagentOptions: pillHelp?.includes('Subagent Options offers Show All and Show In Progress'),
+			openCustomizations: pillHelp?.includes('ends with Open Customizations, which opens the Customizations editor'),
 			persistence: pillHelp?.includes('remembered across sessions'),
 			groups: content.includes('Subagents: In Progress and Subagents: Completed'),
 			waiting: content.includes('In Progress includes subagents waiting for input'),
 			failed: content.includes('Completed includes failed subagents'),
-		}, { keyboard: true, filterRecovery: true, subagentOptions: true, persistence: true, groups: true, waiting: true, failed: true });
+		}, { keyboard: true, filterRecovery: true, subagentOptions: true, openCustomizations: true, persistence: true, groups: true, waiting: true, failed: true });
 	});
 
 	test('describes removing recorded artifacts and references after persistence', () => {

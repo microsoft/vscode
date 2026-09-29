@@ -56,6 +56,8 @@ export interface IChatDropdownPillOptions {
 	readonly singleEntry?: ChatPillSingleEntry;
 	/** Preferred dropdown side, with fallback when the available space is insufficient. */
 	readonly preferredAnchorPosition?: AnchorPosition;
+	/** Actions appended after the content sections and excluded from the pill count. */
+	readonly dropdownActions?: readonly IChatPillEntry[];
 }
 
 /**
@@ -334,21 +336,32 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			}
 			items.push({ kind: ActionListItemKind.Header, label: section.title, group: { title: section.title } });
 			for (const entry of section.entries) {
-				items.push({
-					kind: ActionListItemKind.Action,
-					label: entry.label,
-					...(entry.badge ? { badge: entry.badge } : {}),
-					...(entry.className ? { className: entry.className } : {}),
-					group: { title: '', ...(entry.icon ? { icon: entry.icon } : {}) },
-					...(entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
-					...((entry.toolbarActions?.length || entry.promotedAction) ? { toolbarActions: [...getChatPillEntryToolbarActions(entry)] } : {}),
-					ariaDescription: entry.ariaDescription,
-					hover: this._getDropdownHover(entry),
-					item: entry,
-				});
+				items.push(this._getDropdownItem(entry));
 			}
 		}
+		const dropdownActions = this._pillOptions.dropdownActions ?? [];
+		if (dropdownActions.length > 0) {
+			if (items.length > 0) {
+				items.push({ kind: ActionListItemKind.Separator, label: '' });
+			}
+			items.push(...dropdownActions.map(entry => this._getDropdownItem(entry)));
+		}
 		return items;
+	}
+
+	private _getDropdownItem(entry: IChatPillEntry): IActionListItem<IChatPillEntry> {
+		return {
+			kind: ActionListItemKind.Action,
+			label: entry.label,
+			...(entry.badge ? { badge: entry.badge } : {}),
+			...(entry.className ? { className: entry.className } : {}),
+			group: { title: '', ...(entry.icon ? { icon: entry.icon } : {}) },
+			...(entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
+			...((entry.toolbarActions?.length || entry.promotedAction) ? { toolbarActions: [...getChatPillEntryToolbarActions(entry)] } : {}),
+			ariaDescription: entry.ariaDescription,
+			hover: this._getDropdownHover(entry),
+			item: entry,
+		};
 	}
 
 	private _getDropdownHover(entry: IChatPillEntry): IActionListItemHover | undefined {
