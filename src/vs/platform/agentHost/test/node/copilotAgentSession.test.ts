@@ -15786,7 +15786,7 @@ Use the attached image as context.
 				toolReferences: result.toolReferences,
 			}, {
 				candidates: [{ name: 'current_search', description: 'Search current documentation' }],
-				toolReferences: ['docs-current_search'],
+				toolReferences: ['current_search'],
 			});
 		});
 
