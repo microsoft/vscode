@@ -34,6 +34,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { withChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -95,7 +96,7 @@ import { IWorkingCopyService } from '../../../../../services/workingCopy/common/
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { ChatInputModelSelectionController } from '../../../browser/widget/input/chatInputModelSelectionController.js';
-import { IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
+import { IChatInputNotificationService, type IChatInputNotification } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatModelConfigurationStore } from '../../../browser/widget/input/chatModelConfigurationStore.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -7539,6 +7540,31 @@ suite('AgentHostChatContribution', () => {
 	// ---- Error events -------------------------------------------------------
 
 	suite('error events', () => {
+		test('opening a locked conversation blocks input and Retry clears the banner without a turn', async () => {
+			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, { provider: 'codex' });
+			const notifications = new Map<string, IChatInputNotification>();
+			const service = instantiationService.get(IChatInputNotificationService);
+			service.setNotification = notice => notifications.set(notice.id, notice);
+			service.deleteNotification = id => { notifications.delete(id); };
+			const backend = 'codex:/locked';
+			const chat = buildDefaultChatUri(backend);
+			const initial = createSessionState({ resource: backend, provider: 'codex', title: 'Locked', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() });
+			initial._meta = withChatInputState(initial, chat, { kind: 'blocked', error: { errorType: 'CodexThreadInUse', message: 'thread locked already has an active writer' } });
+			agentHostService.sessionStates.set(backend, { ...initial, lifecycle: SessionLifecycle.Ready });
+			const host: IAgentHostService = agentHostService;
+			const calls: string[] = [];
+			host.refreshSubscription = async resource => {
+				calls.push(resource.toString());
+				agentHostService.fireAction({ channel: backend, action: { type: ActionType.SessionMetaChanged, _meta: {} }, serverSeq: 100, origin: undefined });
+			};
+			const resource = URI.parse('agent-host-copilot:/locked');
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			const before = { blocked: session.isInputBlocked?.get(), history: session.history.length, notices: notifications.size };
+			await session.retryInput?.();
+			assert.deepStrictEqual({ before, blocked: session.isInputBlocked?.get(), history: session.history.length, notices: notifications.size, chats: [...new Set(calls)], turns: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatTurnStarted) }, {
+				before: { blocked: true, history: 0, notices: 1 }, blocked: false, history: 0, notices: 0, chats: [buildDefaultChatUri('codex:/locked')], turns: [],
+			});
+		});
 
 		test('error event renders error message and finishes the request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
@@ -7563,6 +7589,30 @@ suite('AgentHostChatContribution', () => {
 			// than an inline markdown progress part.
 			assert.strictEqual(result.errorDetails?.message, 'Error: (test_error) Something went wrong');
 			assert.ok(!collected.flat().some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong')), 'Error should not be duplicated as a markdown progress part');
+		}));
+
+		test('Codex writer lock explains the handoff without offering a turn retry', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.ChatError,
+				turnId,
+				duration: 0,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'CodexThreadInUse', message: 'thread locked-thread already has an active writer' } },
+			});
+			const result = await turnPromise;
+
+			assert.deepStrictEqual({
+				errorDetails: result.errorDetails,
+				markdown: collected.flat().filter(part => part.kind === 'markdownContent'),
+			}, {
+				errorDetails: {
+					message: 'This conversation is in use by another Codex app. Let any running task finish, then quit the app holding it open, such as ChatGPT, or exit the Codex CLI session. Then send your message again in VS Code. Your message has not been sent.',
+					isExpectedError: true,
+				},
+				markdown: [],
+			});
 		}));
 
 		test('resumable error offers Try Again and resumes the same turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -17594,6 +17644,117 @@ suite('AgentHostChatContribution', () => {
 						},
 					},
 				],
+			});
+		});
+
+		test('preserves the follow-up suggestion hint on command completions', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			(agentHostService as unknown as { completions: (p: CompletionsParams) => Promise<CompletionsResult> }).completions = async () => ({
+				items: [{
+					insertText: 'enable ',
+					rangeStart: 5,
+					rangeEnd: 5,
+					attachment: {
+						type: MessageAttachmentKind.Simple,
+						label: 'enable',
+						_meta: {
+							command: 'mcp',
+							description: 'Enable an MCP server',
+							retriggerSuggestions: true,
+						},
+					},
+				}],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/abc' });
+			const result = await sessionHandler.provideChatInputCompletions(
+				sessionResource,
+				{ text: '/mcp ', offset: 5 },
+				CancellationToken.None,
+			);
+
+			assert.deepStrictEqual(result?.items[0].attachment, {
+				kind: 'command',
+				command: 'mcp',
+				description: 'Enable an MCP server',
+				retriggerSuggestions: true,
+				_meta: {
+					command: 'mcp',
+					description: 'Enable an MCP server',
+					retriggerSuggestions: true,
+				},
+			});
+		});
+
+		test('preserves the submit-on-accept hint on command completions', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			(agentHostService as unknown as { completions: (p: CompletionsParams) => Promise<CompletionsResult> }).completions = async () => ({
+				items: [{
+					insertText: 'list ',
+					rangeStart: 8,
+					rangeEnd: 8,
+					attachment: {
+						type: MessageAttachmentKind.Simple,
+						label: 'list',
+						_meta: {
+							command: 'skills',
+							description: 'List skills',
+							submitOnAccept: true,
+						},
+					},
+				}],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/abc' });
+			const result = await sessionHandler.provideChatInputCompletions(
+				sessionResource,
+				{ text: '/skills ', offset: 8 },
+				CancellationToken.None,
+			);
+
+			assert.deepStrictEqual(result?.items[0].attachment, {
+				kind: 'command',
+				command: 'skills',
+				description: 'List skills',
+				submitOnAccept: true,
+				_meta: {
+					command: 'skills',
+					description: 'List skills',
+					submitOnAccept: true,
+				},
+			});
+		});
+
+		test('maps simple attachments without metadata to plain text completions', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			(agentHostService as unknown as { completions: (p: CompletionsParams) => Promise<CompletionsResult> }).completions = async () => ({
+				items: [{
+					insertText: 'microsoft/playwright-mcp',
+					rangeStart: 12,
+					rangeEnd: 12,
+					attachment: {
+						type: MessageAttachmentKind.Simple,
+						label: 'microsoft/playwright-mcp',
+					},
+				}],
+			});
+
+			const result = await sessionHandler.provideChatInputCompletions(
+				URI.from({ scheme: 'agent-host-copilot', path: '/abc' }),
+				{ text: '/mcp enable ', offset: 12 },
+				CancellationToken.None,
+			);
+
+			assert.deepStrictEqual(result, {
+				items: [{
+					insertText: 'microsoft/playwright-mcp',
+					start: { lineNumber: 1, column: 13 },
+					end: { lineNumber: 1, column: 13 },
+					attachment: { kind: 'text' },
+				}],
 			});
 		});
 

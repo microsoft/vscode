@@ -18,8 +18,13 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../../workbench/browser/editor.js';
 import { Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../workbench/common/configuration.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { EditorExtensions } from '../../../../workbench/common/editor.js';
+import { AgentHostSandboxNotifications } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSandboxNotifications.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService, inheritableSessionTarget } from '../../../services/sessions/common/sessionsManagement.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
@@ -50,6 +55,7 @@ import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/action
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
+import { SessionWorktreeCleanupAccessibilityHelp } from '../../sessionInputBanners/browser/sessionWorktreeCleanupAccessibilityHelp.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
@@ -74,6 +80,10 @@ import { ISessionsRecentWorkspacesService } from '../../../services/sessions/bro
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, SessionsChatBackgroundTint, ToggleChatBackgroundTintAction } from './chatBackgroundTint.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { sessionStorageCleanupSuggestionConfigurationMigration } from '../../sessionInputBanners/browser/sessionStorageCleanupConfiguration.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktreeCleanupService, MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID, SessionWorktreeCleanupService } from '../../sessionInputBanners/browser/sessionWorktreeCleanupService.js';
+import { SessionWorktreeCleanupEditorInput } from '../../sessionInputBanners/browser/sessionWorktreeCleanupEditorInput.js';
+import { SessionWorktreeCleanupEditor } from '../../sessionInputBanners/browser/sessionWorktreeCleanupEditor.js';
 
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackground';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackgroundLayout';
@@ -489,6 +499,64 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 registerAction2(ChangeChatBackgroundLayoutAction);
 registerAction2(ToggleChatBackgroundTintAction);
 
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		SessionWorktreeCleanupEditor,
+		SessionWorktreeCleanupEditor.ID,
+		localize('sessionWorktreeCleanupEditor', "Clean Up Agent Worktrees Editor"),
+	),
+	[new SyncDescriptor(SessionWorktreeCleanupEditorInput)],
+);
+
+registerAction2(class ManageAgentSessionStorageAction extends Action2 {
+	constructor() {
+		super({
+			id: MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID,
+			title: localize2('manageAgentSessionStorage', "Clean Up Agent Worktrees"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ChatContextKeys.enabled,
+			menu: [{
+				id: Menus.SidebarSessionsHeader,
+				group: 'manage',
+				order: 0,
+				when: ChatContextKeys.enabled,
+			}, {
+				id: MenuId.SessionItemContextMenu,
+				group: '9_storage',
+				order: 0,
+				when: ChatContextKeys.enabled,
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, section?: unknown): Promise<void> {
+		accessor.get(ISessionWorktreeCleanupService).suppressForWindow();
+		const pane = await accessor.get(IEditorService).openEditor(new SessionWorktreeCleanupEditorInput(), { pinned: true });
+		if (section === 'automatic' && pane instanceof SessionWorktreeCleanupEditor) {
+			pane.focusAutomaticCleanup();
+		}
+	}
+});
+
+registerAction2(class DisableSessionStorageCleanupSuggestionsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chat.disableSessionStorageCleanupSuggestions',
+			title: localize2('disableSessionStorageCleanupSuggestions', "Disable Session Storage Cleanup Suggestions"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING}`, true)),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(ISessionWorktreeCleanupService).suppressForWindow();
+		await accessor.get(IConfigurationService).updateValue(AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, false, ConfigurationTarget.APPLICATION);
+		status(localize('sessionStorageCleanupSuggestionsDisabled', "Session storage cleanup suggestions disabled."));
+	}
+});
+
 // register actions
 registerAction2(BranchChatSessionAction);
 
@@ -501,6 +569,7 @@ registerWorkbenchContribution2(WorktreeCreatedTaskDispatcher.ID, WorktreeCreated
 registerWorkbenchContribution2(SessionsChatPetAchievementContribution.ID, SessionsChatPetAchievementContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionArchiveNudgeContribution.ID, SessionArchiveNudgeContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsChatBackgroundTint.ID, SessionsChatBackgroundTint, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostSandboxNotifications.ID, AgentHostSandboxNotifications, WorkbenchPhase.AfterRestored);
 
 // register services
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
@@ -513,9 +582,11 @@ registerSingleton(ISessionsChatViewStateService, SessionsChatViewStateService, I
 registerSingleton(IChatResponseFileChangesService, SessionsChatResponseFileChangesService, InstantiationType.Delayed);
 registerSingleton(ISessionsChatBackgroundService, SessionsChatBackgroundService, InstantiationType.Delayed);
 registerSingleton(ISessionArchiveNudgeService, SessionArchiveNudgeService, InstantiationType.Eager);
+registerSingleton(ISessionWorktreeCleanupService, SessionWorktreeCleanupService, InstantiationType.Delayed);
 
 // register accessibility help
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
+AccessibleViewRegistry.register(new SessionWorktreeCleanupAccessibilityHelp());
 
 // register configuration
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -535,6 +606,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('chat.agentSessions.archiveNudge.enabled', "Suggests archiving an inactive session when all GitHub pull requests associated with the session have merged. Dismissing the suggestion hides it for that session until it is archived or deleted."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
+		},
+		[AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			description: localize('chat.agentSessions.sessionStorageCleanupSuggestion', "Controls whether the Agents Window suggests cleaning up session storage when inactive worktrees reach the count or reclaimable-storage threshold."),
 		},
 		[LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING]: {
 			type: 'boolean',
@@ -574,7 +653,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.chat.experimental.welcomeName', "Specifies the name used in new-session welcome messages. Only the first name is shown. Leave empty to use the first name from your signed-in GitHub profile when available; otherwise, welcome messages omit the name."),
+			description: localize('sessions.chat.experimental.welcomeName', "Specifies the name used in new-session welcome messages. Leave empty to use the first name from your signed-in GitHub profile when available; otherwise, welcome messages omit the name."),
 			tags: ['experimental'],
 		},
 		[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING]: {
@@ -623,4 +702,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	},
 });
 
-Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([unifiedWorkspacePickerConfigurationMigration]);
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([
+	unifiedWorkspacePickerConfigurationMigration,
+	sessionStorageCleanupSuggestionConfigurationMigration,
+]);

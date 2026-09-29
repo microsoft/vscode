@@ -3280,6 +3280,69 @@ suite('Sessions - SessionsList', () => {
 			}, { before: false, during: true, after: false, filterPreserved: true });
 		});
 
+		test('spotlights a filtered session row without revealing its archive action or retaining recycled targets', () => {
+			const session = createTestSession('Running session', { status: SessionStatus.InProgress }).session;
+			const replacement = createTestSession('Replacement').session;
+			const harness = createListHarness(disposables, [session, replacement]);
+			harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => assert.fail('Revealing onboarding must not open the session'),
+			}));
+			list.layout(300, 400);
+			list.setStatusExcluded(SessionStatus.InProgress, true);
+			list.collapseAllSections();
+			const before = list.reveal(session.resource);
+			const target = harness.store.add(list.revealSessionForOnboarding(session));
+			const row = findOnboardingTarget(mainWindow, target.targetId);
+			const during = {
+				visible: row?.checkVisibility(),
+				title: row?.querySelector('.session-title')?.textContent,
+				archiveActionForced: container.querySelectorAll('.archive-onboarding').length,
+			};
+			list.update();
+			const afterUpdate = !!findOnboardingTarget(mainWindow, target.targetId);
+			harness.managementService.sessions = [replacement];
+			list.refresh();
+			const afterRecycle = !!findOnboardingTarget(mainWindow, target.targetId);
+			harness.managementService.sessions = [session, replacement];
+			list.refresh();
+			target.dispose();
+			assert.deepStrictEqual({
+				before, during, afterUpdate, afterRecycle,
+				afterRelease: !!findOnboardingTarget(mainWindow, target.targetId),
+				filterPreserved: list.isStatusExcluded(SessionStatus.InProgress),
+			}, {
+				before: false,
+				during: { visible: true, title: 'Running session', archiveActionForced: 0 },
+				afterUpdate: true,
+				afterRecycle: false,
+				afterRelease: false,
+				filterPreserved: true,
+			});
+		});
+
+		test('releasing an older onboarding reveal does not clear its replacement', () => {
+			const sessions = [createTestSession('First').session, createTestSession('Second').session];
+			const harness = createListHarness(disposables, sessions);
+			harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const first = harness.store.add(list.revealSessionForOnboarding(sessions[0]));
+			const second = harness.store.add(list.revealSessionForOnboarding(sessions[1]));
+			first.dispose();
+			assert.deepStrictEqual({
+				first: !!findOnboardingTarget(mainWindow, first.targetId),
+				second: !!findOnboardingTarget(mainWindow, second.targetId),
+			}, { first: false, second: true });
+		});
+
 		for (const customGroup of [false, true]) {
 			test(`reveals only the onboarding target beyond the ${customGroup ? 'custom group' : 'workspace'} cap`, () => {
 				const sessions = Array.from({ length: 12 }, (_, index) => ({
@@ -3304,7 +3367,7 @@ suite('Sessions - SessionsList', () => {
 					showMore: [...container.querySelectorAll('.session-show-more-label')].map(label => label.textContent),
 				});
 				const before = snapshot();
-				const target = harness.store.add(list.revealArchiveAction(sessions[9]));
+				const target = harness.store.add(list.revealSessionForOnboarding(sessions[9]));
 				const during = snapshot();
 				target.dispose();
 
@@ -4246,7 +4309,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('shows archived chats for only the requested session', () => {
+		test('shows archived chats for every session through the archived filter', () => {
 			const createSessionWithChats = (title: string): ISession => {
 				const main = createChat(`${title} main`);
 				const active = createChat(`${title} active`, ChatOriginKind.User);
@@ -4264,8 +4327,7 @@ suite('Sessions - SessionsList', () => {
 			};
 			const first = createSessionWithChats('First');
 			const second = createSessionWithChats('Second');
-			const empty = createTestSession('Empty').session;
-			const harness = createListHarness(disposables, [first, second, empty]);
+			const harness = createListHarness(disposables, [first, second]);
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
@@ -4273,51 +4335,19 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
-			setSessionChatsExpanded(container, false, 'First');
 
 			const initial = chatRowTitles(container).sort();
-			list.setSessionArchivedChatsVisible(first, true);
-			list.setSessionArchivedChatsVisible(empty, true);
-			const shown = chatRowTitles(container).sort();
-			const visibility = {
-				globalArchiveFilterUnchanged: list.isExcludeArchived(),
-				first: list.isSessionArchivedChatsVisible(first),
-				second: list.isSessionArchivedChatsVisible(second),
-				empty: list.isSessionArchivedChatsVisible(empty),
-				firstExpanded: [...container.querySelectorAll<HTMLElement>('.session-item')]
-					.find(item => item.querySelector('.session-title')?.textContent === 'First')
-					?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
-			};
-			list.setSessionArchivedChatsVisible(first, false);
-			const hidden = chatRowTitles(container).sort();
 			list.setExcludeArchived(false);
-			const globallyShown = chatRowTitles(container).sort();
-			list.setSessionArchivedChatsVisible(second, false);
-			const secondHidden = chatRowTitles(container).sort();
-			const globalVisibility = {
-				first: list.isSessionArchivedChatsVisible(first),
-				second: list.isSessionArchivedChatsVisible(second),
-				empty: list.isSessionArchivedChatsVisible(empty),
-			};
+			const shown = chatRowTitles(container).sort();
+			const excludesArchivedWhileShown = list.isExcludeArchived();
+			list.setExcludeArchived(true);
+			const hidden = chatRowTitles(container).sort();
 
-			assert.deepStrictEqual({ initial, shown, visibility, hidden, globallyShown, secondHidden, globalVisibility }, {
-				initial: ['Second active'],
-				shown: ['First active', 'First archived', 'Second active'],
-				visibility: {
-					globalArchiveFilterUnchanged: true,
-					first: true,
-					second: false,
-					empty: true,
-					firstExpanded: 'true',
-				},
+			assert.deepStrictEqual({ initial, shown, excludesArchivedWhileShown, hidden }, {
+				initial: ['First active', 'Second active'],
+				shown: ['First active', 'First archived', 'Second active', 'Second archived'],
+				excludesArchivedWhileShown: false,
 				hidden: ['First active', 'Second active'],
-				globallyShown: ['First active', 'First archived', 'Second active', 'Second archived'],
-				secondHidden: ['First active', 'First archived', 'Second active'],
-				globalVisibility: {
-					first: true,
-					second: false,
-					empty: true,
-				},
 			});
 		});
 

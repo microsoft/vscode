@@ -12,7 +12,7 @@ import { IAccessibleViewImplementation } from '../../../../platform/accessibilit
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { CustomViewVisibleContext, SessionsListPromoteNewChatActionContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, SessionsListPromoteNewChatActionContext, SessionWorktreeCleanupEditorFocusedContext } from '../../../common/contextkeys.js';
 import { localize } from '../../../../nls.js';
 import { FOCUS_AI_CUSTOMIZATION_VIEW_ID } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeView.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
@@ -23,6 +23,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { areRemoteSessionToolsEnabled } from '../../remoteSessions/common/remoteSessions.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from './sessionArchiveNudge.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING } from '../../sessionInputBanners/browser/sessionWorktreeCleanupService.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
@@ -34,8 +35,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
 	readonly type = AccessibleViewType.Help;
-	// A custom view replaces the chat surface this help describes, so it does not apply then.
-	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate());
+	// A custom view replaces the chat surface this help describes, and the storage cleanup editor
+	// provides its own help, so this window-wide help does not apply in either case.
+	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate(), SessionWorktreeCleanupEditorFocusedContext.negate());
 
 	getProvider(accessor: ServicesAccessor) {
 		const sessionsPartService = accessor.get(ISessionsPartService);
@@ -47,6 +49,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		const content: string[] = [];
 		content.push(localize('sessionsChat.overview', "You are in the Agents window. The Agents window is a dedicated workspace for working with AI agents. It provides a chat interface, a changes view for reviewing agent-generated changes, a file explorer, and customization options."));
 		content.push(localize('sessionsChat.input', "You are in the chat input. Type a message and press Enter to send it."));
+		content.push(localize('sessionsChat.harnessSwitchFeedbackSurvey', "After you switch from Copilot to Local, a two-step feedback survey may appear above the chat input. Use Shift+Tab to reach it. In the first step, use Up and Down Arrow to choose why you switched, then press Enter or Space. In the second step, enter any optional feedback and use Tab to reach Submit. Dismiss Survey or Escape closes the survey. After submission, the questions are replaced above the input by a message that your feedback was recorded. Use Dismiss Feedback Acknowledgement or Escape to close it."));
 		if (configurationService.getValue<boolean>(NEW_SESSION_WELCOME_PHRASES_SETTING)) {
 			content.push(localize('sessionsChat.welcomeName', "In a new session, the welcome heading is announced when shown. To disable this announcement, set accessibility.verbosity.newSessionWelcome to false. Press Tab to reach Set Welcome Name beside the welcome heading, or open its context menu{0}. Enter a custom name, or clear it to use your GitHub first name when available.", '<keybinding:editor.action.showContextMenu>'));
 		}
@@ -71,8 +74,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.externalSessionImport', "To make an external session a regular session without sending a message, use Import in its row toolbar, before Archive or Mark as Done, or focus the session and choose Import from its context menu{0}. This action is available when the host supports importing sessions.", '<keybinding:editor.action.showContextMenu>'));
 		content.push(localize('sessionsChat.delegatedMessage', "Messages sent by another session or chat show a source annotation above the message. Press Tab to focus the annotation, then press Enter or Space to open the source chat."));
 		content.push(archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
-			? localize('sessionsChat.doneChat', "To mark an individual nested chat as done without marking its session as done, open the chat's context menu in the Sessions list or chat tab and choose Mark as Done. The chat is hidden from the Sessions list and closed, but is not deleted. Open the parent session's context menu and choose Show Done Chats to show it again, then open the chat's context menu and choose Restore.")
-			: localize('sessionsChat.archiveChat', "To archive an individual nested chat without archiving its session, open the chat's context menu in the Sessions list or chat tab and choose Archive. The chat is hidden from the Sessions list and closed, but is not deleted. Open the parent session's context menu and choose Show Archived Chats to show it again, then open the chat's context menu and choose Unarchive."));
+			? localize('sessionsChat.doneChat', "To mark an individual nested chat as done without marking its session as done, open the chat's context menu in the Sessions list or chat tab and choose Mark as Done. The chat is hidden from the Sessions list and closed, but is not deleted. Open the Sessions list Filter menu and enable Done to show it again, then open the chat's context menu and choose Restore.")
+			: localize('sessionsChat.archiveChat', "To archive an individual nested chat without archiving its session, open the chat's context menu in the Sessions list or chat tab and choose Archive. The chat is hidden from the Sessions list and closed, but is not deleted. Open the Sessions list Filter menu and enable Archived to show it again, then open the chat's context menu and choose Unarchive."));
 		content.push(localize('sessionsChat.createdBySession', "When a session was created by another session, focus it in the Sessions list and use the Show Hover command{0}. Move focus to the Created by link, then press Enter or Space to open the creator session.", '<keybinding:workbench.action.showHover>'));
 		if (areRemoteSessionToolsEnabled(configurationService)) {
 			content.push(localize('sessionsChat.remoteDelegation', "Ask the agent to list remote agent hosts or create a remote session with platform and resource requirements. Creation uses the standard tool confirmation and does not change the focused chat. The result includes a link to the remote session. Remote sessions can send messages back to the originating chat while this Agents window remains connected."));
@@ -85,6 +88,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		}
 		content.push(localize('sessionsChat.promptTemplatePlaceholder', "When the new-session prompt contains a highlighted task placeholder, place the caret inside it and replace it{0} to type your task.", `<keybinding:${REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID}>`));
 		content.push(localize('sessionsChat.feedbackComments', "When pull requests have failing checks or unreviewed comments, one banner appears above the input. If several pull requests need attention, use the Previous Banner and Next Banner buttons to move between them. A pull request with both failing checks and comments uses a split button: activate the main action to address both, or use its More Actions button to address only the checks or comments. In-product agent review comments appear as their own carousel item."));
+		if (accessor.get(IConfigurationService).getValue<boolean>(AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING)) {
+			content.push(localize('sessionsChat.worktreeCleanupSuggestion', "When at least 20 inactive session worktrees are eligible for cleanup or eligible inactive worktrees can reclaim at least 5 GiB, a storage suggestion may appear below the Sessions list and is announced with the Clean Up Agent Worktrees Command Palette command. The command is also available from the Sessions More Actions menu and from a session's context menu. Active, running, needs-input, pinned, and recently used sessions are excluded. Use Tab or Shift+Tab to reach Clean Up Agent Worktrees, Don't Show Again, or Dismiss Session Storage Suggestion, then Enter or Space to activate it. Don't Show Again disables future suggestions and announcements across restarts. Press Escape while focus is in the suggestion to dismiss it for the current window. To stop these suggestions and announcements without using the suggestion itself, run Disable Session Storage Cleanup Suggestions from the Command Palette, or run Clean Up Agent Worktrees and clear the Suggest Cleaning Up Session Storage When It Grows Large checkbox."));
+		}
 		if (accessor.get(IConfigurationService).getValue<boolean>(SESSION_ARCHIVE_NUDGE_SETTING)) {
 			content.push(localize('sessionsChat.compactArchiveNudge', "After you successfully use the suggestion to archive or mark a session as done three times, future suggestions appear in a compact layout without the explanation. The buttons wrap below the title when space is limited, while Dismiss stays at the top right. The keyboard order is Archive or Mark as Done, Configure, then Dismiss. Configure opens the same automatic cleanup settings."));
 			content.push(localize('sessionsChat.archiveNudgeOnboarding', "The first time you activate the suggestion's Archive or Mark as Done button, a spotlight may reveal that session's action in the sessions list. It briefly waits for the list action to appear. The action waits until you activate the highlighted action, activate Understood, or press Escape to end the spotlight. Use Tab or Shift+Tab to move between the highlighted action and Understood, and Enter or Space to activate either. If the spotlight cannot be shown or is interrupted, the session is still archived or marked as done as long as the suggestion remains available. Once completed or skipped, the spotlight will not appear again."));
@@ -141,9 +147,10 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 				? localize('sessionsChat.sessionsListDefaultDoneActions', "The session row toolbar offers Pin or Unpin before Mark as Done. For sessions that support multiple chats, open the session's context menu to start a new chat.")
 				: localize('sessionsChat.sessionsListDefaultArchiveActions', "The session row toolbar offers Pin or Unpin before Archive. For sessions that support multiple chats, open the session's context menu to start a new chat."));
 		content.push(archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
-			? localize('sessionsChat.showDoneChats', "Open a session's context menu and toggle Show Done Chats to control whether its Done chats are shown. This action is always available, and a check mark means those chats are shown.")
-			: localize('sessionsChat.showArchivedChats', "Open a session's context menu and toggle Show Archived Chats to control whether its archived chats are shown. This action is always available, and a check mark means those chats are shown."));
+			? localize('sessionsChat.showDoneChats', "Use Done in the Sessions list Filter menu to control whether done sessions and nested chats are shown. A check mark means done content is shown.")
+			: localize('sessionsChat.showArchivedChats', "Use Archived in the Sessions list Filter menu to control whether archived sessions and nested chats are shown. A check mark means archived content is shown."));
 		content.push(localize('sessionsChat.sessionsListChatContextMenu', "Open a nested chat's context menu to rename it, open it to the side, or, when supported, permanently delete it. Agent Host chats also offer Copy Link."));
+		content.push(localize('sessionsChat.mainChatToSide', "To open the main chat beside a peer chat, choose Open to the Side from the session row's context menu. You can also Alt-click (Option-click on macOS) the row or drag it to a chat pane's edge."));
 		content.push(localize('sessionsChat.forkToSide', "Alt-click, or Option-click on macOS, the Fork Conversation button at a checkpoint to open the fork beside its source. Ordinary activation keeps its existing behavior. With the keyboard, activate Fork Conversation, reopen the source from the Sessions list, then choose Open to the Side from the fork's context menu."));
 		content.push(localize('sessionsChat.copySessionLink', "To copy a browser link that opens an Agent Host session in the Agents window, open the session's context menu and choose Copy Link."));
 		content.push(localize('sessionsChat.subagentPills', "Activate a subagent pill in the chat transcript to open the subagent beside the current chat. With the keyboard, focus a pill and press Enter or Space; Alt+Enter also opens it to the side. You can also drag a pill to a chat group's edge to choose where it opens."));

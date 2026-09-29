@@ -31,6 +31,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
@@ -45,7 +46,7 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { isAutoModel } from './modelIdentifiers.js';
@@ -1037,6 +1038,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
+		@IAgentHostStartupPerformance private readonly _startupPerformance: IAgentHostStartupPerformance,
 	) {
 		super();
 		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired(false)));
@@ -1594,7 +1596,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const fromPlugins = await activeClient.pluginController.getCustomizationsSettled();
 		const sessionChat = this._findSessionChat(session);
 		const topLevelMcp = activeClient.pluginController.resolveTopLevelMcpCustomizations(
-			sessionChat?.topLevelMcpCustomizations() ?? [],
+			sessionChat?.topLevelMcpCustomizations() ?? this._rootMcpCustomizations(AgentSession.id(session), await activeClient.configuredMcpServers()),
 			sessionChat?.mcpServerOwners?.(),
 		);
 		const customizations = [...fromPlugins, ...topLevelMcp];
@@ -3184,17 +3186,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return true;
 	}
 
-	private async _listSdkSessions<T>(reason: string, listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
+	private async _listSdkSessions<T>(reason: 'chats to migrate' | 'discoverable chats' | 'prewarm session metadata', listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
+		this._startupPerformance.mark('providerContext', { provider: this.id, activationState: 'notRequired', sdkAvailability: 'available' });
+		const phase = reason === 'chats to migrate' ? 'sessionMigrationScan' : reason === 'discoverable chats' ? 'sessionDiscoveryScan' : 'sessionMetadataScan';
+		const timing = this._startupPerformance.start(phase, this.id);
 		this._logService.info(`[Copilot] Listing ${reason}...`);
 		try {
 			const sessions = await this._retryAfterClosedConnection('listSessions', listSessions);
+			timing?.complete('success', { scannedSessionCount: sessions.length });
 			this._logService.info(`[Copilot] Listed ${sessions.length} SDK session(s) for ${reason}`);
 			return sessions;
 		} catch (err) {
 			if (err instanceof CancellationError || isRecognizedCopilotClientStartupFailure(err) || classifyCopilotClientOperationFailure(err) !== undefined) {
+				timing?.complete('unavailable');
 				this._logService.info(`[Copilot] Client unavailable while listing ${reason}: ${err instanceof Error ? err.message : String(err)}`);
 				return undefined;
 			}
+			timing?.complete('error');
 			throw err;
 		}
 	}
@@ -3800,9 +3808,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const currentSnapshot = activeClient ? await raceCancellationError(activeClient.snapshot(current.chatKey), token) : undefined;
 			const refreshReason = entry.requiresRestartAfterWorkingDirectoryChange
 				? 'workingDirectoryChanged'
-				: activeClient && currentSnapshot
-					? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, current.chatKey, currentSnapshot), token)
-					: undefined;
+				: entry.requiresRestartAfterModelChange
+					? 'hydraFusionModelChanged'
+					: activeClient && currentSnapshot
+						? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, current.chatKey, currentSnapshot), token)
+						: undefined;
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -4572,6 +4582,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			[...new Set(currentDisabledRootMcpServers)].sort(),
 		);
 		const refreshReason = (entry.requiresRestartAfterWorkingDirectoryChange ? 'workingDirectoryChanged' : undefined)
+			?? (entry.requiresRestartAfterModelChange ? 'hydraFusionModelChanged' : undefined)
 			?? (rootsChanged ? 'additionalDirectoriesChanged' : undefined)
 			?? structuralRestartReason
 			?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
@@ -5510,11 +5521,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 				provisional.model = model;
 			} else {
 				const entry = current.target ?? await this._ensureResolvedChatSession(current);
+				const previousModelId = this._chatBackings.get(current.chatKey)?.model?.id;
 				// Clear stale SDK preferences when a selection or an override is removed.
 				const autoTier = isAutoModel(model.id)
 					? resolveCopilotAutoTier(model, this._configurationService, this._logService, current.configurationId) ?? null
 					: undefined;
 				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.configurationId), getCopilotContextTier(model, longContextWindow, freeLongContext), autoTier);
+				if (entry && previousModelId !== model.id && (previousModelId === COPILOT_HYDRA_FUSION_MODEL_ID || model.id === COPILOT_HYDRA_FUSION_MODEL_ID)) {
+					entry.markModelChangeRequiresRestart();
+				}
 				// Keep the session-scope metadata in step for resumes that fall back
 				// to it; chat leaves persist through their backing instead.
 				if (current.resource.toString() === current.configurationResource.toString()) {
@@ -5600,9 +5615,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._shutdownPromise;
 	}
 
-	respondToPermissionRequest(requestId: string, approved: boolean): void {
+	respondToPermissionRequest(requestId: string, approved: boolean, context?: IAgentPermissionResponseContext): void {
 		for (const chat of this._allLiveSessions()) {
-			if (chat.respondToPermissionRequest(requestId, approved)) {
+			if (chat.respondToPermissionRequest(requestId, approved, context)) {
 				return;
 			}
 		}
@@ -5810,11 +5825,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Resolves root-configured MCP servers that must be disabled when the SDK session starts. */
 	private async _disabledRootMcpServers(session: URI, sessionId: string, snapshot: IActiveClientSnapshot): Promise<readonly string[]> {
 		await this._customizationEnablementService.initializeSession(session.toString());
-		const serverNames = new Set(Object.keys(snapshot.mcpServers));
+		const rootServers = this._rootMcpCustomizations(sessionId, snapshot.mcpServers);
+		const enablement = getSdkMcpServerEnablement(resolveCustomizationEnablement(
+			this._customizationEnablementService,
+			session,
+			rootServers,
+		));
+		return rootServers.filter(server => enablement.get(server.id) !== true).map(server => server.name);
+	}
+
+	private _rootMcpCustomizations(sessionId: string, mcpServers: AgentHostMcpServers): McpServerCustomization[] {
+		const serverNames = new Set(Object.keys(mcpServers));
 		if (this._isGitHubMcpServerEnabled()) {
 			serverNames.add(GITHUB_MCP_SERVER_NAME);
 		}
-		const rootServers: McpServerCustomization[] = [...serverNames].map(name => {
+		return [...serverNames].map(name => {
 			const id = buildMcpTopLevelCustomizationId(this.id, sessionId, name);
 			return {
 				type: CustomizationType.McpServer,
@@ -5824,12 +5849,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				state: { kind: McpServerStatus.Stopped },
 			};
 		});
-		const enablement = getSdkMcpServerEnablement(resolveCustomizationEnablement(
-			this._customizationEnablementService,
-			session,
-			rootServers,
-		));
-		return rootServers.filter(server => enablement.get(server.id) !== true).map(server => server.name);
 	}
 
 	private _createChatEntry(session: CopilotAgentSession, activeClient: ActiveClient): CopilotChatEntry {
@@ -5908,7 +5927,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	protected _resumeSession(sessionId: string, chatChannelUri?: URI, workingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
 		if (chatChannelUri) {
-			this._chatBackings.set(chatChannelUri.toString(), { sdkSessionId: sessionId });
+			const current = this._chatBackings.get(chatChannelUri.toString());
+			this._chatBackings.set(chatChannelUri.toString(), { ...current, sdkSessionId: sessionId });
 		}
 		const lifetime = this._getOrCreateSessionLifetime(sessionId);
 		if (!lifetime) {
@@ -7520,6 +7540,10 @@ class ActiveClient extends Disposable {
 			plugins: await this.pluginController.getAppliedPlugins(),
 			mcpServers: await this._getMcpServers(),
 		};
+	}
+
+	async configuredMcpServers(): Promise<AgentHostMcpServers> {
+		return this._getMcpServers();
 	}
 
 	private async _getMcpServers(): Promise<AgentHostMcpServers> {

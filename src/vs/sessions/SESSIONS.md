@@ -153,7 +153,7 @@ A provider that must establish backend state before presenting a session may imp
 
 An editor-window draft handoff fills the existing New Session composer only when its input and attachments are empty. The handoff preserves occupied live or restored drafts, including their workspace, and yields to newer input or navigation while awaiting setup or workspace creation. It never sends a request or clears the source editor's draft.
 
-The product protocol link `<product-protocol>://agents/new?workspace=<encoded URI>&prompt=<encoded text>` opens the Agents Window and applies its workspace and prompt through the same draft handoff. Opening the link never submits the prompt, and an occupied composer remains unchanged.
+The product protocol link `<product-protocol>://agents/new?prompt=<encoded text>&workspace=<optional encoded URI>` opens the Agents Window and applies its prompt and optional workspace through the same draft handoff. When `workspace` is omitted, the handoff explicitly selects No Workspace. Opening the link never submits the prompt, and an occupied composer remains unchanged.
 
 Automation editing uses an independent draft so it cannot replace the ordinary New Session composer. Providers advertise `supportsAutomationSessionConfiguration` when they restore `ISessionsProviderCreateSessionOptions.automationConfiguration` before the draft's first configuration resolution and implement `getAutomationSessionConfiguration` to capture the current template. The management service rejects canonical templates for providers without this capability, while deprecated flat aliases continue through ordinary model, mode, and permission operations. It distinguishes unsupported capture from a valid empty template, a replaced draft, and capture failure.
 
@@ -161,7 +161,7 @@ Provider-specific configuration remains opaque to shared Sessions code. Scoped A
 
 ### Operations
 
-Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, and chat creation. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
+Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, chat creation, and optional worktree disk-usage measurement. Shared cleanup UI consumes the optional measurement through the management service and remains independent of provider transport or filesystem details. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
 
 ### Provider ownership
 
