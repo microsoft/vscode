@@ -454,15 +454,9 @@ fn windows_conpty_ctrl_c_cancels_without_fallback() {
 	let root = tempfile::tempdir().expect("create cancellation test directory");
 	let tools = root.path().join("tools");
 	let working_directory = root.path().join("working");
-	let state = root.path().join("state");
-	for directory in [&tools, &working_directory, &state] {
+	for directory in [&tools, &working_directory] {
 		fs::create_dir_all(directory).expect("create cancellation test directory");
 	}
-	fs::write(
-		tools.join("copilot.cmd"),
-		b"@echo off\r\nif \"%~1\"==\"--version\" exit /b 9\r\ntype nul > \"%COPILOT_SHIM_TEST_STATE%\\final-cli\"\r\nexit /b 0\r\n",
-	)
-	.expect("write failing fake CLI");
 	// A release server that accepts the connection and never answers keeps the MSI install waiting for Ctrl+C.
 	let listener = TcpListener::bind("127.0.0.1:0").expect("bind fake release server");
 	let releases_url = OsString::from(format!(
@@ -483,10 +477,7 @@ fn windows_conpty_ctrl_c_cancels_without_fallback() {
 		&[],
 		&path,
 		&working_directory,
-		&[
-			("COPILOT_SHIM_TEST_STATE", state.as_os_str()),
-			("VSCODE_COPILOT_SHIM_RELEASES_URL", releases_url.as_os_str()),
-		],
+		&[("VSCODE_COPILOT_SHIM_RELEASES_URL", releases_url.as_os_str())],
 	);
 	process.wait_for(INSTALL_PROMPT);
 	process.write(b"y\r");
@@ -498,12 +489,8 @@ fn windows_conpty_ctrl_c_cancels_without_fallback() {
 	let exit_code = process.wait_for_exit();
 
 	assert_eq!(
-		(
-			exit_code,
-			state.join("final-cli").exists(),
-			count_bytes(process.transcript(), INSTALL_PROMPT),
-		),
-		(130, false, 1),
+		(exit_code, count_bytes(process.transcript(), INSTALL_PROMPT),),
+		(130, 1),
 		"ConPTY transcript:\n{}",
 		String::from_utf8_lossy(process.transcript())
 	);
