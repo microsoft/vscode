@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spy } from 'sinon';
-import { addDisposableListener, Dimension } from '../../../../../base/browser/dom.js';
+import { restore, SinonSpy, spy } from 'sinon';
+import { Dimension } from '../../../../../base/browser/dom.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -23,6 +23,7 @@ import { IQuickAccessController } from '../../../../../platform/quickinput/commo
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { BreadcrumbsService, IBreadcrumbsService } from '../../../../browser/parts/editor/breadcrumbs.js';
 import { BreadcrumbsControl } from '../../../../browser/parts/editor/breadcrumbsControl.js';
+import { BreadcrumbsPicker } from '../../../../browser/parts/editor/breadcrumbsPicker.js';
 import { IEditorGroupsView, IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { IVisibleEditorPane } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -47,7 +48,7 @@ suite('BreadcrumbsControl', () => {
 	let editorFocusCalls: number;
 	let pendingEditorFocus: (() => void)[];
 	let fileRead: DeferredPromise<void>;
-	let pickerFocused: DeferredPromise<void>;
+	let pickerShow: SinonSpy<Parameters<typeof BreadcrumbsPicker.prototype.show>, Promise<void>>;
 	let outlineReveals: boolean[];
 	let quickAccessPrefixes: string[];
 
@@ -57,7 +58,7 @@ suite('BreadcrumbsControl', () => {
 		outlineReveals = [];
 		quickAccessPrefixes = [];
 		fileRead = new DeferredPromise<void>();
-		pickerFocused = new DeferredPromise<void>();
+		pickerShow = spy(BreadcrumbsPicker.prototype, 'show');
 		configurationService = new TestConfigurationService({
 			breadcrumbs: { filePath: 'on', symbolPath: 'on', useQuickPick: false, icons: true },
 			explorer: { decorations: { colors: false, badges: false } }
@@ -86,17 +87,13 @@ suite('BreadcrumbsControl', () => {
 		editorElement = mainWindow.document.createElement('button');
 		container.appendChild(editorElement);
 		mainWindow.document.body.appendChild(container);
-		disposables.add(addDisposableListener(mainWindow.document, 'focusin', e => {
-			if (e.target instanceof HTMLElement && e.target.closest('.monaco-breadcrumbs-picker')) {
-				pickerFocused.complete();
-			}
-		}));
 	});
 
 	teardown(async () => {
 		contextViewService.hideContextView();
 		disposables.clear();
 		container.remove();
+		restore();
 		// Breadcrumb pickers defer disposing their tree until the next turn.
 		await timeout(0);
 	});
@@ -157,9 +154,9 @@ suite('BreadcrumbsControl', () => {
 			override focus() {
 				activeGroup = this;
 				editorFocusCalls++;
-				editorElement.focus();
+				focusEditor();
 				// Model a webview focus message whose delivery can outlive the focus request.
-				pendingEditorFocus.push(() => editorElement.focus());
+				pendingEditorFocus.push(() => focusEditor());
 			}
 		};
 		activeGroup = new class extends mock<IEditorGroupView>() {
@@ -179,7 +176,23 @@ suite('BreadcrumbsControl', () => {
 		control.layout(new Dimension(600, BreadcrumbsControl.HEIGHT));
 		widget = instantiationService.get(IBreadcrumbsService).getWidget(group.id)!;
 		await Event.toPromise(control.model!.onDidUpdate);
+		focusEditor();
+	}
+
+	async function waitForPicker(): Promise<void> {
+		await pickerShow.lastCall.returnValue;
+		// Hidden Electron windows update activeElement without emitting native focus events.
+		if (!mainWindow.document.hasFocus()) {
+			mainWindow.document.activeElement?.dispatchEvent(new FocusEvent('focus'));
+		}
+	}
+
+	function focusEditor(): void {
+		const previousActiveElement = mainWindow.document.activeElement;
 		editorElement.focus();
+		if (!mainWindow.document.hasFocus() && previousActiveElement !== editorElement) {
+			previousActiveElement?.dispatchEvent(new FocusEvent('blur'));
+		}
 	}
 
 	function deliverEditorFocus(): void {
@@ -211,7 +224,7 @@ suite('BreadcrumbsControl', () => {
 					deliverEditorFocus();
 				}
 				await fileRead.complete();
-				await pickerFocused.p;
+				await waitForPicker();
 				if (delivery === 'after') {
 					deliverEditorFocus();
 				}
@@ -224,7 +237,7 @@ suite('BreadcrumbsControl', () => {
 	test('outline picker activates its group without focusing the editor', async () => {
 		await createControl(true);
 		widget.setSelection(widget.getItems().at(-1), BreadcrumbsControl.Payload_Pick);
-		await pickerFocused.p;
+		await waitForPicker();
 		deliverEditorFocus();
 		await timeout(0);
 		assertPickerFocused();
@@ -236,7 +249,7 @@ suite('BreadcrumbsControl', () => {
 			const openEditor = spy(instantiationService.get(IEditorService), 'openEditor');
 			widget.setSelection(widget.getItems().at(-1), BreadcrumbsControl.Payload_Pick);
 			await fileRead.complete();
-			await pickerFocused.p;
+			await waitForPicker();
 			await timeout(0);
 			contextViewService.getContextViewElement().querySelector('.monaco-list-row')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
 			await timeout(0);
@@ -280,7 +293,7 @@ suite('BreadcrumbsControl', () => {
 		await createControl();
 		widget.setSelection(widget.getItems()[0], BreadcrumbsControl.Payload_Reveal);
 		await fileRead.complete();
-		await pickerFocused.p;
+		await waitForPicker();
 		deliverEditorFocus();
 		await timeout(0);
 		assertPickerFocused();
@@ -290,7 +303,7 @@ suite('BreadcrumbsControl', () => {
 		await createControl();
 		widget.setSelection(widget.getItems().at(-1), BreadcrumbsControl.Payload_Pick);
 		await fileRead.complete();
-		await pickerFocused.p;
+		await waitForPicker();
 		instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('breadcrumbs.selectEditor')!.handler(accessor));
 		await timeout(0);
 		assert.deepStrictEqual({
@@ -305,8 +318,8 @@ suite('BreadcrumbsControl', () => {
 		await createControl();
 		widget.setSelection(widget.getItems().at(-1), BreadcrumbsControl.Payload_Pick);
 		await fileRead.complete();
-		await pickerFocused.p;
-		editorElement.focus();
+		await waitForPicker();
+		focusEditor();
 		await timeout(0);
 		assert.strictEqual(contextViewService.getContextViewElement().querySelector('.monaco-breadcrumbs-picker'), null);
 	});
@@ -316,13 +329,12 @@ suite('BreadcrumbsControl', () => {
 		activeGroup = group;
 		await fileRead.complete();
 		for (let i = 0; i < 10; i++) {
-			pickerFocused = new DeferredPromise<void>();
 			control.domNode.querySelector<HTMLElement>('.monaco-breadcrumb-item:last-child')!.click();
-			await pickerFocused.p;
+			await waitForPicker();
 			deliverEditorFocus();
 			await timeout(0);
 			assertPickerFocused();
-			editorElement.focus();
+			focusEditor();
 			await timeout(0);
 		}
 	}));
