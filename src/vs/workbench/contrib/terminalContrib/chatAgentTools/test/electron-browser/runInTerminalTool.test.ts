@@ -103,6 +103,7 @@ suite('RunInTerminalTool', () => {
 	let sandboxPrereqResult: ITerminalSandboxPrerequisiteCheckResult;
 	let terminalSandboxService: ITerminalSandboxService;
 	let createdTerminalInstance: ITerminalInstance;
+	let terminalCommandOutput: string;
 	let createTerminalCallCount: number;
 	let chatSessions: Map<string, ChatModel>;
 	let chatSessionContribution: ReturnType<IChatSessionsService['getChatSessionContribution']>;
@@ -159,6 +160,7 @@ suite('RunInTerminalTool', () => {
 			},
 		};
 		createTerminalCallCount = 0;
+		terminalCommandOutput = '';
 		createdTerminalInstance = {
 			instanceId: 1,
 			processId: 1,
@@ -170,7 +172,7 @@ suite('RunInTerminalTool', () => {
 				// Simulate successful command completion after sendText
 				queueMicrotask(() => {
 					onDataEmitter.fire('\x1b]633;C\x07\x1b]633;A\x07');
-					commandFinishedEmitter.fire({ exitCode: 0, getOutput: () => '' });
+					commandFinishedEmitter.fire({ exitCode: 0, getOutput: () => terminalCommandOutput });
 				});
 			},
 			focus: () => { },
@@ -335,10 +337,10 @@ suite('RunInTerminalTool', () => {
 			for (const [index, size] of sizes.entries()) {
 				await fileService.writeFile(URI.joinPath(cwd, `${index}.png`), VSBuffer.alloc(size));
 			}
-			const parts = await runInTerminalTool['_extractImagesFromOutput'](sizes.map((_, index) => `./${index}.png`).join('\n'), cwd);
+			const result = await runInTerminalTool['_extractImagesFromOutput'](sizes.map((_, index) => `./${index}.png`).join('\n'), cwd);
 			return {
-				images: parts.filter(part => part.kind === 'data').map(part => part.value.data.byteLength),
-				notices: parts.filter(part => part.kind === 'text').length,
+				images: result.images.map(part => part.value.data.byteLength),
+				notices: result.notice ? 1 : 0,
 			};
 		}
 
@@ -351,6 +353,26 @@ suite('RunInTerminalTool', () => {
 
 		test('caps the number of images at ten', async () => {
 			deepStrictEqual(await extract(Array(12).fill(1)), { images: Array(10).fill(1), notices: 1 });
+		});
+
+		test('keeps the image omission notice in the UI message and out of model content', async () => {
+			runInTerminalTool.disableProcessIdAssociation();
+			await extract(Array(11).fill(1));
+			terminalCommandOutput = Array.from({ length: 11 }, (_, index) => `./${index}.png`).join('\n');
+			stub(createdTerminalInstance, 'getCwdResource').resolves(cwd);
+
+			const result = await invokeToolTest({ command: 'echo images', isBackground: false });
+			createdTerminalInstance.dispose();
+			const message = typeof result.toolResultMessage === 'string' ? result.toolResultMessage : result.toolResultMessage?.value;
+			deepStrictEqual({
+				text: result.content.filter(part => part.kind === 'text').map(part => part.value),
+				images: result.content.filter(part => part.kind === 'data').map(part => part.value.data.byteLength),
+				notice: message?.includes('Additional image previews were omitted.'),
+			}, {
+				text: [terminalCommandOutput],
+				images: Array(10).fill(1),
+				notice: true,
+			});
 		});
 
 		test('accepts exactly 5 MiB and reports an additional image', async () => {
@@ -387,21 +409,27 @@ suite('RunInTerminalTool', () => {
 			data.buffer.fill(127);
 			await fileService.writeFile(URI.joinPath(cwd, 'image.png'), data);
 			const result = await runInTerminalTool['_extractImagesFromOutput']('./image.png', cwd);
-			deepStrictEqual(result, [{ kind: 'data', value: { mimeType: 'image/png', data }, audience: [LanguageModelPartAudience.User] }]);
+			deepStrictEqual(result, {
+				images: [{ kind: 'data', value: { mimeType: 'image/png', data }, audience: [LanguageModelPartAudience.User] }],
+				notice: undefined,
+			});
 		});
 
 		test('does not report missing paths after exactly ten images as omitted previews', async () => {
 			await extract(Array(10).fill(1));
 			const result = await runInTerminalTool['_extractImagesFromOutput'](
 				[...Array.from({ length: 10 }, (_, index) => `./${index}.png`), './missing.png'].join('\n'), cwd);
-			deepStrictEqual(result.map(part => part.kind), Array(10).fill('data'));
+			deepStrictEqual({ kinds: result.images.map(part => part.kind), notice: result.notice }, { kinds: Array(10).fill('data'), notice: undefined });
 		});
 
 		test('preserves bytes, mime type, user audience and deduplication', async () => {
 			const data = VSBuffer.fromString('synthetic image bytes');
 			await fileService.writeFile(URI.joinPath(cwd, 'image.PNG'), data);
 			const result = await runInTerminalTool['_extractImagesFromOutput']('./image.PNG\n./image.PNG', cwd);
-			deepStrictEqual(result, [{ kind: 'data', value: { mimeType: 'image/png', data }, audience: [LanguageModelPartAudience.User] }]);
+			deepStrictEqual(result, {
+				images: [{ kind: 'data', value: { mimeType: 'image/png', data }, audience: [LanguageModelPartAudience.User] }],
+				notice: undefined,
+			});
 		});
 
 		test('skips missing paths and oversized files without blocking later small images', async () => {
@@ -409,22 +437,23 @@ suite('RunInTerminalTool', () => {
 			const data = VSBuffer.fromString('small');
 			await fileService.writeFile(URI.joinPath(cwd, 'small.png'), data);
 			const result = await runInTerminalTool['_extractImagesFromOutput']('./missing.png\n./large.png\n./small.png', cwd);
-			deepStrictEqual(result, [{ kind: 'data', value: { mimeType: 'image/png', data }, audience: [LanguageModelPartAudience.User] }]);
+			deepStrictEqual(result, {
+				images: [{ kind: 'data', value: { mimeType: 'image/png', data }, audience: [LanguageModelPartAudience.User] }],
+				notice: undefined,
+			});
 		});
 
 		test('preserves the long-line regex guard and non-image output', async () => {
 			const reads = spy(fileService, 'readFileStream');
 			const result = await runInTerminalTool['_extractImagesFromOutput'](`${'a/'.repeat(6000)}image.png\nordinary text\n./file.txt`, cwd);
-			deepStrictEqual({ result, reads: reads.callCount }, { result: [], reads: 0 });
+			deepStrictEqual({ result, reads: reads.callCount }, { result: { images: [], notice: undefined }, reads: 0 });
 		});
 
 		test('reports a file that exceeds the read limit after stat', async () => {
 			await fileService.writeFile(URI.joinPath(cwd, 'image.png'), VSBuffer.alloc(1));
 			stub(fileService, 'readFileStream').rejects(new FileOperationError('File grew', FileOperationResult.FILE_TOO_LARGE));
 			const result = await runInTerminalTool['_extractImagesFromOutput']('./image.png', cwd);
-			deepStrictEqual(result.map(part => ({ kind: part.kind, audience: part.kind === 'promptTsx' ? undefined : part.audience })), [
-				{ kind: 'text', audience: [LanguageModelPartAudience.User] },
-			]);
+			deepStrictEqual({ images: result.images, notice: !!result.notice }, { images: [], notice: true });
 		});
 
 		test('does not attach data returned beyond the read limit', async () => {
@@ -433,7 +462,7 @@ suite('RunInTerminalTool', () => {
 			const file = await fileService.readFile(uri);
 			stub(fileService, 'readFileStream').resolves({ ...file, value: bufferToStream(VSBuffer.alloc(5 * 1024 * 1024 + 1)) });
 			const result = await runInTerminalTool['_extractImagesFromOutput']('./image.png', cwd);
-			deepStrictEqual(result.map(part => part.kind), ['text']);
+			deepStrictEqual({ images: result.images, notice: !!result.notice }, { images: [], notice: true });
 		});
 
 		test('propagates cancellation during the final image read', async () => {

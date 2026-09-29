@@ -34,7 +34,7 @@ import { IChatService, ChatRequestQueueKind, ElicitationState, type IChatExterna
 import { autorun, constObservable } from '../../../../../../base/common/observable.js';
 import { ChatModel } from '../../../../chat/common/model/chatModel.js';
 import { ChatConfiguration, ChatModeKind, ChatPermissionLevel, isAutoApproveLevel } from '../../../../chat/common/constants.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolResultDataPart } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { DEFAULT_IDLE_SILENCE_TIMEOUT_MS, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
@@ -2532,12 +2532,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const isError = exitCode !== undefined && exitCode !== 0;
 		const endCwd = await toolTerminal.instance.getCwdResource();
 
-		const imageContent = await this._extractImagesFromOutput(terminalResult, endCwd, token);
-		const imageNotice = imageContent.find(part => part.kind === 'text');
+		const { images, notice: imageNotice } = await this._extractImagesFromOutput(terminalResult, endCwd, token);
 		if (imageNotice) {
 			toolResultMessage = typeof toolResultMessage === 'object'
-				? { ...toolResultMessage, value: `${toolResultMessage.value}\n\n${imageNotice.value}` }
-				: [toolResultMessage, imageNotice.value].filter(Boolean).join('\n\n');
+				? { ...toolResultMessage, value: `${toolResultMessage.value}\n\n${imageNotice}` }
+				: [toolResultMessage, imageNotice].filter(Boolean).join('\n\n');
 		}
 
 		return {
@@ -2561,7 +2560,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					kind: 'text',
 					value: resultText.join(''),
 				},
-				...imageContent,
+				...images,
 			]
 		};
 	}
@@ -2657,9 +2656,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private static readonly _maxImageCount = 10;
 
 	/**
-	 * Extracts at most ten image previews totaling 5 MiB of file bytes, with a user-only notice when limited.
+	 * Extracts at most ten image previews totaling 5 MiB of file bytes, with a separate UI-only omission notice.
 	 */
-	private async _extractImagesFromOutput(output: string, cwd: URI | undefined, token: CancellationToken = CancellationToken.None): Promise<IToolResult['content']> {
+	private async _extractImagesFromOutput(output: string, cwd: URI | undefined, token: CancellationToken = CancellationToken.None): Promise<{ images: IToolResultDataPart[]; notice: string | undefined }> {
 		// Match paths containing at least one / or \ and ending with an image
 		// extension. Each atom uses [^\s/\\]* so it cannot consume separators,
 		// which keeps the [/\\] tokens unambiguous and prevents catastrophic
@@ -2677,10 +2676,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		if (matches.size === 0) {
-			return [];
+			return { images: [], notice: undefined };
 		}
 
-		const results: IToolResult['content'] = [];
+		const images: IToolResultDataPart[] = [];
 		let totalImageSize = 0;
 		let limited = false;
 		for (const filePath of matches) {
@@ -2709,7 +2708,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 
 				const remainingSize = RunInTerminalTool._maxTotalImageSize - totalImageSize;
-				if (results.length === RunInTerminalTool._maxImageCount || stat.size > remainingSize) {
+				if (images.length === RunInTerminalTool._maxImageCount || stat.size > remainingSize) {
 					limited = true;
 					break;
 				}
@@ -2723,7 +2722,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					break;
 				}
 				totalImageSize += imageData.byteLength;
-				results.push({
+				images.push({
 					kind: 'data',
 					value: {
 						mimeType,
@@ -2743,15 +2742,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 
-		if (limited) {
-			results.push({
-				kind: 'text',
-				value: localize('runInTerminal.imagePreviewsLimited', "Additional image previews were omitted. Terminal results are limited to {0} images and {1} MiB of image data. Open image files directly to view them.", RunInTerminalTool._maxImageCount, RunInTerminalTool._maxTotalImageSize / (1024 * 1024)),
-				audience: [LanguageModelPartAudience.User],
-			});
-		}
-
-		return results;
+		return {
+			images,
+			notice: limited
+				? localize('runInTerminal.imagePreviewsLimited', "Additional image previews were omitted. Terminal results are limited to {0} images and {1} MiB of image data. Open image files directly to view them.", RunInTerminalTool._maxImageCount, RunInTerminalTool._maxTotalImageSize / (1024 * 1024))
+				: undefined,
+		};
 	}
 
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionResource: URI) {
