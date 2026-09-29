@@ -3111,15 +3111,24 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('hides a comparison until every attempt finishes launching', () => {
-			const { container } = renderComparison(undefined, 'launching');
+		test('shows a pending group without partial attempt rows while attempts launch', () => {
+			const { container, list } = renderComparison(undefined, 'launching');
+			list.setShowEmptyGroups(false);
+			const comparison = container.querySelector<HTMLElement>('.session-comparison-group');
+			const archive = comparison?.querySelector<HTMLElement>('.session-comparison-archive');
 
 			assert.deepStrictEqual({
+				title: comparison?.querySelector('.session-section-label')?.textContent,
+				summary: comparison?.querySelector('.session-group-description')?.textContent,
 				comparisonGroups: container.querySelectorAll('.session-comparison-group').length,
 				sessionRows: container.querySelectorAll('.session-item').length,
+				archiveDisplay: archive ? mainWindow.getComputedStyle(archive).display : undefined,
 			}, {
-				comparisonGroups: 0,
+				title: 'Improve the picker',
+				summary: 'Comparison · Starting 2 attempts',
+				comparisonGroups: 1,
 				sessionRows: 0,
+				archiveDisplay: 'none',
 			});
 		});
 

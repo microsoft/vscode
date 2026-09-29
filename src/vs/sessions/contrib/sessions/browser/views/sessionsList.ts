@@ -206,6 +206,7 @@ export interface ISessionGroupItem {
 	readonly comparison?: {
 		readonly id: string;
 		readonly title: string;
+		readonly launching: boolean;
 		readonly summary: (reader?: IReader) => string;
 	};
 }
@@ -2513,7 +2514,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			template.elementDisposables.add(autorun(reader => {
 				template.description.textContent = comparison.summary(reader);
 			}));
-			template.comparisonArchive.element.hidden = getCurrentComparisonSessions().length === 0;
+			template.comparisonArchive.element.hidden = comparison.launching === true || getCurrentComparisonSessions().length === 0;
 			template.elementDisposables.add(template.comparisonArchive.onDidClick(async () => {
 				const comparisonSessions = getCurrentComparisonSessions();
 				if (comparisonSessions.length === 0) {
@@ -4334,9 +4335,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const group of this._sessionGroupsService.getGroups()) {
 			const members = groupedMembers.get(group.id) ?? [];
 			const comparison = comparisonsByGroupId.get(group.id);
-			if (comparison && isComparisonLaunchPending(comparison)) {
-				continue;
-			}
 			const sortedMembers = comparison
 				? sortComparisonGroupMembers(comparison, members, sorting, sortKeyForGrouping)
 				: sortSessions(members, sorting, sortKeyForGrouping);
@@ -4359,12 +4357,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				comparison: comparison ? {
 					id: comparison.id,
 					title: comparison.title,
+					launching: comparison.launching === true,
 					summary: reader => getComparisonGroupSummary(comparison, this.sessions, reader),
 				} : undefined,
 			});
 		}
 		const defaultGroupIds = [...groupItemsById.values()]
-			.filter(item => this._showEmptyGroups || item.sessions.length > 0 || item.editing)
+			.filter(item => this._showEmptyGroups || item.sessions.length > 0 || item.editing || item.comparison)
 			.sort((a, b) => b.group.createdAt - a.group.createdAt)
 			.map(item => `group:${item.group.id}`);
 
@@ -6096,6 +6095,10 @@ function isComparisonLaunchPending(comparison: ISessionComparison): boolean {
 }
 
 function getComparisonGroupSummary(comparison: ISessionComparison, sessions: readonly ISession[], reader?: IReader): string {
+	if (comparison.launching) {
+		const attemptCount = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt).length;
+		return localize('comparisonGroup.startingAttempts', "Comparison · Starting {0} attempts", attemptCount);
+	}
 	if (comparison.verdict) {
 		return localize('comparisonGroup.reviewReady', "Comparison · Review ready");
 	}
