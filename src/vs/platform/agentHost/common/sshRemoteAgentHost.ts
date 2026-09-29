@@ -564,8 +564,11 @@ export interface ISSHRemoteAgentHostMainService {
 	/**
 	 * Bootstrap a remote agent host over SSH. Returns serializable
 	 * connection info for the renderer to register.
+	 *
+	 * @param replaceRelay When an existing SSH connection backs a new
+	 * protocol client, replace its relay while retaining the SSH session.
 	 */
-	connect(config: ISSHAgentHostConfig): Promise<ISSHConnectResult>;
+	connect(config: ISSHAgentHostConfig, replaceRelay?: boolean): Promise<ISSHConnectResult>;
 
 	/**
 	 * Send a message to a remote agent host through the SSH relay.

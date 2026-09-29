@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
-import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -136,6 +136,8 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
 
 	private readonly _stagedConfigurations = new Map<string, ISSHAgentHostConfig>();
+	/** Owns transferred teardown until a replacement supersedes it or the factory is disposed. */
+	private readonly _transportDisposables = this._register(new DisposableMap<string>());
 	// Survives connection cleanup so an automatic reconnect can identify an
 	// editor-to-standalone endpoint failover after a successful handshake.
 	private readonly _lastConnectedServerTypeByAddress = new Map<string, AgentHostServerType>();
@@ -195,7 +197,7 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 		let result;
 		try {
 			result = stagedConfig
-				? await this._mainService.connect(this._augmentConfig({ ...stagedConfig, userInitiated: stagedConfig.userInitiated ?? options.userInitiated }))
+				? await this._mainService.connect(this._augmentConfig({ ...stagedConfig, userInitiated: stagedConfig.userInitiated ?? options.userInitiated }), true)
 				: entry.connection.sshConfigHost
 					? await this._mainService.reconnect(
 						entry.connection.sshConfigHost,
@@ -212,8 +214,9 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 						authMethod: SSHAuthMethod.Agent,
 						name: entry.name,
 						userInitiated: options.userInitiated,
-					}));
+					}), true);
 		} catch (error) {
+			this._transportDisposables.deleteAndDispose(entry.connection.address);
 			// A refused host key is the user's decision, not a transient fault.
 			// Report it in the shared vocabulary for "do not retry" while keeping
 			// the host-key-denial name, which `isSSHHostKeyDeniedError` matches
@@ -331,8 +334,13 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 	}
 
 	private _createTransportDisposable(connectionId: string, handle: SSHAgentHostConnectionHandle, endpointSelectionObserver?: IDisposable): IDisposable {
-		return toDisposable(() => {
+		const previous = this._transportDisposables.get(connectionId);
+		const transportDisposable = toDisposable(() => {
 			endpointSelectionObserver?.dispose();
+			if (this._transportDisposables.get(connectionId) !== transportDisposable) {
+				return;
+			}
+			this._transportDisposables.deleteAndLeak(connectionId);
 			if (this._connections.get(connectionId) === handle) {
 				this._connections.delete(connectionId);
 				this._onDidChangeConnections();
@@ -341,6 +349,10 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 			handle.dispose();
 			this._mainService.disconnect(connectionId).catch(() => { /* best effort */ });
 		});
+		// Supersede the old teardown before disposing it: SSH relay replacement keeps the same connection ID.
+		this._transportDisposables.set(connectionId, transportDisposable, true);
+		previous?.dispose();
+		return transportDisposable;
 	}
 
 	private _createRelayClient(result: Pick<ISSHConnectResult, 'connectionId' | 'address' | 'name' | 'sshConfigHost'>): AgentHostProtocolClient {
@@ -420,6 +432,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	readonly onDidReportConnectProgress: Event<ISSHConnectProgress>;
 
 	private readonly _connections = new Map<string, SSHAgentHostConnectionHandle>();
+	private readonly _pendingConnections = new Map<string, Promise<SSHAgentHostConnectionHandle>>();
 
 	/**
 	 * The host key that authenticated the most recent session for a given
@@ -532,11 +545,25 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			throw new Error('Remote agent host connections are not enabled.');
 		}
 
-		const entry = this._connectionFactory.stageConfiguration({ ...config, userInitiated: config.userInitiated ?? true });
-		const address = getEntryAddress(entry);
-		this._remoteAgentHostService.reconnect(address, true);
-		await this._remoteAgentHostService.waitForConnection(address);
-		return this._getConnectionHandle(address);
+		const address = computeSSHConnectionKey(config);
+		if (this._remoteAgentHostService.getConnection(address)) {
+			return this._getConnectionHandle(address);
+		}
+
+		const pending = this._pendingConnections.get(address);
+		if (pending) {
+			return pending;
+		}
+
+		const pendingConnection = this._connect(config, address);
+		this._pendingConnections.set(address, pendingConnection);
+		try {
+			return await pendingConnection;
+		} finally {
+			if (this._pendingConnections.get(address) === pendingConnection) {
+				this._pendingConnections.delete(address);
+			}
+		}
 	}
 
 	async disconnect(host: string): Promise<void> {
@@ -581,6 +608,14 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			throw new Error(`SSH connection handle not found for ${address}.`);
 		}
 		return handle;
+	}
+
+	private async _connect(config: ISSHAgentHostConfig, address: string): Promise<SSHAgentHostConnectionHandle> {
+		const userInitiated = config.userInitiated ?? true;
+		this._connectionFactory.stageConfiguration({ ...config, userInitiated });
+		this._remoteAgentHostService.reconnect(address, userInitiated);
+		await this._remoteAgentHostService.waitForConnection(address);
+		return this._getConnectionHandle(address);
 	}
 
 	private async _handleKeyboardInteractiveRequest(request: ISSHKeyboardInteractiveRequest): Promise<void> {
