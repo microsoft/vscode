@@ -41,10 +41,13 @@ export function setup(context: TestContext) {
 		context.validateCodesignSignature(packagePath);
 		if (!context.options.downloadOnly) {
 			const dir = context.mountDmg(packagePath);
-			context.validateAllCodesignSignatures(dir);
-			const entryPoint = context.getDesktopEntryPoint(dir);
-			await testDesktopApp(entryPoint);
-			context.unmountDmg(dir);
+			try {
+				context.validateAllCodesignSignatures(dir);
+				const entryPoint = context.getDesktopEntryPoint(dir);
+				await testDesktopApp(entryPoint);
+			} finally {
+				context.unmountDmg(dir);
+			}
 		}
 	});
 
@@ -53,10 +56,13 @@ export function setup(context: TestContext) {
 		context.validateCodesignSignature(packagePath);
 		if (!context.options.downloadOnly) {
 			const dir = context.mountDmg(packagePath);
-			context.validateAllCodesignSignatures(dir);
-			const entryPoint = context.getDesktopEntryPoint(dir);
-			await testDesktopApp(entryPoint);
-			context.unmountDmg(dir);
+			try {
+				context.validateAllCodesignSignatures(dir);
+				const entryPoint = context.getDesktopEntryPoint(dir);
+				await testDesktopApp(entryPoint);
+			} finally {
+				context.unmountDmg(dir);
+			}
 		}
 	});
 
@@ -65,10 +71,13 @@ export function setup(context: TestContext) {
 		context.validateCodesignSignature(packagePath);
 		if (!context.options.downloadOnly) {
 			const dir = context.mountDmg(packagePath);
-			context.validateAllCodesignSignatures(dir);
-			const entryPoint = context.getDesktopEntryPoint(dir);
-			await testDesktopApp(entryPoint);
-			context.unmountDmg(dir);
+			try {
+				context.validateAllCodesignSignatures(dir);
+				const entryPoint = context.getDesktopEntryPoint(dir);
+				await testDesktopApp(entryPoint);
+			} finally {
+				context.unmountDmg(dir);
+			}
 		}
 	});
 
