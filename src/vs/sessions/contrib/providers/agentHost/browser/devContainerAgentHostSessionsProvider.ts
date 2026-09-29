@@ -107,7 +107,9 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		try {
 			const available = await this.isDevContainerWorkspaceAvailable(workspaceUri);
 			if (!available || !this._getNewSession(sessionId)) {
-				this._pendingDevContainerEnablement.delete(sessionId);
+				if (this._pendingDevContainerEnablement.delete(sessionId)) {
+					this._onDidChangeSessionConfig.fire(sessionId);
+				}
 				return;
 			}
 			this._devContainerAvailableDrafts.add(sessionId);
@@ -116,7 +118,9 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			}
 			this._onDidChangeSessionConfig.fire(sessionId);
 		} catch (error) {
-			this._pendingDevContainerEnablement.delete(sessionId);
+			if (this._pendingDevContainerEnablement.delete(sessionId)) {
+				this._onDidChangeSessionConfig.fire(sessionId);
+			}
 			this._logService.warn(`[${this.id}] Failed to resolve Dev Container availability for ${workspaceUri.toString()}`, error);
 		}
 	}
@@ -146,13 +150,10 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		}
 		if (this._devContainerAvailableDrafts.has(sessionId)) {
 			this._enableDevContainer(sessionId);
-			this._onDidChangeSessionConfig.fire(sessionId);
 		} else {
 			this._pendingDevContainerEnablement.add(sessionId);
-			if (options?.required) {
-				this._onDidChangeSessionConfig.fire(sessionId);
-			}
 		}
+		this._onDidChangeSessionConfig.fire(sessionId);
 	}
 
 	setDevContainerEnabled(sessionId: string, enabled: boolean): void {
