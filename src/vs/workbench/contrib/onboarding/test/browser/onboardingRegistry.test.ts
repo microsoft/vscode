@@ -13,6 +13,7 @@ suite('OnboardingScenarioRegistry', () => {
 
 	test('includes declared and active scenarios in the descriptor catalog', () => {
 		const registry = new OnboardingScenarioRegistry();
+		registry.registerDescriptor({ id: 'plain' });
 		registry.registerDescriptor({ id: 'declared', developerModeVariations: ['first'] });
 		registry.registerDescriptor({ id: 'declared', developerModeVariations: ['second'] });
 		const registration = disposables.add(registry.register({
@@ -22,6 +23,7 @@ suite('OnboardingScenarioRegistry', () => {
 		}));
 
 		assert.deepStrictEqual(registry.getScenarioDescriptors(), [
+			{ id: 'plain' },
 			{ id: 'declared', developerModeVariations: ['second'] },
 			{
 				id: 'active',
@@ -32,6 +34,7 @@ suite('OnboardingScenarioRegistry', () => {
 
 		registration.dispose();
 		assert.deepStrictEqual(registry.getScenarioDescriptors(), [
+			{ id: 'plain' },
 			{ id: 'declared', developerModeVariations: ['second'] },
 		]);
 	});

@@ -55,7 +55,7 @@ export class OnboardingScenarioRegistry implements IOnboardingScenarioRegistry {
 
 	registerDescriptor(descriptor: IOnboardingScenarioDescriptor): void {
 		const previous = this._descriptors.get(descriptor.id);
-		if (previous?.developerModeVariations === descriptor.developerModeVariations && previous?.tryout === descriptor.tryout) {
+		if (previous && previous.developerModeVariations === descriptor.developerModeVariations && previous.tryout === descriptor.tryout) {
 			return;
 		}
 		this._descriptors.set(descriptor.id, descriptor);
