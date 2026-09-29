@@ -436,6 +436,7 @@ function renderConnectedBorderContinuity(activeTabIndex: number): (ctx: Componen
 			[EDITOR_BORDER]: '#22D3EE',
 			[TAB_ACTIVE_BORDER_TOP]: '#22D3EE',
 			[TAB_BORDER]: '#22D3EE',
+			[TAB_DIVIDER]: '#00000000',
 		},
 	});
 }
@@ -1014,12 +1015,12 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		FirstActive: defineComponentFixture({
 			render: renderConnectedBorderContinuity(0),
 			themes: ['dark'],
-			expectedVisualDescriptions: ['The first active connected tab joins the cyan outer editor frame, cap, strip separator, and document frame as one continuous stroke.'],
+			expectedVisualDescriptions: ['The first active connected tab joins the cyan outer editor frame, cap, strip separator, and document frame as one continuous stroke. The divider is explicitly transparent so it does not repeat the shared boundary.'],
 		}),
 		MiddleActive: defineComponentFixture({
 			render: renderConnectedBorderContinuity(1),
 			themes: ['dark'],
-			expectedVisualDescriptions: ['The middle active connected tab has smooth rounded cyan top corners shared with adjacent surfaces, without a straight overlay or corner notch.'],
+			expectedVisualDescriptions: ['The middle active connected tab has smooth rounded cyan top corners shared with adjacent surfaces, without a straight overlay, corner notch, or divider beside the active tab.'],
 		}),
 	}),
 	ConnectedSurface: defineThemedFixtureGroup({

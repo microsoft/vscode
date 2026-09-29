@@ -147,7 +147,10 @@ for (const [style, expected] of [
 	});
 }
 
-for (const fixture of ['FirstActive', 'MiddleActive']) {
+for (const [fixture, expectedDividers] of [
+	['FirstActive', ['rgba(0, 0, 0, 0)']],
+	['MiddleActive', []],
+] as const) {
 	test(`connected border continuity stays aligned for ${fixture}`, async ({ page }) => {
 		await openFixture(page, `editor/editorTabBar/editorTabBar/ConnectedBorderContinuity/${fixture}/Dark`, '.tabs-container > .tab.active');
 		const state = await page.locator('.part.editor').evaluate(editor => {
@@ -161,6 +164,9 @@ for (const fixture of ['FirstActive', 'MiddleActive']) {
 			}
 			const editorRect = editor.getBoundingClientRect();
 			const fillRect = fill.getBoundingClientRect();
+			const visibleDividers = [...group.querySelectorAll<HTMLElement>('.tab-divider')]
+				.filter(element => getComputedStyle(element).display !== 'none')
+				.map(element => getComputedStyle(element).backgroundColor);
 			return {
 				editorBorder: getComputedStyle(editor).borderTopColor,
 				capTop: getComputedStyle(fill).borderTopColor,
@@ -168,6 +174,7 @@ for (const fixture of ['FirstActive', 'MiddleActive']) {
 				separator: getComputedStyle(strip, '::after').backgroundColor,
 				indicator: getComputedStyle(indicator).display,
 				topAligned: Math.abs(editorRect.top - fillRect.top) <= 1,
+				visibleDividers,
 			};
 		});
 		expect(state).toEqual({
@@ -177,6 +184,7 @@ for (const fixture of ['FirstActive', 'MiddleActive']) {
 			separator: 'rgb(34, 211, 238)',
 			indicator: 'none',
 			topAligned: true,
+			visibleDividers: expectedDividers,
 		});
 	});
 }
