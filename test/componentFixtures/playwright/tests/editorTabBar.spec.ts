@@ -44,6 +44,45 @@ test('Dark Modern keeps legacy, connected, and pill tab surfaces distinct', asyn
 	});
 });
 
+for (const [group, expected] of [
+	['ActiveGroup', {
+		activeTop: { display: 'block', color: 'rgb(34, 211, 238)' },
+		activeBottom: { display: 'block', color: 'rgb(244, 63, 94)' },
+		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)' },
+	}],
+	['InactiveGroup', {
+		activeTop: { display: 'block', color: 'rgb(192, 132, 252)' },
+		activeBottom: { display: 'block', color: 'rgb(251, 146, 60)' },
+		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)' },
+	}],
+] as const) {
+	test(`connected tabs show legacy border customizations in ${group}`, async ({ page }) => {
+		await openFixture(page, `editor/editorTabBar/editorTabBar/ConnectedLegacyBorders/${group}/Dark`, '.tabs-container > .tab.active');
+
+		const colors = await page.locator('.tabs-container').evaluate(tabs => {
+			const active = tabs.querySelector<HTMLElement>('.tab.active');
+			const selected = tabs.querySelector<HTMLElement>('.tab.selected:not(.active)');
+			const activeTop = active?.querySelector<HTMLElement>('.tab-border-top-container');
+			const activeBottom = active?.querySelector<HTMLElement>('.tab-border-bottom-container');
+			const selectedTop = selected?.querySelector<HTMLElement>('.tab-border-top-container');
+			if (!activeTop || !activeBottom || !selectedTop) {
+				throw new Error('Expected active and selected connected-tab border indicators');
+			}
+			const style = (element: HTMLElement) => {
+				const computedStyle = getComputedStyle(element);
+				return { display: computedStyle.display, color: computedStyle.backgroundColor };
+			};
+			return {
+				activeTop: style(activeTop),
+				activeBottom: style(activeBottom),
+				selectedTop: style(selectedTop),
+			};
+		});
+
+		expect(colors).toEqual(expected);
+	});
+}
+
 for (const theme of ['DarkHighContrast', 'LightHighContrast']) {
 	test(`connected tab actions respect disabled hover state in ${theme}`, async ({ page }) => {
 		await openFixture(page, `editor/editorTabBar/editorTabBar/ConnectedSurface/SingleTab/${theme}`, '.tabs-container > .tab');

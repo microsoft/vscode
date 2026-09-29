@@ -16,6 +16,7 @@
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container,
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .modern-ui-editor-tab-group {
+	--editor-tab-border-indicator-display: block;
 	--modern-ui-connected-tab-border: var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-tab-border, var(--modern-ui-connected-tab-surface)));
 	--modern-ui-connected-well-border: transparent;
 }

@@ -6,6 +6,7 @@
 import { $, Dimension, getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Color } from '../../../../../base/common/color.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -23,7 +24,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { listErrorForeground, listWarningForeground } from '../../../../../platform/theme/common/colors/listColors.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { asCssVariableName } from '../../../../../platform/theme/common/colorUtils.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
@@ -46,6 +47,11 @@ import {
 	MODERN_EDITOR_TAB_HOVER_FOREGROUND,
 	MODERN_EDITOR_TAB_INACTIVE_BACKGROUND,
 	MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND,
+	TAB_ACTIVE_BORDER,
+	TAB_ACTIVE_BORDER_TOP,
+	TAB_SELECTED_BORDER_TOP,
+	TAB_UNFOCUSED_ACTIVE_BORDER,
+	TAB_UNFOCUSED_ACTIVE_BORDER_TOP,
 } from '../../../../common/theme.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { BreadcrumbsService, IBreadcrumbsService } from '../../../../browser/parts/editor/breadcrumbs.js';
@@ -377,6 +383,25 @@ export interface IEditorTabBarFixtureOptions {
 	readonly activeTabClipping?: 'left' | 'right' | 'left-shoulder' | 'right-shoulder';
 }
 
+function customizeTheme(theme: IColorTheme, customizations: Readonly<Record<string, string>> | undefined): IColorTheme {
+	if (!customizations) {
+		return theme;
+	}
+
+	const colors = new Map(Object.entries(customizations).map(([colorId, value]) => [colorId, Color.fromHex(value)]));
+	return new Proxy(theme, {
+		get(target, property, receiver) {
+			if (property === 'getColor') {
+				return (colorId: string, useDefault?: boolean) => colors.get(colorId) ?? target.getColor(colorId, useDefault);
+			}
+			if (property === 'defines') {
+				return (colorId: string) => colors.has(colorId) || target.defines(colorId);
+			}
+			return Reflect.get(target, property, receiver);
+		}
+	});
+}
+
 function createPartOptions(overrides?: Partial<IEditorPartOptions>): IEditorPartOptions {
 	return {
 		...DEFAULT_EDITOR_PART_OPTIONS,
@@ -438,7 +463,7 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 
 	// Feed the fixture's themes to the shared theme service so tab-bar theme lookups resolve.
 	const themeService = instantiationService.get(IThemeService) as TestThemeService;
-	themeService.setTheme(theme);
+	themeService.setTheme(customizeTheme(theme, options.colorCustomizations));
 	themeService.setFileIconTheme(fileIconTheme);
 
 	// Services the base workbench harness does not stub but the tab bar needs.
@@ -777,6 +802,24 @@ function getModernEditorTabColorCustomizations(theme: ComponentFixtureContext['t
 	};
 }
 
+function getLegacyEditorTabBorderCustomizations(): Readonly<Record<string, string>> {
+	return {
+		[TAB_ACTIVE_BORDER]: '#F43F5E',
+		[TAB_ACTIVE_BORDER_TOP]: '#22D3EE',
+		[TAB_UNFOCUSED_ACTIVE_BORDER]: '#FB923C',
+		[TAB_UNFOCUSED_ACTIVE_BORDER_TOP]: '#C084FC',
+		[TAB_SELECTED_BORDER_TOP]: '#A3E635',
+	};
+}
+
+function renderConnectedLegacyBorders(active: boolean): (ctx: ComponentFixtureContext) => void {
+	return render(true, {
+		active,
+		editors: multiSelectEditorSpecs(),
+		colorCustomizations: getLegacyEditorTabBorderCustomizations(),
+	});
+}
+
 function renderThemeColors(options: Omit<IEditorTabBarFixtureOptions, 'modernUI' | 'colorCustomizations'>): (ctx: ComponentFixtureContext) => void {
 	return ctx => {
 		ctx.container.classList.add('modern-ui');
@@ -882,6 +925,20 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			additionalThemes: ['darkModern'],
 			expectedVisualDescriptions: [
 				'Pill tabs retain their transparent modern surface and separate rounded geometry instead of adopting the connected-tab strip color.',
+			],
+		}),
+	}),
+	ConnectedLegacyBorders: defineThemedFixtureGroup({
+		ActiveGroup: defineComponentFixture({
+			render: renderConnectedLegacyBorders(true),
+			expectedVisualDescriptions: [
+				'The active connected tab shows the customized cyan top border and pink bottom border without breaking its connection to the editor. Other selected tabs show the customized lime selection border.',
+			],
+		}),
+		InactiveGroup: defineComponentFixture({
+			render: renderConnectedLegacyBorders(false),
+			expectedVisualDescriptions: [
+				'In an inactive editor group, the active connected tab shows the customized purple top border and orange bottom border. Other selected tabs retain the customized lime selection border.',
 			],
 		}),
 	}),

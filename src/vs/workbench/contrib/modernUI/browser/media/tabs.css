@@ -47,6 +47,7 @@
 	--modern-ui-editor-tab-action-active-hover-background: var(--vscode-modernEditorTab-activeHoverActionBackground);
 	--modern-ui-editor-tab-action-unfocused-active-hover-background: var(--modern-ui-editor-tab-action-active-hover-background);
 	--modern-ui-editor-tabs-border: transparent;
+	--editor-tab-border-indicator-display: none;
 }
 
 /* Keep connected labels readable without overriding explicit legacy color customizations. */
@@ -75,7 +76,6 @@
 	font-weight: var(--vscode-fontWeight-regular);
 	box-shadow: none !important;
 	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size60) !important;
-	--tab-border-top-color: transparent !important;
 }
 
 .modern-ui-tabs .part.editor > .content .editor-group-container > .title.tabs:not(.show-file-icons) .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left) {
@@ -274,10 +274,6 @@
 
 .modern-ui-tabs.monaco-workbench .part.editor .title.two-tab-bars > .tabs-and-actions-container:not(:first-child) .tabs-container > .tab {
 	border-block-width: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
-}
-
-.modern-ui-tabs .part.editor .tabs-container > .tab .tab-border-bottom-container {
-	display: none !important;
 }
 
 /* Tab fills retain the theme's transparency. The action overlay uses a separately flattened
@@ -600,10 +596,6 @@
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
 	z-index: 11;
-}
-
-.modern-ui-tabs .part.editor .tabs-container > .tab .tab-border-top-container {
-	display: none !important;
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty.dirty-border-top > .tab-border-top-container {
