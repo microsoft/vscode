@@ -482,11 +482,15 @@ Update GitHub Copilot CLI? [y/N]
 ```
 
 Only a response whose first non-whitespace character is `y` or `Y` is
-affirmative. No response, EOF, or noninteractive stdin means No.
+affirmative. No response or EOF means No.
 
 Declining an update exits successfully without launching the incompatible CLI.
 On ARMhf and Alpine/musl, report manual-update or upstream-support guidance
 instead of offering an unsupported automatic update.
+
+Without a terminal (see [Prompts without a terminal](#prompts-without-a-terminal)),
+the shim doesn't prompt. It prints a warning to stderr and launches the old CLI,
+because a script can't answer the prompt.
 
 ## Missing CLI prompt
 
@@ -498,7 +502,7 @@ Install GitHub Copilot CLI? [y/N]
 ```
 
 Only a response whose first non-whitespace character is `y` or `Y` is
-affirmative. No response, EOF, or noninteractive stdin means No.
+affirmative. No response or EOF means No.
 
 Declining installation exits successfully.
 On ARMhf and Alpine/musl, report manual-install or upstream-support guidance and
@@ -509,6 +513,20 @@ Documentation URL:
 ```text
 https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli
 ```
+
+### Prompts without a terminal
+
+Prompts are written to stderr, so they stay visible, and out of the output, when
+stdout is redirected. The shim prompts only when stdin and stderr are both
+terminals. Otherwise, as in scripts and CI:
+
+- a missing CLI prints a one-line message with the documentation URL to stderr
+  and exits with `127`, the code a shell uses for a command it can't find, on
+  every target; and
+- an old CLI is launched with a warning on stderr.
+
+A disabled `CopilotCliCommand` policy takes precedence for a missing CLI (exit
+`10`).
 
 ## Installation and update commands
 
@@ -708,7 +726,9 @@ outcome table.
 | Bootstrap or installer operation is canceled | Stop without fallback, reap the child and clean up owned temporary files; return a nonzero cancellation result (`128 + signal` on Unix). |
 | User declines installation | Exit `0` without launching. |
 | User declines update | Exit `0` without launching. |
-| Prompt receives EOF or noninteractive stdin | Treat as No and exit `0`. |
+| Prompt receives EOF | Treat as No and exit `0`. |
+| No terminal (stdin or stderr isn't a terminal) and no usable CLI | Print a message to stderr; exit `127` without prompting. |
+| No terminal and the first usable CLI is below `1.0.82` | Print a warning to stderr and launch that CLI. |
 | A `--vscode-shim` option is unknown or malformed | Print a diagnostic; exit `2` without launching. |
 | Installation or update is needed, but the `CopilotCliCommand` policy is disabled | Print the policy diagnostic; exit `10` without launching. |
 
@@ -965,7 +985,9 @@ fixtures.
 
 - Default No for blank input.
 - `y` and `Y`.
-- EOF/noninteractive stdin.
+- EOF.
+- Without a terminal: no prompt, exit `127` for a missing CLI, and a warning and
+  launch for an old CLI.
 - User declines install.
 - User declines update.
 - Each automatic-install platform policy: Windows MSI, macOS
