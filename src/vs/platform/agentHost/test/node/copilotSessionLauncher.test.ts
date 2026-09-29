@@ -5,6 +5,8 @@
 
 import type { CopilotClient, CopilotSession, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { unlinkSync, writeFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -773,7 +775,15 @@ suite('CopilotSessionLauncher shared session config', () => {
 		const launcher = createTestLauncher(managedSettingsPermissions, {}, logService);
 		const pluginDir = URI.file('/tmp/synced-customizations');
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
-		const commandOutput = (value: object) => `node -e "process.stdout.write(Buffer.from('${Buffer.from(JSON.stringify(value)).toString('base64')}','base64').toString())"`;
+		const hookScripts: string[] = [];
+		let hookScriptId = 0;
+		const commandOutput = (value: object) => {
+			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
+			const filePath = `${dir}/vscode-test-launcher-hook-${Date.now()}-${hookScriptId++}.js`;
+			writeFileSync(filePath, `process.stdout.write(${JSON.stringify(JSON.stringify(value))});\n`);
+			hookScripts.push(filePath);
+			return `node ${filePath}`;
+		};
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
 		const instructionUri = URI.joinPath(pluginDir, 'rules', 'user.instructions.md');
 		const plugin: ICopilotPluginInfo = {
@@ -1008,6 +1018,9 @@ suite('CopilotSessionLauncher shared session config', () => {
 				permissionDecisionReason: 'non-file fallback denied',
 			});
 		} finally {
+			for (const hookScript of hookScripts) {
+				try { unlinkSync(hookScript); } catch { /* ignore */ }
+			}
 			sessions.dispose();
 			await launcher.disposeByokProxyHandle();
 		}
