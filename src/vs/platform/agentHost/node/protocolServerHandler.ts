@@ -18,7 +18,7 @@ import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js'
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
-import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
+import { isManagedPluginEnablement, isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
@@ -514,11 +514,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				this._logService.trace(`[ProtocolServer] notification: method=${msg.method}`);
 				if ((msg as { method: string }).method === 'setClientManagedSettingsPermissions') {
 					if (client) {
-						const permissions = ((msg as { params?: { permissions?: unknown } }).params)?.permissions;
-						if (isManagedSettingsPermissions(permissions)) {
-							this._managedSettingsService.setClientPermissions(this._managedSettingsContributionId(client.clientId), permissions);
+						const params = (msg as { params?: { permissions?: unknown; enabledPlugins?: unknown } }).params;
+						if (isManagedSettingsPermissions(params?.permissions) && isManagedPluginEnablement(params.enabledPlugins)) {
+							this._managedSettingsService.setClientContribution(this._managedSettingsContributionId(client.clientId), {
+								permissions: params.permissions,
+								enabledPlugins: params.enabledPlugins,
+							});
 						} else {
-							this._logService.warn('[ProtocolServer] Ignoring invalid managed settings permissions contribution.');
+							this._logService.warn('[ProtocolServer] Ignoring invalid managed settings contribution.');
 						}
 					}
 					return;
@@ -1108,7 +1111,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (record?.state === 'grace') {
 			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
 				record.disconnectTimeouts.deleteAndDispose('managed-settings');
-				this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
+				this._managedSettingsService.removeClientContribution(this._managedSettingsContributionId(clientId));
 			}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
 		}
 		for (const session of this._stateManager.getSessionUris()) {
@@ -2366,7 +2369,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	override dispose(): void {
 		for (const [clientId, record] of this._clients) {
-			this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
+			this._managedSettingsService.removeClientContribution(this._managedSettingsContributionId(clientId));
 			if (record.state === 'active') {
 				for (const connection of [...record.connections]) {
 					const subscriptionCount = connection.subscriptions.size;

@@ -28,16 +28,18 @@ import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } fro
 import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IAppliedClientAction, type IDispatchedAction, type IOutgoingTurn, type IOutgoingTurnContributionResult, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { createEditorInlineChatInstruction, type IChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
+import { toClientPluginIdentityMeta } from '../../common/meta/clientPluginIdentityMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { ChatOriginKind, MessageAttachmentKind } from '../../common/state/protocol/state.js';
+import { ChatOriginKind, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind } from '../../common/state/protocol/state.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, withSessionExternal, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
@@ -884,6 +886,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	const additionalWorktreeLifecycle = new AdditionalWorktreeLifecycleService(sessionDataService, worktree);
 	const sessionRegistry = disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))));
 	const gitStateService = new RecordingGitStateService(observed);
+	const managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostCheckpointService, checkpointService],
@@ -898,6 +901,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentHostWorktreeIsolation, worktree],
 		[IAdditionalWorktreeLifecycleService, additionalWorktreeLifecycle],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+		[IAgentHostManagedSettingsService, managedSettingsService],
 		[IAgentHostPeerChatPersistenceService, {
 			_serviceBrand: undefined,
 			setArchived: async () => { },
@@ -932,7 +936,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, localTurns };
+	return { service, stateManager, managedSettingsService, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, localTurns };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -2545,6 +2549,41 @@ suite('AgentHostChatContributions', () => {
 				},
 				stage: 'validation',
 			},
+		});
+
+		test('rejects incoming requests until required managed plugins are loaded', () => {
+			const contributions = createBuiltInContributions(disposables);
+			contributions.managedSettingsService.setClientContribution('client', {
+				permissions: {},
+				enabledPlugins: { 'required@marketplace': true },
+			});
+			const sessionState = contributions.stateManager.getSessionState(contributions.session)!;
+			const missing = contributions.service.incomingRequest(incomingRequest(contributions.session));
+			sessionState.customizations = [{
+				type: CustomizationType.Plugin,
+				id: 'required-plugin',
+				uri: 'file:///required-plugin',
+				name: 'Required Plugin',
+				clientId: 'client',
+				_meta: toClientPluginIdentityMeta('required@marketplace'),
+				load: { kind: CustomizationLoadStatus.Loaded },
+			}];
+			const loaded = contributions.service.incomingRequest(incomingRequest(contributions.session));
+
+			assert.deepStrictEqual({
+				missing,
+				loaded,
+			}, {
+				missing: {
+					kind: 'reject',
+					error: {
+						errorType: 'managedPluginUnavailable',
+						message: 'The plugin "required@marketplace" is required by your organization but is not available. Install or repair the plugin before continuing.',
+					},
+					stage: 'validation',
+				},
+				loaded: { kind: 'accept' },
+			});
 		});
 	});
 

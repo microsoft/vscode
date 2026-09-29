@@ -1507,6 +1507,7 @@ suite('ProtocolServerHandler', () => {
 		}));
 		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+			enabledPlugins: {},
 		}));
 
 		assert.deepStrictEqual({
@@ -4485,9 +4486,11 @@ suite('ProtocolServerHandler', () => {
 
 		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+			enabledPlugins: { 'required@marketplace': true },
 		}));
 		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { allow: ['Shell'] },
+			enabledPlugins: {},
 		}));
 		await Promise.resolve();
 
@@ -4495,12 +4498,16 @@ suite('ProtocolServerHandler', () => {
 			disableBypassPermissionsMode: 'disable',
 			ask: ['Shell'],
 		});
+		assert.deepStrictEqual(managedSettingsService.enabledPlugins, {
+			'required@marketplace': true,
+		});
 	});
 
 	test('scopes managed settings contributions to each protocol handler', () => {
 		const firstTransport = connectClient('shared-client-id');
 		firstTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { ask: ['Shell'] },
+			enabledPlugins: {},
 		}));
 
 		const localDisposables = disposables.add(new DisposableStore());
@@ -4526,6 +4533,7 @@ suite('ProtocolServerHandler', () => {
 		}));
 		secondTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable' },
+			enabledPlugins: {},
 		}));
 
 		assert.deepStrictEqual(managedSettingsService.permissions, {
@@ -4543,10 +4551,12 @@ suite('ProtocolServerHandler', () => {
 		const activeTransport = connectClient('client-managed-settings-active');
 		activeTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { ask: ['Shell'] },
+			enabledPlugins: {},
 		}));
 		const graceTransport = connectClient('client-managed-settings-grace');
 		graceTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable' },
+			enabledPlugins: {},
 		}));
 		graceTransport.simulateClose();
 
@@ -4565,6 +4575,7 @@ suite('ProtocolServerHandler', () => {
 			const transport = connectClient('client-managed-settings-disconnect');
 			transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 				permissions: { ask: ['Shell'] },
+				enabledPlugins: {},
 			}));
 			transport.simulateClose();
 

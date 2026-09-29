@@ -47,7 +47,7 @@ import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID,
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
-import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
+import { AgentHostManagedPluginsSettingId, managedPermissionsConfigurationIds, resolveManagedPluginEnablement, resolveManagedSettingsPermissions, type IAgentHostManagedPluginEnablement, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
@@ -117,7 +117,7 @@ function isConnectionClosedError(error: unknown): boolean {
 }
 
 interface IRemoteAgentHostExtensionNotificationMap {
-	'setClientManagedSettingsPermissions': { params: { permissions: IAgentHostManagedSettingsPermissions } };
+	'setClientManagedSettingsPermissions': { params: { permissions: IAgentHostManagedSettingsPermissions; enabledPlugins: IAgentHostManagedPluginEnablement } };
 }
 
 interface IPendingRequest {
@@ -522,7 +522,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (e.affectsConfiguration(DISABLE_REPO_INFO_TELEMETRY_SETTING_ID)) {
 				this._updateDisableRepoInfoTelemetry();
 			}
-			if (managedPermissionsConfigurationIds.some(settingId => e.affectsConfiguration(settingId))) {
+			if (managedPermissionsConfigurationIds.some(settingId => e.affectsConfiguration(settingId)) || e.affectsConfiguration(AgentHostManagedPluginsSettingId)) {
 				void this._updateManagedSettingsPermissions();
 			}
 		}));
@@ -2347,10 +2347,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _updateManagedSettingsPermissions(sendDuringReconnect = false): void {
-		const permissions = this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
-			? resolveManagedSettingsPermissions(this._configurationService)
-			: {};
-		this._sendExtensionNotification('setClientManagedSettingsPermissions', { permissions }, sendDuringReconnect);
+		const local = this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY;
+		const permissions = local ? resolveManagedSettingsPermissions(this._configurationService) : {};
+		const enabledPlugins = local ? resolveManagedPluginEnablement(this._configurationService) : {};
+		this._sendExtensionNotification('setClientManagedSettingsPermissions', { permissions, enabledPlugins }, sendDuringReconnect);
 	}
 
 	/**

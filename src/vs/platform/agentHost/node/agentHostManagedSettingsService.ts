@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
+import type { IAgentHostManagedPluginEnablement, IAgentHostManagedSettingsContribution, IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 
 export const IAgentHostManagedSettingsService = createDecorator<IAgentHostManagedSettingsService>('agentHostManagedSettingsService');
 
@@ -15,8 +15,9 @@ export interface IAgentHostManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
 	readonly permissions: IAgentHostManagedSettingsPermissions;
-	setClientPermissions(clientId: string, permissions: IAgentHostManagedSettingsPermissions): void;
-	removeClientPermissions(clientId: string): void;
+	readonly enabledPlugins: IAgentHostManagedPluginEnablement;
+	setClientContribution(clientId: string, contribution: IAgentHostManagedSettingsContribution): void;
+	removeClientContribution(clientId: string): void;
 }
 
 export class AgentHostManagedSettingsService extends Disposable implements IAgentHostManagedSettingsService {
@@ -25,41 +26,51 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private readonly _permissionsByClient = new Map<string, IAgentHostManagedSettingsPermissions>();
+	private readonly _contributionsByClient = new Map<string, IAgentHostManagedSettingsContribution>();
 	private _permissions: IAgentHostManagedSettingsPermissions = {};
+	private _enabledPlugins: IAgentHostManagedPluginEnablement = {};
 
 	get permissions(): IAgentHostManagedSettingsPermissions {
 		return this._permissions;
 	}
 
-	setClientPermissions(clientId: string, permissions: IAgentHostManagedSettingsPermissions): void {
-		if (Object.keys(permissions).length === 0) {
-			this._permissionsByClient.delete(clientId);
+	get enabledPlugins(): IAgentHostManagedPluginEnablement {
+		return this._enabledPlugins;
+	}
+
+	setClientContribution(clientId: string, contribution: IAgentHostManagedSettingsContribution): void {
+		if (Object.keys(contribution.permissions).length === 0 && Object.keys(contribution.enabledPlugins).length === 0) {
+			this._contributionsByClient.delete(clientId);
 		} else {
-			this._permissionsByClient.set(clientId, permissions);
+			this._contributionsByClient.set(clientId, contribution);
 		}
-		this._updatePermissions();
+		this._update();
 	}
 
-	removeClientPermissions(clientId: string): void {
-		if (this._permissionsByClient.delete(clientId)) {
-			this._updatePermissions();
+	removeClientContribution(clientId: string): void {
+		if (this._contributionsByClient.delete(clientId)) {
+			this._update();
 		}
 	}
 
-	private _updatePermissions(): void {
+	private _update(): void {
 		const permissions: IAgentHostManagedSettingsPermissions = {};
 		const deny = new Set<string>();
 		const ask = new Set<string>();
-		for (const contribution of this._permissionsByClient.values()) {
-			if (contribution.disableBypassPermissionsMode === 'disable') {
+		const pluginValues = new Map<string, boolean>();
+		for (const contribution of this._contributionsByClient.values()) {
+			if (contribution.permissions.disableBypassPermissionsMode === 'disable') {
 				permissions.disableBypassPermissionsMode = 'disable';
 			}
-			if (contribution.deny) {
-				contribution.deny.forEach(rule => deny.add(rule));
+			if (contribution.permissions.deny) {
+				contribution.permissions.deny.forEach(rule => deny.add(rule));
 			}
-			if (contribution.ask) {
-				contribution.ask.forEach(rule => ask.add(rule));
+			if (contribution.permissions.ask) {
+				contribution.permissions.ask.forEach(rule => ask.add(rule));
+			}
+			for (const [pluginId, enabled] of Object.entries(contribution.enabledPlugins)) {
+				const previous = pluginValues.get(pluginId);
+				pluginValues.set(pluginId, previous === false ? false : enabled);
 			}
 		}
 		if (deny.size > 0) {
@@ -68,8 +79,10 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 		if (ask.size > 0) {
 			permissions.ask = [...ask];
 		}
-		if (!equals(this._permissions, permissions)) {
+		const enabledPlugins = Object.fromEntries(pluginValues);
+		if (!equals(this._permissions, permissions) || !equals(this._enabledPlugins, enabledPlugins)) {
 			this._permissions = permissions;
+			this._enabledPlugins = enabledPlugins;
 			this._onDidChange.fire();
 		}
 	}

@@ -64,6 +64,8 @@ export interface IAgentPluginService {
 	readonly _serviceBrand: undefined;
 	readonly plugins: IObservable<readonly IAgentPlugin[]>;
 	readonly enablementModel: IEnablementModel;
+	/** Sets the stored profile baseline without persisting active policy. */
+	setInstalledPluginProfileBaseline(key: string, enabled: boolean): void;
 }
 
 export interface IAgentPluginDiscovery extends IDisposable {
