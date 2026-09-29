@@ -83,6 +83,7 @@
     "onUri",
     "onCommand:_github.copilot.chat.reportHarnessSwitchFeedbackSurvey",
     "onCommand:_github.copilot.chat.reportModelFeedbackSurvey",
+    "onCommand:_github.copilot.chat.createGptLiveSession",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
   ],

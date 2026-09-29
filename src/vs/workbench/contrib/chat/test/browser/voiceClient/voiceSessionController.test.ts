@@ -118,6 +118,7 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	override readonly onError = Event.None;
 	private readonly connectionStateEmitter = new Emitter<boolean>();
 	override readonly onDidChangeConnectionState = this.connectionStateEmitter.event;
+	override readonly onDidChangeRemoteAudioState = Event.None;
 	override readonly onFatalDisconnect = Event.None;
 	override readonly onConnectionIssue = Event.None;
 	override readonly onTurnAutoEnded = Event.None;

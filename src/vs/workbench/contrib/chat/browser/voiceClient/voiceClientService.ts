@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Language } from '../../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import {
@@ -40,6 +42,9 @@ import {
 import { isTerminalCloseCode, voiceCloseCodeInfo } from '../../common/voiceClient/voiceCloseCodes.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { getVoiceWebSocketUrl } from './voiceEndpoint.js';
+import { IMicCaptureService } from './micCaptureService.js';
+
+const CREATE_GPT_LIVE_SESSION_COMMAND = '_github.copilot.chat.createGptLiveSession';
 
 const PING_INTERVAL_MS = 25_000;
 const PONG_TIMEOUT_MS = 10_000;
@@ -57,6 +62,54 @@ const ASR_SUPPORTED_LANGUAGE_BASES = new Set([
 	'ja', 'ko', 'nb', 'nl', 'pl', 'pt', 'ro', 'ru', 'sv', 'th', 'tr', 'vi', 'zh',
 ]);
 const DEFAULT_LANGUAGE = 'en-US';
+
+export interface GptLiveSessionCommandResult {
+	readonly status: 'unavailable' | 'available' | 'ready';
+	readonly session?: {
+		readonly sessionId: string;
+		readonly sdp: string;
+	};
+}
+
+export interface IGptLiveDataChannel {
+	readonly readyState: RTCDataChannelState;
+	onmessage: ((event: MessageEvent) => void) | null;
+	onclose: ((event: globalThis.Event) => void) | null;
+	send(data: string): void;
+	close(): void;
+}
+
+export interface IGptLivePeerConnection {
+	readonly iceGatheringState: RTCIceGatheringState;
+	readonly connectionState: RTCPeerConnectionState;
+	readonly localDescription: RTCSessionDescription | null;
+	ontrack: ((event: RTCTrackEvent) => void) | null;
+	onconnectionstatechange: ((event: globalThis.Event) => void) | null;
+	addTrack(track: MediaStreamTrack, ...streams: MediaStream[]): RTCRtpSender;
+	createDataChannel(label: string): IGptLiveDataChannel;
+	createOffer(): Promise<RTCSessionDescriptionInit>;
+	setLocalDescription(description?: RTCLocalSessionDescriptionInit): Promise<void>;
+	setRemoteDescription(description: RTCSessionDescriptionInit): Promise<void>;
+	addEventListener(type: 'icegatheringstatechange', listener: () => void): void;
+	removeEventListener(type: 'icegatheringstatechange', listener: () => void): void;
+	close(): void;
+}
+
+interface GptLiveServerEvent {
+	readonly type: string;
+	readonly delta?: unknown;
+	readonly is_final?: boolean;
+	readonly message?: unknown;
+	readonly session?: {
+		readonly id?: unknown;
+	};
+	readonly delegation?: {
+		readonly id?: unknown;
+	};
+	readonly error?: {
+		readonly message?: unknown;
+	};
+}
 
 function asOptionalString(value: unknown): string | undefined {
 	return typeof value === 'string' ? value : undefined;
@@ -99,6 +152,17 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	declare readonly _serviceBrand: undefined;
 
 	private _ws: WebSocket | undefined;
+	private _gptLivePeer: IGptLivePeerConnection | undefined;
+	private _gptLiveEvents: IGptLiveDataChannel | undefined;
+	private _gptLiveAudio: HTMLAudioElement | undefined;
+	private _gptLiveTurnId: string | undefined;
+	private _gptLiveDelegationId: string | undefined;
+	private _gptLiveInputTranscript = '';
+	private _gptLiveOutputTranscript = '';
+	private _gptLiveOutputStarted = false;
+	private _gptLiveOutputTimer: ReturnType<typeof setTimeout> | undefined;
+	private _usingGptLive = false;
+	private _intentionalDisconnect = false;
 	private _reconnectAttempts = 0;
 	private _reconnectStartedAt: number | undefined;
 	private _reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -159,6 +223,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<boolean>());
 	readonly onDidChangeConnectionState: Event<boolean> = this._onDidChangeConnectionState.event;
 
+	private readonly _onDidChangeRemoteAudioState = this._register(new Emitter<boolean>());
+	readonly onDidChangeRemoteAudioState: Event<boolean> = this._onDidChangeRemoteAudioState.event;
+
 	private readonly _onFatalDisconnect = this._register(new Emitter<IVoiceFatalDisconnect>());
 	readonly onFatalDisconnect: Event<IVoiceFatalDisconnect> = this._onFatalDisconnect.event;
 
@@ -190,6 +257,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IMicCaptureService private readonly _micCaptureService: IMicCaptureService,
 	) {
 		super();
 
@@ -314,7 +383,232 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._window = window;
 		this._authToken = authToken;
 		this._resetReconnectBudget();
+		this._intentionalDisconnect = false;
+		if (await this._connectGptLive(window)) {
+			return;
+		}
 		this._connectWebSocket();
+	}
+
+	private async _connectGptLive(window: Window & typeof globalThis): Promise<boolean> {
+		let availability: GptLiveSessionCommandResult | undefined;
+		try {
+			availability = await this._executeGptLiveSessionCommand();
+		} catch (error) {
+			if (error instanceof Error && /command ['"]?.+['"]? not found/i.test(error.message)) {
+				this._logService.debug('[voice] GPT-Live BYOK bridge is unavailable', error);
+				return false;
+			}
+			const reason = error instanceof Error ? error.message : String(error);
+			this._logService.error('[voice] Failed to check OpenAI GPT-Live availability', error);
+			this._onError.fire(reason);
+			this._onFatalDisconnect.fire({ code: 0, reason, kind: 'fatal', clientSide: true });
+			this._cleanup();
+			return true;
+		}
+		if (!availability || availability.status === 'unavailable') {
+			return false;
+		}
+
+		try {
+			await this._micCaptureService.startCapture(window);
+			const stream = this._micCaptureService.mediaStream;
+			if (!stream) {
+				throw new Error(localize('voice.gptLive.noMediaStream', "Microphone capture did not provide a media stream."));
+			}
+
+			const peer = this._createPeerConnection(window);
+			this._gptLivePeer = peer;
+			this._usingGptLive = true;
+			for (const track of stream.getAudioTracks()) {
+				track.enabled = false;
+				peer.addTrack(track, stream);
+			}
+
+			peer.ontrack = event => {
+				const audio = mainWindow.document.createElement('audio');
+				audio.autoplay = true;
+				audio.srcObject = new window.MediaStream([event.track]);
+				this._gptLiveAudio?.pause();
+				this._gptLiveAudio = audio;
+				void audio.play().catch(error => this._logService.warn('[voice] GPT-Live audio playback did not start', error));
+			};
+			peer.onconnectionstatechange = () => {
+				if (peer.connectionState === 'failed' || peer.connectionState === 'disconnected') {
+					this._handleGptLiveDisconnect(localize('voice.gptLive.connectionLost', "The OpenAI GPT-Live connection was lost."));
+				}
+			};
+
+			const events = peer.createDataChannel('oai-events');
+			this._gptLiveEvents = events;
+			events.onmessage = event => this._handleGptLiveEvent(event.data);
+			events.onclose = () => {
+				if (!this._intentionalDisconnect) {
+					this._handleGptLiveDisconnect(localize('voice.gptLive.eventChannelClosed', "The OpenAI GPT-Live event channel closed."));
+				}
+			};
+
+			const offer = await peer.createOffer();
+			await peer.setLocalDescription(offer);
+			await this._waitForIceGathering(peer);
+			const sdp = peer.localDescription?.sdp;
+			if (!sdp) {
+				throw new Error(localize('voice.gptLive.noSdpOffer', "OpenAI GPT-Live connection did not produce an SDP offer."));
+			}
+			const result = await this._executeGptLiveSessionCommand(sdp);
+			if (!result || result.status !== 'ready' || !result.session) {
+				throw new Error(localize('voice.gptLive.unavailable', "OpenAI GPT-Live became unavailable while creating the session."));
+			}
+
+			this._lastSessionId = result.session.sessionId;
+			await peer.setRemoteDescription({ type: 'answer', sdp: result.session.sdp });
+			return true;
+		} catch (error) {
+			this._logService.error('[voice] Failed to connect to OpenAI GPT-Live', error);
+			this._onError.fire(error instanceof Error ? error.message : String(error));
+			this._onFatalDisconnect.fire({ code: 0, reason: error instanceof Error ? error.message : String(error), kind: 'fatal', clientSide: true });
+			this._cleanup();
+			return true;
+		}
+	}
+
+	protected _executeGptLiveSessionCommand(sdp?: string): Promise<GptLiveSessionCommandResult | undefined> {
+		return this._commandService.executeCommand<GptLiveSessionCommandResult>(CREATE_GPT_LIVE_SESSION_COMMAND, sdp);
+	}
+
+	protected _createPeerConnection(window: Window & typeof globalThis): IGptLivePeerConnection {
+		return new window.RTCPeerConnection();
+	}
+
+	private async _waitForIceGathering(peer: IGptLivePeerConnection): Promise<void> {
+		if (peer.iceGatheringState === 'complete') {
+			return;
+		}
+		await new Promise<void>((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				peer.removeEventListener('icegatheringstatechange', onStateChange);
+				reject(new Error(localize('voice.gptLive.iceTimeout', "Timed out while gathering ICE candidates for OpenAI GPT-Live.")));
+			}, 10_000);
+			const onStateChange = () => {
+				if (peer.iceGatheringState === 'complete') {
+					clearTimeout(timeout);
+					peer.removeEventListener('icegatheringstatechange', onStateChange);
+					resolve();
+				}
+			};
+			peer.addEventListener('icegatheringstatechange', onStateChange);
+			onStateChange();
+		});
+	}
+
+	private _handleGptLiveEvent(data: string | Blob | ArrayBuffer): void {
+		if (typeof data !== 'string') {
+			return;
+		}
+		let event: GptLiveServerEvent;
+		try {
+			event = JSON.parse(data) as GptLiveServerEvent;
+		} catch {
+			return;
+		}
+
+		switch (event.type) {
+			case 'session.started': {
+				const sessionId = asOptionalNonEmptyString(event.session?.id) ?? this._lastSessionId ?? '';
+				this._lastSessionId = sessionId;
+				this._sessionStartedOnSocket = true;
+				this._setConnected(true);
+				this._onSessionInit.fire({ sessionId });
+				break;
+			}
+			case 'session.input_transcript.delta': {
+				const delta = asOptionalString(event.delta) ?? '';
+				this._gptLiveInputTranscript += delta;
+				this._onTranscription.fire({
+					text: this._gptLiveInputTranscript,
+					status: event.is_final ? 'final' : 'partial',
+					turnId: this._gptLiveTurnId,
+				});
+				break;
+			}
+			case 'session.output_transcript.delta': {
+				this._finalizeGptLiveInput();
+				const delta = asOptionalString(event.delta) ?? '';
+				this._gptLiveOutputTranscript += delta;
+				if (!this._gptLiveOutputStarted) {
+					this._onDidChangeRemoteAudioState.fire(true);
+				}
+				this._onAudioResponse.fire({
+					audio: '',
+					isFirstChunk: !this._gptLiveOutputStarted,
+					isFinal: false,
+					transcript: this._gptLiveOutputTranscript,
+				});
+				this._gptLiveOutputStarted = true;
+				if (this._gptLiveOutputTimer) {
+					clearTimeout(this._gptLiveOutputTimer);
+				}
+				this._gptLiveOutputTimer = setTimeout(() => this._finalizeGptLiveOutput(), 750);
+				break;
+			}
+			case 'session.delegation.created': {
+				const delegationId = asOptionalNonEmptyString(event.delegation?.id);
+				const text = this._gptLiveInputTranscript.trim();
+				this._finalizeGptLiveInput();
+				if (delegationId && text) {
+					this._gptLiveDelegationId = delegationId;
+					this._onToolCall.fire({
+						callId: delegationId,
+						name: 'send_to_chat',
+						args: { text },
+					});
+				}
+				break;
+			}
+			case 'session.closed':
+				this._intentionalDisconnect = true;
+				this._cleanup();
+				break;
+			case 'error':
+				this._onError.fire(asOptionalString(event.message) ?? asOptionalString(event.error?.message) ?? localize('voice.gptLive.error', "OpenAI GPT-Live reported an error."));
+				break;
+		}
+	}
+
+	private _finalizeGptLiveInput(): void {
+		if (!this._gptLiveInputTranscript) {
+			return;
+		}
+		this._onTranscription.fire({
+			text: this._gptLiveInputTranscript,
+			status: 'final',
+			turnId: this._gptLiveTurnId,
+		});
+		this._gptLiveInputTranscript = '';
+	}
+
+	private _finalizeGptLiveOutput(): void {
+		this._gptLiveOutputTimer = undefined;
+		if (!this._gptLiveOutputStarted) {
+			return;
+		}
+		this._onAudioResponse.fire({
+			audio: '',
+			isFirstChunk: false,
+			isFinal: true,
+			transcript: this._gptLiveOutputTranscript,
+		});
+		this._gptLiveOutputTranscript = '';
+		this._gptLiveOutputStarted = false;
+		this._onDidChangeRemoteAudioState.fire(false);
+	}
+
+	private _handleGptLiveDisconnect(reason: string): void {
+		if (this._intentionalDisconnect || !this._usingGptLive) {
+			return;
+		}
+		this._onFatalDisconnect.fire({ code: 0, reason, kind: 'fatal', clientSide: true });
+		this._cleanup();
 	}
 
 	private _connectWebSocket(): void {
@@ -559,6 +853,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	disconnect(): void {
 		this._logService.trace('[voice] disconnect() called');
+		this._intentionalDisconnect = true;
+		if (this._gptLiveEvents?.readyState === 'open') {
+			this._gptLiveEvents.send(JSON.stringify({ type: 'session.close' }));
+		}
 		if (this._ws && this._ws.readyState < WebSocket.CLOSING) {
 			this._ws.close();
 		}
@@ -578,6 +876,28 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 		this._pendingContext = undefined;
 		this._ws = undefined;
+		this._gptLiveEvents?.close();
+		this._gptLiveEvents = undefined;
+		this._gptLivePeer?.close();
+		this._gptLivePeer = undefined;
+		if (this._gptLiveAudio) {
+			this._gptLiveAudio.pause();
+			this._gptLiveAudio.srcObject = null;
+			this._gptLiveAudio = undefined;
+		}
+		if (this._usingGptLive) {
+			this._micCaptureService?.stopCapture();
+		}
+		this._usingGptLive = false;
+		this._gptLiveTurnId = undefined;
+		this._gptLiveDelegationId = undefined;
+		this._gptLiveInputTranscript = '';
+		this._gptLiveOutputTranscript = '';
+		this._gptLiveOutputStarted = false;
+		if (this._gptLiveOutputTimer) {
+			clearTimeout(this._gptLiveOutputTimer);
+			this._gptLiveOutputTimer = undefined;
+		}
 		this._sessionStartedOnSocket = false;
 		this._window = undefined;
 		this._lastSessionId = undefined;
@@ -629,18 +949,38 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	sendPttStart(turnId: string, options: IVoicePttStartOptions): void {
+		if (this._usingGptLive) {
+			this._gptLiveTurnId = turnId;
+			this._gptLiveInputTranscript = '';
+			for (const track of this._micCaptureService?.mediaStream?.getAudioTracks() ?? []) {
+				track.enabled = true;
+			}
+			this._sendGptLiveEvent({ type: 'session.input_audio.unmute', event_id: generateUuid() });
+			this._onSpeechStarted.fire({ turnId });
+			return;
+		}
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'ptt_start', turn_id: turnId, has_active_session: options.hasActiveSession, ...(options.passive ? { passive: true } : {}) }));
 		}
 	}
 
 	sendPttAudioChunk(audio: string): void {
+		if (this._usingGptLive) {
+			return;
+		}
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'ptt_audio_chunk', audio }));
 		}
 	}
 
 	sendPttEnd(): void {
+		if (this._usingGptLive) {
+			for (const track of this._micCaptureService?.mediaStream?.getAudioTracks() ?? []) {
+				track.enabled = false;
+			}
+			this._sendGptLiveEvent({ type: 'session.input_audio.mute', event_id: generateUuid() });
+			return;
+		}
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'ptt_end' }));
 		}
@@ -798,6 +1138,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void {
+		if (this._usingGptLive) {
+			this._sendGptLiveAppend('session.thinking.append', typeof result === 'string' ? result : JSON.stringify(result), callId);
+			return;
+		}
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'tool_result', call_id: callId, result }));
 		}
@@ -815,6 +1159,16 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }): string | undefined {
+		if (this._usingGptLive && this._sessionStartedOnSocket) {
+			const id = narrationId ?? generateUuid();
+			this._sendGptLiveAppend('session.commentary.append', text, this._gptLiveDelegationId ?? null, id);
+			this._onNarrationAck.fire({
+				narrationId: id,
+				codingSessionId,
+				disposition: 'accepted',
+			});
+			return id;
+		}
 		// Gate on session_context having been sent: the WS preserves send order,
 		// so the backend processes start_session/resume_session before any
 		// request_narration. Pre-session this returns undefined, so _narrate queues
@@ -855,6 +1209,25 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	stopSpeaking(): void {
+		if (this._usingGptLive) {
+			this._gptLiveAudio?.pause();
+		}
+	}
+
+	private _sendGptLiveAppend(type: 'session.thinking.append' | 'session.commentary.append', content: string, delegationId: string | null, eventId = generateUuid()): void {
+		this._sendGptLiveEvent({
+			type,
+			event_id: eventId,
+			delegation_id: delegationId,
+			content: content.slice(0, 1800),
+		});
+	}
+
+	private _sendGptLiveEvent(event: Record<string, unknown>): void {
+		if (this._gptLiveEvents?.readyState !== 'open') {
+			return;
+		}
+		this._gptLiveEvents.send(JSON.stringify(event));
 	}
 
 	/**
@@ -869,6 +1242,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	 * persistence. See ``IVoicePriorTimelineEntry``.
 	 */
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void {
+		if (this._usingGptLive) {
+			return;
+		}
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			const sessionContext = { ...context, display_locale: this._getLanguage() };
 			this._seedTracking(sessionContext);
@@ -887,6 +1263,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	sendResumeSession(context: IVoiceSessionContext, machineId: string, voiceInstructions?: string): void {
+		if (this._usingGptLive) {
+			return;
+		}
 		if (this._ws?.readyState === WebSocket.OPEN && this._lastSessionId) {
 			const sessionContext = { ...context, display_locale: this._getLanguage() };
 			this._seedTracking(sessionContext);

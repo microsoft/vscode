@@ -5,13 +5,17 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { Event as BaseEvent } from '../../../../../../base/common/event.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { resolveAutomaticVoiceLanguage, VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
+import { GptLiveSessionCommandResult, IGptLiveDataChannel, IGptLivePeerConnection, resolveAutomaticVoiceLanguage, VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
+import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceConnectionIssue, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceTranscription, normalizeAgentsVoiceId } from '../../../common/voiceClient/voiceClientService.js';
 
 class TestWebSocket {
@@ -34,6 +38,105 @@ class TestWebSocket {
 
 	send(data: string): void {
 		this.sent.push(JSON.parse(data) as Record<string, unknown>);
+	}
+}
+
+class TestCommandService extends mock<ICommandService>() {
+	override readonly onWillExecuteCommand = BaseEvent.None;
+	override readonly onDidExecuteCommand = BaseEvent.None;
+
+	override async executeCommand<T>(): Promise<T | undefined> {
+		return undefined;
+	}
+}
+
+class TestMediaStreamTrack extends mock<MediaStreamTrack>() {
+	override enabled = true;
+}
+
+class TestMediaStream extends mock<MediaStream>() {
+	constructor(private readonly track: MediaStreamTrack) {
+		super();
+	}
+
+	override getAudioTracks(): MediaStreamTrack[] {
+		return [this.track];
+	}
+}
+
+class TestMicCaptureService extends mock<IMicCaptureService>() {
+	constructor(override readonly mediaStream: MediaStream | undefined = undefined) {
+		super();
+	}
+
+	override async startCapture(): Promise<void> { }
+	override stopCapture(): void { }
+}
+
+class TestRtcDataChannel extends mock<IGptLiveDataChannel>() {
+	override readonly readyState = 'open' as const;
+	override onmessage: ((event: MessageEvent) => void) | null = null;
+	override onclose: ((event: Event) => void) | null = null;
+	readonly sent: Record<string, unknown>[] = [];
+
+	override send(data: string): void {
+		this.sent.push(JSON.parse(data) as Record<string, unknown>);
+	}
+
+	override close(): void { }
+
+	fireMessage(event: Record<string, unknown>): void {
+		this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(event) }));
+	}
+}
+
+class TestRtcPeerConnection extends mock<IGptLivePeerConnection>() {
+	override readonly iceGatheringState = 'complete' as const;
+	override readonly connectionState = 'connected' as const;
+	override readonly localDescription: RTCSessionDescription = { type: 'offer', sdp: 'offer-sdp', toJSON: () => ({ type: 'offer', sdp: 'offer-sdp' }) };
+	override ontrack: ((event: RTCTrackEvent) => void) | null = null;
+	override onconnectionstatechange: ((event: Event) => void) | null = null;
+	readonly channel = new TestRtcDataChannel();
+	remoteDescription: RTCSessionDescriptionInit | undefined;
+
+	override addTrack(): RTCRtpSender {
+		return new class extends mock<RTCRtpSender>() { };
+	}
+
+	override createDataChannel(): IGptLiveDataChannel {
+		return this.channel;
+	}
+
+	override async createOffer(): Promise<RTCSessionDescriptionInit> {
+		return { type: 'offer', sdp: 'offer-sdp' };
+	}
+
+	override async setLocalDescription(): Promise<void> { }
+
+	override async setRemoteDescription(description: RTCSessionDescriptionInit): Promise<void> {
+		this.remoteDescription = description;
+	}
+
+	override close(): void { }
+}
+
+class TestGptLiveVoiceClientService extends VoiceClientService {
+	constructor(
+		private readonly peer: TestRtcPeerConnection,
+		micCaptureService: IMicCaptureService,
+		productService: IProductService,
+	) {
+		super(new TestConfigurationService(), new NullLogService(), productService, new TestCommandService(), micCaptureService);
+	}
+
+	protected override _executeGptLiveSessionCommand(sdp?: string): Promise<GptLiveSessionCommandResult> {
+		return Promise.resolve(sdp === undefined
+			? { status: 'available' }
+			: { status: 'ready', session: { sessionId: 'live-123', sdp: 'answer-sdp' } });
+	}
+
+	protected override _createPeerConnection(): IGptLivePeerConnection {
+		return this.peer;
 	}
 }
 
@@ -81,6 +184,8 @@ suite('VoiceClientService', () => {
 			configurationService,
 			new NullLogService(),
 			productService,
+			new TestCommandService(),
+			new TestMicCaptureService(),
 		));
 		return { service, configurationService };
 	}
@@ -123,6 +228,58 @@ suite('VoiceClientService', () => {
 			turnId: 'interrupting-turn',
 			interruptedTurnId: 'cancelled-turn',
 		}]);
+	});
+
+	test('uses GPT-Live BYOK and maps delegation events onto the existing voice contract', async () => {
+		const track = new TestMediaStreamTrack();
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(track)), productService));
+		const transcriptions: IVoiceTranscription[] = [];
+		const toolCalls: { callId: string; name: string; args: Record<string, unknown> }[] = [];
+		const remoteAudioStates: boolean[] = [];
+		store.add(service.onTranscription(event => transcriptions.push(event)));
+		store.add(service.onToolCall(event => toolCalls.push(event)));
+		store.add(service.onDidChangeRemoteAudioState(state => remoteAudioStates.push(state)));
+
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-123' } });
+		service.sendPttStart('turn-1', { hasActiveSession: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Fix the tests' });
+		peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'delegation-1', target: 'client' } });
+		service.sendToolResult('delegation-1', 'ok');
+		service.requestNarration('session-1', 'response', 'The tests are fixed.', 'narration-1');
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'The tests are fixed.' });
+		service.sendPttEnd();
+
+		assert.deepStrictEqual({
+			connected: service.isConnected,
+			sessionId: service.currentSessionId,
+			remoteDescription: peer.remoteDescription,
+			trackEnabled: track.enabled,
+			transcriptions,
+			toolCalls,
+			remoteAudioStates,
+			sent: peer.channel.sent,
+		}, {
+			connected: true,
+			sessionId: 'live-123',
+			remoteDescription: { type: 'answer', sdp: 'answer-sdp' },
+			trackEnabled: false,
+			transcriptions: [
+				{ text: 'Fix the tests', status: 'partial', turnId: 'turn-1' },
+				{ text: 'Fix the tests', status: 'final', turnId: 'turn-1' },
+			],
+			toolCalls: [
+				{ callId: 'delegation-1', name: 'send_to_chat', args: { text: 'Fix the tests' } },
+			],
+			remoteAudioStates: [true],
+			sent: [
+				{ type: 'session.input_audio.unmute', event_id: peer.channel.sent[0].event_id },
+				{ type: 'session.thinking.append', event_id: peer.channel.sent[1].event_id, delegation_id: 'delegation-1', content: 'ok' },
+				{ type: 'session.commentary.append', event_id: 'narration-1', delegation_id: 'delegation-1', content: 'The tests are fixed.' },
+				{ type: 'session.input_audio.mute', event_id: peer.channel.sent[3].event_id },
+			],
+		});
 	});
 
 	test('preserves the turn ID on speech-started events', async () => {
@@ -217,6 +374,8 @@ suite('VoiceClientService', () => {
 			new TestConfigurationService(),
 			new NullLogService(),
 			productService,
+			new TestCommandService(),
+			new TestMicCaptureService(),
 		));
 		const events: IVoiceTranscription[] = [];
 		store.add(service.onTranscription(event => events.push(event)));
@@ -256,6 +415,8 @@ suite('VoiceClientService', () => {
 			new TestConfigurationService(),
 			new NullLogService(),
 			productService,
+			new TestCommandService(),
+			new TestMicCaptureService(),
 		));
 		const events: IVoiceTranscription[] = [];
 		store.add(service.onTranscription(event => events.push(event)));
@@ -917,7 +1078,7 @@ suite('VoiceClientService', () => {
 	test('reports a missing backend URL instead of failing silently', async () => {
 		const productWithoutUrl: IProductService = { _serviceBrand: undefined, ...product, voiceWsUrl: '' };
 		const configurationService = new TestConfigurationService({});
-		const service = store.add(new VoiceClientService(configurationService, new NullLogService(), productWithoutUrl));
+		const service = store.add(new VoiceClientService(configurationService, new NullLogService(), productWithoutUrl, new TestCommandService(), new TestMicCaptureService()));
 		const fatal: IVoiceFatalDisconnect[] = [];
 		store.add(service.onFatalDisconnect(event => fatal.push(event)));
 

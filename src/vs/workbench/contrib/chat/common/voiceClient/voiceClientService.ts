@@ -707,6 +707,8 @@ export interface IVoiceClientService {
 	readonly onSessionInit: Event<IVoiceSessionInit>;
 	readonly onError: Event<string>;
 	readonly onDidChangeConnectionState: Event<boolean>;
+	/** Fired for transports that play remote audio directly instead of emitting PCM chunks. */
+	readonly onDidChangeRemoteAudioState: Event<boolean>;
 	/**
 	 * Fired when the current socket will not reconnect: a refusal, an expected
 	 * end of session, or a give-up. Consumers should tear down to a clean,

@@ -119,6 +119,9 @@ export interface IMicCaptureService {
 	/** The AnalyserNode for visualisation, available while capturing. */
 	readonly analyserNode: AnalyserNode | undefined;
 
+	/** The captured microphone stream, available after {@link startCapture}. */
+	readonly mediaStream: MediaStream | undefined;
+
 	// --- PTT ---
 	/**
 	 * Begin a PTT segment. Lazily acquires the microphone if not already
@@ -238,9 +241,15 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 
 	get isCapturing(): boolean { return this._isCapturing; }
 	get analyserNode(): AnalyserNode | undefined { return this._analyserNode; }
+	get mediaStream(): MediaStream | undefined { return this._micStream ?? undefined; }
 
 	get isMuted(): boolean { return this._isMuted; }
-	set isMuted(value: boolean) { this._isMuted = value; }
+	set isMuted(value: boolean) {
+		this._isMuted = value;
+		for (const track of this._micStream?.getAudioTracks() ?? []) {
+			track.enabled = !value && this._pttStreaming;
+		}
+	}
 
 	suppressUntil(timestamp: number): void {
 		this._suppressUntilTs = timestamp;

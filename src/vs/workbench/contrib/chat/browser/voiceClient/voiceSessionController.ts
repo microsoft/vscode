@@ -1077,7 +1077,18 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this.notificationService.warn(localize('voiceMode.disabled', "Voice Mode is disabled."));
 			return;
 		}
-		if (!isVoiceEntitled(this.chatEntitlementService)) {
+		let hasGptLiveByok = false;
+		try {
+			const result = await this.commandService.executeCommand<{ status?: string }>('_github.copilot.chat.createGptLiveSession');
+			hasGptLiveByok = result?.status === 'available' || result?.status === 'ready';
+		} catch (error) {
+			this.logService.debug('[voice] GPT-Live BYOK availability check failed', error);
+			if (!(error instanceof Error && /command ['"]?.+['"]? not found/i.test(error.message))) {
+				this.notificationService.error(localize('voiceMode.gptLiveAvailabilityFailed', "Unable to check the OpenAI GPT-Live configuration."));
+				return;
+			}
+		}
+		if (!hasGptLiveByok && !isVoiceEntitled(this.chatEntitlementService)) {
 			this.notificationService.warn(this.chatEntitlementService.entitlement === ChatEntitlement.Business || this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise
 				? localize('voiceMode.organizationUnavailable', "Voice Mode is not available for GitHub Copilot Business or Enterprise accounts.")
 				: localize('voiceMode.requiresPaidPlan', "Voice Mode requires a paid GitHub Copilot plan."));
@@ -1740,6 +1751,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					});
 					this._voiceState.set('idle', undefined);
 					this._statusText.set('Reconnecting...', undefined);
+				}
+			}
+		}));
+
+		this._voiceEventDisposables.add(this.voiceClientService.onDidChangeRemoteAudioState(speaking => {
+			if (speaking) {
+				this._clearAutoListenTimer();
+				this._awaitingReplyAudio = false;
+				this._replyPlayedSinceSend = true;
+				this._voiceState.set('speaking', undefined);
+				this._statusText.set('Speaking...', undefined);
+			} else if (this._isConnected.get()) {
+				this._voiceState.set('idle', undefined);
+				this._statusText.set('Hold to speak...', undefined);
+				if (this._isHandsFreeEnabled()) {
+					this._scheduleAutoListen();
 				}
 			}
 		}));
