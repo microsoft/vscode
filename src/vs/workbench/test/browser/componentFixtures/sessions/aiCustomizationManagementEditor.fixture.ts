@@ -2699,7 +2699,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers page with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with collapsible Installed and Available groups. The tree edges align with the title and search field.'],
+		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with separate collapsible Workspace and User groups, followed by source-specific and Available groups when applicable. The tree edges align with the title and search field.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2708,7 +2708,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersCopilotConnectors: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The MCP Servers Installed tree includes the connected Work IQ Mail MCP server with its Connector source and row actions. Disconnected and unavailable connectors are not shown.'],
+		expectedVisualDescriptions: ['The MCP Servers tree includes the connected Work IQ Mail MCP server with its Connector source and row actions. Disconnected and unavailable connectors are not shown.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2719,7 +2719,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersCopilotConnectorsEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['When no connectors are connected, the MCP Servers page keeps the existing Installed tree without an empty Connector section.'],
+		expectedVisualDescriptions: ['When no connectors are connected, the MCP Servers page keeps the source-grouped tree without an empty Connector section.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -3108,7 +3108,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page uses a classic tree with collapsible Installed and Available groups. Header action buttons use the standard gap.'],
+		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible Workspace and User groups, plus Remote Session and Available groups when applicable. Header action buttons use the standard gap.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
@@ -3337,7 +3337,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PluginCatalogHome: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page shows Installed and Available sections, with no Featured section.'],
+		expectedVisualDescriptions: ['The Plugins page shows separate Workspace and User sections plus Available, with no Featured section.'],
 		render: renderPluginHomeMode,
 	}),
 
