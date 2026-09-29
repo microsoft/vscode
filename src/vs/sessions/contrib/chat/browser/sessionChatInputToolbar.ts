@@ -42,7 +42,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
-import { SessionBackgroundShellsControl } from './sessionBackgroundShellsControl.js';
+import { SessionBackgroundShellsControl } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
 import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import { SessionActivatingActionRunner } from '../../../browser/sessionActionRunner.js';

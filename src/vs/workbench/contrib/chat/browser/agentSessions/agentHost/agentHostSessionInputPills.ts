@@ -8,6 +8,7 @@ import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { distinct } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
@@ -40,7 +41,7 @@ import { BrowserEditorInput } from '../../../../browserView/common/browserEditor
 import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
-import { ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../common/sessionChatPills.js';
+import { ISessionChatPillVisibilityService, SessionChatPillKind, type IChatBackgroundShell } from '../../../common/sessionChatPills.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
@@ -48,7 +49,9 @@ import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
+import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
 import { createSessionPullRequestPillData } from '../../sessionPullRequestPill.js';
+import { toChatBackgroundShells } from './agentHostBackgroundShells.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { GitHubCommitResolver, parseGitHubCommitTarget } from '../../../../github/browser/githubCommitResolver.js';
@@ -61,6 +64,7 @@ const offeredPillKinds: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Artifacts,
 	SessionChatPillKind.References,
 	SessionChatPillKind.Browsers,
+	SessionChatPillKind.BackgroundShells,
 ];
 
 const artifactIcons: ReadonlyMap<SessionArtifactType, ThemeIcon> = new Map([
@@ -720,6 +724,10 @@ export class AgentHostSessionInputPills extends Disposable {
 			const entries = browserInputs.read(reader).map(input => this._browserEntry(input, sessionResource.read(reader)));
 			return entries.length > 0 ? [{ title: localize('agentHostSessionPills.browsers.section', "Browsers"), entries }] : [];
 		});
+		// A new source per chat keeps one chat's shell details from carrying over to another.
+		const backgroundShells = this._register(new SessionBackgroundShellsControl(derived(this, reader => chatResource.read(reader) ? {
+			backgroundShells: derivedOpts<readonly IChatBackgroundShell[]>({ owner: this, equalsFn: structuralEquals }, shellReader => toChatBackgroundShells(chatState.read(shellReader)?.backgroundWork)),
+		} : undefined)));
 
 		const sources = this._register(instantiationService.createInstance(StandardChatInputPillSources, {
 			changes: {
@@ -732,6 +740,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			artifacts: { sections: artifactSections },
 			references: { sections: referenceSections },
 			browsers: { sections: browserSections },
+			backgroundShells,
 		}, offeredPillKinds));
 		const inputPills = this._register(instantiationService.createInstance(ChatInputPills, this._widget.inputPart.persistentContentContainerElement, {
 			debugName: 'AgentHostSessionInputPills.content',

@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import type { IChatBackgroundShell } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 
 export { getHighestPriorityPullRequestIcon };
 
@@ -656,16 +657,6 @@ export const enum ChatModelSource {
 	Chosen = 'chosen',
 	/** Put there for the chat: inherited from the chat it was created from, or picked for it. */
 	CarriedOver = 'carriedOver',
-}
-
-/** Provider-neutral metadata for an active background shell owned by a chat. */
-export interface IChatBackgroundShell {
-	readonly id: string;
-	readonly description: string;
-	readonly command: string;
-	readonly startedAt: string;
-	/** Whether the shell is tied to its agent's lifetime, when the agent reports it. */
-	readonly attachmentMode?: 'attached' | 'detached';
 }
 
 /**

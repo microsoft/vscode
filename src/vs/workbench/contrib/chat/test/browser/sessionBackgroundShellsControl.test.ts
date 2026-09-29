@@ -7,11 +7,10 @@ import assert from 'assert';
 import { isHTMLElement } from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
-import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
-import type { IChat, IChatBackgroundShell } from '../../../../services/sessions/common/session.js';
-import { SessionBackgroundShellsControl } from '../../browser/sessionBackgroundShellsControl.js';
+import { SessionBackgroundShellsControl, type IChatBackgroundShellsSource } from '../../browser/sessionBackgroundShellsControl.js';
+import type { IChatBackgroundShell } from '../../common/sessionChatPills.js';
 
 suite('SessionBackgroundShellsControl', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -21,10 +20,7 @@ suite('SessionBackgroundShellsControl', () => {
 			id: 'running', description: 'Run tests', command: 'npm test',
 			startedAt: new Date(0).toISOString(), attachmentMode: 'attached',
 		}]);
-		const chat = new class extends mock<IChat>() {
-			override readonly backgroundShells = shells;
-		}();
-		const control = store.add(new SessionBackgroundShellsControl(constObservable(chat)));
+		const control = store.add(new SessionBackgroundShellsControl(constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
 		let badge: string | undefined;
 		const observer = store.add(autorun(reader => {
 			badge = control.sections.read(reader)[0]?.entries[0].badge;
@@ -57,10 +53,7 @@ suite('SessionBackgroundShellsControl', () => {
 			startedAt: new Date(0).toISOString(), attachmentMode: 'attached',
 		};
 		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [shell]);
-		const chat = new class extends mock<IChat>() {
-			override readonly backgroundShells = shells;
-		}();
-		const control = store.add(new SessionBackgroundShellsControl(constObservable(chat)));
+		const control = store.add(new SessionBackgroundShellsControl(constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
 		const entry = control.sections.get()[0].entries[0];
 		const details = entry.hover?.content;
 		assert.ok(isHTMLElement(details));
@@ -96,22 +89,19 @@ suite('SessionBackgroundShellsControl', () => {
 			id: 'plain', description: 'Build', command: 'npm run build',
 			startedAt: new Date(0).toISOString(),
 		}]);
-		const chat = new class extends mock<IChat>() {
-			override readonly backgroundShells = shells;
-		}();
-		const control = store.add(new SessionBackgroundShellsControl(constObservable(chat)));
+		const control = store.add(new SessionBackgroundShellsControl(constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
 
 		assert.strictEqual(control.sections.get()[0].entries[0].badge, '0ms');
 	}));
 
 	test('does not show shells from a previously viewed chat or an unsupported provider', () => {
-		const createChat = (command: string) => new class extends mock<IChat>() {
-			override readonly backgroundShells = constObservable<readonly IChatBackgroundShell[]>([{
+		const createChat = (command: string): IChatBackgroundShellsSource => ({
+			backgroundShells: constObservable<readonly IChatBackgroundShell[]>([{
 				id: 'shared-id', description: command, command,
 				startedAt: new Date(0).toISOString(), attachmentMode: 'attached',
-			}]);
-		}();
-		const current = observableValue<IChat | undefined>('chat', createChat('npm test'));
+			}]),
+		});
+		const current = observableValue<IChatBackgroundShellsSource | undefined>('chat', createChat('npm test'));
 		const control = store.add(new SessionBackgroundShellsControl(current));
 		const first = control.sections.get()[0].entries.map(entry => entry.label);
 		current.set(createChat('npm run build'), undefined);

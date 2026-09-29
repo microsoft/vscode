@@ -10,8 +10,18 @@ import { getDurationString } from '../../../../base/common/date.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
-import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/browser/chatPills.js';
-import type { IChat, IChatBackgroundShell } from '../../../services/sessions/common/session.js';
+import type { IChatPillEntry, IChatPillSection } from '../../../browser/chatPills.js';
+import type { IChatBackgroundShell } from '../common/sessionChatPills.js';
+
+/** A chat whose active background shells the Background Shells pill lists. */
+export interface IChatBackgroundShellsSource {
+	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
+}
+
+/** Describes the Background Shells pill in a chat's accessibility help. */
+export function getBackgroundShellsPillAccessibilityHelp(): string {
+	return localize('backgroundShells.accessibilityHelp', "The Background Shells pill opens a picker above the chat input, including for a single shell. Each entry includes its attached or detached mode when the agent reports it, and its elapsed time. Use the arrow keys to choose a shell, then Enter or Right Arrow to open its live command details beside the picker. Left Arrow or Escape returns to the list; Escape from the list returns focus to the pill. Elapsed time continues updating while details are open, and a shell disappears when it finishes. This list does not stop commands or stream their output.");
+}
 
 function createShellDetails() {
 	const element = $('.chat-pill-location-hover');
@@ -29,10 +39,10 @@ export class SessionBackgroundShellsControl extends Disposable {
 	readonly sections: IObservable<readonly IChatPillSection[]>;
 	// Stable detail nodes let the picker preserve the open panel across clock ticks.
 	private readonly _details = new Map<string, ReturnType<typeof createShellDetails>>();
-	private _currentChat: IChat | undefined;
+	private _currentChat: IChatBackgroundShellsSource | undefined;
 
 	constructor(
-		chat: IObservable<IChat | undefined>,
+		chat: IObservable<IChatBackgroundShellsSource | undefined>,
 	) {
 		super();
 		const now = observableFromEvent(this, listener => {
