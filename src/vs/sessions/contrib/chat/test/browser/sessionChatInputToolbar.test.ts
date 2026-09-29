@@ -17,6 +17,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -43,6 +45,7 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubIssueModel } from '../../../github/browser/models/githubIssueModel.js';
 import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
+import { SESSION_MCP_AUTH_PILL_SETTING } from '../../browser/sessionMcpServers.js';
 
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -736,8 +739,13 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
-	test('shows MCP sign-in only while the session has servers requiring authentication', () => {
-		const { instantiationService } = createServices();
+	test('shows MCP sign-in only when opted in and the session has servers requiring authentication', async () => {
+		const { instantiationService, visibility } = createServices();
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		// A pre-existing saved visibility list must not bypass the experiment gate.
+		visibility.toggle(SessionChatPillKind.Customizations);
 		const changed = store.add(new Emitter<void>());
 		let servers: readonly IAgentHostMcpServer[] = [];
 		const authentications: string[] = [];
@@ -774,6 +782,14 @@ suite('SessionChatInputToolbar', () => {
 		const empty = read();
 		servers = [upcastPartial<IAgentHostMcpServer>({ id: 'github', name: 'GitHub', enabled: true, status: McpServerStatus.AuthRequired })];
 		changed.fire();
+		const defaultLabels = read().labels;
+		await configuration.setUserConfiguration(SESSION_MCP_AUTH_PILL_SETTING, true);
+		configuration.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: section => section === SESSION_MCP_AUTH_PILL_SETTING,
+			affectedKeys: new Set([SESSION_MCP_AUTH_PILL_SETTING]),
+			source: ConfigurationTarget.USER,
+			change: { keys: [SESSION_MCP_AUTH_PILL_SETTING], overrides: [] },
+		});
 		const single = read();
 		toolbar.element.querySelector<HTMLElement>('.chat-pill-button')?.click();
 		servers = [...servers, upcastPartial<IAgentHostMcpServer>({ id: 'slack', name: 'Slack', enabled: true, status: McpServerStatus.AuthRequired })];
@@ -781,8 +797,9 @@ suite('SessionChatInputToolbar', () => {
 		const multiple = read();
 		servers = servers.map(server => ({ ...server, status: McpServerStatus.Ready }));
 		changed.fire();
-		assert.deepStrictEqual({ empty, single, multiple, resolved: read(), authentications }, {
+		assert.deepStrictEqual({ empty, defaultLabels, single, multiple, resolved: read(), authentications }, {
 			empty: { visible: false, labels: [] },
+			defaultLabels: [],
 			single: { visible: true, labels: ['Sign In to GitHub'] },
 			multiple: { visible: true, labels: ['2 MCP Servers Need Sign-In'] },
 			resolved: { visible: false, labels: [] },

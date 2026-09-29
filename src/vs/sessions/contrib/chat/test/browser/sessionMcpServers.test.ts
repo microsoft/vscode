@@ -10,10 +10,12 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostMcpServer } from '../../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionMcpServers } from '../../browser/sessionMcpServers.js';
+import { SESSION_MCP_AUTH_PILL_SETTING, SessionMcpServers } from '../../browser/sessionMcpServers.js';
 
 suite('SessionMcpServers', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,7 +26,7 @@ suite('SessionMcpServers', () => {
 		return upcastPartial<IAgentHostMcpServer>({ id, name: id, status, enabled });
 	}
 
-	function setup() {
+	function setup(enabled: boolean | undefined = true) {
 		const changed = store.add(new Emitter<void>());
 		const servers = new Map<string, readonly IAgentHostMcpServer[]>();
 		const authentications: { resource: string; id: string }[] = [];
@@ -40,14 +42,33 @@ suite('SessionMcpServers', () => {
 			}
 		};
 		const session = observableValue<IActiveSession | undefined>('session', first);
-		const model = store.add(new SessionMcpServers(session, customizations));
+		const configuration = new TestConfigurationService({ [SESSION_MCP_AUTH_PILL_SETTING]: enabled });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const model = store.add(new SessionMcpServers(session, customizations, configuration));
 		store.add(autorun(reader => model.sections.read(reader)));
 		const setServers = (target: IActiveSession, value: readonly IAgentHostMcpServer[]) => {
 			servers.set(target.resource.toString(), value);
 			changed.fire();
 		};
-		return { model, session, setServers, authentications, cancelAuthentication: () => { authenticated = false; } };
+		return { model, session, configuration, setServers, authentications, cancelAuthentication: () => { authenticated = false; } };
 	}
+
+	test('experiment gate is off by default and responds to configuration changes', async () => {
+		const { model, configuration, setServers } = setup(false);
+		setServers(first, [server('GitHub', McpServerStatus.AuthRequired)]);
+		const counts = [model.sections.get().length];
+		for (const enabled of [true, false, undefined]) {
+			await configuration.setUserConfiguration(SESSION_MCP_AUTH_PILL_SETTING, enabled);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: section => section === SESSION_MCP_AUTH_PILL_SETTING,
+				affectedKeys: new Set([SESSION_MCP_AUTH_PILL_SETTING]),
+				source: ConfigurationTarget.USER,
+				change: { keys: [SESSION_MCP_AUTH_PILL_SETTING], overrides: [] },
+			});
+			counts.push(model.sections.get().length);
+		}
+		assert.deepStrictEqual(counts, [0, 1, 0, 0]);
+	});
 
 	test('only enabled servers requiring authentication appear', () => {
 		const { model, setServers } = setup();

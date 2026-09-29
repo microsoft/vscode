@@ -15,6 +15,8 @@ import { IContextViewService } from '../../../../../platform/contextview/browser
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
 import { chatPersistentContentVisibleClass } from '../../../../contrib/chat/browser/widget/chatWidget.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -24,6 +26,8 @@ import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../con
 import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbar.js';
+// eslint-disable-next-line local/code-import-patterns
+import { SESSION_MCP_AUTH_PILL_SETTING } from '../../../../../sessions/contrib/chat/browser/sessionMcpServers.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChatPillsDebugData } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbarDebug.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -172,6 +176,9 @@ function createBrowserViewService(inputs: readonly BrowserEditorInput[]): IBrows
 }
 
 function registerSessionChatPillFixtureServices(registration: ServiceRegistration, sessionMock: IMockSessionAndChat): void {
+	if (sessionMock.mcpServers.length > 0) {
+		registration.defineInstance(IConfigurationService, new TestConfigurationService({ [SESSION_MCP_AUTH_PILL_SETTING]: true }));
+	}
 	registration.defineInstance(IAgentHostCustomizationService, new class extends NullAgentHostCustomizationService {
 		override getMcpServers(): readonly IAgentHostMcpServer[] { return sessionMock.mcpServers; }
 	}());
