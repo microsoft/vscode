@@ -109,6 +109,35 @@ describe('OTelStaleConfigMonitor', () => {
 		expect(log.warnings.join('\n')).not.toContain('collector.example');
 	});
 
+	it('restarts when unrelated policy exposes the unconfigured shared endpoint policy slot', async () => {
+		settings.policySlotDefaults.otlpEndpoint = '';
+		const resolver = new TestResolver(settings);
+		expect(resolver.activeResolution).toMatchObject({
+			hasEnterpriseSettings: false,
+			config: { enabled: false, otlpEndpoint: '' },
+		});
+		settings.policy = managedPolicy;
+		const monitor = new OTelStaleConfigMonitor(resolver, host, log);
+		await startRestart(monitor);
+		expect({ restarts: host.restarts, prompts: host.prompts }).toEqual({ restarts: 1, prompts: 0 });
+	});
+
+	it('restarts after transient fail-closed policy defaults settle without changing the exporter', async () => {
+		settings.policySlotDefaults = { exporterType: '', otlpEndpoint: '', captureIdentity: false };
+		const resolver = new TestResolver(settings);
+		const monitor = new OTelStaleConfigMonitor(resolver, host, log);
+		expect(resolver.activeResolution).toMatchObject({
+			hasEnterpriseSettings: true,
+			config: { enabled: false, exporterType: 'otlp-http', captureIdentity: false },
+		});
+
+		settings.policySlotDefaults = {};
+		expect(await monitor.check()).toBe(OTelConfigDrift.None);
+		settings.policy = managedPolicy;
+		await startRestart(monitor);
+		expect({ restarts: host.restarts, prompts: host.prompts }).toEqual({ restarts: 1, prompts: 0 });
+	});
+
 	it('acknowledges a successful restart exactly once and retains the session budget', async () => {
 		const first = newHost();
 		settings.policy = managedPolicy;

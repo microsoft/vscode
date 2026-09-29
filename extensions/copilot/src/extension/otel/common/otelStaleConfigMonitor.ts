@@ -30,12 +30,15 @@ export class OTelStaleConfigMonitor {
 	private _handledFingerprint: string | undefined;
 	private _pendingCheck: Promise<OTelConfigDrift> = Promise.resolve(OTelConfigDrift.None);
 	private _policyNoticeShown = false;
+	private _baseline: IResolvedOTelConfig;
 
 	constructor(
 		private readonly _resolver: IOTelConfigResolver,
 		private readonly _host: IOTelStaleConfigHost,
 		private readonly _logService: ILogService,
-	) { }
+	) {
+		this._baseline = _resolver.activeResolution;
+	}
 
 	check(): Promise<OTelConfigDrift> {
 		const check = this._pendingCheck.then(() => this._check());
@@ -45,9 +48,17 @@ export class OTelStaleConfigMonitor {
 	}
 
 	private async _check(): Promise<OTelConfigDrift> {
-		const active = this._resolver.activeResolution;
+		let active = this._baseline;
 		const current = this._resolver.resolve();
 		const drift = classifyOTelConfigDrift(active, current);
+		if (drift === OTelConfigDrift.None && active.hasEnterpriseSettings && !current.hasEnterpriseSettings) {
+			// A forced remote refresh starts fail-closed, so service construction can
+			// observe restrictive policy-slot defaults before the successful response
+			// removes them. When that transition does not change the running exporter,
+			// use the settled provenance for subsequent late-policy recovery.
+			this._baseline = current;
+			active = current;
+		}
 		let record = this._host.getRestartRecord();
 		if (record && record.sessionId !== active.config.sessionId) {
 			// Carry a user-requested reload into its successor, not every future editor session.
