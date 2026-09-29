@@ -126,6 +126,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 	private readonly model = new ProjectBoardModel();
 	private readonly cardElements = new Map<string, HTMLElement>();
+	private readonly activeChatLabels = new Map<string, HTMLElement>();
+	private readonly monitoredChildLabels = new Map<string, { element: HTMLElement; children: readonly IProjectBoardCard[] }>();
 	private readonly collapsedChats = new Set<string>();
 	private readonly selectedCards = new Set<string>();
 	private readonly cardCheckboxes = new Map<string, Checkbox>();
@@ -289,6 +291,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => this.observeSessions()));
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => this.observeSessions()));
+		this._register(autorun(reader => this.updateActiveCard(this.chatSidePanel.activeCardId.read(reader))));
 		this._register(addDisposableListener(this.container, EventType.FOCUS_OUT, event => {
 			// Native blur can flush microtasks before relatedTarget receives focus.
 			const movingWithinBoard = isHTMLElement(event.relatedTarget) && this.container.contains(event.relatedTarget);
@@ -320,6 +323,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			return;
 		}
 		this.active = active;
+		this.updateActiveCard();
 		this.suspendedPreviews.clear();
 		if (active) {
 			this.observeSessions();
@@ -530,6 +534,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 	getAccessibleContent(): string {
 		const lines = [this.title];
+		const appendCurrentChat = (card: IProjectBoardCard) => {
+			if (this.active && !this.showHeader && card.id === this.chatSidePanel.activeCardId.get()) {
+				lines.push(localize('projectBoard.accessibleCurrentChat', "  Open in Side Panel"));
+			}
+		};
 		if (!this.showSessionList) {
 			lines.push(localize('projectBoard.selectionHelp', "Use each conversation's checkbox to select it, then Mark as Done to archive the selected conversations' sessions, including their other chats. No conversations are deleted."));
 			lines.push(this.selectionLabel);
@@ -554,9 +563,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 					lines.push(localize('projectBoard.accessibleSession', "{0}, {1}", card.sessionTitle, this.getStatusLabel(card, true)));
 					for (const sibling of this.model.cards.filter(sibling => sibling.session === card.session && (this.showArchived || !sibling.archived))) {
 						lines.push(localize('projectBoard.accessibleChildChat', "  {0}, {1}", sibling.title, this.getStatusLabel(sibling)));
+						appendCurrentChat(sibling);
 					}
 				} else {
 					lines.push(localize('projectBoard.accessibleCard', "{0}, {1}, {2}", card.title, card.sessionTitle, this.getStatusLabel(card)));
+					appendCurrentChat(card);
 					if (this.selectedCards.has(card.id)) {
 						lines.push(localize('projectBoard.accessibleSelected', "  Selected"));
 					}
@@ -566,6 +577,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 						lines.push(this.collapsedChats.has(card.id) ? localize('projectBoard.collapsedGroup', "{0} (collapsed)", summary) : summary);
 						for (const child of children) {
 							lines.push(localize('projectBoard.accessibleChildChat', "  {0}, {1}", child.title, this.getStatusLabel(child)));
+							appendCurrentChat(child);
 						}
 					}
 				}
@@ -945,6 +957,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const store = new DisposableStore();
 		this.renderDisposables.value = store;
 		this.cardElements.clear();
+		this.activeChatLabels.clear();
+		this.monitoredChildLabels.clear();
 		this.cardCheckboxes.clear();
 		this.controlElements.clear();
 		this.selectionCount = undefined;
@@ -1092,6 +1106,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			this.approvalModel.clear();
 		}
 		this.updateSelectionControls();
+		this.updateActiveCard();
 		this.layoutSessionLists();
 		board.scrollTop = scrollTop;
 		board.scrollLeft = scrollLeft;
@@ -1136,6 +1151,52 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		// grow content well after the observer last fired. Notify explicitly so
 		// the host can rescan right away and content stays reachable.
 		this._onDidChangeContentSize.fire();
+	}
+
+	private updateActiveCard(activeCardId = this.chatSidePanel.activeCardId.get()): void {
+		let changed = false;
+		for (const [id, element] of this.cardElements) {
+			const active = this.active && !this.showHeader && id === activeCardId;
+			if (element.classList.contains('project-board-card-active-chat') === active) {
+				continue;
+			}
+			changed = true;
+			element.classList.toggle('project-board-card-active-chat', active);
+			if (active) {
+				element.setAttribute('aria-current', 'true');
+			} else {
+				element.removeAttribute('aria-current');
+			}
+			const indicator = this.activeChatLabels.get(id);
+			if (indicator) {
+				indicator.hidden = !active;
+				const descriptions = (element.getAttribute('aria-describedby') ?? '').split(' ').filter(id => id && id !== indicator.id);
+				if (active) {
+					descriptions.push(indicator.id);
+				}
+				element.setAttribute('aria-describedby', descriptions.join(' '));
+			}
+		}
+		for (const [parentId, { element, children }] of this.monitoredChildLabels) {
+			const child = this.active && !this.showHeader && this.collapsedChats.has(parentId)
+				? children.find(child => child.id === activeCardId) : undefined;
+			const label = child ? localize('projectBoard.monitoredChild', "Open in Side Panel: {0}", child.title) : '';
+			if (element.hidden === !child && element.textContent === label) {
+				continue;
+			}
+			changed = true;
+			element.hidden = !child;
+			element.textContent = label;
+			const disclosure = this.controlElements.get(`collapse:children:${parentId}`);
+			if (child) {
+				disclosure?.setAttribute('aria-describedby', element.id);
+			} else {
+				disclosure?.removeAttribute('aria-describedby');
+			}
+		}
+		if (changed && !this.rendering) {
+			this._onDidChangeContentSize.fire();
+		}
 	}
 
 	private createControl(container: HTMLElement, label: string, key: string, store: DisposableStore): Button {
@@ -1741,6 +1802,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const summary = document.createElement('span');
 		summary.className = 'project-board-child-summary';
 		summary.textContent = this.childChatSummary(children);
+		const monitoredChild = document.createElement('span');
+		monitoredChild.className = 'project-board-monitored-child-label';
+		monitoredChild.id = `project-board-monitored-child-${generateUuid()}`;
+		monitoredChild.hidden = true;
+		summary.appendChild(monitoredChild);
+		this.monitoredChildLabels.set(card.id, { element: monitoredChild, children });
 		heading.appendChild(summary);
 		this.createCollapseControl(heading, `collapse:children:${card.id}`, name, childCards.hidden, [childCards.id], () => {
 			if (!this.collapsedChats.delete(card.id)) {
@@ -1981,6 +2048,13 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 		heading.appendChild(title);
 		element.appendChild(heading);
+		const activeChatLabel = document.createElement('div');
+		activeChatLabel.className = 'project-board-card-active-chat-label';
+		activeChatLabel.textContent = localize('projectBoard.activeSidePanelChat', "Open in Side Panel");
+		activeChatLabel.hidden = true;
+		activeChatLabel.id = `project-board-active-chat-${generateUuid()}`;
+		this.activeChatLabels.set(card.id, activeChatLabel);
+		element.appendChild(activeChatLabel);
 
 		if (card.session.capabilities.get().supportsDelete) {
 			this.createDeleteButton(document, element, localize('projectBoard.deleteSession', "Delete Session"), async () => {

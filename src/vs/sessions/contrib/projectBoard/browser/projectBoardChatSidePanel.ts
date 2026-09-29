@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
-import { autorun, disposableObservableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, disposableObservableValue, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { Action } from '../../../../base/common/actions.js';
@@ -46,7 +46,7 @@ import { VisibleSession } from '../../../services/sessions/browser/visibleSessio
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, ISession } from '../../../services/sessions/common/session.js';
-import { IProjectBoardCard } from '../common/projectBoardModel.js';
+import { getProjectBoardCardId, IProjectBoardCard } from '../common/projectBoardModel.js';
 
 export const PROJECT_BOARD_CHAT_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.kanbanChat';
 export const PROJECT_BOARD_CHAT_VIEW_ID = 'sessions.kanban.chat';
@@ -58,6 +58,9 @@ type ProjectBoardChat = Pick<IProjectBoardCard, 'session' | 'chat'>;
 /** Owns a borrowed auxiliary pane without changing the window's active session or chat. */
 export class ProjectBoardChatSidePanel extends Disposable {
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly activeCardObserver = this._register(new MutableDisposable());
+	private readonly _activeCardId = observableValue<string | undefined>(this, undefined);
+	readonly activeCardId: IObservable<string | undefined> = derived(reader => this.customViewService.auxiliaryBarVisible.read(reader) ? this._activeCardId.read(reader) : undefined);
 	private readonly paneOperations = new Sequencer();
 	private pane: ProjectBoardChatViewPane | undefined;
 	private previousComposite: { id: string | undefined; customView: ICustomViewDescriptor } | undefined;
@@ -99,6 +102,8 @@ export class ProjectBoardChatSidePanel extends Disposable {
 		}
 
 		this.request.value?.cancel();
+		this.activeCardObserver.clear();
+		this._activeCardId.set(undefined, undefined);
 		this.pane?.clear();
 		const request = new CancellationTokenSource();
 		this.request.value = request;
@@ -139,6 +144,7 @@ export class ProjectBoardChatSidePanel extends Disposable {
 			if (token.isCancellationRequested || this.pane !== pane || !pane.isBodyVisible()) {
 				return;
 			}
+			this.activeCardObserver.value = autorun(reader => this._activeCardId.set(pane.activeCardId.read(reader), undefined));
 			pane.focus();
 			try {
 				await this.sessionsManagementService.markRead(card.session);
@@ -157,6 +163,8 @@ export class ProjectBoardChatSidePanel extends Disposable {
 	close(): void {
 		this.request.value?.cancel();
 		this.request.clear();
+		this.activeCardObserver.clear();
+		this._activeCardId.set(undefined, undefined);
 		const pane = this.pane;
 		const hadChatFocus = pane?.hasChatFocus() ?? false;
 		this.pane = undefined;
@@ -219,7 +227,8 @@ export class ProjectBoardChatSidePanel extends Disposable {
 
 /** The header is inside the body because single-pane layout hides auxiliary composite chrome. */
 export class ProjectBoardChatViewPane extends ViewPane {
-	private readonly content = this._register(new MutableDisposable<ProjectBoardChatContent>());
+	private readonly content = this._register(disposableObservableValue<ProjectBoardChatContent | undefined>(this, undefined));
+	readonly activeCardId = derived(reader => this.content.read(reader)?.cardId.read(reader));
 	private readonly viewStates = new LRUCache<string, IChatWidgetViewState>(CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT);
 	private readonly pendingInputs = new LRUCache<string, IChatModelInputState>(CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT);
 	private chatContainer: HTMLElement | undefined;
@@ -229,9 +238,9 @@ export class ProjectBoardChatViewPane extends ViewPane {
 		super.renderBody(container);
 		this.chatContainer = append(container, $('.project-board-chat-pane'));
 		this._register(this.onDidChangeBodyVisibility(visible => {
-			this.content.value?.setVisible(visible);
+			this.content.get()?.setVisible(visible);
 			if (!visible) {
-				this.content.value?.onClose();
+				this.content.get()?.onClose();
 			}
 		}));
 	}
@@ -242,7 +251,7 @@ export class ProjectBoardChatViewPane extends ViewPane {
 		}
 		this.clear();
 		const content = this.instantiationService.createInstance(ProjectBoardChatContent, card, this.viewStates, this.pendingInputs, onClose);
-		this.content.value = content;
+		this.content.set(content, undefined);
 		this.chatContainer.appendChild(content.element);
 		if (this.dimensions) {
 			content.layout(this.dimensions.height, this.dimensions.width);
@@ -252,11 +261,12 @@ export class ProjectBoardChatViewPane extends ViewPane {
 	}
 
 	clear(): void {
-		this.content.clear();
+		this.content.set(undefined, undefined);
 	}
 
 	hasChatFocus(): boolean {
-		return !!this.content.value && isAncestorOfActiveElement(this.content.value.element);
+		const content = this.content.get();
+		return !!content && isAncestorOfActiveElement(content.element);
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -265,16 +275,17 @@ export class ProjectBoardChatViewPane extends ViewPane {
 		if (this.chatContainer) {
 			size(this.chatContainer, width, height);
 		}
-		this.content.value?.layout(height, width);
+		this.content.get()?.layout(height, width);
 	}
 
 	override focus(): void {
-		this.content.value?.focus();
+		this.content.get()?.focus();
 	}
 }
 
 export class ProjectBoardChatContent extends Disposable {
 	readonly element = $('.project-board-chat-content');
+	readonly cardId: IObservable<string | undefined>;
 	private readonly header = append(this.element, $('.project-board-chat-header'));
 	private readonly widgetContainer = append(this.element, $('.project-board-chat-widget'));
 	private readonly widget: ChatWidget;
@@ -305,6 +316,10 @@ export class ProjectBoardChatContent extends Disposable {
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		ProjectBoardChatFocusContext.bindTo(scopedContextKeyService).set(true);
 		const session = this._register(disposableObservableValue(this, new VisibleSession(this.card.session, this.card.chat)));
+		this.cardId = derived(reader => {
+			const current = session.read(reader);
+			return this.chatResourceChanged ? undefined : getProjectBoardCardId(current, current.activeChat.read(reader));
+		});
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService],
 			[ISessionContext, new SessionContext(session)],

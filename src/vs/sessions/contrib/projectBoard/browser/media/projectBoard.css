@@ -359,6 +359,27 @@
 	outline-offset: 1px;
 }
 
+.project-board-card.project-board-card-active-chat {
+	border-top-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	border-right-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	border-bottom-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+}
+
+.project-board-card-active-chat-label,
+.project-board-monitored-child-label {
+	margin-top: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	color: var(--vscode-foreground);
+	background: var(--vscode-editorWidget-background);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.project-board-monitored-child-label:not([hidden]) {
+	display: block;
+}
+
 .project-board-card-busy {
 	border-left-color: var(--vscode-progressBar-background);
 }
