@@ -80,7 +80,7 @@ jobs:
       - checkout: self
         fetchDepth: 1
         fetchTags: false
-        sparseCheckoutDirectories: build/azure-pipelines/config test/sanity .nvmrc
+        sparseCheckoutDirectories: build/azure-pipelines/config build/azure-pipelines/common test/sanity .nvmrc
         retryCountOnTaskFailure: 3
         displayName: Checkout test/sanity
 
@@ -152,6 +152,10 @@ jobs:
           version: '22.22.0'
         displayName: Install Node.js
 
+      - ${{ if eq(parameters.os, 'macOS') }}:
+        - script: node build/azure-pipelines/common/captureDarwinMemory.ts
+          displayName: Capture macOS memory before dependency setup
+
       - task: Cache@2
         inputs:
           key: '"sanity-node_modules" | "$(Agent.OS)" | "${{ parameters.arch }}" | $(TEST_DIR)/package-lock.json'
@@ -214,11 +218,11 @@ jobs:
             else
               echo "mdatp is not available on PATH"
             fi
-            ps -axo pid,ppid,pcpu,pmem,comm | sort -k3,3nr | head -n 30
+            node build/azure-pipelines/common/captureDarwinMemory.ts
           displayName: Capture macOS image and resource details
           continueOnError: true
 
-        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
+        - bash: node "$(Build.SourcesDirectory)/build/azure-pipelines/common/captureDarwinMemory.ts" -- $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
           env:
@@ -229,7 +233,7 @@ jobs:
             uptime
             vm_stat
             iostat -w 1 -c 2
-            ps -axo pid,ppid,pcpu,pmem,comm | sort -k3,3nr | head -n 30
+            node build/azure-pipelines/common/captureDarwinMemory.ts
             hdiutil info
           displayName: Capture macOS resources after sanity tests
           condition: always()
