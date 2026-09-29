@@ -29,11 +29,15 @@ parameters:
 jobs:
   - job: ${{ parameters.name }}
     displayName: ${{ parameters.displayName }}
-    continueOnError: ${{ parameters.continueOnError }}
+    condition: and(succeeded(), eq('${{ parameters.name }}', 'macos_arm64'))
+    continueOnError: false
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
-    timeoutInMinutes: 30
+    ${{ if eq(parameters.os, 'macOS') }}:
+      timeoutInMinutes: 45
+    ${{ else }}:
+      timeoutInMinutes: 30
     templateContext:
       outputs:
         - output: pipelineArtifact
@@ -190,10 +194,20 @@ jobs:
 
       # macOS
       - ${{ if eq(parameters.os, 'macOS') }}:
-        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
+        - bash: |
+            set +e
+            $(TEST_DIR)/scripts/run-macOS.sh -c 0d321b80b5885988531fcae79c56af36d9873329 -q insider -t $(TEST_DIR)/baseline-results.xml -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v --fgrep desktop-darwin-arm64-dmg
+            baseline_status=$?
+            $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v --fgrep desktop-darwin-arm64-dmg
+            candidate_status=$?
+            echo "Baseline exit: $baseline_status; candidate exit: $candidate_status"
+            if [ "$baseline_status" -ne 0 ] || [ "$candidate_status" -ne 0 ]; then
+              exit 1
+            fi
           workingDirectory: $(TEST_DIR)
-          displayName: Run Sanity Tests
+          displayName: Compare baseline and candidate DMG startup
           env:
+            DEBUG: pw:browser
             GITHUB_ACCOUNT: $(sanity-tests-account)
             GITHUB_PASSWORD: $(sanity-tests-password)
 
