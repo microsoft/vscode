@@ -726,6 +726,12 @@ export interface IChat {
 	readonly interactivity: IObservable<ChatInteractivity>;
 	/** Status description shown while the chat is active (e.g., current agent action). */
 	readonly description: IObservable<IMarkdownString | undefined>;
+	/**
+	 * Optional plain-text description of the chat (e.g., what it is for), shown
+	 * as descriptive text in the chat's hover. Providers that cannot supply one
+	 * omit the observable.
+	 */
+	readonly detail?: IObservable<string | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** How the chat came into existence, if provided by the backend. */

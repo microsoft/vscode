@@ -4129,6 +4129,24 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('nested chat hover shows the chat description', () => {
+			const folder = { root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined };
+			const session = createMultiFolderSession([folder], [undefined, undefined]);
+			const services = [
+				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
+				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
+				upcastPartial<IPreferencesService>({}),
+			] as const;
+			const [mainChat, peerChat] = session.chats.get();
+			const describedChat: IChat = { ...peerChat, detail: constObservable('Investigates the flaky test') };
+
+			assert.deepStrictEqual([
+				getChatSummaryHoverData(session, describedChat, ...services).description,
+				getChatSummaryHoverData(session, mainChat, ...services).description,
+			], ['Investigates the flaky test', undefined]);
+		});
+
 		suite('session hover pull requests', () => {
 
 			function createPullRequestFolder(name: string, pullRequestNumbers: readonly number[]): ISessionFolder {

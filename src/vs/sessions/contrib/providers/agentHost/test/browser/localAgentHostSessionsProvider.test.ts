@@ -6771,6 +6771,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('chat descriptions from the catalog surface as chat details', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-description');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-description').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const describe = (summary: ChatSummary, description: string | undefined): ChatSummary & { readonly description?: string } => ({ ...summary, description });
+			const setState = (defaultDescription: string | undefined, peerDescription: string | undefined) => agentHost.setSessionState('multi-description', 'copilotcli', makeState([
+				describe(makeChatSummary(defaultChat, ''), defaultDescription),
+				describe(makeChatSummary(peerChat, 'Peer'), peerDescription),
+			], { defaultChat }));
+
+			setState('Main work', 'Investigates the flaky test');
+			const initial = session.chats.get().map(chat => chat.detail?.get());
+			setState(undefined, '  ');
+			const cleared = session.chats.get().map(chat => chat.detail?.get());
+
+			assert.deepStrictEqual({ initial, cleared }, {
+				initial: ['Main work', 'Investigates the flaky test'],
+				cleared: [undefined, undefined],
+			});
+		});
+
 		test('default + peer catalog surfaces both chats with the default as mainChat', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-1');

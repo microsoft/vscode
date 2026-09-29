@@ -73,6 +73,8 @@ export interface ISessionSummaryHoverWorkspace {
  */
 export interface ISessionSummaryHoverData {
 	readonly title: string;
+	/** Optional descriptive text shown below the title line. */
+	readonly description?: string;
 	/** When the session was last updated. */
 	readonly updatedAt?: Date;
 	readonly location?: ISessionSummaryHoverLocation;
@@ -158,6 +160,9 @@ export class SessionSummaryHoverWidget {
 		if (data.updatedAt) {
 			appendSeparator(this._title);
 			dom.append(this._title, dom.$('span.session-summary-hover-provider', undefined, fromNow(data.updatedAt, true)));
+		}
+		if (data.description) {
+			dom.append(this._title, dom.$('.session-summary-hover-description', undefined, data.description));
 		}
 
 		dom.clearNode(this._location);

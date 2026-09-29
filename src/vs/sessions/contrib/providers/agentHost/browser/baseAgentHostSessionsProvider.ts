@@ -912,6 +912,15 @@ class SessionChatDetailsReferenceCollection extends ReferenceCollection<void> {
 }
 
 /**
+ * The protocol's optional, human-readable chat description, or `undefined`
+ * when absent or blank. Typed against the AHP `ChatSummary.description?: string`
+ * contract so it compiles before the synced protocol types carry the field.
+ */
+function getChatSummaryDescription(summary: ChatSummary & { readonly description?: string }): string | undefined {
+	return summary.description?.trim() || undefined;
+}
+
+/**
  * A non-default peer chat within an {@link AgentHostSessionAdapter}. Holds its
  * own observables seeded from the protocol {@link ChatSummary} so the chat tab
  * renders the chat's own title/status/activity independently of the aggregated
@@ -940,6 +949,7 @@ class AdditionalChat extends Disposable {
 	private readonly _modelSource: ISettableObservable<ChatModelSource | undefined>;
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
+	private readonly _detail: ISettableObservable<string | undefined>;
 	private readonly _lastTurnEnd: ISettableObservable<Date | undefined>;
 	private readonly _interactivity: ISettableObservable<ChatInteractivity>;
 	private readonly _isNew: ISettableObservable<boolean>;
@@ -957,6 +967,7 @@ class AdditionalChat extends Disposable {
 		this._modelSource = observableValue<ChatModelSource | undefined>('chatModelSource', undefined);
 		this._mode = observableValueOpts<{ readonly id: string; readonly kind: string } | undefined>({ owner: this, debugName: 'chatMode', equalsFn: structuralEquals }, undefined);
 		this._description = observableValueOpts<IMarkdownString | undefined>({ owner: this, debugName: 'chatDescription', equalsFn: markdownStringEquals }, summary.activity ? new MarkdownString().appendText(summary.activity) : undefined);
+		this._detail = observableValue<string | undefined>('chatDetail', getChatSummaryDescription(summary));
 		this._lastTurnEnd = observableValueOpts<Date | undefined>({ owner: this, debugName: 'chatLastTurnEnd', equalsFn: dateEquals }, modifiedAt);
 		this._interactivity = observableValue<ChatInteractivity>('chatInteractivity', toChatInteractivity(summary.interactivity));
 		this._isNew = observableValue<boolean>('chatIsNew', isNew);
@@ -999,6 +1010,7 @@ class AdditionalChat extends Disposable {
 			// Archived or replay-only chats must not expose mutating controls.
 			interactivity,
 			description: this._withDetails(this._description),
+			detail: this._detail,
 			lastTurnEnd: this._withDetails(this._lastTurnEnd),
 			origin: summary.origin ? {
 				kind: toSessionChatOriginKind(summary.origin.kind),
@@ -1028,6 +1040,7 @@ class AdditionalChat extends Disposable {
 			this._updatedAt.set(modifiedAt, tx);
 			this._workingDirectories.set(summary.workingDirectories, tx);
 			this._description.set(summary.activity ? new MarkdownString().appendText(summary.activity) : undefined, tx);
+			this._detail.set(getChatSummaryDescription(summary), tx);
 			this._lastTurnEnd.set(modifiedAt, tx);
 			this._interactivity.set(toChatInteractivity(summary.interactivity), tx);
 			this._isArchived.set(isSessionStatusArchived(summary.status), tx);
@@ -1176,6 +1189,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private readonly _worktreeIsolation = observableValue<boolean>('worktreeIsolation', false);
 	/** Interactivity of the default chat. Driven from the default chat's protocol summary. */
 	private readonly _defaultChatInteractivity = observableValue<ChatInteractivity>('defaultChatInteractivity', ChatInteractivity.Full);
+	/** Description of the default chat. Driven from the default chat's protocol summary. */
+	private readonly _defaultChatDetail = observableValue<string | undefined>('defaultChatDetail', undefined);
 	private readonly _mainChatObs: ISettableObservable<IChat>;
 	private readonly _chatsObs: ISettableObservable<readonly IChat[]>;
 	/** Additional (non-default) peer chats keyed by chatId. */
@@ -1476,6 +1491,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				this.isArchived.read(reader) || (this._options.readOnly?.read(reader) ?? false),
 				this._defaultChatInteractivity.read(reader))),
 			description: this.description,
+			detail: this._defaultChatDetail,
 			lastTurnEnd: this.lastTurnEnd,
 		};
 		this._defaultChat = mainChat;
@@ -1630,6 +1646,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._defaultChatTitleOverride.set(defaultSummary?.title || undefined, undefined);
 		this._defaultChatInteractivity.set(toChatInteractivity(defaultSummary?.interactivity), undefined);
 		this._defaultChatWorkingDirectories.set(defaultSummary?.workingDirectories, undefined);
+		this._defaultChatDetail.set(defaultSummary ? getChatSummaryDescription(defaultSummary) : undefined, undefined);
 
 		// Tool-origin subagents and user-created side (`/btw`) chats must reach
 		// the peer-chat catalog even when the backing session type is otherwise
