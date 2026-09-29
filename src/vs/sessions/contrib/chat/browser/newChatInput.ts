@@ -610,6 +610,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			onDidChangeWorkspaceSelection?: Event<void>;
 			canApplyWorkspaceDefault?: () => boolean;
 			sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;
+			clearInputOnSendStart?: () => boolean;
 			inputVisible?: IObservable<boolean>;
 			hostVisible?: IObservable<boolean>;
 			canSendRequest: IObservable<boolean>;
@@ -1723,6 +1724,22 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		return this._send(background);
 	}
 
+	private _clearInputOnSendStart(rawQuery: string): (() => void) | undefined {
+		if (!this.options.clearInputOnSendStart?.()) {
+			return undefined;
+		}
+		const model = this._editor.getModel();
+		if (!model) {
+			return undefined;
+		}
+		model.setValue('');
+		return () => {
+			if (model.getValue() === '') {
+				model.setValue(rawQuery);
+			}
+		};
+	}
+
 	private async _send(background = false): Promise<boolean> {
 		const rawQuery = this._editor.getModel()?.getValue() ?? '';
 		const query = rawQuery.trim();
@@ -1751,6 +1768,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._updateInputLoadingState();
 
 		let sent = false;
+		let restoreInput: (() => void) | undefined;
 		try {
 			// Measure any pending dictation accuracy before the editor is cleared.
 			notifyDictationSubmitted(this._editor);
@@ -1774,10 +1792,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				this._history.append(this._toHistoryEntry(this._draftState));
 			}
 			this._clearDraftState();
+			restoreInput = this._clearInputOnSendStart(rawQuery);
 
 			sent = await this.options.sendRequest({ query, attachments: attachedContext, background, userInteraction });
 			if (!sent) {
 				userInteraction?.cancel('notDispatched');
+				restoreInput?.();
 				return false;
 			}
 			this.chatInputNotificationService.handleMessageSent(notificationContext);
@@ -1785,6 +1805,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._editor.getModel()?.setValue('');
 		} catch (e) {
 			userInteraction?.cancel(isCancellationError(e) ? 'cancelled' : 'error');
+			restoreInput?.();
 			this.logService.error('Failed to send request:', e);
 			return false;
 		} finally {

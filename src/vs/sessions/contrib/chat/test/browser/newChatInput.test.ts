@@ -55,6 +55,7 @@ const setLoadingSpinnerVisible = Reflect.get(NewChatInputWidget.prototype, '_set
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
 const getInputValue = Reflect.get(NewChatInputWidget.prototype, 'getInputValue') as (this: IInputValueHarness) => string;
 const setInputValue = Reflect.get(NewChatInputWidget.prototype, 'setInputValue') as (this: IInputValueHarness, value: string) => void;
+const clearInputOnSendStart = Reflect.get(NewChatInputWidget.prototype, '_clearInputOnSendStart') as (this: IClearInputOnSendStartHarness, rawQuery: string) => (() => void) | undefined;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
 
@@ -153,6 +154,18 @@ interface IInputValueHarness {
 	};
 }
 
+interface IClearInputOnSendStartHarness {
+	readonly options: {
+		clearInputOnSendStart?: () => boolean;
+	};
+	readonly _editor: {
+		getModel(): {
+			getValue(): string;
+			setValue(value: string): void;
+		} | null;
+	};
+}
+
 interface IAttachmentRenderingHarness {
 	readonly _container: HTMLElement;
 	readonly _attachedContext: readonly IChatRequestVariableEntry[];
@@ -225,6 +238,25 @@ suite('NewChatInputWidget', () => {
 			value: 'Updated\nprompt',
 			position: { lineNumber: 2, column: 8 },
 		});
+	});
+
+	test('clears comparison input immediately and restores it after a failed send', () => {
+		let value = 'Compare these approaches';
+		const harness: IClearInputOnSendStartHarness = {
+			options: { clearInputOnSendStart: () => true },
+			_editor: {
+				getModel: () => ({
+					getValue: () => value,
+					setValue: newValue => value = newValue,
+				}),
+			},
+		};
+
+		const restore = clearInputOnSendStart.call(harness, value);
+		assert.deepStrictEqual({ value, canRestore: !!restore }, { value: '', canRestore: true });
+
+		restore?.();
+		assert.strictEqual(value, 'Compare these approaches');
 	});
 
 	test('exposes the scoped model control', () => {

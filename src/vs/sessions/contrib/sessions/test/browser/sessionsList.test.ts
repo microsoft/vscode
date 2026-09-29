@@ -2920,7 +2920,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set()) {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set()) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress });
@@ -2933,7 +2933,25 @@ suite('Sessions - SessionsList', () => {
 				workspace: URI.parse('file:///workspace'),
 				prompt: 'Improve the picker',
 				verdict,
-				participants: [
+				participants: sessionVariant === 'launching' ? [
+					{
+						id: 'participant-1',
+						role: SessionComparisonParticipantRole.Attempt,
+						harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot', modelLabel: 'Claude Opus 5' },
+						sessionResource: attempt1.session.resource,
+					},
+					{
+						id: 'participant-2',
+						role: SessionComparisonParticipantRole.Attempt,
+						harness: {
+							providerId: 'test',
+							sessionTypeId: 'copilot',
+							label: 'Copilot',
+							modelConfiguration: { tier: 'balanced' },
+							modelConfigurationLabel: 'Balance',
+						},
+					},
+				] : [
 					{
 						id: 'participant-1',
 						role: SessionComparisonParticipantRole.Attempt,
@@ -2970,7 +2988,9 @@ suite('Sessions - SessionsList', () => {
 				? [attempt2.session, synthesis.session, judge.session, attempt1.session]
 				: sessionVariant === 'attempt1'
 					? [synthesis.session, judge.session, attempt1.session]
-					: [];
+					: sessionVariant === 'launching'
+						? [attempt1.session]
+						: [];
 			const memberships = new Map(sessions.map(session => [session.sessionId, group.id]));
 			const harness = createListHarness(disposables, sessions, { groups: [group], memberships, comparisons: [comparison], pinnedSessionIds });
 			const container = harness.createContainer();
@@ -3086,6 +3106,18 @@ suite('Sessions - SessionsList', () => {
 				title: 'Improve the picker',
 				summary: 'Comparison · 2 attempts',
 				connectors: 0,
+			});
+		});
+
+		test('hides a comparison until every attempt finishes launching', () => {
+			const { container } = renderComparison(undefined, 'launching');
+
+			assert.deepStrictEqual({
+				comparisonGroups: container.querySelectorAll('.session-comparison-group').length,
+				sessionRows: container.querySelectorAll('.session-item').length,
+			}, {
+				comparisonGroups: 0,
+				sessionRows: 0,
 			});
 		});
 

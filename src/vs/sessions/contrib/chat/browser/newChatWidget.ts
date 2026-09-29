@@ -356,6 +356,7 @@ export class NewChatWidget extends Disposable {
 			onDidChangeWorkspaceSelection: Event.any(this._workspacePicker.onDidChangeSelection, Event.fromObservableLight(this._isQuickChatComposer)),
 			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
+			clearInputOnSendStart: () => this._comparisonSubmitArmed === true,
 			inputVisible: this.options.inputVisible,
 			hostVisible: this.options.hostVisible,
 			canSendRequest,

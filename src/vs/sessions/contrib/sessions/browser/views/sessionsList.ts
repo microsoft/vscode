@@ -4281,7 +4281,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this._excludeRead) {
 			filtered = filtered.filter(s => !s.isRead.get());
 		}
-
 		// Keep the active user-facing session visible even when another filter excludes it.
 		for (const revealedSession of [activeSession, onboardingSession]) {
 			if (revealedSession && !filtered.some(s => s.sessionId === revealedSession.sessionId)) {
@@ -4291,6 +4290,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 			}
 		}
+		filtered = filtered.filter(session => {
+			const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
+			return !comparison || !isComparisonLaunchPending(comparison);
+		});
 
 		const grouping = this.options.grouping();
 		const sorting = this.options.sorting();
@@ -4331,6 +4334,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const group of this._sessionGroupsService.getGroups()) {
 			const members = groupedMembers.get(group.id) ?? [];
 			const comparison = comparisonsByGroupId.get(group.id);
+			if (comparison && isComparisonLaunchPending(comparison)) {
+				continue;
+			}
 			const sortedMembers = comparison
 				? sortComparisonGroupMembers(comparison, members, sorting, sortKeyForGrouping)
 				: sortSessions(members, sorting, sortKeyForGrouping);
@@ -6083,6 +6089,13 @@ function sortComparisonGroupMembers(comparison: ISessionComparison, sessions: IS
 		}
 		return aIndex - bIndex;
 	});
+}
+
+function isComparisonLaunchPending(comparison: ISessionComparison): boolean {
+	return comparison.participants.some(participant =>
+		participant.role === SessionComparisonParticipantRole.Attempt
+		&& !participant.sessionResource
+		&& !participant.launchError);
 }
 
 function getComparisonGroupSummary(comparison: ISessionComparison, sessions: readonly ISession[], reader?: IReader): string {
