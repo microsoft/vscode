@@ -970,6 +970,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 	return {
 		resource: summary.resource,
 		title: summary.title,
+		description: summary.description,
 		status: summary.status,
 		activity: summary.activity,
 		modifiedAt: summary.modifiedAt,
@@ -1072,6 +1073,7 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 		status: chatSummaryStatus(state),
 		modifiedAt: state.modifiedAt,
 	};
+	if (state.description !== undefined) { summary.description = state.description; }
 	if (state.activity !== undefined) { summary.activity = state.activity; }
 	if (state.origin !== undefined) { summary.origin = state.origin; }
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }

@@ -89,6 +89,7 @@ export function getChatSummaryHoverData(
 	return {
 		...getProviderDetails(session, sessionsProvidersService),
 		title: chat.title.get().trim() || localize('untitledChat', "Untitled Chat"),
+		description: chat.summaryDescription?.get()?.trim() || undefined,
 		...(includeUpdatedAt ? { updatedAt: chat.updatedAt.get() } : {}),
 		location: getLocation(
 			chat.workspace.get(),

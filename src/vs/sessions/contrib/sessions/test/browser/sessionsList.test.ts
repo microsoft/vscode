@@ -4129,6 +4129,31 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('peer chat hover includes its summary description', () => {
+			const session = createMultiFolderSession([], [undefined, undefined]);
+			const peerChat = {
+				...session.chats.get()[1],
+				summaryDescription: constObservable('  Investigates the failing tests  '),
+			};
+
+			const data = getChatSummaryHoverData(
+				session,
+				peerChat,
+				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
+				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
+				upcastPartial<IPreferencesService>({}),
+			);
+
+			assert.deepStrictEqual({
+				data: data.description,
+				rendered: new SessionSummaryHoverWidget(data).domNode.querySelector('.session-summary-hover-description')?.textContent,
+			}, {
+				data: 'Investigates the failing tests',
+				rendered: 'Investigates the failing tests',
+			});
+		});
+
 		suite('session hover pull requests', () => {
 
 			function createPullRequestFolder(name: string, pullRequestNumbers: readonly number[]): ISessionFolder {

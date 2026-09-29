@@ -7226,6 +7226,34 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.strictEqual(updateCount, 1);
 		});
 
+		test('peer chats expose and update their summary description', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-description');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-description').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+			agentHost.setSessionState('multi-description', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer'), description: 'Investigates the failing tests' },
+			], { defaultChat }));
+			const peer = session.chats.get()[1];
+			const initial = peer.summaryDescription?.get();
+
+			agentHost.setSessionState('multi-description', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer'), description: 'Fixes the failing tests' },
+			], { defaultChat }));
+
+			assert.deepStrictEqual({
+				initial,
+				updated: peer.summaryDescription?.get(),
+			}, {
+				initial: 'Investigates the failing tests',
+				updated: 'Fixes the failing tests',
+			});
+		});
+
 		test('peer chats map protocol interactivity to the provider-agnostic tri-state', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-ro');
