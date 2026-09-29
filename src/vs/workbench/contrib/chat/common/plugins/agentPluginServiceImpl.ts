@@ -19,7 +19,7 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -449,6 +449,11 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		// was already populated above before constructing the observable.
 		const readManifest = async () => {
 			try {
+				const stat = await this._fileService.resolve(uri);
+				if (!stat.isDirectory) {
+					await this._refreshPlugins();
+					return;
+				}
 				const latestFormat = await detectPluginFormat(uri, this._fileService);
 				if (latestFormat.format !== format.format) {
 					await this._refreshPlugins();
@@ -456,6 +461,10 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				}
 				manifest.set(await readPluginManifest(uri, format, this._fileService), undefined);
 			} catch (error) {
+				if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+					await this._refreshPlugins();
+					return;
+				}
 				manifest.set(undefined, undefined);
 				this._logService.warn(`[AgentPluginDiscovery] Rejected updated plugin '${uri.toString()}': ${error instanceof Error ? error.message : String(error)}`);
 			}

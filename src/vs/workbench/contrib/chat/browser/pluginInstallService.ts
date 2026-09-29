@@ -69,15 +69,16 @@ export class PluginInstallService implements IPluginInstallService {
 
 	async uninstallPlugin(pluginUri: URI): Promise<boolean> {
 		const installed = this._pluginMarketplaceService.installedPlugins.get().find(candidate => isEqual(candidate.pluginUri, pluginUri));
-		if (!installed) {
+		if (!this._pluginMarketplaceService.removeInstalledPlugin(pluginUri)) {
 			return false;
 		}
-		this._pluginMarketplaceService.removeInstalledPlugin(pluginUri);
-		const remaining = this._pluginMarketplaceService.installedPlugins.get();
-		await this._pluginRepositoryService.cleanupPluginSource(
-			installed.plugin,
-			remaining.map(candidate => candidate.plugin.sourceDescriptor),
-		);
+		if (installed) {
+			const remaining = this._pluginMarketplaceService.installedPlugins.get();
+			await this._pluginRepositoryService.cleanupPluginSource(
+				installed.plugin,
+				remaining.map(candidate => candidate.plugin.sourceDescriptor),
+			);
+		}
 		return true;
 	}
 

@@ -78,6 +78,7 @@ suite('PluginInstallService', () => {
 		/** Whether the strict-marketplace enterprise policy is active */
 		strictMarketplacePolicyActive?: boolean;
 		installedPlugins: IMarketplaceInstalledPlugin[];
+		durablePluginUris: URI[];
 		removedPluginUris: string[];
 		cleanupPluginSourceCalls: { plugin: IMarketplacePlugin; otherInstalledDescriptors: readonly IPluginSourceDescriptor[] }[];
 		recordInstalledPlugins: boolean;
@@ -131,6 +132,7 @@ suite('PluginInstallService', () => {
 			marketplaceTrusted: true,
 			strictMarketplacePolicyActive: false,
 			installedPlugins: [],
+			durablePluginUris: [],
 			removedPluginUris: [],
 			cleanupPluginSourceCalls: [],
 			recordInstalledPlugins: false,
@@ -158,6 +160,9 @@ suite('PluginInstallService', () => {
 
 	function createService(stateOverrides?: Partial<MockState>): { service: PluginInstallService; state: MockState } {
 		const state: MockState = { ...createDefaults(), ...stateOverrides };
+		if (stateOverrides?.durablePluginUris === undefined) {
+			state.durablePluginUris = state.installedPlugins.map(candidate => candidate.pluginUri);
+		}
 		const instantiationService = store.add(new TestInstantiationService());
 
 		// IFileService
@@ -323,15 +328,21 @@ suite('PluginInstallService', () => {
 			installedPlugins,
 			addInstalledPlugin: (uri: URI, plugin: IMarketplacePlugin) => {
 				state.addedPlugins.push({ uri: uri.toString(), plugin });
+				state.durablePluginUris = [...state.durablePluginUris, uri];
 				if (state.recordInstalledPlugins) {
 					state.installedPlugins = [...state.installedPlugins, { pluginUri: uri, plugin }];
 					installedPlugins.set(state.installedPlugins, undefined);
 				}
 			},
 			removeInstalledPlugin: (uri: URI) => {
+				if (!state.durablePluginUris.some(candidate => isEqual(candidate, uri))) {
+					return false;
+				}
 				state.removedPluginUris.push(uri.toString());
+				state.durablePluginUris = state.durablePluginUris.filter(candidate => !isEqual(candidate, uri));
 				state.installedPlugins = state.installedPlugins.filter(candidate => !isEqual(candidate.pluginUri, uri));
 				installedPlugins.set(state.installedPlugins, undefined);
+				return true;
 			},
 			isMarketplaceTrusted: () => state.marketplaceTrusted,
 			isStrictMarketplacePolicyActive: () => state.strictMarketplacePolicyActive ?? false,
@@ -496,6 +507,28 @@ suite('PluginInstallService', () => {
 					plugin: 'target',
 					otherInstalledDescriptors: [other.sourceDescriptor],
 				}],
+			});
+		});
+
+		test('removes a durable entry when its marketplace metadata is unavailable', async () => {
+			const targetUri = URI.file('/cache/unhydrated');
+			const { service, state } = createService({
+				durablePluginUris: [targetUri],
+				installedPlugins: [],
+			});
+
+			const removed = await service.uninstallPlugin(targetUri);
+
+			assert.deepStrictEqual({
+				removed,
+				durablePluginUris: state.durablePluginUris,
+				removedPluginUris: state.removedPluginUris,
+				cleanup: state.cleanupPluginSourceCalls,
+			}, {
+				removed: true,
+				durablePluginUris: [],
+				removedPluginUris: [targetUri.toString()],
+				cleanup: [],
 			});
 		});
 	});
