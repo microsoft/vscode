@@ -29,6 +29,13 @@ steps:
     displayName: Download Electron and Playwright
     retryCountOnTaskFailure: 3
 
+  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+    - script: npm run gulp node
+      env:
+        AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+      displayName: Download Node.js
+      retryCountOnTaskFailure: 3
+
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
