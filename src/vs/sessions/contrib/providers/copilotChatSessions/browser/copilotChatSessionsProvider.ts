@@ -37,7 +37,7 @@ import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -1409,7 +1409,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				extension: new ExtensionIdentifier(''),
 				name: modelMetadata?.name ?? item.name,
 				id: modelMetadata?.id ?? item.id,
-				vendor: modelMetadata?.vendor ?? '',
+				// Copilot serves every Cloud model. The item's `vendor` names who made the model
+				// (e.g. Anthropic), which the picker would read as a provider the user added.
+				vendor: COPILOT_VENDOR_ID,
 				version: modelMetadata?.version ?? '',
 				family: modelMetadata?.family ?? '',
 				tooltip: modelMetadata?.tooltip ?? item.tooltip,
