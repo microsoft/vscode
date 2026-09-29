@@ -21,13 +21,14 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 	}
 
 	async resolve(): Promise<SymbolTreeModel<FileItem | ReferenceItem> | undefined> {
-
-		let model: ReferencesModel;
-		if (this._result) {
-			model = new ReferencesModel(this._result);
-		} else {
-			const resut = await Promise.resolve(vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>(this._command, this.location.uri, this.location.range.start));
-			model = new ReferencesModel(resut ?? []);
+		const locations = await Promise.resolve(this._result ?? vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>(this._command, this.location.uri, this.location.range.start));
+		const model = new ReferencesModel(locations ?? []);
+		if (model.items.length > 0 && this._command === 'vscode.executeReferenceProvider') {
+			this._getDefinitionLocations().then(definitions => {
+				if (definitions?.length) {
+					model.setDefinitionLocations(definitions);
+				}
+			});
 		}
 
 		if (model.items.length === 0) {
@@ -47,6 +48,15 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 		};
 	}
 
+	private async _getDefinitionLocations(): Promise<vscode.Location[] | vscode.LocationLink[] | undefined> {
+		try {
+			return await vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>('vscode.executeDefinitionProvider', this.location.uri, this.location.range.start);
+		} catch (error) {
+			console.error(error);
+			return undefined;
+		}
+	}
+
 	with(location: vscode.Location): ReferencesTreeInput {
 		return new ReferencesTreeInput(this.title, location, this._command);
 	}
@@ -64,7 +74,7 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 		for (const item of locations.sort(ReferencesModel._compareLocations)) {
 			const loc = item instanceof vscode.Location
 				? item
-				: new vscode.Location(item.targetUri, item.targetRange);
+				: new vscode.Location(item.targetUri, ReferencesModel._getRange(item));
 
 			if (!last || ReferencesModel._compareUriIgnoreFragment(last.uri, loc.uri) !== 0) {
 				last = new FileItem(loc.uri.with({ fragment: '' }), [], this);
@@ -72,6 +82,17 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 			}
 			last.references.push(new ReferenceItem(loc, last));
 		}
+	}
+
+	setDefinitionLocations(definitions: vscode.Location[] | vscode.LocationLink[]): void {
+		const definitionUris = new Set(definitions.map(item => {
+			const uri = item instanceof vscode.Location ? item.uri : item.targetUri;
+			return uri.with({ fragment: '' }).toString();
+		}));
+		for (const item of this.items) {
+			item.isDefinition = definitionUris.has(item.uri.toString());
+		}
+		this._onDidChange.fire(undefined);
 	}
 
 	private static _compareUriIgnoreFragment(a: vscode.Uri, b: vscode.Uri): number {
@@ -94,8 +115,8 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 			return 1;
 		}
 
-		const aRange = a instanceof vscode.Location ? a.range : a.targetRange;
-		const bRange = b instanceof vscode.Location ? b.range : b.targetRange;
+		const aRange = ReferencesModel._getRange(a);
+		const bRange = ReferencesModel._getRange(b);
 		if (aRange.start.isBefore(bRange.start)) {
 			return -1;
 		} else if (aRange.start.isAfter(bRange.start)) {
@@ -103,6 +124,12 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 		} else {
 			return 0;
 		}
+	}
+
+	private static _getRange(location: vscode.Location | vscode.LocationLink): vscode.Range {
+		return location instanceof vscode.Location
+			? location.range
+			: location.targetSelectionRange ?? location.targetRange;
 	}
 
 	// --- adapter
@@ -278,7 +305,13 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | R
 			const result = new vscode.TreeItem(element.uri);
 			result.contextValue = 'file-item';
 			result.description = true;
-			result.iconPath = vscode.ThemeIcon.File;
+			result.iconPath = element.isDefinition ? new vscode.ThemeIcon('symbol-misc') : vscode.ThemeIcon.File;
+			if (element.isDefinition) {
+				result.tooltip = vscode.l10n.t('Contains the definition');
+				result.accessibilityInformation = {
+					label: vscode.l10n.t('{0} contains the definition', vscode.workspace.asRelativePath(element.uri))
+				};
+			}
 			result.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
 			return result;
 
@@ -328,7 +361,8 @@ export class FileItem {
 	constructor(
 		readonly uri: vscode.Uri,
 		readonly references: Array<ReferenceItem>,
-		readonly model: ReferencesModel
+		readonly model: ReferencesModel,
+		public isDefinition = false
 	) { }
 
 	// --- adapter
