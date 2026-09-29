@@ -69,6 +69,7 @@ import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill,
 import { IResolvedPromptSourceFolder } from '../../../../contrib/chat/common/promptSyntax/config/promptFileLocations.js';
 import { ParsedPromptFile, PromptFileParser } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
 import { PromptFileSource, PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { IAgentPluginRepositoryService } from '../../../../contrib/chat/common/plugins/agentPluginRepositoryService.js';
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -77,7 +78,7 @@ import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostM
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
-import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
+import { IMarketplaceReference, MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
@@ -188,6 +189,18 @@ function createMockAICustomizationItemsModel(): IAICustomizationItemsModel {
 		override getCount(_section: ItemsModelSection): IObservable<number> { return constObservable(0); }
 		override getPluginCount(): IObservable<number> { return constObservable(0); }
 		override async whenSectionLoaded(_section: ItemsModelSection): Promise<void> { }
+	}();
+}
+
+function createMockAgentPluginRepositoryService(): IAgentPluginRepositoryService {
+	const pluginHome = URI.file('/home/dev/.vscode/agent-plugins');
+	return new class extends mock<IAgentPluginRepositoryService>() {
+		override readonly agentPluginsHome = pluginHome;
+		override getRepositoryUri(marketplace: IMarketplaceReference) { return URI.file(`/home/dev/.vscode/agent-plugins/${marketplace.cacheSegments.join('/')}`); }
+		override getPluginInstallUri(plugin: IMarketplacePlugin) { return URI.file(`/home/dev/.vscode/agent-plugins/${plugin.source}`); }
+		override async ensureRepository(marketplace: IMarketplaceReference) { return this.getRepositoryUri(marketplace); }
+		override getPluginSourceInstallUri() { return pluginHome; }
+		override async ensurePluginSource(plugin: IMarketplacePlugin) { return this.getPluginInstallUri(plugin); }
 	}();
 }
 
@@ -792,6 +805,20 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 	},
 	{
 		sourceId: 'testSource',
+		identifier: 'example/figma-plugin',
+		displayName: 'Figma',
+		description: 'Inspect design systems and export assets from Figma.',
+		mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+		publisher: 'Example Design Tools',
+		version: '1.0.0',
+		tags: ['design', 'assets'],
+		capabilities: ['Inspect design systems', 'Export assets'],
+		representativeQueries: ['Review the components in this Figma file'],
+		repository: URI.parse('https://github.com/example/figma-plugin'),
+		installation: { kind: 'plugin', repository: 'example/figma-plugin', ref: 'main', path: '' },
+	},
+	{
+		sourceId: 'testSource',
 		identifier: 'example/dependency-maintenance',
 		displayName: 'Repository-wide dependency maintenance and compatibility review',
 		description: 'A plugin for preparing dependency updates across packages with very long workspace and dependency names, while preserving release notes and compatibility checks.',
@@ -1072,8 +1099,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				? { kind: 'mcp', id: 'mcp.config.ws0.remote-browser' }
 				: { kind: 'plugin', uri: URI.file(`/user/plugins/${resource.identifier.split('/').pop()}`) };
 	const customizationMarketplaceInstallStates = new Map<string, CustomizationMarketplaceInstallState>([
-		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[4]), { kind: 'unavailable', message: 'Cursor plugins cannot be installed in VS Code.' }],
-		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[5]), { kind: 'unavailable', message: 'This resource does not provide trusted installation information.' }],
+		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources.find(resource => resource.identifier === 'example/design-review')!), { kind: 'unavailable', message: 'Cursor plugins cannot be installed in VS Code.' }],
+		[getCustomizationMarketplaceResourceKey(customizationMarketplaceResources.find(resource => resource.identifier === 'example/project-notes')!), { kind: 'unavailable', message: 'This resource does not provide trusted installation information.' }],
 	]);
 	if (options.customizationMarketplaceInstallationState === 'mixed') {
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[0]), { kind: 'installing' });
@@ -1578,12 +1605,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly delegates = constObservable([]);
 				override readonly onDidChangeInputs = Event.None;
 			}());
+			reg.defineInstance(IAgentPluginRepositoryService, createMockAgentPluginRepositoryService());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable(installedPlugins);
 				override readonly enablementModel = undefined as never;
 			}());
 			reg.defineInstance(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
 				override readonly installedPlugins = constObservable([]);
+				override readonly lastFetchedPlugins = constObservable(marketplacePlugins);
 				override readonly recommendedPlugins = constObservable(new Set(['Figma@copilot', 'Stripe@copilot']));
 				override readonly onDidChangeMarketplaces = Event.None;
 				override async fetchMarketplacePlugins() { return marketplacePlugins; }
@@ -1772,7 +1801,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}), 'Marketplace results must show their source name.');
 		if (options.selectDiscoveryResult) {
 			const resultRows = ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-result-row');
-			resultRows[resultRows.length - 1]?.click();
+			resultRows[resultRows.length - 1]?.querySelector<HTMLButtonElement>('.customization-discovery-result-primary')?.click();
 			await Promise.resolve();
 		}
 		if (options.discoveryQuery.includes('@installed')) {
@@ -1906,22 +1935,23 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 
 		if (options.pluginReadmeContent !== undefined) {
-			let pluginDetailContainer: HTMLElement | null = null;
+			let pluginDetailScrollHost: HTMLElement | null = null;
 			let overflowingCodeBlock: HTMLElement | null = null;
-			for (let attempt = 0; attempt < 40 && (!pluginDetailContainer || !overflowingCodeBlock); attempt++) {
+			for (let attempt = 0; attempt < 40 && (!pluginDetailScrollHost || !overflowingCodeBlock); attempt++) {
 				await timeout(50);
 				const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
+				const scrollHost = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-scrollable');
 				const detailContainer = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
 				const codeBlock = detailContainer?.querySelector<HTMLElement>('div[data-code]');
-				if (pluginDetailView?.style.display !== 'none' && detailContainer && detailContainer.scrollHeight > detailContainer.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
-					pluginDetailContainer = detailContainer;
+				if (pluginDetailView?.style.display !== 'none' && scrollHost && scrollHost.scrollHeight > scrollHost.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
+					pluginDetailScrollHost = scrollHost;
 					overflowingCodeBlock = codeBlock;
 				}
 			}
-			if (!pluginDetailContainer || !overflowingCodeBlock) {
+			if (!pluginDetailScrollHost || !overflowingCodeBlock) {
 				throw new Error('Overflowing plugin detail did not render');
 			}
-			pluginDetailContainer.scrollTop = pluginDetailContainer.scrollHeight;
+			pluginDetailScrollHost.scrollTop = pluginDetailScrollHost.scrollHeight;
 			await timeout(50);
 		}
 	}
@@ -2127,9 +2157,9 @@ function makeMarketplacePlugin(name: string, description: string, repo: string):
 		description,
 		version: '1.0.0',
 		source: repo,
-		sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: `example/${repo}` },
+		sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: `example/${repo}`, ref: 'main' },
 		marketplace: 'copilot',
-		marketplaceReference: { rawValue: `example/${repo}`, displayLabel: repo, cloneUrl: `https://github.com/example/${repo}.git`, canonicalId: `github:example/${repo}`, cacheSegments: ['example', repo], kind: MarketplaceReferenceKind.GitHubShorthand },
+		marketplaceReference: { rawValue: `example/${repo}#main`, displayLabel: repo, cloneUrl: `https://github.com/example/${repo}.git`, canonicalId: `github:example/${repo}#main`, cacheSegments: ['example', repo], kind: MarketplaceReferenceKind.GitHubShorthand, githubRepo: `example/${repo}`, ref: 'main' },
 		marketplaceType: MarketplaceType.Copilot,
 	};
 }
@@ -2199,6 +2229,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 				override readonly activeProjectRoot = constObservable(URI.file('/workspace'));
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 			}());
+			reg.defineInstance(IAgentPluginRepositoryService, createMockAgentPluginRepositoryService());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable(browseInstalledPlugins as readonly IAgentPlugin[]);
 				override readonly enablementModel = undefined!;
@@ -2492,6 +2523,13 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 				override readonly isSessionsWindow = false;
 				override readonly activeProjectRoot = constObservable(URI.file('/workspace'));
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
+			}());
+			reg.defineInstance(IAgentPluginRepositoryService, createMockAgentPluginRepositoryService());
+			reg.defineInstance(IPathService, new class extends mock<IPathService>() {
+				override readonly defaultUriScheme = 'file';
+				override userHome(): URI;
+				override userHome(): Promise<URI>;
+				override userHome(): URI | Promise<URI> { return URI.file('/user'); }
 			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable(item?.kind === AgentPluginItemKind.Installed ? [item.plugin] : []);
@@ -3233,7 +3271,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverAvailableSearchResult: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['An available search result uses a compact product icon, type/source metadata beside its name, and its description on the second line, with star metadata beside a vertically centered Install action. The virtualized row spans exactly the same content measure as the search control.'],
+		expectedVisualDescriptions: ['Opening an available skill keeps discovery inside VS Code and shows its description, install state, publisher, version, stars, tags, capabilities, representative query, and explicit external actions.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
@@ -3250,6 +3288,41 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			copilotConnectorsEnabled: true,
 			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'Work IQ Mail',
+		}),
+	}),
+
+	DiscoverAvailableSearchResultNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['At a narrow width, marketplace detail facts and metadata sections remain readable in one column with explicit Back, Install, Open Resource, and Open Repository actions.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: 'correctness',
+			selectDiscoveryResult: true,
+			width: 560,
+			height: 520,
+		}),
+	}),
+
+	DiscoverMcpDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['An MCP marketplace item without a safely resolved workbench server uses the generic detail presentation and preserves its setup/install state and metadata.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: 'website',
+			selectDiscoveryResult: true,
+		}),
+	}),
+
+	DiscoverPluginDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['A plugin marketplace item backed by a real plugin marketplace model reuses the embedded plugin detail presentation with its Install action and marketplace provenance.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: 'figma',
+			selectDiscoveryResult: true,
 		}),
 	}),
 

@@ -125,7 +125,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	) {
 		super();
 
-		this.root = DOM.append(parent, $('.editor-content-container.ai-customization-embedded-detail.embedded-mcp-detail'));
+		this.root = DOM.append(parent, $('.ai-customization-embedded-detail.embedded-mcp-detail'));
 
 		this.headerEl = DOM.append(this.root, $('.editor-header.mcp-detail-header'));
 		this.leadingSlotEl = DOM.append(this.headerEl, $('.embedded-detail-leading-slot'));
