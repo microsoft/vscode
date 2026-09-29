@@ -5,6 +5,7 @@
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { DeferredPromise, RunOnceScheduler, timeout, type CancelablePromise } from '../../../../../../base/common/async.js';
+import { streamToBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -20,7 +21,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -2531,7 +2532,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const isError = exitCode !== undefined && exitCode !== 0;
 		const endCwd = await toolTerminal.instance.getCwdResource();
 
-		const imageContent = await this._extractImagesFromOutput(terminalResult, endCwd);
+		const imageContent = await this._extractImagesFromOutput(terminalResult, endCwd, token);
+		const imageNotice = imageContent.find(part => part.kind === 'text');
+		if (imageNotice) {
+			toolResultMessage = typeof toolResultMessage === 'object'
+				? { ...toolResultMessage, value: `${toolResultMessage.value}\n\n${imageNotice.value}` }
+				: [toolResultMessage, imageNotice.value].filter(Boolean).join('\n\n');
+		}
 
 		return {
 			toolResultMessage,
@@ -2646,12 +2653,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private static readonly _maxImageFileSize = 5 * 1024 * 1024;
+	private static readonly _maxTotalImageSize = 5 * 1024 * 1024;
+	private static readonly _maxImageCount = 10;
 
 	/**
-	 * Scans terminal output for file paths that point to images and reads them.
-	 * Returns data content parts for any found images that exist on disk.
+	 * Extracts at most ten image previews totaling 5 MiB of file bytes, with a user-only notice when limited.
 	 */
-	private async _extractImagesFromOutput(output: string, cwd: URI | undefined): Promise<IToolResult['content']> {
+	private async _extractImagesFromOutput(output: string, cwd: URI | undefined, token: CancellationToken = CancellationToken.None): Promise<IToolResult['content']> {
 		// Match paths containing at least one / or \ and ending with an image
 		// extension. Each atom uses [^\s/\\]* so it cannot consume separators,
 		// which keeps the [/\\] tokens unambiguous and prevents catastrophic
@@ -2673,7 +2681,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const results: IToolResult['content'] = [];
+		let totalImageSize = 0;
+		let limited = false;
 		for (const filePath of matches) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			try {
 				const mimeType = getMediaMime(filePath);
 				if (!mimeType || !mimeType.startsWith('image/')) {
@@ -2690,23 +2703,52 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					continue;
 				}
 
-				const stat = await this._fileService.stat(fileUri).catch(() => undefined);
-				if (!stat || stat.isDirectory || stat.size > RunInTerminalTool._maxImageFileSize) {
+				const stat = await this._fileService.stat(fileUri);
+				if (stat.isDirectory || stat.size > RunInTerminalTool._maxImageFileSize) {
 					continue;
 				}
 
-				const fileContent = await this._fileService.readFile(fileUri);
+				const remainingSize = RunInTerminalTool._maxTotalImageSize - totalImageSize;
+				if (results.length === RunInTerminalTool._maxImageCount || stat.size > remainingSize) {
+					limited = true;
+					break;
+				}
+				const fileContent = await this._fileService.readFileStream(fileUri, { limits: { size: remainingSize } }, token);
+				const imageData = await streamToBuffer(fileContent.value);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				if (imageData.byteLength > remainingSize) {
+					limited = true;
+					break;
+				}
+				totalImageSize += imageData.byteLength;
 				results.push({
 					kind: 'data',
 					value: {
 						mimeType,
-						data: fileContent.value,
+						data: imageData,
 					},
 					audience: [LanguageModelPartAudience.User],
 				});
-			} catch {
-				// Ignore files that can't be read
+			} catch (error) {
+				if (token.isCancellationRequested || error instanceof CancellationError) {
+					throw new CancellationError();
+				}
+				if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+					limited = true;
+					break;
+				}
+				this._logService.debug('RunInTerminalTool: Could not extract image from terminal output', error);
 			}
+		}
+
+		if (limited) {
+			results.push({
+				kind: 'text',
+				value: localize('runInTerminal.imagePreviewsLimited', "Additional image previews were omitted. Terminal results are limited to {0} images and {1} MiB of image data. Open image files directly to view them.", RunInTerminalTool._maxImageCount, RunInTerminalTool._maxTotalImageSize / (1024 * 1024)),
+				audience: [LanguageModelPartAudience.User],
+			});
 		}
 
 		return results;
