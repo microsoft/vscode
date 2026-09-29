@@ -101,9 +101,9 @@ export function getMcpCompatibilityDetail(reason: AgentHostMcpSupportReason): st
 		case AgentHostMcpSupportReason.WorkingDirectoryNotPortable:
 			return localize('mcpCompatibilityWorkingDirectoryNotPortable', "Working directory settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the cwd property.");
 		case AgentHostMcpSupportReason.GalleryMetadataNotPortable:
-			return localize('mcpCompatibilityGalleryMetadataNotPortable', "Gallery metadata cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the gallery property.");
+			return localize('mcpCompatibilityGalleryMetadataNotPortable', "Gallery metadata cannot be migrated to the destination MCP configuration.\nTo migrate this server, remove the gallery property.");
 		case AgentHostMcpSupportReason.ServerVersionNotPortable:
-			return localize('mcpCompatibilityServerVersionNotPortable', "Server version metadata cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the version property.");
+			return localize('mcpCompatibilityServerVersionNotPortable', "Server version metadata cannot be migrated to the destination MCP configuration.\nTo migrate this server, remove the version property.");
 		case AgentHostMcpSupportReason.SseTransportNotPortable:
 			return localize('mcpCompatibilitySseTransportNotPortable', "SSE transport settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, use the default HTTP transport.");
 		case AgentHostMcpSupportReason.SandboxConfigurationIgnored:

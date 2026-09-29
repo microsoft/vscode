@@ -55,8 +55,8 @@ suite('agentHostMcpServerSupport', () => {
 			gallery: getMcpCompatibilityDetail(AgentHostMcpSupportReason.GalleryMetadataNotPortable),
 			version: getMcpCompatibilityDetail(AgentHostMcpSupportReason.ServerVersionNotPortable),
 		}, {
-			gallery: 'Gallery metadata cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the gallery property.',
-			version: 'Server version metadata cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the version property.',
+			gallery: 'Gallery metadata cannot be migrated to the destination MCP configuration.\nTo migrate this server, remove the gallery property.',
+			version: 'Server version metadata cannot be migrated to the destination MCP configuration.\nTo migrate this server, remove the version property.',
 		});
 	});
 
