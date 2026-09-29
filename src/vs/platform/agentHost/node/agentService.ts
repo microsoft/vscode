@@ -6365,7 +6365,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (history) {
 				watches.add(history);
 			}
-			const backgroundWork = provider.watchChatBackgroundWork?.(chat);
+			const backgroundWork = provider.watchChatBackgroundWork?.(chat, () => this._stateManager.getChatState(chat.toString())?.backgroundWork ?? []);
 			if (backgroundWork) {
 				watches.add(backgroundWork);
 			}

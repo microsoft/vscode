@@ -1867,7 +1867,14 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	observeBackgroundWork(): IDisposable {
+	observeBackgroundWork(published: readonly BackgroundWork[]): IDisposable {
+		// A session that replaced another, for example after a client restart, starts from what
+		// the chat shows so its first read removes entries the runtime no longer reports.
+		for (const work of published) {
+			if (!this._backgroundWork.has(work.id)) {
+				this._backgroundWork.set(work.id, work);
+			}
+		}
 		this._backgroundWorkObservers++;
 		this._republishBackgroundWork = true;
 		this._refreshBackgroundTasks(true);

@@ -1486,16 +1486,34 @@ suite('CopilotAgentSession', () => {
 				resume: true,
 				configureMockSession: mock => { mock.backgroundTasks = [shell('restored')]; },
 			});
-			const first = disposables.add(session.observeBackgroundWork());
+			const first = disposables.add(session.observeBackgroundWork([]));
 			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
 			first.dispose();
-			disposables.add(session.observeBackgroundWork());
+			disposables.add(session.observeBackgroundWork([]));
 			await timeout(0);
 
 			assert.deepStrictEqual({
 				publishedIds: publishedIds(signals),
 				refreshes: mockSession.backgroundTaskRefreshCalls,
 			}, { publishedIds: ['shell:restored', 'shell:restored'], refreshes: 2 });
+		});
+
+		test('removes shells an earlier session published that the runtime no longer reports', async () => {
+			const { session, signals, waitForSignal } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => { mock.backgroundTasks = [shell('running')]; },
+			});
+			const crashed: BackgroundWork = {
+				kind: BackgroundWorkKind.Shell, id: 'shell:crashed', label: 'Run crashed', command: 'npm test',
+				startedAt: new Date(0).toISOString(), _meta: toCopilotBackgroundShellMeta('crashed', 'attached'),
+			};
+			disposables.add(session.observeBackgroundWork([crashed]));
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+
+			assert.deepStrictEqual(workActions(signals).map(action => action.type === ActionType.ChatBackgroundWorkSet ? `set ${action.work.id}` : `removed ${action.id}`), [
+				'removed shell:crashed',
+				'set shell:running',
+			]);
 		});
 
 		test('does not publish a stale snapshot after a newer change', async () => {
@@ -1551,7 +1569,7 @@ suite('CopilotAgentSession', () => {
 		test('refreshes detached shell completion without SDK events and stops polling when unobserved', () => runWithFakedTimers({}, async () => {
 			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
 			mockSession.backgroundTasks = [{ ...shell('detached'), attachmentMode: 'detached' }];
-			const observer = disposables.add(session.observeBackgroundWork());
+			const observer = disposables.add(session.observeBackgroundWork([]));
 			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
 			mockSession.backgroundTasks = [];
 			await timeout(5001);
