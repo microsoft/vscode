@@ -434,7 +434,10 @@ export class ConfigurationModelParser {
 		}
 		const raw: IStringDictionary<unknown> = {};
 		const restricted: string[] = [];
-		for (const key of Object.keys(properties)) {
+		for (const key in properties) {
+			if (!Object.hasOwn(properties, key)) {
+				continue;
+			}
 			if (OVERRIDE_PROPERTY_REGEX.test(key) && filterOverriddenProperties) {
 				const result = this.filter(properties[key] as IStringDictionary<unknown>, configurationProperties, excludedConfigurationProperties, false, options);
 				json.setObjectProperty(raw, key, result.raw);

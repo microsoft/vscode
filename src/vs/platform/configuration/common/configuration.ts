@@ -239,8 +239,10 @@ export interface IConfigurationCompareResult {
 export function toValuesTree(properties: IStringDictionary<unknown>, conflictReporter: (message: string) => void): IStringDictionary<unknown> {
 	const root = Object.create(null);
 
-	for (const key of Object.keys(properties)) {
-		addToValueTree(root, key, properties[key], conflictReporter);
+	for (const key in properties) {
+		if (Object.hasOwn(properties, key)) {
+			addToValueTree(root, key, properties[key], conflictReporter);
+		}
 	}
 
 	return root;
