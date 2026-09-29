@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { posix } from '../../../../../base/common/path.js';
 import { dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -35,6 +36,7 @@ export interface ICustomizationMarketplaceInstallationRecord {
 	readonly description: string;
 	readonly mediaType: string;
 	readonly installation: RecordedCustomizationMarketplaceInstallation;
+	readonly icon?: URI;
 	readonly target: CustomizationMarketplaceInstallationRecordTarget;
 }
 
@@ -72,6 +74,7 @@ interface IStoredCustomizationMarketplaceInstallationRecord {
 		readonly description: string;
 		readonly mediaType: string;
 		readonly installation: RecordedCustomizationMarketplaceInstallation;
+		readonly icon?: string;
 		readonly target:
 		| {
 			readonly kind: 'skill';
@@ -207,6 +210,7 @@ export function toRecordedMarketplaceResource(record: ICustomizationMarketplaceI
 		capabilities: [],
 		representativeQueries: [],
 		installation: record.installation,
+		icon: record.icon,
 	};
 }
 
@@ -258,6 +262,7 @@ function reviveInstallationRecord(value: unknown): ICustomizationMarketplaceInst
 			description: record.description,
 			mediaType: record.mediaType,
 			installation: record.installation,
+			icon: record.icon ? URI.parse(record.icon) : undefined,
 			target,
 		};
 	} catch {
@@ -301,6 +306,7 @@ function serializeInstallationRecord(record: ICustomizationMarketplaceInstallati
 			description: record.description,
 			mediaType: record.mediaType,
 			installation: record.installation,
+			icon: record.icon?.toString(true),
 			target,
 		},
 	};
@@ -319,6 +325,7 @@ function isStoredInstallationRecord(value: unknown): value is IStoredCustomizati
 		|| typeof record.description !== 'string' || record.description.length > maxStoredStringLength
 		|| !isBoundedString(record.mediaType)
 		|| !isStoredInstallation(record.installation)
+		|| record.icon !== undefined && !isSafeStoredIcon(record.icon)
 		|| !isRecord(record.target)
 		|| !isStoredTargetKind(record.target.kind, record.installation.kind)) {
 		return false;
@@ -412,4 +419,18 @@ function isSafeStoredRelativePath(value: unknown): value is string {
 		&& !value.startsWith('/')
 		&& !value.includes('\u0000')
 		&& value.split('/').every(segment => !!segment && segment !== '.' && segment !== '..' && segment.toLowerCase() !== '.git');
+}
+
+function isSafeStoredIcon(value: unknown): value is string {
+	if (!isBoundedString(value)) {
+		return false;
+	}
+	try {
+		const url = new URL(value);
+		return (url.protocol === `${Schemas.http}:` || url.protocol === `${Schemas.https}:`)
+			&& !url.username
+			&& !url.password;
+	} catch {
+		return false;
+	}
 }

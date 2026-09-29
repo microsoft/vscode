@@ -1103,7 +1103,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		test('persists exact targets and reconciles a missing skill after service recreation', async () => {
 			const fixture = await createFixture();
-			const candidate = resource({ version: '1.0.0' });
+			const candidate = resource({ version: '1.0.0', icon: URI.parse('https://example.com/review.png') });
 			await fixture.service.install(candidate);
 			const storageKey = fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).find(key => key.includes('customizations.marketplace.installationRecord.v1'));
 			assert.ok(storageKey);
@@ -1120,6 +1120,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					sourceId: storedRecord?.sourceId,
 					identifier: storedRecord?.identifier,
 					resourceVersion: storedRecord?.version,
+					icon: storedRecord?.icon,
 					targetKind: storedRecord?.target.kind,
 					targetUri: storedRecord?.target.uri,
 					files: storedRecord?.target.files,
@@ -1127,12 +1128,14 @@ suite('CustomizationMarketplaceInstallService', () => {
 				},
 				state: state.kind,
 				target: state.kind === 'missing' && state.target.kind === 'skill' ? state.target.uri : undefined,
+				recordedIcon: restored.getRecordedResources()[0]?.icon?.toString(),
 			}, {
 				record: {
 					version: 1,
 					sourceId: 'testSource',
 					identifier: 'skill-resource',
 					resourceVersion: '1.0.0',
+					icon: 'https://example.com/review.png',
 					targetKind: 'skill',
 					targetUri: joinPath(skillDestination, SKILL_FILENAME).toString(),
 					files: [SKILL_FILENAME],
@@ -1140,6 +1143,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				},
 				state: 'missing',
 				target: joinPath(skillDestination, SKILL_FILENAME),
+				recordedIcon: 'https://example.com/review.png',
 			});
 		});
 

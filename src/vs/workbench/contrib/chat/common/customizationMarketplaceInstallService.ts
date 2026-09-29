@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICustomizationMarketplaceResource } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -19,6 +20,51 @@ export type CustomizationMarketplaceInstallationTarget =
 	| { readonly kind: 'skill' | 'plugin'; readonly uri: URI }
 	| { readonly kind: 'mcp'; readonly id: string }
 	| { readonly kind: 'copilotConnector'; readonly name: string };
+
+export type RecordedCustomizationMarketplaceInstallState = Extract<CustomizationMarketplaceInstallState, { readonly target: CustomizationMarketplaceInstallationTarget }>;
+
+export interface IRecordedCustomizationMarketplaceResource {
+	readonly resource: ICustomizationMarketplaceResource;
+	readonly state: RecordedCustomizationMarketplaceInstallState;
+}
+
+export function findRecordedCustomizationMarketplaceResource(
+	service: ICustomizationMarketplaceInstallService,
+	target: CustomizationMarketplaceInstallationTarget,
+): IRecordedCustomizationMarketplaceResource | undefined {
+	for (const resource of service.getRecordedResources()) {
+		const state = service.getInstallState(resource);
+		if (isRecordedCustomizationMarketplaceInstallState(state) && isCustomizationMarketplaceInstallationTargetEqual(state.target, target)) {
+			return { resource, state };
+		}
+	}
+	return undefined;
+}
+
+function isRecordedCustomizationMarketplaceInstallState(state: CustomizationMarketplaceInstallState): state is RecordedCustomizationMarketplaceInstallState {
+	return state.kind === 'checking'
+		|| state.kind === 'installed'
+		|| state.kind === 'missing'
+		|| state.kind === 'repairing'
+		|| state.kind === 'uninstalling'
+		|| state.kind === 'error';
+}
+
+function isCustomizationMarketplaceInstallationTargetEqual(
+	first: CustomizationMarketplaceInstallationTarget,
+	second: CustomizationMarketplaceInstallationTarget,
+): boolean {
+	switch (first.kind) {
+		case 'skill':
+			return second.kind === 'skill' && isEqual(first.uri, second.uri);
+		case 'plugin':
+			return second.kind === 'plugin' && isEqual(first.uri, second.uri);
+		case 'mcp':
+			return second.kind === 'mcp' && first.id === second.id;
+		case 'copilotConnector':
+			return second.kind === 'copilotConnector' && first.name === second.name;
+	}
+}
 
 export const ICustomizationMarketplaceInstallService = createDecorator<ICustomizationMarketplaceInstallService>('customizationMarketplaceInstallService');
 

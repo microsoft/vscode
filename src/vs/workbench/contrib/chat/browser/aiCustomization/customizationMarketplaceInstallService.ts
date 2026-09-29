@@ -346,7 +346,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				};
 				const existing = this.findConnectorRecord(connector.name, account);
 				const record = await this.createConnectorRecord(resource, account, existing?.id);
-				const didChange = !existing || existing.version !== record.version || existing.displayName !== record.displayName || existing.description !== record.description;
+				const didChange = !existing || existing.version !== record.version || existing.displayName !== record.displayName || existing.description !== record.description || !isEqual(existing.icon, record.icon);
 				if (didChange) {
 					this.recordStore.upsert(record);
 					this.recordStates.set(record.id, { kind: 'checking' });
@@ -376,6 +376,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			displayName: resource.displayName,
 			description: resource.description,
 			mediaType: resource.mediaType,
+			icon: resource.icon,
 			installation,
 			target: {
 				kind: 'copilotConnector',
@@ -916,6 +917,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			name: record.displayName,
 			promptType: PromptsType.skill,
 			storage: record.target.source === 'local' ? PromptsStorage.local : PromptsStorage.user,
+			skipMarketplaceUninstall: true,
 		});
 		if (await this.fileService.exists(target)) {
 			throw new CancellationError();
@@ -965,6 +967,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			displayName: resource.displayName,
 			description: resource.description,
 			mediaType: resource.mediaType,
+			icon: resource.icon,
 			installation: source,
 			target,
 		};

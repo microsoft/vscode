@@ -38,6 +38,7 @@ import { IWorkbenchExtensionManagementService } from '../../../../services/exten
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { findRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -136,6 +137,7 @@ type AICustomizationContext = {
 	name?: string;
 	promptType?: PromptsType;
 	storage?: PromptsStorage;
+	skipMarketplaceUninstall?: boolean;
 	[key: string]: unknown;
 } | URI | string;
 
@@ -198,6 +200,10 @@ function extractItemId(context: AICustomizationContext): string | undefined {
 		return undefined;
 	}
 	return typeof context.itemId === 'string' ? context.itemId : undefined;
+}
+
+function shouldSkipMarketplaceUninstall(context: AICustomizationContext): boolean {
+	return !URI.isUri(context) && typeof context !== 'string' && context.skipMarketplaceUninstall === true;
 }
 
 /**
@@ -315,6 +321,14 @@ registerAction2(class extends Action2 {
 		const itemId = extractItemId(context);
 		const isSkill = promptType === PromptsType.skill;
 		const isHook = promptType === PromptsType.hook;
+		if (isSkill && !shouldSkipMarketplaceUninstall(context)) {
+			const marketplaceInstallService = accessor.get(ICustomizationMarketplaceInstallService);
+			const marketplace = findRecordedCustomizationMarketplaceResource(marketplaceInstallService, { kind: 'skill', uri });
+			if (marketplace) {
+				await marketplaceInstallService.uninstall(marketplace.resource);
+				return;
+			}
+		}
 		// For skills, use the parent folder name since skills are structured as <skillname>/SKILL.md.
 		const fileName = isSkill ? basename(dirname(uri)) : basename(uri);
 

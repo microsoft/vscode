@@ -53,6 +53,7 @@ import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from './aiCustomizationManagement.js';
 import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery, CustomizationDiscoveryType } from './aiCustomizationQuery.js';
+import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOrigin, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
 import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
@@ -388,24 +389,12 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 			installed && element.disabled ? localize('customizationDiscovery.disabled', "Disabled") : undefined,
 		].filter(Boolean).join(' · ');
 
-		const fallback = DOM.append(templateData.icon, $('.codicon'));
-		fallback.classList.add(...ThemeIcon.asClassNameArray(type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : type === 'skill' ? Codicon.lightbulb : Codicon.file));
-		fallback.setAttribute('aria-hidden', 'true');
-		templateData.icon.classList.toggle('is-fallback', !resource?.icon);
-		if (resource?.icon) {
-			const image = DOM.append(templateData.icon, $('img')) as HTMLImageElement;
-			image.alt = '';
-			image.loading = 'lazy';
-			image.referrerPolicy = 'no-referrer';
-			templateData.elementDisposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => {
-				templateData.icon.classList.remove('is-fallback');
-			}));
-			templateData.elementDisposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => {
-				templateData.icon.classList.add('is-fallback');
-				image.remove();
-			}));
-			image.src = resource.icon.toString(true);
-		}
+		renderCustomizationMarketplaceIcon(
+			templateData.icon,
+			type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : type === 'skill' ? Codicon.lightbulb : Codicon.file,
+			resource?.icon,
+			templateData.elementDisposables,
+		);
 
 		templateData.name.textContent = name;
 		templateData.name.removeAttribute('href');
@@ -1074,7 +1063,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					id: `installed:${section}:${item.id}`,
 					name: item.displayName ?? item.name,
 					description: item.description ?? item.filename,
-					sourceLabel: getSourceLabel(item),
+					sourceLabel: item.marketplace ? this.getMarketplaceResourceLabel(item.marketplace.resource) : getSourceLabel(item),
 					type,
 					section,
 					uri: item.uri,
@@ -1082,6 +1071,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					promptType: item.promptType,
 					itemId: item.id,
 					promptDetail: item,
+					catalogResource: item.marketplace?.resource,
 					removable: !item.isBuiltin && item.source !== 'extension' && item.source !== 'builtin',
 					disabled: item.disabled,
 				});
@@ -1566,24 +1556,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.browseDisposables.add(DOM.addDisposableListener(primaryAction, DOM.EventType.CLICK, () => this.openMarketplaceItem(item, 'browse')));
 		const icon = DOM.append(primaryAction, $('.customization-discovery-card-icon'));
 		const type = getCatalogType(item);
-		const fallback = DOM.append(icon, $('.codicon'));
-		fallback.classList.add(...ThemeIcon.asClassNameArray(type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : Codicon.lightbulb));
-		fallback.setAttribute('aria-hidden', 'true');
-		icon.classList.toggle('is-fallback', !item.icon);
-		if (item.icon) {
-			const image = DOM.append(icon, $('img')) as HTMLImageElement;
-			image.alt = '';
-			image.loading = 'lazy';
-			image.referrerPolicy = 'no-referrer';
-			this.browseDisposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => {
-				icon.classList.remove('is-fallback');
-			}));
-			this.browseDisposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => {
-				icon.classList.add('is-fallback');
-				image.remove();
-			}));
-			image.src = item.icon.toString(true);
-		}
+		renderCustomizationMarketplaceIcon(
+			icon,
+			type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : Codicon.lightbulb,
+			item.icon,
+			this.browseDisposables,
+		);
 		const body = DOM.append(primaryAction, $('.customization-discovery-card-body'));
 		const heading = DOM.append(body, $('.customization-discovery-card-heading'));
 		const name = DOM.append(heading, $('.customization-discovery-card-name'));
