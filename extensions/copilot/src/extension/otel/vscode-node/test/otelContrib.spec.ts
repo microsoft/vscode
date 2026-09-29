@@ -59,8 +59,8 @@ describe('OTelContrib restart notification', () => {
 	let context: TestExtensionContext;
 	let log: RecordingLogService;
 
-	function createContribution(): OTelContrib {
-		const resolve = () => resolveOTelConfigFromSettings(settings, {}, '1.0.0', 'session');
+	function createContribution(sessionId = 'session'): OTelContrib {
+		const resolve = () => resolveOTelConfigFromSettings(settings, {}, '1.0.0', sessionId);
 		const resolver: IOTelConfigResolver = { _serviceBrand: undefined, activeResolution: resolve(), resolve };
 		return new OTelContrib(
 			new NoopOTelService(resolver.activeResolution.config),
@@ -151,5 +151,43 @@ describe('OTelContrib restart notification', () => {
 		expect(ui.withProgress).not.toHaveBeenCalled();
 		expect(ui.showWarningMessage).not.toHaveBeenCalled();
 		expect(ui.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('after reload'), 'Reload Window');
+	});
+
+	it.each([false, true])('records a managed reload only after user acceptance: %s', async accept => {
+		contribution.dispose();
+		settings.policy = { enabled: true, otlpEndpoint: 'https://initial.example' };
+		contribution = createContribution();
+		settings.policy = { enabled: true, otlpEndpoint: 'https://changed.example' };
+		ui.showInformationMessage.mockResolvedValue(accept ? 'Reload Window' : undefined);
+		ui.executeCommand.mockImplementation(async (command: string) => {
+			if (command === 'workbench.action.reloadWindow') {
+				expect(context.workspaceState.get('github.copilot.otel.latePolicyRestart')).toMatchObject({
+					sessionId: 'session', reloadRequested: true, acknowledged: false,
+				});
+			}
+		});
+		await vi.advanceTimersByTimeAsync(500);
+		expect({
+			recorded: context.workspaceState.get('github.copilot.otel.latePolicyRestart') !== undefined,
+			reloads: ui.executeCommand.mock.calls.filter(([command]) => command === 'workbench.action.reloadWindow').length,
+		}).toEqual({ recorded: accept, reloads: accept ? 1 : 0 });
+	});
+
+	it('shows an unapplied-policy warning without another reload action after a failed reload', async () => {
+		contribution.dispose();
+		settings.policy = { enabled: true, otlpEndpoint: 'https://initial.example' };
+		contribution = createContribution();
+		settings.policy = { enabled: true, otlpEndpoint: 'https://changed.example' };
+		ui.showInformationMessage.mockResolvedValue('Reload Window');
+		await vi.advanceTimersByTimeAsync(500);
+		contribution.dispose();
+
+		settings.policy = { enabled: true, otlpEndpoint: 'https://initial.example' };
+		contribution = createContribution('reloaded-session');
+		settings.policy = { enabled: true, otlpEndpoint: 'https://changed.example' };
+		await vi.advanceTimersByTimeAsync(500);
+		expect(ui.showWarningMessage).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('still not applied after reloading'));
+		expect(ui.showInformationMessage).toHaveBeenCalledTimes(1);
+		expect(ui.executeCommand.mock.calls.filter(([command]) => command === 'workbench.action.reloadWindow')).toHaveLength(1);
 	});
 });
