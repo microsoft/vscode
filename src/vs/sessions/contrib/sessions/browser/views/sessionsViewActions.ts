@@ -1422,27 +1422,48 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 		}
 		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsService = accessor.get(ISessionsService);
-		const sessionsPartService = accessor.get(ISessionsPartService);
-
-		for (let i = 0; i < sessions.length - 1; i++) {
-			const session = sessions[i];
-			const visible = sessionsService.visibleSessions.get();
-			const lastVisible = visible[visible.length - 1];
-			if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-				sessionsService.insertAt(session, lastVisible.sessionId, 'right');
-			}
-		}
-
-		const lastRequested = sessions[sessions.length - 1];
-		await sessionsService.openSessionToSide(lastRequested, { source: 'sessionsList', forceMainChat: true });
-
-		const visibleAfterOpen = sessionsService.visibleSessions.get();
-		const opened = visibleAfterOpen.find(s => s?.sessionId === lastRequested.sessionId);
-		if (opened) {
-			sessionsPartService.focusSession(opened);
+		if (sessions.length === 1) {
+			await sessionsService.openSessionToSide(sessions[0], { source: 'sessionsList', forceMainChat: true });
+		} else {
+			const reference = sessionsService.visibleSessions.get().at(-1);
+			await sessionsService.openSessionsAt(sessions, reference?.sessionId, 'right', { source: 'sessionsList', activate: 'last', forceMainChat: true });
 		}
 	}
 });
+
+const openInGridWhen = ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, IsPhoneLayoutContext.negate());
+MenuRegistry.appendMenuItem(SessionItemContextMenuId, {
+	submenu: Menus.SessionGridOpen,
+	title: localize('openInGrid', "Open in Grid"),
+	group: '0_pin',
+	order: 2,
+	when: openInGridWhen,
+});
+
+for (const item of [
+	{ direction: 'left', title: localize2('openSessionLeft', "Left of Active Session") },
+	{ direction: 'right', title: localize2('openSessionRight', "Right of Active Session") },
+	{ direction: 'up', title: localize2('openSessionAbove', "Above Active Session") },
+	{ direction: 'down', title: localize2('openSessionBelow', "Below Active Session") },
+] as const) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: `sessionsViewPane.openInGrid.${item.direction}`,
+				title: item.title,
+				precondition: openInGridWhen,
+				menu: { id: Menus.SessionGridOpen },
+			});
+		}
+		async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+			if (!context) {
+				return;
+			}
+			const service = accessor.get(ISessionsService);
+			await service.openSessionsAt(Array.isArray(context) ? context : [context], service.activeSession.get()?.sessionId, item.direction, { source: 'sessionsList', activate: 'last' });
+		}
+	});
+}
 
 registerAction2(class MarkAllSessionsReadAction extends Action2 {
 	constructor() {

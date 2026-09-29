@@ -1034,7 +1034,7 @@ registerAction2(class extends Action2 {
 	run(): void { }
 });
 
-class AccountWidgetContribution extends Disposable implements IWorkbenchContribution {
+export class AccountWidgetContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsWidget';
 
