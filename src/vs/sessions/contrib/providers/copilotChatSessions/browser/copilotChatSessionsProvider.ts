@@ -1810,6 +1810,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			agentIdSilent: contribution?.type,
 			attachedContext,
 			hideFromTranscript: options.hideFromTranscript,
+			onDidCreateResponse: options.onDidCreateResponse,
 		};
 
 		const ref = await this._updateChatSessionState(chatResource, session, permissionLevel);

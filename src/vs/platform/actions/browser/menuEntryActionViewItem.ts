@@ -176,6 +176,7 @@ export interface IMenuEntryActionViewItemOptions {
 	readonly hoverDelegate?: IHoverDelegate;
 	readonly keybindingNotRenderedWithLabel?: boolean;
 	readonly onClickAnimation?: ClickAnimation;
+	readonly onDidTriggerClickAnimation?: () => void;
 }
 
 export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions = IMenuEntryActionViewItemOptions> extends ActionViewItem {
@@ -223,6 +224,7 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 			if (!actionError && this._options?.onClickAnimation && animationTarget && !this._accessibilityService.isMotionReduced()) {
 				const icon = this._menuItemAction.item.icon;
 				triggerClickAnimation(animationTarget, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
+				this._options.onDidTriggerClickAnimation?.();
 			}
 		} catch (err) {
 			this._notificationService.error(err);

@@ -2341,6 +2341,19 @@ suite('CopilotChatSessionsProvider', () => {
 			});
 		}
 
+		test('forwards a Cloud new-session response observer without changing its identity', async () => {
+			const observers: IChatSendRequestOptions['onDidCreateResponse'][] = [];
+			const onDidCreateResponse: NonNullable<IChatSendRequestOptions['onDidCreateResponse']> = () => { };
+			const provider = createProviderForSendTests(disposables, model, async (_resource, _message, options) => {
+				observers.push(options?.onDidCreateResponse);
+				return { kind: 'rejected', reason: 'Observer captured' };
+			});
+			const session = provider.createNewSession(workspace, CopilotCloudSessionType.id);
+			const chat = await provider.createNewChat(session.sessionId);
+			await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'test', onDidCreateResponse }), /Observer captured/);
+			assert.deepStrictEqual(observers, [onDidCreateResponse]);
+		});
+
 		test('rejects Automation model configuration without a model before creating a Cloud draft', () => {
 			const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }));
 			assert.throws(() => provider.createNewSession(workspace, CopilotCloudSessionType.id, {

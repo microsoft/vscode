@@ -35,7 +35,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
-import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
@@ -66,11 +66,6 @@ suite('Sessions - Chat View', () => {
 			results: ['notReady', 'notReady', 'applied'],
 			calls: [{ folder: URI.file('/requested'), options: { isDefault: true } }],
 		});
-	});
-
-	test('reserves the expanded context usage widget width from long requests', () => {
-		const expandedContextUsageWidth = 14 + 6 + 4 + 44;
-		assert.ok(EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE >= expandedContextUsageWidth);
 	});
 
 	/** Reaches the banner without standing up the widget's whole service graph. */
@@ -1476,12 +1471,22 @@ suite('Sessions - Chat View', () => {
 		combinedSecondaryAction.setAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, 'true');
 		const contextUsage = dom.append(secondaryToolbar, dom.$('.chat-context-usage-widget'));
 		const newSessionView = dom.append(part, dom.$('.session-view'));
+		// The default dark themes make the secondary button background fully transparent.
+		newSessionView.style.setProperty('--vscode-button-secondaryBackground', 'rgba(0, 0, 0, 0)');
 		const newSessionViewContent = dom.append(newSessionView, dom.$('.session-view-content'));
-		const productionNewChatView = dom.append(newSessionViewContent, dom.$('.chat-view-new'));
+		// Unlike the session chat, the new-session view has no chat list to set `--vscode-chat-list-background`.
+		const productionNewChatView = dom.append(newSessionViewContent, dom.$('.chat-view.chat-view-new'));
 		const productionNewChatWidget = dom.append(productionNewChatView, dom.$('.sessions-chat-widget'));
 		const productionNewChatContainer = dom.append(productionNewChatWidget, dom.$('.new-chat-widget-container'));
 		const productionBottomContainer = dom.append(productionNewChatContainer, dom.$('.new-chat-bottom-container'));
 		const productionBottomAction = dom.append(productionBottomContainer, dom.$('.action-label'));
+		const productionCombinedBottomAction = dom.append(dom.append(productionBottomContainer, dom.$('.sessions-chat-picker-slot')), dom.$('.action-label.agent-host-mode-permissions-trigger'));
+		const productionExperimentalContent = dom.append(productionNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
+		const productionExperimentalWorkspaceSlot = dom.append(productionExperimentalContent, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+		const productionExperimentalWorkspaceAction = dom.append(productionExperimentalWorkspaceSlot, dom.$('.action-label'));
+		const productionExperimentalRepository = dom.append(productionExperimentalContent, dom.$('.new-chat-repo-config-container'));
+		const productionExperimentalRepositoryActionBar = dom.append(productionExperimentalRepository, dom.$('.monaco-action-bar'));
+		const productionExperimentalRepositoryAction = dom.append(productionExperimentalRepositoryActionBar, dom.$('.action-label'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
 		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
@@ -1508,6 +1513,9 @@ suite('Sessions - Chat View', () => {
 		const combinedSecondaryActionStyle = dom.getWindow(combinedSecondaryAction).getComputedStyle(combinedSecondaryAction);
 		const contextUsageStyle = dom.getWindow(contextUsage).getComputedStyle(contextUsage);
 		const productionBottomActionStyle = dom.getWindow(productionBottomAction).getComputedStyle(productionBottomAction);
+		const productionExperimentalWorkspaceActionStyle = dom.getWindow(productionExperimentalWorkspaceAction).getComputedStyle(productionExperimentalWorkspaceAction);
+		const productionExperimentalRepositoryActionBarStyle = dom.getWindow(productionExperimentalRepositoryActionBar).getComputedStyle(productionExperimentalRepositoryActionBar);
+		const productionExperimentalRepositoryActionStyle = dom.getWindow(productionExperimentalRepositoryAction).getComputedStyle(productionExperimentalRepositoryAction);
 		assert.deepStrictEqual({
 			newChatBackgroundColor: newChatStyle.backgroundColor,
 			newChatPadding: newChatStyle.padding,
@@ -1529,6 +1537,18 @@ suite('Sessions - Chat View', () => {
 			productionBottomActionBackgroundImage: productionBottomActionStyle.backgroundImage,
 			productionBottomActionBorderColor: productionBottomActionStyle.borderColor,
 			productionBottomActionForeground: productionBottomActionStyle.color,
+			productionCombinedBottomActionBackgroundColor: dom.getWindow(productionCombinedBottomAction).getComputedStyle(productionCombinedBottomAction).backgroundColor,
+			productionExperimentalWorkspaceBackgroundColor: productionExperimentalWorkspaceActionStyle.backgroundColor,
+			productionExperimentalWorkspaceBackgroundImage: productionExperimentalWorkspaceActionStyle.backgroundImage,
+			productionExperimentalWorkspaceBorderColor: productionExperimentalWorkspaceActionStyle.borderColor,
+			productionExperimentalWorkspaceBorderRadius: productionExperimentalWorkspaceActionStyle.borderRadius,
+			productionExperimentalRepositoryBackgroundColor: productionExperimentalRepositoryActionBarStyle.backgroundColor,
+			productionExperimentalRepositoryBackgroundImage: productionExperimentalRepositoryActionBarStyle.backgroundImage,
+			productionExperimentalRepositoryBorderColor: productionExperimentalRepositoryActionBarStyle.borderColor,
+			productionExperimentalRepositoryBorderRadius: productionExperimentalRepositoryActionBarStyle.borderRadius,
+			productionExperimentalRepositoryActionBackgroundColor: productionExperimentalRepositoryActionStyle.backgroundColor,
+			productionExperimentalRepositoryActionBackgroundImage: productionExperimentalRepositoryActionStyle.backgroundImage,
+			productionExperimentalRepositoryActionBorderStyle: productionExperimentalRepositoryActionStyle.borderStyle,
 			plainSecondaryActionBackgroundColor: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).backgroundColor,
 			plainSecondaryActionBorderStyle: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).borderStyle,
 			plainContextUsageBackgroundColor: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).backgroundColor,
@@ -1556,9 +1576,21 @@ suite('Sessions - Chat View', () => {
 			contextUsageBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			contextUsageBorderRadius: '4px',
 			productionBottomActionBackgroundColor: 'rgb(255, 255, 255)',
-			productionBottomActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
+			productionBottomActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0))',
 			productionBottomActionBorderColor: 'rgb(128, 128, 128)',
 			productionBottomActionForeground: 'rgb(32, 32, 32)',
+			productionCombinedBottomActionBackgroundColor: 'rgb(255, 255, 255)',
+			productionExperimentalWorkspaceBackgroundColor: 'rgb(255, 255, 255)',
+			productionExperimentalWorkspaceBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0))',
+			productionExperimentalWorkspaceBorderColor: 'rgb(128, 128, 128)',
+			productionExperimentalWorkspaceBorderRadius: '4px',
+			productionExperimentalRepositoryBackgroundColor: 'rgb(255, 255, 255)',
+			productionExperimentalRepositoryBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0))',
+			productionExperimentalRepositoryBorderColor: 'rgb(128, 128, 128)',
+			productionExperimentalRepositoryBorderRadius: '4px',
+			productionExperimentalRepositoryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
+			productionExperimentalRepositoryActionBackgroundImage: 'none',
+			productionExperimentalRepositoryActionBorderStyle: 'none',
 			plainSecondaryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBorderStyle: 'none',
 			plainContextUsageBackgroundColor: 'rgba(0, 0, 0, 0)',

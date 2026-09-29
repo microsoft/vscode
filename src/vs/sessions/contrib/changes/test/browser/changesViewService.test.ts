@@ -13,19 +13,20 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
-import { ChangesViewService } from '../../browser/changesViewService.js';
+import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
 import { ChangesViewMode } from '../../common/changes.js';
 
 suite('ChangesViewService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(id: string, options?: { readonly workspace?: ISessionWorkspace; readonly changesets?: readonly ISessionChangeset[]; readonly activeChat?: IObservable<IChat>; readonly mainChat?: IObservable<IChat>; readonly chats?: IObservable<readonly IChat[]>; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
+	function createSession(id: string, options?: { readonly workspace?: ISessionWorkspace; readonly changesets?: readonly ISessionChangeset[]; readonly activeChat?: IObservable<IChat>; readonly mainChat?: IObservable<IChat>; readonly chats?: IObservable<readonly IChat[]>; readonly loading?: IObservable<boolean>; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
 		const workspace = options?.workspace ?? (options?.baseBranchProtected === undefined && options?.pullRequestState === undefined && options?.livePullRequestState === undefined && options?.pullRequestIcon === undefined
 			? undefined
 			: upcastPartial<ISessionWorkspace>({
@@ -61,7 +62,7 @@ suite('ChangesViewService', () => {
 			resource: URI.from({ scheme: 'test-session', path: `/${id}` }),
 			providerId: 'local-agent-host',
 			sessionType: 'test',
-			loading: constObservable(false),
+			loading: options?.loading ?? constObservable(false),
 			workspace: constObservable(workspace),
 			activeChat: options?.activeChat ?? constObservable(defaultChat),
 			mainChat: options?.mainChat ?? constObservable(defaultChat),
@@ -143,16 +144,17 @@ suite('ChangesViewService', () => {
 				return constObservable({ kind: PRReviewStateKind.None } as const);
 			}
 		}();
+		const contextKeyService = disposables.add(new MockContextKeyService());
 		const service = disposables.add(new ChangesViewService(
 			agentFeedbackService,
 			codeReviewService,
-			disposables.add(new MockContextKeyService()),
+			contextKeyService,
 			sessionsService,
 			storageService,
 			sessionsManagementService,
 		));
 
-		return { activeSession, onDidDeleteChat, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
+		return { activeSession, contextKeyService, onDidDeleteChat, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
 	}
 
 	test('restores section collapse state independently per session', () => {
@@ -356,6 +358,21 @@ suite('ChangesViewService', () => {
 				selected: 'turn:request',
 			},
 		});
+	});
+
+	test('publishes reviewed files by their file resource, including deleted files', () => {
+		const changes: readonly IChatSessionFileChange2[] = [
+			{ uri: URI.file('/repo/modified.ts'), modifiedUri: URI.file('/repo/modified.ts'), originalUri: URI.parse('git-blob:/repo/modified.ts'), insertions: 1, deletions: 1, reviewed: true },
+			{ uri: URI.file('/repo/deleted.ts'), modifiedUri: undefined, originalUri: URI.parse('git-blob:/repo/deleted.ts'), insertions: 0, deletions: 3, reviewed: true },
+			{ uri: URI.file('/repo/unreviewed.ts'), modifiedUri: URI.file('/repo/unreviewed.ts'), originalUri: undefined, insertions: 2, deletions: 0, reviewed: false },
+		];
+		const changeset = createChangeset([], { changes: constObservable(changes) });
+		const { contextKeyService } = createHarness(createSession('reviewed', { changesets: [changeset] }));
+
+		assert.deepStrictEqual(contextKeyService.getContextKeyValue(ChangesetReviewedFilesContext.key), [
+			'file:///repo/modified.ts',
+			'file:///repo/deleted.ts',
+		]);
 	});
 
 	test('surfaces cached changes while the changeset recomputes', () => {
@@ -834,6 +851,64 @@ suite('ChangesViewService', () => {
 		});
 	});
 
+	test('retains picker data until the next session publishes its catalogue', () => {
+		const branchChangeset = createChangeset([]);
+		const selectedChangeset = { ...createChangeset([]), id: 'selected', label: 'Selected Changes', isDefault: constObservable(false) };
+		const nextChangeset = { ...createChangeset([]), id: 'next', label: 'Next Changes' };
+		const pendingChangesets = observableValue<readonly ISessionChangeset[] | undefined>('test.pendingChangesets', undefined);
+		const loading = observableValue('test.loading', true);
+		const nextChat = upcastPartial<IChat>({
+			resource: URI.parse('test-chat:/next'),
+			workspace: constObservable(undefined),
+			changes: constObservable([]),
+			changesets: pendingChangesets,
+		});
+		const nextSession = createSession('next', {
+			activeChat: constObservable(nextChat),
+			mainChat: constObservable(nextChat),
+			chats: constObservable([nextChat]),
+			loading,
+		});
+		const firstSession = createSession('first', {
+			workspace: createWorkspace('/repo'),
+			changesets: [branchChangeset, selectedChangeset],
+		});
+		const { activeSession, service } = createHarness(firstSession);
+		service.setChangesetId(selectedChangeset.id);
+		const pickerState = () => ({
+			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+			catalogueLoading: service.activeSessionChangesetsLoadingObs.get(),
+			selected: service.activeSessionChangesetObs.get()?.id,
+		});
+
+		const beforeSwitch = pickerState();
+		activeSession.set(nextSession, undefined);
+		const unpublished = pickerState();
+		pendingChangesets.set([], undefined);
+		const emptyWhileLoading = pickerState();
+		pendingChangesets.set([nextChangeset], undefined);
+		const publishedWhileLoading = pickerState();
+		loading.set(false, undefined);
+		const published = pickerState();
+		pendingChangesets.set([], undefined);
+		const authoritativeEmpty = pickerState();
+		activeSession.set(firstSession, undefined);
+		const restored = pickerState();
+		activeSession.set(undefined, undefined);
+		const noSession = pickerState();
+
+		assert.deepStrictEqual({ beforeSwitch, unpublished, emptyWhileLoading, publishedWhileLoading, published, authoritativeEmpty, restored, noSession }, {
+			beforeSwitch: { changesets: ['branch', 'selected'], catalogueLoading: false, selected: 'selected' },
+			unpublished: { changesets: ['branch', 'selected'], catalogueLoading: true, selected: undefined },
+			emptyWhileLoading: { changesets: [], catalogueLoading: false, selected: undefined },
+			publishedWhileLoading: { changesets: ['next'], catalogueLoading: false, selected: 'next' },
+			published: { changesets: ['next'], catalogueLoading: false, selected: 'next' },
+			authoritativeEmpty: { changesets: [], catalogueLoading: false, selected: undefined },
+			restored: { changesets: ['branch', 'selected'], catalogueLoading: false, selected: 'selected' },
+			noSession: { changesets: undefined, catalogueLoading: true, selected: undefined },
+		});
+	});
+
 	test('hides checkout from generic changeset operations', () => {
 		const changeset = createChangeset([
 			{
@@ -854,7 +929,7 @@ suite('ChangesViewService', () => {
 		assert.deepStrictEqual(service.activeSessionChangesetOperationsObs.get().map(operation => operation.id), ['create-pr']);
 	});
 
-	test('hides the Agent Host merge operation when the base branch is protected', () => {
+	test('shows the Agent Host merge operation only when the base branch is known to be unprotected', () => {
 		const operations: readonly ISessionChangesetOperation[] = [
 			{
 				id: 'merge',
@@ -873,16 +948,16 @@ suite('ChangesViewService', () => {
 		const unprotected = createSession('unprotected', { changesets: [changeset], baseBranchProtected: false });
 		const protectedSession = createSession('protected', { changesets: [changeset], baseBranchProtected: true });
 		const unknown = createSession('unknown', { changesets: [changeset] });
-		const { activeSession, service } = createHarness(unprotected);
+		const { activeSession, service } = createHarness(protectedSession);
 
 		const visibleOperations = [service.activeSessionChangesetOperationsObs.get().map(operation => operation.id)];
-		activeSession.set(protectedSession, undefined);
-		visibleOperations.push(service.activeSessionChangesetOperationsObs.get().map(operation => operation.id));
 		activeSession.set(unknown, undefined);
+		visibleOperations.push(service.activeSessionChangesetOperationsObs.get().map(operation => operation.id));
+		activeSession.set(unprotected, undefined);
 		visibleOperations.push(service.activeSessionChangesetOperationsObs.get().map(operation => operation.id));
 
 		assert.deepStrictEqual(visibleOperations, [
-			['merge', 'create-pr'],
+			['create-pr'],
 			['create-pr'],
 			['merge', 'create-pr'],
 		]);

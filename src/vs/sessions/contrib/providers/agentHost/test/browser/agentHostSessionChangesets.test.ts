@@ -28,6 +28,7 @@ import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRe
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetFile } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, parseRequiredSessionUriFromChatUri, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -108,7 +109,11 @@ suite('AgentHostSessionChangesets', () => {
 			},
 		}];
 
-		function createHarness(changeKind = ChangesetKind.Branch, streamingChanges?: IObservable<readonly ISessionTurnFileChange[] | undefined>) {
+		function createHarness(
+			changeKind = ChangesetKind.Branch,
+			streamingChanges?: IObservable<readonly ISessionTurnFileChange[] | undefined>,
+			changes?: IObservable<readonly ISessionFileChange[] | undefined>,
+		) {
 			const isActiveSession = observableValue('isActiveSession', false);
 			const subscription = createMutableSubscription<ChangesetState | undefined>(undefined);
 			let acquired = 0;
@@ -137,6 +142,7 @@ suite('AgentHostSessionChangesets', () => {
 				label: 'Changes',
 				changeKind,
 				uriTemplate: `changeset/${changeKind}`,
+				changes,
 				streamingChanges,
 			}])[0];
 			disposables.add(autorun(reader => changeset.changes.read(reader)));
@@ -201,6 +207,24 @@ suite('AgentHostSessionChangesets', () => {
 			});
 		});
 
+		test('uses cached recomputing files when switching to a restored session', () => {
+			const restoredChanges = observableValue<readonly ISessionFileChange[] | undefined>('restoredChanges', []);
+			const harness = createHarness(ChangesetKind.Branch, undefined, restoredChanges);
+			harness.isActiveSession.set(true, undefined);
+			restoredChanges.set(undefined, undefined);
+			harness.subscription.set({ status: ChangesetStatus.Computing, files: [] });
+			const computing = harness.snapshot();
+			harness.subscription.set({ status: ChangesetStatus.Recomputing, files: cachedFiles });
+			const recomputing = harness.snapshot();
+			harness.subscription.set({ status: ChangesetStatus.Ready, files: cachedFiles });
+
+			assert.deepStrictEqual({ computing, recomputing, ready: harness.snapshot() }, {
+				computing: { changes: [], loading: false, acquired: 1, released: 0 },
+				recomputing: { changes: [{ insertions: 57, deletions: 45 }], loading: true, acquired: 1, released: 0 },
+				ready: { changes: [{ insertions: 57, deletions: 45 }], loading: false, acquired: 1, released: 0 },
+			});
+		});
+
 		test('uses edit-tracking snapshots for Session and Chat Changes but keeps Branch Changes editable', () => {
 			const branch = createHarness(ChangesetKind.Branch);
 			const session = createHarness(ChangesetKind.Session);
@@ -226,7 +250,7 @@ suite('AgentHostSessionChangesets', () => {
 			});
 		});
 
-		test('streams the active turn over Session Changes until the authoritative snapshot catches up', () => {
+		test('uses the cached recomputing snapshot after active turn streaming ends', () => {
 			const streamingChanges = observableValue<readonly ISessionTurnFileChange[] | undefined>('streamingChanges', undefined);
 			const harness = createHarness(ChangesetKind.Session, streamingChanges);
 			const changesetFile = (afterAuthority: string, added: number, removed: number): ChangesetFile => ({
@@ -276,7 +300,7 @@ suite('AgentHostSessionChangesets', () => {
 				recomputing: [{
 					uri: 'file:///repo/a.ts',
 					original: 'readonly-content://baseline/a.ts',
-					modified: 'readonly-content://live/repo/a.ts',
+					modified: 'readonly-content://before-stream/a.ts',
 					insertions: 5,
 					deletions: 2,
 				}],
@@ -618,7 +642,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const projected = createChatChangesets(chatUri, options, constObservable(true));
+		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true));
 		let current: readonly ISessionChangeset[] | undefined;
 		disposables.add(autorun(reader => current = projected.read(reader)));
 		const absentCatalogue = current;
@@ -703,7 +727,7 @@ suite('AgentHostSessionChangesets', () => {
 			deletions: 1,
 			isOutsideWorkspace: false,
 		} satisfies ISessionTurnFileChange]);
-		const projected = createChatChangesets(chatUri, {
+		const projected = createChatChangesets(sessionUri, constObservable(chatUri), {
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -776,8 +800,8 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const defaultProjected = createChatChangesets(defaultChatUri, options, constObservable(true));
-		const peerProjected = createChatChangesets(peerChatUri, options, constObservable(true));
+		const defaultProjected = createChatChangesets(sessionUri, constObservable(defaultChatUri), options, constObservable(true));
+		const peerProjected = createChatChangesets(sessionUri, constObservable(peerChatUri), options, constObservable(true));
 		let defaultChangesets: readonly ISessionChangeset[] | undefined;
 		let peerChangesets: readonly ISessionChangeset[] | undefined;
 		disposables.add(autorun(reader => defaultChangesets = defaultProjected.read(reader)));
@@ -854,7 +878,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const projected = createChatChangesets(chatUri, options, constObservable(true), constObservable([]));
+		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable([]));
 		let enabled: boolean | undefined;
 		disposables.add(autorun(reader => {
 			const changeset = projected.read(reader)?.[0];
@@ -970,7 +994,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const changeset = createChangesets(peerChatUri, options, constObservable(true), [{
+		const changeset = createChangesets(sessionUri, options, constObservable(true), [{
 			label: 'Agent Merge Changes',
 			changeKind: AGENT_MERGE_CHANGESET_ID,
 			uriTemplate: buildCompareTurnsChangesetUriTemplate(peerChatUri.toString()),
@@ -1016,6 +1040,82 @@ suite('AgentHostSessionChangesets', () => {
 			acquiredChats: [peerChatUri.toString()],
 			acquiredChangesets: [compareFromUser3, compareFromUser6],
 			releasedChangesets: [compareFromUser3],
+		});
+	});
+
+	test('dispatches deleted file review state using the host file id', () => {
+		const fileResource = URI.parse('host-workspace://cluster/project/deleted.ts');
+		const changesetResource = URI.parse('host-changeset://cluster/session-1/branch');
+		const changesetState: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'opaque-deleted-file-id',
+				edit: {
+					before: {
+						uri: fileResource.toString(),
+						content: { uri: 'host-content://cluster/snapshots/deleted.ts' },
+					},
+					diff: { added: 0, removed: 3 },
+				},
+			}],
+		};
+		let dispatchedChannel: string | undefined;
+		let dispatchedAction: Parameters<IAgentConnection['dispatch']>[1] | undefined;
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+				const subscription = new class extends mock<IAgentSubscription<ComponentToState[T]>>() {
+					override readonly value = changesetState as ComponentToState[T];
+					override readonly verifiedValue = changesetState as ComponentToState[T];
+					override readonly onDidChange = Event.None;
+					override readonly onWillApplyAction = Event.None;
+					override readonly onDidApplyAction = Event.None;
+				}();
+				return {
+					object: subscription,
+					dispose: () => { },
+				};
+			}
+
+			override dispatch(channel: string, action: Parameters<IAgentConnection['dispatch']>[1]): void {
+				dispatchedChannel = channel;
+				dispatchedAction = action;
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+		const options: IAgentHostAdapterOptions = {
+			icon: Codicon.copilot,
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+		};
+		const [changeset] = createChangesets(
+			URI.parse('host-session://cluster/session-1'),
+			options,
+			constObservable(true),
+			[{
+				label: 'Branch Changes',
+				changeKind: ChangesetKind.Branch,
+				uriTemplate: changesetResource.toString(),
+				capabilities: { review: {} },
+			}],
+		);
+
+		changeset.setReviewState?.([fileResource], true);
+
+		assert.deepStrictEqual({
+			channel: dispatchedChannel,
+			action: dispatchedAction,
+		}, {
+			channel: changesetResource.toString(),
+			action: {
+				type: ActionType.ChangesetFilesReviewChanged,
+				files: ['opaque-deleted-file-id'],
+				reviewed: true,
+			},
 		});
 	});
 

@@ -45,4 +45,22 @@ suite('Session Workspace Display Info', () => {
 			worktreePending: false,
 		});
 	});
+
+	test('omits the branch for a repository folder workspace', () => {
+		const tools = URI.file('/src/tools');
+		const session = upcastPartial<IActiveSession>({
+			workspace: constObservable(workspace('vscode', URI.file('/src/vscode'))),
+			activeChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(workspace('tools', tools)) })),
+		});
+
+		const info = derived(reader => getSessionWorkspaceDisplayInfo(session, reader)).get();
+
+		assert.deepStrictEqual({ ...info, icon: info?.icon.id }, {
+			label: 'tools',
+			icon: Codicon.folderCompact.id,
+			workingDirectoryPath: tools.fsPath,
+			branch: undefined,
+			worktreePending: false,
+		});
+	});
 });

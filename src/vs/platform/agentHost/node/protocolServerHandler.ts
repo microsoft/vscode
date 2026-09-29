@@ -22,9 +22,10 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
+import { chatUserInteractionAttributes, chatUserInteractionValidator } from '../../otel/common/chatUserInteraction.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { IS_CLIENT_DISPATCHABLE } from '../common/state/protocol/action-origin.generated.js';
@@ -749,8 +750,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			client.subscriptions.set(sub.uri, sub);
 			return undefined;
 		}
-		// Annotations need persisted data; changesets need their first-subscriber refresh before the snapshot is read.
-		if (isAnnotationsUri(channel) || parseChangesetUri(channel)) {
+		// Annotations need persisted data, changesets need their first-subscriber
+		// refresh, and chats need their input-availability check before snapshotting.
+		// Keep missing chat baselines on the normal debt/restore path: a fresh
+		// host may need authentication before it can materialize those chats.
+		if (isAnnotationsUri(channel) || parseChangesetUri(channel) || (isAhpChatChannel(channel) && this._stateManager.getSnapshot(channel))) {
 			return this._requestHandlers.subscribe(client, { channel }).then(result => result.snapshot).catch(error => {
 				this._logService.info(`[ProtocolServer] Initialize: failed to restore subscription ${channel}: ${error instanceof Error ? error.message : String(error)}`);
 				return undefined;
@@ -1680,6 +1684,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						title: chat.summary ?? '',
 						origin: chat.origin,
 						...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+						...(chat.archived === true ? { archived: true } : {}),
 					})),
 					defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
 					// `_meta` carries durable host provenance, including session kind
@@ -1945,6 +1950,22 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * otherwise.
 	 */
 	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
+		if (method === ReportChatUserInteractionExtensionMethod) {
+			if (!this._otelService?.diagnosticsEnabled) {
+				return Promise.resolve();
+			}
+			const validated = chatUserInteractionValidator.validate(params);
+			try {
+				chatUserInteractionAttributes(params);
+			} catch {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid user interaction timing'));
+			}
+			if (validated.error) {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid user interaction timing'));
+			}
+			this._otelService.emitUserInteraction(validated.content);
+			return this._otelService.flush();
+		}
 		if (method === ImportSessionExtensionMethod) {
 			return this._handleImportSessionRequest(params);
 		}
@@ -1965,7 +1986,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (method === RemoveSessionArtifactExtensionMethod) {
 			return this._handleRemoveSessionArtifactRequest(params);
 		}
-
 		if (this._config.allowExtensionMethods === false) {
 			return undefined;
 		}

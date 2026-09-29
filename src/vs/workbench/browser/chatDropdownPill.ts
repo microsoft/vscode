@@ -9,6 +9,7 @@ import type { IManagedHoverContent, IManagedHoverOptions } from '../../base/brow
 import { IAction } from '../../base/common/actions.js';
 import { Codicon } from '../../base/common/codicons.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
+import { AnchorPosition } from '../../base/common/layout.js';
 import { IObservable, autorun, derived } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { asCssVariable } from '../../platform/theme/common/colorUtils.js';
@@ -53,6 +54,8 @@ export interface IChatDropdownPillOptions {
 	readonly summaryAriaLabel: (count: number) => string;
 	/** How a lone entry renders. Defaults to {@link ChatPillSingleEntry.Inline}. */
 	readonly singleEntry?: ChatPillSingleEntry;
+	/** Preferred dropdown side, with fallback when the available space is insufficient. */
+	readonly preferredAnchorPosition?: AnchorPosition;
 }
 
 /**
@@ -319,7 +322,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 				getAriaLabel: item => [item.item?.ariaLabel ?? item.label, item.ariaDescription].filter(Boolean).join(', '),
 				getWidgetAriaLabel: () => this._pillOptions.title,
 			},
-			{ minWidth: 240, maxWidth: 460, widgetClassName: 'show-file-icons chat-pill-dropdown' },
+			{ minWidth: 240, maxWidth: 460, widgetClassName: 'show-file-icons chat-pill-dropdown', preferredAnchorPosition: this._pillOptions.preferredAnchorPosition },
 		);
 	}
 
@@ -357,7 +360,13 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 				iconClass: action.class,
 				run: () => { void action.run(); },
 			}));
-			baseHover = actions.length ? { ...entry.hover, actions } : entry.hover;
+			baseHover = actions.length ? {
+				...entry.hover,
+				actions,
+				expandable: true,
+				showIndicator: false,
+				tabThroughPanel: true,
+			} : entry.hover;
 			if (baseHover) {
 				this._dropdownHovers.set(entry, baseHover);
 			}
@@ -374,6 +383,12 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 				content: () => {
 					preview ??= createChatPillImagePreview({ ...entry, imagePreview }, this._fileService);
 					return preview.element;
+				},
+				disposeContent: content => {
+					if (preview?.element === content) {
+						preview.disposable.dispose();
+						preview = undefined;
+					}
 				},
 				disposable: {
 					dispose: () => {

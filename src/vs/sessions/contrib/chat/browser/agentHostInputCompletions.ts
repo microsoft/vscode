@@ -15,7 +15,7 @@ import { IDecorationOptions, IEditorDecorationsCollection } from '../../../../ed
 import { CompletionItem, CompletionItemKind } from '../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -46,10 +46,17 @@ interface IReferenceArg {
 	readonly entry: IChatRequestVariableEntry;
 	readonly insertText: string;
 	readonly range: OffsetRange | undefined;
+	readonly retriggerSuggestions?: true;
+	readonly submitOnAccept?: true;
 }
 
-CommandsRegistry.registerCommand(ADD_REFERENCE_COMMAND, (_accessor, arg: IReferenceArg) => {
+CommandsRegistry.registerCommand(ADD_REFERENCE_COMMAND, async (accessor, arg: IReferenceArg) => {
 	arg.handler.acceptCompletion(arg.entry, arg.insertText, arg.range);
+	if (arg.submitOnAccept) {
+		await arg.handler.submitInput();
+	} else if (arg.retriggerSuggestions) {
+		await accessor.get(ICommandService).executeCommand('editor.action.triggerSuggest');
+	}
 });
 
 /**
@@ -194,6 +201,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _contextAttachments: INewChatAttachments,
+		private readonly _submitInput: () => Promise<boolean>,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ISessionContext private readonly _sessionContext: ISessionContext,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
@@ -290,6 +298,14 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		const replaceRange = AgentHostInputCompletionHandler.computeRange(position, item);
 		const attachment = item.attachment;
 		switch (attachment.kind) {
+			case 'text':
+				return {
+					label: item.label ?? item.insertText,
+					insertText: item.insertText,
+					filterText: item.label ?? item.insertText,
+					range: replaceRange,
+					kind: CompletionItemKind.Text,
+				};
 			case 'command': {
 				const action = getCompletionAction(attachment._meta);
 				if (action) {
@@ -345,6 +361,8 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 							entry,
 							insertText: referenceText,
 							range: this._toOffsetRange(replaceRange.replace, referenceText),
+							...(attachment.retriggerSuggestions ? { retriggerSuggestions: true } : {}),
+							...(attachment.submitOnAccept ? { submitOnAccept: true } : {}),
 						} satisfies IReferenceArg],
 					},
 				};
@@ -424,6 +442,10 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		this._insertedReferences.set(entry.id, { text: insertText, range });
 		this._contextAttachments.setAttachments([...this._contextAttachments.attachments.filter(e => e.id !== entry.id), entry]);
 		this._updateDecorations();
+	}
+
+	submitInput(): Promise<boolean> {
+		return this._submitInput();
 	}
 
 	/**

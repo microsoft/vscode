@@ -12,6 +12,11 @@ import { JsonRpcErrorCodes, ProtocolError } from '../state/sessionProtocol.js';
 export const PREPARE_PULL_REQUEST_OPERATION_ID = 'prepare-pull-request';
 
 const PULL_REQUEST_META_KEY = 'vscode.pullRequest';
+/**
+ * Kept apart from {@link PULL_REQUEST_META_KEY} so preparation requests that
+ * carry only the conversation chat stay valid for hosts that predate it.
+ */
+const PULL_REQUEST_CONVERSATION_META_KEY = 'vscode.pullRequestConversation';
 const DETAILS_DATA_URI_PREFIX = 'data:application/json,';
 
 export interface IPullRequestContext {
@@ -182,6 +187,36 @@ function readPullRequestMeta<T>(source: IHasPullRequestOperationMeta, parse: (va
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.invalidMeta', "Invalid pull request operation metadata."));
 	}
 	return Object.hasOwn(meta, PULL_REQUEST_META_KEY) ? parse(meta[PULL_REQUEST_META_KEY]) : undefined;
+}
+
+/**
+ * Names the chat whose conversation generates pull request details: the chat
+ * Create PR was opened from. `chat` is a backend chat channel URI.
+ */
+export function createPullRequestConversationMeta(chat: string): Record<string, unknown> {
+	return { [PULL_REQUEST_CONVERSATION_META_KEY]: { chat: parseConversationChat({ chat }) } };
+}
+
+/**
+ * Reads the chat named by {@link createPullRequestConversationMeta}. The value
+ * is client-supplied: callers must still verify the chat before reading it.
+ */
+export function readPullRequestConversationMeta(source: IHasPullRequestOperationMeta): string | undefined {
+	const meta = source._meta;
+	if (meta === undefined) {
+		return undefined;
+	}
+	if (!isObject(meta)) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.invalidMeta', "Invalid pull request operation metadata."));
+	}
+	return Object.hasOwn(meta, PULL_REQUEST_CONVERSATION_META_KEY) ? parseConversationChat(meta[PULL_REQUEST_CONVERSATION_META_KEY]) : undefined;
+}
+
+function parseConversationChat(value: unknown): string {
+	if (!isRecord(value) || typeof value.chat !== 'string' || !value.chat.trim()) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.invalidConversation', "Invalid pull request conversation chat."));
+	}
+	return value.chat;
 }
 
 function invalidDetails(): Error {

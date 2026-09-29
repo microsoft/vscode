@@ -62,6 +62,8 @@ export class GitHubCommitResolver extends Disposable {
 				generation: 0,
 			};
 			this._entries.set(key, entry);
+		}
+		if (!entry.subscription.value) {
 			this._initialize(entry);
 		}
 		return entry.value;
@@ -96,8 +98,9 @@ export class GitHubCommitResolver extends Disposable {
 			store.add(autorun(reader => entry.value.set(subscription.resource.state.read(reader).value, undefined)));
 			void subscription.refresh().catch(error => this._logService.warn('[GitHubCommitResolver] Failed to refresh GitHub commit', error));
 		}, error => {
-			if (!controller.signal.aborted) {
+			if (!controller.signal.aborted && generation === entry.generation) {
 				this._logService.warn('[GitHubCommitResolver] Failed to resolve GitHub credentials', error);
+				entry.subscription.clear();
 			}
 		});
 	}

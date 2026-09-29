@@ -17,7 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../..
 import { NullOpenerService } from '../../../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from '../../../../../browser/widget/input/modelPicker/modelPickerCard.js';
 import { getModelHoverContent } from '../../../../../browser/widget/input/modelPicker/modelPickerHover.js';
-import { getModelConfigSummary, IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { getModelConfigSummary, IModelConfigurationAccess, ModelConfigChangeListener, setModelConfigValues } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 
@@ -66,6 +66,12 @@ function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 	};
 }
 
+/** Drops the time a change was requested, which is only checked for being reported. */
+function withoutRequestTime([group, key, fromValue, toValue, requestedAt]: Parameters<ModelConfigChangeListener>): unknown[] {
+	assert.strictEqual(typeof requestedAt, 'number');
+	return [group, key, fromValue, toValue];
+}
+
 suite('ModelCard', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -81,7 +87,7 @@ suite('ModelCard', () => {
 	function createCard(configuration: IStringDictionary<unknown> = {}, options: Partial<IModelCardOptions> = {}) {
 		const values = { ...configuration };
 		const writes: IStringDictionary<unknown>[] = [];
-		const changes: Parameters<NonNullable<IModelCardOptions['onDidChangeConfiguration']>>[] = [];
+		const changes: unknown[][] = [];
 		const selectedModels: string[] = [];
 		let accepted = 0;
 		const configurationAccess: IModelConfigurationAccess = options.configurationAccess ?? {
@@ -98,7 +104,7 @@ suite('ModelCard', () => {
 			isUBB: true,
 			openerService: NullOpenerService,
 			pricingDisclosure: createDisclosure(),
-			onDidChangeConfiguration: (...change) => changes.push(change),
+			onDidChangeConfiguration: (...change) => changes.push(withoutRequestTime(change)),
 			onSelect: model => selectedModels.push(model.identifier),
 			onDidAccept: () => accepted++,
 			...options,
@@ -274,6 +280,47 @@ suite('ModelCard', () => {
 			selected: ['Intelligence'],
 		});
 	});
+
+	for (const menuFirst of [false, true]) {
+		test(`configuration writes from ${menuFirst ? 'a menu then Details' : 'Details then a menu'} share one transaction`, async () => {
+			const model = createModel();
+			const pending = new DeferredPromise<void>();
+			const values = { effort: 'medium' };
+			const writes: IStringDictionary<unknown>[] = [];
+			const result = createCard({}, {
+				model,
+				configurationAccess: {
+					getModelConfiguration: () => values,
+					getModelConfigurationActions: () => [],
+					setModelConfiguration: async (_id, next) => {
+						writes.push(next);
+						await pending.p;
+						Object.assign(values, next);
+					},
+				},
+			});
+			const menuEdit = () => setModelConfigValues(model, result.configurationAccess, { effort: menuFirst ? 'high' : 'low' },
+				(...change) => result.changes.push(withoutRequestTime(change)));
+			const cardEdit = () => result.card.element.querySelectorAll<HTMLElement>('[aria-label="Thinking Effort"] [role="radio"]')[menuFirst ? 0 : 2].click();
+			let menuSave: Promise<void>;
+			if (menuFirst) {
+				menuSave = menuEdit();
+				cardEdit();
+			} else {
+				cardEdit();
+				menuSave = menuEdit();
+			}
+			await timeout(0);
+			const before = [...writes];
+			await pending.complete();
+			await menuSave;
+			await timeout(0);
+			assert.deepStrictEqual({ before, writes, values, changes: result.changes }, {
+				before: [{ effort: 'high' }], writes: [{ effort: 'high' }, { effort: 'low' }], values: { effort: 'low' },
+				changes: [['navigation', 'effort', 'medium', 'high'], ['navigation', 'effort', 'high', 'low']],
+			});
+		});
+	}
 
 	test('an external header retains its actions and focus through updates and reset', async () => {
 		const result = createCard({ effort: 'high' }, { externalHeader: true, onTogglePin: () => { } });

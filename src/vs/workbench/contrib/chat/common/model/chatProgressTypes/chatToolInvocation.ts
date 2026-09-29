@@ -450,6 +450,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			isConfirmed: waitingForPostApproval ? { type: ToolConfirmKind.Skipped } : IChatToolInvocation.executionConfirmedOrDenied(this),
 			isComplete: true,
 			source: this.source,
+			...(this.icon ? { icon: this.icon } : {}),
 			resultError: IChatToolInvocation.resultError(this),
 			resultDetails: isToolResultOutputDetails(details)
 				? { output: { type: 'data', mimeType: details.output.mimeType, base64Data: encodeBase64(details.output.value) } }

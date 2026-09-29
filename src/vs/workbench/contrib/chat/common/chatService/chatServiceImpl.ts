@@ -7,7 +7,7 @@ import { DeferredPromise, raceCancellationError, raceTimeout } from '../../../..
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
+import { BugIndicatingError, ErrorNoTelemetry, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -53,7 +53,7 @@ import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../attachments/chatVariables.js';
-import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, CustomizationMigrationHintMode } from '../constants.js';
+import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, CustomizationMigrationHintMode, getCopilotHarnessIntroductionMode } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ModelSelectionReason } from '../modelSelection.js';
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
@@ -578,8 +578,8 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private _startSession(props: IStartSessionProps): ChatModel {
-		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isReadOnly, sessionTypeSelectionReason } = props;
-		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, sessionTypeSelectionReason });
+		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked, sessionTypeSelectionReason } = props;
+		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked, sessionTypeSelectionReason });
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(true, transferEditingSession);
 		}
@@ -818,6 +818,7 @@ export class ChatService extends Disposable implements IChatService {
 			transferEditingSession: providedSession.transferredState?.editingSession,
 			inputState,
 			isReadOnly: providedSession.isReadOnly,
+			isInputBlocked: providedSession.isInputBlocked,
 			sessionTypeSelectionReason,
 		}, debugOwner ?? 'ChatService#loadRemoteSession');
 
@@ -1201,7 +1202,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (!model && model !== request.session) {
 			throw new Error(`Unknown session: ${request.session.sessionResource}`);
 		}
-		if (model.isReadOnly.get()) {
+		if (model.isReadOnly.get() || model.isInputBlocked.get()) {
 			return;
 		}
 
@@ -1271,7 +1272,14 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
-		return this.sendRequestInternal(sessionResource, request, options, true);
+		const { onDidCreateResponse, ...requestOptions } = options ?? {};
+		const result = await this.sendRequestInternal(sessionResource, request, onDidCreateResponse ? requestOptions : options, true);
+		if (onDidCreateResponse) {
+			const response = result.kind === 'sent' ? result.data.responseCreatedPromise : Promise.resolve(undefined);
+			// An observer must neither delay dispatch nor propagate failures into the request.
+			void response.then(response => onDidCreateResponse(response, result.kind)).catch(onUnexpectedError);
+		}
+		return result;
 	}
 
 	private async sendRequestInternal(sessionResource: URI, request: string, options: IChatSendRequestOptions | undefined, isSubmission: boolean): Promise<ChatSendResult> {
@@ -1305,10 +1313,10 @@ export class ChatService extends Disposable implements IChatService {
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionResource}`);
 		}
-		if (model.isReadOnly.get()) {
+		if (model.isReadOnly.get() || model.isInputBlocked.get()) {
 			return {
 				kind: 'rejected',
-				reason: 'Session is read-only',
+				reason: model.isInputBlocked.get() ? 'Session input is blocked' : 'Session is read-only',
 				...(newSessionResource ? { newSessionResource } : {}),
 			};
 		}
@@ -1332,8 +1340,8 @@ export class ChatService extends Disposable implements IChatService {
 				transferredMode = submittedMode ?? untitledMode;
 			}
 		}
-		if (model.isReadOnly.get()) {
-			return { kind: 'rejected', reason: 'Session is read-only', newSessionResource };
+		if (model.isReadOnly.get() || model.isInputBlocked.get()) {
+			return { kind: 'rejected', reason: model.isInputBlocked.get() ? 'Session input is blocked' : 'Session is read-only', newSessionResource };
 		}
 
 		const hasPendingRequest = this._pendingRequests.has(sessionResource);
@@ -1568,6 +1576,7 @@ export class ChatService extends Disposable implements IChatService {
 			settingDefaultToCopilotHarness: this.configurationService.getValue<boolean>(ChatConfiguration.DefaultToCopilotHarness) ?? false,
 			settingPreferCopilotHarness: this.configurationService.getValue<boolean>(ChatConfiguration.EditorPreferCopilotHarness) ?? false,
 			settingLocalAgentEnabled: this.configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true,
+			settingCopilotHarnessIntroductionMode: getCopilotHarnessIntroductionMode(this.configurationService),
 		});
 
 		let gotProgress = false;
@@ -2110,6 +2119,9 @@ export class ChatService extends Disposable implements IChatService {
 	 * Multiple consecutive steering requests are combined into a single request.
 	 */
 	private processNextPendingRequest(model: ChatModel): void {
+		if (model.isInputBlocked.get()) {
+			return;
+		}
 		// Agent host sessions delegate queue management to the server.
 		// The server dispatches ChatTurnStarted with queuedMessageId when
 		// it consumes a queued message, so the client should not dequeue eagerly.
@@ -2526,7 +2538,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	async sendPendingRequestImmediately(sessionResource: URI, requestId: string): Promise<void> {
 		const model = this._sessionModels.get(sessionResource) as ChatModel | undefined;
-		if (!model) {
+		if (!model || model.isInputBlocked.get()) {
 			return;
 		}
 

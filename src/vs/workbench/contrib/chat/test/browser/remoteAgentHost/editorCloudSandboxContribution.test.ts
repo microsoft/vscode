@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -129,7 +130,9 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly storageService?: IStorageService;
 	readonly workspaceFolders?: readonly URI[];
 	readonly repositories?: readonly IGitRepository[];
+	readonly scmRepositories?: readonly IGitRepository[];
 	readonly openRepository?: (root: URI) => Promise<IGitRepository | undefined>;
+	readonly connect?: (options: ICloudSandboxConnectOptions, token: CancellationToken) => Promise<void>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const configuration = new TestConfigurationService({
@@ -151,7 +154,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
-	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[] };
+	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[] };
 	const state = {
 		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
 		repositories: [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])],
@@ -169,6 +172,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			workingDirectories: [URI.file('/remote/project')],
 		}] as IAgentSessionMetadata[],
 	};
+	const scmRepositories = new Map<IGitRepository, ISCMRepository>((options?.scmRepositories ?? state.repositories).map(repository => [repository, scmRepository(repository)]));
 	const rootState: RootState = { agents: [{ provider: CLOUD_SANDBOX_AGENT_PROVIDER, displayName: 'Copilot', description: '', models: [] }] };
 	const connection = new class extends mock<IAgentConnection>() {
 		override readonly clientId = 'editor-client';
@@ -232,8 +236,13 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		}
 	}());
 	instantiationService.stub(ICloudSandboxAgentHostService, new class extends mock<ICloudSandboxAgentHostService>() {
-		override async connect(options: ICloudSandboxConnectOptions) {
-			calls.connected.push(options);
+		override async connect(connectOptions: ICloudSandboxConnectOptions, token: CancellationToken) {
+			calls.connected.push(connectOptions);
+			calls.connectTokens.push(token);
+			await options?.connect?.(connectOptions, token);
+			if (token.isCancellationRequested) {
+				return cloudSandboxAddress(connectOptions.environmentId);
+			}
 			if (state.connectError) {
 				throw state.connectError;
 			}
@@ -242,7 +251,11 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			if (state.completeAuthentication) {
 				authenticationPending.set(false, undefined);
 			}
-			return address;
+			return cloudSandboxAddress(connectOptions.environmentId);
+		}
+		override async disconnect(candidate: string): Promise<void> {
+			calls.removed.push(candidate);
+			state.connected = false;
 		}
 	}());
 	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
@@ -290,7 +303,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(ISCMService, new class extends mock<ISCMService>() {
 		override readonly onDidAddRepository = repositoryAdded.event;
 		override readonly onDidRemoveRepository = repositoryRemoved.event;
-		override get repositories() { return state.repositories.map(scmRepository); }
+		override get repositories() { return scmRepositories.values(); }
 	}());
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 		override readonly onDidDisposeSession = Event.None;
@@ -312,12 +325,20 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			workspaceFoldersChanged.fire({ added: state.workspaceFolders, removed, changed: [] });
 		},
 		addRepository: (repository: IGitRepository) => {
-			state.repositories.push(repository);
-			repositoryAdded.fire(scmRepository(repository));
+			if (!state.repositories.includes(repository)) {
+				state.repositories.push(repository);
+			}
+			const scm = scmRepository(repository);
+			scmRepositories.set(repository, scm);
+			repositoryAdded.fire(scm);
 		},
 		removeRepository: (repository: IGitRepository) => {
 			state.repositories = state.repositories.filter(candidate => candidate !== repository);
-			repositoryRemoved.fire(scmRepository(repository));
+			const scm = scmRepositories.get(repository);
+			scmRepositories.delete(repository);
+			if (scm) {
+				repositoryRemoved.fire(scm);
+			}
 		},
 		setEnabled: async (key: string, enabled: boolean) => {
 			await configuration.setUserConfiguration(key, enabled);
@@ -344,6 +365,26 @@ suite('Editor cloud sandbox discovery', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
 		assert.doesNotThrow(() => store.add(instantiationService.createInstance(EditorCloudSandboxContribution)));
+	});
+
+	test('keeps sandbox history registered without offering creation targets', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		assert.deepStrictEqual({
+			providers: [...h.contributions].map(([type, contribution]) => ({
+				type,
+				hiddenFromPicker: contribution.hideFromSessionTypePicker,
+				canDelegate: contribution.canDelegate,
+				canCreate: !!h.controllers.get(type)?.newChatSessionItem,
+			})),
+			created: h.calls.created,
+		}, {
+			providers: [
+				{ type: 'cloud-sandbox', hiddenFromPicker: true, canDelegate: false, canCreate: false },
+				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, canCreate: false },
+			],
+			created: 0,
+		});
 	});
 
 	test('discovers matching repositories without connecting or creating a session', async () => {
@@ -423,6 +464,61 @@ suite('Editor cloud sandbox discovery', () => {
 		const h = createHarness(store, { workspaceFolders: [URI.joinPath(workspaceFolder, 'src')] });
 		await h.refresh();
 		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/original-session']);
+	});
+
+	for (const folder of [workspaceFolder, URI.joinPath(workspaceFolder, 'src')]) {
+		test(`resolves the workspace repository before SCM registration for ${folder.path}`, async () => {
+			const opened: string[] = [];
+			const h = createHarness(store, {
+				workspaceFolders: [folder],
+				scmRepositories: [],
+				openRepository: async root => {
+					opened.push(root.toString());
+					return repository(['https://github.com/example/project.git']);
+				},
+			});
+			await h.refresh();
+			assert.deepStrictEqual({
+				opened,
+				items: h.items().map(item => item.resource.path),
+				created: h.calls.created,
+				connected: h.calls.connected,
+			}, { opened: [folder.toString()], items: ['/original-session'], created: 0, connected: [] });
+		});
+	}
+
+	test('rejects a repository outside the workspace returned by Git', async () => {
+		const h = createHarness(store, {
+			scmRepositories: [],
+			openRepository: async () => repository(['https://github.com/example/project.git'], URI.file('/unrelated')),
+		});
+		await h.refresh();
+		assert.deepStrictEqual({ items: h.items(), warnings: h.calls.repositoryErrors }, {
+			items: [],
+			warnings: ['[CloudSandbox] Ignoring repository outside the requested workspace folder'],
+		});
+	});
+
+	test('retries repository resolution when SCM registers after an unresolved workspace lookup', async () => {
+		const available = repository(['https://github.com/example/project.git']);
+		let resolved = false;
+		let lookups = 0;
+		const h = createHarness(store, {
+			repositories: [],
+			openRepository: async () => {
+				lookups++;
+				return resolved ? available : undefined;
+			},
+		});
+		await h.refresh();
+		const before = h.items().map(item => item.resource.path);
+		const added = Event.toPromise(Event.filter(h.controllers.get(sessionType)!.onDidChangeChatSessionItems, delta => !!delta.addedOrUpdated?.length));
+		resolved = true;
+		h.addRepository(available);
+		await added;
+		assert.deepStrictEqual({ before, after: h.items().map(item => item.resource.path), lookups, scans: h.calls.discovered }, {
+			before: [], after: ['/original-session'], lookups: 2, scans: 1,
+		});
 	});
 
 	test('does not use repositories outside the workspace', async () => {
@@ -683,6 +779,58 @@ suite('Editor cloud sandbox discovery', () => {
 		await pending.complete({ kind: 'complete', sessions: [discovered] });
 		await h.refresh();
 		assert.deepStrictEqual({ items: h.items(), scans, connected: h.calls.connected }, { items: [], scans: 2, connected: [] });
+	});
+
+	test('removing an environment cancels its connect without cancelling another environment', async () => {
+		const pending = new DeferredPromise<void>();
+		const h = createHarness(store, { connect: () => pending.p });
+		await h.refresh();
+		const other = { ...discovered, environmentId: 'other-environment', sessionId: 'other-session', taskId: 'other-task' };
+		const removed = assert.rejects(h.contribution.connect(discovered), isCancellationError);
+		const retained = h.contribution.connect(other);
+		h.state.result = { kind: 'complete', sessions: [other] };
+		await h.refresh();
+		await removed;
+		const cancelled = h.calls.connectTokens.map(token => token.isCancellationRequested);
+		await pending.complete();
+		await retained;
+
+		assert.deepStrictEqual({ cancelled, removed: h.calls.removed, connects: h.calls.connected.length }, {
+			cancelled: [true, false], removed: [address], connects: 2,
+		});
+	});
+
+	test('an old account connect cannot clear or disconnect a newer shared attempt', async () => {
+		const pending = new DeferredPromise<void>();
+		const h = createHarness(store, { connect: () => pending.p });
+		await h.refresh();
+		const cancelled = assert.rejects(h.contribution.connect(discovered), isCancellationError);
+		h.state.accountKey = 'github:another-account';
+		h.accountChanged.fire(h.state.accountKey);
+		const current = h.contribution.connect(discovered);
+		await cancelled;
+		const shared = h.contribution.connect(discovered);
+		const tokens = h.calls.connectTokens.map(token => token.isCancellationRequested);
+		await pending.complete();
+		await Promise.all([current, shared]);
+
+		assert.deepStrictEqual({
+			tokens, connected: h.state.connected, connects: h.calls.connected.length, removed: h.calls.removed,
+		}, { tokens: [true, false], connected: true, connects: 2, removed: [address] });
+	});
+
+	test('disposing the contribution cancels connects and disconnects its environments', async () => {
+		const pending = new DeferredPromise<void>();
+		const h = createHarness(store, { connect: () => pending.p });
+		await h.refresh();
+		const cancelled = assert.rejects(h.contribution.connect(discovered), isCancellationError);
+		h.contribution.dispose();
+		await cancelled;
+		await pending.complete();
+
+		assert.deepStrictEqual({
+			cancelled: h.calls.connectTokens[0].isCancellationRequested, removed: h.calls.removed, connected: h.state.connected,
+		}, { cancelled: true, removed: [address], connected: false });
 	});
 
 	test('incremental discovery retains absent rows but honors explicit task removal', async () => {

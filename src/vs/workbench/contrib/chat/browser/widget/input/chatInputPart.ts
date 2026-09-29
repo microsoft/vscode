@@ -484,6 +484,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _hasFileAttachmentContextKey: IContextKey<boolean>;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	private readonly _notificationHostVisible = observableValue(this, false);
 	private readonly _contextResourceLabels: ResourceLabels;
 
 	private readonly inputEditorMaxHeight: number;
@@ -520,6 +521,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatToolConfirmationCarouselContainer!: HTMLElement;
 	private chatInputNotificationContainer!: HTMLElement;
 	private chatGoalBannerContainer!: HTMLElement;
+	private chatCustomizationMigrationNoticeContainer!: HTMLElement;
 	private persistentContentContainer!: HTMLElement;
 	private sessionArchiveNudgeContainer: HTMLElement | undefined;
 	private sessionArchiveNudgeOptions: IChatSessionArchiveNudgeOptions | undefined;
@@ -538,27 +540,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private contextUsageWidget?: ChatContextUsageWidget;
 	private contextUsageWidgetContainer!: HTMLElement;
-	private contextUsageWidgetHome!: HTMLElement;
-	private inputEditorTrailingSpace = 0;
 	private readonly _contextUsageDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
 	}
 
-	placeContextUsageWidget(container?: HTMLElement): void {
-		(container ?? this.contextUsageWidgetHome).append(this.contextUsageWidgetContainer);
+	get customizationMigrationNoticeContainerElement(): HTMLElement {
+		return this.chatCustomizationMigrationNoticeContainer;
 	}
 
-	/** Reserves horizontal space at the trailing edge of the input editor. */
-	setInputEditorTrailingSpace(width: number): void {
-		const trailingSpace = Math.max(0, width);
-		if (this.inputEditorTrailingSpace === trailingSpace) {
-			return;
-		}
+	setCustomizationMigrationNoticeVisible(visible: boolean): void {
+		setChatInputStackSlot(this.chatCustomizationMigrationNoticeContainer, visible ? ChatInputStackSlot.Standalone : ChatInputStackSlot.Empty);
+	}
 
-		this.inputEditorTrailingSpace = trailingSpace;
-		this.layoutForToolbarChange();
+	get inputToolbarElement(): HTMLElement {
+		return this.inputActionsToolbar.getElement();
+	}
+
+	setInputToolbarAriaLabel(label: string): void {
+		this.inputActionsToolbar.setAriaLabel(label);
 	}
 
 	get inputRowHeight(): number {
@@ -2266,6 +2267,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	setVisible(visible: boolean): void {
+		this._notificationHostVisible.set(visible, undefined);
 		this._onDidChangeVisibility.fire(visible);
 	}
 
@@ -2947,6 +2949,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// the user creates a session and `sessionTypes`-gated
 			// notifications never render.
 			this._notificationWidget.value = this.instantiationService.createInstance(ChatInputNotificationWidget, {
+				hostVisible: this._notificationHostVisible,
 				inputUri: this.inputUri,
 				modelTargetChatSessionType: this._notificationModelTargetChatSessionType,
 				sessionResource: this._currentSessionResourceObservable,
@@ -3236,6 +3239,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
 					dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),
 					dom.h(`.${chatInputStackClass}`, [
+						dom.h(`.chat-customization-migration-notice-container.${chatInputStackSlotClass}@chatCustomizationMigrationNoticeContainer`),
 						dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
 						dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),
 						dom.h(`.dictation-onboarding-container.${chatInputStackSlotClass}@dictationOnboardingContainer`),
@@ -3271,6 +3275,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),
 				dom.h(`.interactive-input-followups.${chatInputSurfaceStackSlotClass}@followupsContainer`),
 				dom.h(`.${chatInputStackClass}`, [
+					dom.h(`.chat-customization-migration-notice-container.${chatInputStackSlotClass}@chatCustomizationMigrationNoticeContainer`),
 					dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
 					dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),
 					dom.h(`.dictation-onboarding-container.${chatInputStackSlotClass}@dictationOnboardingContainer`),
@@ -3300,6 +3305,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.persistentContentContainer = elements.persistentContentContainer;
 		this.sessionArchiveNudgeContainer = elements.sessionArchiveNudgeContainer;
 		this.chatInputOverlay = dom.$('.chat-input-overlay');
+		this.chatCustomizationMigrationNoticeContainer = elements.chatCustomizationMigrationNoticeContainer;
 		container.append(this.container);
 		this.container.append(this.chatInputOverlay);
 		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
@@ -3345,10 +3351,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatGoalBannerContainer = elements.chatGoalBannerContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 		this.statusToolbarContainer = elements.statusToolbarContainer;
-		this.contextUsageWidgetHome = this.options.renderStyle === 'compact' ? toolbarsContainer : this.secondaryToolbarContainer;
 
 		if (this.options.renderStyle === 'compact') {
-			this.contextUsageWidgetHome.prepend(this.contextUsageWidgetContainer);
+			toolbarsContainer.prepend(this.contextUsageWidgetContainer);
 		}
 
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
@@ -3683,6 +3688,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						getActiveSessionProvider: () => {
 							return this.getActiveSessionTypeForDelegation();
 						},
+						getSessionResource: () => this._currentSessionResourceObservable.get(),
 						getPendingDelegationTarget: () => {
 							return this._pendingDelegationTarget;
 						},
@@ -3693,7 +3699,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
-					const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getInputPickerOptions(action.id));
+					const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getInputPickerOptions(action.id), this.inputUri);
 					inputOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 					const picker = createPicker();
 					if (picker instanceof DelegationSessionPickerActionItem) {
@@ -3890,6 +3896,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						getActiveSessionProvider: () => {
 							return this.getActiveSessionTypeForDelegation();
 						},
+						getSessionResource: () => this._currentSessionResourceObservable.get(),
 						getPendingDelegationTarget: () => {
 							return this._pendingDelegationTarget;
 						},
@@ -3900,7 +3907,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
-					const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getSecondaryPickerOptions(action.id));
+					const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getSecondaryPickerOptions(action.id), this.inputUri);
 					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 					const picker = createPicker();
 					if (picker instanceof DelegationSessionPickerActionItem) {
@@ -4434,9 +4441,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatArtifactsWidget.value?.setSessionResource(undefined);
 	}
 
-	renderQuestionCarousel(carousel: IChatQuestionCarousel, context: IChatContentPartRenderContext, options: IChatQuestionCarouselOptions): ChatQuestionCarouselPart {
+	renderQuestionCarousel(carousel: IChatQuestionCarousel, context: IChatContentPartRenderContext | undefined, options: IChatQuestionCarouselOptions): ChatQuestionCarouselPart {
+		if (!context && !carousel.resolveId) {
+			throw new Error('A question carousel without response context must provide a resolveId.');
+		}
 
-		const carouselKey = carousel.resolveId ?? `${isResponseVM(context.element) ? context.element.requestId : ''}_${context.contentIndex}`;
+		const carouselKey = carousel.resolveId ?? `${context && isResponseVM(context.element) ? context.element.requestId : ''}_${context?.contentIndex ?? 0}`;
 
 		// If a carousel with the same key already exists, return it
 		const existing = this._chatQuestionCarouselWidgets.get(carouselKey);
@@ -4445,7 +4455,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Track the response id and session for this carousel
-		if (isResponseVM(context.element)) {
+		if (context && isResponseVM(context.element)) {
 			this._questionCarouselResponseIds.set(carouselKey, context.element.requestId);
 			this._questionCarouselSessionResources.set(carouselKey, context.element.sessionResource);
 		}
@@ -5186,7 +5196,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		const newEditorWidth = Math.max(0, width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth - this.inputEditorTrailingSpace);
+		const newEditorWidth = Math.max(0, width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth);
 		const effectiveMaxHeight = this._effectiveInputEditorMaxHeight;
 		const contentHeight = preserveInputEditorHeight && this.previousInputEditorDimension
 			? this.previousInputEditorDimension.height

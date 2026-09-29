@@ -267,12 +267,16 @@ export class SessionDropTarget extends Themable {
 			return;
 		}
 
-		this._updateContainer(true);
-
 		const target = event.target as HTMLElement;
 		if (!target) {
 			return;
 		}
+		const targetView = this._delegate.findTargetView(target);
+		if (targetView && this._sessionTransfer.getData(DraggedSessionIdentifier.prototype)?.every(dragged => dragged.sessionId === targetView.sessionId)) {
+			return;
+		}
+
+		this._updateContainer(true);
 
 		// If the mouse jumped out of the current overlay, dispose it.
 		if (this.overlay && !this.overlay.contains(target)) {
@@ -283,7 +287,6 @@ export class SessionDropTarget extends Themable {
 			return;
 		}
 
-		const targetView = this._delegate.findTargetView(target);
 		if (!targetView) {
 			return;
 		}
