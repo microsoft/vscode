@@ -14,7 +14,7 @@ import { constObservable, transaction } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IMenu, IMenuService, isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, isIMenuItem, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -77,7 +77,6 @@ suite('Sessions list context menus', () => {
 
 	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session], menuActionsOrComparison: readonly { id: string; run: () => void }[] | boolean = [], showNavigationShortcuts = false, pinnedSessionIds: ReadonlySet<string> = new Set()) {
 		const contextMenuService = new TestContextMenuService();
-		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		let menuDisposed = false;
 		const isComparison = typeof menuActionsOrComparison === 'boolean' ? menuActionsOrComparison : false;
 		const menuActions = typeof menuActionsOrComparison === 'boolean' ? [] : menuActionsOrComparison;

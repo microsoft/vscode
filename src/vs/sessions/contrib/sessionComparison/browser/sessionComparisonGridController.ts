@@ -6,6 +6,7 @@
 import { isEqual } from '../../../../base/common/resources.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Event } from '../../../../base/common/event.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -51,17 +52,15 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			() => accessibilityService.isScreenReaderOptimized(),
 		);
 		this._register(autorun(reader => {
-			const layout = this.sessionsService.sessionGridLayout.read(reader);
 			const visibleSessions = this.sessionsService.visibleSessions.read(reader);
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			const comparisons = this.comparisonService.comparisons.read(reader);
-			this._comparisonGridActive = layout === 'grid' && this._isComparisonGrid(visibleSessions, comparisons);
+			this._comparisonGridActive = this._isComparisonGrid(visibleSessions, comparisons);
 			this.layoutService.mainContainer.classList.toggle(COMPARISON_GRID_ACTIVE_CLASS, this._comparisonGridActive);
 			this.layoutService.mainContainer.classList.toggle(
 				HIDE_INACTIVE_COMPARISON_INPUTS_CLASS,
 				hideInactiveInputs.read(reader)
 				&& !screenReaderOptimized.read(reader)
-				&& layout === 'grid'
 				&& visibleSessions.length > 2
 				&& this._isAttemptComparisonGrid(visibleSessions, comparisons),
 			);
@@ -124,7 +123,7 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			return;
 		}
 		this._isolatedJudgeSessionId = sessionId;
-		this.sessionsService.showOnlySession(judgeSession);
+		void this.sessionsService.openSessionsInGrid([judgeSession]).catch(onUnexpectedError);
 		this._setSidePaneSuppressed(true);
 	}
 

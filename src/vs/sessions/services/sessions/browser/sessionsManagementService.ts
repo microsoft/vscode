@@ -956,7 +956,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(createOptions);
-		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, createOptions));
+		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, createOptions));
 		try {
 			await createOptions?.onSessionCreated?.(session);
 		} catch (error) {

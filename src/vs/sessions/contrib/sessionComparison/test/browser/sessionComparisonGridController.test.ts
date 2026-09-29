@@ -17,7 +17,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsPartService, SessionGridLayout } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
@@ -28,7 +28,7 @@ import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../common/sessionCom
 suite('Session comparison grid controller', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(initialLayout: SessionGridLayout = 'grid', options?: { readonly attemptsOnly?: boolean; readonly attemptCount?: 2 | 3; readonly hideInactiveInputs?: boolean; readonly screenReaderOptimized?: boolean }) {
+	function setup(options?: { readonly attemptsOnly?: boolean; readonly attemptCount?: 2 | 3; readonly hideInactiveInputs?: boolean; readonly screenReaderOptimized?: boolean }) {
 		const judge = upcastPartial<IActiveSession>({ sessionId: 'judge', resource: URI.parse('test:///judge') });
 		const attempt = upcastPartial<IActiveSession>({ sessionId: 'attempt', resource: URI.parse('test:///attempt') });
 		const attempt2 = upcastPartial<IActiveSession>({ sessionId: 'attempt-2', resource: URI.parse('test:///attempt-2') });
@@ -67,9 +67,7 @@ suite('Session comparison grid controller', () => {
 		const visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', options?.attemptsOnly
 			? [attempt, attempt2, attempt3].slice(0, options.attemptCount ?? 2)
 			: [judge, attempt]);
-		const sessionGridLayout = observableValue<SessionGridLayout>('sessionGridLayout', initialLayout);
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
-		const closed: Array<string | undefined> = [];
 		const shownOnly: string[] = [];
 		const hiddenParts: Array<{ hidden: boolean; part: Parts }> = [];
 		const partVisibility = new Map<Parts, boolean>([
@@ -84,7 +82,6 @@ suite('Session comparison grid controller', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const screenReaderOptimizedChanged = store.add(new Emitter<void>());
 		let screenReaderOptimized = options?.screenReaderOptimized ?? false;
-		let resetCount = 0;
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
@@ -99,20 +96,10 @@ suite('Session comparison grid controller', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSession;
 			override readonly visibleSessions = visibleSessions;
-			override readonly sessionGridLayout = sessionGridLayout;
-			override closeSession(session: ISession | undefined): void {
-				closed.push(session?.sessionId);
-				visibleSessions.set(visibleSessions.get().filter(candidate => candidate.sessionId !== session?.sessionId), undefined);
-			}
-			override resetSessionGridLayout(): void {
-				resetCount++;
-				sessionGridLayout.set('columns', undefined);
-			}
-			override showOnlySession(session: ISession): void {
-				shownOnly.push(session.sessionId);
-				visibleSessions.set([session as IActiveSession], undefined);
-				activeSession.set(session as IActiveSession, undefined);
-				sessionGridLayout.set('columns', undefined);
+			override async openSessionsInGrid(sessions: readonly ISession[]): Promise<void> {
+				shownOnly.push(...sessions.map(session => session.sessionId));
+				visibleSessions.set(sessions as readonly IActiveSession[], undefined);
+				activeSession.set(sessions[0] as IActiveSession, undefined);
 			}
 		}());
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
@@ -146,9 +133,7 @@ suite('Session comparison grid controller', () => {
 			focused,
 			activeSession,
 			visibleSessions,
-			sessionGridLayout,
 			comparisons,
-			closed,
 			shownOnly,
 			hiddenParts,
 			partVisibility,
@@ -159,7 +144,6 @@ suite('Session comparison grid controller', () => {
 				screenReaderOptimized = value;
 				screenReaderOptimizedChanged.fire();
 			},
-			get resetCount() { return resetCount; },
 		};
 	}
 
@@ -172,7 +156,7 @@ suite('Session comparison grid controller', () => {
 
 		fixture.partVisibility.set(Parts.EDITOR_PART, true);
 		fixture.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
-		fixture.sessionGridLayout.set('columns', undefined);
+		fixture.comparisons.set([], undefined);
 
 		assert.deepStrictEqual(fixture.hiddenParts, [
 			{ hidden: true, part: Parts.AUXILIARYBAR_PART },
@@ -184,13 +168,10 @@ suite('Session comparison grid controller', () => {
 	test('closes other panes on the first Judge focus', () => {
 		const fixture = setup();
 
-		assert.deepStrictEqual({ closed: fixture.closed, resetCount: fixture.resetCount }, { closed: [], resetCount: 0 });
 		fixture.focused.fire('judge');
 
-		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed, resetCount: fixture.resetCount }, {
+		assert.deepStrictEqual({ shownOnly: fixture.shownOnly }, {
 			shownOnly: ['judge'],
-			closed: [],
-			resetCount: 0,
 		});
 
 		fixture.partVisibility.set(Parts.EDITOR_PART, true);
@@ -204,10 +185,8 @@ suite('Session comparison grid controller', () => {
 		fixture.activeSession.set(fixture.judge, undefined);
 		await Promise.resolve();
 
-		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed, resetCount: fixture.resetCount }, {
+		assert.deepStrictEqual({ shownOnly: fixture.shownOnly }, {
 			shownOnly: ['judge'],
-			closed: [],
-			resetCount: 0,
 		});
 	});
 
@@ -216,35 +195,33 @@ suite('Session comparison grid controller', () => {
 		await Promise.resolve();
 		fixture.focused.fire('attempt');
 
-		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed, resetCount: fixture.resetCount }, { shownOnly: [], closed: [], resetCount: 0 });
+		assert.deepStrictEqual({ shownOnly: fixture.shownOnly }, { shownOnly: [] });
 	});
 
-	test('collapses a comparison Judge from an ordinary multi-session columns layout', () => {
-		const fixture = setup('columns');
+	test('collapses a comparison Judge from a multi-session layout', () => {
+		const fixture = setup();
 		fixture.focused.fire('judge');
 
-		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed, resetCount: fixture.resetCount }, {
+		assert.deepStrictEqual({ shownOnly: fixture.shownOnly }, {
 			shownOnly: ['judge'],
-			closed: [],
-			resetCount: 0,
 		});
 	});
 
-	test('does not collapse unrelated multi-session columns', async () => {
-		const fixture = setup('columns');
+	test('does not collapse unrelated multi-session layouts', async () => {
+		const fixture = setup();
 		fixture.comparisons.set([], undefined);
 		fixture.activeSession.set(fixture.judge, undefined);
 		await Promise.resolve();
 
-		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed, resetCount: fixture.resetCount }, { shownOnly: [], closed: [], resetCount: 0 });
+		assert.deepStrictEqual({ shownOnly: fixture.shownOnly }, { shownOnly: [] });
 	});
 
 	test('shows inputs by default and hides inactive inputs only when enabled for three or more attempts', async () => {
-		const defaultGrid = setup('grid', { attemptsOnly: true, attemptCount: 3 });
-		const twoAttemptGrid = setup('grid', { attemptsOnly: true, attemptCount: 2, hideInactiveInputs: true });
-		const enabledGrid = setup('grid', { attemptsOnly: true, attemptCount: 3, hideInactiveInputs: true });
-		const mixedGrid = setup('grid', { hideInactiveInputs: true });
-		const screenReaderGrid = setup('grid', { attemptsOnly: true, attemptCount: 3, hideInactiveInputs: true, screenReaderOptimized: true });
+		const defaultGrid = setup({ attemptsOnly: true, attemptCount: 3 });
+		const twoAttemptGrid = setup({ attemptsOnly: true, attemptCount: 2, hideInactiveInputs: true });
+		const enabledGrid = setup({ attemptsOnly: true, attemptCount: 3, hideInactiveInputs: true });
+		const mixedGrid = setup({ hideInactiveInputs: true });
+		const screenReaderGrid = setup({ attemptsOnly: true, attemptCount: 3, hideInactiveInputs: true, screenReaderOptimized: true });
 		const className = 'session-comparison-hide-inactive-inputs';
 		const activeClassName = 'session-comparison-grid-active';
 		const shownByDefault = !defaultGrid.mainContainer.classList.contains(className);
@@ -259,7 +236,7 @@ suite('Session comparison grid controller', () => {
 			affectsConfiguration: key => key === HIDE_INACTIVE_COMPARISON_INPUTS_SETTING,
 		}));
 		const disabledBySetting = enabledGrid.mainContainer.classList.contains(className);
-		enabledGrid.sessionGridLayout.set('columns', undefined);
+		enabledGrid.comparisons.set([], undefined);
 		const afterLeavingGrid = enabledGrid.mainContainer.classList.contains(className);
 
 		assert.deepStrictEqual({

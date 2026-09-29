@@ -21,6 +21,7 @@ suite('ModelPickerActionItem', () => {
 		const widgetElement = $('button');
 		const anchors: (HTMLElement | undefined)[] = [];
 		const contextViewLayers: (number | undefined)[] = [];
+		const forceTabbedPickerValues: boolean[] = [];
 		let disposed = 0;
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stubInstance(ModelPickerWidget, {
@@ -32,6 +33,7 @@ suite('ModelPickerActionItem', () => {
 			setSelectedModel: () => { },
 			setCompact: () => { },
 			setContextViewLayer: layer => contextViewLayers.push(layer),
+			setForceTabbedPicker: forceTabbedPicker => forceTabbedPickerValues.push(forceTabbedPicker),
 			render: container => container.appendChild(widgetElement),
 			show: anchor => anchors.push(anchor),
 			dispose: () => disposed++,
@@ -53,7 +55,7 @@ suite('ModelPickerActionItem', () => {
 		const item = disposables.add(new ModelPickerActionItem(
 			action,
 			delegate,
-			{ compact: constObservable(false), contextViewLayer: 1 },
+			{ compact: constObservable(false), contextViewLayer: 1, forceTabbedModelPicker: true },
 			instantiationService,
 			new MockContextKeyService(),
 			new MockKeybindingService(),
@@ -73,12 +75,14 @@ suite('ModelPickerActionItem', () => {
 			defaultAnchor: anchors[0] === widgetElement,
 			explicitAnchor: anchors[1] === second,
 			contextViewLayers,
+			forceTabbedPickerValues,
 			disposed,
 		}, {
 			rendered: { first: 0, second: true },
 			defaultAnchor: true,
 			explicitAnchor: true,
 			contextViewLayers: [1],
+			forceTabbedPickerValues: [true],
 			disposed: 1,
 		});
 	});
