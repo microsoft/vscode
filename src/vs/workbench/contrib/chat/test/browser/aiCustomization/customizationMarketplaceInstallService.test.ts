@@ -2564,6 +2564,30 @@ suite('CustomizationMarketplaceInstallService', () => {
 		});
 
 
+		test('uninstalls a restored skill record that remains checking while marketplace sources are disabled', async () => {
+			const fixture = await createFixture();
+			const candidate = resource();
+			await fixture.service.install(candidate);
+			fixture.service.dispose();
+			await setSourcesEnabled(fixture.configurationService, false);
+			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
+			const before = restored.getInstallState(candidate);
+
+			await restored.uninstall(candidate);
+
+			assert.deepStrictEqual({
+				before: before.kind,
+				exists: await fixture.fileService.exists(skillDestination),
+				recorded: restored.getRecordedResources().length,
+				deletions: fixture.deletedSkills.map(uri => uri.toString()),
+			}, {
+				before: 'checking',
+				exists: false,
+				recorded: 0,
+				deletions: [joinPath(skillDestination, SKILL_FILENAME).toString()],
+			});
+		});
+
 		test('retains the skill record when uninstall cannot verify the target', async () => {
 			const fixture = await createFixture();
 			const candidate = resource();

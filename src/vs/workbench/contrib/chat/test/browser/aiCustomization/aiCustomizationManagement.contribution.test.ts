@@ -24,7 +24,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
-import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 
@@ -56,10 +56,12 @@ suite('AI customization management contribution', () => {
 			representativeQueries: [],
 		};
 		const uninstallCalls: ICustomizationMarketplaceResource[] = [];
+		const state: RecordedCustomizationMarketplaceInstallState = { kind: 'installed', target: { kind: 'skill', uri } };
 		const installService = new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = Event.None;
 			override getRecordedResources() { return [resource]; }
-			override getInstallState(): CustomizationMarketplaceInstallState { return { kind: 'installed', target: { kind: 'skill', uri } }; }
+			override getRecordedResourcesWithState() { return [{ resource, state }]; }
+			override getInstallState(): CustomizationMarketplaceInstallState { return state; }
 			override async uninstall(candidate: ICustomizationMarketplaceResource): Promise<void> { uninstallCalls.push(candidate); }
 		}();
 		const instantiationService = workbenchInstantiationService({}, store);

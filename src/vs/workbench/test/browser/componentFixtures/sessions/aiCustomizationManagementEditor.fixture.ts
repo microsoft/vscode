@@ -1187,6 +1187,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						return state?.kind === 'checking' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error';
 					});
 				}
+				override getRecordedResourcesWithState() {
+					return customizationMarketplaceResources.flatMap(resource => {
+						const state = customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource));
+						return state?.kind === 'checking' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error'
+							? [{ resource, state }]
+							: [];
+					});
+				}
 				override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
 					assert(sourceEnabled(), 'A fixture with no enabled sources must not install resources.');
 					if (options.customizationMarketplaceInstallationState === 'error') {

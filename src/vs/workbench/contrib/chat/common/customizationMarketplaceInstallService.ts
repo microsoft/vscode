@@ -32,22 +32,8 @@ export function findRecordedCustomizationMarketplaceResource(
 	service: ICustomizationMarketplaceInstallService,
 	target: CustomizationMarketplaceInstallationTarget,
 ): IRecordedCustomizationMarketplaceResource | undefined {
-	for (const resource of service.getRecordedResources()) {
-		const state = service.getInstallState(resource);
-		if (isRecordedCustomizationMarketplaceInstallState(state) && isCustomizationMarketplaceInstallationTargetEqual(state.target, target)) {
-			return { resource, state };
-		}
-	}
-	return undefined;
-}
-
-function isRecordedCustomizationMarketplaceInstallState(state: CustomizationMarketplaceInstallState): state is RecordedCustomizationMarketplaceInstallState {
-	return state.kind === 'checking'
-		|| state.kind === 'installed'
-		|| state.kind === 'missing'
-		|| state.kind === 'repairing'
-		|| state.kind === 'uninstalling'
-		|| state.kind === 'error';
+	return service.getRecordedResourcesWithState().find(recorded =>
+		isCustomizationMarketplaceInstallationTargetEqual(recorded.state.target, target));
 }
 
 function isCustomizationMarketplaceInstallationTargetEqual(
@@ -74,6 +60,8 @@ export interface ICustomizationMarketplaceInstallService {
 	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState;
 	/** Returns recorded resources applicable to the active customization destination, including missing targets. */
 	getRecordedResources(): readonly ICustomizationMarketplaceResource[];
+	/** Returns recorded resources and their current state without repeating resource-to-record lookup. */
+	getRecordedResourcesWithState(): readonly IRecordedCustomizationMarketplaceResource[];
 	/** Uses the owning install flow; cancellation rejects with a CancellationError. */
 	install(resource: ICustomizationMarketplaceResource): Promise<void>;
 	/** Restores files, registrations, or account connections missing from a recorded installation. */

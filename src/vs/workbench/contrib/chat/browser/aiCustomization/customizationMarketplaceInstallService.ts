@@ -29,7 +29,7 @@ import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
-import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
@@ -569,6 +569,28 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		return this.getRelevantRecords().map(toRecordedMarketplaceResource);
 	}
 
+	getRecordedResourcesWithState(): readonly IRecordedCustomizationMarketplaceResource[] {
+		return this.getRelevantRecords().map(record => {
+			const resource = toRecordedMarketplaceResource(record);
+			return { resource, state: this.getRecordedInstallState(record, resource) };
+		});
+	}
+
+	private getRecordedInstallState(record: ICustomizationMarketplaceInstallationRecord, resource: ICustomizationMarketplaceResource): RecordedCustomizationMarketplaceInstallState {
+		const target = this.toInstallationTarget(record);
+		if (this.pendingUninstalls.has(record.target.kind === 'copilotConnector' ? getConnectorOperationKey(resource) : record.id)) {
+			return { kind: 'uninstalling', target };
+		}
+		if (this.pendingRepairs.has(record.id)) {
+			return { kind: 'repairing', target };
+		}
+		const state = this.recordStates.get(record.id) ?? { kind: 'checking' as const };
+		if (state.kind === 'error') {
+			return { ...state, target };
+		}
+		return state.kind === 'missing' ? { kind: 'missing', target, repairUnavailableMessage: this.getRepairUnavailableMessage(record) } : { kind: state.kind, target };
+	}
+
 	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 		if (resource.installation?.kind === 'copilotConnector' &&
 			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) !== true) {
@@ -576,18 +598,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 		const record = this.findRecord(resource);
 		if (record) {
-			const target = this.toInstallationTarget(record);
-			if (this.pendingUninstalls.has(record.target.kind === 'copilotConnector' ? getConnectorOperationKey(resource) : record.id)) {
-				return { kind: 'uninstalling', target };
-			}
-			if (this.pendingRepairs.has(record.id)) {
-				return { kind: 'repairing', target };
-			}
-			const state = this.recordStates.get(record.id) ?? { kind: 'checking' as const };
-			if (state.kind === 'error') {
-				return { ...state, target };
-			}
-			return state.kind === 'missing' ? { kind: 'missing', target, repairUnavailableMessage: this.getRepairUnavailableMessage(record) } : { kind: state.kind, target };
+			return this.getRecordedInstallState(record, resource);
 		}
 		if (!this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
 			return { kind: 'unavailable', message: localize('customizationMarketplace.disabled', "Enable the customization marketplace to install this resource.") };
@@ -848,12 +859,12 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (!record) {
 			return;
 		}
-		const state = this.recordStates.get(record.id);
+		const state = this.recordStates.get(record.id) ?? { kind: 'checking' as const };
 		const pending = this.pendingUninstalls.get(record.id);
 		if (pending) {
 			return pending;
 		}
-		if (state?.kind !== 'installed' && state?.kind !== 'missing' && state?.kind !== 'error') {
+		if (state.kind !== 'checking' && state.kind !== 'installed' && state.kind !== 'missing' && state.kind !== 'error') {
 			return;
 		}
 		const operation = (async () => {

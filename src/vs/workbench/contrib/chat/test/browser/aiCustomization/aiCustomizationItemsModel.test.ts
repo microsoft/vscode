@@ -22,7 +22,7 @@ import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCu
 import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORAGE, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
-import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { IAgentSource, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -36,6 +36,7 @@ suite('AICustomizationItemsModel', () => {
 		return new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = Event.None;
 			override getRecordedResources() { return []; }
+			override getRecordedResourcesWithState() { return []; }
 			override getInstallState(): CustomizationMarketplaceInstallState { return { kind: 'available' }; }
 		}();
 	}
@@ -57,7 +58,8 @@ suite('AICustomizationItemsModel', () => {
 		let disabledPromptFilesResult: ResourceSet;
 		let marketplaceChanges: Emitter<void>;
 		let marketplaceResources: ICustomizationMarketplaceResource[];
-		let marketplaceStates: Map<string, CustomizationMarketplaceInstallState>;
+		let marketplaceStates: Map<string, RecordedCustomizationMarketplaceInstallState>;
+		let marketplaceInstallStateLookups: number;
 
 		function createDescriptor(id: string, provider: ICustomizationItemProvider | undefined, syncProvider?: ICustomizationSyncProvider): IHarnessDescriptor {
 			return {
@@ -79,6 +81,7 @@ suite('AICustomizationItemsModel', () => {
 			marketplaceChanges = disposables.add(new Emitter<void>());
 			marketplaceResources = [];
 			marketplaceStates = new Map();
+			marketplaceInstallStateLookups = 0;
 
 			const providerA: ICustomizationItemProvider = {
 				onDidChange: providerA_didChange.event,
@@ -103,7 +106,11 @@ suite('AICustomizationItemsModel', () => {
 			instaService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 				override readonly onDidChange = marketplaceChanges.event;
 				override getRecordedResources() { return marketplaceResources; }
+				override getRecordedResourcesWithState() {
+					return marketplaceResources.map(resource => ({ resource, state: marketplaceStates.get(getCustomizationMarketplaceResourceKey(resource))! }));
+				}
 				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+					marketplaceInstallStateLookups++;
 					return marketplaceStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
 				}
 			}());
@@ -244,9 +251,11 @@ suite('AICustomizationItemsModel', () => {
 			assert.deepStrictEqual({
 				installed: installed && { identifier: installed.resource.identifier, icon: installed.resource.icon?.toString(), state: installed.state.kind },
 				uninstalling: uninstalling?.state.kind,
+				installStateLookups: marketplaceInstallStateLookups,
 			}, {
 				installed: { identifier: 'review', icon: 'https://example.com/review.png', state: 'installed' },
 				uninstalling: 'uninstalling',
+				installStateLookups: 0,
 			});
 		});
 

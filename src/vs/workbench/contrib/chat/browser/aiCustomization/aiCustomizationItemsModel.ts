@@ -18,7 +18,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
-import { findRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
+import { ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource } from '../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
@@ -173,8 +173,14 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 			const sourceItems = observableValue<readonly IAICustomizationListItem[]>(`aiCustomizationItems:${section}`, []);
 			const items = section === AICustomizationManagementSection.Skills ? derived(reader => {
 				marketplaceInstallationsChanged.read(reader);
+				const marketplaceSkills = new ResourceMap<IRecordedCustomizationMarketplaceResource>();
+				for (const marketplace of this.marketplaceInstallService.getRecordedResourcesWithState()) {
+					if (marketplace.state.target.kind === 'skill' && !marketplaceSkills.has(marketplace.state.target.uri)) {
+						marketplaceSkills.set(marketplace.state.target.uri, marketplace);
+					}
+				}
 				return sourceItems.read(reader).map(item => {
-					const marketplace = findRecordedCustomizationMarketplaceResource(this.marketplaceInstallService, { kind: 'skill', uri: item.uri });
+					const marketplace = marketplaceSkills.get(item.uri);
 					return marketplace ? { ...item, marketplace } : item;
 				});
 			}) : sourceItems;
