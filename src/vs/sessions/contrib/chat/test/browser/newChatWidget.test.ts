@@ -762,6 +762,30 @@ suite('NewChatWidget', () => {
 			: [undefined, 'Chat [Test Remote]', undefined]);
 	});
 
+	test('reselecting Chat or its current host preserves the quick chat draft', async () => {
+		const selections: Array<ICreateNewSessionOptions | undefined> = [];
+		const providers = [LOCAL_AGENT_HOST_PROVIDER_ID, 'agenthost-remote-test'].map(id => upcastPartial<ISessionsProvider>({
+			id, label: id, supportsQuickChats: true,
+		}));
+		const option = getNoWorkspaceOption.call({
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(true),
+			_session: constObservable({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID }),
+			sessionsProvidersService: { getProviders: () => providers },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: options => selections.push(options),
+		});
+		option?.select();
+		await option?.submenuActions?.[0].run();
+		const afterReselection = [...selections];
+		await option?.submenuActions?.[1].run();
+
+		assert.deepStrictEqual({ afterReselection, selections }, {
+			afterReselection: [],
+			selections: isWeb ? [] : [{ providerId: 'agenthost-remote-test' }],
+		});
+	});
+
 	test('selects the sole quick chat provider directly', () => {
 		const selections: Array<ICreateNewSessionOptions | undefined> = [];
 		const provider = upcastPartial<ISessionsProvider>({
@@ -1237,6 +1261,51 @@ suite('NewChatWidget', () => {
 			{ folderUri: folder.toString(), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, persist: false, preferDevContainer: false, origin: WorkspaceSelectionOrigin.SessionSync },
 			{ folderUri: folder.toString(), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, persist: true, preferDevContainer: false, origin: WorkspaceSelectionOrigin.RestoredDraft },
 		]);
+	});
+
+	test('reuses the selected workspace draft only when the folder, provider and mode are unchanged', () => {
+		const folder = URI.file('/project');
+		const isCurrentWorkspaceSelection = Reflect.get(NewChatWidget.prototype, '_isCurrentWorkspaceSelection') as (
+			this: {
+				readonly _session: IObservable<IActiveSession | undefined>;
+				readonly _workspacePicker: { readonly selectedResolved: { readonly providerId: string } };
+				readonly _preferredDevContainerFolderUri: URI | undefined;
+				readonly _pendingWorkspaceCreation?: Promise<IOpenNewSessionResult>;
+				readonly uriIdentityService: { readonly extUri: typeof extUri };
+				readonly sessionsProvidersService: { getProvider(): { readonly id: string; isDevContainerEnabled(): boolean } };
+			},
+			folderUri: URI | undefined,
+		) => boolean;
+		const cases = [
+			{ name: 'same folder', folderUri: URI.file('/project'), reuse: true },
+			{ name: 'different folder', folderUri: URI.file('/other'), reuse: false },
+			{ name: 'cleared folder', folderUri: undefined, reuse: false },
+			{ name: 'different provider', folderUri: folder, providerId: 'other', reuse: false },
+			{ name: 'enable container', folderUri: folder, preferDevContainer: true, reuse: false },
+			{ name: 'disable container', folderUri: folder, devContainerEnabled: true, reuse: false },
+			{ name: 'same container', folderUri: folder, preferDevContainer: true, devContainerEnabled: true, reuse: true },
+			{ name: 'pending selection', folderUri: folder, pending: true, reuse: false },
+			{ name: 'created session', folderUri: folder, isCreated: true, reuse: false },
+			{ name: 'no draft', folderUri: folder, noDraft: true, reuse: false },
+		];
+		const results = cases.map(options => ({
+			name: options.name,
+			reuse: isCurrentWorkspaceSelection.call({
+				_session: constObservable(options.noDraft ? undefined : upcastPartial<IActiveSession>({
+					sessionId: 'draft',
+					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+					isCreated: constObservable(!!options.isCreated),
+					workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }] })),
+				})),
+				_workspacePicker: { selectedResolved: { providerId: options.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID } },
+				_preferredDevContainerFolderUri: options.preferDevContainer ? folder : undefined,
+				_pendingWorkspaceCreation: options.pending ? Promise.resolve({ session: undefined, trustDeclined: false }) : undefined,
+				uriIdentityService: { extUri },
+				sessionsProvidersService: { getProvider: () => ({ id: LOCAL_AGENT_HOST_PROVIDER_ID, isDevContainerEnabled: () => !!options.devContainerEnabled }) },
+			}, options.folderUri),
+		}));
+
+		assert.deepStrictEqual(results, cases.map(({ name, reuse }) => ({ name, reuse })));
 	});
 
 	test('cancels an in-flight creation and keeps the newer draft ownership', async () => {
