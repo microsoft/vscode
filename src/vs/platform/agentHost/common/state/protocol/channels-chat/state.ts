@@ -39,8 +39,10 @@ export interface ChatState {
 	/** Human-readable description of what the chat is currently doing */
 	activity?: string;
 	/**
-	 * Work running outside the current turn that will resume this chat when it
-	 * finishes, such as background shells. Independent of turn state.
+	 * Work that keeps running after the tool call that started it returns and
+	 * will resume this chat when it finishes, such as background shells and
+	 * subagents. Entries stay listed whether or not the turn that started them is
+	 * still open.
 	 */
 	backgroundWork?: BackgroundWork[];
 	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
@@ -168,6 +170,8 @@ export interface ChatSummary {
 export const enum BackgroundWorkKind {
 	/** A shell command that continues after its initiating tool call returns. */
 	Shell = 'shell',
+	/** A subagent running in the background. */
+	Subagent = 'subagent',
 }
 
 /**
@@ -184,16 +188,19 @@ interface BackgroundWorkBase {
 	 * convention.
 	 */
 	id: string;
-	/** Human-readable label, such as the command's purpose. */
+	/** Human-readable label, such as the command's purpose or the subagent's name. */
 	label: string;
 	/** ISO 8601 timestamp when the work started. */
 	startedAt: string;
-	/** Provider-specific metadata, such as how a shell's lifetime is tied to its agent. */
+	/** Provider-specific metadata. */
 	_meta?: Record<string, unknown>;
 }
 
 /**
- * A shell command continuing outside its initiating tool call.
+ * A shell command continuing outside its initiating tool call. Covers shells
+ * tied to the agent's lifetime (attached) and shells that outlive it
+ * (detached). Whether a shell is attached is provider-specific and goes in its
+ * `_meta`.
  *
  * @category Background Work
  */
@@ -201,16 +208,39 @@ export interface BackgroundShellWork extends BackgroundWorkBase {
 	kind: BackgroundWorkKind.Shell;
 	/** Command line, displayed as plain text. */
 	command: string;
+	/**
+	 * Terminal carrying this shell's output. Hosts SHOULD set this whenever they
+	 * can show that output. Clients open it like
+	 * {@link ToolResultTerminalContent.resource}; `isPty` on its
+	 * {@link TerminalState} says whether the output is plain text.
+	 */
+	terminal?: URI;
 }
 
 /**
- * Work running outside the current turn that will resume the owning chat when
- * it finishes. Clients that don't recognize a `kind` should keep the entry and
- * may render it from the common fields.
+ * A subagent running in the background. Its own state lives in its chat.
  *
  * @category Background Work
  */
-export type BackgroundWork = BackgroundShellWork;
+export interface BackgroundSubagentWork extends BackgroundWorkBase {
+	kind: BackgroundWorkKind.Subagent;
+	/**
+	 * The subagent's chat: the same chat the spawning tool call's
+	 * {@link ToolResultSubagentContent.resource} points to.
+	 */
+	chat: URI;
+}
+
+/**
+ * Work that keeps running after the tool call that started it returns and will
+ * resume the owning chat when it finishes. Clients that don't recognize a
+ * `kind` should keep the entry and may render it from the common fields.
+ *
+ * @category Background Work
+ */
+export type BackgroundWork =
+	| BackgroundShellWork
+	| BackgroundSubagentWork;
 
 /**
  * Discriminant for {@link ChatOrigin} — how a chat came into existence.
