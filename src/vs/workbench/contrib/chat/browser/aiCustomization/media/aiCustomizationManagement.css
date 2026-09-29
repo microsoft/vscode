@@ -1963,7 +1963,9 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
+	padding-block: var(--vscode-spacing-size400) var(--vscode-spacing-size160);
 	overflow: hidden;
+	box-sizing: border-box;
 }
 
 .ai-customization-management-editor .mcp-detail-editor-container {
@@ -2126,17 +2128,12 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
-	padding: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size400) 0 var(--vscode-spacing-size160);
 	background: var(--vscode-agentsPanel-background);
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
 	box-sizing: border-box;
-}
-
-.ai-customization-management-editor .marketplace-detail-container,
-.ai-customization-management-editor .plugin-detail-container {
-	padding-top: var(--vscode-spacing-size400);
 }
 
 /* Inline back button with the embedded detail header */
@@ -2274,6 +2271,10 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .connector-detail-container {
 	overflow: auto;
+}
+
+.ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail {
+	margin-inline: auto;
 }
 
 /* Shared embedded detail component foundation */
