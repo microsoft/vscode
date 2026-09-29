@@ -20,9 +20,7 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession } from '../../common/agent.js';
-import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import type { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
-import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
@@ -129,10 +127,9 @@ suite('WorkspaceContextContribution', () => {
 		const service: IAgentHostChatContributions = store.add(new AgentHostChatContributions(log, instantiation));
 		store.add(service.registerContribution(WorkspaceContextContribution));
 		let turn = 0;
-		/** Accepts a turn, as the client's `ChatTurnStarted` does before the send path runs. */
-		const accept = (channel = chat) => service.didApplyClientAction({
-			channel, session, clientId: 'client',
-			clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
+		/** Accepts a turn, as a dispatched `ChatTurnStarted` does before the send path runs. */
+		const accept = (channel = chat) => service.didDispatchAction({
+			channel, session,
 			action: { type: ActionType.ChatTurnStarted, turnId: String(turn + 1), startedAt: new Date(0).toISOString(), message: userMessage },
 		});
 		/** Runs the outgoing-turn contributions for the directories the provider will run in. */
@@ -240,6 +237,16 @@ suite('WorkspaceContextContribution', () => {
 		assert.deepStrictEqual({ readsBeforeSend, readsAtSend: context.disk.reads.length - readsBeforeSend.length, snapshot: !!result.instructions?.length, preparation: context.events()[0].preparation }, {
 			readsBeforeSend: ['/workspace'], readsAtSend: 0, snapshot: true, preparation: 'prepared',
 		});
+	});
+
+	test('does not prepare for a rejected turn start', async () => {
+		const context = await setupContext();
+		context.service.didDispatchAction({
+			channel: context.chat, session: context.session, rejectionReason: 'readOnly',
+			action: { type: ActionType.ChatTurnStarted, turnId: '1', startedAt: new Date(0).toISOString(), message: userMessage },
+		});
+		await timeout(0);
+		assert.deepStrictEqual(context.disk.reads, []);
 	});
 
 	test('restarts preparation when the turn runs in different directories', async () => {

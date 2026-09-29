@@ -14,7 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { FileType, IFileService } from '../../../../files/common/files.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
-import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAppliedClientAction, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
@@ -87,39 +87,9 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	}
 
 	/**
-	 * Starts preparing as soon as a first turn is accepted, so the snapshot is
-	 * usually complete by the time {@link onOutgoingTurn} needs it. A session still
-	 * creating its worktree waits for {@link _onWorktreeResolved} instead: the
-	 * worktree does not exist yet, and walking the source checkout would
-	 * compete with its creation.
-	 */
-	onDidApplyClientAction({ channel, session, action }: IAppliedClientAction): void {
-		if (action.type !== ActionType.ChatTurnStarted || !isAhpChatChannel(channel)) {
-			return;
-		}
-		const workingDirectories = this._firstTurnWorkingDirectories(channel);
-		if (!workingDirectories) {
-			return;
-		}
-		const sessionId = AgentSession.id(session);
-		if (this._worktreeIsolation.isWorkingDirectoryPending(sessionId)) {
-			let awaiting = this._awaitingWorktree.get(sessionId);
-			if (!awaiting) {
-				awaiting = new Set();
-				this._awaitingWorktree.set(sessionId, awaiting);
-			}
-			awaiting.add(channel);
-			return;
-		}
-		// The session's worktree may already exist, e.g. when its creation finished before this hook ran.
-		const worktree = isDefaultChatUri(channel) ? this._worktreeIsolation.getResolvedWorktree(sessionId) : undefined;
-		this._prepare(channel, worktree ? withProcessRoot(worktree, workingDirectories) : workingDirectories);
-	}
-
-	/**
 	 * Adds the snapshot for the directories the turn runs in. Preparation that
-	 * has not finished, or that has not started because the turn bypassed
-	 * `ChatTurnStarted` or its directories changed, gets at most
+	 * has not finished, or that has not started because the turn's directories
+	 * changed, gets at most
 	 * {@link SNAPSHOT_WAIT_MS}; roots still unfinished after that are omitted.
 	 */
 	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
@@ -160,10 +130,21 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		this._release(turn.channel);
 	}
 
-	/** Stops preparation for a removed chat. Session removal is handled through {@link AgentHostStateManager.onDidRemoveSession}. */
-	onDidDispatchAction({ action, rejectionReason }: IDispatchedAction): void {
-		if (action.type === ActionType.SessionChatRemoved && rejectionReason === undefined) {
+	/**
+	 * Starts preparing as soon as a first turn is accepted, whether a client or
+	 * the host (`create_session`, `send_message`, automations) started it, so
+	 * the snapshot is usually complete by the time {@link onOutgoingTurn} needs
+	 * it. Also stops preparation for a removed chat; session removal is handled
+	 * through {@link AgentHostStateManager.onDidRemoveSession}.
+	 */
+	onDidDispatchAction({ channel, session, action, rejectionReason }: IDispatchedAction): void {
+		if (rejectionReason !== undefined) {
+			return;
+		}
+		if (action.type === ActionType.SessionChatRemoved) {
 			this._release(action.chat);
+		} else if (action.type === ActionType.ChatTurnStarted && isAhpChatChannel(channel)) {
+			this._onTurnStarted(channel, session);
 		}
 	}
 
@@ -172,6 +153,31 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			this._context.memento(firstTurnSeenMemento, context.chat).set(true, undefined);
 		}
 		return turns;
+	}
+
+	/**
+	 * A session still creating its worktree waits for {@link _onWorktreeResolved}
+	 * instead: the worktree does not exist yet, and walking the source checkout
+	 * would compete with its creation.
+	 */
+	private _onTurnStarted(chat: ProtocolURI, session: ProtocolURI): void {
+		const workingDirectories = this._firstTurnWorkingDirectories(chat);
+		if (!workingDirectories) {
+			return;
+		}
+		const sessionId = AgentSession.id(session);
+		if (this._worktreeIsolation.isWorkingDirectoryPending(sessionId)) {
+			let awaiting = this._awaitingWorktree.get(sessionId);
+			if (!awaiting) {
+				awaiting = new Set();
+				this._awaitingWorktree.set(sessionId, awaiting);
+			}
+			awaiting.add(chat);
+			return;
+		}
+		// The session's worktree may already exist, e.g. when its creation finished before this turn started.
+		const worktree = isDefaultChatUri(chat) ? this._worktreeIsolation.getResolvedWorktree(sessionId) : undefined;
+		this._prepare(chat, worktree ? withProcessRoot(worktree, workingDirectories) : workingDirectories);
 	}
 
 	/** Logs and reports why each root was or was not included, so a missing snapshot can be diagnosed. */

@@ -199,6 +199,7 @@ function createTestSideEffects(
 		initialTitleGenerationStrategy?: AutomaticTitleGenerationStrategy;
 		worktreeIsolation?: IAgentHostWorktreeIsolation;
 		fileService?: IFileService;
+		onDidCreateTurnService?: (turnService: IAgentHostTurnService) => void;
 	},
 	_gitService?: IAgentHostGitService,
 	telemetryService: ITelemetryService = NullTelemetryService,
@@ -248,7 +249,9 @@ function createTestSideEffects(
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
-	services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
+	const turnService = new AgentHostTurnService(stateManager, chatContributions, instantiationService);
+	services.set(IAgentHostTurnService, turnService);
+	options.onDidCreateTurnService?.(turnService);
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -1585,6 +1588,43 @@ suite('AgentSideEffects', () => {
 				'- Avoid extraneous steps or context-gathering prior to providing the command, unless context is required to resolve ambiguity.',
 				'</terminal_chat>',
 			].join('\n')]);
+		});
+
+		test('prepares the workspace snapshot for a host-started first turn before the send path', async () => {
+			const repository = URI.file('/repo');
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'copilotcli',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				workingDirectories: [repository.toString()],
+			});
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
+			const diskFileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
+			const telemetry = new TestTelemetryService();
+			let turnService: IAgentHostTurnService | undefined;
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [repository],
+				fileService: diskFileService,
+				onDidCreateTurnService: service => turnService = service,
+			}, undefined, telemetry);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+
+			// The path `send_message`, `create_session`, and automations use: a server-dispatched ChatTurnStarted.
+			// `preparation: 'prepared'` means preparation had started before the outgoing-turn contribution ran.
+			turnService!.startTurnMessage(URI.parse(defaultChatUri), { text: 'Bump the version to 2', origin: { kind: MessageKind.Agent } });
+			await waitForSendMessageCalls(1);
+
+			const snapshotEvent = telemetry.events.find(event => event.eventName === 'agentHost.workspaceSnapshot')?.data as { preparation?: string; includedRootCount?: number } | undefined;
+			assert.deepStrictEqual({ preparation: snapshotEvent?.preparation, included: snapshotEvent?.includedRootCount }, { preparation: 'prepared', included: 1 });
 		});
 
 		test('snapshots the worktree created for the first send, not the folder in session state', async () => {
