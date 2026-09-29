@@ -348,7 +348,8 @@ suite('AICustomizationDiscoveryPage', () => {
 
 	test('browse card images replace fallback icons and restore them on error', async () => {
 		const fixture = createPage(['agentFinder']);
-		fixture.container.style.display = 'none';
+		fixture.container.style.position = 'absolute';
+		fixture.container.style.top = '100000px';
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
 			items: [resource('with-icon', { publisher: 'GitHub', icon: testIcon })],
@@ -711,7 +712,8 @@ suite('AICustomizationDiscoveryPage', () => {
 
 	test('search result images replace fallback icons and restore them on error', async () => {
 		const fixture = createPage(['agentFinder']);
-		fixture.container.style.display = 'none';
+		fixture.container.style.position = 'absolute';
+		fixture.container.style.top = '100000px';
 		fixture.page.setSearchQuery('icon');
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
