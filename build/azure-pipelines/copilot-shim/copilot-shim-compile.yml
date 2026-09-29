@@ -1,0 +1,202 @@
+parameters:
+  - name: COPILOT_SHIM_TARGET
+    type: string
+  - name: COPILOT_SHIM_ARTIFACT
+    type: string
+  - name: COPILOT_SHIM_ENV
+    type: object
+    default: {}
+  - name: COPILOT_SHIM_CHECK_ONLY
+    type: boolean
+    default: false
+
+steps:
+  - task: Cache@2
+    displayName: Restore Copilot shim sccache cache
+    inputs:
+      key: '"copilot-shim-sccache" | "$(Agent.OS)" | "${{ parameters.COPILOT_SHIM_TARGET }}" | "${{ parameters.COPILOT_SHIM_CHECK_ONLY }}" | $(Build.SourcesDirectory)/copilot_shim/Cargo.toml | $(Build.SourcesDirectory)/copilot_shim/Cargo.lock | $(Build.SourcesDirectory)/build/.cachesalt'
+      path: $(Pipeline.Workspace)/copilot-shim-sccache
+
+  - ${{ if contains(parameters.COPILOT_SHIM_TARGET, '-windows-') }}:
+    - pwsh: |
+        $version = "0.14.0"
+        $url = "https://github.com/mozilla/sccache/releases/download/v$version/sccache-v$version-x86_64-pc-windows-msvc.zip"
+        Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\sccache.zip"
+        Expand-Archive -Path "$env:TEMP\sccache.zip" -DestinationPath "$env:TEMP\sccache" -Force
+        $sccacheDir = Get-ChildItem -Path "$env:TEMP\sccache" -Directory | Select-Object -First 1
+        Copy-Item "$($sccacheDir.FullName)\sccache.exe" -Destination "$env:USERPROFILE\.cargo\bin\sccache.exe"
+        sccache --version
+      displayName: Install sccache
+  - ${{ else }}:
+    - script: |
+        set -e
+        SCCACHE_VERSION="0.14.0"
+        ARCH=$(uname -m)
+        OS=$(uname -s)
+        if [ "$OS" = "Darwin" ]; then
+          TARGET="aarch64-apple-darwin"
+        elif [ "$OS" = "Linux" ]; then
+          if [ "$ARCH" = "aarch64" ]; then
+            TARGET="aarch64-unknown-linux-musl"
+          else
+            TARGET="x86_64-unknown-linux-musl"
+          fi
+        fi
+        FILENAME="sccache-v${SCCACHE_VERSION}-${TARGET}"
+        URL="https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/${FILENAME}.tar.gz"
+        curl -fsSL "$URL" -o /tmp/copilot-shim-sccache.tar.gz
+        tar -xzf /tmp/copilot-shim-sccache.tar.gz -C /tmp
+        sudo cp "/tmp/${FILENAME}/sccache" /usr/local/bin/sccache
+        sudo chmod +x /usr/local/bin/sccache
+        sccache --version
+      displayName: Install sccache
+
+  - ${{ if contains(parameters.COPILOT_SHIM_TARGET, '-linux-') }}:
+    - script: |
+        set -e
+        if [ -n "$SYSROOT_ARCH" ]; then
+          export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/copilot-shim-sysroots
+          node -e 'import { getVSCodeSysroot } from "../build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"], process.env["IS_MUSL"] === "1"); })()'
+          if [ "$SYSROOT_ARCH" = "arm64" ]; then
+            if [ "$IS_MUSL" = "1" ]; then
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="$VSCODE_SYSROOT_DIR/output/bin/aarch64-linux-musl-gcc"
+              export CC_aarch64_unknown_linux_musl="$VSCODE_SYSROOT_DIR/output/bin/aarch64-linux-musl-gcc"
+              export CXX_aarch64_unknown_linux_musl="$VSCODE_SYSROOT_DIR/output/bin/aarch64-linux-musl-g++"
+            else
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc"
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+              export CC_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc --sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+              export PKG_CONFIG_LIBDIR_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/usr/lib/aarch64-linux-gnu/pkgconfig:$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/usr/share/pkgconfig"
+              export PKG_CONFIG_SYSROOT_DIR_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+              export OBJDUMP="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/bin/objdump"
+            fi
+          elif [ "$SYSROOT_ARCH" = "amd64" ]; then
+            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-gcc"
+            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot -C link-arg=-L$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/lib/x86_64-linux-gnu"
+            export CC_x86_64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-gcc --sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
+            export PKG_CONFIG_LIBDIR_x86_64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/lib/x86_64-linux-gnu/pkgconfig:$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/share/pkgconfig"
+            export PKG_CONFIG_SYSROOT_DIR_x86_64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
+            export OBJDUMP="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/bin/objdump"
+          elif [ "$SYSROOT_ARCH" = "armhf" ]; then
+            export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/bin/arm-rpi-linux-gnueabihf-gcc"
+            export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
+            export CC_armv7_unknown_linux_gnueabihf="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/bin/arm-rpi-linux-gnueabihf-gcc --sysroot=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
+            export PKG_CONFIG_LIBDIR_armv7_unknown_linux_gnueabihf="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot/usr/lib/arm-rpi-linux-gnueabihf/pkgconfig:$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot/usr/share/pkgconfig"
+            export PKG_CONFIG_SYSROOT_DIR_armv7_unknown_linux_gnueabihf="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
+            export OBJDUMP="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/bin/objdump"
+          fi
+        fi
+
+        cargo build --release --locked --target ${{ parameters.COPILOT_SHIM_TARGET }} --bin copilot
+
+        if [ "$VERIFY_GLIBC" = "1" ]; then
+          maximum_glibc_version="2.28"
+          while IFS= read -r line; do
+            if [[ "$line" == *"GLIBC_"* ]]; then
+              version=$(echo "$line" | awk '{print $5}' | tr -d '()')
+              version=${version#*_}
+              if [[ $(printf "%s\n%s" "$version" "$maximum_glibc_version" | sort -V | tail -n1) == "$version" ]]; then
+                maximum_glibc_version=$version
+              fi
+            fi
+          done < <("$OBJDUMP" -T "$PWD/target/${{ parameters.COPILOT_SHIM_TARGET }}/release/copilot")
+          if [ "$maximum_glibc_version" != "2.28" ]; then
+            echo "Error: Copilot shim has dependency on GLIBC > 2.28, found $maximum_glibc_version"
+            exit 1
+          fi
+          echo "Copilot shim has no GLIBC dependency newer than 2.28."
+        fi
+      displayName: Compile ${{ parameters.COPILOT_SHIM_TARGET }}
+      workingDirectory: $(Build.SourcesDirectory)/copilot_shim
+      env:
+        RUSTC_WRAPPER: sccache
+        SCCACHE_DIR: $(Pipeline.Workspace)/copilot-shim-sccache
+        ${{ each pair in parameters.COPILOT_SHIM_ENV }}:
+          ${{ pair.key }}: ${{ pair.value }}
+
+  - ${{ else }}:
+    - script: cargo build --release --locked --target ${{ parameters.COPILOT_SHIM_TARGET }} --bin copilot
+      displayName: Compile ${{ parameters.COPILOT_SHIM_TARGET }}
+      workingDirectory: $(Build.SourcesDirectory)/copilot_shim
+      env:
+        RUSTC_WRAPPER: sccache
+        SCCACHE_DIR: $(Pipeline.Workspace)/copilot-shim-sccache
+        ${{ each pair in parameters.COPILOT_SHIM_ENV }}:
+          ${{ pair.key }}: ${{ pair.value }}
+
+  - ${{ if not(parameters.COPILOT_SHIM_CHECK_ONLY) }}:
+    - ${{ if contains(parameters.COPILOT_SHIM_TARGET, '-windows-') }}:
+      - pwsh: |
+          $stageDirectory = "$(Build.ArtifactStagingDirectory)/${{ parameters.COPILOT_SHIM_ARTIFACT }}"
+          New-Item -ItemType Directory -Force -Path $stageDirectory
+          Copy-Item "$(Build.SourcesDirectory)/copilot_shim/target/${{ parameters.COPILOT_SHIM_TARGET }}/release/copilot.exe" "$stageDirectory/copilot.exe"
+          $stagedEntries = @(Get-ChildItem -Path $stageDirectory)
+          if ($stagedEntries.Count -ne 1 -or $stagedEntries[0].Name -ne "copilot.exe") {
+            throw "Copilot shim staging must contain exactly one root copilot.exe"
+          }
+        displayName: Stage Copilot shim
+
+      - task: ArchiveFiles@2
+        displayName: Archive Copilot shim
+        inputs:
+          rootFolderOrFile: $(Build.ArtifactStagingDirectory)/${{ parameters.COPILOT_SHIM_ARTIFACT }}/copilot.exe
+          includeRootFolder: false
+          archiveType: zip
+          archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.COPILOT_SHIM_ARTIFACT }}.zip
+
+      - pwsh: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead("$(Build.ArtifactStagingDirectory)/${{ parameters.COPILOT_SHIM_ARTIFACT }}.zip")
+          try {
+            $entries = @($archive.Entries)
+            if ($entries.Count -ne 1 -or $entries[0].FullName -ne "copilot.exe" -or $entries[0].Length -eq 0) {
+              throw "Copilot shim archive must contain exactly one non-empty root copilot.exe"
+            }
+          } finally {
+            $archive.Dispose()
+          }
+        displayName: Validate Copilot shim archive
+
+    - ${{ else }}:
+      - script: |
+          set -e
+          stage_directory="$(Build.ArtifactStagingDirectory)/${{ parameters.COPILOT_SHIM_ARTIFACT }}"
+          mkdir -p "$stage_directory"
+          install -m 755 "$(Build.SourcesDirectory)/copilot_shim/target/${{ parameters.COPILOT_SHIM_TARGET }}/release/copilot" "$stage_directory/copilot"
+          test "$(find "$stage_directory" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" = "1"
+          test -x "$stage_directory/copilot"
+        displayName: Stage Copilot shim
+
+      - task: ArchiveFiles@2
+        displayName: Archive Copilot shim
+        inputs:
+          rootFolderOrFile: $(Build.ArtifactStagingDirectory)/${{ parameters.COPILOT_SHIM_ARTIFACT }}/copilot
+          includeRootFolder: false
+          ${{ if contains(parameters.COPILOT_SHIM_TARGET, '-darwin') }}:
+            archiveType: zip
+            archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.COPILOT_SHIM_ARTIFACT }}.zip
+          ${{ else }}:
+            archiveType: tar
+            tarCompression: gz
+            archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.COPILOT_SHIM_ARTIFACT }}.tar.gz
+
+      - script: |
+          set -e
+          validation_directory="$(Build.ArtifactStagingDirectory)/${{ parameters.COPILOT_SHIM_ARTIFACT }}-validation"
+          rm -rf "$validation_directory"
+          mkdir -p "$validation_directory"
+          if [[ "${{ parameters.COPILOT_SHIM_TARGET }}" == *"-darwin" ]]; then
+            unzip -q "$(Build.ArtifactStagingDirectory)/${{ parameters.COPILOT_SHIM_ARTIFACT }}.zip" -d "$validation_directory"
+          else
+            tar -xzf "$(Build.ArtifactStagingDirectory)/${{ parameters.COPILOT_SHIM_ARTIFACT }}.tar.gz" -C "$validation_directory"
+          fi
+          test "$(find "$validation_directory" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" = "1"
+          test -f "$validation_directory/copilot"
+          test -x "$validation_directory/copilot"
+        displayName: Validate Copilot shim archive
+
+  - script: sccache --show-stats
+    displayName: Copilot shim sccache stats
+    condition: succeededOrFailed()
+    env:
+      SCCACHE_DIR: $(Pipeline.Workspace)/copilot-shim-sccache
