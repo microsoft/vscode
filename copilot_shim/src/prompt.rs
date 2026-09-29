@@ -9,44 +9,22 @@ pub(crate) const INSTALL_DOCUMENTATION_URL: &str =
 	"https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PromptKind<'a> {
-	Install,
-	Update {
-		installed_version: &'a str,
-		required_version: &'a str,
-	},
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PromptResponse {
 	Accepted,
 	Declined,
 }
 
+/// Offers to install GitHub Copilot CLI and reads the answer. The default answer is No.
 pub(crate) fn prompt_with_io<R: BufRead, W: Write>(
 	input: &mut R,
 	output: &mut W,
 	interactive: bool,
-	kind: PromptKind<'_>,
 ) -> io::Result<PromptResponse> {
-	match kind {
-		PromptKind::Install => writeln!(output, "Installation instructions: {INSTALL_DOCUMENTATION_URL}")?,
-		PromptKind::Update {
-			installed_version,
-			required_version,
-		} => writeln!(
-			output,
-			"Installed GitHub Copilot CLI version {installed_version} is below the required version {required_version}."
-		)?,
-	}
-	write!(
+	writeln!(
 		output,
-		"{}",
-		match kind {
-			PromptKind::Install => "Install GitHub Copilot CLI? [y/N] ",
-			PromptKind::Update { .. } => "Update GitHub Copilot CLI? [y/N] ",
-		}
+		"Installation instructions: {INSTALL_DOCUMENTATION_URL}"
 	)?;
+	write!(output, "Install GitHub Copilot CLI? [y/N] ")?;
 	output.flush()?;
 
 	if !interactive {
@@ -74,13 +52,13 @@ pub(crate) fn native_can_prompt() -> bool {
 }
 
 /// Shows the prompt on stderr, so it stays visible, and out of the output, when stdout is redirected.
-pub(crate) fn native_prompt(kind: PromptKind<'_>) -> io::Result<PromptResponse> {
+pub(crate) fn native_prompt() -> io::Result<PromptResponse> {
 	let stdin = io::stdin();
 	let mut input = stdin.lock();
 	let interactive = native_can_prompt();
 	let stderr = io::stderr();
 	let mut output = stderr.lock();
-	prompt_with_io(&mut input, &mut output, interactive, kind)
+	prompt_with_io(&mut input, &mut output, interactive)
 }
 
 #[cfg(any(unix, test))]
