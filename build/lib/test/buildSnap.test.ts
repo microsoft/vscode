@@ -218,7 +218,7 @@ echo "Packed snap"
 		const root = fs.readFileSync(path.resolve(import.meta.dirname, '../../azure-pipelines/product-build.yml'), 'utf8');
 		const sharedVariables = fs.readFileSync(path.resolve(import.meta.dirname, '../../azure-pipelines/product-build-variables.yml'), 'utf8');
 		const template = fs.readFileSync(path.resolve(import.meta.dirname, '../../azure-pipelines/product-build-template.yml'), 'utf8');
-		const gate = "or(eq(parameters.VSCODE_BUILD_LINUX_SNAP, false), eq(parameters.VSCODE_SNAP_BASE, 'core24'))";
+		const gate = 'or(eq(parameters.VSCODE_BUILD_LINUX_SNAP, false), eq(parameters.VSCODE_SNAP_BASE, \'core24\'))';
 
 		assert.deepStrictEqual({
 			productPublish: root.includes(`value: \${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false), ${gate}) }}`),
