@@ -366,7 +366,7 @@ stages:
       # instead of depending on their stages, so that it runs in parallel.
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_UNIVERSAL'], true) }}:
         - stage: macOSUniversal
-          displayName: macOS Universal
+          displayName: macOS UNIVERSAL
           dependsOn: []
           pool:
             name: AcesShared
