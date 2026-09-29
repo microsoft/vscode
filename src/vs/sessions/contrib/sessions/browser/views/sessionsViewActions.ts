@@ -28,13 +28,8 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/work
 import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-<<<<<<< HEAD
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SessionItemCanImportContext, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext, SessionShowsArchivedChatsContext } from './sessionsList.js';
-=======
-import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SessionItemCanImportContext, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext } from './sessionsList.js';
->>>>>>> ad7afd04c60 (sessions: Use global archive filter for nested chats (#338535))
 import { getChatCapabilities, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';

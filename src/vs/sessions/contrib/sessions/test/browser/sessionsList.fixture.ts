@@ -146,6 +146,8 @@ function showArchiveOnboarding(sessionId: string, wording: ChatSessionArchiveAct
 }
 
 const ONBOARDING_FRAME = { width: 760, height: 420 };
+/** Room beside and below the list for an open context menu. */
+const CONTEXT_MENU_FRAME = { width: 480, height: 320 };
 
 //#endregion
 
@@ -591,8 +593,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['An expanded vscode session shows one active nested chat and one archived nested chat. The archived chat remains under its parent, uses the completed archive status icon, and shows Restore as its primary row action when focused.'],
 	}),
-<<<<<<< HEAD
-=======
 	SessionsList_CompactArchivedNestedChat: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
 		view: { compact: true, showArchived: true, width: 260 },
@@ -624,7 +624,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The done child has its own context menu with Restore instead of Mark as Done. Its parent remains active and both children remain nested beneath it.'],
 	}),
->>>>>>> ad7afd04c60 (sessions: Use global archive filter for nested chats (#338535))
 	SessionsList_CompactNestedChatPrimaryAction: defineSessionsListFixture({
 		sessions: [COMPACT_NESTED_CHAT_PRIMARY_ACTION_SESSION],
 		view: { compact: true, width: 400 },

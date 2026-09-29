@@ -5169,11 +5169,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const inGroup = this._sessionGroupsService.getGroupOfSession(element.sessionId) !== undefined;
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
-<<<<<<< HEAD
-			[SessionShowsArchivedChatsContext.key, this.isSessionArchivedChatsVisible(element)],
-=======
-			[SessionItemIsMultiSelectionContext.key, selectedSessions.length > 1],
->>>>>>> ad7afd04c60 (sessions: Use global archive filter for nested chats (#338535))
 			[SessionIsArchivedContext.key, element.isArchived.get()],
 			[SessionIsReadContext.key, element.isRead.get()],
 			[SessionItemInGroupContext.key, inGroup],
