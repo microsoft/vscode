@@ -324,7 +324,7 @@ suite('AICustomizationDiscoveryPage', () => {
 	});
 
 	test('announces loading only after the debounced catalog search starts', async () => {
-		const ariaHost = DOM.append(mainWindow.document.body, DOM.$());
+		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
 		store.add(toDisposable(() => ariaHost.remove()));
 		setARIAContainer(ariaHost);
 		const fixture = createPage(['agentFinder']);
