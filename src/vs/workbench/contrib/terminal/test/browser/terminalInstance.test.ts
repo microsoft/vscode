@@ -442,6 +442,15 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(instance.shellType, PosixShellType.Zsh);
 		});
 
+		test('should detect Abacus.AI CLI agent shell type from its OSC title', async () => {
+			const instance = await createTerminalInstance() as TerminalInstance;
+			const onTitleChange = (title: string) => (instance as unknown as Record<string, (value: string) => void>)['_onTitleChange'](title);
+
+			strictEqual(instance.shellType, undefined);
+			onTitleChange('Abacus.AI CLI');
+			strictEqual(instance.shellType, GeneralShellType.AbacusAI);
+		});
+
 		test('should detect Command Code agent shell type from its OSC title', async () => {
 			const instance = await createTerminalInstance() as TerminalInstance;
 			const onTitleChange = (title: string) => (instance as unknown as Record<string, (value: string) => void>)['_onTitleChange'](title);
@@ -864,6 +873,11 @@ suite('Workbench - TerminalInstance', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Gemini, sequence: 'Gemini - my-project', processName: 'node' }));
 			strictEqual(terminalLabelComputer.title, 'Gemini - my-project');
+		});
+		test('should use ${sequence} for Abacus.AI CLI agent CLI shell type', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.AbacusAI, sequence: 'Fix login bug \u2022 Abacus.AI CLI', processName: 'abacusai' }));
+			strictEqual(terminalLabelComputer.title, 'Fix login bug \u2022 Abacus.AI CLI');
 		});
 		test('should use ${sequence} for Command Code agent CLI shell type', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
