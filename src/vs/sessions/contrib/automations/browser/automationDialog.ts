@@ -1045,6 +1045,7 @@ export function renderForm(
 		revalidate();
 	}));
 
+	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
 	const scheduleRow = DOM.append(formContent, $('.automation-form-row.automation-form-schedule-row'));
 	const useCustomDrawn = !hasNativeContextMenu(configurationService);
 
@@ -1242,7 +1243,6 @@ export function renderForm(
 		revalidate();
 	}));
 
-	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
 	const targetRow = DOM.append(sessionSection, $('.automation-form-row.automation-target-row'));
 	const targetContainer = DOM.append(targetRow, $('.automation-target-toolbar', {
 		role: 'group',
