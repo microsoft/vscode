@@ -21,8 +21,8 @@ export default defineConfig({
 		// DOM trace snapshots can exhaust the headless fixture's native-time render deadline.
 		trace: { mode: 'retain-on-failure', snapshots: false },
 	},
-	// Enable HTML reporter for local development and debugging
-	reporter: 'html',
+	// Use the 'dot' report for clean logs in a CI environment, and the 'html' report for local development.
+	reporter: process.env.CI ? 'dot' : 'html',
 	webServer: {
 		command: 'npx component-explorer serve -p ../component-explorer.json --background --attach -vv',
 		cwd: __dirname,
