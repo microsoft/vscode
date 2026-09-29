@@ -89,6 +89,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	readonly sandboxPolicies = new Map<string, ISessionSandboxPolicy>();
 	readonly sandboxStates = new Map<string, boolean>();
 	readonly devContainerDrafts = new Set<string>();
+	readonly pendingDevContainerDrafts = new Set<string>();
 	rootConfig: RootConfigState | undefined;
 	readonly setCalls: Array<[string, string, string]> = [];
 	readonly trackedOperations: Array<[string, Promise<void>]> = [];
@@ -105,6 +106,9 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	}
 	isDevContainerEnabled(sessionId: string): boolean {
 		return this.devContainerDrafts.has(sessionId);
+	}
+	isDevContainerRequested(sessionId: string): boolean {
+		return this.isDevContainerEnabled(sessionId) || this.pendingDevContainerDrafts.has(sessionId);
 	}
 	getRootConfig(): RootConfigState | undefined {
 		return this.rootConfig;
@@ -266,7 +270,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			const configuration = new TestConfigurationService({ [linuxSetting]: 'on', [windowsSetting]: 'off' });
 			const { delegate, provider } = setup(store, { ...makeActiveSession(), providerId }, 'autoApprove', () => pending.p, undefined, configuration);
 			provider.sandboxStates.set(SESSION_ID, false);
-			provider.devContainerDrafts.add(SESSION_ID);
+			provider.pendingDevContainerDrafts.add(SESSION_ID);
 			provider.fireChange();
 			const read = () => ({
 				setting: delegate.getSandboxToggleSettingId(),
@@ -276,6 +280,10 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			const beforeSourceResolution = read();
 			await pending.complete({ version: '1', os: 'win32', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] });
 			await timeout(0);
+			const beforeContainerResolution = read();
+			provider.pendingDevContainerDrafts.delete(SESSION_ID);
+			provider.devContainerDrafts.add(SESSION_ID);
+			provider.fireChange();
 			const inherited = read();
 			const choices = ['default', 'off', 'on'].map(value => {
 				provider.config!.values[SessionConfigKey.SandboxEnabled] = value;
@@ -285,8 +293,9 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			delete provider.config!.values[SessionConfigKey.SandboxEnabled];
 			provider.devContainerDrafts.delete(SESSION_ID);
 			provider.fireChange();
-			assert.deepStrictEqual({ beforeSourceResolution, inherited, choices, source: read(), writes: provider.setCalls }, {
+			assert.deepStrictEqual({ beforeSourceResolution, beforeContainerResolution, inherited, choices, source: read(), writes: provider.setCalls }, {
 				beforeSourceResolution: { setting: linuxSetting, checked: true, confirmed: undefined },
+				beforeContainerResolution: { setting: linuxSetting, checked: true, confirmed: undefined },
 				inherited: { setting: linuxSetting, checked: true, confirmed: undefined },
 				choices: [true, false, true],
 				source: { setting: windowsSetting, checked: false, confirmed: false },
@@ -301,7 +310,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		provider.sandboxPolicies.set(SESSION_ID, { enabled: true, allowBypass: true });
 		provider.sandboxStates.set(SESSION_ID, false);
 		provider.config!.values[SessionConfigKey.SandboxEnabled] = 'off';
-		provider.devContainerDrafts.add(SESSION_ID);
+		provider.pendingDevContainerDrafts.add(SESSION_ID);
 		provider.fireChange();
 		await timeout(0);
 		const read = () => ({
@@ -312,7 +321,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			disabled: delegate.getSandboxToggle()?.disabled,
 		});
 		const draft = read();
-		provider.devContainerDrafts.delete(SESSION_ID);
+		provider.pendingDevContainerDrafts.delete(SESSION_ID);
 		provider.sandboxPolicies.set(SESSION_ID, { enabled: true, allowBypass: false });
 		provider.sandboxStates.set(SESSION_ID, true);
 		provider.fireChange();

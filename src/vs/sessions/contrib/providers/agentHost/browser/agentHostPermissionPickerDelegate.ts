@@ -139,7 +139,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		const isDevContainer = derived(this, reader => {
 			this._configChangedSignal.read(reader);
 			const session = this._session.read(reader);
-			return !!session && this._getProvider(session.providerId)?.isDevContainerEnabled?.(session.sessionId) === true;
+			return !!session && this._getProvider(session.providerId)?.isDevContainerRequested?.(session.sessionId) === true;
 		});
 		const sandboxPolicy = derived(this, reader => {
 			if (isDevContainer.read(reader)) {

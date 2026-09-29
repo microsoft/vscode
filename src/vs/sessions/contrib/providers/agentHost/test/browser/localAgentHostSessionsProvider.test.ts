@@ -3942,6 +3942,53 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	for (const outcome of ['available', 'unavailable', 'error', 'canceled'] as const) {
+		test(`notifies Dev Container request changes while availability is pending (${outcome})`, async () => {
+			const availability = new DeferredPromise<boolean>();
+			const provider = createProvider(disposables, agentHost, undefined, {
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override isAvailable(): Promise<boolean> { return availability.p; }
+				}(),
+			});
+			const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session.sessionId, config => !!config);
+			const read = () => ({
+				requested: provider.isDevContainerRequested(session.sessionId),
+				enabled: provider.isDevContainerEnabled(session.sessionId),
+			});
+			let observed = read();
+			disposables.add(provider.onDidChangeSessionConfig(sessionId => {
+				if (sessionId === session.sessionId) {
+					observed = read();
+				}
+			}));
+			const states = [observed];
+			provider.preferDevContainer(session.sessionId);
+			states.push(observed);
+			if (outcome === 'canceled') {
+				provider.setDevContainerEnabled(session.sessionId, false);
+				states.push(observed);
+			}
+			if (outcome === 'error') {
+				await availability.error(new Error('Configuration probe failed'));
+			} else {
+				await availability.complete(outcome !== 'unavailable');
+			}
+			await timeout(0);
+			states.push(observed);
+			const settled = { requested: outcome === 'available', enabled: outcome === 'available' };
+			assert.deepStrictEqual({ states, actual: read() }, {
+				states: [
+					{ requested: false, enabled: false },
+					{ requested: true, enabled: false },
+					...(outcome === 'canceled' ? [{ requested: false, enabled: false }] : []),
+					settled,
+				],
+				actual: settled,
+			});
+		});
+	}
+
 	test('enables a preferred Dev Container immediately after availability resolved', async () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {

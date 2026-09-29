@@ -80,7 +80,7 @@ suite('AgentHostModePicker', () => {
 			override readonly onDidChangeSessionConfig = configChanged.event;
 			override getSessionConfig() { return config; }
 			override getSessionSandboxPolicy() { return publishSandboxPolicy ? { enabled: managedSandboxEnforced.get() } : undefined; }
-			override isDevContainerEnabled() { return devContainer.get(); }
+			override isDevContainerRequested() { return devContainer.get(); }
 			override isSessionConfigResolving() { return resolving; }
 			override async setSessionConfigValue(session: string, property: string, value: unknown): Promise<void> {
 				writes.push({ session, property, value });
@@ -198,7 +198,7 @@ suite('AgentHostModePicker', () => {
 		return { picker, trigger, config, configChanged, configuration, actionWidget, writes, session, phone, resolving, permissionDelegate, managedSandboxEnforced, settingsRequests, hoverTargets, devContainer };
 	}
 
-	test('updates the sandbox toggle, icon, and accessible label when targeting a Dev Container', async () => {
+	test('updates the sandbox toggle, icon, and accessible label while Dev Container availability is pending', async () => {
 		const { trigger, configuration, actionWidget, devContainer, config, writes } = setup(true, true, false, true, 'win32');
 		await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(false), 'on');
 		await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(true), 'off');
