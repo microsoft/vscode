@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IContextViewProvider, IDelegate } from '../../../../browser/ui/contextview/contextview.js';
+import { AnchorPosition, IContextViewProvider, IDelegate } from '../../../../browser/ui/contextview/contextview.js';
 import { ISelectOptionItem, unthemedSelectBoxStyles } from '../../../../browser/ui/selectBox/selectBox.js';
 import { SelectBoxList } from '../../../../browser/ui/selectBox/selectBoxCustom.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../common/lifecycle.js';
@@ -19,6 +19,10 @@ class TestContextViewProvider extends Disposable implements IContextViewProvider
 
 	get activeLayer(): number | undefined {
 		return this.delegate?.layer;
+	}
+
+	get anchorPosition(): AnchorPosition | undefined {
+		return this.delegate?.anchorPosition;
 	}
 
 	constructor() {
@@ -48,6 +52,54 @@ class TestContextViewProvider extends Disposable implements IContextViewProvider
 
 suite('SelectBoxList', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const { name, anchorPosition, top, count, expected } of [
+		{ name: 'defaults to below', anchorPosition: undefined, top: '50%', count: 10, expected: AnchorPosition.BELOW },
+		{ name: 'honors below preference', anchorPosition: AnchorPosition.BELOW, top: '50%', count: 10, expected: AnchorPosition.BELOW },
+		{ name: 'honors above preference', anchorPosition: AnchorPosition.ABOVE, top: '50%', count: 10, expected: AnchorPosition.ABOVE },
+		{ name: 'flips above when space below is limited', anchorPosition: undefined, top: 'calc(100% - 100px)', count: 10, expected: AnchorPosition.ABOVE },
+		{ name: 'flips below when space above is limited', anchorPosition: AnchorPosition.ABOVE, top: '30px', count: 10, expected: AnchorPosition.BELOW },
+		{ name: 'stays above when a short list fits', anchorPosition: AnchorPosition.ABOVE, top: '30px', count: 1, expected: AnchorPosition.ABOVE },
+		{ name: 'stays below when a short list fits', anchorPosition: undefined, top: 'calc(100% - 100px)', count: 1, expected: AnchorPosition.BELOW },
+	]) {
+		test(name, () => {
+			const contextViewProvider = disposables.add(new TestContextViewProvider());
+			const selectBox = disposables.add(new SelectBoxList(
+				Array.from({ length: count }, (_, index) => ({ text: `Option ${index}` })),
+				0,
+				contextViewProvider,
+				unthemedSelectBoxStyles,
+				{ anchorPosition },
+			));
+			const container = document.createElement('div');
+			container.style.position = 'fixed';
+			container.style.top = top;
+			document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			selectBox.render(container);
+			const select = container.querySelector('select')!;
+			select.click();
+			const initialPosition = contextViewProvider.anchorPosition;
+			const expanded = select.getAttribute('aria-expanded');
+			document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+			const closed = {
+				expanded: select.getAttribute('aria-expanded'),
+				focused: document.activeElement === select,
+				selected: select.selectedIndex,
+			};
+			container.style.top = '50%';
+			select.click();
+			assert.deepStrictEqual({
+				initialPosition, expanded, closed,
+				reopenedPosition: contextViewProvider.anchorPosition,
+			}, {
+				initialPosition: expected,
+				expanded: 'true',
+				closed: { expanded: 'false', focused: true, selected: 0 },
+				reopenedPosition: anchorPosition ?? AnchorPosition.BELOW,
+			});
+		});
+	}
 
 	test('hides disabled options from the custom dropdown while retaining the closed value', () => {
 		const options: ISelectOptionItem[] = [

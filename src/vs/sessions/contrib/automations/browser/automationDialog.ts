@@ -9,6 +9,7 @@ import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -1060,7 +1061,7 @@ export function renderForm(
 		intervalIndex,
 		contextViewService,
 		defaultSelectBoxStyles,
-		{ ariaLabel: localize('automation.form.interval', "Schedule"), useCustomDrawn },
+		{ ariaLabel: localize('automation.form.interval', "Schedule"), useCustomDrawn, anchorPosition: AnchorPosition.ABOVE },
 	));
 	const intervalSelectContainer = DOM.append(intervalGroup, $('.automation-form-schedule-select-container'));
 	intervalSelect.render(intervalSelectContainer);
@@ -1076,7 +1077,7 @@ export function renderForm(
 		initialTimeIndex,
 		contextViewService,
 		defaultSelectBoxStyles,
-		{ ariaLabel: localize('automation.form.time', "Time"), useCustomDrawn },
+		{ ariaLabel: localize('automation.form.time', "Time"), useCustomDrawn, anchorPosition: AnchorPosition.ABOVE },
 	));
 	const timeSelectContainer = DOM.append(timeGroup, $('.automation-form-schedule-select-container.automation-form-time-select-container'));
 	timeSelect.render(timeSelectContainer);
@@ -1094,7 +1095,7 @@ export function renderForm(
 		Math.min(Math.max(state.day, 0), DAYS_OF_WEEK.length - 1),
 		contextViewService,
 		defaultSelectBoxStyles,
-		{ ariaLabel: localize('automation.form.day', "Day of week"), useCustomDrawn },
+		{ ariaLabel: localize('automation.form.day', "Day of week"), useCustomDrawn, anchorPosition: AnchorPosition.ABOVE },
 	));
 	const daySelectContainer = DOM.append(dayGroup, $('.automation-form-schedule-select-container'));
 	daySelect.render(daySelectContainer);

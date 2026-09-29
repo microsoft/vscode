@@ -657,12 +657,15 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 					return false;
 				}
 
-				// Determine if we have to flip up
+				// Fall back to the other side when the preferred side cannot show enough options.
 				// Always show complete list items - never more than Max available vertical height
-				if (maxVisibleOptionsBelow < SelectBoxList.DEFAULT_MINIMUM_VISIBLE_OPTIONS
-					&& maxVisibleOptionsAbove > maxVisibleOptionsBelow
-					&& this.selectList.length > maxVisibleOptionsBelow
-				) {
+				const preferAbove = this.selectBoxOptions.anchorPosition === AnchorPosition.ABOVE;
+				const preferredVisibleOptions = preferAbove ? maxVisibleOptionsAbove : maxVisibleOptionsBelow;
+				const otherVisibleOptions = preferAbove ? maxVisibleOptionsBelow : maxVisibleOptionsAbove;
+				const flip = preferredVisibleOptions < SelectBoxList.DEFAULT_MINIMUM_VISIBLE_OPTIONS
+					&& otherVisibleOptions > preferredVisibleOptions
+					&& this.selectList.length > preferredVisibleOptions;
+				if (preferAbove ? !flip : flip) {
 					this._dropDownPosition = AnchorPosition.ABOVE;
 					this.selectDropDownListContainer.remove();
 					this.selectionDetailsPane.remove();
