@@ -139,7 +139,7 @@ suite('AgentHostTerminalService', () => {
 		await pty.start();
 
 		assert.deepStrictEqual(connection.createdTerminals.map(params => params._meta), [{
-			'vscode.terminalProgram': { name: 'vscode', version: '1.140.0-client' },
+			'vscode.terminalProgramVersion': '1.140.0-client',
 		}]);
 	});
 

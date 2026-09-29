@@ -333,7 +333,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 						const pty = new AgentHostPty(id, connection, terminalUri, {
 							name,
 							cwd: options?.cwd,
-							terminalProgram: { name: 'vscode', version: this._productService.version },
+							terminalProgramVersion: this._productService.version,
 						}, this._logService);
 						if (cols > 0 && rows > 0) {
 							pty.resize(cols, rows);

@@ -200,7 +200,7 @@ suite('AgentHostPty', () => {
 		disposables.add(conn);
 		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, {
 			name: 'test',
-			terminalProgram: { name: 'vscode', version: '1.140.0-client' },
+			terminalProgramVersion: '1.140.0-client',
 		}, logService));
 
 		const result = await pty.start();
@@ -211,7 +211,7 @@ suite('AgentHostPty', () => {
 		assert.strictEqual(conn.createdTerminals[0].name, 'test');
 		assert.deepStrictEqual(conn.createdTerminals[0].claim, { kind: TerminalClaimKind.Client, clientId: 'test-client' });
 		assert.deepStrictEqual(conn.createdTerminals[0]._meta, {
-			'vscode.terminalProgram': { name: 'vscode', version: '1.140.0-client' },
+			'vscode.terminalProgramVersion': '1.140.0-client',
 		});
 	});
 
@@ -228,7 +228,7 @@ suite('AgentHostPty', () => {
 		const conn = disposables.add(new MockAgentConnection({ cwd: '/existing-terminal' }));
 		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, {
 			attachOnly: true,
-			terminalProgram: { name: 'vscode', version: '1.140.0-client' },
+			terminalProgramVersion: '1.140.0-client',
 		}, logService));
 
 		await pty.start();

@@ -11,7 +11,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { toTerminalProgramMeta } from '../../common/meta/agentTerminalMeta.js';
+import { VSCODE_TERMINAL_PROGRAM_VERSION_META_KEY } from '../../common/meta/agentTerminalMeta.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { ActionType, StateAction } from '../../common/state/protocol/actions.js';
 import { TerminalClaimKind, TerminalContentPart, TerminalLifecycleStatus, type TerminalClaim } from '../../common/state/protocol/state.js';
@@ -394,7 +394,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		test('sets the requested identity even without shell integration and leaves the parent unchanged', async () => {
 			const inherited = { name: process.env['TERM_PROGRAM'], version: process.env['TERM_PROGRAM_VERSION'] };
 			const env = await createTerminal({
-				_meta: toTerminalProgramMeta({ name: 'vscode', version: '1.140.0-client' }),
+				_meta: { [VSCODE_TERMINAL_PROGRAM_VERSION_META_KEY]: '1.140.0-client' },
 			});
 
 			assert.deepStrictEqual({
@@ -426,28 +426,11 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 			assert.deepStrictEqual({ name: env.TERM_PROGRAM, version: env.TERM_PROGRAM_VERSION }, inherited);
 		});
 
-		test('honors another client identity instead of substituting VS Code', async () => {
-			const env = await createTerminal({ _meta: toTerminalProgramMeta({ name: 'another-client', version: '2.0' }) });
-
-			assert.deepStrictEqual({ name: env.TERM_PROGRAM, version: env.TERM_PROGRAM_VERSION }, { name: 'another-client', version: '2.0' });
-		});
-
-		test('does not retain an inherited version when the requested identity has no version', async () => {
-			const env = await createTerminal({ _meta: toTerminalProgramMeta({ name: 'vscode' }) });
-
-			assert.deepStrictEqual({ name: env.TERM_PROGRAM, version: env.TERM_PROGRAM_VERSION }, { name: 'vscode', version: undefined });
-		});
-
 		for (const [description, value] of [
-			['non-object identity', 'vscode'],
-			['null identity', null],
-			['missing name', {}],
-			['empty name', { name: '' }],
-			['non-string name', { name: 42 }],
-			['NUL in name', { name: 'vs\0code' }],
-			['non-string version', { name: 'vscode', version: 42 }],
-			['empty version', { name: 'vscode', version: '' }],
-			['NUL in version', { name: 'vscode', version: '1\0' }],
+			['null version', null],
+			['non-string version', 42],
+			['empty version', ''],
+			['NUL in version', '1\0'],
 		] as const) {
 			test(`rejects ${description} before spawning`, async () => {
 				const { manager } = createManager();
@@ -455,7 +438,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 				await assert.rejects(manager.createTerminal({
 					channel: 'agenthost-terminal://test/invalid-terminal-program',
 					claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
-					_meta: { 'vscode.terminalProgram': value },
+					_meta: { [VSCODE_TERMINAL_PROGRAM_VERSION_META_KEY]: value },
 				}), error => error instanceof ProtocolError && error.code === JsonRpcErrorCodes.InvalidParams);
 				assert.strictEqual(manager.spawnOptions, undefined);
 			});

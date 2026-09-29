@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLaunchResult, ITerminalLogService, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { ITerminalProgram, toTerminalProgramMeta } from '../../../../platform/agentHost/common/meta/agentTerminalMeta.js';
+import { VSCODE_TERMINAL_PROGRAM_VERSION_META_KEY } from '../../../../platform/agentHost/common/meta/agentTerminalMeta.js';
 import { ActionType, ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { TerminalClaimKind, type TerminalContentPart, type TerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -26,8 +26,8 @@ export interface IAgentHostPtyOptions {
 	readonly name?: string;
 	/** Initial working directory URI. */
 	readonly cwd?: URI;
-	/** Terminal application identity to send only when creating a new terminal. */
-	readonly terminalProgram?: ITerminalProgram;
+	/** Creating VS Code client's version; never applied when attaching to a terminal. */
+	readonly terminalProgramVersion?: string;
 	/**
 	 * When true, attach to an existing terminal on the agent host instead of
 	 * creating a new one. The terminal must already exist server-side (e.g.
@@ -156,7 +156,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 					cwd: this._resolveCwdForProtocol(this._options?.cwd),
 					cols: this._lastDimensions.cols > 0 ? this._lastDimensions.cols : undefined,
 					rows: this._lastDimensions.rows > 0 ? this._lastDimensions.rows : undefined,
-					_meta: this._options?.terminalProgram ? toTerminalProgramMeta(this._options.terminalProgram) : undefined,
+					_meta: this._options?.terminalProgramVersion !== undefined ? { [VSCODE_TERMINAL_PROGRAM_VERSION_META_KEY]: this._options.terminalProgramVersion } : undefined,
 				});
 				this._terminalCreation = terminalCreation;
 				terminalCreation.then(
