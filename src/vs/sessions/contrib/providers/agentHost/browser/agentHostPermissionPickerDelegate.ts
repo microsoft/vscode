@@ -136,7 +136,16 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
+		const isDevContainer = derived(this, reader => {
+			this._configChangedSignal.read(reader);
+			const session = this._session.read(reader);
+			return !!session && this._getProvider(session.providerId)?.isDevContainerEnabled?.(session.sessionId) === true;
+		});
 		const sandboxPolicy = derived(this, reader => {
+			if (isDevContainer.read(reader)) {
+				// The source host's policy does not describe the pending container session.
+				return undefined;
+			}
 			this._configChangedSignal.read(reader);
 			const session = this._session.read(reader);
 			const policy = session && this._getProvider(session.providerId)?.getSessionSandboxPolicy?.(session.sessionId);
@@ -171,6 +180,9 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 
 		this.currentPermissionLevel = derived(this, reader => this._readLevel(reader));
 		this.sandboxConfirmedEnabled = derived(this, reader => {
+			if (isDevContainer.read(reader)) {
+				return undefined;
+			}
 			this._configChangedSignal.read(reader);
 			const session = this._session.read(reader);
 			return session && this._getProvider(session.providerId)?.getSessionSandboxEnabled?.(session.sessionId);
@@ -180,12 +192,12 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			const session = this._session.read(reader);
 			const provider = session && this._getProvider(session.providerId);
 			const value = session && provider?.getSessionConfig(session.sessionId)?.values[SessionConfigKey.SandboxEnabled];
-			return value === 'on' ? true : value === 'off' ? false : session && provider?.getSessionSandboxEnabled?.(session.sessionId);
+			return value === 'on' ? true : value === 'off' ? false : this.sandboxConfirmedEnabled.read(reader);
 		});
 		this.sandboxToggleSettingId = derived(this, reader => {
 			this._configChangedSignal.read(reader);
 			this._session.read(reader);
-			const os = this._hostOperatingSystem.read(reader);
+			const os = isDevContainer.read(reader) ? OperatingSystem.Linux : this._hostOperatingSystem.read(reader);
 			return this.isSandboxToggleApplicable() && os !== undefined ? getAgentHostCopilotSandboxSettingId(os === OperatingSystem.Windows) : undefined;
 		});
 		this.isModePickerCombined = derived(this, reader => {
