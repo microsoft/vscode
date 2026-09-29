@@ -275,6 +275,7 @@ export interface IChatInputPartOptions {
 	renderFollowups: boolean;
 	renderStyle?: 'compact';
 	renderInputToolbarBelowInput: boolean;
+	renderSecondaryControlsInInput?: boolean;
 	menus: {
 		executeToolbar: MenuId;
 		telemetrySource: string;
@@ -3346,8 +3347,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const toolbarsContainer = elements.inputToolbars;
 		this.secondaryToolbarContainer = elements.secondaryToolbar;
 		const responsivePickerContainer = elements.responsivePickerContainer;
-		if (this.options.renderStyle === 'compact') {
+		if (this.options.renderStyle === 'compact' && !this.options.renderSecondaryControlsInInput) {
 			this.secondaryToolbarContainer.style.display = 'none';
+		}
+		if (this.options.renderSecondaryControlsInInput) {
+			inputContainer.classList.add('chat-secondary-controls-in-input');
+			toolbarsContainer.appendChild(this.secondaryToolbarContainer);
 		}
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
