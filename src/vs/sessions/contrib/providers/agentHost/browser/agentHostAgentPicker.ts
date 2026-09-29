@@ -46,10 +46,10 @@ registerAction2(class extends Action2 {
 			title: nls.localize2('agentHostAgentPicker', "Agent"),
 			f1: false,
 			menu: [{
-				id: Menus.NewSessionConfig,
+				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: -1,
-				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate()),
 			}, {
 				id: Menus.AutomationsDialogInputToolbar,
 				group: 'navigation',
@@ -168,7 +168,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			return scopedInstantiationService.createInstance(AgentHostModePickerActionViewItem, picker, disposableStore);
 		};
 
-		this._register(actionViewItemService.register(Menus.NewSessionConfig, 'sessions.agentHost.agentPicker', factory));
+		this._register(actionViewItemService.register(Menus.NewSessionControl, 'sessions.agentHost.agentPicker', factory));
 		this._register(actionViewItemService.register(Menus.AutomationsDialogInputToolbar, 'sessions.agentHost.agentPicker', factory));
 		this._register(actionViewItemService.register(MenuId.ChatInput, 'sessions.agentHost.agentPicker', factory));
 	}
