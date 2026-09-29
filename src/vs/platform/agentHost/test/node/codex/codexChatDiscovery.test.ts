@@ -56,6 +56,11 @@ const codexHome = URI.file('/codex-discovery/custom-home');
 
 interface ITestCodexAgent {
 	_activated: boolean;
+	_refreshAccount(): Promise<{ usageSource: string; status: string }>;
+	_refreshContinuationMetadata(): Promise<void>;
+	_sessions: { readonly size: number };
+	_sessionIdByChatUri: { readonly size: number };
+	_metadataStore: { hasKnownSession(session: URI): Promise<boolean> };
 	_probeAccountAtStartup(): Promise<void>;
 	_restartChatDiscovery(): void;
 	_connectionGeneration: number;
@@ -360,6 +365,42 @@ suite('Codex chat discovery', () => {
 		} finally {
 			store.dispose();
 		}
+	}));
+
+	test('on-demand continuation discovery reads metadata without creating a runtime or overlay', () => runWithFakedTimers({}, async () => {
+		const { agent, internal, client, downloader, events } = createHarness(disposables.add(new DisposableStore()));
+		downloader.resolvableWithoutDownload = true;
+		internal._activated = false;
+		internal._refreshAccount = async () => ({ usageSource: 'openai', status: 'signedOut' });
+		client.threads = [{ ...thread('passive'), modelProvider: 'openai', model: 'gpt' }];
+		await internal._refreshContinuationMetadata();
+		const session = AgentSession.uri('codex', 'passive');
+		const metadata = await agent.getChatMetadata(URI.parse(buildDefaultChatUri(session)), session);
+		assert.deepStrictEqual({
+			model: metadata?.model?.id, runtimes: internal._sessions.size, bindings: internal._sessionIdByChatUri.size,
+			active: internal._activated, overlay: await internal._metadataStore.hasKnownSession(session),
+			reads: client.historyRequests, discovered: events.flat().length,
+		}, { model: '@provider=openai:gpt', runtimes: 0, bindings: 0, active: false, overlay: false, reads: [], discovered: 1 });
+	}));
+
+	test('passive catalog publishes exact provider/model and invalidates when either changes', () => runWithFakedTimers({}, async () => {
+		const { agent, client, filesystem } = createHarness(disposables.add(new DisposableStore()));
+		client.threads = [{ ...thread('external'), modelProvider: 'openai', model: 'gpt' }];
+		await agent.startChatDiscovery();
+		const session = AgentSession.uri('codex', 'external');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const initial = await agent.getChatMetadata(chat, session);
+		client.threads = [{ ...thread('external'), modelProvider: 'openai', model: 'gpt-next' }];
+		filesystem.changeHomeFile('session_index.jsonl');
+		await timeout(6000);
+		const changedModel = await agent.getChatMetadata(chat, session);
+		client.threads = [{ ...thread('external'), modelProvider: 'vscode-proxy', model: 'gpt-next' }];
+		filesystem.changeHomeFile('session_index.jsonl');
+		await timeout(6000);
+		const changedProvider = await agent.getChatMetadata(chat, session);
+		assert.deepStrictEqual([initial?.model?.id, changedModel?.model?.id, changedProvider?.model?.id, client.historyRequests], [
+			'@provider=openai:gpt', '@provider=openai:gpt-next', '@provider=vscode-proxy:gpt-next', [],
+		]);
 	}));
 
 	test('rollout updates do not rescan the catalog while additions and deletions do', () => runWithFakedTimers({}, async () => {

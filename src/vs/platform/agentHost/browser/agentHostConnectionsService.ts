@@ -13,7 +13,7 @@ import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionInfo, IAgentHostConne
 import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeAuthorityPrefix } from '../common/agentHostSessionType.js';
 import { agentHostAuthority } from '../common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../common/remoteAgentHostService.js';
-import type { URI } from '../../../base/common/uri.js';
+import { URI } from '../../../base/common/uri.js';
 
 /**
  * Default {@link IAgentHostConnectionsService} that composes the ambient
@@ -105,6 +105,14 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		}
 		const connection = this.getConnectionByAuthority(identity.connectionAuthority);
 		return connection ? { ...identity, connection } : undefined;
+	}
+
+	getSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY): URI {
+		const backend = AgentSession.provider(backendSession);
+		const alias = this._sessionResolutionPolicies.get(authority)?.sessionSchemeAlias;
+		const provider = alias && alias.backend === backend ? alias.ui : backend;
+		const prefix = authority === AMBIENT_AGENT_HOST_AUTHORITY ? LOCAL_AGENT_HOST_SCHEME_PREFIX : remoteAgentHostSessionTypeAuthorityPrefix(authority);
+		return URI.from({ scheme: `${prefix}${provider}`, path: `/${AgentSession.id(backendSession)}` });
 	}
 
 	resolveSessionResourceIdentity(sessionResource: URI): IAgentHostSessionIdentity | undefined {

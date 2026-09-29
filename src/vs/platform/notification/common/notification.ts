@@ -231,6 +231,8 @@ export interface INotificationProgress {
 }
 
 export interface INotificationHandle {
+	/** Current visibility, when supported, including a toast shown before listeners attach. */
+	readonly visible?: boolean;
 
 	/**
 	 * Will be fired once the notification is closed.

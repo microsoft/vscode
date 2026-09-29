@@ -54,6 +54,7 @@ import { SessionsListRearrangeExperimentState } from '../sessionsListRearrangeEx
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
+import { createSessionsListNotices } from './sessionsListNotice.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
 
@@ -321,6 +322,13 @@ export class SessionsView extends ViewPane {
 		}));
 		const storageCleanupNotice = this._register(this.instantiationService.createInstance(SessionStorageCleanupNotice, () => sessionsControl.focus(), status));
 		sessionsContent.appendChild(storageCleanupNotice.domNode);
+		for (const notice of createSessionsListNotices(this.instantiationService, {
+			container: sessionsContent,
+			onDidChangeVisibility: this.onDidChangeBodyVisibility,
+			isVisible: () => this.isBodyVisible(),
+			focusSessionsList: () => sessionsControl.focus(),
+			announce: status,
+		})) { this._register(notice); }
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 		this.archiveNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
 

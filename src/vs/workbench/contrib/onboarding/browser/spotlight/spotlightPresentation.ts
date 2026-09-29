@@ -371,6 +371,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			padding: step.padding,
 		});
 		context.onDidShow?.();
+		step.onDidShow?.();
 
 		if (step.advanceWhen) {
 			const keys = new Set(step.advanceWhen.keys());

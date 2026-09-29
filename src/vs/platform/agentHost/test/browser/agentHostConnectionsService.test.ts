@@ -112,6 +112,14 @@ suite('AgentHostConnectionsService', () => {
 		assert.strictEqual(service.resolveSessionResource(URI.parse('remote-unknown-copilotcli:/foo')), undefined);
 	});
 
+	test('maps backend resources back through local and remote connection policy', () => {
+		const { service } = createService([], new Map());
+		assert.deepStrictEqual([
+			service.getSessionResource(URI.parse('codex:/external')).toString(),
+			service.getSessionResource(URI.parse('codex:/external'), 'remote').toString(),
+		], ['agent-host-codex:/external', 'remote-remote-codex:/external']);
+	});
+
 	test('applies provider session resolution policy', () => {
 		const remoteConn = fakeConnection('remote-host');
 		const byAddress = new Map<string, IAgentConnection>([['myhost', remoteConn]]);

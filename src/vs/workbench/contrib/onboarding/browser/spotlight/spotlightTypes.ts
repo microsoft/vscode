@@ -81,6 +81,9 @@ export interface ISpotlightStep {
 	 * that hosts the target. Awaited before the target is resolved.
 	 */
 	readonly onBeforeShow?: () => Promise<void> | void;
+
+	/** Called after the spotlight is visible, for presentation-only effects. */
+	readonly onDidShow?: () => void;
 }
 
 /**

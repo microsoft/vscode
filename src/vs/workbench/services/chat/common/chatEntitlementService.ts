@@ -667,16 +667,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	private updateContextKeys(): void {
-		const chatExhausted = this._quotas.chat?.percentRemaining === 0;
-		const premiumChatExhausted = this._quotas.premiumChat?.unlimited
-			? this._quotas.premiumChat.hasQuota === false
-			: this._quotas.premiumChat?.percentRemaining === 0;
-		const additionalUsageEnabled = this._quotas.additionalUsageEnabled ?? false;
-		const isManagedPlan = this.entitlement === ChatEntitlement.Business || this.entitlement === ChatEntitlement.Enterprise;
-
-		// For Business/Enterprise users, hasQuota === false is the authoritative signal
-		// that the org has blocked usage, regardless of additionalUsageEnabled.
-		this.chatQuotaExceededContextKey.set(chatExhausted || (premiumChatExhausted && (isManagedPlan || !additionalUsageEnabled)));
+		this.chatQuotaExceededContextKey.set(isChatQuotaExceeded(this.entitlement, this._quotas));
 		this.completionsQuotaExceededContextKey.set(this._quotas.completions?.percentRemaining === 0);
 	}
 
@@ -802,6 +793,22 @@ interface IEntitlements {
 	readonly sku?: string;
 	readonly copilotTrackingId?: string;
 	readonly quotas?: IQuotas;
+}
+
+/** Shared exhaustion semantics for both controls and continuation suggestions. */
+export function isChatQuotaExceeded(entitlement: ChatEntitlement, quotas: IChatEntitlementService['quotas']): boolean {
+	const premium = quotas.premiumChat;
+	const managed = entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
+	const exhausted = premium?.unlimited ? premium.hasQuota === false : premium?.percentRemaining === 0;
+	return quotas.chat?.percentRemaining === 0 || (managed && premium?.hasQuota === false) || (exhausted && (managed || !quotas.additionalUsageEnabled));
+}
+
+/** Unknown premium allowance cannot establish that a paid route is usable. */
+export function hasUsableCopilotPremiumQuota(entitlement: ChatEntitlement, quotas: IChatEntitlementService['quotas']): boolean {
+	const premium = quotas.premiumChat;
+	return isProUser(entitlement) && !!premium
+		&& (premium.unlimited || (Number.isFinite(premium.percentRemaining) && premium.percentRemaining >= 0 && premium.percentRemaining <= 100))
+		&& !isChatQuotaExceeded(entitlement, quotas);
 }
 
 export interface IQuotaSnapshot {

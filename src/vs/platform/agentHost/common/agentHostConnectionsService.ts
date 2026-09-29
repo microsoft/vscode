@@ -144,6 +144,9 @@ export interface IAgentHostConnectionsService {
 	 * Resolves an agent-host chat-session resource to its connection authority
 	 * and backend session URI without requiring the host to be connected.
 	 */
+	/** Maps a backend session through the same provider policy used for resolution. */
+	getSessionResource(backendSession: URI, authority?: string): URI;
+
 	resolveSessionResourceIdentity(sessionResource: URI): IAgentHostSessionIdentity | undefined;
 
 	/**
