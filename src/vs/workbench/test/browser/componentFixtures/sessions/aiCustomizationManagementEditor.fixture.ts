@@ -3296,6 +3296,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['At a narrow width, marketplace detail facts and metadata sections remain readable in one column with explicit Back, Install, Open Resource, and Open Repository actions.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'correctness',
 			selectDiscoveryResult: true,
 			width: 560,
@@ -3308,6 +3309,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['An MCP marketplace item without a safely resolved workbench server uses the generic detail presentation and preserves its setup/install state and metadata.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'website',
 			selectDiscoveryResult: true,
 		}),
