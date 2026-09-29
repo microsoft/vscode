@@ -16,7 +16,7 @@ import { localize } from '../../../../../nls.js';
 import { agentFinderMcpRegistryManifest } from '../../../../../platform/agentFinder/common/agentFinderMcpRegistry.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CopilotConnectorsError } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
-import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, isCustomizationMarketplaceIconEqual } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -361,7 +361,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				};
 				const existing = this.findConnectorRecord(connector.name, account);
 				const record = await this.createConnectorRecord(resource, account, existing?.id);
-				const didChange = !existing || existing.version !== record.version || existing.displayName !== record.displayName || existing.description !== record.description || !isEqual(existing.icon, record.icon);
+				const didChange = !existing || existing.version !== record.version || existing.displayName !== record.displayName || existing.description !== record.description || !isCustomizationMarketplaceIconEqual(existing.icon, record.icon);
 				if (didChange) {
 					this.recordStore.upsert(record);
 					this.recordStates.set(record.id, { kind: 'checking' });

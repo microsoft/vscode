@@ -22,8 +22,8 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceIcon } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IQueryOptions, mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
@@ -160,7 +160,7 @@ function hasMcpInstalledEntryIcon(entry: IMcpInstalledEntry): boolean {
 	return entry.type === 'server-item' && (!!entry.marketplaceRecord?.resource.icon || !!entry.server.icon);
 }
 
-function getMcpInstalledEntryIcon(entry: IMcpInstalledEntry, dark: boolean): URI | undefined {
+function getMcpInstalledEntryIcon(entry: IMcpInstalledEntry): CustomizationMarketplaceIcon | undefined {
 	if (entry.type !== 'server-item') {
 		return undefined;
 	}
@@ -168,7 +168,7 @@ function getMcpInstalledEntryIcon(entry: IMcpInstalledEntry, dark: boolean): URI
 		return entry.marketplaceRecord.resource.icon;
 	}
 	const icon = entry.server.icon;
-	return icon ? URI.parse(dark ? icon.dark : icon.light) : undefined;
+	return icon ? { light: URI.parse(icon.light), dark: URI.parse(icon.dark) } : undefined;
 }
 
 interface IMcpMarketplaceEntry {
@@ -358,7 +358,8 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		renderCustomizationMarketplaceIcon(
 			templateData.icon,
 			mcpServerIcon,
-			getMcpInstalledEntryIcon(element, isDark(this.themeService.getColorTheme().type)),
+			getMcpInstalledEntryIcon(element),
+			this.themeService.getColorTheme().type,
 			templateData.iconDisposables,
 		);
 	}
@@ -1577,9 +1578,10 @@ function isConnectorMcpEntry(entry: IMcpInstalledEntry): entry is IMcpBuiltinIte
 
 export function createInstalledMcpServerDetailInput(entry: IMcpInstalledEntry, error?: IObservable<string | undefined>): IMcpServerDetailInput {
 	if (entry.type === 'server-item') {
+		const input = createWorkbenchMcpServerDetailInput(entry.server);
 		return {
-			...createWorkbenchMcpServerDetailInput(entry.server),
-			icon: entry.marketplaceRecord?.resource.icon,
+			...input,
+			icon: entry.marketplaceRecord?.resource.icon ?? input.icon,
 			compatibilityId: entry.localServer?.definition.id ?? entry.server.id,
 			error,
 		};

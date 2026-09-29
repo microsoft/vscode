@@ -24,7 +24,9 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { CustomizationMarketplaceIcon } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService, ICustomizationMcpServerCompatibility } from '../../common/customizationHarnessService.js';
@@ -40,7 +42,7 @@ export interface IMcpServerDetailInput {
 	readonly name: string;
 	readonly label: string;
 	readonly installState: McpServerInstallState;
-	readonly icon?: URI;
+	readonly icon?: CustomizationMarketplaceIcon;
 	readonly config?: IMcpServerConfiguration;
 	/** Identifier used by the active harness's compatibility provider. */
 	readonly compatibilityId?: string;
@@ -64,6 +66,7 @@ export function createWorkbenchMcpServerDetailInput(server: IWorkbenchMcpServer)
 		name: server.name,
 		label: server.label,
 		installState: server.installState,
+		icon: server.icon ? { light: URI.parse(server.icon.light), dark: URI.parse(server.icon.dark) } : undefined,
 		config: server.config,
 		compatibilityId: server.id,
 		source: server.local?.mcpResource ? { uri: server.local.mcpResource } : undefined,
@@ -127,6 +130,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 
@@ -192,6 +196,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 				this.bindDiagnostics();
 			}
 		}));
+		this._register(this.themeService.onDidColorThemeChange(() => this.renderIcon()));
 
 		this.renderItem();
 	}
@@ -248,11 +253,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.emptyEl.style.display = hasItem ? 'none' : '';
 		this.bodyEl.style.display = hasItem ? '' : 'none';
 		this.root.classList.toggle('is-empty', !hasItem);
-		this.iconDisposables.clear();
-		this.iconEl.style.display = server?.icon ? '' : 'none';
-		if (server?.icon) {
-			renderCustomizationMarketplaceIcon(this.iconEl, mcpServerIcon, server.icon, this.iconDisposables);
-		}
+		this.renderIcon();
 		if (!server) {
 			this.nameEl.textContent = '';
 			this.pathEl.textContent = '';
@@ -287,6 +288,15 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			void this.loadSourceDefinition(server, server.source, renderGeneration);
 		} else {
 			this.setDefinition(undefined);
+		}
+	}
+
+	private renderIcon(): void {
+		const icon = this.current?.icon;
+		this.iconDisposables.clear();
+		this.iconEl.style.display = icon ? '' : 'none';
+		if (icon) {
+			renderCustomizationMarketplaceIcon(this.iconEl, mcpServerIcon, icon, this.themeService.getColorTheme().type, this.iconDisposables);
 		}
 	}
 

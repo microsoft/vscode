@@ -6,26 +6,29 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { CustomizationMarketplaceIcon, getCustomizationMarketplaceIconUri } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { type ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { ContributionEnablementState } from '../../common/enablement.js';
 import { IAgentPlugin } from '../../common/plugins/agentPluginService.js';
 
 export function renderCustomizationMarketplaceIcon(
 	container: HTMLElement,
 	fallbackIcon: ThemeIcon,
-	icon: URI | undefined,
+	icon: CustomizationMarketplaceIcon | undefined,
+	themeType: ColorScheme,
 	disposables: DisposableStore,
 ): void {
+	const iconUri = getCustomizationMarketplaceIconUri(icon, themeType);
 	DOM.clearNode(container);
-	container.classList.toggle('has-custom-icon', !!icon);
-	container.classList.toggle('is-fallback', !icon);
+	container.classList.toggle('has-custom-icon', !!iconUri);
+	container.classList.toggle('is-fallback', !iconUri);
 	const fallback = DOM.append(container, DOM.$('.codicon'));
 	fallback.classList.add(...ThemeIcon.asClassNameArray(fallbackIcon));
 	fallback.setAttribute('aria-hidden', 'true');
-	fallback.hidden = !!icon;
-	fallback.style.display = icon ? 'none' : '';
-	if (!icon) {
+	fallback.hidden = !!iconUri;
+	fallback.style.display = iconUri ? 'none' : '';
+	if (!iconUri) {
 		return;
 	}
 	const image = DOM.append(container, DOM.$('img')) as HTMLImageElement;
@@ -41,7 +44,7 @@ export function renderCustomizationMarketplaceIcon(
 		container.classList.add('is-fallback');
 		image.remove();
 	}));
-	image.src = icon.toString(true);
+	image.src = iconUri.toString(true);
 }
 
 export function getPluginInclusionLabel(plugin: IAgentPlugin): string {

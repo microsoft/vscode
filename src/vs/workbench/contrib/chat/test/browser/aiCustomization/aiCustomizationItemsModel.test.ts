@@ -15,8 +15,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceIconUri, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORAGE, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -247,7 +248,7 @@ suite('AICustomizationItemsModel', () => {
 			const uninstalling = items.get()[0]?.marketplace;
 
 			assert.deepStrictEqual({
-				installed: installed && { identifier: installed.resource.identifier, icon: installed.resource.icon?.toString(), state: installed.state.kind },
+				installed: installed && { identifier: installed.resource.identifier, icon: getCustomizationMarketplaceIconUri(installed.resource.icon, ColorScheme.LIGHT)?.toString(), state: installed.state.kind },
 				uninstalling: uninstalling?.state.kind,
 				installStateLookups: marketplaceInstallStateLookups,
 			}, {

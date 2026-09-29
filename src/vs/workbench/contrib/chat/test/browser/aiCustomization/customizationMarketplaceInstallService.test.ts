@@ -1131,6 +1131,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
 			await timeout(0);
 			const state = restored.getInstallState(candidate);
+			const recordedIcon = recordedResources(restored)[0]?.icon;
 			assert.deepStrictEqual({
 				record: {
 					version: stored.version,
@@ -1145,7 +1146,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				},
 				state: state.kind,
 				target: state.kind === 'missing' && state.target.kind === 'skill' ? state.target.uri.toString() : undefined,
-				recordedIcon: recordedResources(restored)[0]?.icon?.toString(),
+				recordedIcon: URI.isUri(recordedIcon) ? recordedIcon.toString() : undefined,
 			}, {
 				record: {
 					version: 1,
@@ -1161,6 +1162,42 @@ suite('CustomizationMarketplaceInstallService', () => {
 				state: 'missing',
 				target: joinPath(skillDestination, SKILL_FILENAME).toString(),
 				recordedIcon: 'https://example.com/review.png',
+			});
+		});
+
+		test('persists themed icon variants while retaining the v1 scalar icon field', async () => {
+			const fixture = await createFixture();
+			const candidate = resource({
+				icon: {
+					light: URI.parse('https://example.com/review-light.png'),
+					dark: URI.parse('https://example.com/review-dark.png'),
+				},
+			});
+			await fixture.service.install(candidate);
+			const storageKey = fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).find(key => key.includes('customizations.marketplace.installationRecord.v1'));
+			assert.ok(storageKey);
+			const stored = JSON.parse(fixture.storageService.get(storageKey, StorageScope.PROFILE)!);
+			fixture.service.dispose();
+			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
+			await timeout(0);
+			const restoredIcon = recordedResources(restored)[0]?.icon;
+
+			assert.deepStrictEqual({
+				storedVersion: stored.version,
+				storedLight: stored.record?.icon,
+				storedDark: stored.record?.iconDark,
+				restored: URI.isUri(restoredIcon) ? undefined : {
+					light: restoredIcon?.light.toString(),
+					dark: restoredIcon?.dark.toString(),
+				},
+			}, {
+				storedVersion: 1,
+				storedLight: 'https://example.com/review-light.png',
+				storedDark: 'https://example.com/review-dark.png',
+				restored: {
+					light: 'https://example.com/review-light.png',
+					dark: 'https://example.com/review-dark.png',
+				},
 			});
 		});
 

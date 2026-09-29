@@ -6,14 +6,17 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
@@ -742,6 +745,12 @@ suite('aiCustomizationListWidget', () => {
 		test('shows one aligned icon per item when a marketplace skill has an icon', async () => {
 			const marketplaceUri = URI.file('/workspace/.github/skills/marketplace/SKILL.md');
 			const plainUri = URI.file('/workspace/.github/skills/plain/SKILL.md');
+			const themeChanges = disposables.add(new Emitter<ReturnType<IThemeService['getColorTheme']>>());
+			let themeType = ColorScheme.DARK;
+			instaService.stub(IThemeService, new class extends mock<IThemeService>() {
+				override readonly onDidColorThemeChange = themeChanges.event;
+				override getColorTheme() { return { type: themeType } as ReturnType<IThemeService['getColorTheme']>; }
+			}());
 			const marketplaceItem: IAICustomizationListItem = {
 				id: 'marketplace',
 				uri: marketplaceUri,
@@ -760,7 +769,10 @@ suite('aiCustomizationListWidget', () => {
 						tags: [],
 						capabilities: [],
 						representativeQueries: [],
-						icon: URI.parse('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='),
+						icon: {
+							light: URI.parse('https://example.com/skill-light.png'),
+							dark: URI.parse('https://example.com/skill-dark.png'),
+						},
 					},
 					state: { kind: 'installed', target: { kind: 'skill', uri: marketplaceUri } },
 				},
@@ -791,26 +803,35 @@ suite('aiCustomizationListWidget', () => {
 			widget.layout(800, 500);
 			const rows = [...widget.element.querySelectorAll<HTMLElement>('.ai-customization-list-item')];
 			const withMarketplaceIcon = widget.element.classList.contains('show-item-type-icons');
-			const iconState = rows.map(row => {
+			const readIconState = () => rows.map(row => {
 				const icon = row.querySelector<HTMLElement>('.item-type-icon')!;
 				return {
 					name: row.querySelector('.item-name')?.textContent,
-					image: !!icon.querySelector('img'),
+					image: icon.querySelector<HTMLImageElement>('img')?.src,
 					fallbackDisplay: icon.querySelector<HTMLElement>('.codicon')?.style.display,
 					visibleChildren: [...icon.children].filter(child => !(child instanceof HTMLElement) || !child.hidden).length,
 				};
 			});
+			const darkIconState = readIconState();
+			themeType = ColorScheme.LIGHT;
+			themeChanges.fire({ type: themeType } as ReturnType<IThemeService['getColorTheme']>);
+			const lightIconState = readIconState();
 			items.set([plainItem], undefined);
 
 			assert.deepStrictEqual({
 				withMarketplaceIcon,
-				iconState,
+				darkIconState,
+				lightIconState,
 				withoutMarketplaceIcon: widget.element.classList.contains('show-item-type-icons'),
 			}, {
 				withMarketplaceIcon: true,
-				iconState: [
-					{ name: 'Marketplace Skill', image: true, fallbackDisplay: 'none', visibleChildren: 1 },
-					{ name: 'Plain Skill', image: false, fallbackDisplay: '', visibleChildren: 1 },
+				darkIconState: [
+					{ name: 'Marketplace Skill', image: 'https://example.com/skill-dark.png', fallbackDisplay: 'none', visibleChildren: 1 },
+					{ name: 'Plain Skill', image: undefined, fallbackDisplay: '', visibleChildren: 1 },
+				],
+				lightIconState: [
+					{ name: 'Marketplace Skill', image: 'https://example.com/skill-light.png', fallbackDisplay: 'none', visibleChildren: 1 },
+					{ name: 'Plain Skill', image: undefined, fallbackDisplay: '', visibleChildren: 1 },
 				],
 				withoutMarketplaceIcon: false,
 			});

@@ -9,7 +9,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { posix } from '../../../../../base/common/path.js';
 import { dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceIcon, CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -29,7 +29,7 @@ export interface ICustomizationMarketplaceInstallationRecord {
 	readonly description: string;
 	readonly mediaType: string;
 	readonly installation: RecordedCustomizationMarketplaceInstallation;
-	readonly icon?: URI;
+	readonly icon?: CustomizationMarketplaceIcon;
 	readonly target: CustomizationMarketplaceInstallationRecordTarget;
 }
 
@@ -68,6 +68,7 @@ interface IStoredCustomizationMarketplaceInstallationRecord {
 		readonly mediaType: string;
 		readonly installation: RecordedCustomizationMarketplaceInstallation;
 		readonly icon?: string;
+		readonly iconDark?: string;
 		readonly target:
 		| {
 			readonly kind: 'skill';
@@ -233,7 +234,7 @@ function reviveInstallationRecord(value: unknown): ICustomizationMarketplaceInst
 			description: record.description,
 			mediaType: record.mediaType,
 			installation: record.installation,
-			icon: record.icon ? URI.parse(record.icon) : undefined,
+			icon: reviveStoredIcon(record.icon, record.iconDark),
 			target,
 		};
 	} catch {
@@ -277,7 +278,7 @@ function serializeInstallationRecord(record: ICustomizationMarketplaceInstallati
 			description: record.description,
 			mediaType: record.mediaType,
 			installation: record.installation,
-			icon: record.icon?.toString(true),
+			...serializeStoredIcon(record.icon),
 			target,
 		},
 	};
@@ -297,6 +298,7 @@ function isStoredInstallationRecord(value: unknown): value is IStoredCustomizati
 		|| !isNonEmptyString(record.mediaType)
 		|| !isStoredInstallation(record.installation)
 		|| record.icon !== undefined && !isSafeStoredIcon(record.icon)
+		|| record.iconDark !== undefined && (!isSafeStoredIcon(record.iconDark) || record.icon === undefined)
 		|| !isRecord(record.target)
 		|| !isStoredTargetKind(record.target.kind, record.installation.kind)) {
 		return false;
@@ -404,4 +406,21 @@ function isSafeStoredIcon(value: unknown): value is string {
 	} catch {
 		return false;
 	}
+}
+
+function reviveStoredIcon(light: string | undefined, dark: string | undefined): CustomizationMarketplaceIcon | undefined {
+	if (!light) {
+		return undefined;
+	}
+	const lightUri = URI.parse(light);
+	return dark ? { light: lightUri, dark: URI.parse(dark) } : lightUri;
+}
+
+function serializeStoredIcon(icon: CustomizationMarketplaceIcon | undefined): Pick<IStoredCustomizationMarketplaceInstallationRecord['record'], 'icon' | 'iconDark'> {
+	if (!icon) {
+		return {};
+	}
+	return URI.isUri(icon)
+		? { icon: icon.toString(true) }
+		: { icon: icon.light.toString(true), iconDark: icon.dark.toString(true) };
 }

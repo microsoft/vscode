@@ -39,6 +39,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
@@ -330,6 +331,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		private readonly onOpenDetails: (resource: ICustomizationMarketplaceResource) => void,
 		private readonly onOpenInstalled: (item: IInstalledDiscoveryItem) => void,
 		private readonly isDirectUninstalling: (item: IInstalledDiscoveryItem) => boolean,
+		private readonly themeService: IThemeService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IDiscoveryRowTemplate {
@@ -393,6 +395,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 			templateData.icon,
 			type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : type === 'skill' ? Codicon.lightbulb : Codicon.file,
 			resource?.icon,
+			this.themeService.getColorTheme().type,
 			templateData.elementDisposables,
 		);
 
@@ -612,6 +615,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 		this.enabledSourceIds = this.getEnabledCatalogSourceIds();
@@ -701,6 +705,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			resource => this.openMarketplaceItem(resource, 'search'),
 			item => this.openInstalledItem(item),
 			item => this.pendingDirectUninstalls.has(item.id),
+			this.themeService,
 		);
 		this.resultList = this._register(this.instantiationService.createInstance(
 			WorkbenchList<DiscoveryListEntry>,
@@ -757,6 +762,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 		});
 		this._register(this.installService.onDidChange(() => this.render()));
+		this._register(this.themeService.onDidColorThemeChange(() => this.render()));
 		if (this.marketplaceService.onDidChangeSources) {
 			this._register(this.marketplaceService.onDidChangeSources(() => this.scheduleMarketplaceRefresh(true)));
 		}
@@ -1560,6 +1566,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			icon,
 			type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : Codicon.lightbulb,
 			item.icon,
+			this.themeService.getColorTheme().type,
 			this.browseDisposables,
 		);
 		const body = DOM.append(primaryAction, $('.customization-discovery-card-body'));

@@ -9,7 +9,7 @@ import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -18,7 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceIconUri } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -1408,6 +1408,8 @@ suite('mcpListWidget', () => {
 			let localEnablementCalls: [string, ContributionEnablementState][] = [];
 			let menuActions: IAction[] = [];
 			const hoverContents = new Map<HTMLElement, IManagedHoverContent>();
+			const themeChanges = store.add(new Emitter<ReturnType<IThemeService['getColorTheme']>>());
+			let themeType = ColorScheme.DARK;
 
 			const agentHostCustomizationService = {
 				getMcpServers: () => servers,
@@ -1466,10 +1468,10 @@ suite('mcpListWidget', () => {
 				button.label = 'More Actions';
 				registerMcpInlineButtonAction(disposables, button, () => { managementClicks.push('more'); });
 			};
-			const themeService = {
-				onDidColorThemeChange: Event.None,
-				getColorTheme: () => ({ type: ColorScheme.DARK }),
-			} as IThemeService;
+			const themeService = new class extends mock<IThemeService>() {
+				override readonly onDidColorThemeChange = themeChanges.event;
+				override getColorTheme() { return { type: themeType } as ReturnType<IThemeService['getColorTheme']>; }
+			}();
 			const renderer = store.add(new McpServerItemRenderer(
 				renderManagementActions,
 				() => compatibilityKind,
@@ -1605,6 +1607,10 @@ suite('mcpListWidget', () => {
 				}),
 				notifyUnchanged: () => onDidChangeCustomizations.fire(),
 				setServers: (next: AgentHostMcpServer[]) => { servers = next; },
+				setTheme: (type: ColorScheme) => {
+					themeType = type;
+					themeChanges.fire({ type: themeType } as ReturnType<IThemeService['getColorTheme']>);
+				},
 				setFocusedIndex: (index: number) => renderer.setFocusedRowKey(index === 0 && templateData.currentElement ? getMcpRowKey(templateData.currentElement) : undefined),
 				actionNode: () => templateData.actions.querySelector('.test-management-action, .plugin-card-icon-button'),
 			};
@@ -1615,7 +1621,10 @@ suite('mcpListWidget', () => {
 		test('renders one marketplace icon and carries it into installed server details', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
-			const icon = URI.parse('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==');
+			const icon = {
+				light: URI.parse('https://example.com/mcp-light.png'),
+				dark: URI.parse('https://example.com/mcp-dark.png'),
+			};
 			const server = new class extends mock<IWorkbenchMcpServer>() {
 				override readonly id = 'marketplace-server';
 				override readonly label = 'Marketplace Server';
@@ -1643,13 +1652,17 @@ suite('mcpListWidget', () => {
 			};
 
 			ctx.render(entry);
+			const darkIcon = ctx.readIcon();
+			ctx.setTheme(ColorScheme.LIGHT);
 
 			assert.deepStrictEqual({
-				icon: ctx.readIcon(),
-				detailIcon: ctx.detailInput(entry).icon?.toString(),
+				darkIcon,
+				lightIcon: ctx.readIcon(),
+				detailIcon: getCustomizationMarketplaceIconUri(ctx.detailInput(entry).icon, ColorScheme.DARK)?.toString(),
 			}, {
-				icon: { image: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', fallbackDisplay: 'none', visibleChildren: 1 },
-				detailIcon: icon.toString(),
+				darkIcon: { image: 'https://example.com/mcp-dark.png', fallbackDisplay: 'none', visibleChildren: 1 },
+				lightIcon: { image: 'https://example.com/mcp-light.png', fallbackDisplay: 'none', visibleChildren: 1 },
+				detailIcon: 'https://example.com/mcp-dark.png',
 			});
 		});
 

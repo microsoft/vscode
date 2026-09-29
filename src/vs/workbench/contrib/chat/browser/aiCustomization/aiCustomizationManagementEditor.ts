@@ -11,7 +11,7 @@ import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { Checkbox, TriStateCheckbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceIcon, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
@@ -571,6 +571,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private editorActionButtonInProgress = false;
 	private editorDisplayMode: 'preview' | 'raw' = 'preview';
 	private currentCustomizationDetail = false;
+	private editorItemMarketplaceIcon: CustomizationMarketplaceIcon | undefined;
 	private editorItemIconElement!: HTMLElement;
 	private editorItemNameElement!: HTMLElement;
 	private editorItemDescriptionElement!: HTMLElement;
@@ -751,6 +752,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.sectionContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.bindTo(contextKeyService);
 		this.harnessContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS.bindTo(contextKeyService);
 		this.updateTargetLabelPresentation();
+		this._register(this.themeService.onDidColorThemeChange(() => this.renderEditorItemIcon()));
 
 		// Track workspace changes for embedded editor
 		this._register(autorun(reader => {
@@ -4467,11 +4469,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.viewMode = 'editor';
 		this.editorContentContainer?.classList.toggle('customization-detail-mode', customizationDetail);
 
-		this.editorItemIconDisposables.clear();
-		this.editorItemIconElement.style.display = marketplace?.resource.icon ? '' : 'none';
-		if (marketplace?.resource.icon) {
-			renderCustomizationMarketplaceIcon(this.editorItemIconElement, skillIcon, marketplace.resource.icon, this.editorItemIconDisposables);
-		}
+		this.editorItemMarketplaceIcon = marketplace?.resource.icon;
+		this.renderEditorItemIcon();
 		this.editorItemNameElement.textContent = displayName;
 		this.editorItemDescriptionElement.textContent = '';
 		this.editorItemDescriptionElement.style.display = 'none';
@@ -4527,6 +4526,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentEditingPromptType = undefined;
 		this.currentEditingReadOnly = false;
 		this.currentCustomizationDetail = false;
+		this.editorItemMarketplaceIcon = undefined;
 		this.editorItemIconDisposables.clear();
 		this.editorItemIconElement.style.display = 'none';
 		this.editorContentContainer?.classList.remove('customization-detail-mode');
@@ -4568,6 +4568,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 				console.error('Failed to save customization changes on exit:', error);
 				this.notificationService.warn(localize('saveCustomizationOnExitFailed', "Could not save changes to {0}.", basename(saveRequest.fileUri)));
 			});
+		}
+	}
+
+	private renderEditorItemIcon(): void {
+		if (!this.editorItemIconElement) {
+			return;
+		}
+		const icon = this.editorItemMarketplaceIcon;
+		this.editorItemIconDisposables.clear();
+		this.editorItemIconElement.style.display = icon ? '' : 'none';
+		if (icon) {
+			renderCustomizationMarketplaceIcon(this.editorItemIconElement, skillIcon, icon, this.themeService.getColorTheme().type, this.editorItemIconDisposables);
 		}
 	}
 
