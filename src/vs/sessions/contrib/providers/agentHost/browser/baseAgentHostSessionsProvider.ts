@@ -73,6 +73,7 @@ import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../commo
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
+import { getWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -5506,6 +5507,30 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (cached.isExternal.get()) {
 			await connection.importSession(cached.backendUri);
 		}
+	}
+
+	async getSessionWorktreeDiskUsage(sessionId: string): Promise<number | undefined> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!session || !connection) {
+			return undefined;
+		}
+		const worktrees = new Map<string, URI>();
+		for (const folder of session.workspace.get()?.folders ?? []) {
+			const worktreeUri = folder.gitRepository?.workTreeUri;
+			if (worktreeUri) {
+				worktrees.set(worktreeUri.toString(), worktreeUri);
+			}
+		}
+		if (worktrees.size === 0) {
+			return undefined;
+		}
+		const sizes = await Promise.all([...worktrees.values()].map(worktreeUri => getWorktreeDiskUsage(connection, worktreeUri)));
+		if (sizes.every(size => size === undefined)) {
+			return undefined;
+		}
+		return sizes.reduce<number>((total, size) => total + (size ?? 0), 0);
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {
