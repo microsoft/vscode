@@ -28,6 +28,13 @@ steps:
       VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
       VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
 
+  # The CLI is built by the parallel CLI job and mixed into the client below.
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for CLI artifact (background)
+
   # Start pulling the CG-generated NOTICE from the parallel Quality stage
   # in the background (overwrites repo-root ThirdPartyNotices.txt before packaging).
   # Publish builds only (CIBUILD=false) — CI test jobs never ship a notice.
@@ -125,6 +132,45 @@ steps:
       GITHUB_TOKEN: "$(github-token-code-oss)"
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Build server (web)
+
+  # The unsigned client is published as soon as it is built, since the macOS
+  # (UNIVERSAL) job only waits a limited amount of time for it.
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli=macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for CLI artifact
+
+    - template: product-build-darwin-mixin-cli.yml@self
+
+    - script: |
+        set -e
+        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.ts $(VSCODE_ARCH)
+        APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.ts $(VSCODE_ARCH)
+      displayName: Verify arch of Mach-O objects
+
+    - script: |
+        set -e
+        ARCHIVE_PATH="$(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $ARCHIVE_PATH *)
+        echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
+      displayName: Package client
+
+    - pwsh: node build/azure-pipelines/common/checkForArtifact.ts CLIENT_ARCHIVE_UPLOADED unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Check for client artifact
+
+    - template: ../../common/publish-artifact.yml@self
+      parameters:
+        targetPath: $(CLIENT_PATH)
+        artifactName: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+        displayName: Publish client archive (unsigned)
+        sbomEnabled: false
+        condition: and(ne(variables['CLIENT_PATH'], ''), eq(variables['CLIENT_ARCHIVE_UPLOADED'], 'false'))
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_ONLY, true)) }}:
     - template: product-build-darwin-package.yml@self

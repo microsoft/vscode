@@ -13,10 +13,11 @@ parameters:
     type: boolean
     default: false
 
-# Compile publishes unpacked builds for the Test and Sign jobs. Test applies
+# Compile mixes in the CLI, publishes the unsigned client for the universal
+# build and publishes unpacked builds for the Test and Sign jobs. Test applies
 # the local entitlement signature required to run the product on macOS, while
-# Sign mixes in the CLI, packages, signs, notarizes and publishes the final
-# artifacts. Test and Sign run in parallel after Compile.
+# Sign packages, signs, notarizes and publishes the final artifacts. Test and
+# Sign run in parallel after Compile.
 jobs:
   - job: macOS_${{ parameters.VSCODE_ARCH }}_Compile
     displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) - Compile
@@ -67,9 +68,7 @@ jobs:
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - job: macOS_${{ parameters.VSCODE_ARCH }}_Test
       displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) - Test
-      dependsOn:
-        - macOS_${{ parameters.VSCODE_ARCH }}_Compile
-        - macOS_${{ parameters.VSCODE_ARCH }}_CLI
+      dependsOn: macOS_${{ parameters.VSCODE_ARCH }}_Compile
       timeoutInMinutes: 240
       cancelTimeoutInMinutes: 10
       variables:
@@ -110,8 +109,6 @@ jobs:
           parameters:
             VSCODE_DOWNLOAD_OUT_BUILD: true
 
-        - template: ./steps/product-build-darwin-mixin-cli.yml@self
-
         - template: ./steps/product-build-darwin-sign-local.yml@self
 
         - template: ./steps/product-build-darwin-test.yml@self
@@ -123,9 +120,7 @@ jobs:
 
   - job: macOS_${{ parameters.VSCODE_ARCH }}_Sign
     displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
-    dependsOn:
-      - macOS_${{ parameters.VSCODE_ARCH }}_Compile
-      - macOS_${{ parameters.VSCODE_ARCH }}_CLI
+    dependsOn: macOS_${{ parameters.VSCODE_ARCH }}_Compile
     timeoutInMinutes: 240
     cancelTimeoutInMinutes: 10
     variables:
