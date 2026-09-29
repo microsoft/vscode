@@ -43,7 +43,7 @@ import { ActionType, isChatAction, type SessionAction, type ChatAction } from '.
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, chatStorageUri, createErrorResponsePart, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, chatStorageUri, createErrorResponsePart, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, type ToolResultContent, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { CodexChatDiscovery } from './codexChatDiscovery.js';
@@ -1131,6 +1131,8 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
+	private readonly _pendingCommandOutputs = new WeakMap<ICodexSession, Map<string, Promise<ToolResultContent[]>>>();
+	private readonly _pendingChatProgress = new WeakMap<ICodexSession, Promise<void>>();
 
 	private readonly _onDidMaterializeChat = this._register(new Emitter<IAgentMaterializeChatEvent>());
 	readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
@@ -3241,7 +3243,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _fireSteeringConsumed(session: ICodexSession, id: string): void {
-		this._onDidChatProgress.fire({ kind: 'steering_consumed', chat: session.chatChannel!, id });
+		this._emitChatProgress(session, { kind: 'steering_consumed', chat: session.chatChannel!, id });
 	}
 
 	private _registerIgnoredNotifications(client: ICodexAppServerClient, subscriptions: DisposableStore): void {
@@ -3547,7 +3549,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const modelCall = mapTokenUsageModelCallCompleted(mapped, subagent.session.chatChannel!);
 			if (subagent.session.lastModelCallUsageId !== modelCall.modelCallId) {
 				subagent.session.lastModelCallUsageId = modelCall.modelCallId;
-				this._onDidChatProgress.fire({ ...modelCall, parentToolCallId: subagent.toolCallId });
+				this._emitChatProgress(this._sessions.get(subagent.parentSessionId), { ...modelCall, parentToolCallId: subagent.toolCallId });
 			}
 			return;
 		}
@@ -3568,7 +3570,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._fire(session.sessionUri, action);
 		}
 		if (isNewModelCall) {
-			this._onDidChatProgress.fire(modelCall);
+			this._emitChatProgress(session, modelCall);
 		}
 	}
 
@@ -3607,18 +3609,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	/**
-	 * Stores the complete output of a large command in its chat's session
-	 * database and returns the terminal resource that serves it, without
-	 * keeping a terminal alive. The completion is still published
-	 * synchronously, so it keeps its place among the thread's notifications.
-	 *
-	 * `_persistTurnEventId` created the chat database and this turn's row when
-	 * the turn started, before the model could run the command. The write is
-	 * queued before the completion is published, and the database runs later
-	 * reads of the output after it, so a client that subscribes once the
-	 * completion arrives reads the complete output.
-	 */
+	/** Queues retention; publication waits for the write and keeps the full inline output if it fails. */
 	private _retainCommandOutput(session: ICodexSession, item: ItemCompletedNotification['item']): string | undefined {
 		if (item.type !== 'commandExecution') {
 			return undefined;
@@ -3634,11 +3625,27 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (content.byteLength > MAX_TERMINAL_OUTPUT_BYTES) {
 			return undefined;
 		}
-		const database = this._sessionDataService.openDatabase(storage);
-		database.object.storeTerminalOutput(entry.turnId, entry.toolCallId, content).catch(error => {
-			this._logService.warn(`[Codex:${session.threadId}] Failed to retain output for ${entry.toolCallId}`, error);
-		}).finally(() => database.dispose());
-		return buildNonPtyShellTerminalUri(storage, parseRequiredSessionUriFromChatUri(chat), chat, entry.toolCallId);
+		const resource = buildNonPtyShellTerminalUri(storage, parseRequiredSessionUriFromChatUri(chat), chat, entry.toolCallId);
+		let pending = this._pendingCommandOutputs.get(session);
+		if (!pending) {
+			pending = new Map();
+			this._pendingCommandOutputs.set(session, pending);
+		}
+		pending.set(entry.toolCallId, (async (): Promise<ToolResultContent[]> => {
+			try {
+				const database = this._sessionDataService.openDatabase(storage);
+				try {
+					await database.object.storeTerminalOutput(entry.turnId, entry.toolCallId, content);
+				} finally {
+					database.dispose();
+				}
+				return codexRetainedCommandOutputContent(resource, output, item.exitCode);
+			} catch (error) {
+				this._logService.warn(`[Codex:${session.threadId}] Failed to retain output for ${entry.toolCallId}`, error);
+				return [{ type: ToolResultContentType.Text, text: output }];
+			}
+		})());
+		return resource;
 	}
 
 	/**
@@ -3661,7 +3668,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			this._subagentsByThreadId.delete(params.threadId);
 			subagent.session.pendingCommandApprovals.denyAll('decline');
-			this._onDidChatProgress.fire({
+			this._emitChatProgress(this._sessions.get(subagent.parentSessionId), {
 				kind: 'subagent_completed',
 				chat: subagent.session.chatChannel!,
 				toolCallId: subagent.toolCallId,
@@ -3701,7 +3708,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				toolCallId: entry.toolCallId,
 				session: subSession,
 			});
-			this._onDidChatProgress.fire({
+			this._emitChatProgress(session, {
 				kind: 'subagent_started',
 				chat: parentChat,
 				toolCallId: entry.toolCallId,
@@ -3788,7 +3795,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * routes the action into the child's read-only conversation.
 	 */
 	private _fireSubagent(subagent: ICodexSubagent, action: SessionAction | ChatAction): void {
-		this._onDidChatProgress.fire({
+		this._emitChatProgress(this._sessions.get(subagent.parentSessionId), {
 			kind: 'action',
 			resource: subagent.session.chatChannel!,
 			action,
@@ -8562,15 +8569,49 @@ export class CodexAgent extends Disposable implements IAgent {
 	// #endregion
 
 	private _fire(sessionUri: URI, action: SessionAction | ChatAction): void {
+		const session = this._sessions.get(AgentSession.id(sessionUri));
 		if (isChatAction(action)) {
-			const chatChannel = this._sessions.get(AgentSession.id(sessionUri))?.chatChannel;
+			const chatChannel = session?.chatChannel;
 			if (!chatChannel) {
 				throw new Error(`Codex session ${sessionUri.toString()} has no bound chat channel`);
 			}
-			this._onDidChatProgress.fire({ kind: 'action', resource: chatChannel, action });
+			this._emitChatProgress(session, { kind: 'action', resource: chatChannel, action });
 			return;
 		}
-		this._onDidChatProgress.fire({ kind: 'action', resource: sessionUri, action });
+		this._emitChatProgress(session, { kind: 'action', resource: sessionUri, action });
+	}
+
+	/** Keeps mapping synchronous while publishing each chat's signals in order after pending output writes. */
+	private _emitChatProgress(session: ICodexSession | undefined, signal: AgentSignal): void {
+		const completion = signal.kind === 'action' && !signal.parentToolCallId && signal.action.type === ActionType.ChatToolCallComplete ? signal.action : undefined;
+		const outputs = session && this._pendingCommandOutputs.get(session);
+		const retained = completion && outputs?.get(completion.toolCallId);
+		if (completion) {
+			outputs?.delete(completion.toolCallId);
+		}
+		const previous = session && this._pendingChatProgress.get(session);
+		if (!session || (!previous && !retained)) {
+			this._onDidChatProgress.fire(signal);
+			return;
+		}
+		const pending = (async () => {
+			await previous;
+			let resolvedSignal = signal;
+			if (retained && completion && signal.kind === 'action') {
+				const content = await retained;
+				resolvedSignal = { ...signal, action: { ...completion, result: { ...completion.result, content } } };
+			}
+			if (!session.disposed && !this._store.isDisposed) {
+				this._onDidChatProgress.fire(resolvedSignal);
+			}
+		})().catch(error => {
+			this._logService.error(`[Codex:${session.threadId}] Failed to publish chat progress`, error);
+		}).finally(() => {
+			if (this._pendingChatProgress.get(session) === pending) {
+				this._pendingChatProgress.delete(session);
+			}
+		});
+		this._pendingChatProgress.set(session, pending);
 	}
 
 	override dispose(): void {

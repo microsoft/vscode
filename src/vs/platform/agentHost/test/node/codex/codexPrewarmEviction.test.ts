@@ -63,6 +63,7 @@ import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
 import type { ConfigEdit } from '../../../node/codex/protocol/generated/v2/ConfigEdit.js';
 import type { TurnStartParams } from '../../../node/codex/protocol/generated/v2/TurnStartParams.js';
+import type { ThreadItem } from '../../../node/codex/protocol/generated/v2/ThreadItem.js';
 import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
@@ -1469,6 +1470,78 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 		peer.exit();
 	});
+
+	for (const recovered of [false, true]) {
+		for (const outcome of ['stored', 'failed', 'missing turn', 'disposed'] as const) {
+			test(`command output retention preserves publication order (${recovered ? 'recovered' : 'ordinary'}, ${outcome})`, async () => {
+				const write = new DeferredPromise<void>();
+				class DelayedOutputDatabase extends TestSessionDatabase {
+					override async storeTerminalOutput(turnId: string, toolCallId: string, content: Uint8Array): Promise<void> {
+						await write.p;
+						if (outcome === 'failed') {
+							throw new Error('Output write failed');
+						}
+						await super.storeTerminalOutput(turnId, toolCallId, content);
+					}
+				}
+				const database = new DelayedOutputDatabase();
+				const agent = await createAgent(disposables, { database });
+				const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+				const entry = agent['_sessions'].get(AgentSession.id(session))!;
+				const threadId = 'delayed-output-thread';
+				entry.threadId = threadId;
+				agent['_sessionIdByThreadId'].set(threadId, entry.sessionId);
+				if (outcome !== 'missing turn') {
+					await database.createTurn('turn-1');
+				}
+				const output = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES)}\nEND\n`;
+				const command: Extract<ThreadItem, { type: 'commandExecution' }> = {
+					type: 'commandExecution', id: 'cmd-delayed',
+					command: 'build', cwd: '/tmp', processId: null,
+					source: 'agent', status: 'inProgress',
+					commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
+				};
+				agent['_dispatchByThread'](threadId, s => agent['_handleItemStarted'](s, { item: command, threadId, turnId: 'turn-1', startedAtMs: 0 }));
+				const signals: AgentSignal[] = [];
+				disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+				const completed: typeof command = { ...command, status: 'completed', aggregatedOutput: output, exitCode: 0 };
+				if (!recovered) {
+					agent['_dispatchItemCompleted']({ item: completed, threadId, turnId: 'turn-1', completedAtMs: 1 });
+				}
+				agent['_dispatchTurnCompleted']({
+					threadId,
+					turn: {
+						id: 'turn-1', items: recovered ? [completed] : [], itemsView: { type: 'full' },
+						status: 'completed', error: null, startedAt: null, completedAt: null, durationMs: 1,
+					},
+				});
+				agent['_fireSteeringConsumed'](entry, 'steering-1');
+				const beforeWrite = signals.length;
+				const pending = agent['_pendingChatProgress']?.get(entry);
+				if (outcome === 'disposed') {
+					await agent.chats.disposeChat(defaultChatOf(session), chatContext(session, defaultChatOf(session)));
+				}
+				await write.complete();
+				await pending;
+
+				const completion = signals.find(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete);
+				const content = completion?.kind === 'action' && completion.action.type === ActionType.ChatToolCallComplete ? completion.action.result.content : undefined;
+				assert.deepStrictEqual({
+					beforeWrite,
+					order: signals.map(signal => signal.kind === 'action' ? signal.action.type : signal.kind),
+					text: content?.find(part => part.type === ToolResultContentType.Text)?.text,
+					retained: content?.some(part => part.type === ToolResultContentType.Terminal),
+					warned: (agent['_logService'] as TestCodexLogService).warnings.some(warning => warning.includes('Failed to retain output')),
+				}, {
+					beforeWrite: 0,
+					order: outcome === 'disposed' ? [] : [ActionType.ChatToolCallComplete, ActionType.ChatTurnComplete, 'steering_consumed'],
+					text: outcome === 'disposed' ? undefined : outcome === 'stored' ? output.slice(0, 400) : output,
+					retained: outcome === 'disposed' ? undefined : outcome === 'stored',
+					warned: outcome === 'failed' || outcome === 'missing turn',
+				});
+			});
+		}
+	}
 
 	test('turn completion recovery retains large parent output but leaves subagent output inline', async () => {
 		const output = `BEGIN\n${'x'.repeat(SHELL_COMMAND_MAX_OUTPUT_BYTES)}\nEND\n`;
