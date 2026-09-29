@@ -43,7 +43,7 @@ suite('GitHub session persistence', () => {
 		let secretWrites = 0;
 		const secretChangeReads: Promise<vscode.AuthenticationSession[]>[] = [];
 
-		const provider: TestGitHubAuthenticationProvider = {
+		const provider: TestGitHubAuthenticationProvider = Object.assign(Object.create(GitHubSessionEngine.prototype), {
 			_keychain: {
 				getToken: async () => storedSessions,
 				deleteToken: async () => { }
@@ -73,7 +73,7 @@ suite('GitHub session persistence', () => {
 					secretChangeReads.push(provider.readSessions());
 				}
 			}
-		};
+		} satisfies TestGitHubAuthenticationProvider);
 
 		const sessions = await provider.readSessions();
 		await Promise.all(secretChangeReads);
@@ -241,6 +241,60 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 				.sort()
 		};
 	}
+
+	test('host labels preserve broker identity, restoration and native account-link names', async () => {
+		const harness = createHarness({
+			renew: async (_call, renewal) => ({
+				token: 'gho_restored', expiresAfter: 7_200_000, account: GITHUB_ACCOUNT, scopes: renewal.scopes ?? SCOPES
+			})
+		});
+		const suffix = ` (${baseUri.toString(true)})`;
+		await harness.accountLinks.link(MICROSOFT_ACCOUNT.label, { id: GITHUB_ACCOUNT.id, label: GITHUB_ACCOUNT.accountName });
+		await harness.provider.setAccountLabelSuffix(suffix);
+		const [restored] = await harness.provider.getSessions([...SCOPES], {});
+		const [queried] = await harness.provider.getSessions([...SCOPES], { account: restored.account });
+		await harness.provider.setAccountLabelSuffix(undefined);
+		const [singleHost] = await harness.provider.getSessions([...SCOPES], {});
+		const links = harness.accountLinks.linkedAccounts();
+		await harness.provider.removeSession(restored.id);
+		assert.deepStrictEqual({
+			accountId: restored.account.id,
+			multipleLabel: restored.account.label,
+			queriedId: queried.id,
+			singleHostId: singleHost.id,
+			singleHostLabel: singleHost.account.label,
+			restores: harness.renewals.length,
+			linkedNames: links.map(link => link.gitHubAccountLabel),
+			remainingLinks: harness.accountLinks.linkedAccounts()
+		}, {
+			accountId: GITHUB_ACCOUNT.id,
+			multipleLabel: `${GITHUB_ACCOUNT.accountName}${suffix}`,
+			queriedId: restored.id,
+			singleHostId: restored.id,
+			singleHostLabel: GITHUB_ACCOUNT.accountName,
+			restores: 1,
+			linkedNames: [GITHUB_ACCOUNT.accountName],
+			remainingLinks: []
+		});
+	});
+
+	test('host labels do not interfere with renewing expired broker sessions', async () => {
+		const oldSession = sessionFor(GITHUB_ACCOUNT.accountName, 'native-session-id', 'expired-token');
+		const harness = createHarness({ transient: [[oldSession, -1]] });
+		const suffix = ` (${baseUri.toString(true)})`;
+		await harness.accountLinks.link(MICROSOFT_ACCOUNT.label, { id: GITHUB_ACCOUNT.id, label: GITHUB_ACCOUNT.accountName });
+		await harness.provider.setAccountLabelSuffix(suffix);
+		const [renewed] = await harness.provider.getSessions([...SCOPES], { account: { id: GITHUB_ACCOUNT.id, label: `${GITHUB_ACCOUNT.accountName}${suffix}` } });
+		assert.deepStrictEqual({
+			id: renewed.id,
+			account: renewed.account,
+			renewals: harness.renewals.map(request => ({ id: request.gitHubAccountId, microsoftAccount: request.microsoftAccount.label }))
+		}, {
+			id: 'native-session-id',
+			account: { id: GITHUB_ACCOUNT.id, label: `${GITHUB_ACCOUNT.accountName}${suffix}` },
+			renewals: [{ id: GITHUB_ACCOUNT.id, microsoftAccount: MICROSOFT_ACCOUNT.label }]
+		});
+	});
 
 	test('publishes the lifetime reported by an interactive Microsoft exchange', async () => {
 		const harness = createHarness();

@@ -37,12 +37,16 @@ export async function activate(context: vscode.ExtensionContext) {
 		const legacyUri = typeof legacy === 'string' && /^https?:\/\//i.test(legacy) ? vscode.Uri.parse(legacy) : undefined;
 		await githubEnterpriseAuthProvider.update(uris, { legacyUri });
 	};
-	const refreshEnterpriseConfiguration = () => {
-		void updateEnterpriseConfiguration().catch(error => vscode.window.showErrorMessage(vscode.l10n.t('Could not update GitHub Enterprise authentication: {0}', error.message)));
+	const refreshEnterpriseConfiguration = async () => {
+		try {
+			await updateEnterpriseConfiguration();
+		} catch (error) {
+			void vscode.window.showErrorMessage(vscode.l10n.t('Could not update GitHub Enterprise authentication: {0}', error instanceof Error ? error.message : String(error)));
+		}
 	};
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
 		if (e.affectsConfiguration(enterpriseUrisSetting) || e.affectsConfiguration(enterpriseUriSetting)) {
-			refreshEnterpriseConfiguration();
+			void refreshEnterpriseConfiguration();
 		}
 	}));
 	context.subscriptions.push(vscode.workspace.onDidGrantWorkspaceTrust(refreshEnterpriseConfiguration));

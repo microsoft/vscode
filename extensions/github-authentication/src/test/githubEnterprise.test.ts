@@ -27,17 +27,18 @@ class TestSessionEngine {
 	sessions: vscode.AuthenticationSession[];
 	private readonly initialized: Promise<void>;
 
-	constructor(readonly uri: vscode.Uri, readonly storageKey: string, secrets: TestSecretStorage, storedOnly: boolean) {
+	constructor(readonly uri: vscode.Uri, readonly storageKey: string, secrets: TestSecretStorage, storedOnly: boolean, private accountLabelSuffix?: string) {
 		sinon.stub(this.instance, 'onDidChangeSessions').get(() => this.onDidChangeSessions);
 		this.instance.getSessions.callsFake((scopes, options) => this.getSessions(scopes, options));
 		this.instance.getCachedSessions.callsFake(() => this.getCachedSessions());
 		this.instance.createSession.callsFake((scopes, options) => this.createSession(scopes, options));
 		this.instance.removeSession.callsFake(id => this.removeSession(id));
 		this.instance.dispose.callsFake(() => this.dispose());
+		this.instance.setAccountLabelSuffix.callsFake(suffix => this.setAccountLabelSuffix(suffix));
 		this.sessions = storedOnly ? [] : [{
-			id: 'session',
+			id: `session-${uri.toString()}`,
 			accessToken: `fake-token-${uri.authority}`,
-			account: { id: '42', label: 'octocat', icon: vscode.Uri.parse('https://avatars.example/42') },
+			account: { id: '42', label: `octocat${accountLabelSuffix ?? ''}`, icon: vscode.Uri.parse('https://avatars.example/42') },
 			scopes: ['repo'],
 			authorizationServer: vscode.Uri.joinPath(uri, '/login/oauth'),
 			expiresAfter: 60_000
@@ -47,6 +48,7 @@ class TestSessionEngine {
 				const stored: vscode.AuthenticationSession[] = JSON.parse(value);
 				this.sessions = stored.map(session => ({
 					...session,
+					account: { ...session.account, label: `${session.account.label}${this.accountLabelSuffix ?? ''}` },
 					authorizationServer: vscode.Uri.from(session.authorizationServer!)
 				}));
 			}
@@ -58,10 +60,24 @@ class TestSessionEngine {
 		return this.sessions;
 	}
 
+	async setAccountLabelSuffix(suffix: string | undefined): Promise<void> {
+		if (this.accountLabelSuffix === suffix) {
+			return;
+		}
+		const previous = this.accountLabelSuffix;
+		this.accountLabelSuffix = suffix;
+		this.sessions = this.sessions.map(session => {
+			const name = previous && session.account.label.endsWith(previous) ? session.account.label.slice(0, -previous.length) : session.account.label;
+			return { ...session, account: { ...session.account, label: `${name}${suffix ?? ''}` } };
+		});
+		this.changes.fire({ added: [], removed: [], changed: this.sessions });
+	}
+
 	async getSessions(scopes: readonly string[] | undefined, options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
 		await this.initialized;
 		this.reads.push({ scopes, options });
-		return this.sessions.filter(session => (!scopes?.length || session.scopes.join(' ') === scopes.join(' ')) && (!options?.account || session.account.label === options.account.label));
+		return this.sessions.filter(session => (!scopes?.length || session.scopes.join(' ') === scopes.join(' ')) && (!options?.account || session.account.label === options.account.label)
+			&& (!options?.authorizationServer || session.authorizationServer?.toString() === options.authorizationServer.toString()));
 	}
 
 	async createSession(scopes: readonly string[], options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
@@ -93,13 +109,13 @@ suite('GitHub Enterprise multi-host provider', () => {
 	const constructions = new Map<vscode.ExtensionContext, { engines: TestSessionEngine[]; secrets: TestSecretStorage; storedOnly: boolean; failFor?: string }>();
 
 	setup(() => {
-		sinon.stub(github, 'GitHubSessionEngine').callsFake((context, _uriHandler, uri, storageKey) => {
+		sinon.stub(github, 'GitHubSessionEngine').callsFake((context, _uriHandler, uri, storageKey, accountLabelSuffix) => {
 			const construction = constructions.get(context);
 			assert.ok(construction && uri && storageKey);
 			if (uri.authority === construction.failFor) {
 				throw new Error('Engine initialization failed');
 			}
-			const engine = new TestSessionEngine(uri, storageKey, construction.secrets, construction.storedOnly);
+			const engine = new TestSessionEngine(uri, storageKey, construction.secrets, construction.storedOnly, accountLabelSuffix);
 			construction.engines.push(engine);
 			return engine.instance;
 		});
@@ -145,8 +161,8 @@ suite('GitHub Enterprise multi-host provider', () => {
 		return { provider, engines: factory.engines, state, secrets, factory };
 	}
 
-	test('one provider advertises every issuer and returns all eligible sessions without a picker', async () => {
-		const { provider } = await create([b, a]);
+	test('one provider returns native identities and all eligible sessions without a picker', async () => {
+		const { provider, engines } = await create([b, a]);
 		const all = await provider.getSessions(undefined, {});
 		const scoped = await provider.getSessions(['repo'], {});
 		assert.deepStrictEqual({
@@ -155,15 +171,15 @@ suite('GitHub Enterprise multi-host provider', () => {
 				servers: call.args[3].supportedAuthorizationServers.map((uri: vscode.Uri) => uri.toString())
 			})),
 			accounts: all.map(session => session.account.label),
-			uniqueAccountIds: new Set(all.map(session => session.account.id)).size,
-			uniqueSessionIds: new Set(all.map(session => session.id)).size,
+			accountIds: all.map(session => session.account.id),
+			sessionIds: all.map(session => session.id),
 			sameCandidates: scoped.map(session => session.id),
 			pickerCalls: picker.callCount
 		}, {
 			providers: [{ id: 'github-enterprise', servers: ['https://a.example/login/oauth', 'https://b.example/Deployment/login/oauth'] }],
 			accounts: ['octocat (https://a.example/)', 'octocat (https://b.example/Deployment)'],
-			uniqueAccountIds: 2,
-			uniqueSessionIds: 2,
+			accountIds: ['42', '42'],
+			sessionIds: engines.map(engine => engine.sessions[0].id),
 			sameCandidates: all.map(session => session.id),
 			pickerCalls: 0
 		});
@@ -232,7 +248,7 @@ suite('GitHub Enterprise multi-host provider', () => {
 		assert.deepStrictEqual({ creations: engines.map(engine => engine.creations), events }, { creations: [[], []], events: [] });
 	});
 
-	test('explicit issuer and host-qualified account skip the picker and recover the native login hint', async () => {
+	test('explicit issuer and a known account skip the picker without rewriting the account hint', async () => {
 		const { provider, engines } = await create();
 		const selected = (await provider.getSessions())[1];
 		await provider.createSession(['repo'], { authorizationServer: selected.authorizationServer });
@@ -243,23 +259,24 @@ suite('GitHub Enterprise multi-host provider', () => {
 		}, {
 			creations: [[], [
 				{ scopes: ['repo'], options: { authorizationServer: selected.authorizationServer } },
-				{ scopes: ['repo', 'workflow'], options: { account: engines[1].sessions[0].account } }
+				{ scopes: ['repo', 'workflow'], options: { account: engines[1].sessions[0].account, authorizationServer: selected.authorizationServer } }
 			]],
 			pickerCalls: 0
 		});
 	});
 
-	test('public session representation preserves provenance, account icons and expiry without mutating engine data', async () => {
+	test('single-host sessions are returned directly with native account labels and metadata', async () => {
 		const { provider, engines } = await create([a]);
 		const native = engines[0].sessions[0];
 		const [published] = await provider.getSessions();
 		assert.deepStrictEqual({
-			published: { ...published, id: native.id, account: { ...published.account, id: native.account.id, label: native.account.label } },
+			published,
+			sameSession: published === native,
 			nativeIdentity: [native.id, native.account.id, native.account.label]
-		}, { published: native, nativeIdentity: ['session', '42', 'octocat'] });
+		}, { published: native, sameSession: true, nativeIdentity: [native.id, '42', 'octocat'] });
 	});
 
-	test('session events use the same host-qualified identity as reads and removal targets only that host', async () => {
+	test('session events retain native identities and removal targets only their host', async () => {
 		const { provider, engines } = await create();
 		const selected = (await provider.getSessions())[1];
 		const events: vscode.AuthenticationProviderAuthenticationSessionsChangeEvent[] = [];
@@ -272,8 +289,55 @@ suite('GitHub Enterprise multi-host provider', () => {
 			remaining: (await provider.getSessions()).map(session => session.authorizationServer?.toString())
 		}, {
 			events: [{ added: [], removed: [], changed: [selected] }, { added: [], removed: [selected], changed: [] }],
-			removals: [[], ['session']],
+			removals: [[], [selected.id]],
 			remaining: ['https://a.example/login/oauth']
+		});
+	});
+
+	test('native session ID collisions remain visible but are not removed from an arbitrary host', async () => {
+		const { provider, engines } = await create();
+		for (const engine of engines) {
+			engine.sessions[0] = { ...engine.sessions[0], id: 'shared-session-id' };
+		}
+		const sessions = await provider.getSessions();
+		await assert.rejects(provider.removeSession('shared-session-id'), /more than one configured instance/);
+		assert.deepStrictEqual({
+			sessions: sessions.map(session => ({ id: session.id, accountId: session.account.id, issuer: session.authorizationServer?.toString() })),
+			removals: engines.map(engine => engine.removals)
+		}, {
+			sessions: [
+				{ id: 'shared-session-id', accountId: '42', issuer: 'https://a.example/login/oauth' },
+				{ id: 'shared-session-id', accountId: '42', issuer: 'https://b.example/Deployment/login/oauth' }
+			],
+			removals: [[], []]
+		});
+	});
+
+	test('host labels change with multiplicity without replacing retained engines or IDs', async () => {
+		const { provider, engines } = await create([a]);
+		const [original] = await provider.getSessions();
+		const reads = engines[0].reads.length;
+		await provider.update([a, b]);
+		const retainedReads = engines[0].reads.length;
+		const multiple = await provider.getSessions();
+		await provider.update([b]);
+		const [single] = await provider.getSessions();
+		assert.deepStrictEqual({
+			original: original.account.label,
+			multiple: multiple.map(session => session.account.label),
+			single: single.account.label,
+			sameFirstId: original.id === multiple[0].id,
+			sameSecondId: single.id === multiple[1].id,
+			retainedReads: retainedReads - reads,
+			engines: engines.length
+		}, {
+			original: 'octocat',
+			multiple: ['octocat (https://a.example/)', 'octocat (https://b.example/Deployment)'],
+			single: 'octocat',
+			sameFirstId: true,
+			sameSecondId: true,
+			retainedReads: 0,
+			engines: 2
 		});
 	});
 
@@ -359,8 +423,8 @@ suite('GitHub Enterprise multi-host provider', () => {
 			disposed: engines.map(engine => engine.disposed),
 			removals: engines.map(engine => engine.removals),
 			restored: await restarted.provider.getSessions()
-		}, { remaining: [retainedAccount], disposed: [true, false], removals: [[], []], restored: [removedAccount, retainedAccount] });
-		await assert.rejects(provider.createSession(['repo'], { account: removedAccount.account }), /no longer configured/);
+		}, { remaining: [{ ...retainedAccount, account: { ...retainedAccount.account, label: 'octocat' } }], disposed: [true, false], removals: [[], []], restored: [removedAccount, retainedAccount] });
+		await assert.rejects(provider.createSession(['repo'], { account: removedAccount.account, authorizationServer: removedAccount.authorizationServer }), /not configured/);
 	});
 
 	test('configuration changes announce retired and restored sessions without disturbing retained hosts', async () => {
@@ -372,12 +436,14 @@ suite('GitHub Enterprise multi-host provider', () => {
 		await provider.update([a, b]);
 		assert.deepStrictEqual(events, [
 			{ added: [], removed: [original[0]], changed: [] },
-			{ added: [original[0]], removed: [], changed: [] }
+			{ added: [], removed: [], changed: [{ ...original[1], account: { ...original[1].account, label: 'octocat' } }] },
+			{ added: [original[0]], removed: [], changed: [] },
+			{ added: [], removed: [], changed: [original[1]] }
 		]);
 		await provider.getSessions();
 		await provider.getSessions();
 		await provider.update([b, a]);
-		assert.strictEqual(events.length, 2);
+		assert.strictEqual(events.length, 4);
 	});
 
 	test('first upgrade migrates saved tokens and Microsoft links from an equivalent legacy alias', async () => {
@@ -545,7 +611,7 @@ suite('GitHub Enterprise multi-host provider', () => {
 	test('a session from another issuer cannot satisfy an explicitly selected server', async () => {
 		const { provider, engines } = await create();
 		engines[0].sessions[0] = { ...engines[0].sessions[0], authorizationServer: vscode.Uri.joinPath(b, '/login/oauth') };
-		await assert.rejects(provider.getSessions(['repo'], { authorizationServer: vscode.Uri.joinPath(a, '/login/oauth') }), /does not belong/);
+		assert.deepStrictEqual(await provider.getSessions(['repo'], { authorizationServer: vscode.Uri.joinPath(a, '/login/oauth') }), []);
 	});
 
 	test('an empty or invalid configuration exposes no sessions and interactive creation explains the problem', async () => {

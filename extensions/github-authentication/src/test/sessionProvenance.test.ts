@@ -11,13 +11,15 @@ import { isSupportedClient, isSupportedTarget } from '../common/env';
 import { Log } from '../common/logger';
 import { ExtensionHost, getFlows, GitHubTarget } from '../flows';
 import { AuthProviderType, GitHubSessionEngine, UriEventHandler } from '../github';
-import { GitHubServer, IGitHubToken } from '../githubServer';
+import { GitHubServer, IGitHubServer, IGitHubToken } from '../githubServer';
 import { TestMemento } from './testMemento';
 
 interface TestSessionProvider extends vscode.AuthenticationProvider, vscode.Disposable {
 	_persistedSessionsPromise: Promise<vscode.AuthenticationSession[]>;
 	readSessions(): Promise<vscode.AuthenticationSession[]>;
 	checkForUpdates(): Promise<void>;
+	getCachedSessions(): Promise<readonly vscode.AuthenticationSession[]>;
+	setAccountLabelSuffix(suffix: string | undefined): Promise<void>;
 }
 
 suite('GitHub session provenance', () => {
@@ -37,7 +39,7 @@ suite('GitHub session provenance', () => {
 		};
 	}
 
-	function createHarness(type: AuthProviderType, baseUri: vscode.Uri, initial: vscode.AuthenticationSession[], authorizationServer = vscode.Uri.joinPath(baseUri, '/login/oauth')) {
+	function createHarness(type: AuthProviderType, baseUri: vscode.Uri, initial: vscode.AuthenticationSession[], authorizationServer = vscode.Uri.joinPath(baseUri, '/login/oauth'), accountLabelSuffix?: string) {
 		const logger = new Log(type);
 		const emitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 		disposables.push(emitter);
@@ -45,9 +47,12 @@ suite('GitHub session provenance', () => {
 		const writes: string[] = [];
 		const changes: vscode.AuthenticationProviderAuthenticationSessionsChangeEvent[] = [];
 		const revocations: string[] = [];
+		const loginHints: (string | undefined)[] = [];
 		let fallbackCalls = 0;
+		let userInfoCalls = 0;
 		const provider = Object.assign(Object.create(GitHubSessionEngine.prototype), {
 			_logger: logger,
+			_accountLabelSuffix: accountLabelSuffix,
 			_keychain: {
 				getToken: async () => stored,
 				setToken: async (value: string) => { stored = value; writes.push(value); },
@@ -55,8 +60,14 @@ suite('GitHub session provenance', () => {
 			},
 			_githubServer: {
 				getFallbackBaseUri: () => { fallbackCalls++; return baseUri; },
-				login: async () => ({ token: 'test-new-token', authorizationServer }),
-				getUserInfo: async () => ({ id: '42', accountName: 'octocat', avatarUrl: 'https://avatars.example/42' }),
+				login: async (...args: Parameters<IGitHubServer['login']>) => {
+					loginHints.push(args[3]);
+					return { token: 'test-new-token', authorizationServer };
+				},
+				getUserInfo: async () => {
+					userInfoCalls++;
+					return { id: '42', accountName: 'octocat', avatarUrl: 'https://avatars.example/42' };
+				},
 				logout: async (removed: vscode.AuthenticationSession) => { revocations.push(removed.id); },
 				sendAdditionalTelemetryInfo: async () => { }
 			},
@@ -74,15 +85,76 @@ suite('GitHub session provenance', () => {
 		disposables.push(provider.onDidChangeSessions(event => changes.push(event)));
 		provider._persistedSessionsPromise = provider.readSessions();
 		return {
-			provider, changes, writes, revocations,
+			provider, changes, writes, revocations, loginHints,
 			get stored() { return stored; },
 			get fallbackCalls() { return fallbackCalls; },
+			get userInfoCalls() { return userInfoCalls; },
 			async changeStoredSessions(sessions: vscode.AuthenticationSession[]) {
 				stored = JSON.stringify(sessions);
 				await provider.checkForUpdates();
 			}
 		};
 	}
+
+	test('creates host labels at the engine boundary while preserving native IDs and saved usernames', async () => {
+		const base = vscode.Uri.parse('https://tenant.ghe.com');
+		const suffix = ` (${base.toString(true)})`;
+		const original = session('native-session-id');
+		const issuer = vscode.Uri.joinPath(base, '/login/oauth');
+		const harness = createHarness(AuthProviderType.githubEnterprise, base, [original], issuer, suffix);
+		const [loaded] = await harness.provider.getSessions(['repo'], {});
+		const created = await harness.provider.createSession(['repo'], { account: loaded.account, authorizationServer: issuer });
+		const [cached] = await harness.provider.getCachedSessions();
+		assert.deepStrictEqual({
+			loadedId: loaded.id,
+			accountId: created.account.id,
+			labels: [loaded.account.label, created.account.label],
+			loginHints: harness.loginHints,
+			storedLabel: JSON.parse(harness.stored)[0].account.label,
+			sameSession: cached === created && harness.changes[0].added?.[0] === created
+		}, {
+			loadedId: 'native-session-id',
+			accountId: '42',
+			labels: [`octocat${suffix}`, `octocat${suffix}`],
+			loginHints: ['octocat'],
+			storedLabel: 'octocat',
+			sameSession: true
+		});
+	});
+
+	test('changing host labels updates cached sessions without writing credentials', async () => {
+		const base = vscode.Uri.parse('https://tenant.ghe.com');
+		const original = session('native-session-id');
+		const harness = createHarness(AuthProviderType.githubEnterprise, base, [original]);
+		await harness.provider.setAccountLabelSuffix(` (${base.toString(true)})`);
+		await harness.provider.setAccountLabelSuffix(undefined);
+		assert.deepStrictEqual({
+			changes: harness.changes.map(event => event.changed?.map(session => ({ id: session.id, label: session.account.label }))),
+			writes: harness.writes,
+			stored: harness.stored
+		}, {
+			changes: [[{ id: original.id, label: 'octocat (https://tenant.ghe.com/)' }], [{ id: original.id, label: 'octocat' }]],
+			writes: [],
+			stored: JSON.stringify([original])
+		});
+	});
+
+	test('issuer-filtered reads do not return a session from another server', async () => {
+		const base = vscode.Uri.parse('https://tenant.ghe.com');
+		const issuer = vscode.Uri.joinPath(base, '/login/oauth');
+		const original = { ...session('native-session-id'), authorizationServer: vscode.Uri.parse('https://other.ghe.com/login/oauth') };
+		const harness = createHarness(AuthProviderType.githubEnterprise, base, [original]);
+		assert.deepStrictEqual(await harness.provider.getSessions(['repo'], { authorizationServer: issuer }), []);
+	});
+
+	test('a token for a different requested issuer is rejected before user lookup or publication', async () => {
+		const errorMessage = sinon.stub(vscode.window, 'showErrorMessage').resolves(undefined);
+		disposables.push(new vscode.Disposable(() => errorMessage.restore()));
+		const base = vscode.Uri.parse('https://tenant.ghe.com');
+		const harness = createHarness(AuthProviderType.githubEnterprise, base, [], vscode.Uri.parse('https://other.ghe.com/login/oauth'));
+		await assert.rejects(Promise.resolve(harness.provider.createSession(['repo'], { authorizationServer: vscode.Uri.joinPath(base, '/login/oauth') })), /does not belong to the requested authorization server/);
+		assert.deepStrictEqual({ userLookups: harness.userInfoCalls, writes: harness.writes, changes: harness.changes }, { userLookups: 0, writes: [], changes: [] });
+	});
 
 	for (const { type, base, issuer } of [
 		{ type: AuthProviderType.github, base: 'https://github.com', issuer: 'https://github.com/login/oauth' },

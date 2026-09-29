@@ -23,7 +23,7 @@ The list order does not select a default instance. When signing in without a spe
 
 The `github-enterprise.uris` setting replaces the deprecated `github-enterprise.uri`. If the list is not set, the older setting still applies. An explicitly empty list (`[]`) configures no enterprise instances.
 
-Use **Manage Extension Account Preferences...** to choose which account an extension uses, or **Use a new account...** to sign in to another instance. Enterprise account labels include the instance name to distinguish accounts with the same username.
+Use **Manage Extension Account Preferences...** to choose which account an extension uses, or **Use a new account...** to sign in to another instance. When multiple instances are configured, account labels include the instance name to distinguish accounts with the same username.
 
 Removing an instance hides its accounts without deleting saved sign-ins. You may be asked to select your enterprise account again after this update.
 

@@ -13,13 +13,11 @@ interface EnterpriseHost {
 	readonly key: string;
 	readonly uri: vscode.Uri;
 	readonly authorizationServer: vscode.Uri;
-	readonly prefix: string;
 	readonly engine: GitHubSessionEngine;
 	readonly listener: vscode.Disposable;
 	readonly initialChanges: Map<string, vscode.AuthenticationSession | undefined>;
 }
 
-const identityPrefix = 'github-enterprise:';
 function disposeHost(host: EnterpriseHost): void {
 	host.listener.dispose();
 	host.engine.dispose();
@@ -89,14 +87,14 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 			await migrateEnterpriseStorage(this._context, vscode.Uri.parse(key), uris, options?.legacyUri);
 			this.throwIfDisposed();
 		}
-		const created = this.createHosts(addedKeys);
+		const created = this.createHosts(addedKeys, keys.length > 1);
 		const cancellation = this._disposeCancellation.token.onCancellationRequested(() => created.forEach(disposeHost));
 		try {
-			const initialSessions = await Promise.all(created.map(host => host.engine.getSessions(undefined, {})));
+			const initialSessions = await Promise.all(created.map(host => host.engine.getSessions(undefined, { authorizationServer: host.authorizationServer })));
 			this.throwIfDisposed();
-			const removed = (await Promise.all(retired.map(async host => (await host.engine.getCachedSessions()).map(session => this.publishSession(host, session))))).flat();
+			const removed = (await Promise.all(retired.map(host => host.engine.getCachedSessions()))).flat();
 			this.throwIfDisposed();
-			const added = created.flatMap((host, index) => reconcileInitialSessions(host, initialSessions[index]).map(session => this.publishSession(host, session)));
+			const added = created.flatMap((host, index) => reconcileInitialSessions(host, initialSessions[index]));
 			this.commitHosts(keys, created, retired, { added, removed, changed: [] });
 		} catch (error) {
 			created.forEach(disposeHost);
@@ -104,13 +102,14 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 		} finally {
 			cancellation.dispose();
 		}
+		await Promise.all([...this._hosts.values()].map(host => host.engine.setAccountLabelSuffix(keys.length > 1 ? ` (${host.uri.toString(true)})` : undefined)));
 	}
 
-	private createHosts(keys: readonly string[]): EnterpriseHost[] {
+	private createHosts(keys: readonly string[], showHost: boolean): EnterpriseHost[] {
 		const created: EnterpriseHost[] = [];
 		try {
 			for (const key of keys) {
-				created.push(this.createHost(key));
+				created.push(this.createHost(key, showHost));
 			}
 			return created;
 		} catch (error) {
@@ -119,24 +118,19 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 		}
 	}
 
-	private createHost(key: string): EnterpriseHost {
+	private createHost(key: string, showHost: boolean): EnterpriseHost {
 		const uri = vscode.Uri.parse(key);
-		const engine = new GitHubSessionEngine(this._context, this._uriHandler, uri, getEnterpriseStorageKey(uri));
+		const engine = new GitHubSessionEngine(this._context, this._uriHandler, uri, getEnterpriseStorageKey(uri), showHost ? ` (${uri.toString(true)})` : undefined);
 		const initialChanges = new Map<string, vscode.AuthenticationSession | undefined>();
 		const host: EnterpriseHost = {
 			key,
 			uri,
 			authorizationServer: vscode.Uri.joinPath(uri, '/login/oauth'),
-			prefix: `${identityPrefix}${encodeURIComponent(key)}:`,
 			engine,
 			initialChanges,
 			listener: engine.onDidChangeSessions(event => {
 				if (this._hosts.get(host.key) === host) {
-					this._onDidChangeSessions.fire({
-						added: event.added?.map(session => this.publishSession(host, session)),
-						removed: event.removed?.map(session => this.publishSession(host, session)),
-						changed: event.changed?.map(session => this.publishSession(host, session))
-					});
+					this._onDidChangeSessions.fire(event);
 				} else {
 					event.removed?.forEach(session => initialChanges.set(session.id, undefined));
 					for (const session of [...event.added ?? [], ...event.changed ?? []]) {
@@ -173,20 +167,20 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 	}
 
 	async getSessions(scopes?: readonly string[], options: vscode.AuthenticationProviderSessionOptions = {}): Promise<vscode.AuthenticationSession[]> {
-		const host = this.resolveHost(options);
+		const host = await this.resolveHost(options);
 		const candidates = host ? [host] : [...this._hosts.values()];
 		const sessions = await Promise.all(candidates.map(async candidate => {
-			const sessions = await candidate.engine.getSessions(scopes && [...scopes], this.nativeOptions(candidate, options));
+			const sessions = await candidate.engine.getSessions(scopes && [...scopes], { ...options, authorizationServer: options.authorizationServer ?? candidate.authorizationServer });
 			if (this._hosts.get(getEnterpriseUriKey(candidate.uri)) !== candidate) {
 				return [];
 			}
-			return sessions.map(session => this.publishSession(candidate, session));
+			return sessions;
 		}));
 		return sessions.flat();
 	}
 
 	async createSession(scopes: readonly string[], options: vscode.AuthenticationProviderSessionOptions = {}): Promise<vscode.AuthenticationSession> {
-		let host = this.resolveHost(options);
+		let host = await this.resolveHost(options);
 		if (!host) {
 			const hosts = [...this._hosts.values()];
 			if (!hosts.length) {
@@ -207,20 +201,29 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 			}
 		}
 		this.requireConfiguredHost(host);
-		const session = await host.engine.createSession([...scopes], this.nativeOptions(host, options));
+		const session = await host.engine.createSession([...scopes], { ...options, authorizationServer: options.authorizationServer ?? host.authorizationServer });
 		this.requireConfiguredHost(host);
-		return this.publishSession(host, session);
+		return session;
 	}
 
 	async removeSession(id: string): Promise<void> {
-		const host = this.hostForIdentity(id);
-		if (!host) {
+		const matches: EnterpriseHost[] = [];
+		for (const host of this._hosts.values()) {
+			if ((await host.engine.getCachedSessions()).some(session => session.id === id)) {
+				matches.push(host);
+			}
+		}
+		if (!matches.length) {
 			throw new Error(vscode.l10n.t('The GitHub Enterprise session does not belong to a configured instance.'));
 		}
-		await host.engine.removeSession(id.slice(host.prefix.length));
+		if (matches.length > 1) {
+			throw new Error(vscode.l10n.t('The GitHub Enterprise session ID matches more than one configured instance.'));
+		}
+		this.requireConfiguredHost(matches[0]);
+		await matches[0].engine.removeSession(id);
 	}
 
-	private resolveHost(options: vscode.AuthenticationProviderSessionOptions): EnterpriseHost | undefined {
+	private async resolveHost(options: vscode.AuthenticationProviderSessionOptions): Promise<EnterpriseHost | undefined> {
 		let serverHost: EnterpriseHost | undefined;
 		if (options.authorizationServer) {
 			const key = getEnterpriseUriKey(options.authorizationServer);
@@ -229,51 +232,20 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 				throw new Error(vscode.l10n.t('The requested GitHub Enterprise authorization server is not configured.'));
 			}
 		}
-		const accountHost = options.account && this.hostForIdentity(options.account.id);
-		if (options.account?.id.startsWith(identityPrefix) && !accountHost) {
-			throw new Error(vscode.l10n.t('The requested GitHub Enterprise account belongs to an instance that is no longer configured.'));
+		const accountHosts: EnterpriseHost[] = [];
+		const account = options.account;
+		if (account) {
+			for (const host of this._hosts.values()) {
+				const sessions = await host.engine.getCachedSessions();
+				if (sessions.some(session => session.account.id === account.id && session.account.label === account.label)) {
+					accountHosts.push(host);
+				}
+			}
 		}
-		if (serverHost && accountHost && serverHost !== accountHost) {
+		if (serverHost && accountHosts.length && !accountHosts.includes(serverHost)) {
 			throw new Error(vscode.l10n.t('The GitHub Enterprise account and authorization server belong to different instances.'));
 		}
-		return serverHost ?? accountHost;
-	}
-
-	private hostForIdentity(id: string): EnterpriseHost | undefined {
-		return [...this._hosts.values()].find(host => id.startsWith(host.prefix));
-	}
-
-	private nativeOptions(host: EnterpriseHost, options: vscode.AuthenticationProviderSessionOptions): vscode.AuthenticationProviderSessionOptions {
-		if (!options.account?.id.startsWith(host.prefix)) {
-			return options;
-		}
-		const suffix = ` (${host.uri.toString(true)})`;
-		if (!options.account.label.endsWith(suffix)) {
-			throw new Error(vscode.l10n.t('The GitHub Enterprise account does not match its instance.'));
-		}
-		return {
-			...options,
-			account: {
-				...options.account,
-				id: options.account.id.slice(host.prefix.length),
-				label: options.account.label.slice(0, -suffix.length)
-			}
-		};
-	}
-
-	private publishSession(host: EnterpriseHost, session: vscode.AuthenticationSession): vscode.AuthenticationSession {
-		if (!session.authorizationServer || getEnterpriseUriKey(session.authorizationServer) !== getEnterpriseUriKey(host.authorizationServer)) {
-			throw new Error(vscode.l10n.t('The GitHub Enterprise session does not belong to its instance.'));
-		}
-		return {
-			...session,
-			id: `${host.prefix}${session.id}`,
-			account: {
-				...session.account,
-				id: `${host.prefix}${session.account.id}`,
-				label: `${session.account.label} (${host.uri.toString(true)})`
-			}
-		};
+		return serverHost ?? (accountHosts.length === 1 ? accountHosts[0] : undefined);
 	}
 
 	private requireConfiguredHost(host: EnterpriseHost): void {
