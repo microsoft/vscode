@@ -11,16 +11,20 @@ The implementation must live in a new independent Cargo package:
 copilot_shim/
 ```
 
-This directory is a sibling of [`cli/`](cli/).
+This directory is a sibling of [`cli/`](../cli/).
 
 The executable name is:
 
 - `copilot` on macOS and Linux.
 - `copilot.exe` on Windows.
 
+VS Code ships the shim in a `copilot-shim` folder inside the `bin` folder that
+contains the `code` command, in both client and server builds (see
+[Product integration](#product-integration)).
+
 ## Purpose
 
-The shim is manually invoked from a terminal. It finds and launches a real
+The shim is invoked from a terminal. It finds and launches a real
 GitHub Copilot CLI already available through `PATH`, while preventing recursion
 through itself or the legacy VS Code shims.
 
@@ -31,33 +35,54 @@ receive manual-install or upstream-support guidance.
 
 ## Scope
 
-The first implementation includes:
+The implementation includes:
 
 - Cross-platform Copilot CLI discovery through `PATH`.
 - Self, copy, symlink, hard-link, and legacy-shim exclusion.
 - Windows native and script-wrapper support.
 - Minimum-version validation.
-- Interactive installation and update.
+- Interactive installation and update, using GitHub's per-user MSI on Windows.
 - Recursive post-install/post-update discovery and validation.
 - Argument, terminal I/O, and exit-status forwarding.
-- Builds for the complete VS Code CLI target matrix.
-- Separate build, signing, notarization, SBOM, and artifact publication.
+- The `--vscode-shim` option namespace, including the setup commands that the
+  Windows installer runs.
+- Builds for the complete VS Code CLI target matrix, inside the VS Code CLI
+  build jobs.
+- Placement in VS Code client and server builds, which sign it.
+
+## Product integration
+
+The shim lives at `bin/copilot-shim/copilot` (`copilot.exe` on Windows),
+relative to the folder that contains the application executable:
+
+| Build | Location |
+|---|---|
+| Windows client | `<install folder>\bin\copilot-shim\copilot.exe` |
+| macOS client | `<app>.app/Contents/Resources/app/bin/copilot-shim/copilot` |
+| Linux client | `<install folder>/bin/copilot-shim/copilot` |
+| Servers | `<server folder>/bin/copilot-shim/copilot[.exe]` |
+
+On Windows the folder is inside `bin` because `inno_updater --gc` removes other
+top-level folders of a user installation. The folder is separate from `bin`
+itself so that adding `copilot` to `PATH` never depends on adding `code`, and
+the reverse.
+
+- The Windows installer ([`copilot.iss`](../build/win32/copilot.iss)) adds the
+  folder to `PATH`, and can install Copilot CLI with the setup commands.
+- The Copilot extension computes the same path, adds the folder to the `PATH`
+  of integrated terminals, and falls back to `copilot` from `PATH` when the
+  shim is missing. It removes the script shims that earlier versions wrote to
+  its global storage.
 
 ## Out of scope
 
-The first implementation does not:
+The implementation does not:
 
-- Add the Rust shim to terminal `PATH`.
-- write it to VS Code global storage.
 - register a VS Code terminal profile.
-- replace `CopilotCLITerminalIntegration`.
 - replace `CopilotCLITerminalLinkProvider`.
 - modify the existing `cli/` Cargo package.
-- add the shim to an existing VS Code CLI or client archive.
-- place the final shim next to the existing CLI in an installed product.
-
-Co-location with the existing CLI is a later integration phase. The separately
-published artifact must make that future copy operation straightforward.
+- add the shim to `PATH` outside integrated terminals on macOS and Linux.
+- ship the shim in the web server builds (`vscode-server-*-web`).
 
 ## Normative language
 
@@ -67,7 +92,8 @@ published artifact must make that future copy operation straightforward.
 
 One invocation follows this sequence:
 
-1. Parse and consume the internal `--clear` argument when present.
+1. Parse the leading `--vscode-shim` options. A setup command runs and exits
+   without the rest of this flow; a `clear` modifier is consumed.
 2. Resolve and identify the running shim executable.
 3. Discover eligible Copilot CLI candidates from the current `PATH`.
 4. Reject the running shim, other Rust-shim copies, and legacy VS Code shims.
@@ -95,19 +121,33 @@ MUST NOT be skipped merely to select a newer version later in PATH.
 
 ## Argument handling
 
-### `--clear`
+### `--vscode-shim` options
 
-If and only if the first argument is exactly `--clear`, the shim MUST:
+VS Code passes options to the shim through a reserved prefix, so the shim never
+consumes an argument meant for the Copilot CLI:
 
-1. Remove that one argument.
-2. Clear the current terminal before producing discovery, installation, update,
-   or CLI output.
+```text
+copilot [--vscode-shim <modifier>]... [--] [copilot arguments...]
+copilot --vscode-shim <info|probe|install> [command options...]
+```
 
-A second `--clear` argument is an ordinary Copilot CLI argument and MUST be
-forwarded.
+- Only leading `--vscode-shim <name>` pairs are options. Parsing stops at the
+  first other argument, and a later `--vscode-shim` is forwarded.
+- Modifiers are removed and the remaining arguments are forwarded. A `--`
+  directly after one or more modifiers ends the prefix and is removed; a `--`
+  that is the first argument belongs to the Copilot CLI.
+- Commands must be the only option. They never launch the Copilot CLI (see
+  [Setup commands](#setup-commands)).
+- A missing or unknown option name, a command after a modifier, or malformed
+  command options print a diagnostic and exit with code `2` without launching
+  the Copilot CLI.
 
-When stdout is not attached to a terminal, clearing MUST be a no-op. The shim
-MUST NOT emit raw terminal-clear escape sequences into redirected output.
+The only modifier is `clear`. It clears the current terminal before producing
+discovery, installation, update, or CLI output. When stdout is not attached to a
+terminal, clearing MUST be a no-op; the shim MUST NOT emit raw terminal-clear
+escape sequences into redirected output.
+
+`--clear` has no meaning to the shim and is forwarded like any other argument.
 
 ### Forwarding
 
@@ -198,6 +238,11 @@ Filename matching is case-insensitive.
 implementation. A bare extensionless `copilot` is not launched on Windows, but
 it MAY be inspected as a legacy-wrapper fixture.
 
+After the `PATH` entries, discovery searches `%LOCALAPPDATA%\GitHubCopilotCLI`,
+where GitHub's per-user MSI installs `copilot.exe`. A terminal whose `PATH`
+predates the installation still finds that CLI, including right after the shim
+installed it.
+
 ### Windows execution adapters
 
 The same adapter MUST be used for the version probe and the final launch.
@@ -205,7 +250,7 @@ The same adapter MUST be used for the version probe and the final launch.
 | Candidate | Execution |
 |---|---|
 | `.exe` | Execute the discovered path directly. |
-| `.cmd` or `.bat` | Execute through `%ComSpec% /D /S /C` using explicit Windows command-line quoting. |
+| `.cmd` or `.bat` | Execute through `%ComSpec% /E:ON /V:OFF /D /S /C` with unquoted switches and explicit Windows command-line quoting of the script path and arguments. `/E:ON` enables the `%` escaping, and `/V:OFF` keeps `!` literal. |
 | `.ps1` | Prefer an available PowerShell 7.3+ `pwsh.exe` host with modern native argument passing; otherwise use Windows PowerShell 5.1 (`powershell.exe`) with legacy forwarding. Use `-NoLogo`, `-NoProfile`, and an execution-policy bypass where supported. Do not use `-NonInteractive` for final CLI execution. |
 
 If the required interpreter is unavailable or cannot start, the candidate is
@@ -236,8 +281,7 @@ fallback is available. If neither host is available, continue candidate
 discovery. The shim does not install PowerShell automatically.
 
 Discovery, version checking, prompting, inherited terminal I/O, and child exit
-handling remain required under both host modes. Either supported host may run
-the fixed winget installation command.
+handling remain required under both host modes.
 
 ## Self and recursion exclusion
 
@@ -477,7 +521,7 @@ build targets, but use the following automatic-install policy:
 
 | Target | Installation and update |
 |---|---|
-| Windows x64/arm64 | PowerShell and winget. |
+| Windows x64/arm64 | GitHub's per-user MSI, downloaded and verified by the shim. |
 | macOS x64/arm64 | Homebrew cask, then curl/wget official script. |
 | Linux GNU x64/arm64 | curl/wget official script; do not attempt the macOS-only Homebrew cask. |
 | Linux GNU armhf | Manual-install/upstream-support guidance; no automatic installer attempt. |
@@ -495,17 +539,29 @@ those limitations. Musl users may obtain the appropriate executable from
 
 ### Windows
 
-The shim MUST locate a PowerShell host and invoke:
+The shim runs `<shim> --vscode-shim install --interactive` as a child attached
+to the current terminal. That command, which also backs the installer's
+install option, MUST:
 
-```powershell
-winget install GitHub.Copilot
-```
+1. Resolve the latest release: request
+   `https://github.com/github/copilot-cli/releases/latest` without following
+   redirects and take the tag from the `/releases/tag/<tag>` redirect location.
+2. Download `SHA256SUMS.txt` (at most 64 KiB) and `copilot-x64.msi` or
+   `copilot-arm64.msi` for that tag, through WinHTTP with the system proxy
+   configuration.
+3. Compare the MSI's SHA-256 with its entry in `SHA256SUMS.txt`.
+4. Verify the MSI's Authenticode signature with `WinVerifyTrust` and require
+   the signer name `GitHub, Inc.`.
+5. Run `%SystemRoot%\System32\msiexec.exe /i <msi> /qn /norestart /l*v
+   %TEMP%\vscode-copilot-cli-install.log` without elevation. Exit codes `0` and
+   `3010` mean success, and `1602` means the install was canceled.
+6. Confirm that `%LOCALAPPDATA%\GitHubCopilotCLI\copilot.exe` exists.
 
-The PowerShell and winget processes MUST remain attached to the current
-terminal with inherited stdin, stdout, and stderr.
-
-If PowerShell or winget is unavailable, report the missing prerequisite and
-exit nonzero.
+Progress goes to stderr. The MSI adds its folder to the user `PATH`, and
+Windows discovery searches that folder even when the terminal's `PATH` predates
+the installation. `VSCODE_COPILOT_SHIM_RELEASES_URL` replaces the releases URL
+for tests; the signer requirement still applies. Updates run the same install.
+Installation does not use PowerShell or winget.
 
 ### macOS
 
@@ -652,9 +708,77 @@ outcome table.
 | User declines installation | Exit `0` without launching. |
 | User declines update | Exit `0` without launching. |
 | Prompt receives EOF or noninteractive stdin | Treat as No and exit `0`. |
+| A `--vscode-shim` option is unknown or malformed | Print a diagnostic; exit `2` without launching. |
 
 Shim-owned diagnostics go to stderr. Prompts and normal installer/CLI output
 remain visible in the terminal.
+
+## Setup commands
+
+The Windows installer runs these commands; they never launch the Copilot CLI.
+Result files are INI files encoded as UTF-16LE with a byte order mark, so
+`GetPrivateProfileString` reads them on every Windows version. Values are
+single-line, and each file is replaced atomically.
+
+### `info`
+
+`copilot --vscode-shim info` prints `protocol=1` and `version=<shim version>`
+on separate lines and exits `0`.
+
+### `probe`
+
+```text
+copilot --vscode-shim probe --result-file <ini> [--scope user|machine]
+    [--no-network] [--timeout-ms <milliseconds>]
+```
+
+`probe` finds the first Copilot CLI candidate without running any candidate.
+The `user` scope (default) searches the process `PATH`, the machine and user
+`PATH` stored in the registry (setup may have inherited a stale `PATH`), and the
+MSI folder. The `machine` scope searches only the registry's machine `PATH`. It
+also reports whether PowerShell 7 is available.
+
+Unless `--no-network` is given, it resolves the latest release and requests the
+MSI for the current architecture, within the timeout (default 5 seconds, at most
+60 seconds). The timeout covers the whole check, including proxy discovery, so
+setup gets the local result even when the network hangs. It writes a `[probe]`
+section with `protocol`, `shimVersion`,
+`scope`, `cliFound`, `cliPath`, `pwshFound`, `downloadAvailable`,
+`downloadSize`, `releaseTag`, and `reason`, and exits `0` when the file was
+written.
+
+### `install`
+
+```text
+copilot --vscode-shim install --interactive
+copilot --vscode-shim install --non-interactive --consent=installer
+    --result-file <ini> [--progress-file <ini>] [--cancel-file <path>]
+    [--running-mutex <name>]
+```
+
+`install` runs the Windows installation described under
+[Installation and update commands](#installation-and-update-commands). Other
+platforms report that it is unsupported.
+
+`--non-interactive` requires `--consent=installer`, the consent that setup
+collected on its page or command line. In that mode the command:
+
+- reports `alreadyInstalled` without downloading when discovery finds a CLI;
+- rewrites a `[progress]` section with `phase`, `current`, `total`, and
+  `heartbeat` while it works;
+- stops between download chunks when the cancel file exists;
+- holds the named mutex while it runs; and
+- writes a `[result]` section with `status`, `exitCode` (the msiexec exit
+  code), `cliPath`, `cliVersion`, `log`, and `reason`.
+
+| Status | Exit code |
+|---|---|
+| `installed`, `alreadyInstalled` | `0` |
+| `network` | `20` |
+| `verification` | `30` |
+| `msiexec` | `40` |
+| `cancelled` | `50` |
+| `unsupported`, `error` | `1` |
 
 ## Cargo package requirements
 
@@ -670,9 +794,9 @@ remain visible in the terminal.
 
 CI builds MUST use `--locked`.
 
-Dependencies must be minimal and justified. The first implementation does not
-need an HTTP client because curl/wget are explicit prerequisites for script
-installation.
+Dependencies must be minimal and justified. The Windows MSI installation uses
+WinHTTP, CNG, and WinTrust through `windows-sys` rather than an HTTP or
+cryptography crate. macOS and Linux installation rely on curl or wget.
 
 Third-party notice and SBOM inputs must be updated for dependencies actually
 added by the package.
@@ -707,96 +831,66 @@ The shim must match the complete current VS Code CLI target matrix.
 
 ## Build pipeline architecture
 
-The shim uses its own pipeline templates. It MUST NOT be added as another binary
-inside the existing `cli/` crate or CLI artifact.
+The shim MUST NOT be added as another binary inside the existing `cli/` crate
+or CLI artifact. It is built by the existing VS Code CLI jobs
+(`product-build-<os>-cli.yml`), after the CLI:
 
-The expected shape is:
+- `copilot-shim-compile.yml` builds and stages one target. It reuses the CLI
+  job's Rust toolchain, sccache server and cache, and Linux sysroots.
+- `copilot-shim-quality.yml` runs in the Windows, macOS, and Linux x64 CLI jobs.
+- Each CLI job publishes the unsigned shim as
+  `unsigned_copilot_shim_<platform>_<arch>`. There are no separate shim jobs,
+  shim signing jobs, or standalone signed shim artifacts.
 
-- a shared `copilot-shim-compile.yml` template;
-- platform job templates for Windows, macOS, Linux GNU, and Alpine;
-- a dedicated Windows signing job/template;
-- separate sccache keys based on `copilot_shim/Cargo.toml`,
-  `copilot_shim/Cargo.lock`, target, and check/build mode; and
-- separate artifact and SBOM names.
+The ADO CI/check-only runs of the CLI jobs build, lint, and test the shim
+without publishing it.
 
-The jobs are siblings of the existing CLI jobs in the applicable product-build
-OS stages. They have no dependency on the CLI jobs and can run concurrently
-when agent capacity permits.
-
-The ADO CI/check-only route should lint and test the host-supported shim target
-without publishing production artifacts, following the same platform
-conditions as the CLI check jobs.
-
-Before cross-target packaging, CI MUST run:
+Before packaging, CI MUST run:
 
 - `cargo test --locked` on a supported host;
-- `cargo clippy --locked -- -D warnings`; and
+- `cargo clippy --all-targets --locked -- -D warnings`; and
 - formatting verification.
+
+The product build places the unsigned shim in `bin/copilot-shim/` of the client
+and server builds before it signs and packages them:
+
+| Platform | Where the shim is added |
+|---|---|
+| Windows | The sign job adds it to the client and server before `codesign.ts` signs every `.exe`. The setup packages include it when it is present (the `CopilotShim` Inno Setup definition). |
+| macOS | The compile job adds it to the client app and the server after the CLI. |
+| Linux GNU | The compile job adds it to the client after the CLI, so the deb, rpm, and snap packages include it, and to the server before archiving it. |
+| Alpine | The Alpine job adds it to the server before archiving it. |
 
 ## Artifact names and contents
 
-Artifact names remain separate from existing `vscode_cli_*` artifacts and MUST
-NOT start with `vscode_`. The current product release publisher automatically
-consumes that prefix. This phase publishes Azure pipeline artifacts only and
-leaves the product release publisher unchanged.
-
-Use this naming family:
+Shim artifacts are intermediate pipeline artifacts. Their names MUST NOT start
+with `vscode_`, which the product release publisher consumes:
 
 ```text
 unsigned_copilot_shim_<platform>_<arch>
-copilot_shim_<platform>_<arch>
 ```
 
-Platforms are `darwin`, `win32`, `linux`, and `alpine`.
-
-Examples:
-
-```text
-unsigned_copilot_shim_win32_x64
-copilot_shim_win32_x64
-unsigned_copilot_shim_darwin_arm64
-copilot_shim_linux_armhf
-```
-
-Each final archive contains exactly one executable at its root:
+Platforms are `darwin`, `win32`, `linux`, and `alpine`. Each archive (zip on
+Windows and macOS, tar.gz on Linux and Alpine) contains exactly one executable
+at its root:
 
 - `copilot.exe` on Windows.
 - `copilot` on macOS, Linux GNU, and Alpine.
 
 Unix archive validation MUST verify the executable bit. Windows PDBs may be
-published to the symbol service but MUST NOT be included in the final archive.
+published to the symbol service but MUST NOT be included in the archive.
 
 ## Signing and notarization
 
-### macOS
+The shim is signed with the build that contains it, like the VS Code CLI:
 
-Each macOS job follows the existing CLI flow:
-
-1. Publish or stage a separately named unsigned shim zip.
-2. Sign the binary/archive through the existing ESRP `sign-darwin` tooling.
-3. Notarize through `notarize-darwin`.
-4. Publish a separately named final signed/notarized shim artifact.
-
-### Windows
-
-The existing CLI is signed only after being copied into the client build. That
-flow cannot be reused directly because this phase forbids client integration.
-
-The shim therefore requires a dedicated signing job that:
-
-1. Depends only on the unsigned Windows shim build job.
-2. Downloads and extracts that job's unsigned shim artifact.
-3. Runs the existing ESRP `sign-windows` tooling over `copilot.exe`.
-4. Verifies the resulting signature.
-5. Repackages `copilot.exe`.
-6. Publishes the final `copilot_shim_win32_<arch>` artifact.
-7. Has no dependency on the existing CLI or client build/signing jobs.
-8. Never copies the shim into a client or CLI build directory.
-
-### Linux GNU and Alpine
-
-Linux and Alpine publish separately named final unsigned tarballs, matching the
-current CLI platform behavior. Their SBOMs remain separate from CLI SBOMs.
+- Windows: the ESRP `sign-windows` pass of `codesign.ts` over the client and
+  server builds; the setup packages are built from the signed client.
+- macOS: hardened-runtime signing, ESRP signing, and notarization of the client
+  app; `sign-server.ts` for the server. The universal app merges the x64 and
+  arm64 shims.
+- Linux GNU and Alpine: unsigned, like the CLI. The deb and rpm packages are
+  signed.
 
 ## Required automated tests
 
@@ -844,15 +938,15 @@ fixtures.
 - EOF/noninteractive stdin.
 - User declines install.
 - User declines update.
-- Each automatic-install platform policy: Windows winget, macOS
+- Each automatic-install platform policy: Windows MSI, macOS
   Homebrew/script, and GNU Linux x64/arm64 script.
 - ARMhf and musl missing/old CLI cases show guidance without running an
   installer; existing compatible CLI candidates remain launchable.
 - Linux GNU x64/arm64 does not attempt a Homebrew cask.
 - Fallback after an available installer fails without cancellation.
-- Missing PowerShell, winget, bash, brew, curl, and wget.
-- Installer and updater receive inherited terminal streams through
-  winget/PowerShell, brew, curl/bash, and wget/bash.
+- Missing bash, brew, curl, and wget.
+- Installer and updater receive inherited terminal streams through the Windows
+  MSI install command, brew, curl/bash, and wget/bash.
 - Successful install followed by compatible re-discovery and launch.
 - Successful update where the original candidate disappears/becomes unusable,
   or a compatible candidate appears earlier in PATH. The test must prove that
@@ -868,6 +962,19 @@ fixtures.
 - Temporary-script cleanup occurs after child reaping on success, failure, and
   handled cancellation.
 
+### Options and setup commands
+
+- Leading `--vscode-shim clear` modifiers are removed, an optional `--` after
+  them ends the prefix, and everything else, including a later `--vscode-shim`
+  or a bare `--clear`, is forwarded.
+- Commands parse their options, never launch the CLI, and reject unknown
+  options, missing values, and commands after modifiers with exit code `2`.
+- Release tags are taken only from `/releases/tag/<tag>` redirects.
+- Checksums match the exact asset name, and MSI assets follow the architecture.
+- Result files are UTF-16LE single-line INI files replaced atomically.
+- Install statuses map to the documented exit codes.
+- Unsigned files have no Authenticode signer.
+
 ### Launch behavior
 
 - Exact argument preservation for the Unix, native Windows, cmd/batch, and
@@ -876,7 +983,7 @@ fixtures.
   fallback otherwise.
 - Explicit legacy-host fixtures document the accepted empty-argument and
   embedded-quote differences instead of claiming lossless forwarding.
-- One leading `--clear` consumed and a second forwarded.
+- One leading `--vscode-shim clear` consumed and a later one forwarded.
 - No terminal-clear bytes in redirected output.
 - Inherited stdin, stdout, stderr, environment, and working directory,
   parameterized across the Unix launch path and Windows `.exe`, `.cmd`, `.bat`,
@@ -894,21 +1001,21 @@ fixtures.
 - Host tests, clippy, and formatting pass.
 - No Linux GNU referenced GLIBC symbol version exceeds 2.28.
 - Windows control-flow/static-CRT settings are present.
-- Final archive has the expected name and one root executable.
+- Each archive has the expected name and one root executable.
 - Unix executable mode is set.
-- Windows binary signature verifies.
-- macOS code signing and notarization complete.
-- Shim artifacts and SBOMs do not overwrite or reuse CLI artifact names.
-- Final artifact names do not begin with `vscode_` and therefore remain outside
-  the existing product release publisher.
+- Shim artifact names do not reuse CLI artifact names and do not begin with
+  `vscode_`, so they remain outside the product release publisher.
+- Client and server builds contain the shim at `bin/copilot-shim/`, signed
+  where the build is signed.
 
 ## Acceptance criteria
 
 The work is complete only when:
 
 1. All target artifacts are produced under separate shim names.
-2. macOS and Windows artifacts pass signing requirements.
-3. Every final archive contains the correctly named executable.
+2. Client and server builds contain the shim at `bin/copilot-shim/`, and the
+   macOS and Windows builds sign it.
+3. Every archive contains the correctly named executable.
 4. A manually invoked shim launches the first valid non-shim Copilot CLI in the
    defined search order.
 5. Self aliases, copied Rust shims, and all specified legacy shims are skipped.
@@ -922,7 +1029,7 @@ The work is complete only when:
    parseable version retain the explicitly approved exception.
 10. The real CLI's arguments follow the preservation contract and its accepted
     Windows PowerShell 5.1 exception; terminal I/O and exit results are preserved.
-11. No existing CLI/client package contains the new shim in this phase.
+11. The setup commands follow the documented result-file contract.
 12. All required automated tests and artifact validations pass.
 13. Version probes enforce the approved time/output bounds and clean up their
     processes on failure.
@@ -933,28 +1040,31 @@ The work is complete only when:
 
 ## Source references
 
-- Current shim behavior: [`SHIM.md`](SHIM.md)
-- JavaScript bootstrapper:
-  [`copilotCLIShim.ts`](extensions/copilot/src/extension/chatSessions/vscode-node/copilotCLIShim.ts)
-- PowerShell bootstrapper:
-  [`copilotCLIShim.ps1`](extensions/copilot/src/extension/chatSessions/vscode-node/copilotCLIShim.ps1)
-- Generated legacy wrappers:
-  [`copilotCLITerminalIntegration.ts`](extensions/copilot/src/extension/chatSessions/vscode-node/copilotCLITerminalIntegration.ts)
-- Existing Rust CLI package: [`cli/`](cli/)
+- Terminal integration:
+  [`copilotCLITerminalIntegration.ts`](../extensions/copilot/src/extension/chatSessions/vscode-node/copilotCLITerminalIntegration.ts)
+- Windows installer integration: [`copilot.iss`](../build/win32/copilot.iss)
+- Existing Rust CLI package: [`cli/`](../cli/)
+- Shim compilation and quality checks:
+  [`copilot-shim-compile.yml`](../build/azure-pipelines/copilot-shim/copilot-shim-compile.yml),
+  [`copilot-shim-quality.yml`](../build/azure-pipelines/copilot-shim/copilot-shim-quality.yml)
 - Shared CLI compilation:
-  [`cli-compile.yml`](build/azure-pipelines/cli/cli-compile.yml)
+  [`cli-compile.yml`](../build/azure-pipelines/cli/cli-compile.yml)
 - Windows CLI build:
-  [`product-build-win32-cli.yml`](build/azure-pipelines/win32/product-build-win32-cli.yml)
+  [`product-build-win32-cli.yml`](../build/azure-pipelines/win32/product-build-win32-cli.yml)
+- Windows signing and packaging:
+  [`product-build-win32-sign.yml`](../build/azure-pipelines/win32/steps/product-build-win32-sign.yml)
 - macOS CLI build and signing:
-  [`product-build-darwin-cli.yml`](build/azure-pipelines/darwin/product-build-darwin-cli.yml)
+  [`product-build-darwin-cli.yml`](../build/azure-pipelines/darwin/product-build-darwin-cli.yml)
 - Linux GNU CLI build:
-  [`product-build-linux-cli.yml`](build/azure-pipelines/linux/product-build-linux-cli.yml)
+  [`product-build-linux-cli.yml`](../build/azure-pipelines/linux/product-build-linux-cli.yml)
 - Alpine CLI build:
-  [`product-build-alpine-cli.yml`](build/azure-pipelines/alpine/product-build-alpine-cli.yml)
+  [`product-build-alpine-cli.yml`](../build/azure-pipelines/alpine/product-build-alpine-cli.yml)
 - Product pipeline wiring:
-  [`product-build.yml`](build/azure-pipelines/product-build.yml)
+  [`product-build.yml`](../build/azure-pipelines/product-build.yml)
 - Product release artifact selection:
-  [`publish.ts`](build/azure-pipelines/common/publish.ts)
+  [`publish.ts`](../build/azure-pipelines/common/publish.ts)
+- GitHub Copilot CLI releases, including the MSI and `SHA256SUMS.txt`:
+  <https://github.com/github/copilot-cli/releases>
 - GitHub installation guidance:
   <https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli>
 - Official installer implementation:

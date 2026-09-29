@@ -399,7 +399,10 @@ mod tests {
 		CommandSpec::new(
 			command_shell,
 			CommandArguments::WindowsCommand {
-				switches: ["/D", "/S", "/C"].into_iter().map(OsString::from).collect(),
+				switches: platform::WINDOWS_COMMAND_SWITCHES
+					.into_iter()
+					.map(OsString::from)
+					.collect(),
 				raw_command_tail,
 			},
 			LaunchAdapter::WindowsCommandScript {
@@ -456,17 +459,21 @@ mod tests {
 			fs::write(
 				&script,
 				format!(
-					"@echo off\r\nsetlocal DisableDelayedExpansion\r\n:next\r\nif \"%~1\"==\"\" goto done\r\n>>\"{}\" <nul set /p \"=%~1\"\r\n>>\"{}\" echo(\r\nshift\r\ngoto next\r\n:done\r\nexit /b 0\r\n",
+					"@echo off\r\nchcp 65001 >nul\r\nsetlocal DisableDelayedExpansion\r\n:next\r\nif \"%~1\"==\"\" goto done\r\n>>\"{}\" <nul set /p \"=%~1\"\r\n>>\"{}\" echo(\r\nshift\r\ngoto next\r\n:done\r\nexit /b 0\r\n",
 					output.display(),
 					output.display()
 				),
 			)
 			.expect("write command script");
+			// `%~1` shows what cmd itself passes to the script. Arguments containing `"` are covered by the decoder test,
+			// since cmd hands them to the script with doubled quotes for the program behind the wrapper to parse.
 			let argument_values = [
 				String::from("with spaces"),
 				String::from("Grüße-東京"),
-				format!("safe&echo injected>\"{}\"", sentinel.display()),
-				String::from(r"trailing\\"),
+				String::from("&|<>()^!;"),
+				String::from("100%PATH%"),
+				format!("safe&echo injected>{}", sentinel.display()),
+				String::from("--resume"),
 			];
 			let arguments: Vec<OsString> = argument_values.iter().map(OsString::from).collect();
 			let supervisor = ProcessSupervisor::new(CancellationToken::new());

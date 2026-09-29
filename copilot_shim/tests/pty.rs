@@ -61,7 +61,7 @@ impl PtyProcess {
 				if libc::setsid() == -1 {
 					return Err(io::Error::last_os_error());
 				}
-				if libc::ioctl(libc::STDIN_FILENO, libc::TIOCSCTTY.into(), 0) == -1 {
+				if libc::ioctl(libc::STDIN_FILENO, libc::TIOCSCTTY as _, 0) == -1 {
 					return Err(io::Error::last_os_error());
 				}
 				if libc::tcsetpgrp(libc::STDIN_FILENO, libc::getpid()) == -1 {
@@ -372,7 +372,8 @@ fn open_pty() -> io::Result<(RawFd, RawFd)> {
 			&mut slave,
 			ptr::null_mut(),
 			ptr::null_mut(),
-			&mut window,
+			// Linux takes a const pointer and macOS a mutable one; a raw mutable pointer works for both.
+			ptr::addr_of_mut!(window),
 		)
 	} == -1
 	{
