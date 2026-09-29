@@ -292,6 +292,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			ExtHostNotebookController._convertNotebookRegistrationData(extension, registration)
 		);
 		return toDisposable(() => {
+			this._notebookSerializer.delete(handle);
 			this._notebookProxy.$unregisterNotebookSerializer(handle);
 		});
 	}
