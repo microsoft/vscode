@@ -2558,7 +2558,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			renderFollowups: options?.renderFollowups ?? true,
 			renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 			renderInputToolbarBelowInput: options?.renderInputToolbarBelowInput ?? false,
-			renderSecondaryControlsInInput: this.viewOptions.renderSecondaryControlsInInput,
 			menus: {
 				executeToolbar: MenuId.ChatExecute,
 				telemetrySource: 'chatWidget',

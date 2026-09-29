@@ -281,7 +281,6 @@ export interface IChatWidgetViewOptions {
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
-	renderSecondaryControlsInInput?: boolean;
 	renderGettingStartedTip?: boolean | (() => boolean);
 	customizationMigrationNotice?: {
 		readonly workspace: IObservable<URI | undefined>;
