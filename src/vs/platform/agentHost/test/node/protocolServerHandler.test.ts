@@ -338,8 +338,8 @@ class MockAgentService implements IAgentService {
 		this.watchUnsubscribeCalls.push(channel);
 		return this.liveWatchDescriptors.has(channel);
 	}
-	async createTerminal(_params: CreateTerminalParams, clientContext?: IAgentHostClientTelemetryContext): Promise<void> {
-		this.createTerminalClientTypes.push(clientContext?.clientType);
+	async createTerminal(_params: CreateTerminalParams, clientType?: AgentHostClientType): Promise<void> {
+		this.createTerminalClientTypes.push(clientType);
 	}
 	async disposeTerminal(): Promise<void> { }
 	async invokeChangesetOperation(): Promise<{}> { return {}; }
@@ -1812,7 +1812,7 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(agentService.handledActions.at(-1), { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
 	});
 
-	test('createTerminal reaches the agent service with the requesting client context', async () => {
+	test('createTerminal reaches the agent service with the requesting client type', async () => {
 		const vscodeClient = connectClient('vscode-terminal-client', undefined, editorWindowAgentHostClientInfo);
 		const otherClient = connectClient('other-terminal-client');
 		for (const [transport, clientId] of [[vscodeClient, 'vscode-terminal-client'], [otherClient, 'other-terminal-client']] as const) {
