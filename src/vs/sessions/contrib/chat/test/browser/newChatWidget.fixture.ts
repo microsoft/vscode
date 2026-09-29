@@ -712,6 +712,18 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			assert(dot.content === '""' && dot.width === dot.height && parseFloat(dot.width) > 0,
 				'Combined pickers must separate their values with a dot.');
 		}
+		// The model picker's separator dot must sit an equal distance from the value on each side,
+		// rather than hugging one word.
+		const modelConfig = promptBox.querySelector<HTMLElement>('.model-picker-config');
+		const modelName = promptBox.querySelector<HTMLElement>('.model-picker-name .chat-input-picker-label');
+		const modelValue = modelConfig?.querySelector<HTMLElement>('.chat-input-picker-label');
+		assert(!!modelConfig && !!modelName && !!modelValue);
+		const dotSize = parseFloat(targetWindow.getComputedStyle(modelConfig, '::before').width);
+		const configLeft = modelConfig.getBoundingClientRect().left;
+		const gapBefore = configLeft - modelName.getBoundingClientRect().right;
+		const gapAfter = modelValue.getBoundingClientRect().left - (configLeft + dotSize);
+		assert(Math.abs(gapBefore - gapAfter) <= 1,
+			'The model separator dot must be centered between the name and the configuration value.');
 	}
 	if (migrationCount > 0) {
 		const notice = view.element.querySelector<HTMLElement>('.new-chat-migration-notice');
