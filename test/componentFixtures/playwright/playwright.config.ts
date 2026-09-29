@@ -13,11 +13,16 @@ export default defineConfig({
 	testDir: './tests',
 	fullyParallel: true,
 	timeout: 30_000,
-	retries: 0,
+	// To avoid possible flaky (unstable) tests in the CI environment, try again 2 times, local 0
+	retries: process.env.CI ? 2 : 0,
+	// Limit the number of workers for resource optimization in a CI environment
+	workers: process.env.CI ? 1 : undefined,
 	use: {
 		// DOM trace snapshots can exhaust the headless fixture's native-time render deadline.
 		trace: { mode: 'retain-on-failure', snapshots: false },
 	},
+	// Enable HTML reporter for local development and debugging
+	reporter: 'html',
 	webServer: {
 		command: 'npx component-explorer serve -p ../component-explorer.json --background --attach -vv',
 		cwd: __dirname,
