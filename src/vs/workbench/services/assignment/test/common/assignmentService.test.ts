@@ -178,19 +178,21 @@ suite('WorkbenchAssignmentService telemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const contextProperty = 'abexp.assignmentcontext';
 
-	function createService() {
+	async function createService() {
 		const events: { eventName: string; data: ITelemetryData | undefined; assignmentContext: string | undefined }[] = [];
 		let assignmentContext: string | undefined;
 		const telemetryService = new class extends NullTelemetryServiceShape {
-			override setExperimentProperty(name: string, value: string): void {
+			override setExperimentProperty(name?: string, value?: string): void {
 				if (name === contextProperty) {
 					assignmentContext = value;
 				}
 			}
-			override publicLog(eventName: string, data?: ITelemetryData): void {
-				events.push({ eventName, data, assignmentContext });
+			override publicLog(eventName?: string, data?: ITelemetryData): void {
+				if (eventName) {
+					events.push({ eventName, data, assignmentContext });
+				}
 			}
-			override publicLog2(eventName: string, data?: ITelemetryData): void {
+			override publicLog2(eventName?: string, data?: ITelemetryData): void {
 				this.publicLog(eventName, data);
 			}
 		}();
@@ -220,6 +222,8 @@ suite('WorkbenchAssignmentService telemetry', () => {
 		}();
 		/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Inject TAS state without starting real network requests. */
 		service['tasClient'] = Promise.resolve(client);
+		// Let the initialization timer dispose its cancellation listeners before test teardown.
+		await service['overrideInitDelay'];
 		const setContext = (context: string) => service['telemetry'].setSharedProperty(contextProperty, context);
 		const postEvent = (eventName: string, props: Map<string, string>) => service['telemetry'].postEvent(eventName, props);
 		/* eslint-enable local/code-no-bracket-notation-for-identifiers */
@@ -235,7 +239,7 @@ suite('WorkbenchAssignmentService telemetry', () => {
 	}
 
 	test('deduplicates concurrent reads across both APIs without skipping assignment reads', async () => {
-		const { service, events, reads } = createService();
+		const { service, events, reads } = await createService();
 		const results = await Promise.all([
 			service.getTreatment('test'),
 			service.getTreatmentWithAssignment('test'),
@@ -250,7 +254,7 @@ suite('WorkbenchAssignmentService telemetry', () => {
 	});
 
 	test('preserves value transitions, falsy values and returning to earlier values', async () => {
-		const { service, events, setValue } = createService();
+		const { service, events, setValue } = await createService();
 		const values = [undefined, false, 0, '', 'A', 'B', 'A', undefined];
 		const results = [];
 		for (const value of values) {
@@ -266,7 +270,7 @@ suite('WorkbenchAssignmentService telemetry', () => {
 	});
 
 	test('preserves context transitions without changing refresh notifications', async () => {
-		const { service, events, setContext, setValue } = createService();
+		const { service, events, setContext, setValue } = await createService();
 		setValue('value');
 		let refreshes = 0;
 		store.add(service.onDidRefetchAssignments(() => refreshes++));
@@ -282,7 +286,7 @@ suite('WorkbenchAssignmentService telemetry', () => {
 	});
 
 	test('deduplicates using the filtered telemetry context', async () => {
-		const { service, events, setContext } = createService();
+		const { service, events, setContext } = await createService();
 		service.addTelemetryAssignmentFilter({ id: 'test', exclude: id => id === 'hidden', onDidChange: Event.None });
 		setContext('A;hidden');
 		await service.getTreatment('test');
@@ -292,8 +296,8 @@ suite('WorkbenchAssignmentService telemetry', () => {
 	});
 
 	test('tracks treatments and service instances independently', async () => {
-		const first = createService();
-		const second = createService();
+		const first = await createService();
+		const second = await createService();
 		await first.service.getTreatment('test');
 		await first.service.getTreatment('another');
 		await first.service.getTreatment('test');
@@ -305,7 +309,7 @@ suite('WorkbenchAssignmentService telemetry', () => {
 	});
 
 	test('preserves developer override transitions without changing assignment metadata', async () => {
-		const { service, events, configuration, setValue } = createService();
+		const { service, events, configuration, setValue } = await createService();
 		setValue('assigned');
 		for (const override of ['override', 'override', 'changed']) {
 			await configuration.setUserConfiguration('experiments.override.test', override);
@@ -330,8 +334,8 @@ suite('WorkbenchAssignmentService telemetry', () => {
 			return { eventName: 'assignments-validation', data: Object.fromEntries(props), assignmentContext };
 		}
 
-		test('logs the first payload and suppresses duplicates regardless of property order', () => {
-			const { postEvent, events } = createService();
+		test('logs the first payload and suppresses duplicates regardless of property order', async () => {
+			const { postEvent, events } = await createService();
 			const props = validationProperties();
 			postEvent('assignments-validation', props);
 			postEvent('assignments-validation', new Map(props));
@@ -345,8 +349,8 @@ suite('WorkbenchAssignmentService telemetry', () => {
 			DataVersion: '2',
 			AssignmentContext: 'B',
 		})) {
-			test(`preserves ${property} transitions including returning to an earlier value`, () => {
-				const { postEvent, events } = createService();
+			test(`preserves ${property} transitions including returning to an earlier value`, async () => {
+				const { postEvent, events } = await createService();
 				const original = validationProperties();
 				const changed = validationProperties({ [property]: value });
 				for (const props of [original, original, changed, changed, original]) {
@@ -356,8 +360,8 @@ suite('WorkbenchAssignmentService telemetry', () => {
 			});
 		}
 
-		test('snapshots mutable payloads and detects added and removed properties', () => {
-			const { postEvent, events } = createService();
+		test('snapshots mutable payloads and detects added and removed properties', async () => {
+			const { postEvent, events } = await createService();
 			const props = validationProperties();
 			const original = expectedValidation(props);
 			postEvent('assignments-validation', props);
@@ -372,8 +376,8 @@ suite('WorkbenchAssignmentService telemetry', () => {
 			assert.deepStrictEqual(events, [original, changed, removed, changed]);
 		});
 
-		test('preserves changes to the filtered common context independently of the payload', () => {
-			const { service, postEvent, events, setContext } = createService();
+		test('preserves changes to the filtered common context independently of the payload', async () => {
+			const { service, postEvent, events, setContext } = await createService();
 			const props = validationProperties();
 			service.addTelemetryAssignmentFilter({ id: 'test', exclude: id => id === 'hidden', onDidChange: Event.None });
 			postEvent('assignments-validation', props);
@@ -384,9 +388,9 @@ suite('WorkbenchAssignmentService telemetry', () => {
 			assert.deepStrictEqual(events, [undefined, 'A', 'B', 'A', ''].map(context => expectedValidation(props, context)));
 		});
 
-		test('tracks service instances independently', () => {
-			const first = createService();
-			const second = createService();
+		test('tracks service instances independently', async () => {
+			const first = await createService();
+			const second = await createService();
 			const props = validationProperties();
 			first.postEvent('assignments-validation', props);
 			first.postEvent('assignments-validation', props);
@@ -397,8 +401,8 @@ suite('WorkbenchAssignmentService telemetry', () => {
 			]);
 		});
 
-		test('does not suppress other SDK events or reset validation deduplication', () => {
-			const { postEvent, events } = createService();
+		test('does not suppress other SDK events or reset validation deduplication', async () => {
+			const { postEvent, events } = await createService();
 			const props = validationProperties();
 			postEvent('assignments-validation', props);
 			const otherEvents: [string, Map<string, string>][] = [
