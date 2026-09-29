@@ -323,7 +323,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		]);
 	});
 
-	test('announces loading only after the debounced catalog search starts', async () => {
+	test('announces loading only after the scheduled catalog search starts', async () => {
 		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
 		store.add(toDisposable(() => ariaHost.remove()));
 		setARIAContainer(ariaHost);
@@ -332,14 +332,14 @@ suite('AICustomizationDiscoveryPage', () => {
 		await fixture.requests[0].result.complete({ items: [] });
 		await timeout(0);
 
-		fixture.page['searchWidget'].setValue('remote');
+		fixture.page.setSearchQuery('remote');
 		const pending = {
 			requests: fixture.requests.length,
 			busy: fixture.container.querySelector('.customization-discovery-results')?.getAttribute('aria-busy'),
 			announcements: [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
 		};
 
-		fixture.page['searchScheduler'].flush();
+		await timeout(0);
 		const loading = {
 			requests: fixture.requests.length,
 			announcements: [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
