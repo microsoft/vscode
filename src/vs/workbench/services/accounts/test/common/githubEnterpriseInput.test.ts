@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { GheParseResultKind, parseGheInstanceInput } from '../../common/onboardingTypes.js';
+import { GheParseResultKind, parseGheInstanceInput } from '../../common/githubEnterprise.js';
 
 suite('parseGheInstanceInput', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,8 +49,6 @@ suite('parseGheInstanceInput', () => {
 	test('invalid input returns Invalid', () => {
 		assert.deepStrictEqual(parseGheInstanceInput('not a valid url'), { kind: GheParseResultKind.Invalid });
 		assert.deepStrictEqual(parseGheInstanceInput('https://github.com'), { kind: GheParseResultKind.Invalid });
-		assert.deepStrictEqual(parseGheInstanceInput('https://octocat.example.com'), { kind: GheParseResultKind.Invalid });
-		assert.deepStrictEqual(parseGheInstanceInput('http://octocat.ghe.com'), { kind: GheParseResultKind.Invalid });
 		assert.deepStrictEqual(parseGheInstanceInput('ftp://octocat.ghe.com'), { kind: GheParseResultKind.Invalid });
 	});
 
@@ -66,7 +64,9 @@ suite('parseGheInstanceInput', () => {
 		assert.deepStrictEqual(parseGheInstanceInput('https://octocat.ghe.com/'), { kind: GheParseResultKind.FullUri, resolvedUri: 'https://octocat.ghe.com/' });
 	});
 
-	test('URI with path segments is invalid', () => {
-		assert.deepStrictEqual(parseGheInstanceInput('https://octocat.ghe.com/api/v3'), { kind: GheParseResultKind.Invalid });
-	});
+	for (const uri of ['https://github.example.com', 'http://ghe.local:8080/Team', 'https://ghe.local/Team%20One/', 'HTTPS://GHE.LOCAL:443/Team', 'http://octocat.ghe.com']) {
+		test(`accepts a GitHub Enterprise Server URL (${uri})`, () => {
+			assert.deepStrictEqual(parseGheInstanceInput(uri), { kind: GheParseResultKind.FullUri, resolvedUri: uri });
+		});
+	}
 });

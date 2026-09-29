@@ -9,7 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { addGitHubEnterpriseUri, getConfiguredGitHubEnterpriseUris, getGitHubEnterpriseUri, gitHubEnterpriseUrisSetting } from '../../common/githubEnterprise.js';
+import { addGitHubEnterpriseUri, getConfiguredGitHubEnterpriseUris, getGitHubEnterpriseUri, gitHubEnterpriseUrisSetting, isValidGitHubEnterpriseUri } from '../../common/githubEnterprise.js';
 
 suite('GitHub Enterprise enrollment configuration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -79,6 +79,35 @@ suite('GitHub Enterprise enrollment configuration', () => {
 		assert.deepStrictEqual(write.firstCall.args, [gitHubEnterpriseUrisSetting, ['https://new.ghe.com'], ConfigurationTarget.WORKSPACE]);
 	});
 
+	test('correction replaces only the selected invalid URI and preserves the latest host list', async () => {
+		const service = configuration({ [gitHubEnterpriseUrisSetting]: ['https://first.ghe.com', 'not-a-url'] });
+		sinon.stub(service, 'updateValue').callsFake((key, value) => service.setUserConfiguration(key, value));
+		await service.setUserConfiguration(gitHubEnterpriseUrisSetting, ['https://first.ghe.com', 'not-a-url', 'https://added.ghe.com']);
+		await addGitHubEnterpriseUri(service, 'http://ghe.local:8080/Team', true, 'github-enterprise.uri', 'not-a-url');
+		assert.deepStrictEqual(service.getValue(gitHubEnterpriseUrisSetting), ['https://first.ghe.com', 'https://added.ghe.com', 'http://ghe.local:8080/Team']);
+	});
+
+	test('correction does not replace a different entry after the selected invalid URI disappears', async () => {
+		const service = configuration({ [gitHubEnterpriseUrisSetting]: ['https://first.ghe.com', 'different invalid URI'] });
+		sinon.stub(service, 'updateValue').callsFake((key, value) => service.setUserConfiguration(key, value));
+		await addGitHubEnterpriseUri(service, 'https://fixed.ghe.com', true, 'github-enterprise.uri', 'not-a-url');
+		assert.deepStrictEqual(service.getValue(gitHubEnterpriseUrisSetting), ['https://first.ghe.com', 'different invalid URI', 'https://fixed.ghe.com']);
+	});
+
+	test('correction to an existing host removes the invalid URI without duplicating the host', async () => {
+		const service = configuration({ [gitHubEnterpriseUrisSetting]: ['https://first.ghe.com', 'not-a-url'] });
+		sinon.stub(service, 'updateValue').callsFake((key, value) => service.setUserConfiguration(key, value));
+		await addGitHubEnterpriseUri(service, 'https://first.ghe.com', true, 'github-enterprise.uri', 'not-a-url');
+		assert.deepStrictEqual(service.getValue(gitHubEnterpriseUrisSetting), ['https://first.ghe.com']);
+	});
+
+	test('invalid replacement URLs are rejected without changing configuration', async () => {
+		const service = configuration({ [gitHubEnterpriseUrisSetting]: ['https://first.ghe.com', 'not-a-url'] });
+		const write = sinon.stub(service, 'updateValue').resolves();
+		await assert.rejects(addGitHubEnterpriseUri(service, 'still not a URL', true, 'github-enterprise.uri', 'not-a-url'), /Invalid GitHub Enterprise instance URI/);
+		assert.strictEqual(write.callCount, 0);
+	});
+
 	for (const scope of ['workspaceValue', 'workspaceFolderValue'] as const) {
 		test(`untrusted ${scope} does not disable the legacy user host or redirect enrollment`, async () => {
 			const legacy = 'https://legacy.ghe.com';
@@ -109,6 +138,25 @@ suite('GitHub Enterprise enrollment configuration', () => {
 			});
 		}
 	}
+});
+
+suite('GitHub Enterprise instance validation', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('accepts cloud and server URLs without changing path case, ports or escapes', () => {
+		const values = ['https://tenant.ghe.com', 'HTTP://GHE.LOCAL:8080/Team', 'https://ghe.local:443/Team%20One%25/', 'https://ghe.local/Team///'];
+		assert.deepStrictEqual(values.map(isValidGitHubEnterpriseUri), values.map(() => true));
+	});
+
+	test('rejects values that the authentication extension cannot use as instance URLs', () => {
+		const values = [
+			'', 'not-a-url', 'https:/ghe.local', 'file:///ghe.local', 'ftp://ghe.local',
+			'https://github.com', 'https://github.com.:443', 'https://www.github.com', 'https://api.github.com',
+			'https://user:password@ghe.local', 'https://ghe.local?query', 'https://ghe.local#fragment',
+			'https://ghe.local/a/../b', 'https://ghe.local/a//b', 'https://ghe.local:invalid'
+		];
+		assert.deepStrictEqual(values.map(isValidGitHubEnterpriseUri), values.map(() => false));
+	});
 });
 
 suite('GitHub Enterprise session provenance', () => {

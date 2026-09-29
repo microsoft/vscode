@@ -130,6 +130,97 @@ suite('OnboardingVariationA', () => {
 		}, { value: '', commands: [] });
 	});
 
+	for (const values of [
+		{ 'github-enterprise.uri': 'not-a-url' },
+		{ [gitHubEnterpriseUrisSetting]: ['not-a-url'] },
+		{ [gitHubEnterpriseUrisSetting]: ['https://valid.ghe.com', 'not-a-url'] },
+	]) {
+		test(`corrects invalid enterprise URLs without discarding other hosts (${JSON.stringify(values)})`, async () => {
+			const configuration = new TestConfigurationService({ ...values });
+			sinon.stub(configuration, 'updateValue').callsFake((key, value) => configuration.setUserConfiguration(key, value));
+			const { container, executeCommand, commandInvoked } = createOnboarding(configuration);
+			clickEnterpriseSignIn(container);
+			const input = container.querySelector<HTMLInputElement>('.onboarding-a-signin-ghe-input input');
+			assert.strictEqual(input?.value, 'not-a-url');
+			assert.ok(input);
+			input.value = 'http://ghe.local:8080/Team';
+			input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			input.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			await commandInvoked;
+			await executeCommand.firstCall.returnValue;
+			assert.deepStrictEqual({
+				hosts: configuration.getValue(gitHubEnterpriseUrisSetting),
+				setupCalls: executeCommand.callCount
+			}, {
+				hosts: [...(values[gitHubEnterpriseUrisSetting] ?? []).filter(uri => uri !== 'not-a-url'), 'http://ghe.local:8080/Team'],
+				setupCalls: 1
+			});
+		});
+	}
+
+	test('cancelling enterprise URL correction does not change the host list', () => {
+		const hosts = ['https://valid.ghe.com', 'not-a-url'];
+		const configuration = new TestConfigurationService({ [gitHubEnterpriseUrisSetting]: hosts });
+		const write = sinon.stub(configuration, 'updateValue').resolves();
+		const { container, executeCommand } = createOnboarding(configuration);
+		clickEnterpriseSignIn(container);
+		const input = container.querySelector<HTMLInputElement>('.onboarding-a-signin-ghe-input input');
+		assert.ok(input);
+		input.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		assert.deepStrictEqual({
+			hosts: configuration.getValue(gitHubEnterpriseUrisSetting),
+			writes: write.callCount,
+			setupCalls: executeCommand.callCount
+		}, { hosts, writes: 0, setupCalls: 0 });
+	});
+
+	test('correction preserves hosts added while the invalid URI is being edited', async () => {
+		const configuration = new TestConfigurationService({ [gitHubEnterpriseUrisSetting]: ['https://valid.ghe.com', 'not-a-url'] });
+		sinon.stub(configuration, 'updateValue').callsFake((key, value) => configuration.setUserConfiguration(key, value));
+		const { container, executeCommand, commandInvoked } = createOnboarding(configuration);
+		clickEnterpriseSignIn(container);
+		await configuration.setUserConfiguration(gitHubEnterpriseUrisSetting, ['https://valid.ghe.com', 'not-a-url', 'https://added.ghe.com']);
+		const input = container.querySelector<HTMLInputElement>('.onboarding-a-signin-ghe-input input');
+		assert.ok(input);
+		input.value = 'https://github.example.com/Team';
+		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		input.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		await commandInvoked;
+		await executeCommand.firstCall.returnValue;
+		assert.deepStrictEqual(configuration.getValue(gitHubEnterpriseUrisSetting), ['https://valid.ghe.com', 'https://added.ghe.com', 'https://github.example.com/Team']);
+	});
+
+	test('repairs each invalid URI before starting setup and focuses the next correction', async () => {
+		const configuration = new TestConfigurationService({ [gitHubEnterpriseUrisSetting]: ['first invalid', 'second invalid'] });
+		sinon.stub(configuration, 'updateValue').callsFake((key, value) => configuration.setUserConfiguration(key, value));
+		const { container, executeCommand, commandInvoked } = createOnboarding(configuration);
+		clickEnterpriseSignIn(container);
+		const first = container.querySelector<HTMLInputElement>('.onboarding-a-signin-ghe-input input');
+		assert.ok(first);
+		const nextPrompt = new DeferredPromise<void>();
+		const observer = new mainWindow.MutationObserver(() => {
+			if (container.querySelector<HTMLInputElement>('.onboarding-a-signin-ghe-input input')?.value === 'second invalid') {
+				nextPrompt.complete();
+			}
+		});
+		store.add(toDisposable(() => observer.disconnect()));
+		observer.observe(container, { childList: true, subtree: true });
+		first.value = 'https://first.ghe.com';
+		first.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		first.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		await nextPrompt.p;
+		observer.disconnect();
+		const second = container.querySelector<HTMLInputElement>('.onboarding-a-signin-ghe-input input');
+		assert.ok(second);
+		assert.deepStrictEqual({ setupCalls: executeCommand.callCount, focused: mainWindow.document.activeElement === second }, { setupCalls: 0, focused: true });
+		second.value = 'https://github.example.com/Team';
+		second.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		second.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		await commandInvoked;
+		await executeCommand.firstCall.returnValue;
+		assert.deepStrictEqual(configuration.getValue(gitHubEnterpriseUrisSetting), ['https://first.ghe.com', 'https://github.example.com/Team']);
+	});
+
 	test('enrollment preserves hosts added while the instance prompt is open', async () => {
 		const configuration = new TestConfigurationService({ [gitHubEnterpriseUrisSetting]: [] });
 		const update = sinon.stub(configuration, 'updateValue').callsFake((key, value) => configuration.setUserConfiguration(key, value));
@@ -167,8 +258,8 @@ suite('OnboardingVariationA', () => {
 
 	test('untrusted enrollment writes a user host rather than the ignored workspace setting', async () => {
 		const configuration = new TestConfigurationService({ [gitHubEnterpriseUrisSetting]: [] });
-		sinon.stub(configuration, 'inspect').returns({ defaultValue: [], workspaceValue: [], value: [] });
-		const update = sinon.stub(configuration, 'updateValue').resolves();
+		sinon.stub(configuration, 'inspect').callsFake(key => ({ defaultValue: [], userValue: configuration.getValue(key), workspaceValue: [], value: configuration.getValue(key) }));
+		const update = sinon.stub(configuration, 'updateValue').callsFake((key, value) => configuration.setUserConfiguration(key, value));
 		const { container, executeCommand, commandInvoked } = createOnboarding(configuration, undefined, false);
 		clickEnterpriseSignIn(container);
 		const input = container.querySelector<HTMLInputElement>('.onboarding-a-signin-ghe-input input');

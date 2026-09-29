@@ -45,11 +45,9 @@ import {
 	IOnboardingThemeOption,
 	getOnboardingStepTitle,
 	getOnboardingStepSubtitle,
-	GheParseResultKind,
-	parseGheInstanceInput,
 } from '../common/onboardingTypes.js';
 import { IOnboardingService } from '../common/onboardingService.js';
-import { addGitHubEnterpriseUri, getConfiguredGitHubEnterpriseUris } from '../../../services/accounts/common/githubEnterprise.js';
+import { addGitHubEnterpriseUri, getConfiguredGitHubEnterpriseUris, GheParseResultKind, isValidGitHubEnterpriseUri, parseGheInstanceInput } from '../../../services/accounts/common/githubEnterprise.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 type OnboardingStepViewClassification = {
@@ -591,6 +589,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 	private _renderEnterpriseInstanceForm(actions: HTMLElement): void {
 		const enterprisePromptLabel = this._getEnterpriseInstancePromptLabel();
+		const replacedUri = getConfiguredGitHubEnterpriseUris(this.configurationService, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting).find(uri => !isValidGitHubEnterpriseUri(uri));
 
 		const container = append(actions, $('.onboarding-a-signin-ghe-input'));
 
@@ -602,7 +601,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		));
 
 		const inputBox = this.stepDisposables.add(new InputBox(container, undefined, {
-			placeholder: localize('onboarding.signIn.enterprise.placeholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
+			placeholder: localize('onboarding.signIn.enterprise.placeholder', 'i.e. "octocat" or "https://github.example.com"...'),
 			ariaLabel: enterprisePromptLabel,
 			actions: [submitAction],
 			inputBoxStyles: defaultInputBoxStyles,
@@ -617,7 +616,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				validate();
 				return;
 			}
-			await this._submitEnterpriseInstance(result.resolvedUri);
+			await this._submitEnterpriseInstance(result.resolvedUri, replacedUri);
 		};
 		submitAction.run = submit;
 
@@ -646,7 +645,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				case GheParseResultKind.Invalid:
 					inputBox.element.classList.add('error');
 					message.classList.add('error');
-					message.textContent = localize('onboarding.signIn.enterprise.invalid', 'You must enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.provider.enterprise.name);
+					message.textContent = localize('onboarding.signIn.enterprise.invalid', "Enter a valid {0} instance name or URL.", defaultChat.provider.enterprise.name);
 					submitAction.enabled = false;
 					return false;
 			}
@@ -766,9 +765,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			this._notifyEnterpriseSignInError();
 			return;
 		}
-		if (!uris.length) {
-			this.enterpriseInstanceValue = '';
-			this.enterpriseSignInWatch = StopWatch.create();
+		const invalidUri = uris.find(uri => !isValidGitHubEnterpriseUri(uri));
+		if (!uris.length || invalidUri !== undefined) {
+			this.enterpriseInstanceValue = invalidUri ?? '';
+			this.enterpriseSignInWatch ??= StopWatch.create();
 			this._setEnterpriseSignInUiState('instance');
 			return;
 		}
@@ -776,11 +776,11 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		await this._runEnterpriseSignInSetup();
 	}
 
-	private async _submitEnterpriseInstance(resolvedUri: string): Promise<void> {
+	private async _submitEnterpriseInstance(resolvedUri: string, replacedUri?: string): Promise<void> {
 		try {
-			await addGitHubEnterpriseUri(this.configurationService, resolvedUri, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting);
+			await addGitHubEnterpriseUri(this.configurationService, resolvedUri, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting, replacedUri);
 			this.enterpriseInstanceValue = resolvedUri;
-			await this._runEnterpriseSignInSetup();
+			await this._handleEnterpriseSignIn();
 		} catch {
 			this.enterpriseSignInWatch = undefined;
 			this._setEnterpriseSignInUiState('instance');
