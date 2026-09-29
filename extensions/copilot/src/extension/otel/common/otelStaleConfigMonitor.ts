@@ -17,6 +17,7 @@ export interface IOTelPolicyRestartRecord {
 }
 
 export interface IOTelStaleConfigHost {
+	whenPolicySettled(): Promise<void>;
 	getRestartRecord(): IOTelPolicyRestartRecord | undefined;
 	setRestartRecord(record: IOTelPolicyRestartRecord | undefined): Promise<void>;
 	restartExtensionHost(): Promise<void>;
@@ -48,14 +49,9 @@ export class OTelStaleConfigMonitor {
 	}
 
 	private async _check(): Promise<OTelConfigDrift> {
+		await this._host.whenPolicySettled();
 		let active = this._baseline;
 		const current = this._resolver.resolve();
-		if (isPolicyRefreshPlaceholder(current)) {
-			// Forced remote refresh temporarily publishes restrictive policy values.
-			// Wait for the settled configuration event rather than showing a reload
-			// notification that would outlive a successful Extension Host restart.
-			return OTelConfigDrift.None;
-		}
 		const drift = classifyOTelConfigDrift(active, current);
 		if (drift === OTelConfigDrift.None && active.hasEnterpriseSettings && !current.hasEnterpriseSettings) {
 			// A forced remote refresh starts fail-closed, so service construction can
@@ -104,7 +100,7 @@ export class OTelStaleConfigMonitor {
 			this._warnPolicyNotApplied();
 			return drift;
 		}
-		if ((active.hasEnterpriseSettings && !isPolicyRefreshPlaceholder(active)) || active.config.enabledExplicitly || !isPolicyEnabledOtlp(current)) {
+		if ((active.hasEnterpriseSettings && !isRestrictedPolicyConfig(active)) || active.config.enabledExplicitly || !isPolicyEnabledOtlp(current)) {
 			this._handledFingerprint = fingerprint;
 			if (!this._policyNoticeShown) {
 				this._policyNoticeShown = true;
@@ -159,9 +155,8 @@ export class OTelStaleConfigMonitor {
 	}
 }
 
-function isPolicyRefreshPlaceholder(resolution: IResolvedOTelConfig): boolean {
-	// The policy gate's fail-closed OTel protocol value is the invalid empty
-	// string. Settled configuration resolves the absent protocol to otlp-http.
+function isRestrictedPolicyConfig(resolution: IResolvedOTelConfig): boolean {
+	// A disabled, restricted startup can recover when managed export is subsequently enabled.
 	return resolution.hasEnterpriseSettings
 		&& resolution.config.enabled === false
 		&& resolution.defaultValues.exporterType === '';
