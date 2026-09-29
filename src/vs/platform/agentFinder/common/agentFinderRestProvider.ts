@@ -161,7 +161,7 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 		}
 
 		try {
-			const server = await this.mcpGalleryService.getMcpServer(item.externalUrl, agentFinderMcpRegistryManifest, iconToken);
+			const server = await raceCancellationError(this.mcpGalleryService.getMcpServer(item.externalUrl, agentFinderMcpRegistryManifest, iconToken), iconToken);
 			const icon = parseHttpUri(server?.icon?.light);
 			if (server?.icon?.light && !icon) {
 				this.logService.warn(`[AgentFinderRestProvider] Ignoring an invalid MCP catalog icon for '${installation.name}'.`);

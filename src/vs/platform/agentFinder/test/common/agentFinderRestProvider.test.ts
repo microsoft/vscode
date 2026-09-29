@@ -232,6 +232,30 @@ suite('AgentFinderRestProvider', () => {
 		});
 	});
 
+	test('bounds MCP icon resolution when the gallery ignores cancellation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let iconToken: CancellationToken | undefined;
+		const mcpGalleryService = upcastPartial<IMcpGalleryService>({
+			getMcpServer: async (_url, _manifest, token) => {
+				iconToken = token;
+				return new Promise(() => { });
+			},
+		});
+		const logService = new NullLogService();
+		const warning = sinon.spy(logService, 'warn');
+		const { service } = createService({ results: [mcpServer], total: 1, offset: 0, pageSize: 30 }, 200, mcpGalleryService, logService);
+		const page = await service.query({}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			icon: page.items[0].icon,
+			iconCancelled: iconToken?.isCancellationRequested,
+			warnings: warning.args.map(args => args[0]),
+		}, {
+			icon: undefined,
+			iconCancelled: true,
+			warnings: ['[AgentFinderRestProvider] Timed out resolving MCP catalog icons.'],
+		});
+	}));
+
 	test('parses observed metadata for supported plugin media types', async () => {
 		const plugins = [
 			{ mediaType: CustomizationMarketplaceMediaType.ClaudePlugin, sourceSet: 'JetBrains/go-modern-guidelines', repoPath: 'claude/modern-go-guidelines/.claude-plugin/plugin.json' },
