@@ -201,8 +201,6 @@ export interface BackgroundShellWork extends BackgroundWorkBase {
 	kind: BackgroundWorkKind.Shell;
 	/** Command line, displayed as plain text. */
 	command: string;
-	/** Terminal channel carrying this shell's output, when the host provides one. */
-	terminal?: URI;
 }
 
 /**
