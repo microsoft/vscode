@@ -142,7 +142,13 @@ export class StandardChatInputPillSources extends Disposable {
 				hasData: source.hasData ?? pillSource.hasData,
 				isVisible: pillSource.hasData,
 				getContextMenuActions: () => source.getContextMenuActions?.() ?? [],
-				getContextMenuPrimaryActions: () => source.getContextMenuPrimaryActions?.() ?? [],
+				getContextMenuPrimaryActions: () => {
+					if (source.getContextMenuPrimaryActions) {
+						return source.getContextMenuPrimaryActions();
+					}
+					const entries = getChatPillEntries(source.sections.get());
+					return entries.length === 1 && entries[0].promotedAction ? [entries[0].promotedAction] : [];
+				},
 			});
 		};
 		addSections(SessionChatPillKind.PullRequests, data.pullRequests, sessionPullRequestsPillOptions);
@@ -198,7 +204,7 @@ export class ChatInputPills extends Disposable {
 			context: _options.context,
 		};
 		this._pills = this._register(instantiationService.createInstance(ChatPillsWidget, model, {
-			ariaLabel: _options.ariaLabel,
+			ariaLabel: _options.ariaLabel ?? localize('chatInputPills.ariaLabel', "Session status"),
 			actionRunner: _options.actionRunner,
 			allowContextMenu: true,
 		}));

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../base/common/uri.js';
+import { URI } from '../../../../base/common/uri.js';
 import {
 	CustomizationType,
 	ResponsePartKind,
@@ -14,8 +14,8 @@ import {
 	type Customization,
 	type ToolCallState,
 	type Turn,
-} from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { ISessionChatCustomization, SessionCustomizationKind } from '../../../../services/sessions/common/session.js';
+} from '../../../../platform/agentHost/common/state/sessionState.js';
+import { ISessionChatCustomization, SessionCustomizationKind } from './sessionChatCustomizations.js';
 
 /**
  * A reference to a customization extracted from a chat's output stream.
