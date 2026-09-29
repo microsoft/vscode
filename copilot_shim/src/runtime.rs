@@ -69,17 +69,42 @@ pub(crate) trait ProcessEffects {
 	) -> Result<ProcessOutcome, ProcessError>;
 }
 
+pub(crate) trait PolicyEffects {
+	/// Whether the VS Code `CopilotCliCommand` policy turns off the `copilot` command. The shim then still launches an
+	/// installed Copilot CLI, but never installs or updates one.
+	fn copilot_cli_command_disabled(&self) -> bool;
+}
+
 pub(crate) trait Runtime:
-	EnvironmentEffects + FileSystemEffects + UserInteractionEffects + ProcessEffects
+	EnvironmentEffects + FileSystemEffects + UserInteractionEffects + ProcessEffects + PolicyEffects
 {
 }
 
 impl<T> Runtime for T where
-	T: EnvironmentEffects + FileSystemEffects + UserInteractionEffects + ProcessEffects
+	T: EnvironmentEffects
+		+ FileSystemEffects
+		+ UserInteractionEffects
+		+ ProcessEffects
+		+ PolicyEffects
 {
 }
 
 pub(crate) struct NativeRuntime;
+
+impl PolicyEffects for NativeRuntime {
+	fn copilot_cli_command_disabled(&self) -> bool {
+		// Only Windows setup puts the shim on the system PATH. Elsewhere it is reachable from integrated terminals, and
+		// the Copilot extension applies the policy there.
+		#[cfg(windows)]
+		{
+			crate::setup::windows::copilot_cli_command_disabled()
+		}
+		#[cfg(not(windows))]
+		{
+			false
+		}
+	}
+}
 
 impl EnvironmentEffects for NativeRuntime {
 	fn path(&self) -> Option<OsString> {
@@ -323,6 +348,13 @@ impl ProcessEffects for TestRuntime {
 			termination: crate::model::ProcessTermination::NumericExit(0),
 			captured_output: None,
 		})
+	}
+}
+
+#[cfg(test)]
+impl PolicyEffects for TestRuntime {
+	fn copilot_cli_command_disabled(&self) -> bool {
+		false
 	}
 }
 

@@ -15,6 +15,7 @@ import { NullTelemetryService } from '../../../../platform/telemetry/common/null
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { ITerminalService, NullTerminalService } from '../../../../platform/terminal/common/terminalService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
+import { Emitter } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import * as path from '../../../../util/vs/base/common/path';
 
@@ -78,6 +79,7 @@ class TestTerminalService extends NullTerminalService {
 	public mockTerminal: MockTerminal;
 	public createTerminalSpy: Mock;
 	public contributePathSpy: Mock;
+	public removePathContributionSpy: Mock;
 
 	constructor() {
 		super();
@@ -89,6 +91,7 @@ class TestTerminalService extends NullTerminalService {
 		};
 		this.createTerminalSpy = vi.fn().mockReturnValue(this.mockTerminal);
 		this.contributePathSpy = vi.fn();
+		this.removePathContributionSpy = vi.fn();
 	}
 
 	override createTerminal(): Terminal {
@@ -97,6 +100,36 @@ class TestTerminalService extends NullTerminalService {
 
 	override contributePath(contributor: unknown, pathLocation: unknown, description?: unknown, prepend?: unknown): void {
 		this.contributePathSpy(contributor, pathLocation, description, prepend);
+	}
+
+	override removePathContribution(contributor: string): void {
+		this.removePathContributionSpy(contributor);
+	}
+}
+
+/**
+ * Provides `chat.copilotCliCommand.enabled`, which is unset unless a test sets it.
+ */
+class TestConfigurationService {
+	private readonly changeEmitter = new Emitter<{ affectsConfiguration(section: string): boolean }>();
+	readonly onDidChangeConfiguration = this.changeEmitter.event;
+	private commandEnabled: boolean | undefined;
+
+	getConfig() {
+		return true;
+	}
+
+	getNonExtensionConfig<T>(key: string): T | undefined {
+		return (key === 'chat.copilotCliCommand.enabled' ? this.commandEnabled : undefined) as T | undefined;
+	}
+
+	setCommandEnabled(value: boolean | undefined): void {
+		this.commandEnabled = value;
+		this.changeEmitter.fire({ affectsConfiguration: section => section === 'chat.copilotCliCommand.enabled' });
+	}
+
+	dispose(): void {
+		this.changeEmitter.dispose();
 	}
 }
 
@@ -182,6 +215,7 @@ describe('CopilotCLITerminalIntegration', () => {
 	let terminalService: TestTerminalService;
 	let telemetryService: TestTelemetryService;
 	let envService: TestEnvService;
+	let configurationService: TestConfigurationService;
 	let integration: CopilotCLITerminalIntegration;
 	let authService: MockAuthenticationService;
 
@@ -193,7 +227,7 @@ describe('CopilotCLITerminalIntegration', () => {
 			envService as unknown as IEnvService,
 			{ trace: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), createSubLogger: () => ({}) } as unknown as ILogService,
 			telemetryService as unknown as ITelemetryService,
-			{ getConfig: () => true } as unknown as IConfigurationService,
+			configurationService as unknown as IConfigurationService,
 			{ requestResourceTrust: vi.fn().mockResolvedValue(true) } as unknown as IWorkspaceService,
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
 		);
@@ -208,6 +242,7 @@ describe('CopilotCLITerminalIntegration', () => {
 		terminalService = disposables.add(new TestTerminalService());
 		telemetryService = new TestTelemetryService();
 		envService = new TestEnvService();
+		configurationService = disposables.add(new TestConfigurationService());
 		authService = new MockAuthenticationService();
 
 		setupTerminalConfig('zsh', {
@@ -281,7 +316,7 @@ describe('CopilotCLITerminalIntegration', () => {
 				envService as unknown as IEnvService,
 				{ trace: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), createSubLogger: () => ({}) } as unknown as ILogService,
 				telemetryService as unknown as ITelemetryService,
-				{ getConfig: () => true } as unknown as IConfigurationService,
+				configurationService as unknown as IConfigurationService,
 
 				{ requestResourceTrust: vi.fn().mockResolvedValue(true) } as unknown as IWorkspaceService,
 
@@ -356,7 +391,7 @@ describe('CopilotCLITerminalIntegration', () => {
 				{ trace: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), createSubLogger: () => ({}) } as unknown as ILogService,
 				telemetryService as unknown as ITelemetryService,
 
-				{ getConfig: () => true } as unknown as IConfigurationService,
+				configurationService as unknown as IConfigurationService,
 				{ requestResourceTrust: vi.fn().mockResolvedValue(true) } as unknown as IWorkspaceService,
 				new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
 			);
@@ -421,6 +456,27 @@ describe('CopilotCLITerminalIntegration', () => {
 			await createIntegration();
 
 			expect(terminalService.contributePathSpy).not.toHaveBeenCalled();
+		});
+
+		it('should follow chat.copilotCliCommand.enabled, which the CopilotCliCommand policy controls', async () => {
+			terminalService.contributePathSpy.mockClear();
+			configurationService.setCommandEnabled(false);
+			await integration.openTerminal('Disabled Terminal', ['--resume', 'sess-1']);
+			configurationService.setCommandEnabled(true);
+			await integration.openTerminal('Enabled Terminal', ['--resume', 'sess-1']);
+
+			expect({
+				shellArgs: terminalService.createTerminalSpy.mock.calls.map(call => (call[0] as TerminalOptions).shellArgs),
+				removed: terminalService.removePathContributionSpy.mock.calls,
+				contributed: terminalService.contributePathSpy.mock.calls,
+			}).toEqual({
+				shellArgs: [
+					['-ci', 'copilot --resume sess-1'],
+					['-ci', `${escapeForPosixShell(expectedShimPath)} --resume sess-1`],
+				],
+				removed: [['copilot-cli']],
+				contributed: [['copilot-cli', path.dirname(expectedShimPath), { command: 'copilot' }, undefined]],
+			});
 		});
 
 		it('should remove the legacy script shims', async () => {
@@ -496,7 +552,7 @@ describe('CopilotCLITerminalIntegration', () => {
 				{ trace: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), createSubLogger: () => ({}) } as unknown as ILogService,
 				telemetryService as unknown as ITelemetryService,
 
-				{ getConfig: () => true } as unknown as IConfigurationService,
+				configurationService as unknown as IConfigurationService,
 				{ requestResourceTrust: vi.fn().mockResolvedValue(true) } as unknown as IWorkspaceService,
 				new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
 			);

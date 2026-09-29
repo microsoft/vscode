@@ -5,7 +5,7 @@
 //
 // Shim contract used by setup (all files are INI files written atomically by the shim):
 //   copilot.exe --vscode-shim probe --scope user|machine [--no-network] --timeout-ms N --result-file <ini>
-//     [probe] protocol=1, policy=allowed|disabled, aiDisabled=0|1, cliFound=0|1, downloadAvailable=0|1,
+//     [probe] protocol=1, policy=allowed|disabled, cliFound=0|1, downloadAvailable=0|1,
 //             downloadSize=<bytes>, pwshFound=0|1, reason=<text>
 //   copilot.exe --vscode-shim install --non-interactive --consent=installer --progress-file <ini>
 //               --result-file <ini> --cancel-file <path> --running-mutex <name>
@@ -64,7 +64,6 @@ var
   CopilotProbeCompleted: Boolean;
   CopilotProbeStartTick: Cardinal;
   CopilotProbePolicyDisabled: Boolean;
-  CopilotProbeAIDisabled: Boolean;
   CopilotProbeCliFound: Boolean;
   CopilotProbeDownloadAvailable: Boolean;
   CopilotProbeDownloadSizeMB: Int64;
@@ -272,17 +271,26 @@ end;
 
 // Policy, switch, and previous state
 
-function CopilotPolicyDisabled(): Boolean;
+function CopilotProductPolicyDisabled(const Product: String): Boolean;
 var
   Value: Cardinal;
 begin
   // A machine policy takes precedence over a user policy, matching VS Code's policy service.
-  if RegQueryDWordValue(HKLM, 'SOFTWARE\Policies\Microsoft\{#RegValueName}', '{#CopilotCliPolicyName}', Value) then
+  if RegQueryDWordValue(HKLM, 'SOFTWARE\Policies\Microsoft\' + Product, '{#CopilotCliPolicyName}', Value) then
     Result := Value = 0
-  else if RegQueryDWordValue(HKCU, 'SOFTWARE\Policies\Microsoft\{#RegValueName}', '{#CopilotCliPolicyName}', Value) then
+  else if RegQueryDWordValue(HKCU, 'SOFTWARE\Policies\Microsoft\' + Product, '{#CopilotCliPolicyName}', Value) then
     Result := Value = 0
   else
     Result := False;
+end;
+
+function CopilotPolicyDisabled(): Boolean;
+begin
+  // A disabled policy in any quality wins, because the shim of any installed quality can be the one on PATH. The shim
+  // applies the same rule.
+  Result := CopilotProductPolicyDisabled('{#RegValueName}') or CopilotProductPolicyDisabled('VSCode')
+    or CopilotProductPolicyDisabled('VSCodeInsiders') or CopilotProductPolicyDisabled('VSCodeExploration')
+    or CopilotProductPolicyDisabled('CodeOSS');
 end;
 
 function CopilotParseSwitch(const Value: String): String;
@@ -499,12 +507,11 @@ begin
   end;
 
   CopilotProbePolicyDisabled := CompareText(GetIniString('probe', 'policy', 'allowed', ResultFile), 'disabled') = 0;
-  CopilotProbeAIDisabled := GetIniBool('probe', 'aiDisabled', False, ResultFile);
   CopilotProbeCliFound := GetIniBool('probe', 'cliFound', False, ResultFile);
   CopilotProbeDownloadAvailable := GetIniBool('probe', 'downloadAvailable', False, ResultFile);
   CopilotProbeDownloadSizeMB := (StrToInt64Def(GetIniString('probe', 'downloadSize', '0', ResultFile), 0) + 524288) div 1048576;
   CopilotProbePwshFound := GetIniBool('probe', 'pwshFound', True, ResultFile);
-  Log('Copilot: probe policyDisabled=' + BoolToStr(CopilotProbePolicyDisabled) + ', aiDisabled=' + BoolToStr(CopilotProbeAIDisabled)
+  Log('Copilot: probe policyDisabled=' + BoolToStr(CopilotProbePolicyDisabled)
     + ', cliFound=' + BoolToStr(CopilotProbeCliFound) + ', downloadAvailable=' + BoolToStr(CopilotProbeDownloadAvailable)
     + ', downloadSizeMB=' + IntToStr(CopilotProbeDownloadSizeMB) + ', pwshFound=' + BoolToStr(CopilotProbePwshFound)
     + ', reason=' + GetIniString('probe', 'reason', '', ResultFile));
@@ -938,7 +945,7 @@ begin
     exit;
   if CopilotIsUserInstaller() and IsAdmin() then
     exit;
-  if CopilotProbeCompleted and (CopilotProbePolicyDisabled or CopilotProbeAIDisabled or CopilotProbeCliFound) then
+  if CopilotProbeCompleted and (CopilotProbePolicyDisabled or CopilotProbeCliFound) then
     exit;
 
   if CopilotIsUserInstaller() and CopilotProbeCompleted and CopilotProbeDownloadAvailable then

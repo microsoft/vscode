@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 //! Windows services for the setup commands and for finding an installed Copilot CLI: the PATH stored in the registry,
-//! HTTP through WinHTTP (which honors the system proxy configuration), SHA-256 through CNG, Authenticode verification,
-//! and a named mutex that tells VS Code setup the install is still running.
+//! the VS Code `CopilotCliCommand` policy, HTTP through WinHTTP (which honors the system proxy configuration), SHA-256
+//! through CNG, Authenticode verification, and a named mutex that tells VS Code setup the install is still running.
 
 use std::ffi::{OsStr, OsString};
 use std::io::{self, Read};
@@ -36,8 +36,8 @@ use windows_sys::Win32::Security::WinTrust::{
 };
 use windows_sys::Win32::System::Environment::ExpandEnvironmentStringsW;
 use windows_sys::Win32::System::Registry::{
-	RegGetValueW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_NOEXPAND, RRF_RT_REG_EXPAND_SZ,
-	RRF_RT_REG_SZ,
+	RegGetValueW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_NOEXPAND, RRF_RT_REG_DWORD,
+	RRF_RT_REG_EXPAND_SZ, RRF_RT_REG_SZ,
 };
 use windows_sys::Win32::System::Threading::{CreateMutexW, ReleaseMutex};
 
@@ -47,6 +47,9 @@ const USER_ENVIRONMENT_KEY: &str = "Environment";
 
 /// Folder that GitHub's per-user Copilot CLI MSI installs into.
 const CLI_INSTALL_FOLDER: &str = "GitHubCopilotCLI";
+
+/// The policy registry key names (`win32RegValueName`) of the VS Code qualities.
+const PRODUCT_POLICY_KEYS: [&str; 4] = ["VSCode", "VSCodeInsiders", "VSCodeExploration", "CodeOSS"];
 
 fn wide(value: &OsStr) -> Vec<u16> {
 	value.encode_wide().chain(std::iter::once(0)).collect()
@@ -122,6 +125,37 @@ fn registry_path(root: HKEY, subkey: &str) -> Option<OsString> {
 /// The machine PATH stored in the registry, with environment variables expanded.
 pub(crate) fn machine_path() -> Option<OsString> {
 	registry_path(HKEY_LOCAL_MACHINE, MACHINE_ENVIRONMENT_KEY)
+}
+
+fn registry_dword(root: HKEY, subkey: &str, name: &str) -> Option<u32> {
+	let subkey = wide_str(subkey);
+	let name = wide_str(name);
+	let mut value = 0_u32;
+	let mut size = std::mem::size_of::<u32>() as u32;
+	let status = unsafe {
+		RegGetValueW(
+			root,
+			subkey.as_ptr(),
+			name.as_ptr(),
+			RRF_RT_REG_DWORD,
+			null_mut(),
+			(&mut value as *mut u32).cast(),
+			&mut size,
+		)
+	};
+	(status == 0).then_some(value)
+}
+
+/// Whether the `CopilotCliCommand` policy of any VS Code quality turns the command off. For each quality the machine
+/// policy takes precedence over the user policy, as in VS Code. A disabled policy in any quality wins, because the
+/// shim of any installed quality can be the one on PATH.
+pub(crate) fn copilot_cli_command_disabled() -> bool {
+	PRODUCT_POLICY_KEYS.iter().any(|product| {
+		let key = format!(r"SOFTWARE\Policies\Microsoft\{product}");
+		registry_dword(HKEY_LOCAL_MACHINE, &key, super::COPILOT_CLI_COMMAND_POLICY)
+			.or_else(|| registry_dword(HKEY_CURRENT_USER, &key, super::COPILOT_CLI_COMMAND_POLICY))
+			== Some(0)
+	})
 }
 
 fn user_path() -> Option<OsString> {
@@ -654,5 +688,18 @@ mod tests {
 		let file = directory.path().join("unsigned.msi");
 		std::fs::write(&file, b"not a signed package").expect("write unsigned file");
 		assert!(authenticode_signer(&file).is_err());
+	}
+
+	#[test]
+	fn registry_dwords_are_read_only_from_dword_values() {
+		let key = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion";
+		assert_eq!(
+			[
+				registry_dword(HKEY_LOCAL_MACHINE, key, "CurrentMajorVersionNumber"),
+				registry_dword(HKEY_LOCAL_MACHINE, key, "ProductName"),
+				registry_dword(HKEY_LOCAL_MACHINE, key, "NoSuchValue"),
+			],
+			[Some(10), None, None]
+		);
 	}
 }
