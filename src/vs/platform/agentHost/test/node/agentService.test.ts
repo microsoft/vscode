@@ -1187,6 +1187,16 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 }
 
 suite('AgentService (node dispatcher)', () => {
+	async function waitForCondition(predicate: () => boolean | Promise<boolean>, message: string): Promise<void> {
+		for (let i = 0; i < 20; i++) {
+			if (await predicate()) {
+				return;
+			}
+			await timeout(5);
+		}
+		assert.ok(await predicate(), message);
+	}
+
 
 	const disposables = new DisposableStore();
 	let service: AgentService;
@@ -3459,16 +3469,6 @@ suite('AgentService (node dispatcher)', () => {
 				cancellations: ['turn-1', 'turn-1', 'missing-turn', 'turn-2', 'turn-2'].map(turnId => ({ turnId, rejected: false })),
 			});
 		});
-
-		async function waitForCondition(predicate: () => boolean | Promise<boolean>, message: string): Promise<void> {
-			for (let i = 0; i < 20; i++) {
-				if (await predicate()) {
-					return;
-				}
-				await new Promise(resolve => setTimeout(resolve, 5));
-			}
-			assert.ok(await predicate(), message);
-		}
 
 		class TitleTestAgent extends MockAgent {
 			serverToolHost: IAgentServerToolHost | undefined;
@@ -6549,6 +6549,62 @@ suite('AgentService (node dispatcher)', () => {
 				orchestratorDatabase,
 			));
 		}
+
+		test('restores a failed first turn from host storage without replaying it after restart', async () => {
+			const sessionDatabase = new TestSessionDatabase();
+			const sessionDataService = createSessionDataService(sessionDatabase);
+			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
+			const first = createCentralCatalogService(sessionDataService, orchestratorDatabase);
+			const failingAgent = disposables.add(new MockAgent('copilot'));
+			failingAgent.sendMessageError = new Error('first-turn preflight failed');
+			registerTestAgentProvider(first, failingAgent);
+
+			const session = await first.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session.toString());
+			first.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'failed-first-turn',
+				startedAt: '2026-09-29T17:00:00.000Z',
+				message: { text: 'original prompt', origin: { kind: MessageKind.User } },
+			}, 'client', 1, AgentHostClientType.EditorWindow);
+			await waitForCondition(
+				() => getTestAgentStateManager(first).getChatState(chat)?.turns[0]?.responseParts.some(part => part.kind === ResponsePartKind.Error) === true,
+				'first turn should fail before the service is restarted',
+			);
+			await waitForCondition(async () => (await sessionDatabase.getPersistedTurns()).filter(record => record.kind === 'failed').length === 1, 'failed turn should be persisted before the service is restarted');
+			first.dispose();
+
+			const restarted = createCentralCatalogService(sessionDataService, orchestratorDatabase);
+			failingAgent.sendMessageError = undefined;
+			registerTestAgentProvider(restarted, failingAgent);
+			await restarted.restoreSession(session);
+
+			const restoredTurns = getTestAgentStateManager(restarted).getChatState(chat)?.turns ?? [];
+			const sendMessageCallCount = failingAgent.sendMessageCalls.length;
+			restarted.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'retry-turn',
+				startedAt: '2026-09-29T17:01:00.000Z',
+				message: { text: 'retry prompt', origin: { kind: MessageKind.User } },
+			}, 'client', 2, AgentHostClientType.EditorWindow);
+			await waitForCondition(() => failingAgent.sendMessageCalls.length === sendMessageCallCount + 1, 'retry should be sent after restore');
+
+			assert.deepStrictEqual({
+				restored: restoredTurns.map(turn => ({
+					id: turn.id,
+					prompt: turn.message.text,
+					errors: turn.responseParts.filter(part => part.kind === ResponsePartKind.Error).map(part => part.error.message),
+				})),
+				retryPrompts: failingAgent.sendMessageCalls.slice(sendMessageCallCount).map(call => call.prompt),
+			}, {
+				restored: [{
+					id: 'failed-first-turn',
+					prompt: 'original prompt',
+					errors: ['first-turn preflight failed'],
+				}],
+				retryPrompts: ['retry prompt'],
+			});
+		});
 
 		function getStartupTestInternals(service: AgentService) {
 			return service as unknown as {
@@ -16098,9 +16154,9 @@ suite('AgentService (node dispatcher)', () => {
 			// with no anchor (precedes any real turn), plus an orphan whose
 			// anchor is absent from the SDK transcript (should be dropped).
 			const localTurn = (id: string, text: string) => ({ id, message: { text, origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined, state: TurnState.Complete });
-			await db.insertLocalTurn({ turnId: 'local-head', chatUri: defaultChatUri, anchorTurnId: undefined, seq: 1, payload: JSON.stringify(localTurn('local-head', '!pwd')) });
-			await db.insertLocalTurn({ turnId: 'local-after', chatUri: defaultChatUri, anchorTurnId: 'msg-real', seq: 2, payload: JSON.stringify(localTurn('local-after', '!ls')) });
-			await db.insertLocalTurn({ turnId: 'local-orphan', chatUri: defaultChatUri, anchorTurnId: 'gone', seq: 3, payload: JSON.stringify(localTurn('local-orphan', '!echo')) });
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'local-head', chatUri: defaultChatUri, anchorTurnId: undefined, seq: 1, payload: JSON.stringify(localTurn('local-head', '!pwd')) });
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'local-after', chatUri: defaultChatUri, anchorTurnId: 'msg-real', seq: 2, payload: JSON.stringify(localTurn('local-after', '!ls')) });
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'local-orphan', chatUri: defaultChatUri, anchorTurnId: 'gone', seq: 3, payload: JSON.stringify(localTurn('local-orphan', '!echo')) });
 
 			await localService.restoreSession(sessionResource);
 
@@ -18190,7 +18246,7 @@ suite('AgentService (node dispatcher)', () => {
 				{ type: 'message', session, role: 'assistant', messageId: 'real-1-a', content: 'Hi', toolRequests: [] },
 			];
 			const localTurn: Turn = { id: 'local-1', state: TurnState.Complete, message: { text: '!echo hi', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined };
-			await db.insertLocalTurn({ turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
 
 			// Restore so the source chat interleaves [real-1, local-1] and the
 			// in-memory local index knows local-1 is a local turn.
@@ -18202,7 +18258,7 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.createChat(sessionResource, peerUri, { fork: { source: URI.parse(defaultChatUri), turnId: 'local-1' } });
 
 			const peerTurns = getStateManager(localService).getChatState(peerUri.toString())?.turns ?? [];
-			const forkedLocals = (await db.getLocalTurns()).filter(r => r.chatUri === peerUri.toString());
+			const forkedLocals = (await db.getPersistedTurns()).filter(r => r.kind === 'local' && r.chatUri === peerUri.toString());
 			assert.deepStrictEqual({
 				// SDK fork boundary redirected from the local turn to its concrete anchor.
 				sdkForkTurnId: receivedFork?.turnId,
@@ -18739,7 +18795,7 @@ suite('AgentService (node dispatcher)', () => {
 				responseParts: [],
 				usage: undefined,
 			};
-			await db.insertLocalTurn({ turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
 			await localService.restoreSession(sessionResource);
 			const chatUri = URI.parse(buildChatUri(sessionResource, 'side-local'));
 
@@ -18861,7 +18917,7 @@ suite('AgentService (node dispatcher)', () => {
 				responseParts: [],
 				usage: undefined,
 			};
-			await db.insertLocalTurn({ turnId: localTurn.id, chatUri: sourceChat, anchorTurnId: 'real-2', seq: 1, payload: JSON.stringify(localTurn) });
+			await db.insertPersistedTurn({ kind: 'local', turnId: localTurn.id, chatUri: sourceChat, anchorTurnId: 'real-2', seq: 1, payload: JSON.stringify(localTurn) });
 			await localService.restoreSession(sessionResource);
 			localService.dispatchAction(sourceChat, {
 				type: ActionType.ChatTurnStarted,
@@ -24888,7 +24944,7 @@ suite('AgentService (node dispatcher)', () => {
 				sentToAgent: localAgent.sendMessageCalls.length,
 				// The SDK transcript replayed on restore has never seen this turn,
 				// so it only survives reload as a local turn.
-				persistedLocally: (await sessionDb.getLocalTurns()).map(record => ({ chatUri: record.chatUri, turnId: record.turnId })),
+				persistedLocally: (await sessionDb.getPersistedTurns()).filter(record => record.kind === 'local').map(record => ({ chatUri: record.chatUri, turnId: record.turnId })),
 			}, {
 				hiddenMessage: true,
 				origin: MessageKind.SystemNotification,
@@ -24913,7 +24969,7 @@ suite('AgentService (node dispatcher)', () => {
 				// A fresh host over the same durable state must resume monitoring
 				// from the index alone. Remove best-effort local notices so the
 				// changeset catalogue can only recover from persisted config.
-				await sessionDb.deleteLocalTurns((await sessionDb.getLocalTurns()).map(turn => turn.turnId));
+				await sessionDb.deletePersistedTurns((await sessionDb.getPersistedTurns()).filter(turn => turn.kind === 'local').map(turn => turn.turnId));
 				const restarted = createAgentMergeService(sessionDb, orchestratorDb);
 				registerTestAgentProvider(restarted, localAgent);
 				await restarted.whenAgentMergeSessionsRestored();
@@ -24962,7 +25018,7 @@ suite('AgentService (node dispatcher)', () => {
 				// The running turn must keep its own response stream: a notice
 				// appended here would ride on a turn the provider owns.
 				activeTurnParts: stateManager.getChatState(chat)?.activeTurn?.responseParts.length,
-				persisted: (await sessionDb.getLocalTurns()).length,
+				persisted: (await sessionDb.getPersistedTurns()).filter(record => record.kind === 'local').length,
 			};
 
 			stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'agent-turn', duration: 1 });
@@ -24973,8 +25029,8 @@ suite('AgentService (node dispatcher)', () => {
 				duringTurn,
 				afterTurn: {
 					responseParts: notice.responseParts,
-					anchoredTo: (await sessionDb.getLocalTurns()).map(record => record.anchorTurnId),
-					persistedTurnIds: (await sessionDb.getLocalTurns()).map(record => record.turnId),
+					anchoredTo: (await sessionDb.getPersistedTurns()).filter(record => record.kind === 'local').map(record => record.anchorTurnId),
+					persistedTurnIds: (await sessionDb.getPersistedTurns()).filter(record => record.kind === 'local').map(record => record.turnId),
 				},
 			}, {
 				duringTurn: { activeTurnParts: 0, persisted: 0 },
