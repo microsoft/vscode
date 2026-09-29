@@ -894,9 +894,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				return { diffs: [], outcome: 'computed' };
 			}
 			if (strategy === 'fileEditTracker') {
-				return { diffs: await computeTurnDiffs(trackedSource.sessionUri, trackedSource.db, this._diffComputeService, turnId), outcome: 'computed' };
+				const folderScope = this._getTrackedEditFolderScope(trackedSource.sessionUri, this._configurationService.getEffectiveWorkingDirectories(trackedSource.sessionUri));
+				return { diffs: await computeTurnDiffs(trackedSource.sessionUri, trackedSource.db, this._diffComputeService, turnId, folderScope), outcome: 'computed' };
 			}
-			return await this._computeTurnDiffsUsingGit(session, turnId, { strategy, trackedSession: trackedSource.sessionUri, db: trackedSource.db });
+			return await this._computeTurnDiffsUsingGit(trackedSource.sessionUri, turnId, { strategy, trackedSession: trackedSource.sessionUri, db: trackedSource.db });
 		} finally {
 			trackedSource.dispose();
 		}
@@ -954,8 +955,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			// Expected for a non-git folder; otherwise checkpoint capture failed.
 			this._logService.debug(`[AgentHostChangesetService] Turn ${session}/${turnId}: no checkpoint pair; falling back to tracked file edits, which cannot see terminal-tool edits`);
 		}
-		// Fallback: SDK-tracked file_edits aggregator.
-		return computeTurnDiffs(source.trackedSession, source.db, this._diffComputeService, turnId);
+		// Fallback: SDK-tracked file_edits aggregator, scoped to the working directory.
+		return computeTurnDiffs(source.trackedSession, source.db, this._diffComputeService, turnId, workingDir ? [workingDir] : undefined);
 	}
 
 	private _openTrackedTurnSource(session: ProtocolURI, defaultDatabase: ISessionDatabase, turnId: string): { readonly sessionUri: ProtocolURI | undefined; readonly db: ISessionDatabase; dispose(): void } {
@@ -1156,6 +1157,17 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 		}
 		return uris;
+	}
+
+	/**
+	 * Returns the roots that tracked file edits are scoped to. The edit tracker
+	 * records every file the agent edits, including files outside the session
+	 * workspace (e.g. in the agent's session-state folder), which must not be
+	 * reported as session changes. Returns `undefined` — leaving tracked edits
+	 * unscoped — when no working directory is known.
+	 */
+	private _getTrackedEditFolderScope(session: ProtocolURI, workingDirectories: readonly string[] | undefined): readonly URI[] | undefined {
+		return workingDirectories?.length ? this._parseWorkingDirectoryUris(session, workingDirectories) : undefined;
 	}
 
 	/** Computes a complete session delta across repositories and tracked-only folders. */
@@ -1639,6 +1651,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					throw new Error(localize('sessionGitDiffUnavailable', "Git diff is unavailable for the session changeset."));
 				}
 				usedEditTrackerFallback = strategy === 'auto';
+				const folderScope = this._getTrackedEditFolderScope(session, workingDirectories);
 				const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session, strategy === 'fileEditTracker');
 				try {
 					if (peerSources.length > 0) {
@@ -1651,7 +1664,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 						// only used for single-chat below). A follow-up can make
 						// `computeUnionedDiffs` incremental — see its doc comment
 						// and the tracking issue.
-						diffs = await computeUnionedDiffs(sources, this._diffComputeService);
+						diffs = await computeUnionedDiffs(sources, this._diffComputeService, folderScope);
 					} else {
 						let incremental: IIncrementalDiffOptions | undefined;
 						if (changedTurnId) {
@@ -1661,7 +1674,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 								incrementalUsed = true;
 							}
 						}
-						diffs = await computeSessionDiffs(this._getTrackedDatabaseUri(session), ref.object, this._diffComputeService, incremental);
+						diffs = await computeSessionDiffs(this._getTrackedDatabaseUri(session), ref.object, this._diffComputeService, incremental, folderScope);
 						incrementalTrackerBaseline = true;
 					}
 				} finally {

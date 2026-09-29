@@ -58,12 +58,14 @@ interface IChatTurnSource {
 	readonly activeTurnId: IObservable<string | undefined>;
 	readonly activeTurn: IObservable<ActiveTurn | undefined>;
 	readonly changesets: IObservable<readonly Changeset[] | undefined>;
+	readonly workingDirectories: IObservable<readonly string[] | undefined>;
 }
 
 interface IResolvedTurnSource {
 	readonly turn: Turn | ActiveTurn | undefined;
 	readonly chatUri: URI | undefined;
 	readonly changesets: readonly Changeset[] | undefined;
+	readonly workingDirectories: readonly string[] | undefined;
 }
 
 interface ISessionFileChangesSource {
@@ -177,8 +179,10 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		let obs = this._perRequestFileEdits.get(key);
 		if (!obs) {
 			const source = this._getSessionSource(backendSession);
-			const turn = this._createTurnSourceObservable(source, backendChat, requestId).map(source => source.turn);
-			const fileEdits = this._createFileEditDiffsObservable(source, turn);
+			const turnSource = this._createTurnSourceObservable(source, backendChat, requestId);
+			const turn = turnSource.map(source => source.turn);
+			const workspaceRoots = this._createWorkspaceRootsObservable(source, turnSource);
+			const fileEdits = this._createFileEditDiffsObservable(workspaceRoots, turn);
 			obs = derived(reader => fileEdits.read(reader).diffs);
 			this._perRequestFileEdits.set(key, obs);
 		}
@@ -189,6 +193,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		const source = this._getSessionSource(backendSession);
 		const turnSource = this._createTurnSourceObservable(source, backendChat, requestId);
 		const turn = turnSource.map(source => source.turn);
+		const workspaceRoots = this._createWorkspaceRootsObservable(source, turnSource);
 		const isHostNoticeObs = turn.map(isHostNotice);
 
 		const turnChangesetUriObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
@@ -214,7 +219,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		const changesetStateObs = this._subscribeChangeset(turnChangesetUriObs);
 		const changesetStatusObs = changesetStateObs.map(state => state instanceof Error ? undefined : state?.status);
 		const changesetDiffsObs = this._createChangesetDiffsObservable(changesetStateObs);
-		const responseFileEditsObs = this._createFileEditDiffsObservable(source, turn);
+		const responseFileEditsObs = this._createFileEditDiffsObservable(workspaceRoots, turn);
 		const branchFallbackObs = this._createBranchFallbackDiffsObservable(backendSession, source, requestId);
 
 		let lastSource: TurnDiffSource | undefined;
@@ -253,9 +258,15 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			}
 
 			const responseFileEdits = responseFileEditsObs.read(reader);
-			return responseFileEdits.hasValidEdits
-				? select('response', responseFileEdits.diffs.length > 0 ? responseFileEdits.diffs : AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changesetStatus)
-				: select('retained', retained, changesetStatus);
+			if (!responseFileEdits.hasValidEdits) {
+				return select('retained', retained, changesetStatus);
+			}
+			// Match the host's turn changeset, which only covers the workspace once it is known.
+			const hasWorkspace = workspaceRoots.read(reader).length > 0;
+			const responseDiffs = hasWorkspace && responseFileEdits.diffs.some(diff => diff.isOutsideWorkspace)
+				? responseFileEdits.diffs.filter(diff => !diff.isOutsideWorkspace)
+				: responseFileEdits.diffs;
+			return select('response', responseDiffs.length > 0 ? responseDiffs : AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changesetStatus);
 		});
 	}
 
@@ -319,6 +330,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				const activeTurn = observableValue<ActiveTurn | undefined>(this, undefined);
 				const activeTurnId = observableValue<string | undefined>(this, undefined);
 				const changesets = observableValue<readonly Changeset[] | undefined>(this, undefined);
+				const workingDirectories = observableValue<readonly string[] | undefined>(this, undefined);
 				const update = () => {
 					const value = subscription.value;
 					const chat = value instanceof Error ? undefined : value;
@@ -327,6 +339,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 						activeTurnId.set(chat?.activeTurn?.id, tx);
 						activeTurn.set(chat?.activeTurn, tx);
 						changesets.set(chat?.changesets, tx);
+						workingDirectories.set(chat?.workingDirectories, tx);
 					});
 				};
 				// Filter at the event boundary so streamed tokens cannot invalidate historical observers.
@@ -337,6 +350,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 					activeTurn,
 					activeTurnId,
 					changesets,
+					workingDirectories,
 				};
 			});
 			this._chatSources.set(key, source);
@@ -384,23 +398,33 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			let fallback: IResolvedTurnSource | undefined;
 			for (const { uri, source } of chats.read(reader)) {
 				const chat = source.read(reader);
-				fallback ??= { turn: undefined, chatUri: uri, changesets: chat.changesets.read(reader) };
+				const workingDirectories = chat.workingDirectories.read(reader);
+				fallback ??= { turn: undefined, chatUri: uri, changesets: chat.changesets.read(reader), workingDirectories };
 				if (chat.activeTurnId.read(reader) === requestId) {
-					return { turn: chat.activeTurn.read(reader), chatUri: uri, changesets: chat.changesets.read(reader) };
+					return { turn: chat.activeTurn.read(reader), chatUri: uri, changesets: chat.changesets.read(reader), workingDirectories };
 				}
 				const turn = chat.turnsById.read(reader).get(requestId);
 				if (turn) {
-					return { turn, chatUri: uri, changesets: chat.changesets.read(reader) };
+					return { turn, chatUri: uri, changesets: chat.changesets.read(reader), workingDirectories };
 				}
 				if (backendChat) {
 					return fallback;
 				}
 			}
-			return fallback ?? { turn: undefined, chatUri: undefined, changesets: undefined };
+			return fallback ?? { turn: undefined, chatUri: undefined, changesets: undefined, workingDirectories: undefined };
 		});
 	}
 
-	private _createFileEditDiffsObservable(source: IObservable<ISessionFileChangesSource>, turn: IObservable<Turn | ActiveTurn | undefined>): IObservable<IResponseFileEdits> {
+	private _createWorkspaceRootsObservable(source: IObservable<ISessionFileChangesSource>, turnSource: IObservable<IResolvedTurnSource>): IObservable<readonly URI[]> {
+		return derivedOpts<readonly URI[]>({ equalsFn: (a, b) => arrayEquals(a, b, isEqual) }, reader => {
+			const workingDirectories = turnSource.read(reader).workingDirectories;
+			return workingDirectories === undefined
+				? source.read(reader).workspaceRoots.read(reader)
+				: workingDirectories.map(root => URI.parse(root));
+		});
+	}
+
+	private _createFileEditDiffsObservable(workspaceRoots: IObservable<readonly URI[]>, turn: IObservable<Turn | ActiveTurn | undefined>): IObservable<IResponseFileEdits> {
 		const responseParts = turn.map(turn => isHostNotice(turn) ? undefined : turn?.responseParts);
 		const fileEdits = derivedOpts<readonly ISessionFileDiff[]>({ equalsFn: arrayEquals }, reader => {
 			const edits: ISessionFileDiff[] = [];
@@ -414,7 +438,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		return derived(reader => {
 			const edits = fileEdits.read(reader);
 			return edits.length > 0
-				? this._fileEditsToEntryDiffs(edits, source.read(reader).workspaceRoots.read(reader))
+				? this._fileEditsToEntryDiffs(edits, workspaceRoots.read(reader))
 				: EMPTY_RESPONSE_FILE_EDITS;
 		});
 	}
