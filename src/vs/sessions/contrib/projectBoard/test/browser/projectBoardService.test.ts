@@ -1827,19 +1827,21 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(container.textContent, rendered);
 	});
 
-	test('PB-02/PB-16 an Agents-created draft appears immediately and becomes one live unassigned chat', async () => {
+	test('PB-02/PB-16 an Agents draft stays hidden until it becomes one live unassigned chat', async () => {
 		const chat = new TestChat('Agents-created chat');
 		const h = createBoard(mainWindow.document);
 		await h.service.open();
 		h.session.title.set('Agents draft', undefined);
 		h.session.chats.set([chat], undefined);
 		h.newSession.set(h.session, undefined);
-		assert.strictEqual(h.container.querySelector('.project-board-unassigned h4')?.textContent, 'Agents draft');
-		assert.strictEqual(h.container.querySelectorAll('.project-board-agents-draft').length, 1);
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 0);
+		assert.ok(h.container.querySelector('.project-board-unassigned .project-board-empty'));
+		assert.strictEqual(h.newSession.get(), h.session);
+		assert.strictEqual(h.session.title.get(), 'Agents draft');
 		assert.strictEqual(h.container.querySelector('[data-chat-resource]'), null, 'Unsent Agents drafts must not load or open a new backend chat');
 		h.state.sessions = [h.session];
 		h.sessionsChanged.fire({ added: [h.session], removed: [], changed: [] });
-		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 1);
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 0);
 		h.newSession.set(undefined, undefined);
 		assert.deepStrictEqual({
 			cards: h.container.querySelectorAll('.project-board-card').length,
@@ -1851,11 +1853,12 @@ suite('ProjectBoardService', () => {
 		}, { cards: 1, title: 'Agents-created chat', resource: chat.resource.toString(), ownedDrafts: 0, opened: 0, read: false });
 	});
 
-	test('PB-02 discarding an Agents draft removes its preview without deleting or opening another session', async () => {
+	test('PB-02 an Agents draft is excluded from collapsed counts and discarding it leaves the board unchanged', async () => {
 		const h = createBoard(mainWindow.document);
 		await h.service.open();
 		h.newSession.set(h.session, undefined);
-		assert.strictEqual(h.container.querySelectorAll('.project-board-agents-draft').length, 1);
+		h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
+		assert.strictEqual(h.container.querySelector('.project-board-unassigned .project-board-collapsed-summary')?.textContent, '0 sessions');
 		h.newSession.set(undefined, undefined);
 		assert.deepStrictEqual({
 			cards: h.container.querySelectorAll('.project-board-card').length,
@@ -2344,6 +2347,71 @@ suite('ProjectBoardService', () => {
 		h.container.querySelector<HTMLElement>('[data-board-control="new-session"]')!.click();
 		await timeout(0);
 		assert.strictEqual(h.state.createdCount, 2, 'Cancellation must release the creation guard');
+	});
+
+	for (const embedded of [true, false]) {
+		test(`double-clicking an empty cell opens one dialog with its destination in ${embedded ? 'embedded' : 'standalone'} mode`, async () => {
+			const h = createBoard(mainWindow.document);
+			h.state.createdSession = undefined;
+			if (embedded) {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			const barrier = new DeferredPromise<void>();
+			h.state.creationBarrier = barrier;
+			const cell = h.container.querySelector<HTMLElement>('[aria-label="General, P2"]')!;
+			const trigger = (element: Element) => element.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+			trigger(cell.querySelector('.project-board-empty')!);
+			trigger(cell);
+			assert.deepStrictEqual({
+				count: h.state.createdCount, placement: h.state.creationOptions?.initialPlacement,
+				board: h.state.creationOptions?.boardState.boardId, opened: h.opened, sidePanel: h.sidePanelOpened,
+			}, { count: 1, placement: { rowId: 'general', columnId: 'p2' }, board: DEFAULT_PROJECT_BOARD_ID, opened: [], sidePanel: [] });
+			await barrier.complete();
+			await timeout(0);
+			trigger(h.container.querySelector('[aria-label="General, P1"] h3')!);
+			await timeout(0);
+			assert.strictEqual(h.state.createdCount, 2);
+			assert.deepStrictEqual(h.state.creationOptions?.initialPlacement, { rowId: 'general', columnId: 'p1' });
+			h.service.toggleDisplayOption('showSessionList');
+			trigger(h.container.querySelector('[aria-label="General, P3"] .project-board-card-list')!);
+			await timeout(0);
+			assert.strictEqual(h.state.createdCount, 3);
+			assert.deepStrictEqual(h.state.creationOptions?.initialPlacement, { rowId: 'general', columnId: 'p3' });
+		});
+	}
+
+	test('cell double-click leaves existing chats and nested controls alone', async () => {
+		const parent = new TestChat('Parent');
+		const child = new TestChat('Child');
+		const h = createBoard(mainWindow.document, [parent, child]);
+		await h.service.open();
+		await h.moveViaPicker('General, P0', parent.resource);
+		const cell = h.container.querySelector('[aria-label="General, P0"]')!;
+		for (const title of cell.querySelectorAll('h4')) {
+			title.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		}
+		for (const control of cell.querySelectorAll('[role="checkbox"], [role="button"]')) {
+			control.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		}
+		assert.deepStrictEqual({ opened: h.opened, created: h.state.createdCount }, { opened: [parent.resource, child.resource], created: 0 });
+	});
+
+	test('Unassigned, collapsed cells and read-only boards do not start cell creation', async () => {
+		const h = createBoard(mainWindow.document);
+		await h.service.open();
+		const trigger = (selector: string) => h.container.querySelector(selector)!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		trigger('.project-board-unassigned .project-board-empty');
+		h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p0"]')!.click();
+		trigger('[aria-label="General, P0"]');
+		const editable = sinon.stub(h.catalog, 'canEdit').get(() => false);
+		try {
+			trigger('[aria-label="General, P1"]');
+			assert.strictEqual(h.state.createdCount, 0);
+		} finally {
+			editable.restore();
+		}
 	});
 
 	test('embedded creation immediately opens its running chat in the side panel without changing existing-card preferences', async () => {

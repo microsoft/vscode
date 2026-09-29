@@ -150,7 +150,6 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private creatingSession = false;
 	private createSessionButton: Button | undefined;
 	private drafts: readonly IProjectBoardDraft[] = [];
-	private agentsDraft: { resource: URI; title: string; workspace: string | undefined; starting: boolean } | undefined;
 	private readonly questionPreviews = this._register(new DisposableMap<string, IProjectBoardQuestionLease>());
 	private readonly questionChats = new Map<string, IChat>();
 	private readonly questionWidgets = this._register(new DisposableMap<IChatQuestionCarousel, {
@@ -456,7 +455,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.observeSessions();
 	}
 
-	async createSession(): Promise<void> {
+	async createSession(initialPlacement?: IProjectBoardPlacement): Promise<void> {
 		if (this.creatingSession) {
 			return;
 		}
@@ -470,6 +469,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			const session = await dialog.show({
 				container: this.boardElement.closest<HTMLElement>('.monaco-workbench') ?? this.boardElement,
 				boardState: this.boardState,
+				initialPlacement,
 				onDidCreate: (session, placement) => {
 					const chat = session.mainChat.get();
 					createdCardId = getProjectBoardCardId(session, chat);
@@ -596,12 +596,6 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			this.drafts = this.chatWindows.drafts.read(reader);
 			this.model.updateConfiguration(this.boardState.configuration.read(reader));
 			const newSession = this.sessionsManagementService.newSession.read(reader);
-			this.agentsDraft = newSession && !this.drafts.some(draft => isEqual(draft.resource, newSession.resource)) ? {
-				resource: newSession.resource,
-				title: newSession.title.read(reader) || localize('projectBoard.newSession', "New Session"),
-				workspace: newSession.workspace?.read(reader)?.label,
-				starting: !!newSession.isNewSessionRequestInProgress?.read(reader) || newSession.status.read(reader) === SessionStatus.InProgress,
-			} : undefined;
 			const sessions = this.sessionsManagementService.getSessions().filter(session => !newSession || session.providerId !== newSession.providerId || !isEqual(session.resource, newSession.resource));
 			const sessionKeys = new Set(sessions.map(getProjectBoardSessionKey));
 			for (const draft of this.sessionsManagementService.sessionDrafts.read(reader)) {
@@ -1579,13 +1573,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (collapsed) {
 			const summary = document.createElement('span');
 			summary.className = 'project-board-collapsed-summary';
-			summary.textContent = this.sessionCountLabel(allCards.length + missing.length + (placement || !autoIncludeSessions ? 0 : this.drafts.length + (this.agentsDraft ? 1 : 0)));
+			summary.textContent = this.sessionCountLabel(allCards.length + missing.length + (placement || !autoIncludeSessions ? 0 : this.drafts.length));
 			group.appendChild(summary);
 		}
 		if (!placement && autoIncludeSessions) {
-			if (this.agentsDraft) {
-				list.appendChild(this.createAgentsDraftCard(document, this.agentsDraft));
-			}
 			for (const draft of this.drafts) {
 				list.appendChild(this.createDraftCard(document, draft, store));
 			}
@@ -1617,7 +1608,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			store.add(remove.onDidClick(() => this.changeBoard(() => this.boardState.moveCard(placement.cardId, undefined))));
 			list.appendChild(unavailable);
 		}
-		if (totalCount === 0 && (placement || !autoIncludeSessions || (this.drafts.length === 0 && !this.agentsDraft))) {
+		if (totalCount === 0 && (placement || !autoIncludeSessions || this.drafts.length === 0)) {
 			const empty = document.createElement('span');
 			empty.className = 'project-board-empty';
 			empty.textContent = this.showSessionList ? localize('projectBoard.emptySessionList', "Drop a session here") : localize('projectBoard.empty', "Drop a chat here");
@@ -1653,6 +1644,16 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 		store.add(addDisposableListener(group, EventType.DRAG_OVER, event => this.onDragOver(event, placement)));
 		store.add(addDisposableListener(group, EventType.DROP, event => this.onDrop(event, placement)));
+		if (placement && !collapsed) {
+			group.setAttribute('aria-description', localize('projectBoard.cellCreation', "Double-click empty space to start a new session in this cell."));
+			store.add(addDisposableListener(group, EventType.DBLCLICK, event => {
+				if (this.boardState.canEdit && (event.target === group || event.target === heading || event.target === list
+					|| isHTMLElement(event.target) && event.target.classList.contains('project-board-empty'))) {
+					event.preventDefault();
+					void this.createSession(placement);
+				}
+			}));
+		}
 
 		return group;
 	}
@@ -1844,27 +1845,6 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 			this.moveCards(cardIds, placement);
 		}
-	}
-
-	private createAgentsDraftCard(document: Document, draft: NonNullable<ProjectBoardView['agentsDraft']>): HTMLElement {
-		const element = document.createElement('article');
-		element.className = 'project-board-card project-board-card-draft project-board-agents-draft';
-		element.dataset.agentsDraftResource = draft.resource.toString();
-		element.setAttribute('role', 'group');
-		const title = document.createElement('h4');
-		title.textContent = draft.title;
-		element.appendChild(title);
-		element.appendChild(this.createStatus(document, draft.starting ? localize('projectBoard.startingSession', "Starting…") : localize('projectBoard.sessionDraft', "Draft"), draft.starting ? '\u{1F3C3}' : '\u270F\uFE0F', draft.starting));
-		const detail = document.createElement('p');
-		detail.textContent = localize('projectBoard.agentsDraft', "Draft in the Agents window. Send its first message there to start the chat.");
-		element.appendChild(detail);
-		if (draft.workspace) {
-			const workspace = document.createElement('div');
-			workspace.className = 'project-board-card-workspace';
-			workspace.textContent = draft.workspace;
-			element.appendChild(workspace);
-		}
-		return element;
 	}
 
 	private createDraftCard(document: Document, draft: IProjectBoardDraft, store: DisposableStore): HTMLElement {

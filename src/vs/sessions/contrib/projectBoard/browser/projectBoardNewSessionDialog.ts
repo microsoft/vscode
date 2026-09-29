@@ -47,6 +47,7 @@ import { ProjectBoardState } from './projectBoardState.js';
 export interface IProjectBoardNewSessionOptions {
 	readonly container: HTMLElement;
 	readonly boardState: ProjectBoardState;
+	readonly initialPlacement?: IProjectBoardPlacement;
 	readonly onDidCreate: (session: ISession, placement: IProjectBoardPlacement | undefined) => void;
 	readonly onDidResolve?: (from: ISession, to: ISession) => void;
 }
@@ -76,12 +77,7 @@ export class ProjectBoardNewSessionDialog extends Disposable {
 	}
 
 	async show(options: IProjectBoardNewSessionOptions): Promise<ISession | undefined> {
-		const store = this._register(new DisposableStore());
-		const composerServices = new DisposableStore();
 		const { container, boardState } = options;
-		const targetWindow = dom.getWindow(container);
-		const surface = targetWindow === mainWindow ? 'embedded' : 'standalone';
-		const session = observableValue<IActiveSession | undefined>(this, undefined);
 		const configuration = boardState.configuration.get();
 		const destinations = [
 			...(configuration.autoIncludeSessions ? [{ text: localize('projectBoard.unassigned', "Unassigned"), placement: undefined }] : []),
@@ -90,7 +86,18 @@ export class ProjectBoardNewSessionDialog extends Disposable {
 				placement: { rowId: row.id, columnId: column.id },
 			}))),
 		];
-		let placement: IProjectBoardPlacement | undefined = destinations[0]?.placement;
+		const initialIndex = options.initialPlacement ? destinations.findIndex(destination =>
+			destination.placement?.rowId === options.initialPlacement?.rowId && destination.placement?.columnId === options.initialPlacement?.columnId
+		) : 0;
+		if (initialIndex < 0) {
+			throw new Error(localize('projectBoard.initialCellUnavailable', "The selected board cell is no longer available."));
+		}
+		const store = this._register(new DisposableStore());
+		const composerServices = new DisposableStore();
+		const targetWindow = dom.getWindow(container);
+		const surface = targetWindow === mainWindow ? 'embedded' : 'standalone';
+		const session = observableValue<IActiveSession | undefined>(this, undefined);
+		let placement: IProjectBoardPlacement | undefined = destinations[initialIndex]?.placement;
 		let current: IModalDraft | undefined;
 		let transferredDraft: ISessionDraft | undefined;
 		let generation = 0;
@@ -399,7 +406,7 @@ export class ProjectBoardNewSessionDialog extends Disposable {
 					body = dom.append(parent, dom.$('.project-board-new-session-body', { 'data-board-id': boardState.boardId }));
 					const destination = dom.append(body, dom.$('.project-board-new-session-destination'));
 					dom.append(destination, dom.$('span', undefined, localize('projectBoard.newSessionProjectPath', "Project Path")));
-					const picker = store.add(new SelectBox(destinations, 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('projectBoard.newSessionProjectPath', "Project Path"), useCustomDrawn: true }));
+					const picker = store.add(new SelectBox(destinations, initialIndex, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('projectBoard.newSessionProjectPath', "Project Path"), useCustomDrawn: true }));
 					picker.render(destination);
 					const updatePlacement = () => {
 						body?.setAttribute('data-row-id', placement?.rowId ?? '');
