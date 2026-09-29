@@ -28,7 +28,7 @@ import { sendEngineMessagesTelemetry } from '../../../platform/networking/node/c
 import { CAPIWebSocketErrorEvent, IChatWebSocketManager, isCAPIWebSocketError } from '../../../platform/networking/node/chatWebSocketManager';
 import { sendCommunicationErrorTelemetry } from '../../../platform/networking/node/stream';
 import { ChatFailKind, ChatRequestCanceled, ChatRequestFailed, ChatResults, FetchResponseKind } from '../../../platform/openai/node/fetch';
-import { collectSystemTextsFromRequestBody, CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, normalizeProviderMessages, normalizeResponseModel, StdAttr, stringifyToolDefinitionsForOTel, stringifyToolsRawForTelemetry, toSystemInstructions, truncateForOTel } from '../../../platform/otel/common/index';
+import { collectSystemTextsFromRequestBody, CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, normalizeProviderMessages, normalizeResponseModel, StdAttr, stringifyToolDefinitionsForOTel, stringifyToolsRawForTelemetry, toSystemInstructions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -1055,6 +1055,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
 				[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
 				[GenAiAttr.REQUEST_MODEL]: chatEndpointInfo.model,
+				...(isAutoModel(chatEndpointInfo) === 1 ? { [GitHubCopilotAttr.AUTO_MODE]: true } : {}),
 				...((conversationId ?? chatSessionId) ? { [GenAiAttr.CONVERSATION_ID]: conversationId ?? chatSessionId } : {}),
 				[GenAiAttr.REQUEST_MAX_TOKENS]: request.max_tokens ?? request.max_output_tokens ?? request.max_completion_tokens ?? 2048,
 				...(request.temperature !== undefined ? { [GenAiAttr.REQUEST_TEMPERATURE]: request.temperature } : {}),

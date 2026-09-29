@@ -8,6 +8,7 @@ import type * as vscode from 'vscode';
 import { InlineChatIntent } from '../../node/inlineChatIntent';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
+import { AutoChatEndpoint } from '../../../../platform/endpoint/node/autoChatEndpoint';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IToolsService } from '../../../tools/common/toolsService';
@@ -62,6 +63,8 @@ interface InlineChatHarnessOptions {
 	readonly toolResults?: readonly { readonly hasError?: boolean }[];
 	readonly advanceTime?: (ms: number) => void;
 	readonly markEditOnSuccessfulTool?: boolean;
+	/** Make the endpoint look like one resolved by Auto model selection. */
+	readonly autoEndpoint?: boolean;
 }
 
 
@@ -189,6 +192,20 @@ suite('InlineChatIntent', () => {
 				})
 			})
 		]);
+	});
+
+	test('invoke_agent span carries auto_mode only when the endpoint came from Auto model selection', async () => {
+		const autoMode = async (autoEndpoint: boolean) => {
+			const harness = createInlineChatHarness({ autoEndpoint });
+			try {
+				await harness.run();
+			} finally {
+				harness.restore();
+			}
+			return harness.otelService.spans.find(s => s.name === 'invoke_agent Inline Chat')?.attributes[GitHubCopilotAttr.AUTO_MODE];
+		};
+
+		expect({ auto: await autoMode(true), pinned: await autoMode(false) }).toEqual({ auto: true, pinned: undefined });
 	});
 
 	test('Bail-out exit tool is invoked inside the invoke_agent span', async () => {
@@ -455,6 +472,10 @@ function createInlineChatHarness(options: InlineChatHarnessOptions = {}) {
 				};
 			})
 		};
+
+		if (options.autoEndpoint) {
+			Object.setPrototypeOf(mockEndpoint, AutoChatEndpoint.prototype);
+		}
 
 		const mockEndpointProvider = {
 			getChatEndpoint: vi.fn().mockResolvedValue(mockEndpoint)

@@ -303,6 +303,7 @@ Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as t
 | `gen_ai.usage.cache_read.input_tokens` | When available | `8000` |
 | `gen_ai.usage.cache_creation.input_tokens` | When available | `4200` |
 | `github.copilot.agent.type` | Always | `builtin` \| `custom` \| `plugin` |
+| `github.copilot.auto_mode` | When Auto model selection picked the model | `true` |
 | `github.copilot.git.repository` | When in a repo | `https://github.com/microsoft/vscode.git` |
 | `github.copilot.git.branch` | When in a repo | `main` |
 | `github.copilot.git.commit_sha` | When in a repo | `deadbeef...` |
@@ -323,6 +324,7 @@ Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as t
 | `gen_ai.operation.name` | Required | `chat` |
 | `gen_ai.provider.name` | Required | `github` |
 | `gen_ai.request.model` | Required | `gpt-4o` |
+| `github.copilot.auto_mode` | When Auto model selection picked the model | `true` |
 | `gen_ai.conversation.id` | Session correlation (when a session is available) | `a1b2c3d4-...` |
 | `copilot_chat.session_id` | Session correlation | `a1b2c3d4-...` |
 | `copilot_chat.chat_session_id` | Session correlation | VS Code chat session ID |
