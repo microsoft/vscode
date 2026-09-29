@@ -89,7 +89,7 @@ export const sessionBrowsersPillOptions: IChatDropdownPillOptions = {
 /** Shared presentation of the customizations pill. */
 export const sessionCustomizationsPillOptions: IChatDropdownPillOptions = {
 	widgetId: 'sessionCustomizations',
-	icon: Codicon.bookmark,
+	icon: Codicon.extensions,
 	title: localize('sessionCustomizations.title', "Customizations"),
 	summaryLabel: count => count === 1
 		? localize('sessionCustomizations.countSingle', "1 Customization")

@@ -108,6 +108,7 @@ function getCustomizationPath(uri: URI, sessionFolders: readonly ISessionFolder[
 /** Publishes the active chat's customization sections for the chat input pill. */
 export class SessionCustomizations extends Disposable {
 	readonly sections: IObservable<readonly IChatPillSection[]>;
+	readonly dropdownActions: readonly IChatPillEntry[];
 
 	constructor(
 		chat: IObservable<IChat | undefined>,
@@ -121,6 +122,14 @@ export class SessionCustomizations extends Disposable {
 			const sessionFolders = session.read(reader)?.workspace.read(reader)?.folders ?? [];
 			return buildSessionCustomizationSections(customizations, sessionFolders, customization => this._reveal(customization));
 		});
+		this.dropdownActions = [{
+			id: AICustomizationManagementCommands.OpenEditor,
+			label: localize('sessionCustomizations.openCustomizations', "Open Customizations"),
+			icon: Codicon.extensions,
+			open: () => {
+				void this._commandService.executeCommand(AICustomizationManagementCommands.OpenEditor);
+			},
+		}];
 	}
 
 	private _reveal(customization: ISessionChatCustomization): void {

@@ -21,7 +21,7 @@ import { constObservable, derived, observableValue } from '../../../base/common/
 import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { IActionListDelegate, IActionListItem } from '../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../platform/actionWidget/browser/actionWidget.js';
 import { IFileContent, IFileService } from '../../../platform/files/common/files.js';
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
@@ -589,6 +589,54 @@ suite('ChatPills', () => {
 			buttonPreserved: true,
 			labelPreserved: true,
 			labelText: '2 Pull Requests',
+		});
+
+		disposables.dispose();
+	});
+
+	test('appends dropdown actions after a separator without including them in the pill count', () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const action = disposables.add(new Action('customizations', 'Customizations'));
+		const sections = constObservable<readonly IChatPillSection[]>([{
+			title: 'Skills',
+			entries: [
+				{ id: 'one', label: 'One', open: () => { } },
+				{ id: 'two', label: 'Two', open: () => { } },
+			],
+		}]);
+		const viewItem = disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, sections, {
+			widgetId: 'customizations',
+			icon: Codicon.extensions,
+			title: 'Customizations',
+			summaryLabel: count => `${count} Customizations`,
+			summaryAriaLabel: count => `Show ${count} customizations`,
+			dropdownActions: [{
+				id: 'openCustomizations',
+				label: 'Open Customizations',
+				icon: Codicon.extensions,
+				open: () => { },
+			}],
+		}));
+		const container = mainWindow.document.createElement('div');
+		viewItem.render(container);
+
+		assert.deepStrictEqual({
+			label: container.querySelector('.chat-pill-label')?.textContent,
+			items: getDropdownPillItems.call(viewItem).map(item => ({
+				kind: item.kind,
+				label: item.label,
+				icon: item.group?.icon?.id,
+			})),
+		}, {
+			label: '2 Customizations',
+			items: [
+				{ kind: ActionListItemKind.Header, label: 'Skills', icon: undefined },
+				{ kind: ActionListItemKind.Action, label: 'One', icon: undefined },
+				{ kind: ActionListItemKind.Action, label: 'Two', icon: undefined },
+				{ kind: ActionListItemKind.Separator, label: '', icon: undefined },
+				{ kind: ActionListItemKind.Action, label: 'Open Customizations', icon: Codicon.extensions.id },
+			],
 		});
 
 		disposables.dispose();

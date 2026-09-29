@@ -4,14 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildSessionCustomizationSections } from '../../browser/sessionCustomizations.js';
-import { ISessionChatCustomization, ISessionFolder, SessionCustomizationKind } from '../../../../services/sessions/common/session.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { buildSessionCustomizationSections, SessionCustomizations } from '../../browser/sessionCustomizations.js';
+import { IChat, ISessionChatCustomization, ISessionFolder, SessionCustomizationKind } from '../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('Session Customizations', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const customization = (id: string, kind: SessionCustomizationKind, name: string): ISessionChatCustomization =>
 		({ id, kind, name, uri: URI.file(`/repo/${id}.md`) });
@@ -80,5 +86,41 @@ suite('Session Customizations', () => {
 
 	test('no customizations yields no sections', () => {
 		assert.deepStrictEqual(buildSessionCustomizationSections([], [], () => { }), []);
+	});
+
+	test('opens the Customizations editor from the dropdown action', async () => {
+		const commands: { id: string; args: readonly unknown[] }[] = [];
+		const model = disposables.add(new SessionCustomizations(
+			constObservable<IChat | undefined>(undefined),
+			constObservable<IActiveSession | undefined>(undefined),
+			new class extends mock<ICommandService>() {
+				override executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+					commands.push({ id, args });
+					return Promise.resolve(undefined);
+				}
+			},
+		));
+
+		model.dropdownActions[0].open();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			actions: model.dropdownActions.map(action => ({
+				id: action.id,
+				label: action.label,
+				icon: action.icon?.id,
+			})),
+			commands,
+		}, {
+			actions: [{
+				id: AICustomizationManagementCommands.OpenEditor,
+				label: 'Open Customizations',
+				icon: Codicon.extensions.id,
+			}],
+			commands: [{
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [],
+			}],
+		});
 	});
 });

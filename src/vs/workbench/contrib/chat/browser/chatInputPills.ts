@@ -53,6 +53,8 @@ export interface IStandardChatInputPillSections {
 	/** Keeps configuration reachable when the source filters out all its entries. */
 	readonly hasData?: IObservable<boolean>;
 	readonly icon?: ThemeIcon | IObservable<ThemeIcon>;
+	/** Actions appended after the dropdown's content sections without contributing to its count. */
+	readonly dropdownActions?: readonly IChatPillEntry[];
 	getContextMenuActions?(): readonly IAction[];
 	getContextMenuPrimaryActions?(): readonly IAction[];
 }
@@ -135,6 +137,7 @@ export class StandardChatInputPillSources extends Disposable {
 			const pillSource = createChatSectionPillSource(kind, action, source.sections, {
 				...options,
 				...(source.icon ? { icon: source.icon } : {}),
+				...(source.dropdownActions ? { dropdownActions: source.dropdownActions } : {}),
 				preferredAnchorPosition: AnchorPosition.ABOVE,
 			}, resourceLabels, instantiationService);
 			sources.push({
