@@ -138,6 +138,28 @@ describe('OTelStaleConfigMonitor', () => {
 		expect({ restarts: host.restarts, prompts: host.prompts }).toEqual({ restarts: 1, prompts: 0 });
 	});
 
+	it('does not prompt while a forced refresh publishes restrictive placeholders', async () => {
+		const resolver = new TestResolver(settings);
+		const monitor = new OTelStaleConfigMonitor(resolver, host, log);
+		settings.policySlotDefaults = { exporterType: '', otlpEndpoint: '', captureIdentity: false };
+		expect(await monitor.check()).toBe(OTelConfigDrift.None);
+		expect({ restarts: host.restarts, prompts: host.prompts }).toEqual({ restarts: 0, prompts: 0 });
+
+		settings.policySlotDefaults = {};
+		settings.policy = managedPolicy;
+		await startRestart(monitor);
+		expect({ restarts: host.restarts, prompts: host.prompts }).toEqual({ restarts: 1, prompts: 0 });
+	});
+
+	it('recovers settled policy when service construction observed a forced-refresh placeholder', async () => {
+		settings.policySlotDefaults = { exporterType: '', otlpEndpoint: '', captureIdentity: false };
+		const monitor = newHost();
+		settings.policySlotDefaults = {};
+		settings.policy = managedPolicy;
+		await startRestart(monitor);
+		expect({ restarts: host.restarts, prompts: host.prompts }).toEqual({ restarts: 1, prompts: 0 });
+	});
+
 	it('acknowledges a successful restart exactly once and retains the session budget', async () => {
 		const first = newHost();
 		settings.policy = managedPolicy;
