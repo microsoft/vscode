@@ -1340,13 +1340,15 @@ suite('SessionsManagementService', () => {
 			const sessionRead = observableValue('sessionRead', false);
 			const mainRead = observableValue('mainRead', true);
 			const peerRead = observableValue('peerRead', false);
+			const archivedRead = observableValue('archivedRead', false);
 			const main: IChat = { ...stubChat, resource: URI.parse('test:///main'), isRead: mainRead };
 			const peer: IChat = { ...stubChat, resource: URI.parse('test:///peer'), isRead: peerRead };
+			const archived: IChat = { ...stubChat, resource: URI.parse('test:///archived'), isRead: archivedRead, isArchived: constObservable(true) };
 			const session = stubSession({
 				sessionId: 'multi-chat',
 				providerId: 'test',
 				isRead: sessionRead,
-				chats: constObservable([main, peer]),
+				chats: constObservable([main, peer, archived]),
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			});
@@ -1370,12 +1372,14 @@ suite('SessionsManagementService', () => {
 				activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
 				mainRead: mainRead.get(),
 				peerRead: peerRead.get(),
+				archivedRead: archivedRead.get(),
 				sessionRead: sessionRead.get(),
 				changes,
 			}, {
 				activeChat: peer.resource.toString(),
 				mainRead: true,
 				peerRead: true,
+				archivedRead: false,
 				sessionRead: true,
 				changes: [`chat:${peer.resource.path}:true`, 'session:true'],
 			});

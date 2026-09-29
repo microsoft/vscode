@@ -523,7 +523,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (!activeChat.isRead.read(reader)) {
 				this.sessionsManagementService.markChatRead(activeSession, activeChat, { preserveExplicitUnread: !activeSessionChanged }).catch(onUnexpectedError);
 			}
-			const allChatsRead = activeSession.chats.read(reader).every(chat => chat.isRead.read(reader));
+			const allChatsRead = activeSession.chats.read(reader).every(chat => chat.isArchived.read(reader) || chat.isRead.read(reader));
 			if (allChatsRead && !activeSession.isRead.read(reader)) {
 				this.sessionsManagementService.markRead(activeSession, { preserveExplicitUnread: !activeSessionChanged }).catch(onUnexpectedError);
 			}

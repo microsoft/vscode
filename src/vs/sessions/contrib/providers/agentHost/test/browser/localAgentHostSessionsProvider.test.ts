@@ -6735,6 +6735,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-1'));
 			agentHost.addSession(createSession(rawId, {
 				summary: 'Session',
+				status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead,
 				chats: [
 					{ chat: defaultChat, kind: 'default', summary: 'Default' },
 					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer', interactivity: ProtocolChatInteractivity.Hidden, archived: true },
@@ -6758,12 +6759,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 				interactivity: session.chats.get().map(chat => chat.interactivity.get()),
 				observedInteractivity,
 				observedArchived,
+				initialPeerRead: initialPeer.isRead.get(),
 				sessionSubscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
 			}, {
 				titles: ['Default', 'Catalog Peer'],
 				interactivity: [ChatInteractivity.Full, ChatInteractivity.Hidden],
 				observedInteractivity: ChatInteractivity.Hidden,
 				observedArchived: true,
+				initialPeerRead: true,
 				sessionSubscriptions: 0,
 			});
 
@@ -6781,12 +6784,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 				peerIdentityPreserved: session.chats.get()[1] === initialPeer,
 				peerTitle: session.chats.get()[1].title.get(),
 				peerStatus: session.chats.get()[1].status.get(),
+				peerRead: session.chats.get()[1].isRead.get(),
 				supportsMultipleChats: session.capabilities.get().supportsMultipleChats,
 			}, {
 				sessionSubscriptions: 1,
 				peerIdentityPreserved: true,
 				peerTitle: 'Hydrated Peer',
 				peerStatus: SessionStatus.InProgress,
+				peerRead: false,
 				supportsMultipleChats: false,
 			});
 		});
@@ -7398,6 +7403,128 @@ suite('LocalAgentHostSessionsProvider', () => {
 				afterOpen: true,
 				afterUnchangedCatalog: true,
 				afterNewActivity: false,
+			});
+		});
+
+		test('local read marks survive the first older authoritative chat catalog', async () => {
+			const rawId = 'multi-first-chat-state';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer'));
+			agentHost.addSession(createSession(rawId, {
+				summary: 'Session',
+				modifiedTime: 2_000,
+				chats: [
+					{ chat: defaultChat, kind: 'default', summary: 'Default' },
+					{ chat: peerChat, kind: 'peer', summary: 'Peer' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === rawId);
+			assert.ok(session);
+			const main = session.mainChat.get();
+			const peer = session.chats.get()[1];
+			await provider.setChatReadState(session.sessionId, main.resource, true);
+			await provider.setChatReadState(session.sessionId, peer.resource, true);
+			disposables.add(autorun(reader => {
+				main.isRead.read(reader);
+				peer.isRead.read(reader);
+			}));
+
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				{ ...makeChatSummary(defaultChat.toString(), 'Default'), modifiedAt: new Date(1_000).toISOString() },
+				{ ...makeChatSummary(peerChat.toString(), 'Peer'), modifiedAt: new Date(1_000).toISOString() },
+			], { defaultChat: defaultChat.toString() }));
+
+			assert.deepStrictEqual({
+				mainRead: main.isRead.get(),
+				peerRead: peer.isRead.get(),
+			}, {
+				mainRead: true,
+				peerRead: true,
+			});
+		});
+
+		test('session-wide read changes update every chat projection', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-session-read-state');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-session-read-state').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer');
+			agentHost.setSessionState('multi-session-read-state', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, 'Default', ProtocolSessionStatus.Idle),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle),
+			], { defaultChat }));
+			const main = session.mainChat.get();
+			const peer = session.chats.get()[1];
+
+			await provider.setSessionReadState(session.sessionId, true);
+			const afterRead = { session: session.isRead.get(), main: main.isRead.get(), peer: peer.isRead.get() };
+			await provider.setSessionReadState(session.sessionId, false);
+
+			assert.deepStrictEqual({
+				afterRead,
+				afterUnread: { session: session.isRead.get(), main: main.isRead.get(), peer: peer.isRead.get() },
+			}, {
+				afterRead: { session: true, main: true, peer: true },
+				afterUnread: { session: false, main: false, peer: false },
+			});
+		});
+
+		test('single-chat read changes update the session read state', async () => {
+			const rawId = 'single-chat-read-state';
+			agentHost.addSession(createSession(rawId, { summary: 'Session', status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead }));
+			const provider = createProvider(disposables, agentHost);
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === rawId);
+			assert.ok(session);
+
+			await provider.setChatReadState(session.sessionId, session.mainChat.get().resource, false);
+
+			assert.deepStrictEqual({
+				sessionRead: session.isRead.get(),
+				mainRead: session.mainChat.get().isRead.get(),
+			}, {
+				sessionRead: false,
+				mainRead: false,
+			});
+		});
+
+		test('default chat exposes its own activity instead of aggregate peer activity', async () => {
+			const rawId = 'multi-default-activity';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer'));
+			agentHost.addSession(createSession(rawId, {
+				summary: 'Session',
+				activity: 'Aggregate peer activity',
+				chats: [
+					{ chat: defaultChat, kind: 'default', summary: 'Default' },
+					{ chat: peerChat, kind: 'peer', summary: 'Peer' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === rawId);
+			assert.ok(session);
+			disposables.add(autorun(reader => session.mainChat.read(reader).description.read(reader)));
+
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				{ ...makeChatSummary(defaultChat.toString(), 'Default'), activity: 'Default activity' },
+				{ ...makeChatSummary(peerChat.toString(), 'Peer'), activity: 'Peer activity' },
+			], { defaultChat: defaultChat.toString() }));
+
+			assert.deepStrictEqual({
+				main: session.mainChat.get().description.get()?.value,
+				peer: session.chats.get()[1].description.get()?.value,
+			}, {
+				main: 'Default&nbsp;activity',
+				peer: 'Peer&nbsp;activity',
 			});
 		});
 

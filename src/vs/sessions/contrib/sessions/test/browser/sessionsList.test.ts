@@ -3738,19 +3738,23 @@ suite('Sessions - SessionsList', () => {
 			};
 
 			const activity = readDetails();
+			const activityAria = container.querySelector('.session-chat-item')?.closest('.monaco-list-row')?.getAttribute('aria-label');
 			description.set(undefined, undefined);
 			const fallback = readDetails();
+			const fallbackAria = container.querySelector('.session-chat-item')?.closest('.monaco-list-row')?.getAttribute('aria-label');
 			status.set(SessionStatus.Completed, undefined);
 			const completed = readDetails();
 
-			assert.deepStrictEqual({ activity, fallback, completed }, {
+			assert.deepStrictEqual({ activity, activityAria, fallback, fallbackAria, completed }, {
 				activity: { text: 'Running tests', time: undefined },
+				activityAria: 'Peer chat, chat, updated now, State: In Progress, Running tests',
 				fallback: { text: 'Working...', time: undefined },
+				fallbackAria: 'Peer chat, chat, updated now, State: In Progress, Working...',
 				completed: { text: 'now', time: 'now' },
 			});
 		});
 
-		test('shows the main chat activity instead of aggregate peer activity', () => {
+		test('shows main chat activity while expanded and aggregate peer activity while collapsed', () => {
 			const main: IChat = {
 				...createChat('Main chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress),
 				description: constObservable(new MarkdownString('Main chat activity')),
@@ -3769,11 +3773,44 @@ suite('Sessions - SessionsList', () => {
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
 			const { container } = renderSessionChatsList(session);
+			const readDescription = () => container.querySelector<HTMLElement>('.session-item .session-details-row')?.textContent;
+			const expanded = readDescription();
+			setSessionChatsExpanded(container, false);
 
 			assert.deepStrictEqual(
-				container.querySelector<HTMLElement>('.session-item .session-details-row')?.textContent,
-				'Main chat activity',
+				{ expanded, collapsed: readDescription() },
+				{ expanded: 'Main chat activity', collapsed: 'Peer chat activity' },
 			);
+		});
+
+		test('shows aggregate time while collapsed and main chat time while expanded', () => {
+			const aggregateUpdatedAt = new Date();
+			const mainUpdatedAt = new Date(Date.now() - 5 * 60 * 60 * 1000);
+			const main: IChat = { ...createChat('Main chat'), updatedAt: constObservable(mainUpdatedAt) };
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				updatedAt: constObservable(aggregateUpdatedAt),
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container } = renderSessionChatsList(session);
+			const read = () => ({
+				time: container.querySelector<HTMLElement>('.session-item .session-time')?.textContent,
+				aria: container.querySelector('.session-item')?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			});
+			const expanded = read();
+			setSessionChatsExpanded(container, false);
+
+			assert.deepStrictEqual({
+				expanded,
+				collapsed: read(),
+			}, {
+				expanded: { time: '5 hrs ago', aria: 'Session, updated 5 hrs ago, State: Completed, in Workspace' },
+				collapsed: { time: 'now', aria: 'Session, updated now, State: Completed, in Workspace' },
+			});
 		});
 
 		test('keeps the sticky session hierarchy opaque and actions trailing aligned while nested chats scroll beneath it', async () => {
@@ -4647,7 +4684,7 @@ suite('Sessions - SessionsList', () => {
 					},
 				])
 			), {
-				'Active chat': { hasProgress: true, hasDot: false, hasDiscussion: false, ariaLabel: 'Active chat, chat, updated now, State: In Progress' },
+				'Active chat': { hasProgress: true, hasDot: false, hasDiscussion: false, ariaLabel: 'Active chat, chat, updated now, State: In Progress, Working...' },
 			});
 		});
 
@@ -4905,7 +4942,7 @@ suite('Sessions - SessionsList', () => {
 				aggregateStatus: session.status.get(),
 			}, {
 				session: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' },
-				peerChatNeedsInput: 'Peer chat, chat, updated now, State: Input Needed',
+				peerChatNeedsInput: 'Peer chat, chat, updated now, State: Input Needed, Input needed',
 				aggregateStatus: SessionStatus.NeedsInput,
 			});
 		});
@@ -4989,7 +5026,7 @@ suite('Sessions - SessionsList', () => {
 				ariaLabel: peerRow.closest('.monaco-list-row')?.getAttribute('aria-label'),
 			}, {
 				errorIcon: true,
-				ariaLabel: 'Failed chat, chat, updated now, State: Failed',
+				ariaLabel: 'Failed chat, chat, updated now, State: Failed, Failed',
 			});
 		});
 

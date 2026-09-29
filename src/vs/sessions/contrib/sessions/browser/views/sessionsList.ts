@@ -287,6 +287,16 @@ function getSessionRowIsRead(session: ISession, reader: IReader | undefined, der
 	return session.mainChat.read(reader).isRead.read(reader);
 }
 
+function isSessionRowMainChatScoped(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed: boolean): boolean {
+	return deriveFromMainChat && (!collapsed || session.chats.read(reader).length <= 1);
+}
+
+function getSessionRowUpdatedAt(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed: boolean): Date {
+	return isSessionRowMainChatScoped(session, reader, deriveFromMainChat, collapsed)
+		? session.mainChat.read(reader).updatedAt.read(reader)
+		: session.updatedAt.read(reader);
+}
+
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
 	return 'group' in item;
 }
@@ -1597,15 +1607,17 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const timeDisposable = template.elementDisposables.add(new MutableDisposable());
 		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
 		template.elementDisposables.add(autorun(reader => {
+			const collapsed = this.options.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true;
 			const sessionStatus = getSessionRowStatus(
 				element,
 				reader,
 				!!this.options.deriveStatusFromMainChat,
-				this.options.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true,
+				collapsed,
 			);
 			const workspace = element.workspace.read(reader);
-			const mainChat = this.options.deriveStatusFromMainChat ? element.mainChat.read(reader) : undefined;
-			const description = mainChat ? mainChat.description.read(reader) : element.description.read(reader);
+			const mainChatScoped = isSessionRowMainChatScoped(element, reader, !!this.options.deriveStatusFromMainChat, collapsed);
+			const mainChat = mainChatScoped ? element.mainChat.read(reader) : undefined;
+			const description = mainChatScoped ? mainChat!.description.read(reader) : element.description.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
 
 			// Clear and rebuild details row
@@ -1647,7 +1659,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const hideDetails = sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput;
 
 			if (!hideDetails) {
-				timeDate = (mainChat ?? element.mainChat.read(reader)).updatedAt.read(reader);
+				timeDate = getSessionRowUpdatedAt(element, reader, !!this.options.deriveStatusFromMainChat, collapsed);
 			}
 
 			const parts: HTMLElement[] = [];
@@ -2629,11 +2641,19 @@ class SessionsAccessibilityProvider {
 			return derived(this, reader => {
 				const title = getChatTitle(element.chat, reader);
 				const updated = fromNow(element.chat.updatedAt.read(reader), true);
-				const status = getSessionConversationStatusAriaLabel(element.chat.status.read(reader));
+				const chatStatus = element.chat.status.read(reader);
+				const status = getSessionConversationStatusAriaLabel(chatStatus);
 				const folderLabel = getChatWorkspaceBadgeLabel(element.session.workspace.read(reader), element.chat.workspace.read(reader));
-				const label = folderLabel
+				let label = folderLabel
 					? localize('sessionChatItemFolderAria', "{0}, chat in folder {1}, updated {2}, {3}", title, folderLabel, updated, status)
 					: localize('sessionChatItemAria', "{0}, chat, updated {1}, {2}", title, updated, status);
+				const statusMessage = this.options?.compact?.() ? undefined : getSessionStatusMessage(chatStatus, element.chat.description.read(reader));
+				if (statusMessage !== undefined) {
+					const statusMessageLabel = typeof statusMessage === 'string'
+						? statusMessage
+						: renderAsPlaintext(statusMessage, { omitMarkdownSyntax: true });
+					label = localize('sessionChatItemActivityAria', "{0}, {1}", label, statusMessageLabel);
+				}
 				const isArchived = element.chat.isArchived.read(reader);
 				const readLabel = !isArchived && !element.chat.isRead.read(reader)
 					? localize('sessionChatItemUnreadAria', "{0}, unread", label)
@@ -2704,7 +2724,8 @@ class SessionsAccessibilityProvider {
 		}
 		return derived(this, reader => {
 			const title = element.title.read(reader);
-			const updated = fromNow(element.mainChat.read(reader).updatedAt.read(reader), true);
+			const collapsed = this.options?.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true;
+			const updated = fromNow(getSessionRowUpdatedAt(element, reader, !!this.options?.deriveStatusFromMainChat, collapsed), true);
 			let label: string;
 			if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
 				label = localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, updated);
@@ -2713,7 +2734,6 @@ class SessionsAccessibilityProvider {
 			} else {
 				label = localize('sessionItemAria', "{0}, updated {1}", title, updated);
 			}
-			const collapsed = this.options?.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true;
 			const status = getSessionRowStatus(
 				element,
 				reader,
