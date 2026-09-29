@@ -185,15 +185,19 @@ export function getAgentHostSessionBrowserOwnerIds(sessionResource: URI, state: 
 
 	for (const chat of state.chats) {
 		const parentChatResource = chat.origin?.kind === ChatOriginKind.Tool ? parseUri(chat.origin.chat) : undefined;
-		const parsedChat = parseChatUri(chat.resource);
-		if (!parentChatResource || !isEqual(parentChatResource, currentChatResource) || !parsedChat) {
+		if (!parentChatResource || !isEqual(parentChatResource, currentChatResource)) {
 			continue;
 		}
 
-		ownerIds.add(sessionResource.with({ fragment: parsedChat.chatId, query: null }).toString());
 		const query = new URLSearchParams(sessionResource.query);
 		query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, chat.resource);
-		ownerIds.add(sessionResource.with({ fragment: parsedChat.chatId, query: query.toString() }).toString());
+		ownerIds.add(sessionResource.with({ fragment: chat.resource, query: query.toString() }).toString());
+		// Retain browser ownership for editors restored with the legacy local chat fragment.
+		const parsedChat = parseChatUri(chat.resource);
+		if (parsedChat) {
+			ownerIds.add(sessionResource.with({ fragment: parsedChat.chatId, query: null }).toString());
+			ownerIds.add(sessionResource.with({ fragment: parsedChat.chatId, query: query.toString() }).toString());
+		}
 	}
 	return ownerIds;
 }
@@ -746,12 +750,19 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 		const workingDirectories = derived(this, reader => sessionState.read(reader)?.workingDirectories);
 		const customizationRoots = derived(this, reader => workingDirectories.read(reader)?.map(resource => URI.parse(resource)) ?? []);
-		const customizationFolders = derived(this, reader => customizationRoots.read(reader).map(workingDirectory => ({
-			name: basename(workingDirectory),
-			workingDirectory,
-		})));
+		const customizationFolders = derived(this, reader => {
+			const current = resolution.read(reader);
+			return current ? customizationRoots.read(reader).map(workingDirectory => ({
+				name: basename(workingDirectory),
+				workingDirectory: current.connection.resourceUris.fromAgentHost(workingDirectory),
+			})) : [];
+		});
 		const customizations = derived(this, reader => sessionState.read(reader)?.customizations);
-		const customizationIndex = derived(this, reader => new CustomizationIndex(customizations.read(reader), customizationRoots.read(reader)));
+		const customizationIndex = derived(this, reader => {
+			const current = resolution.read(reader);
+			return new CustomizationIndex(customizations.read(reader), customizationRoots.read(reader),
+				current ? uri => current.connection.resourceUris.fromAgentHost(uri) : undefined);
+		});
 		const customizationParser = derived(this, reader => {
 			resolution.read(reader);
 			chatResource.read(reader);

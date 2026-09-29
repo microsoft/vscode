@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../platform/agentHost/common/agentHostFileSystemService.js';
+import type { AgentHostUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
 import {
 	CustomizationType,
 	ResponsePartKind,
@@ -211,10 +213,7 @@ function toFsPath(uri: string): string | undefined {
 	}
 }
 
-/**
- * A lookup from the session's customization tree, resolving the references
- * parsed out of a chat back to customizations.
- */
+/** Indexes host-side references while optionally mapping host-owned resource URIs for presentation. */
 export class CustomizationIndex {
 
 	private readonly _byId = new Map<string, ISessionChatCustomization>();
@@ -223,12 +222,14 @@ export class CustomizationIndex {
 	private readonly _bySkillName = new Map<string, ISessionChatCustomization>();
 	private readonly _roots: readonly string[];
 
-	constructor(customizations: readonly Customization[] | undefined, workspaceRoots: readonly URI[] = []) {
+	constructor(customizations: readonly Customization[] | undefined, workspaceRoots: readonly URI[] = [], mapHostUri?: AgentHostUriMapper) {
 		this._roots = workspaceRoots.map(root => normalizePath(root.path));
 		for (const customization of customizations ?? []) {
-			this._add(customization);
-			for (const child of (customization as { children?: readonly ChildCustomization[] }).children ?? []) {
-				this._add(child);
+			const container = customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory ? customization : undefined;
+			const mapUri = container?.clientId !== undefined ? undefined : mapHostUri;
+			this._add(customization, mapUri);
+			for (const child of container?.children ?? []) {
+				this._add(child, mapUri);
 			}
 		}
 	}
@@ -237,12 +238,13 @@ export class CustomizationIndex {
 		return this._byId.size === 0;
 	}
 
-	private _add(customization: Customization | ChildCustomization): void {
+	private _add(customization: Customization | ChildCustomization, mapHostUri: AgentHostUriMapper | undefined): void {
 		const kind = kindByType.get(customization.type);
 		if (!kind) {
 			return;
 		}
-		const uri = customization.uri ? URI.parse(customization.uri) : undefined;
+		const originalUri = customization.uri ? URI.parse(customization.uri) : undefined;
+		const uri = originalUri && mapHostUri && originalUri.scheme !== SYNCED_CUSTOMIZATION_SCHEME ? mapHostUri(originalUri) : originalUri;
 		const entry: ISessionChatCustomization = { id: customization.id, kind, name: customization.name, ...(uri ? { uri } : {}) };
 		this._byId.set(customization.id, entry);
 

@@ -9,10 +9,13 @@ import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { dirname } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
+import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -48,6 +51,7 @@ import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
+	override resourceUris = identityAgentHostResourceUriMapper;
 	readonly requested: Array<{ kind: StateComponents; resource: URI }> = [];
 	readonly released: URI[] = [];
 	readonly removeSessionArtifactCalls: { readonly session: URI; readonly artifactId: string }[] = [];
@@ -217,7 +221,7 @@ suite('AgentHostSessionInputPills', () => {
 		}),
 	});
 
-	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService) {
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local') {
 		const instantiationService = createInstantiationService();
 		if (gitHubService) {
 			instantiationService.stub(IGitHubService, gitHubService);
@@ -227,6 +231,7 @@ suite('AgentHostSessionInputPills', () => {
 			states.set(StateComponents.Chat, initialChat);
 		}
 		const connection = new StaticAgentConnection(states);
+		connection.resourceUris = createAgentHostResourceUriMapper(connectionAuthority);
 		const sessionResource = URI.parse('agent-host-test:/session');
 		const persistentContent = document.createElement('div');
 		document.body.appendChild(persistentContent);
@@ -248,7 +253,7 @@ suite('AgentHostSessionInputPills', () => {
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
 			onDidChangeSessionResolution: Event.None,
-			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession: URI.parse('vendor:/sessions/42') }),
+			resolveSessionResource: () => ({ connection, connectionAuthority, backendSession: URI.parse('vendor:/sessions/42') }),
 		}));
 		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
 			onDidChangeBrowserViews: Event.None,
@@ -489,6 +494,76 @@ suite('AgentHostSessionInputPills', () => {
 				{ id: AICustomizationManagementCommands.OpenEditor, args: [{ section: AICustomizationManagementSection.Skills, revealUri: skillUri.toString() }] },
 				{ id: AICustomizationManagementCommands.OpenEditor, args: [{ section: AICustomizationManagementSection.Instructions, revealUri: instructionUri.toString() }] },
 			],
+		});
+	});
+
+	test('reveals remote host customizations without remapping client or synced resources', async () => {
+		const chatResource = 'vendor-chat:/conversations/main';
+		const hostUri = URI.file('/repo/.github/skills/host/SKILL.md');
+		const clientUri = URI.file('/client/skills/client/SKILL.md');
+		const syncedUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle/skills/synced/SKILL.md' });
+		const skills = [
+			{ id: 'host', uri: hostUri, clientId: undefined },
+			{ id: 'client', uri: clientUri, clientId: 'test-client' },
+			{ id: 'synced', uri: syncedUri, clientId: undefined },
+		];
+		const session = upcastPartial<SessionState>({
+			defaultChat: chatResource,
+			chats: [],
+			workingDirectories: [URI.file('/repo').toString()],
+			customizations: skills.map(skill => ({
+				id: `${skill.id}-container`,
+				type: CustomizationType.Directory,
+				name: skill.id,
+				uri: dirname(skill.uri).toString(),
+				clientId: skill.clientId,
+				enabled: true,
+				contents: CustomizationType.Skill,
+				writable: false,
+				children: [{ id: skill.id, type: CustomizationType.Skill, name: skill.id, uri: skill.uri.toString() }],
+			})),
+		});
+		const chat = upcastPartial<ChatState>({
+			resource: chatResource,
+			turns: [upcastPartial<Turn>({
+				id: 'turn',
+				responseParts: skills.map(skill => ({
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId: skill.id,
+						toolName: skill.id === 'host' ? 'view' : 'skill',
+						displayName: skill.id,
+						status: ToolCallStatus.Completed,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						invocationMessage: skill.id,
+						pastTenseMessage: skill.id,
+						success: true,
+						toolInput: JSON.stringify(skill.id === 'host' ? { path: '.github/skills/host/SKILL.md' } : { skill: skill.id }),
+					},
+				})),
+			})],
+		});
+		const harness = createActivityPills(session, chat, undefined, 'remote-server');
+		harness.visibility.toggle(SessionChatPillKind.Customizations);
+		const entries = harness.dropdown('3 Customizations').filter(item => item.description !== undefined);
+		for (const entry of entries) {
+			entry.select();
+		}
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			entries: entries.map(entry => ({ label: entry.label, description: entry.description })),
+			commands: harness.commands,
+		}, {
+			entries: [
+				{ label: 'host', description: '.github/skills/host/SKILL.md' },
+				{ label: 'client', description: clientUri.fsPath },
+				{ label: 'synced', description: syncedUri.toString(true) },
+			],
+			commands: [toAgentHostUri(hostUri, 'remote-server'), clientUri, syncedUri].map(uri => ({
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{ section: AICustomizationManagementSection.Skills, revealUri: uri.toString() }],
+			})),
 		});
 	});
 
@@ -1045,6 +1120,7 @@ suite('AgentHostSessionInputPills', () => {
 		explicitQuery.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, childChat);
 		const canonicalChildResource = sessionResource.with({ fragment: childChatId, query: null });
 		const explicitChildResource = sessionResource.with({ fragment: childChatId, query: explicitQuery.toString() });
+		const opaqueChildResource = sessionResource.with({ fragment: childChat, query: explicitQuery.toString() });
 
 		const before = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithoutChild);
 		const after = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithChild);
@@ -1059,6 +1135,7 @@ suite('AgentHostSessionInputPills', () => {
 			before: [sessionResource.toString()],
 			after: [
 				sessionResource.toString(),
+				opaqueChildResource.toString(),
 				canonicalChildResource.toString(),
 				explicitChildResource.toString(),
 			],
@@ -1066,6 +1143,25 @@ suite('AgentHostSessionInputPills', () => {
 			hasExplicitChild: true,
 			hasUnrelatedChild: false,
 		});
+	});
+
+	test('includes browsers owned by opaque tool-origin chat URIs', () => {
+		const sessionResource = URI.parse('remote-server-agent:/session');
+		const parentChat = 'vendor-chat:/conversations/main';
+		const childChat = 'vendor-chat:/workers/Waiting?revision=1#result';
+		const query = new URLSearchParams({ [CHAT_SUBAGENT_RESOURCE_QUERY_PARAM]: childChat });
+		const state = upcastPartial<SessionState>({
+			defaultChat: parentChat,
+			chats: [upcastPartial<ChatSummary>({
+				resource: childChat,
+				origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'delegate' },
+			})],
+		});
+
+		assert.deepStrictEqual([...getAgentHostSessionBrowserOwnerIds(sessionResource, state)], [
+			sessionResource.toString(),
+			sessionResource.with({ fragment: childChat, query: query.toString() }).toString(),
+		]);
 	});
 
 	test('does not render pills for a Local chat input', () => {
