@@ -9,18 +9,19 @@ import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceIconUri } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceIconUri, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
+import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -53,6 +54,7 @@ import {
 	getAgentHostMcpServerEnablementActions,
 	getMcpCompatibilityPresentation,
 	getMcpEntryGroup,
+	getMarketplaceMcpManagementAction,
 	getMcpRowKey,
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
@@ -233,6 +235,48 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('routes only an exactly recorded MCP uninstall through the marketplace', async () => {
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'testSource',
+			identifier: 'recorded-server',
+			displayName: 'Recorded Server',
+			description: 'Test server',
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+		};
+		const uninstallCalls: ICustomizationMarketplaceResource[] = [];
+		const marketplaceInstallService = new class extends mock<ICustomizationMarketplaceInstallService>() {
+			override readonly onDidChange = Event.None;
+			override readonly installations = constObservable(createCustomizationMarketplaceInstallationSnapshot([{
+				resource,
+				state: { kind: 'installed', target: { kind: 'mcp', id: 'recorded-server' } },
+			}]));
+			override async uninstall(candidate: ICustomizationMarketplaceResource): Promise<void> {
+				uninstallCalls.push(candidate);
+			}
+		}();
+		let directUninstallCount = 0;
+		const uninstallAction = disposables.add(new Action('extensions.uninstall', 'Uninstall', 'uninstall', true, () => {
+			directUninstallCount++;
+		}));
+		const marketplaceAction = getMarketplaceMcpManagementAction(uninstallAction, 'recorded-server', marketplaceInstallService);
+		assert.notStrictEqual(marketplaceAction, uninstallAction);
+		if (isDisposable(marketplaceAction)) {
+			disposables.add(marketplaceAction);
+		}
+
+		await marketplaceAction.run();
+		const unrecordedAction = getMarketplaceMcpManagementAction(uninstallAction, 'other-server', marketplaceInstallService);
+		await unrecordedAction.run();
+
+		assert.deepStrictEqual({ directUninstallCount, uninstallCalls }, {
+			directUninstallCount: 1,
+			uninstallCalls: [resource],
+		});
+	});
 
 	test('observes Connector changes only while the experiment is enabled', () => {
 		let enabled = false;
@@ -1422,6 +1466,10 @@ suite('mcpListWidget', () => {
 			const customizationHarnessService = {
 				activeSessionResource,
 			} as unknown as ICustomizationHarnessService;
+			const marketplaceInstallService = new class extends mock<ICustomizationMarketplaceInstallService>() {
+				override readonly onDidChange = Event.None;
+				override readonly installations = constObservable(emptyCustomizationMarketplaceInstallationSnapshot);
+			}();
 			const hoverService = new class extends mock<IHoverService>() {
 				override setupManagedHover(_delegate: Parameters<IHoverService['setupManagedHover']>[0], target: HTMLElement) {
 					return {
@@ -1506,6 +1554,7 @@ suite('mcpListWidget', () => {
 				agentHostCustomizationService,
 				agentPluginService,
 				extensionsWorkbenchService,
+				marketplaceInstallService,
 				customizationHarnessService,
 				mcpService: { servers: runtimeServers },
 				workspaceService: { isSessionsWindow },

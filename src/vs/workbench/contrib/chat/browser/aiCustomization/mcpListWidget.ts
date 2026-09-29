@@ -60,7 +60,7 @@ import { CustomizationEnablementKind, McpServerStatus } from '../../../../../pla
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getCustomizationDisabledReason, getCustomizationEnablementDecision, getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
-import { createAgentHostEnablePluginAction } from '../agentPluginActions.js';
+import { createAgentHostEnablePluginAction, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
@@ -88,6 +88,28 @@ const $ = DOM.$;
 const PLUGIN_COLLECTION_PREFIX = MCP_PLUGIN_COLLECTION_ID_PREFIX;
 const MCP_INSTALLED_ITEM_HEIGHT = 44;
 const MCP_MARKETPLACE_ITEM_HEIGHT = 58;
+const MCP_UNINSTALL_ACTION_ID = 'extensions.uninstall';
+
+export function getMarketplaceMcpManagementAction(
+	action: IAction,
+	serverId: string,
+	marketplaceInstallService: ICustomizationMarketplaceInstallService,
+): IAction {
+	const marketplace = marketplaceInstallService.installations.get().findByTarget({ kind: 'mcp', id: serverId });
+	if (!marketplace || action.id !== MCP_UNINSTALL_ACTION_ID) {
+		return action;
+	}
+	const marketplaceUninstall = new Action(
+		action.id,
+		action.label,
+		action.class,
+		action.enabled,
+		() => marketplaceInstallService.uninstall(marketplace.resource),
+	);
+	marketplaceUninstall.tooltip = action.tooltip;
+	marketplaceUninstall.checked = action.checked;
+	return marketplaceUninstall;
+}
 
 const COPILOT_EXTENSION_IDS = ['github.copilot', 'github.copilot-chat'];
 
@@ -3259,7 +3281,7 @@ export class McpListWidget extends Disposable {
 							type: 'question',
 						});
 						if (result.confirmed) {
-							await plugin.remove?.();
+							await removePluginWithMarketplaceOwnership(plugin, this.marketplaceInstallService);
 						}
 					}
 				)));
@@ -3276,8 +3298,14 @@ export class McpListWidget extends Disposable {
 			? getAgentHostMcpServerEnablementActions(this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer, ['workspace', 'session'])
 			: [];
 		for (const menuActions of groups) {
-			for (const menuAction of menuActions) {
-				if (isDisposable(menuAction)) {
+			for (let index = 0; index < menuActions.length; index++) {
+				const originalMenuAction = menuActions[index];
+				if (isDisposable(originalMenuAction)) {
+					disposables.add(originalMenuAction);
+				}
+				const menuAction = getMarketplaceMcpManagementAction(originalMenuAction, mcpServer.id, this.marketplaceInstallService);
+				menuActions[index] = menuAction;
+				if (menuAction !== originalMenuAction && isDisposable(menuAction)) {
 					disposables.add(menuAction);
 				}
 			}
