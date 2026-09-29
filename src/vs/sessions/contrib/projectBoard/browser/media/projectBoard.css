@@ -240,11 +240,13 @@
 }
 
 .project-board-axis-controls > .monaco-button:focus,
+.project-board-child-heading > .project-board-collapse:focus,
 .project-board-tray-heading > .project-board-collapse:focus {
 	outline: 1px solid var(--vscode-focusBorder);
 }
 
 .project-board-axis-controls > .project-board-collapse,
+.project-board-child-heading > .project-board-collapse,
 .project-board-tray-heading > .project-board-collapse {
 	flex: 0 0 22px;
 	box-sizing: border-box;
@@ -313,6 +315,43 @@
 
 .project-board-grid .project-board-card {
 	width: 100%;
+}
+
+.project-board-card-family {
+	width: min(260px, 100%);
+	min-width: 0;
+}
+
+.project-board-grid .project-board-card-family,
+.project-board-card-family .project-board-card {
+	width: 100%;
+}
+
+.project-board-child-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40, 4px);
+	padding: var(--vscode-spacing-size40, 4px);
+}
+
+.project-board-child-summary {
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1, 12px);
+	overflow-wrap: anywhere;
+}
+
+.project-board-child-cards {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80, 8px);
+	margin-left: var(--vscode-spacing-size80, 8px);
+	padding-left: var(--vscode-spacing-size80, 8px);
+	border-left: 1px solid var(--vscode-tree-indentGuidesStroke);
+}
+
+.project-board-child-cards[hidden] {
+	display: none;
 }
 
 .project-board-card:focus {

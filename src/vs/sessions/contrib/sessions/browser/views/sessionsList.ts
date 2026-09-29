@@ -57,7 +57,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionChildChats, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -271,14 +271,7 @@ export function formatSessionListTime(date: Date): string {
 }
 
 export function getSessionListChats(session: ISession, reader?: IReader, showArchived = false): readonly IChat[] {
-	const mainChat = session.mainChat.read(reader);
-	return session.chats.read(reader).filter(chat =>
-		!isEqual(chat.resource, mainChat.resource) &&
-		chat.origin?.kind !== ChatOriginKind.Tool &&
-		chat.origin?.kind !== ChatOriginKind.SideChat &&
-		(!chat.isArchived.read(reader) || showArchived) &&
-		chat.interactivity.read(reader) !== ChatInteractivity.Hidden
-	);
+	return getSessionChildChats(session, reader).filter(chat => !chat.isArchived.read(reader) || showArchived);
 }
 
 /** Whether a session is archived or lists archived chats, both of which the archived filter hides. */

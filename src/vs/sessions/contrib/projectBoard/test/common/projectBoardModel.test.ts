@@ -8,7 +8,7 @@ import { ISettableObservable, observableValue } from '../../../../../base/common
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, IChatOrigin, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IProjectBoardConfiguration } from '../../common/projectBoardConfiguration.js';
 import { ProjectBoardModel } from '../../common/projectBoardModel.js';
 
@@ -31,7 +31,7 @@ suite('ProjectBoardModel', () => {
 		assert.notStrictEqual(model.cards[0].id, model.cards[1].id);
 	});
 
-	test('PB-03 moves exactly one card between Unassigned and a cell', () => {
+	test('PB-03 unplaced child chats follow the parent without rewriting their placements', () => {
 		const first = createChat('first', ChatInteractivity.Full);
 		const second = createChat('second', ChatInteractivity.Full);
 		const model = new ProjectBoardModel();
@@ -43,15 +43,16 @@ suite('ProjectBoardModel', () => {
 			unassigned: model.getUnassignedCards().map(card => card.title),
 			p0: model.getCards('general', 'p0').map(card => card.title),
 		}, {
-			unassigned: ['second'],
+			unassigned: [],
 			p0: ['first'],
 		});
+		assert.deepStrictEqual(model.getChildCards(model.cards[0].id).map(card => card.title), ['second']);
 
 		model.moveCard(model.cards[0].id, undefined);
-		assert.deepStrictEqual(model.getUnassignedCards().map(card => card.title), ['first', 'second']);
+		assert.deepStrictEqual(model.getUnassignedCards().map(card => card.title), ['first']);
 	});
 
-	test('shows only explicitly placed cards when sessions are not auto-included', () => {
+	test('shows explicitly placed parents and their children when sessions are not auto-included', () => {
 		const first = createChat('first', ChatInteractivity.Full);
 		const second = createChat('second', ChatInteractivity.Full);
 		const model = new ProjectBoardModel();
@@ -75,6 +76,7 @@ suite('ProjectBoardModel', () => {
 			placed: ['first'],
 			allCards: ['first', 'second'],
 		});
+		assert.deepStrictEqual(model.getChildCards(model.cards[0].id).map(card => card.title), ['second']);
 	});
 
 	test('PB-04 updates live state without changing placement or read state', () => {
@@ -104,7 +106,7 @@ suite('ProjectBoardModel', () => {
 				title: 'second',
 				status: SessionStatus.Completed,
 				isRead: false,
-				placement: undefined,
+				placement: { rowId: 'general', columnId: 'p1' },
 			},
 		]);
 	});
@@ -132,7 +134,7 @@ suite('ProjectBoardModel', () => {
 			cards: { placed: model.getCards('general', 'p0').map(card => card.title), unassigned: model.getUnassignedCards().map(card => card.title) },
 		}, {
 			list: { placed: ['Shared session'], unassigned: 0 },
-			cards: { placed: ['first'], unassigned: ['second'] },
+			cards: { placed: ['first'], unassigned: [] },
 		});
 	});
 
@@ -182,9 +184,9 @@ suite('ProjectBoardModel', () => {
 		const first = createChat('first', ChatInteractivity.Full);
 		const second = createChat('second', ChatInteractivity.Full);
 		const unknown = createChat('unknown', ChatInteractivity.Full);
-		const session = createSession(unknown, first, second);
+		const sessions = [unknown, first, second].map(chat => createSession(chat));
 		const model = new ProjectBoardModel();
-		model.updateSessions([session]);
+		model.updateSessions(sessions);
 		const id = (title: string) => model.cards.find(card => card.title === title)!.id;
 		model.setPromptRecency(id('first'), 1000);
 		model.setPromptRecency(id('second'), 2000);
@@ -193,7 +195,7 @@ suite('ProjectBoardModel', () => {
 		first.status.set(SessionStatus.InProgress, undefined);
 		first.updatedAt.set(new Date(3000), undefined);
 		first.isRead.set(true, undefined);
-		model.updateSessions([session]);
+		model.updateSessions(sessions);
 		assert.deepStrictEqual(titles(), ['second', 'first', 'unknown']);
 		model.setSortingDeferred(true);
 		model.setPromptRecency(id('first'), 5000);
@@ -204,6 +206,79 @@ suite('ProjectBoardModel', () => {
 		model.setPromptRecency(id('second'), undefined);
 		assert.deepStrictEqual(titles(), ['first', 'second', 'unknown']);
 	});
+
+	test('explicit child placement detaches it and clearing placement rejoins the parent', () => {
+		const model = new ProjectBoardModel();
+		model.updateSessions([createSession(createChat('parent', ChatInteractivity.Full), createChat('child', ChatInteractivity.Full))]);
+		const [parent, child] = model.cards;
+		model.moveCard(parent.id, { rowId: 'general', columnId: 'p0' });
+		model.moveCard(child.id, { rowId: 'general', columnId: 'p1' });
+		assert.deepStrictEqual({
+			parent: model.getParentCard(child.id), children: model.getChildCards(parent.id),
+			detached: model.getCards('general', 'p1').map(card => card.id),
+		}, { parent: undefined, children: [], detached: [child.id] });
+		model.moveCard(child.id, undefined);
+		assert.deepStrictEqual({
+			parent: model.getParentCard(child.id)?.id, children: model.getChildCards(parent.id).map(card => card.id),
+			placement: model.getPlacement(child.id),
+		}, { parent: parent.id, children: [child.id], placement: { rowId: 'general', columnId: 'p0' } });
+		model.moveCard(parent.id, undefined);
+		assert.strictEqual(model.getPlacement(child.id), undefined);
+	});
+
+	test('only co-located children are grouped, with independent per-board placements', () => {
+		const session = createSession(createChat('parent', ChatInteractivity.Full), createChat('child', ChatInteractivity.Full));
+		const first = new ProjectBoardModel();
+		const second = new ProjectBoardModel();
+		for (const model of [first, second]) {
+			model.updateSessions([session]);
+		}
+		const [parent, child] = first.cards;
+		first.moveCard(parent.id, { rowId: 'general', columnId: 'p0' });
+		first.moveCard(child.id, { rowId: 'general', columnId: 'p0' });
+		assert.strictEqual(first.getParentCard(child.id)?.id, parent.id);
+		first.moveCard(parent.id, { rowId: 'general', columnId: 'p1' });
+		assert.deepStrictEqual({
+			detached: first.getParentCard(child.id), child: first.getPlacement(child.id),
+			otherBoardParent: second.getParentCard(child.id)?.id, otherBoardPlacement: second.getPlacement(child.id),
+		}, { detached: undefined, child: { rowId: 'general', columnId: 'p0' }, otherBoardParent: parent.id, otherBoardPlacement: undefined });
+	});
+
+	test('archive filtering and a missing parent never swallow visible children', () => {
+		const parent = createChat('parent', ChatInteractivity.Full);
+		const child = createChat('child', ChatInteractivity.Full);
+		const session = createSession(parent, child);
+		const model = new ProjectBoardModel();
+		model.updateSessions([session]);
+		const parentId = model.cards[0].id;
+		parent.isArchived.set(true, undefined);
+		model.updateSessions([session]);
+		assert.deepStrictEqual({
+			roots: model.getUnassignedCards().map(card => card.title),
+			withArchived: model.getUnassignedCards(true).map(card => card.title),
+			children: model.getChildCards(parentId, true).map(card => card.title),
+		}, { roots: ['child'], withArchived: ['parent'], children: ['child'] });
+		session.chats.set([child], undefined);
+		model.updateSessions([session]);
+		assert.deepStrictEqual(model.getUnassignedCards(true).map(card => card.title), ['child']);
+	});
+
+	test('children reuse native list eligibility and retain their own recency and read state', () => {
+		const parent = createChat('parent', ChatInteractivity.Full);
+		const first = createChat('first', ChatInteractivity.Full);
+		const second = createChat('second', ChatInteractivity.ReadOnly);
+		const tool = createChat('tool', ChatInteractivity.ReadOnly, { kind: ChatOriginKind.Tool, parentChat: parent.resource });
+		const side = createChat('side', ChatInteractivity.Full, { kind: ChatOriginKind.SideChat, parentChat: parent.resource });
+		const hidden = createChat('hidden', ChatInteractivity.Hidden);
+		const model = new ProjectBoardModel();
+		model.updateSessions([createSession(parent, first, second, tool, side, hidden)]);
+		const parentId = model.cards[0].id;
+		model.setPromptRecency(model.cards.find(card => card.chat === second)!.id, 100);
+		assert.deepStrictEqual({
+			roots: model.getUnassignedCards().map(card => card.title),
+			children: model.getChildCards(parentId).map(card => [card.title, card.readOnly, card.isRead]),
+		}, { roots: ['parent', 'side', 'tool'], children: [['second', true, false], ['first', false, false]] });
+	});
 });
 
 interface ITestChat extends IChat {
@@ -213,8 +288,9 @@ interface ITestChat extends IChat {
 	readonly isRead: ISettableObservable<boolean>;
 }
 
-function createChat(id: string, interactivity: ChatInteractivity): ITestChat {
+function createChat(id: string, interactivity: ChatInteractivity, origin?: IChatOrigin): ITestChat {
 	return new class extends mock<IChat>() {
+		override readonly origin = origin;
 		override readonly resource = URI.parse(`test-chat:session#${id}`);
 		override readonly title = observableValue(`title-${id}`, id);
 		override readonly status = observableValue<SessionStatus>(`status-${id}`, SessionStatus.Completed);
@@ -229,9 +305,10 @@ function createChat(id: string, interactivity: ChatInteractivity): ITestChat {
 function createSession(...chats: IChat[]) {
 	return new class extends mock<ISession>() {
 		override readonly providerId = 'test-provider';
-		override readonly resource = URI.parse('test-session:shared');
+		override readonly resource = URI.parse(`test-session:${chats[0].resource.fragment}`);
 		override readonly title = observableValue('session-title', 'Shared session');
 		override readonly chats = observableValue<readonly IChat[]>('session-chats', chats);
+		override readonly mainChat = observableValue('mainChat', chats[0]);
 		override readonly isArchived = observableValue('archived', false);
 	}();
 }
