@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { CancellationError, errorHandler, isCancellationError, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -203,33 +203,6 @@ suite('DocumentHighlightProviders', () => {
 		assert.strictEqual(result?.size, 0);
 	});
 
-	test('does not invoke providers after cancellation', async () => {
-		let calls = 0;
-		store.add(registry.register('*', {
-			provideDocumentHighlights: () => { calls++; return [first]; }
-		}));
-
-		await assert.rejects(getOccurrencesAtPosition(registry, model, position, CancellationToken.Cancelled, true), isCancellationError);
-		assert.strictEqual(calls, 0);
-	});
-
-	test('cancels without waiting for an uncooperative provider', async () => {
-		const source = store.add(new CancellationTokenSource());
-		const pending = new DeferredPromise<DocumentHighlight[]>();
-		const tokens: CancellationToken[] = [];
-		store.add(registry.register('*', {
-			provideDocumentHighlights: (_model, _position, token) => { tokens.push(token); return pending.p; }
-		}));
-		store.add(registry.register('plaintext', {
-			provideDocumentHighlights: (_model, _position, token) => { tokens.push(token); return [first]; }
-		}));
-
-		const result = getOccurrencesAtPosition(registry, model, position, source.token, true);
-		source.cancel();
-		await assert.rejects(result, isCancellationError);
-		await pending.complete([second]);
-		assert.deepStrictEqual(tokens, [source.token, source.token]);
-	});
 });
 
 suite('WordHighlighterContribution', () => {

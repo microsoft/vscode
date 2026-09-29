@@ -6,9 +6,9 @@
 import * as nls from '../../../../nls.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
-import { CancelablePromise, createCancelablePromise, Delayer, first, raceCancellationError } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, Delayer, first } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { CancellationError, onUnexpectedError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { onUnexpectedError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -43,17 +43,22 @@ import { TextualDocumentHighlightProvider, TextualMultiDocumentHighlightFeature 
 
 const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
-export async function getOccurrencesAtPosition(registry: LanguageFeatureRegistry<DocumentHighlightProvider>, model: ITextModel, position: Position, token: CancellationToken, mergeProviders = false): Promise<ResourceMap<DocumentHighlight[]> | null | undefined> {
+export function getOccurrencesAtPosition(registry: LanguageFeatureRegistry<DocumentHighlightProvider>, model: ITextModel, position: Position, token: CancellationToken, mergeProviders: boolean): Promise<ResourceMap<DocumentHighlight[]> | null | undefined> {
 	const orderedByScore = registry.ordered(model);
-
 	if (mergeProviders) {
 		const providers = orderedByScore.filter(provider => !(provider instanceof TextualDocumentHighlightProvider));
-		const results = await queryProviders(providers.length > 0 ? providers : orderedByScore, model, position, token);
-		const map = new ResourceMap<DocumentHighlight[]>();
-		if (results.length > 0) {
-			map.set(model.uri, mergeHighlights(results));
-		}
-		return map;
+		return Promise.all((providers.length > 0 ? providers : orderedByScore).map(provider => {
+			return Promise.resolve(provider.provideDocumentHighlights(model, position, token))
+				.then(undefined, onUnexpectedExternalError);
+		})).then(results => {
+			const result = coalesce(results);
+			if (result) {
+				const map = new ResourceMap<DocumentHighlight[]>();
+				map.set(model.uri, mergeHighlights(result));
+				return map;
+			}
+			return new ResourceMap<DocumentHighlight[]>();
+		});
 	}
 
 	// in order of score ask the occurrences provider
@@ -71,28 +76,6 @@ export async function getOccurrencesAtPosition(registry: LanguageFeatureRegistry
 		}
 		return new ResourceMap<DocumentHighlight[]>();
 	});
-}
-
-async function queryProviders(providers: DocumentHighlightProvider[], model: ITextModel, position: Position, token: CancellationToken): Promise<DocumentHighlight[][]> {
-	if (token.isCancellationRequested) {
-		throw new CancellationError();
-	}
-
-	const results = await raceCancellationError(Promise.all(providers.map(async provider => {
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
-		try {
-			return await provider.provideDocumentHighlights(model, position, token);
-		} catch (error) {
-			return onUnexpectedExternalError(error);
-		}
-	})), token);
-
-	if (token.isCancellationRequested) {
-		throw new CancellationError();
-	}
-	return coalesce(results);
 }
 
 function mergeHighlights(results: DocumentHighlight[][]): DocumentHighlight[] {
@@ -190,11 +173,13 @@ abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest
 
 class SemanticOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 
+	private readonly _mergeProviders: boolean;
 	private readonly _providers: LanguageFeatureRegistry<DocumentHighlightProvider>;
 
-	constructor(model: ITextModel, selection: Selection, wordSeparators: string, providers: LanguageFeatureRegistry<DocumentHighlightProvider>, private readonly _mergeProviders: boolean) {
+	constructor(model: ITextModel, selection: Selection, wordSeparators: string, providers: LanguageFeatureRegistry<DocumentHighlightProvider>, mergeProviders: boolean) {
 		super(model, selection, wordSeparators);
 		this._providers = providers;
+		this._mergeProviders = mergeProviders;
 	}
 
 	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<ResourceMap<DocumentHighlight[]>> {
@@ -238,10 +223,7 @@ function computeOccurencesMultiModel(registry: LanguageFeatureRegistry<MultiDocu
 
 registerModelAndPositionCommand('_executeDocumentHighlights', async (accessor, model, position) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-	const mergeProviders = accessor.get(IConfigurationService).getValue<boolean>('editor.occurrencesHighlightFromAllProviders', {
-		resource: model.uri,
-		overrideIdentifier: model.getLanguageId()
-	});
+	const mergeProviders = accessor.get(IConfigurationService).getValue<boolean>('editor.occurrencesHighlightFromAllProviders');
 	const map = await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, position, CancellationToken.None, mergeProviders);
 	return map?.get(model.uri);
 });
@@ -261,6 +243,7 @@ class WordHighlighter {
 	private readonly logService: ILogService;
 
 	private occurrencesHighlightEnablement: string;
+	private occurrencesHighlightFromAllProvidersEnablement: boolean;
 	private occurrencesHighlightDelay: number;
 
 	private workerRequestTokenId: number = 0;
@@ -301,6 +284,7 @@ class WordHighlighter {
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
 		this.occurrencesHighlightEnablement = this.editor.getOption(EditorOption.occurrencesHighlight);
+		this.occurrencesHighlightFromAllProvidersEnablement = this.editor.getOption(EditorOption.occurrencesHighlightFromAllProviders);
 		this.occurrencesHighlightDelay = this.configurationService.getValue<number>('editor.occurrencesHighlightDelay');
 		this.model = this.editor.getModel();
 
@@ -361,12 +345,12 @@ class WordHighlighter {
 						break;
 				}
 			}
-			if (e.hasChanged(EditorOption.occurrencesHighlightFromAllProviders)
-				&& this.getOtherModelsToHighlight(this.model).length === 0
-				&& (this.editor.hasTextFocus() || isEqual(WordHighlighter.query?.modelInfo?.modelURI, this.model.uri))) {
+			const newFromAllProvidersEnablement = this.editor.getOption(EditorOption.occurrencesHighlightFromAllProviders);
+			if (this.occurrencesHighlightFromAllProvidersEnablement !== newFromAllProvidersEnablement) {
+				this.occurrencesHighlightFromAllProvidersEnablement = newFromAllProvidersEnablement;
 				this._stopAll();
 				if (this.occurrencesHighlightEnablement !== 'off') {
-					this._run().catch(onUnexpectedError);
+					this._run();
 				}
 			}
 		}));
@@ -751,17 +735,13 @@ class WordHighlighter {
 			// 		1) we have text focus, and a valid query was updated.
 			// 		2) we do not have text focus, and a valid query is cached.
 			// the query will ALWAYS have the correct data for the current highlight request, so it can always be passed to the workerRequest safely
-			const query = WordHighlighter.query?.modelInfo;
-			if (!query) {
+			if (!WordHighlighter.query || !WordHighlighter.query.modelInfo) {
 				return;
 			}
 
-			const queryModelRef = await this.textModelService.createModelReference(query.modelURI);
+			const queryModelRef = await this.textModelService.createModelReference(WordHighlighter.query.modelInfo.modelURI);
 			try {
-				if (myRequestId !== this.workerRequestTokenId || query !== WordHighlighter.query?.modelInfo) {
-					return;
-				}
-				this.workerRequest = this.computeWithModel(queryModelRef.object.textEditorModel, query.selection, otherModelsToHighlight);
+				this.workerRequest = this.computeWithModel(queryModelRef.object.textEditorModel, WordHighlighter.query.modelInfo.selection, otherModelsToHighlight);
 				this.workerRequest?.result.then(data => {
 					if (myRequestId === this.workerRequestTokenId) {
 						this.workerRequestCompleted = true;
@@ -805,7 +785,7 @@ class WordHighlighter {
 
 	private computeWithModel(model: ITextModel, selection: Selection, otherModels: ITextModel[]): IOccurenceAtPositionRequest | null {
 		if (!otherModels.length) {
-			return computeOccurencesAtPosition(this.providers, model, selection, this.editor.getOption(EditorOption.wordSeparators), this.editor.getOption(EditorOption.occurrencesHighlightFromAllProviders));
+			return computeOccurencesAtPosition(this.providers, model, selection, this.editor.getOption(EditorOption.wordSeparators), this.occurrencesHighlightFromAllProvidersEnablement);
 		} else {
 			return computeOccurencesMultiModel(this.multiDocumentProviders, model, selection, this.editor.getOption(EditorOption.wordSeparators), otherModels);
 		}
