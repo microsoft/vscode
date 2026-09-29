@@ -6568,7 +6568,7 @@ export const EditorOptions = {
 	occurrencesHighlightFromAllProviders: register(new EditorBooleanOption(
 		EditorOption.occurrencesHighlightFromAllProviders, 'occurrencesHighlightFromAllProviders', false,
 		{
-			description: nls.localize('occurrencesHighlightFromAllProviders', "Controls whether single-document highlights from all matching providers are merged. When enabled, basic word-based highlighting is only used if no other provider matches. Does not affect multi-document highlighting.")
+			description: nls.localize('occurrencesHighlightFromAllProviders', "Controls whether single-document highlights from all matching providers are merged. When enabled, basic word-based highlighting is only used if no other provider matches.")
 		}
 	)),
 	overtypeOnPaste: register(new EditorBooleanOption(
