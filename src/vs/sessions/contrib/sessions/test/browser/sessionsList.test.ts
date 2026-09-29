@@ -4129,6 +4129,35 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('peer chat hover shows the chat description under its title', () => {
+			const session = createMultiFolderSession(
+				[{ root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined }],
+				[undefined, undefined],
+			);
+			const chats = session.chats.get();
+			const describedChat = { ...chats[1], detail: constObservable('  Reviews the release notes  ') };
+			const hoverData = (chat: IChat) => getChatSummaryHoverData(
+				session,
+				chat,
+				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
+				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
+				upcastPartial<IPreferencesService>({}),
+			);
+			const renderDescription = (chat: IChat) => {
+				const description = new SessionSummaryHoverWidget(hoverData(chat)).domNode.querySelector('.session-summary-hover-description');
+				return { text: description?.textContent, hidden: description?.classList.contains('hidden') };
+			};
+
+			assert.deepStrictEqual({
+				described: renderDescription(describedChat),
+				undescribed: renderDescription(chats[1]),
+			}, {
+				described: { text: 'Reviews the release notes', hidden: false },
+				undescribed: { text: '', hidden: true },
+			});
+		});
+
 		suite('session hover pull requests', () => {
 
 			function createPullRequestFolder(name: string, pullRequestNumbers: readonly number[]): ISessionFolder {

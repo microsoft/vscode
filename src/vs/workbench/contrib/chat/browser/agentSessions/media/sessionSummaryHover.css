@@ -30,6 +30,22 @@ separator between them — stay quiet next to it. */
 	color: var(--vscode-descriptionForeground);
 }
 
+/* The description explains the title, so it continues that block quietly
+instead of opening a section of its own. */
+.session-summary-hover-description {
+	padding: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
+}
+
+.session-summary-hover-description.hidden {
+	display: none;
+}
+
+.session-summary-hover-title:has(+ .session-summary-hover-description:not(.hidden)) {
+	padding-bottom: 0;
+}
+
 /* Sections are separated by a rule only when both sides are present, so a
 session with no pull requests shows one rule and a quick chat none. */
 .session-summary-hover-section {
@@ -39,8 +55,9 @@ session with no pull requests shows one rule and a quick chat none. */
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
 }
 
-/* The location block continues the title rather than starting a new one. */
-.session-summary-hover-title + .session-summary-hover-location {
+/* The location block continues the title rather than starting a new one; the
+description sits between them, so it is the one the location follows. */
+.session-summary-hover-description + .session-summary-hover-location {
 	padding-top: 0;
 	border-top: none;
 }

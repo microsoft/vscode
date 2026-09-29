@@ -86,9 +86,11 @@ export function getChatSummaryHoverData(
 	createdBy?: ISessionSummaryHoverData['createdBy'],
 	includeUpdatedAt = false,
 ): ISessionSummaryHoverData {
+	const detail = chat.detail?.get()?.trim();
 	return {
 		...getProviderDetails(session, sessionsProvidersService),
 		title: chat.title.get().trim() || localize('untitledChat', "Untitled Chat"),
+		...(detail ? { description: detail } : {}),
 		...(includeUpdatedAt ? { updatedAt: chat.updatedAt.get() } : {}),
 		location: getLocation(
 			chat.workspace.get(),

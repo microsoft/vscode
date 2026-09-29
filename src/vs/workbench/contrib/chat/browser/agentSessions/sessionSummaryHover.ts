@@ -73,6 +73,11 @@ export interface ISessionSummaryHoverWorkspace {
  */
 export interface ISessionSummaryHoverData {
 	readonly title: string;
+	/**
+	 * What the session or chat is for, in its author's words, shown under the
+	 * title. This is standing context, not the live status line.
+	 */
+	readonly description?: string;
 	/** When the session was last updated. */
 	readonly updatedAt?: Date;
 	readonly location?: ISessionSummaryHoverLocation;
@@ -123,6 +128,7 @@ export class SessionSummaryHoverWidget {
 	readonly domNode: HTMLElement;
 
 	private readonly _title: HTMLElement;
+	private readonly _description: HTMLElement;
 	private readonly _location: HTMLElement;
 	private readonly _pullRequests: HTMLElement;
 	private readonly _createdBy: HTMLElement;
@@ -132,6 +138,7 @@ export class SessionSummaryHoverWidget {
 	constructor(data?: ISessionSummaryHoverData) {
 		this.domNode = dom.$('.session-summary-hover');
 		this._title = dom.append(this.domNode, dom.$('.session-summary-hover-title'));
+		this._description = dom.append(this.domNode, dom.$('.session-summary-hover-description'));
 		this._location = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-location'));
 		this._pullRequests = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-pull-requests'));
 		this._createdBy = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-created-by'));
@@ -159,6 +166,10 @@ export class SessionSummaryHoverWidget {
 			appendSeparator(this._title);
 			dom.append(this._title, dom.$('span.session-summary-hover-provider', undefined, fromNow(data.updatedAt, true)));
 		}
+
+		const description = data.description?.trim();
+		this._description.textContent = description ?? '';
+		this._description.classList.toggle('hidden', !description);
 
 		dom.clearNode(this._location);
 		this._renderLocation(data.location);
