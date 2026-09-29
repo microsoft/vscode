@@ -51,7 +51,7 @@ suite('SessionStorageCleanupNotice', () => {
 		}, undefined);
 		const buttons = [...notice.domNode.querySelectorAll<HTMLElement>('.monaco-button')];
 		const allActionsKeyboardFocusable = buttons.every(button => button.tabIndex === 0);
-		buttons.find(button => button.textContent === 'Clean Up Agent Worktrees')?.click();
+		buttons.find(button => button.textContent === 'Open worktree cleanup')?.click();
 		buttons.find(button => button.textContent === 'Don\'t Show Again')?.click();
 		notice.domNode.querySelector<HTMLElement>('.agent-sessions-storage-cleanup-notice-dismiss')?.click();
 		notice.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -80,7 +80,7 @@ suite('SessionStorageCleanupNotice', () => {
 			description: 'Old worktrees are using storage.',
 			dismissAriaLabel: 'Dismiss Session Storage Suggestion',
 			allActionsKeyboardFocusable: true,
-			announcements: ['Old worktrees are using storage. Run Clean Up Agent Worktrees to review it. To stop these suggestions, run Disable Session Storage Cleanup Suggestions.'],
+			announcements: ['Old worktrees are using storage. Run Open worktree cleanup to review it. To stop these suggestions, run Disable Session Storage Cleanup Suggestions.'],
 			activateCount: 1,
 			manageCount: 1,
 			disableCount: 1,
