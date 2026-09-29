@@ -9,6 +9,7 @@ import { localize } from '../../../../nls.js';
 import { ChatPillSingleEntry, type IChatDropdownPillOptions } from '../../../browser/chatDropdownPill.js';
 import { computePullRequestIcon } from '../../../common/chatPullRequest.js';
 import { type ISessionChatPillFilter, SessionChatPillKind } from '../common/sessionChatPills.js';
+import { aiCustomizationViewIcon } from './aiCustomization/aiCustomizationIcons.js';
 
 /** The checked choices for a pill's show-all or filtered view. */
 export function getSessionChatPillFilterActions(
@@ -89,7 +90,7 @@ export const sessionBrowsersPillOptions: IChatDropdownPillOptions = {
 /** Shared presentation of the customizations pill. */
 export const sessionCustomizationsPillOptions: IChatDropdownPillOptions = {
 	widgetId: 'sessionCustomizations',
-	icon: Codicon.bookmark,
+	icon: aiCustomizationViewIcon,
 	title: localize('sessionCustomizations.title', "Customizations"),
 	summaryLabel: count => count === 1
 		? localize('sessionCustomizations.countSingle', "1 Customization")

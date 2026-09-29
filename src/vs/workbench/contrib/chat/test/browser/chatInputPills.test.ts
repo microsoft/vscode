@@ -18,6 +18,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatInputPills, createChatInputPillSource, StandardChatInputPillSources, type IStandardChatInputPillsData } from '../../browser/chatInputPills.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../browser/sessionPullRequestPill.js';
+import { aiCustomizationViewIcon } from '../../browser/aiCustomization/aiCustomizationIcons.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../common/sessionChatPills.js';
 
 suite('StandardChatInputPillSources', () => {
@@ -154,6 +155,20 @@ suite('StandardChatInputPillSources', () => {
 			preferred: AnchorPosition.ABOVE,
 			fixed: undefined,
 		})));
+	});
+
+	test('renders the Customizations pill with the Customizations view icon', () => {
+		const pills = createPills({
+			customizations: {
+				sections: constObservable([{
+					title: 'Customizations',
+					entries: [{ id: 'skill', label: 'Skill', open: () => { } }],
+				}]),
+			},
+		});
+		pills.visibility.toggle(SessionChatPillKind.Customizations);
+
+		assert.strictEqual(pills.inputPills.element.querySelector('.chat-pill-icon')?.classList.contains(`codicon-${aiCustomizationViewIcon.id}`), true);
 	});
 
 	test('offers checked pull request options in a separate group below Hide for mouse and keyboard', async () => {
