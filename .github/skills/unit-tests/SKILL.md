@@ -98,7 +98,7 @@ Override the default Mocha timeout for long-running tests.
 
 ### Product quality (`VSCODE_TEST_QUALITY`)
 
-The OSS `product.json` has no `quality`, but official builds and PR CI run unit tests with `product.quality` set to `insider` (PR CI also runs one Linux job with `stable`). When a change touches code gated on `product.quality`, such as a setting default of `product.quality === 'insider'`, run the affected tests with each quality:
+The OSS `product.json` has no `quality`, but official builds and PR CI run unit tests with `product.quality` set to `insider`. When a change touches code gated on `product.quality`, such as a setting default of `product.quality === 'insider'`, run the affected tests with each quality:
 
 ```bash
 VSCODE_TEST_QUALITY=insider ./scripts/test.sh --run src/vs/workbench/contrib/chat/test/browser/chatConfiguration.test.ts
