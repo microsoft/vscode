@@ -40,7 +40,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
-import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
+import { AgentHostManagedPluginsSettingId, AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
@@ -262,6 +262,7 @@ class TerminalAutoApproveConfigurationService extends TestConfigurationService {
 class ManagedPermissionsConfigurationService extends TestConfigurationService {
 	private globalAutoApprovePolicyValue: boolean | undefined = false;
 	private eligibleForAutoApprovalPolicyValue: Record<string, boolean> | undefined;
+	private managedPluginPolicyValue: Record<string, boolean> | undefined;
 
 	override inspect<T>(key: string): IConfigurationValue<T> {
 		if (key === GLOBAL_AUTO_APPROVE_SETTING_ID) {
@@ -276,6 +277,12 @@ class ManagedPermissionsConfigurationService extends TestConfigurationService {
 				policyValue: this.eligibleForAutoApprovalPolicyValue as T | undefined,
 			};
 		}
+		if (key === AgentHostManagedPluginsSettingId) {
+			return {
+				...super.inspect<T>(key),
+				policyValue: this.managedPluginPolicyValue as T | undefined,
+			};
+		}
 		return super.inspect<T>(key);
 	}
 
@@ -285,6 +292,10 @@ class ManagedPermissionsConfigurationService extends TestConfigurationService {
 
 	setEligibleForAutoApprovalPolicy(value: Record<string, boolean> | undefined): void {
 		this.eligibleForAutoApprovalPolicyValue = value;
+	}
+
+	setManagedPluginPolicy(value: Record<string, boolean> | undefined): void {
+		this.managedPluginPolicyValue = value;
 	}
 }
 
@@ -1609,6 +1620,36 @@ suite('AgentHostProtocolClient', () => {
 			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
 		});
+
+		test('forwards managed plugin policy for the local host', async () => {
+			const configurationService = new ManagedPermissionsConfigurationService({});
+			configurationService.setManagedPluginPolicy({
+				'required@marketplace': true,
+				'blocked@marketplace': false,
+			});
+			const { client, transport } = createClientForIdentity(
+				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+				disposables.add(new TestProtocolTransport()),
+				createPermissionService(),
+				undefined,
+				new NullLogService(),
+				configurationService,
+			);
+
+			await connectClient(client, transport);
+
+			assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
+				jsonrpc: '2.0',
+				method: 'setClientManagedSettingsPermissions',
+				params: {
+					permissions: {},
+					enabledPlugins: {
+						'required@marketplace': true,
+						'blocked@marketplace': false,
+					},
+				},
+			});
+		});
 		const { client, transport } = createClientForIdentity(
 			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 			disposables.add(new TestProtocolTransport()),
@@ -1628,6 +1669,7 @@ suite('AgentHostProtocolClient', () => {
 					disableBypassPermissionsMode: 'disable',
 					ask: ['Shell'],
 				},
+				enabledPlugins: {},
 			},
 		});
 
@@ -1641,7 +1683,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
 			jsonrpc: '2.0',
 			method: 'setClientManagedSettingsPermissions',
-			params: { permissions: {} },
+			params: { permissions: {}, enabledPlugins: {} },
 		});
 	});
 
@@ -1666,7 +1708,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
 			jsonrpc: '2.0',
 			method: 'setClientManagedSettingsPermissions',
-			params: { permissions: { disableBypassPermissionsMode: 'disable' } },
+			params: { permissions: { disableBypassPermissionsMode: 'disable' }, enabledPlugins: {} },
 		});
 
 		transport.sentMessages.length = 0;
@@ -1676,7 +1718,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
 			jsonrpc: '2.0',
 			method: 'setClientManagedSettingsPermissions',
-			params: { permissions: {} },
+			params: { permissions: {}, enabledPlugins: {} },
 		});
 	});
 

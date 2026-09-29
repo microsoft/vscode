@@ -7492,12 +7492,12 @@ suite('CopilotAgent', () => {
 				await agent.listChatsToMigrate();
 
 				const restricted = { disableBypassPermissionsMode: 'disable' as const };
-				managedSettingsService.setClientPermissions('client', restricted);
+				managedSettingsService.setClientContribution('client', { permissions: restricted, enabledPlugins: {} });
 				await Promise.resolve();
 				await agent.listChatsToMigrate();
-				managedSettingsService.setClientPermissions('client', restricted);
+				managedSettingsService.setClientContribution('client', { permissions: restricted, enabledPlugins: {} });
 				await Promise.resolve();
-				managedSettingsService.removeClientPermissions('client');
+				managedSettingsService.removeClientContribution('client');
 				await Promise.resolve();
 
 				assert.strictEqual(client.stopCount, 2);

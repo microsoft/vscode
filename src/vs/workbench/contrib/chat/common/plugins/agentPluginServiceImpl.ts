@@ -48,7 +48,7 @@ import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer,
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
-import { EnablementModel, IEnablementModel } from '../enablement.js';
+import { ContributionEnablementState, EnablementModel, IEnablementModel } from '../enablement.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../automations/automationBlueprint.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from './agentPluginEnablement.js';
@@ -93,6 +93,7 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 
 	public readonly plugins: IObservable<readonly IAgentPlugin[]>;
 	public readonly enablementModel: IEnablementModel;
+	private readonly _baseEnablementModel: EnablementModel;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -102,7 +103,7 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 	) {
 		super();
 
-		const baseEnablementModel = this._register(new EnablementModel('agentPlugins.enablement', storageService));
+		this._baseEnablementModel = this._register(new EnablementModel('agentPlugins.enablement', storageService));
 
 		const pluginsEnabled = observableConfigValue(ChatConfiguration.PluginsEnabled, true, configurationService);
 
@@ -154,7 +155,7 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			);
 		});
 
-		this.enablementModel = new AgentPluginCollisionEnablementModel(baseEnablementModel, collisionGroups, policyEnablement);
+		this.enablementModel = new AgentPluginCollisionEnablementModel(this._baseEnablementModel, collisionGroups, policyEnablement);
 
 		for (const { discovery } of discoveries) {
 			discovery.start(this.enablementModel);
@@ -183,6 +184,10 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 				}
 			});
 		}));
+	}
+
+	setInstalledPluginProfileBaseline(key: string, enabled: boolean): void {
+		this._baseEnablementModel.setEnabled(key, enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
 	}
 }
 

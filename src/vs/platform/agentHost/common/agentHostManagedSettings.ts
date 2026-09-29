@@ -65,7 +65,15 @@ export interface IAgentHostManagedSettingsPermissions {
 	ask?: string[];
 }
 
+export type IAgentHostManagedPluginEnablement = Readonly<Record<string, boolean>>;
+
+export interface IAgentHostManagedSettingsContribution {
+	readonly permissions: IAgentHostManagedSettingsPermissions;
+	readonly enabledPlugins: IAgentHostManagedPluginEnablement;
+}
+
 export const AgentHostMapLegacySettingsToManagedSettingsSettingId = 'chat.agentHost.copilot.mapLegacySettingsToManagedSettings';
+export const AgentHostManagedPluginsSettingId = 'chat.plugins.enabledPlugins';
 
 /**
  * Which configuration layers may drive a mapping.
@@ -293,6 +301,13 @@ export function isManagedSettingsPermissions(value: unknown): value is IAgentHos
 		&& isStringArrayOrUndefined(permissions.ask);
 }
 
+export function isManagedPluginEnablement(value: unknown): value is IAgentHostManagedPluginEnablement {
+	return typeof value === 'object'
+		&& value !== null
+		&& !Array.isArray(value)
+		&& Object.values(value).every(enabled => typeof enabled === 'boolean');
+}
+
 function isStringArrayOrUndefined(value: unknown): boolean {
 	return value === undefined || (Array.isArray(value) && value.every(item => typeof item === 'string'));
 }
@@ -338,4 +353,9 @@ export function resolveManagedSettingsPermissions(configurationService: IConfigu
 		permissions.ask = [...ask];
 	}
 	return permissions;
+}
+
+export function resolveManagedPluginEnablement(configurationService: IConfigurationService): IAgentHostManagedPluginEnablement {
+	const value = configurationService.inspect<Readonly<Record<string, boolean>>>(AgentHostManagedPluginsSettingId)?.policyValue;
+	return isManagedPluginEnablement(value) ? value : {};
 }

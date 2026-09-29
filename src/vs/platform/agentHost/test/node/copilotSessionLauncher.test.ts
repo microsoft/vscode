@@ -128,7 +128,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
 	return new CopilotSessionLauncher(
 		configurationService,
-		{ permissions: managedSettingsPermissions ?? {} } as IAgentHostManagedSettingsService,
+		{ permissions: managedSettingsPermissions ?? {}, enabledPlugins: {} } as IAgentHostManagedSettingsService,
 		{} as IAgentHostTerminalManager,
 		logService,
 		{} as IFileService,

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostMapLegacySettingsToManagedSettingsSettingId, resolveManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
+import { AgentHostManagedPluginsSettingId, AgentHostMapLegacySettingsToManagedSettingsSettingId, resolveManagedPluginEnablement, resolveManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
 import { ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID } from '../../common/agentHostSchema.js';
 
@@ -75,6 +75,33 @@ suite('AgentHostManagedSettings', () => {
 		});
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('reads only boolean managed plugin policy entries', () => {
+		const valid = createConfigurationService({
+			[AgentHostManagedPluginsSettingId]: {
+				policyValue: {
+					'required@marketplace': true,
+					'blocked@marketplace': false,
+				},
+			},
+		});
+		const invalid = createConfigurationService({
+			[AgentHostManagedPluginsSettingId]: {
+				policyValue: {
+					'required@marketplace': true,
+					invalid: 'yes',
+				},
+			},
+		});
+
+		assert.deepStrictEqual([
+			resolveManagedPluginEnablement(valid),
+			resolveManagedPluginEnablement(invalid),
+		], [{
+			'required@marketplace': true,
+			'blocked@marketplace': false,
+		}, {}]);
 	});
 
 	test('deduplicates a rule that more than one entry produces', () => {
