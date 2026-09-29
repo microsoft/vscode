@@ -660,6 +660,8 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			}());
 			reg.defineInstance(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
 				override readonly comparisons = constObservable([]);
+				override getComparison() { return undefined; }
+				override getComparisonForSession() { return undefined; }
 			}());
 			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() {
 				override readonly activeCustomView = constObservable(undefined);

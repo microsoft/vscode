@@ -32,6 +32,7 @@ suite('ModelPickerActionItem', () => {
 			setSelectedModel: () => { },
 			setCompact: () => { },
 			setContextViewLayer: layer => contextViewLayers.push(layer),
+			setForceTabbedPicker: () => { },
 			render: container => container.appendChild(widgetElement),
 			show: anchor => anchors.push(anchor),
 			dispose: () => disposed++,
