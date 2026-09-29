@@ -18,6 +18,12 @@
 	padding: 2px 4px;
 	margin-left: 6px;
 	min-height: auto;
+	cursor: pointer;
+}
+
+.pane-header .open-editors-dirty-count-container > .dirty-count.monaco-count-badge:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 .open-editors .monaco-list .monaco-list-row:hover > .monaco-action-bar,
@@ -63,7 +69,7 @@
 }
 
 .open-editors .monaco-list .monaco-list-row {
-	padding-left: 22px;
+	padding-left: 8px;
 	display: flex;
 }
 

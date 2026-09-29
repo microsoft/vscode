@@ -12,7 +12,7 @@ import { createServer as doCreateServer, IServerAPI } from './remoteExtensionHos
 import { parseArgs, ErrorReporter } from '../../platform/environment/node/argv.js';
 import { join, dirname } from '../../base/common/path.js';
 import { performance } from 'perf_hooks';
-import { serverOptions } from './serverEnvironmentService.js';
+import { agentHostBridgeConnectionTokenEnvironmentVariable, serverOptions } from './serverEnvironmentService.js';
 import product from '../../platform/product/common/product.js';
 import * as perf from '../../base/common/performance.js';
 
@@ -35,6 +35,8 @@ const errorReporter: ErrorReporter = {
 };
 
 const args = parseArgs(process.argv.slice(2), serverOptions, errorReporter);
+const agentHostBridgeConnectionToken = process.env[agentHostBridgeConnectionTokenEnvironmentVariable];
+delete process.env[agentHostBridgeConnectionTokenEnvironmentVariable];
 
 const REMOTE_DATA_FOLDER = args['server-data-dir'] || process.env['VSCODE_AGENT_FOLDER'] || join(os.homedir(), product.serverDataFolderName || '.vscode-remote');
 const USER_DATA_PATH = join(REMOTE_DATA_FOLDER, 'data');
@@ -51,7 +53,7 @@ args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'ext
 [REMOTE_DATA_FOLDER, args['extensions-dir'], USER_DATA_PATH, APP_SETTINGS_HOME, MACHINE_SETTINGS_HOME, GLOBAL_STORAGE_HOME, LOCAL_HISTORY_HOME].forEach(f => {
 	try {
 		if (!fs.existsSync(f)) {
-			fs.mkdirSync(f, { mode: 0o700 });
+			fs.mkdirSync(f, { mode: 0o700, recursive: true });
 		}
 	} catch (err) { console.error(err); }
 });
@@ -67,5 +69,5 @@ export function spawnCli() {
  * invoked by server-main.js
  */
 export function createServer(address: string | net.AddressInfo | null): Promise<IServerAPI> {
-	return doCreateServer(address, args, REMOTE_DATA_FOLDER);
+	return doCreateServer(address, args, REMOTE_DATA_FOLDER, agentHostBridgeConnectionToken);
 }

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SinonStub, stub } from 'sinon';
+import { DeepPartial } from '../../common/types.js';
 
 export interface Ctor<T> {
 	new(): T;
@@ -34,3 +35,13 @@ export const mockObject = <T extends object>() => <TP extends Partial<T> = {}>(p
 		},
 	});
 };
+
+/**
+ * Shortcut for type-safe partials in mocks. A shortcut for `obj as Partial<T> as T`.
+ */
+export function upcastPartial<T>(partial: Partial<T>): T {
+	return partial as T;
+}
+export function upcastDeepPartial<T>(partial: DeepPartial<T>): T {
+	return partial as T;
+}

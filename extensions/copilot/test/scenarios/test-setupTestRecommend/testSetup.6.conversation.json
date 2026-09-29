@@ -1,0 +1,17 @@
+[
+  {
+    "name": "phpLaravelApp",
+    "question": "/setupTests",
+    "keywords": {
+      "anyOf": [
+        "phpunit",
+        "codeception"
+      ]
+    },
+    "files": [
+      "app/Http/Controllers/Controller.php",
+      "composer.json",
+      "phpunit.xml"
+    ]
+  }
+]

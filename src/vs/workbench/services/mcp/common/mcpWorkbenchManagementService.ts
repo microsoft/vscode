@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { ILocalMcpServer, IMcpManagementService, IGalleryMcpServer, InstallOptions, InstallMcpServerEvent, UninstallMcpServerEvent, DidUninstallMcpServerEvent, InstallMcpServerResult, IInstallableMcpServer, IMcpGalleryService, UninstallOptions, IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
+import { ILocalMcpServer, IMcpManagementService, IGalleryMcpServer, InstallOptions, InstallMcpServerEvent, UninstallMcpServerEvent, DidUninstallMcpServerEvent, InstallMcpServerResult, IInstallableMcpServer, IMcpGalleryService, UninstallOptions, IAllowedMcpServersService, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IInstantiationService, refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -24,14 +24,24 @@ import { AbstractMcpManagementService, AbstractMcpResourceManagementService, ILo
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { McpResourceFormat, WORKSPACE_ROOT_MCP_COLLECTION_ID_PREFIX, WORKSPACE_ROOT_MCP_CONFIG_FILE } from '../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
+import { localize } from '../../../../nls.js';
+import { IMcpWorkspaceInstallTargetService } from './mcpWorkspaceInstallTargetService.js';
 
 export const USER_CONFIG_ID = 'usrlocal';
 export const REMOTE_USER_CONFIG_ID = 'usrremote';
 export const WORKSPACE_CONFIG_ID = 'workspace';
 export const WORKSPACE_FOLDER_CONFIG_ID_PREFIX = 'ws';
 
+export const enum WorkspaceMcpConfigKind {
+	Root = 'root',
+	LegacyVscode = 'legacyVscode',
+}
+
 export interface IWorkbencMcpServerInstallOptions extends InstallOptions {
 	target?: ConfigurationTarget | IWorkspaceFolder;
+	workspaceConfig?: WorkspaceMcpConfigKind;
 }
 
 export const enum LocalMcpServerScope {
@@ -43,6 +53,7 @@ export const enum LocalMcpServerScope {
 export interface IWorkbenchLocalMcpServer extends ILocalMcpServer {
 	readonly id: string;
 	readonly scope: LocalMcpServerScope;
+	readonly format?: McpResourceFormat;
 }
 
 export interface InstallWorkbenchMcpServerEvent extends InstallMcpServerEvent {
@@ -74,7 +85,7 @@ export interface IWorkbenchMcpManagementService extends IMcpManagementService {
 
 	getInstalled(): Promise<IWorkbenchLocalMcpServer[]>;
 	install(server: IInstallableMcpServer | URI, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer>;
-	installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<IWorkbenchLocalMcpServer>;
+	installFromGallery(server: IGalleryMcpServer, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer>;
 	updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<IWorkbenchLocalMcpServer>;
 }
 
@@ -127,6 +138,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IRemoteUserDataProfilesService private readonly remoteUserDataProfilesService: IRemoteUserDataProfilesService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IMcpWorkspaceInstallTargetService private readonly workspaceInstallTargetService: IMcpWorkspaceInstallTargetService,
 	) {
 		super(allowedMcpServersService, logService);
 
@@ -296,7 +308,15 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 	}
 
 	private toWorkspaceMcpServer(server: ILocalMcpServer, scope: LocalMcpServerScope): IWorkbenchLocalMcpServer {
-		return { ...server, id: `mcp.config.${this.getConfigId(server, scope)}.${server.name}`, scope };
+		const rootFolder = scope === LocalMcpServerScope.Workspace
+			? this.workspaceContextService.getWorkspace().folders.find(folder => this.uriIdentityService.extUri.isEqual(folder.toResource(WORKSPACE_ROOT_MCP_CONFIG_FILE), server.mcpResource))
+			: undefined;
+		return {
+			...server,
+			id: rootFolder ? `${WORKSPACE_ROOT_MCP_COLLECTION_ID_PREFIX}${rootFolder.index}.${server.name}` : `mcp.config.${this.getConfigId(server, scope)}.${server.name}`,
+			scope,
+			format: rootFolder ? McpResourceFormat.WorkspaceRoot : McpResourceFormat.Vscode,
+		};
 	}
 
 	private getConfigId(server: ILocalMcpServer, scope: LocalMcpServerScope): string {
@@ -327,9 +347,12 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 
 	async install(server: IInstallableMcpServer, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer> {
 		options = options ?? {};
+		this.validateWorkspaceConfigOptions(options);
 
 		if (options.target === ConfigurationTarget.WORKSPACE || isWorkspaceFolder(options.target)) {
-			const mcpResource = options.target === ConfigurationTarget.WORKSPACE ? this.workspaceContextService.getWorkspace().configuration : options.target.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]);
+			const mcpResource = options.target === ConfigurationTarget.WORKSPACE ? this.workspaceContextService.getWorkspace().configuration : options.target.toResource(
+				options.workspaceConfig === WorkspaceMcpConfigKind.Root ? WORKSPACE_ROOT_MCP_CONFIG_FILE : WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]
+			);
 			if (!mcpResource) {
 				throw new Error(`Illegal target: ${options.target}`);
 			}
@@ -356,13 +379,61 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 		return this.toWorkspaceMcpServer(result, LocalMcpServerScope.User);
 	}
 
-	async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<IWorkbenchLocalMcpServer> {
+	async installFromGallery(server: IGalleryMcpServer, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer> {
 		options = options ?? {};
+		this.validateWorkspaceConfigOptions(options);
+		if (options.workspaceConfig === WorkspaceMcpConfigKind.Root || options.mcpResource && this.isWorkspaceRootResource(options.mcpResource)) {
+			throw new Error(localize('rootGalleryUnsupported', "Gallery MCP servers cannot be installed in .mcp.json."));
+		}
+
+		if (options.target === ConfigurationTarget.WORKSPACE || isWorkspaceFolder(options.target)) {
+			const mcpResource = options.target === ConfigurationTarget.WORKSPACE ? this.workspaceContextService.getWorkspace().configuration : options.target.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]);
+			if (!mcpResource) {
+				throw new Error(`Illegal target: ${options.target}`);
+			}
+			options.mcpResource = mcpResource;
+			const result = await this.workspaceMcpManagementService.installFromGallery(server, options);
+			return this.toWorkspaceMcpServer(result, LocalMcpServerScope.Workspace);
+		}
+
+		if (options.target === ConfigurationTarget.USER_REMOTE) {
+			if (!this.remoteMcpManagementService) {
+				throw new Error(`Illegal target: ${options.target}`);
+			}
+			options.mcpResource = await this.getRemoteMcpResource(options.mcpResource);
+			const result = await this.remoteMcpManagementService.installFromGallery(server, options);
+			return this.toWorkspaceMcpServer(result, LocalMcpServerScope.RemoteUser);
+		}
+
+		if (options.target && options.target !== ConfigurationTarget.USER && options.target !== ConfigurationTarget.USER_LOCAL) {
+			throw new Error(`Illegal target: ${options.target}`);
+		}
+
 		if (!options.mcpResource) {
 			options.mcpResource = this.userDataProfileService.currentProfile.mcpResource;
 		}
 		const result = await this.mcpManagementService.installFromGallery(server, options);
 		return this.toWorkspaceMcpServer(result, LocalMcpServerScope.User);
+	}
+
+	private validateWorkspaceConfigOptions(options: IWorkbencMcpServerInstallOptions): void {
+		const targets = this.workspaceInstallTargetService.getTargets();
+		const workspaceConfiguration = this.workspaceContextService.getWorkspace().configuration;
+		if ((options.target === ConfigurationTarget.WORKSPACE || options.mcpResource && workspaceConfiguration && this.uriIdentityService.extUri.isEqual(options.mcpResource, workspaceConfiguration))
+			&& !targets.includes(ConfigurationTarget.WORKSPACE)) {
+			throw new Error(localize('unsupportedMcpWorkspaceTarget', "This workspace configuration does not support MCP server installation. Select a workspace folder instead."));
+		}
+		const target = options.target;
+		if (isWorkspaceFolder(target) && !targets.some(candidate => isWorkspaceFolder(candidate) && this.uriIdentityService.extUri.isEqual(candidate.uri, target.uri))) {
+			throw new Error(localize('unsupportedMcpWorkspaceFolderTarget', "This workspace folder is no longer available for MCP server installation."));
+		}
+		if (options.workspaceConfig !== undefined && !isWorkspaceFolder(options.target)) {
+			throw new Error(localize('workspaceConfigRequiresFolder', "An MCP workspace configuration file can only be selected for a workspace folder."));
+		}
+	}
+
+	private isWorkspaceRootResource(resource: URI): boolean {
+		return this.workspaceContextService.getWorkspace().folders.some(folder => this.uriIdentityService.extUri.isEqual(folder.toResource(WORKSPACE_ROOT_MCP_CONFIG_FILE), resource));
 	}
 
 	async updateMetadata(local: IWorkbenchLocalMcpServer, server: IGalleryMcpServer, profileLocation: URI): Promise<IWorkbenchLocalMcpServer> {
@@ -418,17 +489,58 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 	constructor(
 		mcpResource: URI,
 		target: McpResourceTarget,
+		format: McpResourceFormat,
 		@IMcpGalleryService mcpGalleryService: IMcpGalleryService,
 		@IFileService fileService: IFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IMcpResourceScannerService mcpResourceScannerService: IMcpResourceScannerService,
+		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 	) {
-		super(mcpResource, target, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService);
+		super(mcpResource, target, format, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService);
 	}
 
-	override installFromGallery(): Promise<ILocalMcpServer> {
-		throw new Error('Not supported');
+	override async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+		if (this.format === McpResourceFormat.WorkspaceRoot) {
+			throw new Error(localize('rootGalleryUnsupported', "Gallery MCP servers cannot be installed in .mcp.json."));
+		}
+		this.logService.trace('MCP Management Service: installGallery', server.name, server.galleryUrl);
+
+		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
+
+		try {
+			const packageType = options?.packageType ?? server.configuration.packages?.[0]?.registryType ?? RegistryType.REMOTE;
+
+			const { mcpServerConfiguration, notices } = this.getMcpServerConfigurationFromManifest(server.configuration, packageType);
+
+			if (notices.length > 0) {
+				this.logService.warn(`MCP Management Service: Warnings while installing ${server.name}`, notices);
+			}
+
+			const installable: IInstallableMcpServer = {
+				name: server.name,
+				config: {
+					...mcpServerConfiguration.config,
+					gallery: server.galleryUrl ?? true,
+					version: server.version
+				},
+				inputs: mcpServerConfiguration.inputs
+			};
+
+			this.ensureServerAllowed(installable);
+
+			await this.mcpResourceScannerService.addMcpServers([installable], this.mcpResource, this.target, this.format);
+
+			await this.updateLocal(server);
+			const local = (await this.getInstalled()).find(s => s.name === server.name);
+			if (!local) {
+				throw new Error(`Failed to install MCP server: ${server.name}`);
+			}
+			return local;
+		} catch (e) {
+			this._onDidInstallMcpServers.fire([{ name: server.name, source: server, error: e, mcpResource: this.mcpResource }]);
+			throw e;
+		}
 	}
 
 	override updateMetadata(): Promise<ILocalMcpServer> {
@@ -439,8 +551,28 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 		throw new Error('Not supported');
 	}
 
-	protected override async getLocalServerInfo(): Promise<ILocalMcpServerInfo | undefined> {
-		return undefined;
+	protected override async getLocalServerInfo(name: string, mcpServerConfig: IMcpServerConfiguration): Promise<ILocalMcpServerInfo | undefined> {
+		if (!mcpServerConfig.gallery) {
+			return undefined;
+		}
+
+		const [mcpServer] = await this.mcpGalleryService.getMcpServersFromGallery([{ name }]);
+		if (!mcpServer) {
+			return undefined;
+		}
+
+		return {
+			name: mcpServer.name,
+			version: mcpServerConfig.version,
+			displayName: mcpServer.displayName,
+			description: mcpServer.description,
+			galleryUrl: mcpServer.galleryUrl,
+			manifest: mcpServer.configuration,
+			publisher: mcpServer.publisher,
+			publisherDisplayName: mcpServer.publisherDisplayName,
+			repositoryUrl: mcpServer.repositoryUrl,
+			icon: mcpServer.icon,
+		};
 	}
 
 	override canInstall(server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString {
@@ -467,8 +599,9 @@ class WorkspaceMcpManagementService extends AbstractMcpManagementService impleme
 
 	private allMcpServers: ILocalMcpServer[] = [];
 
+	private workspaceUpdatePromise: Promise<void>;
 	private workspaceConfiguration?: URI | null;
-	private readonly workspaceMcpManagementServices = new ResourceMap<{ service: WorkspaceMcpResourceManagementService } & IDisposable>();
+	private readonly workspaceMcpManagementServices: ResourceMap<{ service: WorkspaceMcpResourceManagementService } & IDisposable>;
 
 	constructor(
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
@@ -478,15 +611,20 @@ class WorkspaceMcpManagementService extends AbstractMcpManagementService impleme
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(allowedMcpServersService, logService);
-		this.initialize();
+		this.workspaceMcpManagementServices = new ResourceMap(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+		this.workspaceUpdatePromise = this.initialize();
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(e => {
+			this.workspaceUpdatePromise = this.workspaceUpdatePromise.then(() => this.onDidChangeWorkspaceFolders(e));
+		}));
+		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => {
+			this.workspaceUpdatePromise = this.workspaceUpdatePromise.then(() => this.onDidChangeWorkbenchState());
+		}));
 	}
 
 	private async initialize(): Promise<void> {
 		try {
 			await this.onDidChangeWorkbenchState();
 			await this.onDidChangeWorkspaceFolders({ added: this.workspaceContextService.getWorkspace().folders, removed: [], changed: [] });
-			this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(e => this.onDidChangeWorkspaceFolders(e)));
-			this._register(this.workspaceContextService.onDidChangeWorkbenchState(e => this.onDidChangeWorkbenchState()));
 		} catch (error) {
 			this.logService.error('Failed to initialize workspace folders', error);
 		}
@@ -504,27 +642,43 @@ class WorkspaceMcpManagementService extends AbstractMcpManagementService impleme
 
 	private async onDidChangeWorkspaceFolders(e: IWorkspaceFoldersChangeEvent): Promise<void> {
 		try {
-			await Promise.allSettled(e.removed.map(folder => this.removeWorkspaceService(folder.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]))));
+			await Promise.allSettled(e.removed.flatMap(folder => [
+				this.removeWorkspaceService(folder.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY])),
+				this.removeWorkspaceService(folder.toResource(WORKSPACE_ROOT_MCP_CONFIG_FILE)),
+			]));
 		} catch (error) {
 			this.logService.error(error);
 		}
 		try {
-			await Promise.allSettled(e.added.map(folder => this.addWorkspaceService(folder.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]), ConfigurationTarget.WORKSPACE_FOLDER)));
+			await Promise.allSettled(e.added.flatMap(folder => [
+				this.addWorkspaceService(folder.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]), ConfigurationTarget.WORKSPACE_FOLDER),
+				this.addWorkspaceService(folder.toResource(WORKSPACE_ROOT_MCP_CONFIG_FILE), ConfigurationTarget.WORKSPACE_FOLDER, McpResourceFormat.WorkspaceRoot),
+			]));
+			const changedServers = this.allMcpServers.filter(server => e.changed.some(folder =>
+				this.uriIdentityService.extUri.isEqual(server.mcpResource, folder.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]))
+				|| this.uriIdentityService.extUri.isEqual(server.mcpResource, folder.toResource(WORKSPACE_ROOT_MCP_CONFIG_FILE))));
+			if (changedServers.length) {
+				this._onDidUpdateMcpServers.fire(changedServers.map(local => ({ name: local.name, local, mcpResource: local.mcpResource })));
+			}
 		} catch (error) {
 			this.logService.error(error);
 		}
 	}
 
-	private async addWorkspaceService(mcpResource: URI, target: McpResourceTarget): Promise<void> {
+	private async addWorkspaceService(mcpResource: URI, target: McpResourceTarget, format = McpResourceFormat.Vscode): Promise<void> {
 		if (this.workspaceMcpManagementServices.has(mcpResource)) {
 			return;
 		}
 
 		const disposables = new DisposableStore();
-		const service = disposables.add(this.instantiationService.createInstance(WorkspaceMcpResourceManagementService, mcpResource, target));
+		const service = disposables.add(this.instantiationService.createInstance(WorkspaceMcpResourceManagementService, mcpResource, target, format));
+		this.workspaceMcpManagementServices.set(mcpResource, { service, dispose: () => disposables.dispose() });
 
 		try {
 			const installedServers = await service.getInstalled();
+			if (this._store.isDisposed) {
+				return;
+			}
 			this.allMcpServers.push(...installedServers);
 			if (installedServers.length > 0) {
 				const installResults: InstallMcpServerResult[] = installedServers.map(server => ({
@@ -538,6 +692,9 @@ class WorkspaceMcpManagementService extends AbstractMcpManagementService impleme
 			this.logService.warn('Failed to get installed servers from', mcpResource.toString(), error);
 		}
 
+		if (this._store.isDisposed) {
+			return;
+		}
 		disposables.add(service.onInstallMcpServer(e => this._onInstallMcpServer.fire(e)));
 		disposables.add(service.onDidInstallMcpServers(e => {
 			for (const { local } of e) {
@@ -566,7 +723,6 @@ class WorkspaceMcpManagementService extends AbstractMcpManagementService impleme
 				this._onDidUninstallMcpServer.fire(e);
 			}
 		}));
-		this.workspaceMcpManagementServices.set(mcpResource, { service, dispose: () => disposables.dispose() });
 	}
 
 	private async removeWorkspaceService(mcpResource: URI): Promise<void> {
@@ -590,10 +746,12 @@ class WorkspaceMcpManagementService extends AbstractMcpManagementService impleme
 	}
 
 	async getInstalled(): Promise<ILocalMcpServer[]> {
+		await this.workspaceUpdatePromise;
 		return this.allMcpServers;
 	}
 
 	async install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+		await this.workspaceUpdatePromise;
 		if (!options?.mcpResource) {
 			throw new Error('MCP resource is required');
 		}
@@ -607,6 +765,7 @@ class WorkspaceMcpManagementService extends AbstractMcpManagementService impleme
 	}
 
 	async uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void> {
+		await this.workspaceUpdatePromise;
 		const mcpResource = server.mcpResource;
 
 		const mcpManagementServiceItem = this.workspaceMcpManagementServices.get(mcpResource);
@@ -617,8 +776,18 @@ class WorkspaceMcpManagementService extends AbstractMcpManagementService impleme
 		return mcpManagementServiceItem.service.uninstall(server, options);
 	}
 
-	installFromGallery(): Promise<ILocalMcpServer> {
-		throw new Error('Not supported');
+	async installFromGallery(gallery: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+		await this.workspaceUpdatePromise;
+		if (!options?.mcpResource) {
+			throw new Error('MCP resource is required');
+		}
+
+		const mcpManagementServiceItem = this.workspaceMcpManagementServices.get(options?.mcpResource);
+		if (!mcpManagementServiceItem) {
+			throw new Error(`No MCP management service found for resource: ${options?.mcpResource.toString()}`);
+		}
+
+		return mcpManagementServiceItem.service.installFromGallery(gallery, options);
 	}
 
 	updateMetadata(): Promise<ILocalMcpServer> {

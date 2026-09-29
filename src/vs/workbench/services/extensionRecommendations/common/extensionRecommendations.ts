@@ -52,10 +52,10 @@ export const IExtensionIgnoredRecommendationsService = createDecorator<IExtensio
 export interface IExtensionIgnoredRecommendationsService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeIgnoredRecommendations: Event<void>;
+	readonly onDidChangeIgnoredRecommendations: Event<void>;
 	readonly ignoredRecommendations: string[];
 
-	onDidChangeGlobalIgnoredRecommendation: Event<IgnoredRecommendationChangeNotification>;
+	readonly onDidChangeGlobalIgnoredRecommendation: Event<IgnoredRecommendationChangeNotification>;
 	readonly globalIgnoredRecommendations: string[];
 	toggleGlobalIgnoredRecommendation(extensionId: string, ignore: boolean): void;
 }

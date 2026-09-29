@@ -6,7 +6,7 @@
 import { localize } from '../../../../../nls.js';
 import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
-import { matchesFuzzy } from '../../../../../base/common/filters.js';
+import { matchesFuzzyIconAware, parseLabelWithIcons } from '../../../../../base/common/iconLabels.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TerminalCommandId } from '../../../terminal/common/terminal.js';
@@ -101,7 +101,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		if (uriClasses) {
 			iconClasses.push(...uriClasses);
 		}
-		const highlights = matchesFuzzy(filter, label, true);
+		const highlights = matchesFuzzyIconAware(filter, parseLabelWithIcons(label), true);
 		if (highlights) {
 			return {
 				label,

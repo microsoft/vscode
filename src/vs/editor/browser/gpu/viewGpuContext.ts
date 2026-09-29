@@ -6,15 +6,18 @@
 import * as nls from '../../../nls.js';
 import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastDomNode.js';
+import { Color } from '../../../base/common/color.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 import { observableValue, runOnChange, type IObservable } from '../../../base/common/observable.js';
+import * as strings from '../../../base/common/strings.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { TextureAtlas } from './atlas/textureAtlas.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../platform/notification/common/notification.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 import { RectangleRenderer } from './rectangleRenderer.js';
@@ -81,6 +84,7 @@ export class ViewGpuContext extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 
@@ -123,6 +127,12 @@ export class ViewGpuContext extends Disposable {
 		this.devicePixelRatio = dprObs;
 		this._register(runOnChange(this.devicePixelRatio, () => ViewGpuContext.atlas?.clear()));
 
+		// Clear decoration CSS caches when theme changes as CSS variables may have different values
+		this._register(this._themeService.onDidColorThemeChange(() => {
+			ViewGpuContext.decorationCssRuleExtractor.clear();
+			ViewGpuContext.atlas?.clear();
+		}));
+
 		const canvasDevicePixelDimensions = observableValue(this, { width: this.canvas.domNode.width, height: this.canvas.domNode.height });
 		this._register(observeDevicePixelDimensions(
 			this.canvas.domNode,
@@ -141,7 +151,7 @@ export class ViewGpuContext extends Disposable {
 		}));
 		this.contentLeft = contentLeft;
 
-		this.rectangleRenderer = this._instantiationService.createInstance(RectangleRenderer, context, this.contentLeft, this.devicePixelRatio, this.canvas.domNode, this.ctx, ViewGpuContext.device);
+		this.rectangleRenderer = this._register(this._instantiationService.createInstance(RectangleRenderer, context, this.contentLeft, this.devicePixelRatio, this.canvas.domNode, this.ctx, ViewGpuContext.device));
 	}
 
 	/**
@@ -155,7 +165,8 @@ export class ViewGpuContext extends Disposable {
 		// Check if the line has simple attributes that aren't supported
 		if (
 			data.containsRTL ||
-			data.maxColumn > this.maxGpuCols
+			data.maxColumn > this.maxGpuCols ||
+			requiresDomFullwidthCharacterRendering(options, data.content)
 		) {
 			return false;
 		}
@@ -203,6 +214,9 @@ export class ViewGpuContext extends Disposable {
 		if (data.maxColumn > this.maxGpuCols) {
 			reasons.push('maxColumn > maxGpuCols');
 		}
+		if (requiresDomFullwidthCharacterRendering(options, data.content)) {
+			reasons.push('useTwoCellFullwidthCharacters');
+		}
 		if (data.inlineDecorations.length > 0) {
 			let supported = true;
 			const problemTypes: InlineDecorationType[] = [];
@@ -248,6 +262,19 @@ export class ViewGpuContext extends Disposable {
 	}
 }
 
+function requiresDomFullwidthCharacterRendering(options: ViewLineOptions, content: string): boolean {
+	if (!options.useTwoCellFullwidthCharacters) {
+		return false;
+	}
+	const limit = options.stopRenderingLineAfter === -1 ? content.length : Math.min(options.stopRenderingLineAfter, content.length);
+	for (let offset = 0; offset < limit; offset++) {
+		if (strings.isFullWidthCharacter(content.charCodeAt(offset))) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /**
  * A list of supported decoration CSS rules that can be used in the GPU renderer.
  */
@@ -255,6 +282,11 @@ const gpuSupportedDecorationCssRules = [
 	'color',
 	'font-weight',
 	'opacity',
+	'text-decoration',
+	'text-decoration-color',
+	'text-decoration-line',
+	'text-decoration-style',
+	'text-decoration-thickness',
 ];
 
 function supportsCssRule(rule: string, style: CSSStyleDeclaration) {
@@ -263,6 +295,31 @@ function supportsCssRule(rule: string, style: CSSStyleDeclaration) {
 	}
 	// Check for values that aren't supported
 	switch (rule) {
+		case 'text-decoration':
+		case 'text-decoration-line': {
+			const value = style.getPropertyValue(rule);
+			// Only line-through is supported currently
+			return value === 'line-through';
+		}
+		case 'text-decoration-color': {
+			const value = style.getPropertyValue(rule);
+			// Support var(--something, initial/inherit) which falls back to currentcolor
+			if (/^var\(--[^,]+,\s*(?:initial|inherit)\)$/.test(value)) {
+				return true;
+			}
+			// Support parsed color values
+			return Color.Format.CSS.parse(value) !== null;
+		}
+		case 'text-decoration-style': {
+			const value = style.getPropertyValue(rule);
+			// Only 'initial' (solid) is supported
+			return value === 'initial';
+		}
+		case 'text-decoration-thickness': {
+			const value = style.getPropertyValue(rule);
+			// Only pixel values and 'initial' are supported
+			return value === 'initial' || /^\d+(\.\d+)?px$/.test(value);
+		}
 		default: return true;
 	}
 }

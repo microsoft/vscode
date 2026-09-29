@@ -1,0 +1,85 @@
+[
+	{
+		"name": "codeMapper [context] [json] - make changes in package.json",
+		"requests": [
+			"224ab1e9650961b5cfcd7a9b9e3df810d0fc9315c9a9190abf60bd92eab15254"
+		]
+	},
+	{
+		"name": "codeMapper [context] [markdown] - mixed product icons (60kb) - modify & insert",
+		"requests": [
+			"95238cfe0953e79f980155a99daa2d6c1d5c4c394cfba3c18271ecb449bf616b",
+			"a8c2eea81741e9e9cc90c7fe4de1c97631bbfa24878d6a3b80b92af1a6b38aec",
+			"dd3f88f0365854387c64c0c9ae052c5dd40ccbff7d9c9fe8c1a46ca55f2cf131",
+			"ee065182b85a87f59a3a8f218dd3012ba2c3941ed8e6c2b28bb56d285d09bfd7",
+			"fa30c05936234487926b877dd7e99cb9c36d96d0f26437a5728dd549541cbfc4"
+		]
+	},
+	{
+		"name": "codeMapper [context] [markdown] - sorted product icons (60kb) - modify & insert",
+		"requests": [
+			"117b65c5da9b2cbdf2982752b61fc3af30f6d242c8b2423eba31032a397c2560",
+			"ce5ee6f7727adfd39a7d42c9c5acb89c711a047b71468908f6a121d747818473"
+		]
+	},
+	{
+		"name": "codeMapper [context] [typescript] - add import",
+		"requests": [
+			"b1b3318717fc31fecefdf08fd83561518713cd2f2c44cb9c49cbccd738d2c215"
+		]
+	},
+	{
+		"name": "codeMapper [context] [typescript] - add new function at location 1",
+		"requests": [
+			"eb658be4e329ea04b5d23f780b59ffe58cbe2cd2514a3ba25d46c97b334ed643"
+		]
+	},
+	{
+		"name": "codeMapper [context] [typescript] - break up function, large file",
+		"requests": [
+			"017dcb3c212266d76668b271449e8cdc672695af84ce7d95cdf50276a7085f2d"
+		]
+	},
+	{
+		"name": "codeMapper [context] [typescript] - does not delete random parts of code (big file)",
+		"requests": [
+			"525c209233f659df856c65f7b6bed8151bf947d8c318a54d929137066839d038"
+		]
+	},
+	{
+		"name": "codeMapper [context] [typescript] - does not remove stale imports #11766",
+		"requests": [
+			"7adbfd317ee7159cb23c142d4567dcb8ce3eccf870d667a76fcca92429fbed99"
+		]
+	},
+	{
+		"name": "codeMapper [context] [typescript] - modify function",
+		"requests": [
+			"373dff2f7e5323e159d99fd03dc242c23f4b02e4bb9b1b427a88d4168e6e488a"
+		]
+	},
+	{
+		"name": "codeMapper [context] [typescript] - move to class",
+		"requests": [
+			"1f7774a8969866c78b46d68cc022d5d185fc6e55f5ac9864a02d463f268a58de"
+		]
+	},
+	{
+		"name": "codeMapper [context] [typescript] - other tests updated similarly",
+		"requests": [
+			"e153523c0cfb664f8c4623ca1c76c497143b7ec5fbf096f6a1eb30ce0074eced"
+		]
+	},
+	{
+		"name": "codeMapper [context] [typescript] - replace statement with ident change",
+		"requests": [
+			"2551595847c9b3658198caa967b1c5f261e1611e84da91bc8a699797b918b46c"
+		]
+	},
+	{
+		"name": "codeMapper [context] [yaml] - looping in short yaml file",
+		"requests": [
+			"63db4efead8735cf038a214a4bf79f9b5ec76444f1b464cc75c7ac119a176775"
+		]
+	}
+]

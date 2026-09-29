@@ -1,0 +1,76 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { IBrowserViewAudience, IBrowserViewCreationContext, matchesBrowserViewAudience } from './browserView.js';
+import { CDPEvent, CDPRequest, CDPResponse } from './cdp/types.js';
+
+export const ipcBrowserViewGroupChannelName = 'browserViewGroup';
+
+/**
+ * A browser view group - an isolated collection of browser views.
+ *
+ * This interface is shared between the main-process entity and remote proxies.
+ */
+export interface IBrowserViewGroup extends IDisposable {
+	readonly id: string;
+
+	readonly onDidDestroy: Event<void>;
+	readonly onCDPMessage: Event<CDPResponse | CDPEvent>;
+
+	sendCDPMessage(msg: CDPRequest): Promise<void>;
+}
+
+export interface IBrowserViewGroupFilter {
+	/** Include views granted to this audience. */
+	readonly audience?: IBrowserViewAudience;
+	/** Include these views regardless of their audiences. */
+	readonly browserIds?: readonly string[];
+}
+
+export function matchesBrowserViewGroupFilter(browserId: string, audiences: readonly IBrowserViewAudience[], filter: IBrowserViewGroupFilter): boolean {
+	const audienceFilter = filter.audience;
+	return filter.browserIds?.includes(browserId) === true
+		|| (audienceFilter !== undefined && audiences.some(audience => matchesBrowserViewAudience(audienceFilter, audience)));
+}
+
+/**
+ * Common service for managing browser view groups across processes.
+ *
+ * A browser view group is an isolated collection of browser views that can be
+ * independently exposed to different services or CDP clients.
+ *
+ * This interface is consumed via {@link ProxyChannel}.
+ * The main-process implementation is {@link BrowserViewGroupMainService}.
+ */
+export interface IBrowserViewGroupService {
+
+	// Dynamic events - one per group instance, keyed by group ID.
+	onDynamicDidDestroy(groupId: string): Event<void>;
+	onDynamicCDPMessage(groupId: string): Event<CDPResponse | CDPEvent>;
+
+	/**
+	 * Create a new browser view group.
+	 * @param filter The browser views to include in the group.
+	 * @param targetContext Context inherited by targets created through the group's CDP endpoint.
+	 * @returns The id of the newly created group.
+	 */
+	createGroup(filter: IBrowserViewGroupFilter, targetContext: IBrowserViewCreationContext): Promise<string>;
+
+	/**
+	 * Destroy a browser view group.
+	 * Views in the group are **not** destroyed - they are simply detached.
+	 * @param groupId The group identifier.
+	 */
+	destroyGroup(groupId: string): Promise<void>;
+
+	/**
+	 * Send a CDP message to a group's browser proxy.
+	 * @param groupId The group identifier.
+	 * @param message The CDP request.
+	 */
+	sendCDPMessage(groupId: string, message: CDPRequest): Promise<void>;
+}

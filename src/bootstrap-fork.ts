@@ -6,8 +6,15 @@
 import * as performance from './vs/base/common/performance.js';
 import { removeGlobalNodeJsModuleLookupPaths, devInjectNodeModuleLookupPath } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
+import { enableNodeCompileCache, getNodeCompileCacheKindForUtilityProcess } from './vs/base/node/nodeCompileCache.js';
 
 performance.mark('code/fork/start');
+
+const nodeCompileCacheKind = getNodeCompileCacheKindForUtilityProcess(process.env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'] ?? '');
+const esmEntryPoint = process.env['VSCODE_ESM_ENTRYPOINT'];
+if (nodeCompileCacheKind && esmEntryPoint) {
+	enableNodeCompileCache(nodeCompileCacheKind);
+}
 
 //#region Helpers
 
@@ -123,7 +130,7 @@ function pipeLoggingToParent(): void {
 
 		Object.defineProperty(stream, 'write', {
 			set: () => { },
-			get: () => (chunk: string | Buffer | Uint8Array, encoding: BufferEncoding | undefined, callback: ((err?: Error | undefined) => void) | undefined) => {
+			get: () => (chunk: string | Buffer | Uint8Array, encoding: BufferEncoding | undefined, callback: ((err?: Error | null) => void) | undefined) => {
 				buf += chunk.toString(encoding);
 				const eol = buf.length > MAX_STREAM_BUFFER_LENGTH ? buf.length : buf.lastIndexOf('\n');
 				if (eol !== -1) {
@@ -226,4 +233,4 @@ if (process.env['VSCODE_PARENT_PID']) {
 await bootstrapESM();
 
 // Load ESM entry point
-await import([`./${process.env['VSCODE_ESM_ENTRYPOINT']}.js`].join('/') /* workaround: esbuild prints some strange warnings when trying to inline? */);
+await import([`./${esmEntryPoint}.js`].join('/') /* workaround: esbuild prints some strange warnings when trying to inline? */);

@@ -1,0 +1,160 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.plan-review-feedback-input-widget {
+	position: absolute;
+	z-index: 10000;
+	background-color: var(--vscode-panel-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	box-shadow: var(--vscode-shadow-lg);
+	border-radius: 8px;
+	padding: 4px;
+	display: flex;
+	flex-direction: row;
+	align-items: flex-end;
+	animation: planReviewFeedbackInputAppear 0.15s ease-out;
+}
+
+@keyframes planReviewFeedbackInputAppear {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.plan-review-feedback-input-widget {
+		animation: none;
+		transform: none;
+	}
+}
+
+.plan-review-feedback-input-widget textarea {
+	background-color: var(--vscode-panel-background);
+	border: none;
+	color: var(--vscode-input-foreground);
+	font: inherit;
+	border-radius: 4px;
+	padding: 0 0 0 6px;
+	outline: none;
+	min-width: 150px;
+	max-width: 400px;
+	resize: none;
+	overflow-y: hidden;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	box-sizing: border-box;
+	display: block;
+	flex: 1;
+}
+
+.plan-review-feedback-input-widget textarea:focus {
+	border-color: var(--vscode-focusBorder);
+	outline: none !important;
+}
+
+.plan-review-feedback-input-widget textarea::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.plan-review-feedback-input-widget .plan-review-feedback-input-measure {
+	position: absolute;
+	visibility: hidden;
+	height: 0;
+	overflow: hidden;
+	white-space: pre;
+	font: inherit;
+	font-size: 13px;
+}
+
+.plan-review-feedback-input-widget .plan-review-feedback-input-actions {
+	display: flex;
+	align-items: center;
+	margin-left: 2px;
+	flex-shrink: 0;
+}
+
+.plan-review-feedback-input-widget .plan-review-feedback-input-actions .action-bar .action-item .action-label {
+	width: 16px;
+	height: 16px;
+}
+
+/* Overlay toolbar (submit / navigate / clear actions) */
+.plan-review-feedback-overlay-widget {
+	padding: 2px 4px;
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editorWidget-background);
+	border-radius: 6px;
+	border: 1px solid var(--vscode-editorHoverWidget-border);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	z-index: 10;
+	box-shadow: var(--vscode-shadow-lg);
+	overflow: hidden;
+}
+
+.plan-review-feedback-overlay-widget .action-item > .action-label {
+	padding: 4px 6px;
+	font-size: 11px;
+	line-height: 14px;
+	border-radius: 4px;
+}
+
+.plan-review-feedback-overlay-widget .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
+.plan-review-feedback-overlay-widget .action-item.primary > .action-label {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.monaco-workbench .plan-review-feedback-overlay-widget .monaco-action-bar .action-item.primary > .action-label:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.plan-review-feedback-overlay-widget .action-item > .action-label.codicon:not(.separator) {
+	color: var(--vscode-foreground);
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	font-size: 16px;
+	line-height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.plan-review-feedback-overlay-widget .monaco-action-bar .action-item.disabled {
+
+	> .action-label.codicon::before,
+	> .action-label.codicon,
+	> .action-label,
+	> .action-label:hover {
+		color: var(--vscode-button-separator);
+		opacity: 1;
+	}
+}
+
+.plan-review-feedback-overlay-widget .action-item.label-item {
+	font-variant-numeric: tabular-nums;
+}
+
+.plan-review-feedback-overlay-widget .monaco-action-bar .action-item.label-item > .action-label,
+.plan-review-feedback-overlay-widget .monaco-action-bar .action-item.label-item > .action-label:hover {
+	color: var(--vscode-foreground);
+	opacity: 1;
+}
+
+/* Gutter decoration for feedback lines */
+.plan-review-feedback-line-number {
+	color: var(--vscode-editorInfo-foreground);
+}

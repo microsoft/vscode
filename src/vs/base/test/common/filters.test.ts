@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from '../../common/filters.js';
+import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesBaseContiguousSubString, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from '../../common/filters.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number }[]) {
@@ -158,6 +158,30 @@ suite('Filters', () => {
 		]);
 	});
 
+	test('matchesBaseContiguousSubString', () => {
+		filterOk(matchesBaseContiguousSubString, 'cela', 'cancelAnimationFrame()', [
+			{ start: 3, end: 7 }
+		]);
+		filterOk(matchesBaseContiguousSubString, 'cafe', 'café', [
+			{ start: 0, end: 4 }
+		]);
+		filterOk(matchesBaseContiguousSubString, 'cafe', 'caféBar', [
+			{ start: 0, end: 4 }
+		]);
+		filterOk(matchesBaseContiguousSubString, 'resume', 'résumé', [
+			{ start: 0, end: 6 }
+		]);
+		filterOk(matchesBaseContiguousSubString, 'naïve', 'naïve', [
+			{ start: 0, end: 5 }
+		]);
+		filterOk(matchesBaseContiguousSubString, 'naive', 'naïve', [
+			{ start: 0, end: 5 }
+		]);
+		filterOk(matchesBaseContiguousSubString, 'aeou', 'àéöü', [
+			{ start: 0, end: 4 }
+		]);
+	});
+
 	test('matchesSubString', () => {
 		filterOk(matchesSubString, 'cmm', 'cancelAnimationFrame()', [
 			{ start: 0, end: 1 },
@@ -228,6 +252,25 @@ suite('Filters', () => {
 		filterOk(matchesWords, 'foo bar', '123 foo-bar 456');
 		filterOk(matchesWords, 'foo-bar', 'foo bar');
 		filterOk(matchesWords, 'foo:bar', 'foo:bar');
+	});
+
+	test('matchesWords performance (#309582)', function () {
+		// Searching for a term containing a word separator (e.g. `.`) against
+		// command-id-like targets used to cause catastrophic backtracking and
+		// freeze the Keyboard Shortcuts editor. Without the fix this loop
+		// exceeds Mocha's default test timeout.
+		const targets = [
+			'workbench.action.terminal.focusNextLine',
+			'editor.action.clipboardCopyAction',
+			'workbench.action.editor.changeLanguageMode',
+			'editor.action.smartSelect.expand',
+			'workbench.action.files.saveAll',
+		];
+		for (let i = 0; i < 1000; i++) {
+			for (const t of targets) {
+				matchesWords('editor.action', t);
+			}
+		}
 	});
 
 	function assertMatches(pattern: string, word: string, decoratedWord: string | undefined, filter: FuzzyScorer, opts: { patternPos?: number; wordPos?: number; firstMatchCanBeWeak?: boolean } = {}) {

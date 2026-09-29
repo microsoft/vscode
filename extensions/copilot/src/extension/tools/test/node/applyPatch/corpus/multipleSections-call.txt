@@ -1,0 +1,13 @@
+*** Begin Patch
+*** Update File: multipleSections.txt
+@@
+-- list:
+-      - item1
+-            - iterate1
++- list:
++      - item11
++            - iterate1
+@@
+-      - item666
++      - item6
+*** End Patch

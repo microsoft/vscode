@@ -1,0 +1,11 @@
+*** Begin Patch
+*** Update File: multipleIndentedLines.txt
+@@
+-def create_rollout_specs(global_traffic_manager,templ, template_name, output_file_name, data, output_dir, validation_deployment):
+-    environ = data["Environment"]
++def create_rollout_specs(global_traffic_manager,templ, template_name, output_file_name, data, output_dir, validation_deployment):
++    testingenv = data["Environment"]
+@@
+-        finalstr = final_tmpl_str.replace("###Environment###", environ)
++        finalstr = final_tmpl_str.replace("###Environment###", testingenv)
+*** End Patch

@@ -50,7 +50,7 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService
 	) {
 		super();
-		this._headElement = <HTMLDivElement>dom.$('.head');
+		this._headElement = dom.$('.head');
 		container.appendChild(this._headElement);
 		this._register(toDisposable(() => this._headElement.remove()));
 		this._fillHead();

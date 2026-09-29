@@ -21,12 +21,12 @@ export interface IUserDataInitializer {
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService extends IUserDataInitializer {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 }
 
 export class UserDataInitializationService implements IUserDataInitializationService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(private readonly initializers: IUserDataInitializer[] = []) {
 	}

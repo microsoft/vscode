@@ -4,14 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AbstractCommonMcpManagementService } from '../../common/mcpManagementService.js';
-import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
-import { McpServerType, McpServerVariableType, IMcpServerVariable } from '../../common/mcpPlatformTypes.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { AbstractCommonMcpManagementService, AbstractMcpResourceManagementService, McpUserResourceManagementService } from '../../common/mcpManagementService.js';
+import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpServerInput, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
+import { IMcpSandboxConfiguration, McpServerType, McpServerVariableType, IMcpServerConfiguration, IMcpServerVariable } from '../../common/mcpPlatformTypes.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ConfigurationTarget } from '../../../configuration/common/configuration.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { McpResourceScannerService } from '../../common/mcpResourceScannerService.js';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { McpResourceFormat } from '../../common/mcpWorkspaceConfiguration.js';
+
+class TestLogService extends NullLogService {
+	readonly errors: string[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push([message, ...args].join(' '));
+	}
+}
 
 class TestMcpManagementService extends AbstractCommonMcpManagementService {
 
@@ -42,6 +61,56 @@ class TestMcpManagementService extends AbstractCommonMcpManagementService {
 	}
 }
 
+class TestMcpResourceManagementService extends AbstractMcpResourceManagementService {
+	constructor(mcpResource: URI, fileService: FileService, uriIdentityService: UriIdentityService, mcpResourceScannerService: McpResourceScannerService, allowedMcpServersService: IAllowedMcpServersService = { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true }) {
+		super(
+			mcpResource,
+			ConfigurationTarget.USER,
+			McpResourceFormat.Vscode,
+			{} as IMcpGalleryService,
+			fileService,
+			uriIdentityService,
+			new NullLogService(),
+			mcpResourceScannerService,
+			allowedMcpServersService,
+		);
+	}
+
+	public reload(source?: IGalleryMcpServer): Promise<void> {
+		return this.updateLocal(source);
+	}
+
+	override canInstall(_server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString {
+		throw new Error('Not supported');
+	}
+
+	protected override getLocalServerInfo(_name: string, _mcpServerConfig: IMcpServerConfiguration) {
+		return Promise.resolve(undefined);
+	}
+
+	protected override installFromUri(_uri: URI): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+
+	override installFromGallery(_server: IGalleryMcpServer, _options?: InstallOptions): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+
+	override updateMetadata(_local: ILocalMcpServer, _server: IGalleryMcpServer): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+}
+
+class TestMcpUserResourceManagementService extends McpUserResourceManagementService {
+	public override getLocation(name: string, version?: string): URI {
+		return super.getLocation(name, version);
+	}
+
+	public updateMetadataFromGalleryForTest(gallery: IGalleryMcpServer): Promise<IGalleryMcpServerConfiguration> {
+		return this.updateMetadataFromGallery(gallery);
+	}
+}
+
 suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 	let service: TestMcpManagementService;
 
@@ -60,8 +129,8 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
-					registryBaseUrl: 'https://registry.npmjs.org',
 					identifier: '@modelcontextprotocol/server-brave-search',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.2',
 					environmentVariables: [{
 						name: 'BRAVE_API_KEY',
@@ -81,13 +150,36 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			assert.strictEqual(result.mcpServerConfiguration.inputs, undefined);
 		});
 
+		test('NPM package with custom registry URL', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.NODE,
+					registryBaseUrl: 'https://custom-registry.example.com',
+					identifier: '@company/internal-package',
+					transport: { type: TransportType.STDIO },
+					version: '2.1.0'
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'npx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
+					'--registry', 'https://custom-registry.example.com',
+					'@company/internal-package@2.1.0'
+				]);
+			}
+		});
+
 		test('NPM package without version', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
-					registryBaseUrl: 'https://registry.npmjs.org',
 					identifier: '@modelcontextprotocol/everything',
-					version: ''
+					version: '',
+					transport: { type: TransportType.STDIO }
 				}]
 			};
 
@@ -104,6 +196,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0',
 					environmentVariables: [{
@@ -137,6 +230,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: '@modelcontextprotocol/server-brave-search',
 					version: '1.0.2',
 					environmentVariables: [{
@@ -169,6 +263,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0',
 					environmentVariables: [{
@@ -202,6 +297,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'snyk',
 					version: '1.1298.0',
 					packageArguments: [
@@ -230,7 +326,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.PYTHON,
-					registryBaseUrl: 'https://pypi.org',
+					transport: { type: TransportType.STDIO },
 					identifier: 'weather-mcp-server',
 					version: '0.5.0',
 					environmentVariables: [{
@@ -248,7 +344,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
 			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
 				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx');
-				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['weather-mcp-server==0.5.0']);
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['weather-mcp-server@0.5.0']);
 				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, {
 					'WEATHER_API_KEY': 'test-key',
 					'WEATHER_UNITS': 'celsius'
@@ -256,10 +352,34 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			}
 		});
 
+		test('Python package with custom registry URL', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.PYTHON,
+					registryBaseUrl: 'https://custom-pypi.example.com/simple',
+					transport: { type: TransportType.STDIO },
+					identifier: 'internal-python-server',
+					version: '1.2.3'
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.PYTHON);
+
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
+					'--index-url', 'https://custom-pypi.example.com/simple',
+					'internal-python-server@1.2.3'
+				]);
+			}
+		});
+
 		test('Python package without version', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
 					identifier: 'weather-mcp-server',
 					version: ''
 				}]
@@ -278,7 +398,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.DOCKER,
-					registryBaseUrl: 'https://docker.io',
+					transport: { type: TransportType.STDIO },
 					identifier: 'mcp/filesystem',
 					version: '1.0.2',
 					runtimeArguments: [{
@@ -316,10 +436,34 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			}
 		});
 
+		test('Docker package with custom registry URL', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.DOCKER,
+					registryBaseUrl: 'registry.company.com',
+					transport: { type: TransportType.STDIO },
+					identifier: 'internal/mcp-server',
+					version: '3.2.1'
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER);
+
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'docker');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
+					'run', '-i', '--rm',
+					'registry.company.com/internal/mcp-server:3.2.1'
+				]);
+			}
+		});
+
 		test('Docker package with variables in runtime arguments', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.DOCKER,
+					transport: { type: TransportType.STDIO },
 					identifier: 'example/database-manager-mcp',
 					version: '3.1.0',
 					runtimeArguments: [{
@@ -358,6 +502,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.DOCKER,
+					transport: { type: TransportType.STDIO },
 					identifier: 'example/database-manager-mcp',
 					version: '3.1.0',
 					packageArguments: [{
@@ -410,6 +555,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.DOCKER,
 					identifier: 'example/test-image',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0'
 				}]
 			};
@@ -432,7 +578,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NUGET,
-					registryBaseUrl: 'https://api.nuget.org',
+					transport: { type: TransportType.STDIO },
 					identifier: 'Knapcode.SampleMcpServer',
 					version: '0.5.0',
 					environmentVariables: [{
@@ -452,10 +598,35 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			}
 		});
 
+		test('NuGet package with custom registry URL', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.NUGET,
+					registryBaseUrl: 'https://nuget.company.com/v3/index.json',
+					transport: { type: TransportType.STDIO },
+					identifier: 'Company.Internal.McpServer',
+					version: '4.5.6'
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NUGET);
+
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'dnx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
+					'Company.Internal.McpServer@4.5.6',
+					'--yes',
+					'--source', 'https://nuget.company.com/v3/index.json'
+				]);
+			}
+		});
+
 		test('NuGet package with package arguments', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NUGET,
+					transport: { type: TransportType.STDIO },
 					identifier: 'Knapcode.SampleMcpServer',
 					version: '0.4.0-beta',
 					packageArguments: [{
@@ -556,6 +727,207 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			}
 		});
 
+		test('streamable HTTP remote server with URL variables', () => {
+			const environmentVariable = {
+				description: 'Your Dynatrace environment ID',
+				isRequired: true,
+				format: 'string' as const
+			};
+			const manifest: IGalleryMcpServerConfiguration = {
+				remotes: [{
+					type: TransportType.STREAMABLE_HTTP,
+					url: 'https://{environment_id}.apps.dynatrace.com/{environment_id}/mcp',
+					variables: {
+						environment_id: environmentVariable
+					},
+					headers: [{
+						name: 'Authorization',
+						value: 'Bearer {platform_token}',
+						variables: {
+							platform_token: {
+								description: 'Your Dynatrace Platform Token',
+								isRequired: true,
+								isSecret: true
+							}
+						}
+					}, {
+						name: 'X-Environment',
+						value: '{environment_id}',
+						variables: {
+							environment_id: environmentVariable
+						}
+					}]
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE);
+
+			assert.deepStrictEqual(result, {
+				mcpServerConfiguration: {
+					config: {
+						type: McpServerType.REMOTE,
+						url: 'https://${input:environment_id}.apps.dynatrace.com/${input:environment_id}/mcp',
+						headers: {
+							Authorization: 'Bearer ${input:platform_token}',
+							'X-Environment': '${input:environment_id}'
+						}
+					},
+					inputs: [{
+						id: 'environment_id',
+						type: McpServerVariableType.PROMPT,
+						description: 'Your Dynatrace environment ID',
+						password: false,
+						default: undefined,
+						options: undefined
+					}, {
+						id: 'platform_token',
+						type: McpServerVariableType.PROMPT,
+						description: 'Your Dynatrace Platform Token',
+						password: true,
+						default: undefined,
+						options: undefined
+					}]
+				},
+				notices: []
+			});
+		});
+
+		for (const transport of [TransportType.SSE, TransportType.STREAMABLE_HTTP] as const) {
+			test(`${transport} remote server with fixed and interactive URL variables`, () => {
+				const manifest: IGalleryMcpServerConfiguration = {
+					remotes: [{
+						type: transport,
+						url: 'https://{region}.example/{prefix}{environment}/{environment}/{undeclared}',
+						variables: {
+							region: { value: 'eu' },
+							prefix: { value: '' },
+							environment: { description: 'Environment', choices: ['dev', 'prod'], default: 'dev' }
+						},
+						headers: [{
+							name: 'X-Token',
+							value: '{token}:{token}',
+							variables: { token: { description: 'Access token', isSecret: true } }
+						}, {
+							name: 'X-Region',
+							value: '{region}',
+							variables: { region: { value: 'us' } }
+						}]
+					}]
+				};
+
+				assert.deepStrictEqual(service.getMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE), {
+					mcpServerConfiguration: {
+						config: {
+							type: McpServerType.REMOTE,
+							url: 'https://eu.example/${input:environment}/${input:environment}/{undeclared}',
+							headers: {
+								'X-Token': '${input:token}:${input:token}',
+								'X-Region': 'us'
+							}
+						},
+						inputs: [{
+							id: 'environment',
+							type: McpServerVariableType.PICK,
+							description: 'Environment',
+							password: false,
+							default: 'dev',
+							options: ['dev', 'prod']
+						}, {
+							id: 'token',
+							type: McpServerVariableType.PROMPT,
+							description: 'Access token',
+							password: true,
+							default: undefined,
+							options: undefined
+						}]
+					},
+					notices: []
+				});
+			});
+		}
+
+		for (const value of ['eu/', '']) {
+			test(`fixed URL and header variables do not create inputs for ${JSON.stringify(value)}`, () => {
+				const manifest: IGalleryMcpServerConfiguration = {
+					remotes: [{
+						type: TransportType.STREAMABLE_HTTP,
+						url: 'https://example.com/{prefix}mcp',
+						variables: { prefix: { value, default: 'ignored/', choices: ['ignored/'] } },
+						headers: [{
+							name: 'X-Prefix',
+							value: '{prefix}',
+							description: 'Header prefix',
+							default: 'ignored',
+							variables: { prefix: { value } }
+						}]
+					}]
+				};
+
+				assert.deepStrictEqual(service.getMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE), {
+					mcpServerConfiguration: {
+						config: {
+							type: McpServerType.REMOTE,
+							url: `https://example.com/${value}mcp`,
+							headers: { 'X-Prefix': value }
+						},
+						inputs: undefined
+					},
+					notices: []
+				});
+			});
+		}
+
+		const conflictingDefinitions: Record<string, IMcpServerInput> = {
+			secrecy: { isSecret: true },
+			defaults: { default: 'prod' },
+			choices: { choices: ['dev', 'prod'] },
+			descriptions: { description: 'Header environment' }
+		};
+		for (const [property, definition] of Object.entries(conflictingDefinitions)) {
+			test(`rejects URL and header inputs with conflicting ${property}`, () => {
+				const manifest: IGalleryMcpServerConfiguration = {
+					remotes: [{
+						type: TransportType.STREAMABLE_HTTP,
+						url: 'https://{environment}.example/mcp',
+						variables: { environment: {} },
+						headers: [{
+							name: 'X-Environment',
+							value: '{environment}',
+							variables: { environment: definition }
+						}]
+					}]
+				};
+
+				assert.throws(
+					() => service.getMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE),
+					/Variable 'environment' has conflicting definitions\./
+				);
+			});
+		}
+
+		test('rejects conflicting inputs between headers without URL variables', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				remotes: [{
+					type: TransportType.SSE,
+					url: 'https://example.com/mcp',
+					headers: [{
+						name: 'X-Tenant',
+						value: '{tenant}',
+						variables: { tenant: {} }
+					}, {
+						name: 'X-Secret',
+						value: '{tenant}',
+						variables: { tenant: { isSecret: true } }
+					}]
+				}]
+			};
+
+			assert.throws(
+				() => service.getMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE),
+				/Variable 'tenant' has conflicting definitions\./
+			);
+		});
+
 		test('remote headers without values should create input variables', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				remotes: [{
@@ -605,11 +977,67 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 	});
 
 	suite('Variable Interpolation Tests', () => {
+		test('replaces repeated argument and environment references while keeping fixed values literal', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.NODE,
+					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
+					runtimeArguments: [{
+						type: 'named',
+						name: '--option',
+						value: '{option}:{option}',
+						variables: { option: { description: 'Runtime option' } }
+					}],
+					environmentVariables: [{
+						name: 'VALUES',
+						value: '{fixed.value}|{fixed.value}|{environment}|{environment}|{fixedXvalue}',
+						variables: {
+							'fixed.value': { value: '$&{environment}' },
+							environment: { description: 'Environment value' }
+						}
+					}],
+					packageArguments: [{
+						type: 'positional',
+						value: '{path}:{path}',
+						variables: { path: { description: 'Package path' } }
+					}, {
+						type: 'named',
+						name: '--region',
+						value: '{region}:{region}',
+						variables: { region: { value: 'eu' } }
+					}, {
+						type: 'positional',
+						value: '{empty}',
+						variables: { empty: { value: '' } }
+					}]
+				}]
+			};
+
+			assert.deepStrictEqual(service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE), {
+				mcpServerConfiguration: {
+					config: {
+						type: McpServerType.LOCAL,
+						command: 'npx',
+						args: ['--option', '${input:option}:${input:option}', 'test-server', '${input:path}:${input:path}', '--region', 'eu:eu', ''],
+						env: { VALUES: '$&{environment}|$&{environment}|${input:environment}|${input:environment}|{fixedXvalue}' }
+					},
+					inputs: [
+						{ id: 'option', type: McpServerVariableType.PROMPT, description: 'Runtime option', password: false, default: undefined, options: undefined },
+						{ id: 'environment', type: McpServerVariableType.PROMPT, description: 'Environment value', password: false, default: undefined, options: undefined },
+						{ id: 'path', type: McpServerVariableType.PROMPT, description: 'Package path', password: false, default: undefined, options: undefined }
+					]
+				},
+				notices: []
+			});
+		});
+
 		test('multiple variables in single value', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					environmentVariables: [{
 						name: 'CONNECTION_STRING',
@@ -658,6 +1086,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					runtimeArguments: [{
 						type: 'named',
@@ -688,6 +1117,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.DOCKER,
 					identifier: 'test-image',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					packageArguments: [{
 						type: 'named',
@@ -733,6 +1163,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: '@example/math-tool',
+					transport: { type: TransportType.STDIO },
 					version: '2.0.1',
 					packageArguments: [{
 						type: 'positional',
@@ -773,10 +1204,26 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			}, /No server package found/);
 		});
 
+		test('unsupported package registry type should throw error', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: 'unsupported' as RegistryType,
+					transport: { type: TransportType.STDIO },
+					identifier: 'test-package',
+					version: '1.0.0'
+				}]
+			};
+
+			assert.throws(() => {
+				service.getMcpServerConfigurationFromManifest(manifest, manifest.packages![0].registryType);
+			}, /Unsupported MCP server package registry type: unsupported/);
+		});
+
 		test('manifest with no matching package type should use first package', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
 					identifier: 'python-server',
 					version: '1.0.0'
 				}]
@@ -787,7 +1234,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
 			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
 				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx'); // Python command since that's the package type
-				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['python-server==1.0.0']);
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['python-server@1.0.0']);
 			}
 		});
 
@@ -795,10 +1242,12 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
 					identifier: 'python-server',
 					version: '1.0.0'
 				}, {
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'node-server',
 					version: '2.0.0'
 				}]
@@ -816,6 +1265,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0'
 				}]
@@ -832,6 +1282,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0',
 					runtimeArguments: [{
@@ -854,6 +1305,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					packageArguments: [{
 						type: 'positional',
@@ -875,6 +1327,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					runtimeArguments: [{
 						type: 'named',
@@ -901,6 +1354,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					runtimeArguments: [{
 						type: 'named',
@@ -930,6 +1384,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					environmentVariables: [{
 						name: 'API_KEY',
@@ -956,5 +1411,261 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				assert.strictEqual(result.mcpServerConfiguration.config.env?.['API_KEY'], 'Bearer ${input:api_key}');
 			}
 		});
+	});
+});
+
+suite('McpResourceManagementService', () => {
+	const mcpResource = URI.from({ scheme: Schemas.inMemory, path: '/mcp.json' });
+	let disposables: DisposableStore;
+	let fileService: FileService;
+	let uriIdentityService: UriIdentityService;
+	let scannerService: McpResourceScannerService;
+	let service: TestMcpResourceManagementService;
+
+	function createGallery(): IGalleryMcpServer {
+		return {
+			name: 'test',
+			displayName: 'Test',
+			description: '',
+			version: '1.0.0',
+			isLatest: true,
+			status: GalleryMcpServerStatus.Active,
+			configuration: {},
+			publisher: 'test',
+		};
+	}
+
+	setup(async () => {
+		disposables = new DisposableStore();
+		fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
+		service = disposables.add(new TestMcpResourceManagementService(mcpResource, fileService, uriIdentityService, scannerService));
+
+		await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
+			sandbox: {
+				network: { allowedDomains: ['example.com'] }
+			},
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					sandboxEnabled: true
+				}
+			}
+		}, null, '\t')));
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('fires update when root sandbox changes', async () => {
+		const initial = await service.getInstalled();
+		assert.strictEqual(initial.length, 1);
+		assert.deepStrictEqual(initial[0].rootSandbox, {
+			network: { allowedDomains: ['example.com'] }
+		});
+
+		let updateCount = 0;
+		const updatePromise = new Promise<void>(resolve => disposables.add(service.onDidUpdateMcpServers(e => {
+			assert.strictEqual(e.length, 1);
+			updateCount++;
+			resolve();
+		})));
+
+		const updatedSandbox: IMcpSandboxConfiguration = {
+			network: { allowedDomains: ['changed.example.com'] }
+		};
+
+		await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
+			sandbox: updatedSandbox,
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					sandboxEnabled: true
+				}
+			}
+		}, null, '\t')));
+		await service.reload();
+		await updatePromise;
+		const updated = await service.getInstalled();
+
+		assert.strictEqual(updateCount, 1);
+		assert.deepStrictEqual(updated[0].rootSandbox, updatedSandbox);
+	});
+
+	test('propagates the gallery source when loading an installed server', async () => {
+		const gallery = createGallery();
+		const installPromise = Event.toPromise(service.onDidInstallMcpServers);
+
+		await service.reload(gallery);
+		const result = await installPromise;
+
+		assert.strictEqual(result[0].source, gallery);
+	});
+
+	test('updateMetadata propagates the gallery source when updating an installed server', async () => {
+		const galleryResource = URI.from({ scheme: Schemas.inMemory, path: '/gallery-mcp.json' });
+		await fileService.writeFile(galleryResource, VSBuffer.fromString(JSON.stringify({
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					gallery: true,
+					version: '1.0.0'
+				}
+			}
+		}, null, '\t')));
+		const gallery = createGallery();
+		const galleryService = disposables.add(new McpUserResourceManagementService(
+			galleryResource,
+			upcastPartial<IMcpGalleryService>({}),
+			fileService,
+			uriIdentityService,
+			new NullLogService(),
+			scannerService,
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true },
+			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
+		));
+		const [local] = await galleryService.getInstalled();
+		const updatePromise = Event.toPromise(galleryService.onDidUpdateMcpServers);
+
+		await galleryService.updateMetadata(local, gallery);
+		const result = await updatePromise;
+
+		assert.strictEqual(result[0].source, gallery);
+	});
+
+	test('gallery metadata locations cannot traverse outside the MCP storage folder', () => {
+		const galleryService = disposables.add(new TestMcpUserResourceManagementService(
+			mcpResource,
+			upcastPartial<IMcpGalleryService>({}),
+			fileService,
+			uriIdentityService,
+			new NullLogService(),
+			scannerService,
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true },
+			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
+		));
+
+		assert.strictEqual(galleryService.getLocation('io.github.owner/server', '1.0.0').path, '/user/mcp/io.github.owner.server-1.0.0');
+		assert.throws(() => galleryService.getLocation('az19-poc-server', '../../legit-weather-server-1.0.0'), /Invalid MCP server location/);
+		assert.throws(() => galleryService.getLocation('io.github.owner/server/child', '1.0.0'), /Invalid MCP server location/);
+		assert.throws(() => galleryService.getLocation('..'), /Invalid MCP server location/);
+	});
+
+	test('gallery metadata writes and uninstalls cannot target another server folder', async () => {
+		const galleryService = disposables.add(new TestMcpUserResourceManagementService(
+			mcpResource,
+			upcastPartial<IMcpGalleryService>({}),
+			fileService,
+			uriIdentityService,
+			new NullLogService(),
+			scannerService,
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true },
+			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
+		));
+		const gallery = {
+			...createGallery(),
+			name: 'az19-poc-server',
+			version: '../../legit-weather-server-1.0.0',
+			readme: 'attacker controlled',
+		};
+		const siblingLocation = URI.from({ scheme: Schemas.inMemory, path: '/user/mcp/legit-weather-server-1.0.0' });
+
+		await assert.rejects(() => galleryService.updateMetadataFromGalleryForTest(gallery), /Invalid MCP server location/);
+		assert.strictEqual(await fileService.exists(uriIdentityService.extUri.joinPath(siblingLocation, 'manifest.json')), false);
+		await assert.rejects(() => galleryService.uninstall({
+			name: gallery.name,
+			version: gallery.version,
+			location: siblingLocation,
+			config: { type: McpServerType.LOCAL, command: 'node' },
+			mcpResource,
+			source: 'gallery',
+		}), /Invalid MCP server location/);
+	});
+
+	test('missing gallery metadata cache is not logged as an error', async () => {
+		const galleryResource = URI.from({ scheme: Schemas.inMemory, path: '/missing-gallery-metadata-mcp.json' });
+		await fileService.writeFile(galleryResource, VSBuffer.fromString(JSON.stringify({
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					gallery: true,
+					version: '1.0.0'
+				}
+			}
+		}, null, '\t')));
+		const logService = new TestLogService();
+		const galleryService = disposables.add(new McpUserResourceManagementService(
+			galleryResource,
+			upcastPartial<IMcpGalleryService>({}),
+			fileService,
+			uriIdentityService,
+			logService,
+			scannerService,
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true },
+			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
+		));
+
+		const installed = await galleryService.getInstalled();
+
+		assert.deepStrictEqual({
+			installed: installed.map(server => ({ name: server.name, version: server.version, location: server.location })),
+			errors: logService.errors,
+		}, {
+			installed: [{ name: 'test', version: '1.0.0', location: undefined }],
+			errors: [],
+		});
+	});
+});
+
+suite('McpResourceManagementService - install policy enforcement', () => {
+	const mcpResource = URI.from({ scheme: Schemas.inMemory, path: '/mcp-policy.json' });
+	let disposables: DisposableStore;
+	let fileService: FileService;
+	let uriIdentityService: UriIdentityService;
+	let scannerService: McpResourceScannerService;
+
+	const server: IInstallableMcpServer = { name: 'my-server', config: { type: McpServerType.LOCAL, command: 'node', args: [] } };
+
+	function createService(isAllowed: IAllowedMcpServersService['isAllowed']): TestMcpResourceManagementService {
+		const allowedMcpServersService: IAllowedMcpServersService = { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true };
+		return disposables.add(new TestMcpResourceManagementService(mcpResource, fileService, uriIdentityService, scannerService, allowedMcpServersService));
+	}
+
+	setup(() => {
+		disposables = new DisposableStore();
+		fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('install throws and does not persist a server blocked by policy', async () => {
+		const service = createService(() => new MarkdownString('This mcp server is blocked by your organization.'));
+
+		await assert.rejects(() => service.install(server), /blocked by your organization/);
+		assert.strictEqual((await service.getInstalled()).find(s => s.name === server.name), undefined);
+	});
+
+	test('install persists a server allowed by policy', async () => {
+		const service = createService(() => true);
+
+		const local = await service.install(server);
+		assert.strictEqual(local.name, server.name);
+		assert.ok((await service.getInstalled()).some(s => s.name === server.name));
 	});
 });

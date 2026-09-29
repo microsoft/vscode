@@ -1,0 +1,4 @@
+{
+    "question": "generate typescript constructor",
+    "shouldFail": true
+}

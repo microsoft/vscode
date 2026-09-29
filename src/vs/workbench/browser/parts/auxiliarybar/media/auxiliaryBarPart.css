@@ -30,6 +30,11 @@
 	flex: 1;
 }
 
+.monaco-workbench .part.auxiliarybar.pane-composite-part > .composite.title > .title-label {
+	flex: 0 0 auto;
+	max-width: 40%;
+}
+
 .monaco-workbench .part.auxiliarybar > .title > .title-label h2 {
 	text-transform: uppercase;
 }
@@ -45,8 +50,14 @@
 
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
 .monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
-	border-radius: 0px;
 	outline-offset: 2px;
+}
+
+.hc-black .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.hc-black .monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.hc-light .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.hc-light .monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+	border-radius: 0px;
 }
 
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before,
@@ -60,9 +71,14 @@
 	border-top-color: var(--vscode-panelTitle-activeBorder) !important;
 }
 
-.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
-.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+.monaco-workbench .part.auxiliarybar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.monaco-workbench .part.auxiliarybar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
 	border-top-color: var(--vscode-activityBarTop-activeBorder) !important;
+}
+
+.monaco-workbench .part.auxiliarybar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.monaco-workbench .part.auxiliarybar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+	border-bottom-color: var(--vscode-activityBarTop-activeBorder) !important;
 }
 
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
@@ -88,7 +104,7 @@
 }
 
 .monaco-workbench .auxiliarybar.part.pane-composite-part > .composite.title > .title-actions {
-	flex: inherit;
+	flex: 1;
 }
 
 .monaco-workbench .auxiliarybar.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item {

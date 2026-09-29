@@ -13,6 +13,23 @@ import { memoize } from '../../base/common/decorators.js';
 import { URI } from '../../base/common/uri.js';
 import { joinPath } from '../../base/common/resources.js';
 import { join } from '../../base/common/path.js';
+import { ProtocolConstants } from '../../base/parts/ipc/common/ipc.net.js';
+
+export const agentHostBridgeConnectionTokenEnvironmentVariable = 'VSCODE_AGENT_HOST_BRIDGE_CONNECTION_TOKEN';
+
+/**
+ * Returns server arguments with connection tokens redacted for logging.
+ */
+export function getRedactedServerParsedArgs(args: ServerParsedArgs): ServerParsedArgs {
+	const redactedArgs = { ...args };
+	if (typeof redactedArgs['connection-token'] !== 'undefined') {
+		redactedArgs['connection-token'] = '<redacted>';
+	}
+	if (typeof redactedArgs['agent-host-bridge-connection-token'] !== 'undefined') {
+		redactedArgs['agent-host-bridge-connection-token'] = '<redacted>';
+	}
+	return redactedArgs;
+}
 
 export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
@@ -82,9 +99,18 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
 	'enable-remote-auto-shutdown': { type: 'boolean' },
 	'remote-auto-shutdown-without-delay': { type: 'boolean' },
+	'inspect-ptyhost': { type: 'string', allowEmptyValue: true },
+
+	'agent-host-port': { type: 'string', cat: 'o', args: 'port', description: nls.localize('agent-host-port', "The port the agent host WebSocket server should listen on.") },
+	'agent-host-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('agent-host-path', "The path to a socket file for the agent host WebSocket server to listen on.") },
+	'agent-host-bridge-port': { type: 'string', cat: 'o', args: 'port', description: nls.localize('agent-host-bridge-port', "Bridge renderer agent-host traffic to an already-running agent host listening on this port. Does not spawn an agent host.") },
+	'agent-host-bridge-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('agent-host-bridge-path', "Bridge renderer agent-host traffic to an already-running agent host listening on this socket path. Does not spawn an agent host.") },
+	'agent-host-bridge-host': { type: 'string', cat: 'o', args: 'host', description: nls.localize('agent-host-bridge-host', "Host the externally-running agent host is reachable at when used with --agent-host-bridge-port. Defaults to localhost.") },
+	'agent-host-bridge-connection-token': { type: 'string', cat: 'o', args: 'token', description: nls.localize('agent-host-bridge-connection-token', "Connection token required by the externally-running agent host when used with --agent-host-bridge-port.") },
 
 	'use-host-proxy': { type: 'boolean' },
 	'without-browser-env-var': { type: 'boolean' },
+	'reconnection-grace-time': { type: 'string', cat: 'o', args: 'seconds', description: nls.localize('reconnection-grace-time', "Override the reconnection grace time window in seconds. Defaults to 10800 (3 hours).") },
 
 	/* ----- server cli ----- */
 
@@ -210,9 +236,18 @@ export interface ServerParsedArgs {
 
 	'enable-remote-auto-shutdown'?: boolean;
 	'remote-auto-shutdown-without-delay'?: boolean;
+	'inspect-ptyhost'?: string;
+
+	'agent-host-port'?: string;
+	'agent-host-path'?: string;
+	'agent-host-bridge-port'?: string;
+	'agent-host-bridge-path'?: string;
+	'agent-host-bridge-host'?: string;
+	'agent-host-bridge-connection-token'?: string;
 
 	'use-host-proxy'?: boolean;
 	'without-browser-env-var'?: boolean;
+	'reconnection-grace-time'?: string;
 
 	/* ----- server cli ----- */
 	help: boolean;
@@ -230,6 +265,7 @@ export interface IServerEnvironmentService extends INativeEnvironmentService {
 	readonly machineSettingsResource: URI;
 	readonly mcpResource: URI;
 	readonly args: ServerParsedArgs;
+	readonly reconnectionGraceTime: number;
 }
 
 export class ServerEnvironmentService extends NativeEnvironmentService implements IServerEnvironmentService {
@@ -240,4 +276,25 @@ export class ServerEnvironmentService extends NativeEnvironmentService implement
 	@memoize
 	get mcpResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'User')), 'mcp.json'); }
 	override get args(): ServerParsedArgs { return super.args as ServerParsedArgs; }
+	@memoize
+	get reconnectionGraceTime(): number { return parseGraceTime(this.args['reconnection-grace-time'], ProtocolConstants.ReconnectionGraceTime); }
+}
+
+function parseGraceTime(rawValue: string | undefined, fallback: number): number {
+	if (typeof rawValue !== 'string' || rawValue.trim().length === 0) {
+		console.log(`[reconnection-grace-time] No CLI argument provided, using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
+		return fallback;
+	}
+	const parsedSeconds = Number(rawValue);
+	if (!isFinite(parsedSeconds) || parsedSeconds < 0) {
+		console.log(`[reconnection-grace-time] Invalid value '${rawValue}', using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
+		return fallback;
+	}
+	const millis = Math.floor(parsedSeconds * 1000);
+	if (!isFinite(millis) || millis > Number.MAX_SAFE_INTEGER) {
+		console.log(`[reconnection-grace-time] Value too large '${rawValue}', using default: ${fallback}ms (${Math.floor(fallback / 1000)}s)`);
+		return fallback;
+	}
+	console.log(`[reconnection-grace-time] Parsed CLI argument: ${parsedSeconds}s -> ${millis}ms`);
+	return millis;
 }

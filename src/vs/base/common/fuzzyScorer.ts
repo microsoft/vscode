@@ -6,7 +6,7 @@
 import { CharCode } from './charCode.js';
 import { compareAnything } from './comparers.js';
 import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from './filters.js';
-import { hash } from './hash.js';
+import { ARRAY_HASH_SEED, ConstantStringHash, doHash, numberHash, OBJECT_HASH_SEED, stringHash } from './hash.js';
 import { sep } from './path.js';
 import { isLinux, isWindows } from './platform.js';
 import { equalsIgnoreCase } from './strings.js';
@@ -322,7 +322,7 @@ function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], pat
 }
 
 function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, patternStart: number, wordStart: number): FuzzyScore2 {
-	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, { firstMatchCanBeWeak: true, boostFullMatch: true });
+	const score = fuzzyScore(query.normalized, query.normalizedLowercase, patternStart, target, target.toLowerCase(), wordStart, { firstMatchCanBeWeak: true, boostFullMatch: true });
 	if (!score) {
 		return NO_SCORE2;
 	}
@@ -380,17 +380,42 @@ const PATH_IDENTITY_SCORE = 1 << 18;
 const LABEL_PREFIX_SCORE_THRESHOLD = 1 << 17;
 const LABEL_SCORE_THRESHOLD = 1 << 16;
 
-function getCacheHash(label: string, description: string | undefined, allowNonContiguousMatches: boolean, query: IPreparedQuery) {
+const ALLOW_NON_CONTIGUOUS_MATCHES_KEY_HASH = new ConstantStringHash('allowNonContiguousMatches');
+const DESCRIPTION_KEY_HASH = new ConstantStringHash('description');
+const LABEL_KEY_HASH = new ConstantStringHash('label');
+const VALUES_KEY_HASH = new ConstantStringHash('values');
+const EXPECT_CONTIGUOUS_MATCH_KEY_HASH = new ConstantStringHash('expectContiguousMatch');
+const VALUE_KEY_HASH = new ConstantStringHash('value');
+
+/** Reproduces the generic cache-key hash without constructing its nested object shape. */
+function getCacheHash(label: string, description: string | undefined, allowNonContiguousMatches: boolean, query: IPreparedQuery): number {
+	let hashVal = numberHash(OBJECT_HASH_SEED, 0);
+	hashVal = stringHash(query.normalized, hashVal);
+
+	// Preserve objectHash's sorted property order, including the per-query-piece fields.
+	hashVal = numberHash(OBJECT_HASH_SEED, hashVal);
+
+	hashVal = ALLOW_NON_CONTIGUOUS_MATCHES_KEY_HASH.apply(hashVal);
+	hashVal = doHash(allowNonContiguousMatches, hashVal);
+
+	hashVal = DESCRIPTION_KEY_HASH.apply(hashVal);
+	hashVal = doHash(description, hashVal);
+
+	hashVal = LABEL_KEY_HASH.apply(hashVal);
+	hashVal = doHash(label, hashVal);
+
+	hashVal = VALUES_KEY_HASH.apply(hashVal);
+	hashVal = numberHash(ARRAY_HASH_SEED, hashVal);
 	const values = query.values ? query.values : [query];
-	const cacheHash = hash({
-		[query.normalized]: {
-			values: values.map(v => ({ value: v.normalized, expectContiguousMatch: v.expectContiguousMatch })),
-			label,
-			description,
-			allowNonContiguousMatches
-		}
-	});
-	return cacheHash;
+	for (const value of values) {
+		hashVal = numberHash(OBJECT_HASH_SEED, hashVal);
+		hashVal = EXPECT_CONTIGUOUS_MATCH_KEY_HASH.apply(hashVal);
+		hashVal = doHash(value.expectContiguousMatch, hashVal);
+		hashVal = VALUE_KEY_HASH.apply(hashVal);
+		hashVal = doHash(value.normalized, hashVal);
+	}
+
+	return hashVal;
 }
 
 export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): IItemScore {
@@ -683,25 +708,25 @@ export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPrepared
 }
 
 function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, accessor: IItemAccessor<T>): number {
-	let matchStart: number = -1;
-	let matchEnd: number = -1;
+	let matchStart = -1;
+	let matchEnd = -1;
 
 	// If we have description matches, the start is first of description match
-	if (score.descriptionMatch && score.descriptionMatch.length) {
+	if (score.descriptionMatch?.length) {
 		matchStart = score.descriptionMatch[0].start;
 	}
 
 	// Otherwise, the start is the first label match
-	else if (score.labelMatch && score.labelMatch.length) {
+	else if (score.labelMatch?.length) {
 		matchStart = score.labelMatch[0].start;
 	}
 
 	// If we have label match, the end is the last label match
 	// If we had a description match, we add the length of the description
 	// as offset to the end to indicate this.
-	if (score.labelMatch && score.labelMatch.length) {
+	if (score.labelMatch?.length) {
 		matchEnd = score.labelMatch[score.labelMatch.length - 1].end;
-		if (score.descriptionMatch && score.descriptionMatch.length) {
+		if (score.descriptionMatch?.length) {
 			const itemDescription = accessor.getItemDescription(item);
 			if (itemDescription) {
 				matchEnd += itemDescription.length;
@@ -710,7 +735,7 @@ function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, 
 	}
 
 	// If we have just a description match, the end is the last description match
-	else if (score.descriptionMatch && score.descriptionMatch.length) {
+	else if (score.descriptionMatch?.length) {
 		matchEnd = score.descriptionMatch[score.descriptionMatch.length - 1].end;
 	}
 
@@ -718,15 +743,15 @@ function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, 
 }
 
 function compareByMatchLength(matchesA?: IMatch[], matchesB?: IMatch[]): number {
-	if ((!matchesA && !matchesB) || ((!matchesA || !matchesA.length) && (!matchesB || !matchesB.length))) {
+	if ((!matchesA && !matchesB) || ((!matchesA?.length) && (!matchesB?.length))) {
 		return 0; // make sure to not cause bad comparing when matches are not provided
 	}
 
-	if (!matchesB || !matchesB.length) {
+	if (!matchesB?.length) {
 		return -1;
 	}
 
-	if (!matchesA || !matchesA.length) {
+	if (!matchesA?.length) {
 		return 1;
 	}
 
@@ -811,7 +836,7 @@ export interface IPreparedQueryPiece {
 
 	/**
 	 * In addition to the normalized path, will have
-	 * whitespace and wildcards removed.
+	 * whitespace, wildcards, quotes, ellipsis, and trailing hash characters removed.
 	 */
 	normalized: string;
 	normalizedLowercase: string;
@@ -905,7 +930,8 @@ function normalizeQuery(original: string): { pathNormalized: string; normalized:
 	// - wildcards: are used for fuzzy matching
 	// - whitespace: are used to separate queries
 	// - ellipsis: sometimes used to indicate any path segments
-	const normalized = pathNormalized.replace(/[\*\u2026\s"]/g, '');
+	// - trailing hash: used by some language servers (e.g. rust-analyzer) as query modifiers
+	const normalized = pathNormalized.replace(/[\*\u2026\s"]/g, '').replace(/(?<=.)#$/, '');
 
 	return {
 		pathNormalized,

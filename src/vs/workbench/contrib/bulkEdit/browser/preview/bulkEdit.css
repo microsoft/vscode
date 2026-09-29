@@ -43,7 +43,6 @@
 	display: inline-flex;
 	width: inherit;
 	margin: 0 4px;
-	padding: 4px 8px;
 }
 
 .monaco-workbench .bulk-edit-panel .monaco-tl-contents {
@@ -52,10 +51,6 @@
 
 .monaco-workbench .bulk-edit-panel .monaco-tl-contents .edit-checkbox {
 	align-self: center;
-}
-
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents .edit-checkbox.disabled {
-	opacity: .5;
 }
 
 .monaco-workbench .bulk-edit-panel .monaco-tl-contents .monaco-icon-label.delete .monaco-icon-label-container {

@@ -1,0 +1,38 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/typescript-node
+{
+	"name": "Node.js & TypeScript",
+	"image": "mcr.microsoft.com/devcontainers/typescript-node:4-24",
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2.16.1": {
+			"moby": false
+		},
+		"ghcr.io/devcontainers/features/azure-cli:1": {},
+		"ghcr.io/devcontainers/features/python:1": {},
+		"ghcr.io/devcontainers/features/dotnet:2": {},
+		"ghcr.io/devcontainers/features/desktop-lite:1": {},
+		"ghcr.io/devcontainers/features/git-lfs:1": {}
+	},
+	"containerEnv": {
+		"DEBIAN_FRONTEND": "noninteractive"
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"dbaeumer.vscode-eslint",
+				"esbenp.prettier-vscode",
+				"connor4312.esbuild-problem-matchers",
+				"GitHub.copilot@prerelease",
+				"ms-vscode.extension-test-runner"
+			]
+		}
+	},
+	"hostRequirements": {
+		"cpus": 4
+	},
+	"containerUser": "node",
+	"onCreateCommand": {
+		"initGitLfs": "git lfs install --force",
+		"npmInstall": "npm install || true"
+	}
+}

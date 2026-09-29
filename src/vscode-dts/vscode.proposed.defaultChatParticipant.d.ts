@@ -3,23 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 4
-
 declare module 'vscode' {
 
 	export interface ChatWelcomeMessageContent {
 		icon: ThemeIcon;
 		title: string;
 		message: MarkdownString;
-	}
-
-	export interface ChatRequesterInformation {
-		name: string;
-
-		/**
-		 * A full URI for the icon of the request.
-		 */
-		icon?: Uri;
 	}
 
 	export interface ChatTitleProvider {
@@ -47,6 +36,5 @@ declare module 'vscode' {
 		additionalWelcomeMessage?: string | MarkdownString;
 		titleProvider?: ChatTitleProvider;
 		summarizer?: ChatSummarizer;
-		requester?: ChatRequesterInformation;
 	}
 }

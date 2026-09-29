@@ -5,7 +5,8 @@
 
 import { compareBy, numberComparator } from './arrays.js';
 import { groupBy } from './collections.js';
-import { SetMap } from './map.js';
+import { SetMap, ResourceMap } from './map.js';
+import { URI } from './uri.js';
 import { createSingleCallFunction } from './functional.js';
 import { Iterable } from './iterator.js';
 import { BugIndicatingError, onUnexpectedError } from './errors.js';
@@ -75,7 +76,8 @@ export class GCBasedDisposableTracker implements IDisposableTracker {
 
 export interface DisposableInfo {
 	value: IDisposable;
-	source: string | null;
+	/** Capture the allocation site eagerly, but format its stack only when reporting a leak. */
+	source: Error | null;
 	parent: IDisposable | null;
 	isSingleton: boolean;
 	idx: number;
@@ -95,11 +97,10 @@ export class DisposableTracker implements IDisposableTracker {
 		return val;
 	}
 
-	trackDisposable(d: IDisposable): void {
+	trackDisposable(d: IDisposable, source?: Error): void {
 		const data = this.getDisposableData(d);
 		if (!data.source) {
-			data.source =
-				new Error().stack!;
+			data.source = source ?? new Error();
 		}
 	}
 
@@ -173,7 +174,7 @@ export class DisposableTracker implements IDisposableTracker {
 				}
 			}
 
-			const lines = leaking.source!.split('\n').map(p => p.trim().replace('at ', '')).filter(l => l !== '');
+			const lines = leaking.source!.stack!.split('\n').map(p => p.trim().replace('at ', '')).filter(l => l !== '');
 			removePrefix(lines, ['Error', /^trackDisposable \(.*\)$/, /^DisposableTracker.trackDisposable \(.*\)$/]);
 			return lines.reverse();
 		}
@@ -206,7 +207,9 @@ export class DisposableTracker implements IDisposableTracker {
 				const continuations = groupBy([...prevStarts].map(d => getStackTracePath(d)[i]), v => v);
 				delete continuations[stackTracePath[i]];
 				for (const [cont, set] of Object.entries(continuations)) {
-					stackTraceFormattedLines.unshift(`    - stacktraces of ${set.length} other leaks continue with ${cont}`);
+					if (set) {
+						stackTraceFormattedLines.unshift(`    - stacktraces of ${set.length} other leaks continue with ${cont}`);
+					}
 				}
 
 				stackTraceFormattedLines.unshift(line);
@@ -313,7 +316,7 @@ export interface IDisposable {
 /**
  * Check if `thing` is {@link IDisposable disposable}.
  */
-export function isDisposable<E extends any>(thing: E): thing is E & IDisposable {
+export function isDisposable<E>(thing: E): thing is E & IDisposable {
 	// eslint-disable-next-line local/code-no-any-casts
 	return typeof thing === 'object' && thing !== null && typeof (<IDisposable><any>thing).dispose === 'function' && (<IDisposable><any>thing).dispose.length === 0;
 }
@@ -503,8 +506,7 @@ export class DisposableStore implements IDisposable {
 		if (!o) {
 			return;
 		}
-		if (this._toDispose.has(o)) {
-			this._toDispose.delete(o);
+		if (this._toDispose.delete(o)) {
 			setParentOfDisposable(o, null);
 		}
 	}
@@ -718,7 +720,7 @@ export class AsyncReferenceCollection<T> {
 
 	constructor(private referenceCollection: ReferenceCollection<Promise<T>>) { }
 
-	async acquire(key: string, ...args: any[]): Promise<IReference<T>> {
+	async acquire(key: string, ...args: unknown[]): Promise<IReference<T>> {
 		const ref = this.referenceCollection.acquire(key, ...args);
 
 		try {
@@ -754,10 +756,11 @@ export function disposeOnReturn(fn: (store: DisposableStore) => void): void {
  */
 export class DisposableMap<K, V extends IDisposable = IDisposable> implements IDisposable {
 
-	private readonly _store = new Map<K, V>();
+	private readonly _store: Map<K, V>;
 	private _isDisposed = false;
 
-	constructor() {
+	constructor(store: Map<K, V> = new Map<K, V>()) {
+		this._store = store;
 		trackDisposable(this);
 	}
 
@@ -847,6 +850,92 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 }
 
 /**
+ * A set that manages the lifecycle of the values that it stores.
+ */
+export class DisposableSet<V extends IDisposable = IDisposable> implements IDisposable {
+
+	private readonly _store: Set<V>;
+	private _isDisposed = false;
+
+	constructor(store: Set<V> = new Set<V>()) {
+		this._store = store;
+		trackDisposable(this);
+	}
+
+	/**
+	 * Disposes of all stored values and mark this object as disposed.
+	 *
+	 * Trying to use this object after it has been disposed of is an error.
+	 */
+	dispose(): void {
+		markAsDisposed(this);
+		this._isDisposed = true;
+		this.clearAndDisposeAll();
+	}
+
+	/**
+	 * Disposes of all stored values and clear the set, but DO NOT mark this object as disposed.
+	 */
+	clearAndDisposeAll(): void {
+		if (!this._store.size) {
+			return;
+		}
+
+		try {
+			dispose(this._store.values());
+		} finally {
+			this._store.clear();
+		}
+	}
+
+	has(value: V): boolean {
+		return this._store.has(value);
+	}
+
+	get size(): number {
+		return this._store.size;
+	}
+
+	add(value: V): void {
+		if (this._isDisposed) {
+			console.warn(new Error('Trying to add a disposable to a DisposableSet that has already been disposed of. The added object will be leaked!').stack);
+		}
+
+		this._store.add(value);
+		setParentOfDisposable(value, this);
+	}
+
+	/**
+	 * Delete the value from this set and also dispose of it.
+	 */
+	deleteAndDispose(value: V): void {
+		if (this._store.delete(value)) {
+			value.dispose();
+		}
+	}
+
+	/**
+	 * Delete the value from this set but return it. The caller is
+	 * responsible for disposing of the value.
+	 */
+	deleteAndLeak(value: V): V | undefined {
+		if (this._store.delete(value)) {
+			setParentOfDisposable(value, null);
+			return value;
+		}
+		return undefined;
+	}
+
+	values(): IterableIterator<V> {
+		return this._store.values();
+	}
+
+	[Symbol.iterator](): IterableIterator<V> {
+		return this._store[Symbol.iterator]();
+	}
+}
+
+/**
  * Call `then` on a Promise, unless the returned disposable is disposed.
  */
 export function thenIfNotDisposed<T>(promise: Promise<T>, then: (result: T) => void): IDisposable {
@@ -876,4 +965,10 @@ export function thenRegisterOrDispose<T extends IDisposable>(promise: Promise<T>
 		}
 		return disposable;
 	});
+}
+
+export class DisposableResourceMap<V extends IDisposable = IDisposable> extends DisposableMap<URI, V> {
+	constructor() {
+		super(new ResourceMap());
+	}
 }

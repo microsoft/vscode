@@ -73,5 +73,11 @@ suite('Markdown Katex Support Test', () => {
 		assert.ok(rendered.element.innerHTML.includes('katex'));
 		await assertSnapshot(rendered.element.innerHTML);
 	});
+
+	test('Should not render math when dollar signs appear in jQuery expressions', async () => {
+		const rendered = await renderMarkdownWithKatex('$.getJSON, $.ajax, $.get and $("#dialogDetalleZona").dialog(...) / $("#dialogDetallePDC").dialog(...)');
+		assert.ok(!rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
 });
 

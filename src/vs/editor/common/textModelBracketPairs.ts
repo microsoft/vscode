@@ -14,7 +14,7 @@ export interface IBracketPairsTextModelPart {
 	/**
 	 * Is fired when bracket pairs change, either due to a text or a settings change.
 	*/
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 
 	/**
 	 * Gets all bracket pairs that intersect the given position.
@@ -29,6 +29,12 @@ export interface IBracketPairsTextModelPart {
 	getBracketPairsInRangeWithMinIndentation(range: IRange): CallbackIterable<BracketPairWithMinIndentationInfo>;
 
 	getBracketsInRange(range: IRange, onlyColorizedBrackets?: boolean): CallbackIterable<BracketInfo>;
+
+	/**
+	 * Returns whether an unmatched closing bracket for `openingBracket` starts at or after `position`.
+	 * Returns false when token-aware bracket data is unavailable.
+	 */
+	hasUnmatchedClosingBracketAfter(position: IPosition, openingBracket: string): boolean;
 
 	/**
 	 * Find the matching bracket of `request` up, counting brackets.

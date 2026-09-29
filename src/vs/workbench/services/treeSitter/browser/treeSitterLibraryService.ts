@@ -7,7 +7,7 @@
 import type { Parser, Language, Query } from '@vscode/tree-sitter-wasm';
 import { IReader, ObservablePromise } from '../../../../base/common/observable.js';
 import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import { canASAR, importAMDNodeModule } from '../../../../amdX.js';
+import { importAMDNodeModule } from '../../../../amdX.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FileOperationResult, IFileContent, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
@@ -16,6 +16,7 @@ import { CachedFunction } from '../../../../base/common/cache.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
@@ -25,7 +26,8 @@ const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
 const FILENAME_TREESITTER_WASM = `tree-sitter.wasm`;
 
 export function getModuleLocation(environmentService: IEnvironmentService): AppResourcePath {
-	return `${(canASAR && environmentService.isBuilt) ? nodeModulesAsarUnpackedPath : nodeModulesPath}/${MODULE_LOCATION_SUBPATH}`;
+	const useAsarUnpacked = environmentService.isBuilt && !isWeb;
+	return `${useAsarUnpacked ? nodeModulesAsarUnpackedPath : nodeModulesPath}/${MODULE_LOCATION_SUBPATH}`;
 }
 
 export class TreeSitterLibraryService extends Disposable implements ITreeSitterLibraryService {
@@ -121,12 +123,16 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return treeSitter.Parser;
 	}
 
-	getLanguage(languageId: string, reader: IReader | undefined): Language | undefined {
-		if (!this.supportsLanguage(languageId, reader)) {
+	getLanguage(languageId: string, ignoreSupportsCheck: boolean, reader: IReader | undefined): Language | undefined {
+		if (!ignoreSupportsCheck && !this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}
 		const lang = this._languagesCache.get(languageId).resolvedValue.read(reader);
 		return lang;
+	}
+
+	async getLanguagePromise(languageId: string): Promise<Language | undefined> {
+		return this._languagesCache.get(languageId).promise;
 	}
 
 	getInjectionQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
@@ -143,6 +149,11 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		}
 		const query = this._injectionQueries.get({ languageId, kind: 'highlights' }).read(reader);
 		return query;
+	}
+
+	async createQuery(language: Language, querySource: string): Promise<Query> {
+		const treeSitter = await this._treeSitterImport.value;
+		return new treeSitter.Query(language, querySource);
 	}
 }
 

@@ -40,7 +40,7 @@ function getTagBodyText(
 
 			// check for caption tags, fix for #79704
 			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\r\n|\n)/);
-			if (captionTagMatches && captionTagMatches.index === 0) {
+			if (captionTagMatches?.index === 0) {
 				return captionTagMatches[1] + '\n' + makeCodeblock(text.substr(captionTagMatches[0].length));
 			} else {
 				return makeCodeblock(text);
@@ -163,7 +163,7 @@ function convertLinkTags(
 						const command = `command:${OpenJsDocLinkCommand.id}?${encodeURIComponent(JSON.stringify([args]))}`;
 
 						const linkText = currentLink.text ? currentLink.text : escapeMarkdownSyntaxTokensForCode(currentLink.name ?? '');
-						out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${command})`);
+						out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${command} "${vscode.l10n.t('Open symbol link')}")`);
 					} else {
 						const text = currentLink.text ?? currentLink.name;
 						if (text) {

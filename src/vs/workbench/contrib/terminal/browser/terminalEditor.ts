@@ -47,6 +47,8 @@ export class TerminalEditor extends EditorPane {
 
 	private readonly _newDropdown: MutableDisposable<DropdownWithPrimaryActionViewItem> = this._register(new MutableDisposable());
 
+	private readonly _sessionDisposables = this._register(new DisposableStore());
+
 	private readonly _disposableStore = this._register(new DisposableStore());
 
 	constructor(
@@ -84,13 +86,14 @@ export class TerminalEditor extends EditorPane {
 			// since the editor does not monitor focus changes, for ex. between the terminal
 			// panel and the editors, this is needed so that the active instance gets set
 			// when focus changes between them.
-			this._register(this._editorInput.terminalInstance.onDidFocus(() => this._setActiveInstance()));
+			this._sessionDisposables.add(this._editorInput.terminalInstance.onDidFocus(() => this._setActiveInstance()));
 			this._editorInput.setCopyLaunchConfig(this._editorInput.terminalInstance.shellLaunchConfig);
 		}
 	}
 
 	override clearInput(): void {
 		super.clearInput();
+		this._sessionDisposables.clear();
 		if (this._overflowGuardElement && this._editorInput?.terminalInstance?.domElement.parentElement === this._overflowGuardElement) {
 			this._editorInput.terminalInstance?.detachFromElement();
 		}

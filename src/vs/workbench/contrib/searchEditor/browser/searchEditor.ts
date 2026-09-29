@@ -68,6 +68,7 @@ import { ISearchResult } from '../../search/browser/searchTreeModel/searchTreeCo
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
+const DEFAULT_QUERY_EDITOR_LAYOUT_OFFSET = 28;
 
 type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
 
@@ -86,12 +87,13 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	private toggleQueryDetailsButton!: HTMLElement;
 	private messageBox!: HTMLElement;
 
-	private runSearchDelayer = new Delayer(0);
+	private runSearchDelayer = this._register(new Delayer(0));
 	private pauseSearching: boolean = false;
 	private showingIncludesExcludes: boolean = false;
 	private searchOperation: LongRunningOperation;
 	private searchHistoryDelayer: Delayer<void>;
 	private readonly messageDisposables: DisposableStore;
+	private readonly inputDisposables = this._register(new DisposableStore());
 	private container: HTMLElement;
 	private searchModel: SearchModelImpl;
 	private ongoingOperations: number = 0;
@@ -125,7 +127,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
 		this._register(this.messageDisposables = new DisposableStore());
 
-		this.searchHistoryDelayer = new Delayer<void>(2000);
+		this.searchHistoryDelayer = this._register(new Delayer<void>(2000));
 
 		this.searchModel = this._register(this.instantiationService.createInstance(SearchModelImpl));
 	}
@@ -677,10 +679,12 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 	private reLayout() {
 		if (this.dimension) {
-			this.queryEditorWidget.setWidth(this.dimension.width - 28 /* container margin */);
+			const configuredOffset = Number.parseFloat(DOM.getWindow(this.queryEditorContainer).getComputedStyle(this.queryEditorContainer).getPropertyValue('--search-editor-query-layout-offset'));
+			const queryEditorWidth = this.dimension.width - (Number.isFinite(configuredOffset) ? configuredOffset : DEFAULT_QUERY_EDITOR_LAYOUT_OFFSET);
+			this.queryEditorWidget.setWidth(queryEditorWidth);
 			this.searchResultEditor.layout({ height: this.dimension.height - DOM.getTotalHeight(this.queryEditorContainer), width: this.dimension.width });
-			this.inputPatternExcludes.setWidth(this.dimension.width - 28 /* container margin */);
-			this.inputPatternIncludes.setWidth(this.dimension.width - 28 /* container margin */);
+			this.inputPatternExcludes.setWidth(queryEditorWidth);
+			this.inputPatternIncludes.setWidth(queryEditorWidth);
 		}
 	}
 
@@ -708,6 +712,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		if (token.isCancellationRequested) {
 			return;
 		}
+		// A new input can replace the current one without clearInput being called first.
+		this.inputDisposables.clear();
 
 		const { configurationModel, resultsModel } = await newInput.resolveModels();
 		if (token.isCancellationRequested) { return; }
@@ -719,7 +725,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 		this.setSearchConfig(configurationModel.config);
 
-		this._register(configurationModel.onConfigDidUpdate(newConfig => {
+		this.inputDisposables.add(configurationModel.onConfigDidUpdate(newConfig => {
 			if (newConfig !== this.priorConfig) {
 				this.pauseSearching = true;
 				this.setSearchConfig(newConfig);
@@ -741,6 +747,12 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 				this.onSearchComplete(complete, existingConfig, newInput);
 			});
 		}
+	}
+
+	override clearInput(): void {
+		// An input can be cleared without another input being set.
+		this.inputDisposables.clear();
+		super.clearInput();
 	}
 
 	private toggleIncludesExcludes(_shouldShow?: boolean): void {

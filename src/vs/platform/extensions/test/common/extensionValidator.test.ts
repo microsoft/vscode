@@ -5,7 +5,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IExtensionManifest } from '../../common/extensions.js';
-import { areApiProposalsCompatible, INormalizedVersion, IParsedVersion, isValidExtensionVersion, isValidVersion, isValidVersionStr, normalizeVersion, parseVersion } from '../../common/extensionValidator.js';
+import { INormalizedVersion, IParsedVersion, isValidExtensionVersion, isValidVersion, isValidVersionStr, normalizeVersion, parseVersion } from '../../common/extensionValidator.js';
 
 suite('Extension Version Validator', () => {
 
@@ -56,6 +56,10 @@ suite('Extension Version Validator', () => {
 
 		assertParseVersion('>=0.0.1', false, true, 0, true, 0, true, 1, true, null);
 		assertParseVersion('>=2.4.3', false, true, 2, true, 4, true, 3, true, null);
+
+		// Parse versions with HHMM date format
+		assertParseVersion('1.10.0-202105111430', false, false, 1, true, 10, true, 0, true, '-202105111430');
+		assertParseVersion('^1.10.0-202105112359', true, false, 1, true, 10, true, 0, true, '-202105112359');
 	});
 
 	test('normalizeVersion', () => {
@@ -68,6 +72,11 @@ suite('Extension Version Validator', () => {
 		assertNormalizeVersion('0.10.0-dev', 0, true, 10, true, 0, true, false, 0);
 		assertNormalizeVersion('0.10.0-222222222', 0, true, 10, true, 0, true, false, 0);
 		assertNormalizeVersion('0.10.0-20210511', 0, true, 10, true, 0, true, false, new Date('2021-05-11T00:00:00Z').getTime());
+
+		// Normalize versions with HHMM date format
+		assertNormalizeVersion('1.10.0-202105111430', 1, true, 10, true, 0, true, false, new Date('2021-05-11T14:30:00Z').getTime());
+		assertNormalizeVersion('1.10.0-202105112359', 1, true, 10, true, 0, true, false, new Date('2021-05-11T23:59:00Z').getTime());
+		assertNormalizeVersion('1.10.0-202105110000', 1, true, 10, true, 0, true, false, new Date('2021-05-11T00:00:00Z').getTime());
 
 		assertNormalizeVersion('0.10.0', 0, true, 10, true, 0, true, false);
 		assertNormalizeVersion('0.10.1', 0, true, 10, true, 1, true, false);
@@ -409,6 +418,11 @@ suite('Extension Version Validator', () => {
 		testIsValidVersion('1.10.0', '^1.10.0-20210512', false); // future date
 		testIsValidVersion('1.10.1', '^1.10.0-20200101', true); // before date, but ahead version
 		testIsValidVersion('1.11.0', '^1.10.0-20200101', true);
+
+		// Test with HHMM date format
+		testIsValidVersion('1.10.0', '^1.10.0-202105111400', true); // product at beginning of day, required time at 14:00
+		testIsValidVersion('1.10.0', '^1.10.0-202105112359', false); // product at beginning of day, required time at 23:59
+		testIsValidVersion('1.10.0', '^1.10.0-202105110000', true); // product at beginning of day, required time at 00:00
 	});
 
 	test('isValidExtensionVersion checks browser only extensions', () => {
@@ -422,23 +436,6 @@ suite('Extension Version Validator', () => {
 			browser: 'something'
 		};
 		assert.strictEqual(isValidExtensionVersion('1.44.0', undefined, manifest, false, []), false);
-	});
-
-	test('areApiProposalsCompatible', () => {
-		assert.strictEqual(areApiProposalsCompatible([]), true);
-		assert.strictEqual(areApiProposalsCompatible([], ['hello']), true);
-		assert.strictEqual(areApiProposalsCompatible([], {}), true);
-		assert.strictEqual(areApiProposalsCompatible(['proposal1'], {}), true);
-		assert.strictEqual(areApiProposalsCompatible(['proposal1'], { 'proposal1': { proposal: '' } }), true);
-		assert.strictEqual(areApiProposalsCompatible(['proposal1'], { 'proposal1': { proposal: '', version: 1 } }), true);
-		assert.strictEqual(areApiProposalsCompatible(['proposal1@1'], { 'proposal1': { proposal: '', version: 1 } }), true);
-		assert.strictEqual(areApiProposalsCompatible(['proposal1'], { 'proposal2': { proposal: '' } }), true);
-		assert.strictEqual(areApiProposalsCompatible(['proposal1', 'proposal2'], {}), true);
-		assert.strictEqual(areApiProposalsCompatible(['proposal1', 'proposal2'], { 'proposal1': { proposal: '' } }), true);
-
-		assert.strictEqual(areApiProposalsCompatible(['proposal2@1'], { 'proposal1': { proposal: '' } }), false);
-		assert.strictEqual(areApiProposalsCompatible(['proposal1@1'], { 'proposal1': { proposal: '', version: 2 } }), false);
-		assert.strictEqual(areApiProposalsCompatible(['proposal1@1'], { 'proposal1': { proposal: '' } }), false);
 	});
 
 });

@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>pfm_app_url</key>
+    <string>https://code.visualstudio.com/</string>
+    <key>pfm_description</key>
+    <string>Code - OSS Managed Settings</string>
+    <key>pfm_documentation_url</key>
+    <string>https://code.visualstudio.com/docs/setup/enterprise</string>
+    <key>pfm_domain</key>
+    <string>com.visualstudio.code.oss</string>
+    <key>pfm_format_version</key>
+    <integer>1</integer>
+    <key>pfm_interaction</key>
+    <string>combined</string>
+    <key>pfm_last_modified</key>
+    <date>2025-10-21T23:04:34Z</date>
+    <key>pfm_platforms</key>
+    <array>
+        <string>macOS</string>
+    </array>
+    <key>pfm_subkeys</key>
+    <array>
+	
+		<dict>
+			<key>pfm_default</key>
+			<string>Configure Code - OSS</string>
+			<key>pfm_name</key>
+			<string>PayloadDescription</string>
+			<key>pfm_title</key>
+			<string>Payload Description</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<string>Code - OSS</string>
+			<key>pfm_name</key>
+			<string>PayloadDisplayName</string>
+			<key>pfm_require</key>
+			<string>always</string>
+			<key>pfm_title</key>
+			<string>Payload Display Name</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<string>com.visualstudio.code.oss</string>
+			<key>pfm_name</key>
+			<string>PayloadIdentifier</string>
+			<key>pfm_require</key>
+			<string>always</string>
+			<key>pfm_title</key>
+			<string>Payload Identifier</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<string>com.visualstudio.code.oss</string>
+			<key>pfm_name</key>
+			<string>PayloadType</string>
+			<key>pfm_require</key>
+			<string>always</string>
+			<key>pfm_title</key>
+			<string>Payload Type</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<string></string>
+			<key>pfm_name</key>
+			<string>PayloadUUID</string>
+			<key>pfm_require</key>
+			<string>always</string>
+			<key>pfm_title</key>
+			<string>Payload UUID</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<integer>1</integer>
+			<key>pfm_name</key>
+			<string>PayloadVersion</string>
+			<key>pfm_range_list</key>
+			<array>
+				<integer>1</integer>
+			</array>
+			<key>pfm_require</key>
+			<string>always</string>
+			<key>pfm_title</key>
+			<string>Payload Version</string>
+			<key>pfm_type</key>
+			<string>integer</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<string>Microsoft</string>
+			<key>pfm_name</key>
+			<string>PayloadOrganization</string>
+			<key>pfm_title</key>
+			<string>Payload Organization</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+	<dict>
+<key>pfm_default</key>
+<false/>
+<key>pfm_description</key>
+<string>Enable using tools contributed by third-party extensions.</string>
+<key>pfm_name</key>
+<string>ChatAgentExtensionTools</string>
+<key>pfm_title</key>
+<string>ChatAgentExtensionTools</string>
+<key>pfm_type</key>
+<string>boolean</string>
+</dict><dict>
+<key>pfm_default</key>
+<false/>
+<key>pfm_description</key>
+<string>Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view.</string>
+<key>pfm_name</key>
+<string>ChatAgentMode</string>
+<key>pfm_title</key>
+<string>ChatAgentMode</string>
+<key>pfm_type</key>
+<string>boolean</string>
+</dict><dict>
+<key>pfm_default</key>
+<string>none</string>
+<key>pfm_description</key>
+<string>Controls access to installed Model Context Protocol servers.</string>
+<key>pfm_name</key>
+<string>ChatMCP</string>
+<key>pfm_title</key>
+<string>ChatMCP</string>
+<key>pfm_type</key>
+<string>string</string>
+<key>pfm_range_list</key>
+<array>
+	<string>none</string>
+	<string>registry</string>
+	<string>all</string>
+</array>
+</dict><dict>
+<key>pfm_default</key>
+<false/>
+<key>pfm_description</key>
+<string>Enables reusable prompt and instruction files in Chat sessions.</string>
+<key>pfm_name</key>
+<string>ChatPromptFiles</string>
+<key>pfm_title</key>
+<string>ChatPromptFiles</string>
+<key>pfm_type</key>
+<string>boolean</string>
+</dict><dict>
+<key>pfm_default</key>
+<false/>
+<key>pfm_description</key>
+<string>Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.
+
+This feature disables critical security protections and makes it much easier for an attacker to compromise the machine.</string>
+<key>pfm_name</key>
+<string>ChatToolsAutoApprove</string>
+<key>pfm_title</key>
+<string>ChatToolsAutoApprove</string>
+<key>pfm_type</key>
+<string>boolean</string>
+</dict><dict>
+<key>pfm_default</key>
+<string></string>
+<key>pfm_description</key>
+<string>Configure the MCP Gallery service URL to connect to</string>
+<key>pfm_name</key>
+<string>McpGalleryServiceUrl</string>
+<key>pfm_title</key>
+<string>McpGalleryServiceUrl</string>
+<key>pfm_type</key>
+<string>string</string>
+</dict><dict>
+<key>pfm_default</key>
+<string></string>
+<key>pfm_description</key>
+<string>Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions</string>
+<key>pfm_name</key>
+<string>AllowedExtensions</string>
+<key>pfm_title</key>
+<string>AllowedExtensions</string>
+<key>pfm_type</key>
+<string>string</string>
+
+</dict><dict>
+<key>pfm_default</key>
+<string></string>
+<key>pfm_description</key>
+<string>Configure the Marketplace service URL to connect to</string>
+<key>pfm_name</key>
+<string>ExtensionGalleryServiceUrl</string>
+<key>pfm_title</key>
+<string>ExtensionGalleryServiceUrl</string>
+<key>pfm_type</key>
+<string>string</string>
+</dict><dict>
+<key>pfm_default</key>
+<false/>
+<key>pfm_description</key>
+<string>Controls whether to allow auto approval in the run in terminal tool.</string>
+<key>pfm_name</key>
+<string>ChatToolsTerminalEnableAutoApprove</string>
+<key>pfm_title</key>
+<string>ChatToolsTerminalEnableAutoApprove</string>
+<key>pfm_type</key>
+<string>boolean</string>
+</dict><dict>
+<key>pfm_default</key>
+<false/>
+<key>pfm_description</key>
+<string>Enable feedback mechanisms such as the issue reporter, surveys, and other feedback options.</string>
+<key>pfm_name</key>
+<string>EnableFeedback</string>
+<key>pfm_title</key>
+<string>EnableFeedback</string>
+<key>pfm_type</key>
+<string>boolean</string>
+</dict><dict>
+<key>pfm_default</key>
+<string>all</string>
+<key>pfm_description</key>
+<string>Controls the level of telemetry.</string>
+<key>pfm_name</key>
+<string>TelemetryLevel</string>
+<key>pfm_title</key>
+<string>TelemetryLevel</string>
+<key>pfm_type</key>
+<string>string</string>
+<key>pfm_range_list</key>
+<array>
+	<string>all</string>
+	<string>error</string>
+	<string>crash</string>
+	<string>off</string>
+</array>
+</dict><dict>
+<key>pfm_default</key>
+<string>none</string>
+<key>pfm_description</key>
+<string>Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service.</string>
+<key>pfm_name</key>
+<string>UpdateMode</string>
+<key>pfm_title</key>
+<string>UpdateMode</string>
+<key>pfm_type</key>
+<string>string</string>
+<key>pfm_range_list</key>
+<array>
+	<string>none</string>
+	<string>manual</string>
+	<string>start</string>
+	<string>default</string>
+</array>
+</dict>
+    </array>
+    <key>pfm_title</key>
+    <string>Code - OSS</string>
+    <key>pfm_unique</key>
+    <true/>
+    <key>pfm_version</key>
+    <integer>1</integer>
+</dict>
+</plist>

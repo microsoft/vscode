@@ -9,10 +9,6 @@
 	height: 100%;
 }
 
-.explorer-folders-view .monaco-list-row {
-	padding-left: 4px; /* align top level twistie with `Explorer` title label */
-}
-
 .explorer-folders-view .explorer-folders-view.highlight .monaco-list .explorer-item:not(.explorer-item-edited),
 .explorer-folders-view .explorer-folders-view.highlight .monaco-list .monaco-tl-twistie {
 	opacity: 0.3;
@@ -60,6 +56,18 @@
 .explorer-folders-view .monaco-list-row .explorer-item .monaco-count-badge {
 	margin-left: 5px;
 	display: none;
+}
+
+.explorer-folders-view .explorer-item.highlight-badge > .monaco-icon-label-container {
+	display: flex;
+	align-items: center;
+}
+
+.explorer-folders-view .explorer-item.highlight-badge .monaco-icon-name-container {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .explorer-folders-view .monaco-list-row[aria-expanded="false"] .explorer-item.highlight-badge .monaco-count-badge {

@@ -216,7 +216,7 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 	) {
 		// test open mode
 
-		const filter = instantiationService.createInstance(SettingsTreeFilter, viewState);
+		const filter = instantiationService.createInstance(SettingsTreeFilter, viewState, false);
 		const options: IWorkbenchObjectTreeOptions<SettingsTreeGroupElement, void> = {
 			filter,
 			multipleSelectionSupport: false,

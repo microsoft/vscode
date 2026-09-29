@@ -6,6 +6,7 @@
 import { localize } from '../../../nls.js';
 import { Registry } from '../../registry/common/platform.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { Extensions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from '../common/quickAccess.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../common/quickInput.js';
@@ -22,7 +23,8 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) { }
 
 	provide(picker: IQuickPick<IHelpQuickAccessPickItem, { useSeparators: true }>): IDisposable {
@@ -39,8 +41,8 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		// Also open a picker when we detect the user typed the exact
 		// name of a provider (e.g. `?term` for terminals)
 		disposables.add(picker.onDidChangeValue(value => {
-			const providerDescriptor = this.registry.getQuickAccessProvider(value.substr(HelpQuickAccessProvider.PREFIX.length));
-			if (providerDescriptor && providerDescriptor.prefix && providerDescriptor.prefix !== HelpQuickAccessProvider.PREFIX) {
+			const providerDescriptor = this.registry.getQuickAccessProvider(value.substr(HelpQuickAccessProvider.PREFIX.length), this.contextKeyService);
+			if (providerDescriptor?.prefix && providerDescriptor.prefix !== HelpQuickAccessProvider.PREFIX) {
 				this.quickInputService.quickAccess.show(providerDescriptor.prefix, { preserveValue: true });
 			}
 		}));
@@ -53,7 +55,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 
 	getQuickAccessProviders(): IHelpQuickAccessPickItem[] {
 		const providers: IHelpQuickAccessPickItem[] = this.registry
-			.getQuickAccessProviders()
+			.getQuickAccessProviders(this.contextKeyService)
 			.sort((providerA, providerB) => providerA.prefix.localeCompare(providerB.prefix))
 			.flatMap(provider => this.createPicks(provider));
 

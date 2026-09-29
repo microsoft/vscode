@@ -8,7 +8,7 @@ import { coalesce } from '../../../base/common/arrays.js';
 import { asPromise } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable as DisposableCls, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable as DisposableCls, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon as ThemeIconUtils } from '../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -38,15 +38,15 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 
 	readonly _serviceBrand: undefined;
 
-	onDidStartDebugSession: Event<vscode.DebugSession>;
-	onDidTerminateDebugSession: Event<vscode.DebugSession>;
-	onDidChangeActiveDebugSession: Event<vscode.DebugSession | undefined>;
+	readonly onDidStartDebugSession: Event<vscode.DebugSession>;
+	readonly onDidTerminateDebugSession: Event<vscode.DebugSession>;
+	readonly onDidChangeActiveDebugSession: Event<vscode.DebugSession | undefined>;
 	activeDebugSession: vscode.DebugSession | undefined;
 	activeDebugConsole: vscode.DebugConsole;
-	onDidReceiveDebugSessionCustomEvent: Event<vscode.DebugSessionCustomEvent>;
-	onDidChangeBreakpoints: Event<vscode.BreakpointsChangeEvent>;
+	readonly onDidReceiveDebugSessionCustomEvent: Event<vscode.DebugSessionCustomEvent>;
+	readonly onDidChangeBreakpoints: Event<vscode.BreakpointsChangeEvent>;
 	breakpoints: vscode.Breakpoint[];
-	onDidChangeActiveStackItem: Event<vscode.DebugThread | vscode.DebugStackFrame | undefined>;
+	readonly onDidChangeActiveStackItem: Event<vscode.DebugThread | vscode.DebugStackFrame | undefined>;
 	activeStackItem: vscode.DebugThread | vscode.DebugStackFrame | undefined;
 
 	addBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
@@ -109,7 +109,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 	private readonly _debugVisualizationProviders = new Map<string, vscode.DebugVisualizationProvider>();
 	private readonly _debugVisualizationTrees = new Map<string, vscode.DebugVisualizationTree>();
 	private readonly _debugVisualizationTreeItemIds = new WeakMap<vscode.DebugTreeItem, number>();
-	private readonly _debugVisualizationElements = new Map<number, { provider: string; item: vscode.DebugTreeItem; children?: number[] }>();
+	private readonly _debugVisualizationElements = this._register(new DisposableMap<number, IDisposable & { provider: string; item: vscode.DebugTreeItem; sessionIds: Set<string>; children?: number[] }>());
 
 	private _signService: ISignService | undefined;
 
@@ -174,7 +174,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 		}
 
 		const item = await this._debugVisualizationTrees.get(treeId)?.getTreeItem?.(context);
-		return item ? this.convertVisualizerTreeItem(treeId, item) : undefined;
+		return item && this._debugSessions.has(context.session.id) ? this.convertVisualizerTreeItem(treeId, item, [context.session.id]) : undefined;
 	}
 
 	public registerDebugVisualizationTree<T extends vscode.DebugTreeItem>(manifest: IExtensionDescription, id: string, provider: vscode.DebugVisualizationTree<T>): vscode.Disposable {
@@ -193,13 +193,16 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 	}
 
 	public async $getVisualizerTreeItemChildren(treeId: string, element: number): Promise<IDebugVisualizationTreeItem[]> {
-		const item = this._debugVisualizationElements.get(element)?.item;
-		if (!item) {
+		const entry = this._debugVisualizationElements.get(element);
+		if (!entry) {
 			return [];
 		}
 
-		const children = await this._debugVisualizationTrees.get(treeId)?.getChildren?.(item);
-		return children?.map(i => this.convertVisualizerTreeItem(treeId, i)) || [];
+		const children = await this._debugVisualizationTrees.get(treeId)?.getChildren?.(entry.item);
+		if (!this._debugVisualizationElements.has(element)) {
+			return [];
+		}
+		return children?.map(i => this.convertVisualizerTreeItem(treeId, i, entry.sessionIds)) || [];
 	}
 
 	public async $editVisualizerTreeItem(element: number, value: string): Promise<IDebugVisualizationTreeItem | undefined> {
@@ -207,7 +210,10 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 		if (!e) { return undefined; }
 
 		const r = await this._debugVisualizationTrees.get(e.provider)?.editItem?.(e.item, value);
-		return this.convertVisualizerTreeItem(e.provider, r || e.item);
+		if (!this._debugVisualizationElements.has(element)) {
+			return undefined;
+		}
+		return this.convertVisualizerTreeItem(e.provider, r || e.item, e.sessionIds);
 	}
 
 	public $disposeVisualizedTree(element: number): void {
@@ -221,18 +227,22 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 			if (children) {
 				for (const child of children) {
 					queue.push(this._debugVisualizationElements.get(child)?.children);
-					this._debugVisualizationElements.delete(child);
+					this._debugVisualizationElements.deleteAndDispose(child);
 				}
 			}
 		}
 	}
 
-	private convertVisualizerTreeItem(treeId: string, item: vscode.DebugTreeItem): IDebugVisualizationTreeItem {
+	private convertVisualizerTreeItem(treeId: string, item: vscode.DebugTreeItem, sessionIds: Iterable<string>): IDebugVisualizationTreeItem {
 		let id = this._debugVisualizationTreeItemIds.get(item);
-		if (!id) {
+		if (id === undefined) {
 			id = this._debugVisualizationTreeItemIdsCounter++;
 			this._debugVisualizationTreeItemIds.set(item, id);
-			this._debugVisualizationElements.set(id, { provider: treeId, item });
+			this._debugVisualizationElements.set(id, { provider: treeId, item, sessionIds: new Set(), dispose: () => this._debugVisualizationTreeItemIds.delete(item) });
+		}
+		const entry = this._debugVisualizationElements.get(id)!;
+		for (const sessionId of sessionIds) {
+			entry.sessionIds.add(sessionId);
 		}
 
 		return Convert.DebugTreeItem.from(item, id);
@@ -878,6 +888,12 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 		if (session) {
 			this._onDidTerminateDebugSession.fire(session.api);
 			this._debugSessions.delete(session.id);
+			for (const [id, entry] of this._debugVisualizationElements) {
+				entry.sessionIds.delete(session.id);
+				if (entry.sessionIds.size === 0) {
+					this._debugVisualizationElements.deleteAndDispose(id);
+				}
+			}
 		}
 	}
 
@@ -1251,12 +1267,19 @@ class MultiTracker implements vscode.DebugAdapterTracker {
  */
 class DirectDebugAdapter extends AbstractDebugAdapter {
 
+	private readonly _messageListener: vscode.Disposable;
+
 	constructor(private implementation: vscode.DebugAdapter) {
 		super();
 
-		implementation.onDidSendMessage((message: vscode.DebugProtocolMessage) => {
+		this._messageListener = implementation.onDidSendMessage((message: vscode.DebugProtocolMessage) => {
 			this.acceptMessage(message as DebugProtocol.ProtocolMessage);
 		});
+	}
+
+	override dispose(): void {
+		this._messageListener.dispose();
+		super.dispose();
 	}
 
 	startSession(): Promise<void> {
@@ -1268,6 +1291,7 @@ class DirectDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	stopSession(): Promise<void> {
+		this.dispose();
 		this.implementation.dispose();
 		return Promise.resolve(undefined);
 	}

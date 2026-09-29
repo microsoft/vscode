@@ -12,7 +12,7 @@ import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import * as resources from '../../../../base/common/resources.js';
 import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground, DEFAULT_COLOR_CONFIG_VALUE } from '../../../../platform/theme/common/colorRegistry.js';
-import { ITokenStyle, getThemeTypeSelector } from '../../../../platform/theme/common/themeService.js';
+import { IFontTokenOptions, ITokenStyle, getThemeTypeSelector } from '../../../../platform/theme/common/themeService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -72,6 +72,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	private customTokenColors: ITextMateThemingRule[] = [];
 	private colorMap: IColorMap = {};
 	private customColorMap: IColorOrDefaultMap = {};
+	private transientColorMap: IColorMap | undefined;
 
 	private semanticTokenRules: SemanticTokenRule[] = [];
 	private customSemanticTokenRules: SemanticTokenRule[] = [];
@@ -81,6 +82,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 	private textMateThemingRules: ITextMateThemingRule[] | undefined = undefined; // created on demand
 	private tokenColorIndex: TokenColorIndex | undefined = undefined; // created on demand
+	private tokenFontIndex: TokenFontIndex | undefined = undefined; // created on demand
 
 	private constructor(id: string, label: string, settingsId: string) {
 		this.id = id;
@@ -120,7 +122,17 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 					if (rule.scope === 'token.info-token') {
 						hasDefaultTokens = true;
 					}
-					result.push({ scope: rule.scope, settings: { foreground: normalizeColor(rule.settings.foreground), background: normalizeColor(rule.settings.background), fontStyle: rule.settings.fontStyle } });
+					const ruleSettings = rule.settings;
+					result.push({
+						scope: rule.scope, settings: {
+							foreground: normalizeColor(ruleSettings.foreground),
+							background: normalizeColor(ruleSettings.background),
+							fontStyle: ruleSettings.fontStyle,
+							fontSize: ruleSettings.fontSize,
+							fontFamily: ruleSettings.fontFamily,
+							lineHeight: ruleSettings.lineHeight
+						}
+					});
 				}
 			}
 
@@ -138,6 +150,10 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
+		const transientColor = this.transientColorMap?.[colorId];
+		if (transientColor) {
+			return transientColor;
+		}
 		const customColor = this.customColorMap[colorId];
 		if (customColor instanceof Color) {
 			return customColor;
@@ -167,7 +183,10 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			bold: -1,
 			underline: -1,
 			strikethrough: -1,
-			italic: -1
+			italic: -1,
+			fontFamily: -1,
+			fontSize: -1,
+			lineHeight: -1
 		};
 
 		function _processStyle(matchScore: number, style: TokenStyle, definition: TokenStyleDefinition) {
@@ -270,8 +289,22 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return this.tokenColorIndex;
 	}
 
+
+	public getTokenFontIndex(): TokenFontIndex {
+		if (!this.tokenFontIndex) {
+			const index = new TokenFontIndex();
+			this.tokenColors.forEach(r => index.add(r.settings.fontFamily, r.settings.fontSize, r.settings.lineHeight));
+			this.tokenFontIndex = index;
+		}
+		return this.tokenFontIndex;
+	}
+
 	public get tokenColorMap(): string[] {
 		return this.getTokenColorIndex().asArray();
+	}
+
+	public get tokenFontMap(): IFontTokenOptions[] {
+		return this.getTokenFontIndex().asArray();
 	}
 
 	public getTokenStyleMetadata(typeWithLanguage: string, modifiers: string[], defaultLanguage: string, useDefault = true, definitions: TokenStyleDefinitions = {}): ITokenStyle | undefined {
@@ -357,6 +390,9 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public defines(colorId: ColorIdentifier): boolean {
+		if (this.transientColorMap?.[colorId]) {
+			return true;
+		}
 		const customColor = this.customColorMap[colorId];
 		if (customColor instanceof Color) {
 			return true;
@@ -364,10 +400,32 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return customColor === undefined /* !== DEFAULT_COLOR_CONFIG_VALUE */ && this.colorMap.hasOwnProperty(colorId);
 	}
 
+	public getColorCustomization(colorId: ColorIdentifier): Color | undefined {
+		const customColor = this.customColorMap[colorId];
+		return customColor instanceof Color ? customColor : undefined;
+	}
+
 	public setCustomizations(settings: ThemeConfiguration) {
 		this.setCustomColors(settings.colorCustomizations);
 		this.setCustomTokenColors(settings.tokenColorCustomizations);
 		this.setCustomSemanticTokenColors(settings.semanticTokenColorCustomizations);
+	}
+
+	/** Replaces runtime-only colors; these are deliberately excluded from theme storage. */
+	public setTransientColors(colors: IColorMap | undefined): void {
+		if (this.transientColorMap || colors) {
+			this.transientColorMap = colors;
+			this.clearCaches();
+		}
+	}
+
+	public getBaseTheme(): ColorThemeData {
+		if (!this.transientColorMap) {
+			return this;
+		}
+		const theme = Object.assign(new ColorThemeData(this.id, this.label, this.settingsId), this);
+		theme.setTransientColors(undefined);
+		return theme;
 	}
 
 	public setCustomColors(colors: IColorCustomizations) {
@@ -380,6 +438,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		}
 
 		this.tokenColorIndex = undefined;
+		this.tokenFontIndex = undefined;
 		this.textMateThemingRules = undefined;
 		this.customTokenScopeMatchers = undefined;
 	}
@@ -409,6 +468,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		}
 
 		this.tokenColorIndex = undefined;
+		this.tokenFontIndex = undefined;
 		this.textMateThemingRules = undefined;
 		this.customTokenScopeMatchers = undefined;
 	}
@@ -434,6 +494,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		}
 
 		this.tokenColorIndex = undefined;
+		this.tokenFontIndex = undefined;
 		this.textMateThemingRules = undefined;
 	}
 
@@ -557,6 +618,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 	public clearCaches() {
 		this.tokenColorIndex = undefined;
+		this.tokenFontIndex = undefined;
 		this.textMateThemingRules = undefined;
 		this.themeTokenScopeMatchers = undefined;
 		this.customTokenScopeMatchers = undefined;
@@ -680,7 +742,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	static fromExtensionTheme(theme: IThemeExtensionPoint, colorThemeLocation: URI, extensionData: ExtensionData): ColorThemeData {
-		const baseTheme: string = theme['uiTheme'] || 'vs-dark';
+		const baseTheme: string = theme.uiTheme || 'vs-dark';
 		const themeSelector = toCSSSelector(extensionData.extensionId, theme.path);
 		const id = `${baseTheme} ${themeSelector}`;
 		const label = theme.label || basename(theme.path);
@@ -972,7 +1034,43 @@ class TokenColorIndex {
 	public asArray(): string[] {
 		return this._id2color.slice(0);
 	}
+}
 
+class TokenFontIndex {
+
+	private _lastFontId: number;
+	private _id2font: IFontTokenOptions[];
+	private _font2id: Map<IFontTokenOptions, number>;
+
+	constructor() {
+		this._lastFontId = 0;
+		this._id2font = [];
+		this._font2id = new Map();
+	}
+
+	public add(fontFamily: string | undefined, fontSizeMultiplier: number | undefined, lineHeightMultiplier: number | undefined): number {
+		const font: IFontTokenOptions = { fontFamily, fontSizeMultiplier, lineHeightMultiplier };
+		let value = this._font2id.get(font);
+		if (value) {
+			return value;
+		}
+		value = ++this._lastFontId;
+		this._font2id.set(font, value);
+		this._id2font[value] = font;
+		return value;
+	}
+
+	public get(font: IFontTokenOptions): number {
+		const value = this._font2id.get(font);
+		if (value) {
+			return value;
+		}
+		return 0;
+	}
+
+	public asArray(): IFontTokenOptions[] {
+		return this._id2font.slice(0);
+	}
 }
 
 function normalizeColor(color: string | Color | undefined | null): string | undefined {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { filepaths } from '../helpers/filepaths';
 import { testPaths, type ISuiteSpec } from './helpers';
 const expectedCompletions = [{ label: 'foo', description: 'Foo' }];
 export const figGenericTestSuites: ISuiteSpec[] = [
@@ -75,6 +76,30 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 		availableCommands: 'foo',
 		testSpecs: [
 			{ input: 'foo |', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		]
+	},
+	{
+		name: 'Fig top-level args exact file names',
+		completionSpecs: [
+			{
+				name: 'foo',
+				description: 'Foo',
+				args: {
+					generators: filepaths({ equals: ['Cargo.toml', 'deny.toml'] }),
+				}
+			}
+		],
+		availableCommands: 'foo',
+		testSpecs: [
+			{
+				input: 'foo |',
+				expectedCompletions: [],
+				expectedResourceRequests: {
+					type: 'both',
+					cwd: testPaths.cwd,
+					fileNames: ['Cargo.toml', 'deny.toml'],
+				}
+			},
 		]
 	},
 	{
@@ -182,6 +207,55 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 			{ input: 'foo a|', expectedCompletions: ['a', 'foo'] },
 			{ input: 'foo b|', expectedCompletions: ['b', 'foo'] },
 			{ input: 'foo c|', expectedCompletions: ['c', 'foo'] },
+		]
+	},
+	{
+		name: 'Fig persistent options',
+		completionSpecs: [
+			{
+				name: 'foo',
+				description: 'Foo',
+				options: [
+					{ name: '--help', description: 'Show help', isPersistent: true },
+					{ name: '--docs', description: 'Show docs' },
+					{ name: '--version', description: 'Version info', isPersistent: false }
+				],
+				subcommands: [
+					{
+						name: 'bar',
+						description: 'Bar subcommand',
+						options: [
+							{ name: '--local', description: 'Local option' }
+						]
+					},
+					{
+						name: 'baz',
+						description: 'Baz subcommand',
+						options: [
+							{ name: '--another', description: 'Another option' }
+						],
+						subcommands: [
+							{
+								name: 'nested',
+								description: 'Nested subcommand'
+							}
+						]
+					}
+				]
+			}
+		],
+		availableCommands: 'foo',
+		testSpecs: [
+			// Top-level should show all options including persistent
+			{ input: 'foo |', expectedCompletions: ['--help', '--docs', '--version', 'bar', 'baz'] },
+			// First-level subcommand should only inherit persistent options (not --docs or --version)
+			{ input: 'foo bar |', expectedCompletions: ['--help', '--local'] },
+			// Another first-level subcommand should also inherit only persistent options
+			{ input: 'foo baz |', expectedCompletions: ['--help', '--another', 'nested'] },
+			// Nested subcommand should inherit persistent options from top level
+			{ input: 'foo baz nested |', expectedCompletions: ['--help'] },
+			// Persistent options should be available even after using local options
+			{ input: 'foo bar --local |', expectedCompletions: ['--help'] },
 		]
 	}
 ];

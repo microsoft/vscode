@@ -197,7 +197,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		this._editors.deleteAndDispose(editor);
 	}
 
-	async $postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean> {
+	async $postMessage(handle: number, editorId: string | undefined, message: unknown): Promise<boolean> {
 		const tuple = this._kernels.get(handle);
 		if (!tuple) {
 			throw new Error('kernel already disposed');

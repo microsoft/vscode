@@ -20,6 +20,7 @@ import { extractFileListData } from '../../../../platform/dnd/browser/dnd.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -142,10 +143,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	private getFilePickerTypes(filters?: FileFilter[]): FilePickerAcceptType[] | undefined {
 		return filters?.filter(filter => {
 			return !((filter.extensions.length === 1) && ((filter.extensions[0] === '*') || filter.extensions[0] === ''));
-		}).map(filter => {
-			const accept: Record<string, string[]> = {};
+		}).map((filter): FilePickerAcceptType => {
+			const accept: Record<MIMEType, FileExtension[]> = {};
 			const extensions = filter.extensions.filter(ext => (ext.indexOf('-') < 0) && (ext.indexOf('*') < 0) && (ext.indexOf('_') < 0));
-			accept[getMediaOrTextMime(`fileName.${filter.extensions[0]}`) ?? 'text/plain'] = extensions.map(ext => ext.startsWith('.') ? ext : `.${ext}`);
+			accept[(getMediaOrTextMime(`fileName.${filter.extensions[0]}`) ?? 'text/plain') as MIMEType] = extensions.map(ext => ext.startsWith('.') ? ext : `.${ext}`) as FileExtension[];
 			return {
 				description: filter.name,
 				accept
@@ -194,7 +195,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		let uri: URI | undefined;
-		const startIn = Iterable.first(this.fileSystemProvider.directories) ?? 'documents';
+		const startIn = await this.getFilePickerStartIn(options.defaultUri) ?? 'documents';
 
 		try {
 			if (options.canSelectFiles) {
@@ -211,6 +212,21 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		return uri ? [uri] : undefined;
+	}
+
+	private async getFilePickerStartIn(defaultUri: URI | undefined): Promise<FileSystemDirectoryHandle | undefined> {
+		if (defaultUri) {
+			try {
+				const handle = await this.fileSystemProvider.getDirectoryHandle(defaultUri);
+				if (handle) {
+					return handle;
+				}
+			} catch (error) {
+				this.logService.debug(`[FileDialogService] Failed to resolve default URI to a directory handle: ${getErrorMessage(error)}`);
+			}
+		}
+
+		return Iterable.first(this.fileSystemProvider.directories);
 	}
 
 	private async showUnsupportedBrowserWarning(context: 'save' | 'open'): Promise<undefined> {

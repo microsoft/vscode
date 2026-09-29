@@ -14,22 +14,30 @@ try {
 		.toString()
 		.trim();
 
+	const [major, minor] = tag.split('.');
+	const shorttag = `${major}.${minor}`;
+
 	const dtsUri = `https://raw.githubusercontent.com/microsoft/vscode/${tag}/src/vscode-dts/vscode.d.ts`;
-	const outPath = path.resolve(process.cwd(), 'DefinitelyTyped/types/vscode/index.d.ts');
-	cp.execSync(`curl ${dtsUri} --output ${outPath}`);
+	const outDtsPath = path.resolve(process.cwd(), 'DefinitelyTyped/types/vscode/index.d.ts');
+	cp.execSync(`curl ${dtsUri} --output ${outDtsPath}`);
 
-	updateDTSFile(outPath, tag);
+	updateDTSFile(outDtsPath, shorttag);
 
-	console.log(`Done updating vscode.d.ts at ${outPath}`);
+	const outPackageJsonPath = path.resolve(process.cwd(), 'DefinitelyTyped/types/vscode/package.json');
+	const packageJson = JSON.parse(fs.readFileSync(outPackageJsonPath, 'utf-8'));
+	packageJson.version = shorttag + '.9999';
+	fs.writeFileSync(outPackageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+
+	console.log(`Done updating vscode.d.ts at ${outDtsPath} and package.json to version ${packageJson.version}`);
 } catch (err) {
 	console.error(err);
 	console.error('Failed to update types');
 	process.exit(1);
 }
 
-function updateDTSFile(outPath: string, tag: string) {
+function updateDTSFile(outPath: string, shorttag: string) {
 	const oldContent = fs.readFileSync(outPath, 'utf-8');
-	const newContent = getNewFileContent(oldContent, tag);
+	const newContent = getNewFileContent(oldContent, shorttag);
 
 	fs.writeFileSync(outPath, newContent);
 }
@@ -46,7 +54,7 @@ function convertTabsToSpaces(str: string): string {
 	return str.replace(/\t/gm, value => repeat('    ', value.length));
 }
 
-function getNewFileContent(content: string, tag: string) {
+function getNewFileContent(content: string, shorttag: string) {
 	const oldheader = [
 		`/*---------------------------------------------------------------------------------------------`,
 		` *  Copyright (c) Microsoft Corporation. All rights reserved.`,
@@ -54,13 +62,10 @@ function getNewFileContent(content: string, tag: string) {
 		` *--------------------------------------------------------------------------------------------*/`
 	].join('\n');
 
-	return convertTabsToSpaces(getNewFileHeader(tag) + content.slice(oldheader.length));
+	return convertTabsToSpaces(getNewFileHeader(shorttag) + content.slice(oldheader.length));
 }
 
-function getNewFileHeader(tag: string) {
-	const [major, minor] = tag.split('.');
-	const shorttag = `${major}.${minor}`;
-
+function getNewFileHeader(shorttag: string) {
 	const header = [
 		`// Type definitions for Visual Studio Code ${shorttag}`,
 		`// Project: https://github.com/microsoft/vscode`,

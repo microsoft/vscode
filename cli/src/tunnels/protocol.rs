@@ -299,9 +299,10 @@ pub enum PortPrivacy {
 	Private,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Copy, Eq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Copy, Eq, Clone, Debug, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum PortProtocol {
+	#[default]
 	Auto,
 	Http,
 	Https,
@@ -310,12 +311,6 @@ pub enum PortProtocol {
 impl std::fmt::Display for PortProtocol {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{}", self.to_contract_str())
-	}
-}
-
-impl Default for PortProtocol {
-	fn default() -> Self {
-		Self::Auto
 	}
 }
 
@@ -358,7 +353,7 @@ pub mod forward_singleton {
 
 pub mod singleton {
 	use crate::log;
-	use chrono::{DateTime, Utc};
+	use jiff::Timestamp;
 	use serde::{Deserialize, Serialize};
 
 	pub const METHOD_RESTART: &str = "restart";
@@ -366,6 +361,7 @@ pub mod singleton {
 	pub const METHOD_STATUS: &str = "status";
 	pub const METHOD_LOG: &str = "log";
 	pub const METHOD_LOG_REPLY_DONE: &str = "log_done";
+	pub const METHOD_MACHINE_STATUS: &str = "machine_status";
 
 	#[derive(Serialize)]
 	pub struct LogMessage<'a> {
@@ -384,23 +380,32 @@ pub mod singleton {
 	#[derive(Serialize, Deserialize, Clone, Default)]
 	pub struct StatusWithTunnelName {
 		pub name: Option<String>,
+		/// The stable dev tunnel identity. `None` from servers predating this
+		/// field, so clients must not treat a missing value as an identity.
+		#[serde(default)]
+		pub tunnel_id: Option<String>,
+		/// Whether the running singleton serves the editor, as opposed to only
+		/// the agent host. `None` from servers predating this field, in which
+		/// case a client must fall back to describing its own invocation.
+		#[serde(default)]
+		pub has_editor_link: Option<bool>,
 		#[serde(flatten)]
 		pub status: Status,
 	}
 
 	#[derive(Serialize, Deserialize, Clone)]
 	pub struct Status {
-		pub started_at: DateTime<Utc>,
+		pub started_at: Timestamp,
 		pub tunnel: TunnelState,
-		pub last_connected_at: Option<DateTime<Utc>>,
-		pub last_disconnected_at: Option<DateTime<Utc>>,
+		pub last_connected_at: Option<Timestamp>,
+		pub last_disconnected_at: Option<Timestamp>,
 		pub last_fail_reason: Option<String>,
 	}
 
 	impl Default for Status {
 		fn default() -> Self {
 			Self {
-				started_at: Utc::now(),
+				started_at: Timestamp::now(),
 				tunnel: TunnelState::Disconnected,
 				last_connected_at: None,
 				last_disconnected_at: None,
@@ -417,5 +422,75 @@ pub mod singleton {
 		#[default]
 		Disconnected,
 		Connected,
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+
+		/// A singleton server predating `has_editor_link` omits the field
+		/// entirely; clients must still be able to read its status and fall
+		/// back to describing their own invocation.
+		#[test]
+		fn status_without_editor_link_field_deserializes_as_unknown() {
+			// Built by removing the field from a real payload rather than
+			// hand-writing the wire shape, so it stays accurate if `Status`
+			// changes.
+			let mut legacy = serde_json::to_value(StatusWithTunnelName {
+				name: Some("tunnel-name".to_string()),
+				tunnel_id: None,
+				has_editor_link: Some(true),
+				status: Status::default(),
+			})
+			.unwrap();
+			legacy
+				.as_object_mut()
+				.unwrap()
+				.remove("has_editor_link")
+				.unwrap();
+
+			let parsed: StatusWithTunnelName = serde_json::from_value(legacy).unwrap();
+
+			assert_eq!(
+				(parsed.name.as_deref(), parsed.has_editor_link),
+				(Some("tunnel-name"), None)
+			);
+		}
+
+		#[test]
+		fn status_with_tunnel_id_round_trips() {
+			let expected = StatusWithTunnelName {
+				name: Some("tunnel-name".to_string()),
+				tunnel_id: Some("tunnel-id".to_string()),
+				has_editor_link: Some(true),
+				status: Status::default(),
+			};
+
+			let parsed: StatusWithTunnelName =
+				serde_json::from_value(serde_json::to_value(&expected).unwrap()).unwrap();
+
+			assert_eq!(
+				(parsed.name.as_deref(), parsed.tunnel_id.as_deref()),
+				(Some("tunnel-name"), Some("tunnel-id"))
+			);
+		}
+
+		/// A singleton server predating `tunnel_id` omits the field entirely,
+		/// so clients can continue to attach without treating its absence as an ID.
+		#[test]
+		fn status_without_tunnel_id_field_deserializes_as_unknown() {
+			let mut legacy = serde_json::to_value(StatusWithTunnelName {
+				name: Some("tunnel-name".to_string()),
+				tunnel_id: Some("tunnel-id".to_string()),
+				has_editor_link: Some(true),
+				status: Status::default(),
+			})
+			.unwrap();
+			legacy.as_object_mut().unwrap().remove("tunnel_id").unwrap();
+
+			let parsed: StatusWithTunnelName = serde_json::from_value(legacy).unwrap();
+
+			assert_eq!(parsed.tunnel_id, None);
+		}
 	}
 }

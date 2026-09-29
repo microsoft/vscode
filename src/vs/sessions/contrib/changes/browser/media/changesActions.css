@@ -1,0 +1,11 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-action-bar .action-item.changes-commit-action .action-label {
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 16px;
+}

@@ -288,7 +288,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 					bottom: INPUT_EDITOR_PADDING
 				},
 				hover: {
-					enabled: true
+					enabled: 'on' as const
 				},
 				rulers: []
 			}

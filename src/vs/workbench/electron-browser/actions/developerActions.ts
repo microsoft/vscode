@@ -16,9 +16,9 @@ import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { INativeWorkbenchEnvironmentService } from '../../services/environment/electron-browser/environmentService.js';
 import { URI } from '../../../base/common/uri.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
-import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
-import { INativeEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../services/statusbar/browser/statusbar.js';
 
 export class ToggleDevToolsAction extends Action2 {
 
@@ -123,6 +123,98 @@ export class ShowGPUInfoAction extends Action2 {
 	}
 }
 
+export class ShowContentTracingAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.showContentTracing',
+			title: localize2('showContentTracing', 'Show Content Tracing'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const nativeHostService = accessor.get(INativeHostService);
+		nativeHostService.openContentTracingWindow();
+	}
+}
+
+let activeTracingEntry: IStatusbarEntryAccessor | undefined;
+
+const tracingCategories = [
+	'content',
+	'renderer_host',
+	'browser',
+	'renderer',
+	'blink',
+	'blink.user_timing',
+	'netlog',
+	'net',
+	'v8',
+	'disabled-by-default-v8.cpu_profiler',
+	'disabled-by-default-v8.compile',
+	'disabled-by-default-v8.gc',
+	'disabled-by-default-v8.gc_stats',
+	'disabled-by-default-devtools.timeline',
+	'disabled-by-default-network',
+	'disabled-by-default-net',
+];
+
+async function startTracingSession(accessor: ServicesAccessor, options: { readonly enableHeapProfiling: boolean }): Promise<void> {
+	const nativeHostService = accessor.get(INativeHostService);
+	const statusbarService = accessor.get(IStatusbarService);
+
+	const categories = [...tracingCategories];
+	if (options.enableHeapProfiling) {
+		categories.push('disabled-by-default-memory-infra');
+	}
+
+	await nativeHostService.startTracing(categories.join(','), { enableHeapProfiling: options.enableHeapProfiling });
+
+	activeTracingEntry?.dispose();
+	activeTracingEntry = statusbarService.addEntry({
+		name: localize('startTracing.name', "Performance Trace"),
+		text: '$(record) ' + localize('startTracing.recording', "Recording trace (click to stop)"),
+		ariaLabel: localize('startTracing.ariaLabel', "Recording performance trace. Click to stop recording."),
+		tooltip: localize('startTracing.tooltip', "Click to stop recording"),
+		kind: 'error',
+		command: StopTracing.ID
+	}, 'status.tracing', StatusbarAlignment.LEFT, -Number.MAX_VALUE);
+}
+
+export class StartTracing extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.startTracing',
+			title: localize2('startTracing', 'Start Tracing'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await startTracingSession(accessor, { enableHeapProfiling: false });
+	}
+}
+
+export class StartHeapTracing extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.startHeapTracing',
+			title: localize2('startHeapTracing', 'Start Heap Tracing'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await startTracingSession(accessor, { enableHeapProfiling: true });
+	}
+}
+
 export class StopTracing extends Action2 {
 
 	static readonly ID = 'workbench.action.stopTracing';
@@ -137,20 +229,22 @@ export class StopTracing extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const environmentService = accessor.get(INativeEnvironmentService);
-		const dialogService = accessor.get(IDialogService);
 		const nativeHostService = accessor.get(INativeHostService);
+		const environmentService = accessor.get(INativeWorkbenchEnvironmentService);
+		const dialogService = accessor.get(IDialogService);
 		const progressService = accessor.get(IProgressService);
 
-		if (!environmentService.args.trace) {
+		if (!activeTracingEntry && !environmentService.args.trace) {
 			const { confirmed } = await dialogService.confirm({
-				message: localize('stopTracing.message', "Tracing requires to launch with a '--trace' argument"),
+				message: localize('stopTracing.message', "No tracing session is in progress. Use 'Developer: Start Tracing' or launch with a '--trace' argument to begin tracing."),
 				primaryButton: localize({ key: 'stopTracing.button', comment: ['&& denotes a mnemonic'] }, "&&Relaunch and Enable Tracing"),
 			});
 
 			if (confirmed) {
 				return nativeHostService.relaunch({ addArgs: ['--trace'] });
 			}
+
+			return;
 		}
 
 		await progressService.withProgress({
@@ -159,5 +253,8 @@ export class StopTracing extends Action2 {
 			cancellable: false,
 			detail: localize('stopTracing.detail', "This can take up to one minute to complete.")
 		}, () => nativeHostService.stopTracing());
+
+		activeTracingEntry?.dispose();
+		activeTracingEntry = undefined;
 	}
 }

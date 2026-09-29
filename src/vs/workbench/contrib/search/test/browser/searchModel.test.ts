@@ -396,7 +396,7 @@ suite('SearchModel', () => {
 		};
 
 		const notebookSearchService = instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([aRawMatchWithCells('/1', cellMatchMd, cellMatchCode)], undefined));
-		const notebookSearch = sinon.spy(notebookSearchService, "notebookSearch");
+		const notebookSearch = sinon.spy(notebookSearchService, 'notebookSearch');
 		const model: SearchModelImpl = instantiationService.createInstance(SearchModelImpl);
 		store.add(model);
 		await model.search({ contentPattern: { pattern: 'test' }, type: QueryType.Text, folderQueries }).asyncResults;

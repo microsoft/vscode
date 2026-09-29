@@ -27,6 +27,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import { IEditorWhitespace, IViewModel } from '../common/viewModel.js';
 import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
 import { IEditorConstructionOptions } from './config/editorConfiguration.js';
+import { IClipboardCopyEvent, IClipboardPasteEvent } from './controller/editContext/clipboardUtils.js';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -178,6 +179,13 @@ export interface IContentWidget {
 	 * Render this content widget in a location where it could overflow the editor's view dom node.
 	 */
 	allowEditorOverflow?: boolean;
+
+	/**
+	 * If true, this widget doesn't have a visual representation.
+	 * The element will have display set to 'none'.
+	*/
+	useDisplayNone?: boolean;
+
 	/**
 	 * Call preventDefault() on mousedown events that target the content widget.
 	 */
@@ -259,6 +267,8 @@ export interface IOverlayWidgetPositionCoordinates {
 	left: number;
 }
 
+
+
 /**
  * A position for rendering overlay widgets.
  */
@@ -272,7 +282,7 @@ export interface IOverlayWidgetPosition {
 	 * When set, stacks with other overlay widgets with the same preference,
 	 * in an order determined by the ordinal value.
 	 */
-	stackOridinal?: number;
+	stackOrdinal?: number;
 }
 /**
  * An overlay widgets renders on top of the text.
@@ -281,7 +291,7 @@ export interface IOverlayWidget {
 	/**
 	 * Event fired when the widget layout changes.
 	 */
-	onDidLayout?: Event<void>;
+	readonly onDidLayout?: Event<void>;
 	/**
 	 * Render this overlay widget in a location where it could overflow the editor's view dom node.
 	 */
@@ -719,6 +729,24 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	readonly onDidPaste: Event<IPasteEvent>;
 	/**
+	 * An event emitted before clipboard copy operation starts.
+	 * @internal
+	 * @event
+	 */
+	readonly onWillCopy: Event<IClipboardCopyEvent>;
+	/**
+	 * An event emitted before clipboard cut operation starts.
+	 * @internal
+	 * @event
+	 */
+	readonly onWillCut: Event<IClipboardCopyEvent>;
+	/**
+	 * An event emitted before clipboard paste operation starts.
+	 * @internal
+	 * @event
+	 */
+	readonly onWillPaste: Event<IClipboardPasteEvent>;
+	/**
 	 * An event emitted on a "mouseup".
 	 * @event
 	 */
@@ -825,6 +853,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	*/
 	readonly onEndUpdate: Event<void>;
 
+	readonly onDidChangeViewZones: Event<void>;
+
 	/**
 	 * Saves current view state of the editor in a serializable object.
 	 */
@@ -898,14 +928,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 * @event
 	 */
-	onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
+	readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
 
 	/**
 	 * An event emitted when the font of the editor has changed.
 	 * @internal
 	 * @event
 	 */
-	onDidChangeFont: Event<ModelFontChangedEvent>;
+	readonly onDidChangeFont: Event<ModelFontChangedEvent>;
 
 	/**
 	 * Get value of the current model attached to this editor.
@@ -1011,6 +1041,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param command The commands to execute
 	 */
 	executeCommands(source: string | null | undefined, commands: (editorCommon.ICommand | null)[]): void;
+
+	/**
+	 * Scroll vertically or horizontally as necessary and reveal the current cursors.
+	 */
+	revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void;
 
 	/**
 	 * @internal
@@ -1189,10 +1224,23 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	getOffsetForColumn(lineNumber: number, column: number): number;
 
+	getWidthOfLine(lineNumber: number): number;
+
+	/**
+	 * Reset cached line widths. Call this when the editor becomes visible after being hidden.
+	 * @internal
+	 */
+	resetLineWidthCaches(): void;
+
 	/**
 	 * Force an editor render now.
 	 */
 	render(forceRedraw?: boolean): void;
+
+	/**
+	 * Render the editor at the next animation frame.
+	 */
+	renderAsync(forceRedraw?: boolean): void;
 
 	/**
 	 * Get the hit test target at coordinates `clientX` and `clientY`.
@@ -1395,6 +1443,12 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	updateOptions(newOptions: IDiffEditorOptions): void;
 
 	/**
+	 * Restores automatic width-based layout after a temporary inline layout.
+	 * @internal
+	 */
+	resetWidthBasedLayout(): void;
+
+	/**
 	 * @internal
 	 */
 	setBoundarySashes(sashes: IBoundarySashes): void;
@@ -1477,4 +1531,14 @@ export function getIEditor(thing: unknown): editorCommon.IEditor | null {
 	}
 
 	return null;
+}
+
+/**
+ *@internal
+ */
+export function isIOverlayWidgetPositionCoordinates(thing: unknown): thing is IOverlayWidgetPositionCoordinates {
+	return !!thing
+		&& typeof thing === 'object'
+		&& typeof (<IOverlayWidgetPositionCoordinates>thing).top === 'number'
+		&& typeof (<IOverlayWidgetPositionCoordinates>thing).left === 'number';
 }

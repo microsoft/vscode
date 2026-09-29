@@ -6,5 +6,5 @@
 import { UserDataSyncStoreClient } from '../../../../platform/userDataSync/common/userDataSyncStoreService.js';
 
 export class EditSessionsStoreClient extends UserDataSyncStoreClient {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 }

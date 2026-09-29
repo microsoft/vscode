@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getAllCodicons } from '../../../base/common/codicons.js';
+import { Codicon, getAllCodicons } from '../../../base/common/codicons.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../base/common/jsonSchema.js';
 import { OperatingSystem, Platform, PlatformToString } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
@@ -168,6 +168,63 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				}
 			]
 		},
+		[TerminalSettingId.AgentHostProfileLinux]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.agentHostProfile.linux', "The terminal profile to use on Linux for agent host terminals, including shells launched by AI agent tools. Accepts either a profile name from {0} or an inline profile object. When unset, falls back to {1}. Currently applies to the local agent host. Only the executable `path` is honored today; `args` and `env` from the profile are ignored. Remote agent hosts need remote-side shell configuration because local resolved paths may be invalid on the remote.", '`#terminal.integrated.profiles.linux#`', '`#terminal.integrated.defaultProfile.linux#`'),
+			type: ['string', 'object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				{ type: 'string' },
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
+			]
+		},
+		[TerminalSettingId.AgentHostProfileMacOs]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.agentHostProfile.osx', "The terminal profile to use on macOS for agent host terminals, including shells launched by AI agent tools. Accepts either a profile name from {0} or an inline profile object. When unset, falls back to {1}. Currently applies to the local agent host. Only the executable `path` is honored today; `args` and `env` from the profile are ignored. Remote agent hosts need remote-side shell configuration because local resolved paths may be invalid on the remote.", '`#terminal.integrated.profiles.osx#`', '`#terminal.integrated.defaultProfile.osx#`'),
+			type: ['string', 'object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				{ type: 'string' },
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
+			]
+		},
+		[TerminalSettingId.AgentHostProfileWindows]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.agentHostProfile.windows', "The terminal profile to use on Windows for agent host terminals, including shells launched by AI agent tools. Accepts either a profile name from {0} or an inline profile object. When unset, falls back to {1}. Currently applies to the local agent host. Only the executable `path` is honored today; `args` and `env` from the profile are ignored. Remote agent hosts need remote-side shell configuration because local resolved paths may be invalid on the remote.", '`#terminal.integrated.profiles.windows#`', '`#terminal.integrated.defaultProfile.windows#`'),
+			type: ['string', 'object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				{ type: 'string' },
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
+			]
+		},
 		[TerminalSettingId.ProfilesWindows]: {
 			restricted: true,
 			markdownDescription: createTerminalProfileMarkdownDescription(Platform.Windows),
@@ -175,7 +232,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: {
 				'PowerShell': {
 					source: 'PowerShell',
-					icon: 'terminal-powershell'
+					icon: Codicon.terminalPowershell.id,
 				},
 				'Command Prompt': {
 					path: [
@@ -183,10 +240,11 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 						'${env:windir}\\System32\\cmd.exe'
 					],
 					args: [],
-					icon: 'terminal-cmd'
+					icon: Codicon.terminalCmd.id,
 				},
 				'Git Bash': {
-					source: 'Git Bash'
+					source: 'Git Bash',
+					icon: Codicon.terminalGitBash.id,
 				}
 			},
 			additionalProperties: {
@@ -234,7 +292,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				'bash': {
 					path: 'bash',
 					args: ['-l'],
-					icon: 'terminal-bash'
+					icon: Codicon.terminalBash.id
 				},
 				'zsh': {
 					path: 'zsh',
@@ -246,11 +304,11 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				},
 				'tmux': {
 					path: 'tmux',
-					icon: 'terminal-tmux'
+					icon: Codicon.terminalTmux.id
 				},
 				'pwsh': {
 					path: 'pwsh',
-					icon: 'terminal-powershell'
+					icon: Codicon.terminalPowershell.id
 				}
 			},
 			additionalProperties: {
@@ -286,7 +344,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: {
 				'bash': {
 					path: 'bash',
-					icon: 'terminal-bash'
+					icon: Codicon.terminalBash.id
 				},
 				'zsh': {
 					path: 'zsh'
@@ -296,11 +354,11 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				},
 				'tmux': {
 					path: 'tmux',
-					icon: 'terminal-tmux'
+					icon: Codicon.terminalTmux.id
 				},
 				'pwsh': {
 					path: 'pwsh',
-					icon: 'terminal-powershell'
+					icon: Codicon.terminalPowershell.id
 				}
 			},
 			additionalProperties: {

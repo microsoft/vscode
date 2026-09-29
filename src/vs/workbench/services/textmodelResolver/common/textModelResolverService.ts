@@ -5,7 +5,6 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITextModel } from '../../../../editor/common/model.js';
 import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable, AsyncReferenceCollection } from '../../../../base/common/lifecycle.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { TextResourceEditorModel } from '../../../common/editor/textResourceEditorModel.js';
@@ -19,11 +18,14 @@ import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.
 import { ModelUndoRedoParticipant } from '../../../../editor/common/services/modelUndoRedoParticipant.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UntitledTextEditorModel } from '../../untitled/common/untitledTextEditorModel.js';
+import { ITextBufferFactory } from '../../../../editor/common/model.js';
+import { ILanguageSelection } from '../../../../editor/common/languages/language.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextEditorModel>> {
 
 	private readonly providers = new Map<string, ITextModelContentProvider[]>();
-	private readonly modelsToDispose = new Set<string>();
+	private readonly modelsToDispose = new Map<string, Promise<ITextEditorModel>>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -34,53 +36,72 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 		super();
 	}
 
-	protected createReferencedObject(key: string): Promise<IResolvedTextEditorModel> {
+	protected createReferencedObject(key: string, value?: string | ITextBufferFactory, languageSelection: ILanguageSelection | null = null): Promise<IResolvedTextEditorModel> {
+		if (value !== undefined) {
+			return this.createSyntheticDocument(URI.parse(key), value, languageSelection);
+		}
 		return this.doCreateReferencedObject(key);
 	}
 
+	private async createSyntheticDocument(resource: URI, value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null): Promise<IResolvedTextEditorModel> {
+		// ReferenceCollection installs the entry after invoking its factory. Establish
+		// the creator's reference before createModel can reenter via onModelAdded.
+		await Promise.resolve();
+		const textModel = this.modelService.createModel(value, languageSelection, resource);
+		try {
+			const model = this.instantiationService.createInstance(TextResourceEditorModel, resource);
+			this.ensureResolvedModel(model, resource.toString());
+			return model;
+		} catch (error) {
+			textModel.dispose();
+			throw error;
+		}
+	}
+
 	private async doCreateReferencedObject(key: string, skipActivateProvider?: boolean): Promise<IResolvedTextEditorModel> {
+		const resource = URI.parse(key);
 
 		// Untrack as being disposed
+		const pendingModel = this.modelsToDispose.get(key);
 		this.modelsToDispose.delete(key);
-
-		// inMemory Schema: go through model service cache
-		const resource = URI.parse(key);
-		if (resource.scheme === Schemas.inMemory) {
-			const cachedModel = this.modelService.getModel(resource);
-			if (!cachedModel) {
-				throw new Error(`Unable to resolve inMemory resource ${key}`);
-			}
-
-			const model = this.instantiationService.createInstance(TextResourceEditorModel, resource);
-			if (this.ensureResolvedModel(model, key)) {
-				return model;
-			}
-		}
 
 		// Untitled Schema: go through untitled text service
 		if (resource.scheme === Schemas.untitled) {
 			const model = await this.textFileService.untitled.resolve({ untitledResource: resource });
-			if (this.ensureResolvedModel(model, key)) {
-				return model;
-			}
+			this.ensureResolvedModel(model, key);
+			return model;
 		}
 
 		// File or remote file: go through text file service
 		if (this.fileService.hasProvider(resource)) {
 			const model = await this.textFileService.files.resolve(resource, { reason: TextFileResolveReason.REFERENCE });
-			if (this.ensureResolvedModel(model, key)) {
-				return model;
-			}
+			this.ensureResolvedModel(model, key);
+			return model;
 		}
 
-		// Virtual documents
-		if (this.providers.has(resource.scheme)) {
-			await this.resolveTextModelContent(key);
+		// In-Memory / Virtual documents
+		if (resource.scheme === Schemas.inMemory || this.providers.has(resource.scheme)) {
+			await this.ensureResolvedTextModelContent(resource); // throws if failing to resolve content
 
-			const model = this.instantiationService.createInstance(TextResourceEditorModel, resource);
-			if (this.ensureResolvedModel(model, key)) {
-				return model;
+			let model: ITextEditorModel | undefined = undefined;
+			if (pendingModel) {
+				try {
+					// if we have a pending model for this key, we try to await that and prevent
+					// creating a new model so that we are not leaking models. we only do this for
+					// in-memory or virtual documents where we create models here, the others are
+					// already shared by their respective services.
+					model = await pendingModel;
+				} catch {
+					// ignore and re-create below
+				}
 			}
+
+			if (!model) {
+				model = this.instantiationService.createInstance(TextResourceEditorModel, resource);
+			}
+
+			this.ensureResolvedModel(model, key);
+			return model;
 		}
 
 		// Either unknown schema, or not yet registered, try to activate
@@ -93,25 +114,17 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 		throw new Error(`Unable to resolve resource ${key}`);
 	}
 
-	private ensureResolvedModel(model: ITextEditorModel, key: string): model is IResolvedTextEditorModel {
-		if (isResolvedTextEditorModel(model)) {
-			return true;
+	private ensureResolvedModel(model: ITextEditorModel, key: string): asserts model is IResolvedTextEditorModel {
+		if (!isResolvedTextEditorModel(model)) {
+			throw new Error(`Unable to resolve resource ${key}`);
 		}
-
-		throw new Error(`Unable to resolve resource ${key}`);
 	}
 
 	protected destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
 
-		// inMemory is bound to a different lifecycle
-		const resource = URI.parse(key);
-		if (resource.scheme === Schemas.inMemory) {
-			return;
-		}
-
 		// Track as being disposed before waiting for model to load
 		// to handle the case that the reference is acquired again
-		this.modelsToDispose.add(key);
+		this.modelsToDispose.set(key, modelPromise);
 
 		(async () => {
 			try {
@@ -179,18 +192,25 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 		return this.providers.get(scheme) !== undefined;
 	}
 
-	private async resolveTextModelContent(key: string): Promise<ITextModel> {
-		const resource = URI.parse(key);
-		const providersForScheme = this.providers.get(resource.scheme) || [];
+	private async ensureResolvedTextModelContent(resource: URI): Promise<void> {
 
-		for (const provider of providersForScheme) {
-			const value = await provider.provideTextContent(resource);
-			if (value) {
-				return value;
+		// in-memory based
+		if (resource.scheme === Schemas.inMemory) {
+			if (this.modelService.getModel(resource)) {
+				return;
 			}
 		}
 
-		throw new Error(`Unable to resolve text model content for resource ${key}`);
+		// provider based
+		const providersForScheme = this.providers.get(resource.scheme) || [];
+
+		for (const provider of providersForScheme) {
+			if (await provider.provideTextContent(resource)) {
+				return;
+			}
+		}
+
+		throw new Error(`Unable to resolve text model content for resource ${resource.toString()}`);
 	}
 }
 
@@ -236,6 +256,11 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 		resource = this.uriIdentityService.asCanonicalUri(resource);
 
 		return await this.asyncModelCollection.acquire(resource.toString());
+	}
+
+	async createSyntheticDocument(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null): Promise<IReference<IResolvedTextEditorModel>> {
+		const resource = this.uriIdentityService.asCanonicalUri(URI.from({ scheme: Schemas.inMemory, path: `/synthetic/${generateUuid()}` }));
+		return this.asyncModelCollection.acquire(resource.toString(), value, languageSelection);
 	}
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {

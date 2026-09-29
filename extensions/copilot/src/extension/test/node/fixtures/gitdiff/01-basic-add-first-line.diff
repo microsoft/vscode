@@ -1,0 +1,9 @@
+diff --git a/01-basic b/01-basic-add-first-line
+index 30c5fc9cb..d6eaa31c0 100644
+--- a/01-basic
++++ b/01-basic-add-first-line
+@@ -1,3 +1,4 @@
++// hello
+ /*---------------------------------------------------------------------------------------------
+  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
+  *--------------------------------------------------------------------------------------------*/

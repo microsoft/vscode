@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType, IAccessibleViewSymbol } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability, ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { ICurrentPartialCommand, isFullTerminalCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { BufferContentTracker } from './bufferContentTracker.js';
-import { TerminalAccessibilitySettingId } from '../common/terminalAccessibilityConfiguration.js';
+import { TerminalAccessibilitySettingId, TerminalAccessibleViewPreserveCursorPosition } from '../common/terminalAccessibilityConfiguration.js';
 
 export class TerminalAccessibleBufferProvider extends Disposable implements IAccessibleViewContentProvider {
 	readonly id = AccessibleViewProviderId.Terminal;
@@ -21,8 +21,14 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 
 	private _focusedInstance: ITerminalInstance | undefined;
 
-	private readonly _onDidRequestClearProvider = new Emitter<AccessibleViewProviderId>();
+	// The accessible view disposes providers when it hides but may keep remembering this one, so the
+	// clear request lives as long as the terminal instance instead of as long as the provider
+	private readonly _clearRequestStore = new DisposableStore();
+	private readonly _onDidRequestClearProvider = this._clearRequestStore.add(new Emitter<AccessibleViewProviderId>());
 	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
+
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
 
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'onDidExecuteText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'onDisposed'>,
@@ -33,20 +39,32 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 	) {
 		super();
 		this.options.customHelp = customHelp;
-		this.options.position = configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
-		this._register(this._instance.onDisposed(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
+		this._updatePosition(configurationService);
+		this._clearRequestStore.add(Event.once(this._instance.onDisposed)(() => {
+			this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal);
+			this._clearRequestStore.dispose();
+		}));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition)) {
-				this.options.position = configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
+				this._updatePosition(configurationService);
 			}
 		}));
 		this._focusedInstance = terminalService.activeInstance;
-		this._register(terminalService.onDidChangeActiveInstance(() => {
+		this._clearRequestStore.add(terminalService.onDidChangeActiveInstance(() => {
 			if (terminalService.activeInstance && this._focusedInstance?.instanceId !== terminalService.activeInstance?.instanceId) {
 				this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal);
 				this._focusedInstance = terminalService.activeInstance;
 			}
 		}));
+	}
+
+	private _updatePosition(configurationService: IConfigurationService): void {
+		const preserveCursorPosition = configurationService.getValue<boolean | TerminalAccessibleViewPreserveCursorPosition>(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition);
+		this.options.position = preserveCursorPosition === TerminalAccessibleViewPreserveCursorPosition.Always ? 'initial-bottom-preserve' : preserveCursorPosition ? 'initial-bottom' : 'bottom';
+	}
+
+	refresh(): void {
+		this._onDidChangeContent.fire();
 	}
 
 	onClose() {
@@ -98,9 +116,9 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 	}
 	private _getEditorLineForCommand(command: ITerminalCommand | ICurrentPartialCommand): number | undefined {
 		let line: number | undefined;
-		if ('marker' in command) {
+		if (isFullTerminalCommand(command)) {
 			line = command.marker?.line;
-		} else if ('commandStartMarker' in command) {
+		} else {
 			line = command.commandStartMarker?.line;
 		}
 		if (line === undefined || line < 0) {
@@ -114,4 +132,3 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 	}
 }
 export interface ICommandWithEditorLine { command: ITerminalCommand | ICurrentPartialCommand; lineNumber: number; exitCode?: number }
-

@@ -18,6 +18,6 @@ declare module 'vscode' {
 		 */
 		readonly diagnostics: [Uri, Diagnostic[]][];
 
-		protected constructor(diagnostics: [Uri, Diagnostic[]][]);
+		constructor(diagnostics: [Uri, Diagnostic[]][]);
 	}
 }

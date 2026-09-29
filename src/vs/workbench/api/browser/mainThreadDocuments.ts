@@ -51,7 +51,7 @@ export class BoundModelReferenceCollection {
 		}
 	}
 
-	add(uri: URI, ref: IReference<any>, length: number = 0): void {
+	add(uri: URI, ref: IReference<unknown>, length: number = 0): void {
 		// const length = ref.object.textEditorModel.getValueLength();
 		const dispose = () => {
 			const idx = this._data.indexOf(entry);

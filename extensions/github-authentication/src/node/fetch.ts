@@ -76,6 +76,16 @@ export function createFetch(): Fetch {
 	};
 }
 
+function shouldNotRetry(status: number): boolean {
+	// Don't retry with other fetchers for these HTTP status codes:
+	// - 429 Too Many Requests (rate limiting)
+	// - 401 Unauthorized (authentication issue)
+	// - 403 Forbidden (authorization issue)
+	// - 404 Not Found (resource doesn't exist)
+	// These are application-level errors where retrying with a different fetcher won't help
+	return status === 429 || status === 401 || status === 403 || status === 404;
+}
+
 async function fetchWithFallbacks(availableFetchers: readonly Fetcher[], url: string, options: FetchOptions, logService: Log): Promise<{ response: FetchResponse; updatedFetchers?: Fetcher[] }> {
 	if (options.retryFallbacks && availableFetchers.length > 1) {
 		let firstResult: { ok: boolean; response: FetchResponse } | { ok: false; err: any } | undefined;
@@ -85,6 +95,11 @@ async function fetchWithFallbacks(availableFetchers: readonly Fetcher[], url: st
 				firstResult = result;
 			}
 			if (!result.ok) {
+				// For certain HTTP status codes, don't retry with other fetchers
+				// These are application-level errors, not network-level errors
+				if ('response' in result && shouldNotRetry(result.response.status)) {
+					return { response: result.response };
+				}
 				continue;
 			}
 			if (fetcher !== availableFetchers[0]) {
@@ -110,6 +125,7 @@ async function fetchWithFallbacks(availableFetchers: readonly Fetcher[], url: st
 
 async function tryFetch(fetcher: Fetcher, url: string, options: FetchOptions, logService: Log): Promise<{ ok: boolean; response: FetchResponse } | { ok: false; err: any }> {
 	try {
+		logService.debug(`FetcherService: trying fetcher ${fetcher.name} for ${url}`);
 		const response = await fetcher.fetch(url, options);
 		if (!response.ok) {
 			logService.info(`FetcherService: ${fetcher.name} failed with status: ${response.status} ${response.statusText}`);

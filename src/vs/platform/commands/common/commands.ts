@@ -23,18 +23,16 @@ export interface ICommandService {
 	readonly _serviceBrand: undefined;
 	readonly onWillExecuteCommand: Event<ICommandEvent>;
 	readonly onDidExecuteCommand: Event<ICommandEvent>;
-	executeCommand<T = any>(commandId: string, ...args: unknown[]): Promise<T | undefined>;
+	executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined>;
 }
 
 export type ICommandsMap = Map<string, ICommand>;
 
-export interface ICommandHandler {
-	(accessor: ServicesAccessor, ...args: any[]): void;
-}
+export type ICommandHandler<Args extends unknown[] = unknown[], R = void> = (accessor: ServicesAccessor, ...args: Args) => R;
 
-export interface ICommand {
+export interface ICommand<Args extends unknown[] = unknown[], R = void> {
 	id: string;
-	handler: ICommandHandler;
+	handler: ICommandHandler<Args, R>;
 	metadata?: ICommandMetadata | null;
 }
 
@@ -58,9 +56,9 @@ export interface ICommandMetadata {
 }
 
 export interface ICommandRegistry {
-	onDidRegisterCommand: Event<string>;
-	registerCommand(id: string, command: ICommandHandler): IDisposable;
-	registerCommand(command: ICommand): IDisposable;
+	readonly onDidRegisterCommand: Event<string>;
+	registerCommand<Args extends unknown[]>(id: string, command: ICommandHandler<Args>): IDisposable;
+	registerCommand<Args extends unknown[]>(command: ICommand<Args>): IDisposable;
 	registerCommandAlias(oldId: string, newId: string): IDisposable;
 	getCommand(id: string): ICommand | undefined;
 	getCommands(): ICommandsMap;

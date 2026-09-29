@@ -10,12 +10,15 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { Hover, HoverContext, HoverProvider } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { localize } from '../../../../../../nls.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
-import { ILanguageModelToolsService, ToolSet } from '../../languageModelToolsService.js';
+import { ILanguageModelsService } from '../../languageModels.js';
+import { ILanguageModelToolsService, isToolSet, IToolSet } from '../../tools/languageModelToolsService.js';
 import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
-import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { IHeaderAttribute, PromptBody, PromptHeader } from '../service/newPromptsParser.js';
+import { IHeaderAttribute, ISequenceValue, parseCommaSeparatedList, PromptBody, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
+import { ClaudeHeaderAttributes, getAttributeDefinition, getTarget, isVSCodeOrDefaultTarget, knownClaudeModels, knownClaudeTools } from './promptFileAttributes.js';
+import { HOOKS_BY_TARGET, HOOK_METADATA } from '../hookTypes.js';
+import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
 
 export class PromptHoverProvider implements HoverProvider {
 	/**
@@ -46,95 +49,96 @@ export class PromptHoverProvider implements HoverProvider {
 			return undefined;
 		}
 
-		const parser = this.promptsService.getParsedPromptFile(model);
-		if (parser.header?.range.containsPosition(position)) {
-			return this.provideHeaderHover(position, promptType, parser.header);
+		const promptAST = this.promptsService.getParsedPromptFile(model);
+		const target = getTarget(promptType, promptAST.header ?? model.uri);
+
+		if (promptAST.header?.range.containsPosition(position)) {
+			return this.provideHeaderHover(position, promptType, promptAST.header, target);
 		}
-		if (parser.body?.range.containsPosition(position)) {
-			return this.provideBodyHover(position, parser.body);
+		if (promptAST.body?.range.containsPosition(position)) {
+			return this.provideBodyHover(position, promptAST.body, target);
 		}
 		return undefined;
 	}
 
-	private async provideBodyHover(position: Position, body: PromptBody): Promise<Hover | undefined> {
+	private async provideBodyHover(position: Position, body: PromptBody, target: Target): Promise<Hover | undefined> {
 		for (const ref of body.variableReferences) {
 			if (ref.range.containsPosition(position)) {
 				const toolName = ref.name;
-				return this.getToolHoverByName(toolName, ref.range);
+
+				return this.getToolHoverByName(toolName, ref.range, target);
 			}
 		}
 		return undefined;
 	}
 
-	private async provideHeaderHover(position: Position, promptType: PromptsType, header: PromptHeader): Promise<Hover | undefined> {
-		if (promptType === PromptsType.instructions) {
-			const descriptionRange = header.getAttribute('description')?.range;
-			if (descriptionRange?.containsPosition(position)) {
-				return this.createHover(localize('promptHeader.instructions.description', 'The description of the instruction file. It can be used to provide additional context or information about the instructions and is passed to the language model as part of the prompt.'), descriptionRange);
-			}
-			const applyToRange = header.getAttribute('applyTo')?.range;
-			if (applyToRange?.containsPosition(position)) {
-				return this.createHover(localize('promptHeader.instructions.applyToRange', 'One or more glob pattern (separated by comma) that describe for which files the instructions apply to. Based on these patterns, the file is automatically included in the prompt, when the context contains a file that matches one or more of these patterns. Use `**` when you want this file to always be added.\nExample: `**/*.ts`, `**/*.js`, `client/**`'), applyToRange);
-			}
-
-		} else if (promptType === PromptsType.mode) {
-			const descriptionRange = header.getAttribute('description')?.range;
-			if (descriptionRange?.containsPosition(position)) {
-				return this.createHover(localize('promptHeader.mode.description', 'The description of the mode file. It can be used to provide additional context or information about the mode to the mode author.'), descriptionRange);
-			}
-			const model = header.getAttribute('model');
-			if (model?.range.containsPosition(position)) {
-				return this.getModelHover(model, model.range, localize('promptHeader.mode.model', 'The model to use in this mode.'));
-			}
-			const tools = header.getAttribute('tools');
-			if (tools?.range.containsPosition(position)) {
-				return this.getToolHover(tools, position, localize('promptHeader.mode.tools', 'The tools to use in this mode.'));
-			}
-		} else {
-			const descriptionRange = header.getAttribute('description')?.range;
-			if (descriptionRange?.containsPosition(position)) {
-				return this.createHover(localize('promptHeader.prompt.description', 'The description of the prompt file. It can be used to provide additional context or information about the prompt to the prompt author.'), descriptionRange);
-			}
-			const model = header.getAttribute('model');
-			if (model?.range.containsPosition(position)) {
-				return this.getModelHover(model, model.range, localize('promptHeader.prompt.model', 'The model to use in this prompt.'));
-			}
-			const tools = header.getAttribute('tools');
-			if (tools?.range.containsPosition(position)) {
-				return this.getToolHover(tools, position, localize('promptHeader.prompt.tools', 'The tools to use in this prompt.'));
-			}
-			const mode = header.getAttribute('mode');
-			if (mode?.range.containsPosition(position)) {
-				return this.getModeHover(mode, position, localize('promptHeader.prompt.mode', 'The mode to use in this prompt.'));
+	private async provideHeaderHover(position: Position, promptType: PromptsType, header: PromptHeader, target: Target): Promise<Hover | undefined> {
+		for (const attribute of header.attributes) {
+			if (attribute.range.containsPosition(position)) {
+				const description = getAttributeDefinition(attribute.key, promptType, target)?.description;
+				if (description) {
+					switch (attribute.key) {
+						case PromptHeaderAttributes.model:
+							return this.getModelHover(attribute, position, description, target);
+						case PromptHeaderAttributes.tools:
+						case ClaudeHeaderAttributes.disallowedTools:
+							return this.getToolHover(attribute, position, description, target);
+						case PromptHeaderAttributes.agent:
+						case PromptHeaderAttributes.mode:
+							return this.getAgentHover(attribute, position, description);
+						case PromptHeaderAttributes.handOffs:
+							return this.getHandsOffHover(attribute, position, target);
+						case PromptHeaderAttributes.hooks:
+							return this.getHooksHover(attribute, position, description, target);
+						case PromptHeaderAttributes.infer:
+							return this.createHover(description + '\n\n' + localize('promptHeader.attribute.infer.hover', 'Deprecated: Use `user-invocable` and `disable-model-invocation` instead.'), attribute.range);
+						default:
+							return this.createHover(description, attribute.range);
+					}
+				}
 			}
 		}
 		return undefined;
 	}
 
-	private getToolHover(node: IHeaderAttribute, position: Position, baseMessage: string): Hover | undefined {
-		if (node.value.type === 'array') {
-			for (const toolName of node.value.items) {
-				if (toolName.type === 'string' && toolName.range.containsPosition(position)) {
-					return this.getToolHoverByName(toolName.value, toolName.range);
+	private getToolHover(node: IHeaderAttribute, position: Position, baseMessage: string, target: Target): Hover | undefined {
+		let value = node.value;
+		if (value.type === 'scalar') {
+			value = parseCommaSeparatedList(value);
+		}
+		if (value.type === 'sequence') {
+			for (const toolName of value.items) {
+				if (toolName.type === 'scalar' && toolName.range.containsPosition(position)) {
+					const description = this.getToolHoverByName(toolName.value, toolName.range, target);
+					if (description) {
+						return description;
+					}
 				}
 			}
 		}
 		return this.createHover(baseMessage, node.range);
 	}
 
-	private getToolHoverByName(toolName: string, range: Range): Hover | undefined {
-		const tool = this.languageModelToolsService.getToolByQualifiedName(toolName);
+	private getToolHoverByName(toolName: string, range: Range, target: Target): Hover | undefined {
+		if (target === Target.Claude) {
+			const description = knownClaudeTools.find(tool => tool.name === toolName)?.description;
+			if (description) {
+				return this.createHover(description, range);
+			}
+			return undefined;
+		}
+		const tool = this.languageModelToolsService.getToolByFullReferenceName(toolName);
 		if (tool !== undefined) {
-			if (tool instanceof ToolSet) {
+			if (isToolSet(tool)) {
 				return this.getToolsetHover(tool, range);
 			} else {
-				return this.createHover(tool.modelDescription, range);
+				return this.createHover(tool.userDescription ?? tool.modelDescription, range);
 			}
 		}
 		return undefined;
 	}
 
-	private getToolsetHover(toolSet: ToolSet, range: Range): Hover | undefined {
+	private getToolsetHover(toolSet: IToolSet, range: Range): Hover | undefined {
 		const lines: string[] = [];
 		lines.push(localize('toolSetName', 'ToolSet: {0}\n\n', toolSet.referenceName));
 		if (toolSet.description) {
@@ -146,57 +150,151 @@ export class PromptHoverProvider implements HoverProvider {
 		return this.createHover(lines.join('\n'), range);
 	}
 
-	private getModelHover(node: IHeaderAttribute, range: Range, baseMessage: string): Hover | undefined {
-		if (node.value.type === 'string') {
-			for (const id of this.languageModelsService.getLanguageModelIds()) {
-				const meta = this.languageModelsService.lookupLanguageModel(id);
-				if (meta && ILanguageModelChatMetadata.matchesQualifiedName(node.value.value, meta)) {
-					const lines: string[] = [];
-					lines.push(baseMessage + '\n');
-					lines.push(localize('modelName', '- Name: {0}', meta.name));
-					lines.push(localize('modelFamily', '- Family: {0}', meta.family));
-					lines.push(localize('modelVendor', '- Vendor: {0}', meta.vendor));
-					if (meta.tooltip) {
-						lines.push('', '', meta.tooltip);
+	private getModelHover(node: IHeaderAttribute, position: Position, baseMessage: string, target: Target): Hover | undefined {
+		const modelHoverContent = (modelName: string): Hover | undefined => {
+			const lines: string[] = [];
+			lines.push(baseMessage + '\n');
+
+			if (target === Target.Claude) {
+				const claudeModel = knownClaudeModels.find(model => model.name === modelName);
+				if (!claudeModel) {
+					return this.createHover(lines.join('\n'), node.range);
+				}
+				if (claudeModel.modelEquivalent) {
+					lines.push(localize('claudeModelEquivalent', 'Claude model `{0}` maps to the following model:\n', modelName));
+					modelName = claudeModel.modelEquivalent;
+				} else {
+					lines.push(claudeModel.description);
+					return this.createHover(lines.join('\n'), node.range);
+				}
+			}
+
+			const result = this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
+			if (result) {
+				const meta = result.metadata;
+				lines.push(localize('modelName', '- Name: {0}', meta.name));
+				lines.push(localize('modelFamily', '- Family: {0}', meta.family));
+				lines.push(localize('modelVendor', '- Vendor: {0}', meta.vendor));
+				if (meta.tooltip) {
+					lines.push('', '', meta.tooltip);
+				}
+				return this.createHover(lines.join('\n'), node.range);
+			}
+			return undefined;
+		};
+		if (node.value.type === 'scalar') {
+			const hover = modelHoverContent(node.value.value);
+			if (hover) {
+				return hover;
+			}
+		} else if (node.value.type === 'sequence') {
+			for (const item of node.value.items) {
+				if (item.type === 'scalar' && item.range.containsPosition(position)) {
+					const hover = modelHoverContent(item.value);
+					if (hover) {
+						return hover;
 					}
-					return this.createHover(lines.join('\n'), range);
 				}
 			}
 		}
-		return this.createHover(baseMessage, range);
+		return this.createHover(baseMessage, node.range);
 	}
 
-	private getModeHover(mode: IHeaderAttribute, position: Position, baseMessage: string): Hover | undefined {
+	private async getAgentHover(agentAttribute: IHeaderAttribute, position: Position, baseMessage: string): Promise<Hover | undefined> {
 		const lines: string[] = [];
-		const value = mode.value;
-		if (value.type === 'string' && value.range.containsPosition(position)) {
-			const mode = this.chatModeService.findModeByName(value.value);
-			if (mode) {
-				const description = mode.description.get() || (isBuiltinChatMode(mode) ? localize('promptHeader.prompt.mode.builtInDesc', 'Built-in chat mode') : localize('promptHeader.prompt.mode.customDesc', 'Custom chat mode'));
-				lines.push(`\`${mode.name}\`: ${description}`);
+		const value = agentAttribute.value;
+		if (value.type === 'scalar' && value.range.containsPosition(position)) {
+			const agent = (await this.chatModeService.getLocalModes()).findModeByName(value.value);
+			if (agent) {
+				const description = agent.description.get() || (isBuiltinChatMode(agent) ? localize('promptHeader.prompt.agent.builtInDesc', 'Built-in agent') : localize('promptHeader.prompt.agent.customDesc', 'Custom agent'));
+				lines.push(`\`${agent.name.get()}\`: ${description}`);
 			}
 		} else {
-			const modes = this.chatModeService.getModes();
-			lines.push(localize('promptHeader.prompt.mode.description', 'The chat mode to use when running this prompt.'));
+			const agents = await this.chatModeService.getLocalModes();
+			lines.push(baseMessage);
 			lines.push('');
 
-			// Built-in modes
-			lines.push(localize('promptHeader.prompt.mode.builtin', '**Built-in modes:**'));
-			for (const mode of modes.builtin) {
-				lines.push(`- \`${mode.name}\`: ${mode.description.get() || mode.label}`);
+			// Built-in agents
+			lines.push(localize('promptHeader.prompt.agent.builtin', '**Built-in agents:**'));
+			for (const agent of agents.builtin) {
+				lines.push(`- \`${agent.name.get()}\`: ${agent.description.get() || agent.label.get()}`);
 			}
 
-			// Custom modes
-			if (modes.custom.length > 0) {
+			// Custom agents
+			if (agents.custom.length > 0) {
 				lines.push('');
-				lines.push(localize('promptHeader.prompt.mode.custom', '**Custom modes:**'));
-				for (const mode of modes.custom) {
-					const description = mode.description.get();
-					lines.push(`- \`${mode.name}\`: ${description || localize('promptHeader.prompt.mode.customDesc', 'Custom chat mode')}`);
+				lines.push(localize('promptHeader.prompt.agent.custom', '**Custom agents:**'));
+				for (const agent of agents.custom) {
+					const description = agent.description.get();
+					lines.push(`- \`${agent.name.get()}\`: ${description || localize('promptHeader.prompt.agent.customDesc', 'Custom agent')}`);
 				}
 			}
 		}
-		return this.createHover(lines.join('\n'), mode.range);
+		return this.createHover(lines.join('\n'), agentAttribute.range);
 	}
 
+	private getHooksHover(attribute: IHeaderAttribute, position: Position, baseMessage: string, target: Target): Hover | undefined {
+		const value = attribute.value;
+		if (value.type === 'map') {
+			const hooksByTarget = HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined];
+			for (const prop of value.properties) {
+				// Hover on a hook event name key (e.g., SessionStart, PreToolUse)
+				if (prop.key.range.containsPosition(position)) {
+					const hookType = hooksByTarget[prop.key.value];
+					if (hookType) {
+						const meta = HOOK_METADATA[hookType];
+						return this.createHover(`**${meta.label}**\n\n${meta.description}`, prop.key.range);
+					}
+				}
+				// Hover inside hook command entries
+				if (prop.value.type === 'sequence') {
+					const hover = this.getHookCommandItemHover(prop.value, position);
+					if (hover) {
+						return hover;
+					}
+				}
+			}
+		}
+		return this.createHover(baseMessage, attribute.range);
+	}
+
+	/**
+	 * Recursively searches hook command items for hover information.
+	 * Handles both direct command objects and nested matcher format
+	 * (e.g., `{ matcher: "...", hooks: [{ type: command, ... }] }`).
+	 */
+	private getHookCommandItemHover(sequence: ISequenceValue, position: Position): Hover | undefined {
+		for (const item of sequence.items) {
+			if (item.type !== 'map' || !item.range.containsPosition(position)) {
+				continue;
+			}
+			// Check for nested matcher format: { hooks: [...] }
+			const nestedHooks = item.properties.find(p => p.key.value === 'hooks');
+			if (nestedHooks && nestedHooks.value.type === 'sequence') {
+				const hover = this.getHookCommandItemHover(nestedHooks.value, position);
+				if (hover) {
+					return hover;
+				}
+			}
+			// Check fields of the command object itself
+			for (const field of item.properties) {
+				if (field.key.range.containsPosition(position) || field.value.range.containsPosition(position)) {
+					const desc = HOOK_COMMAND_FIELD_DESCRIPTIONS[field.key.value];
+					if (desc) {
+						return this.createHover(desc, field.key.range);
+					}
+				}
+			}
+		}
+		return undefined;
+	}
+
+	private getHandsOffHover(attribute: IHeaderAttribute, position: Position, target: Target): Hover | undefined {
+		const handoffsBaseMessage = getAttributeDefinition(PromptHeaderAttributes.handOffs, PromptsType.agent, target)?.description!;
+		if (!isVSCodeOrDefaultTarget(target)) {
+			return this.createHover(handoffsBaseMessage + '\n\n' + localize('promptHeader.agent.handoffs.githubCopilot', 'Note: This attribute is not used in GitHub Copilot or Claude targets.'), attribute.range);
+		}
+		return this.createHover(handoffsBaseMessage, attribute.range);
+
+	}
 }

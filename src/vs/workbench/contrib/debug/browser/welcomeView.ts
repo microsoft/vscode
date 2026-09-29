@@ -105,8 +105,7 @@ export class WelcomeView extends ViewPane {
 		}));
 		setContextKey();
 
-		const debugKeybinding = this.keybindingService.lookupKeybinding(DEBUG_START_COMMAND_ID);
-		debugKeybindingLabel = debugKeybinding ? ` (${debugKeybinding.getLabel()})` : '';
+		debugKeybindingLabel = this.keybindingService.appendKeybinding('', DEBUG_START_COMMAND_ID);
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -140,7 +139,7 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize('customizeRunAndDebug',
+	content: localize({ key: 'customizeRunAndDebug2', comment: ['{Locked="launch.json"}', '{Locked="["}', '{Locked="]({0})"}'] },
 		"To customize Run and Debug [create a launch.json file]({0}).", `${createCommandUri(DEBUG_CONFIGURE_COMMAND_ID, { addNew: true }).toString()}`),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.notEqualsTo('empty')),
 	group: ViewContentGroups.Debug
@@ -149,9 +148,11 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize(
 		{
-			key: 'customizeRunAndDebugOpenFolder',
+			key: 'customizeRunAndDebugOpenFolder2',
 			comment: [
-				'Please do not translate "launch.json", it is the specific configuration file name',
+				'{Locked="launch.json"}',
+				'{Locked="["}',
+				'{Locked="]({0})"}',
 			]
 		},
 		"To customize Run and Debug, [open a folder]({0}) and create a launch.json file.", createCommandUri(OpenFolderAction.ID).toString()),

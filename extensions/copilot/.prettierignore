@@ -1,0 +1,17 @@
+dist/**
+.vscode/**
+.vscode-test/**
+test/.vscode-test/**
+.git-blame-ignore-revs
+**/*.md
+**/*.ts
+**/*.js
+**/*.yml
+test/scenarios/**
+.simulation/**
+.build/**
+test/simulation/fixtures/**
+src/extension/prompts/node/test/fixtures/**
+test/simulation/baseline.json
+prompt/dist/**
+src/base/util/*.json

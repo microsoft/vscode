@@ -1,0 +1,38 @@
+{
+	"name": "vscode-extras",
+	"displayName": "VS Code Extras",
+	"description": "Extra utility features for the VS Code selfhost workspace",
+	"engines": {
+		"vscode": "^1.88.0"
+	},
+	"version": "0.0.1",
+	"publisher": "ms-vscode",
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"workspaceContains:src/vscode-dts/vscode.d.ts"
+	],
+	"main": "./out/extension.js",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/microsoft/vscode.git"
+	},
+	"license": "MIT",
+	"scripts": {
+		"compile": "gulp compile-extension:vscode-extras",
+		"watch": "gulp watch-extension:vscode-extras"
+	},
+	"contributes": {
+		"configuration": {
+			"title": "VS Code Extras",
+			"properties": {
+				"vscode-extras.npmUpToDateFeature.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show a status bar warning when npm dependencies are out of date."
+				}
+			}
+		}
+	}
+}

@@ -107,9 +107,9 @@ async function readdir(path: string, options?: { withFileTypes: true }): Promise
 	try {
 		return await doReaddir(path, options);
 	} catch (error) {
-		// TODO@bpasero workaround for #252361 that should be removed
-		// once the upstream issue in node.js is resolved. Adds a trailing
-		// dot to a root drive letter path (G:\ => G:\.) as a workaround.
+		// Workaround for #252361 that should be removed once the upstream issue
+		// in node.js is resolved. Adds a trailing dot to a root drive letter path
+		// (G:\ => G:\.) as a workaround.
 		if (error.code === 'ENOENT' && isWindows && isRootOrDriveLetter(path)) {
 			try {
 				return await doReaddir(`${path}.`, options);
@@ -129,7 +129,9 @@ async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 	try {
 		return await fs.promises.readdir(path, { withFileTypes: true });
 	} catch (error) {
-		console.warn('[node.js fs] readdir with filetypes failed with error: ', error);
+		if (error.code !== 'ENOENT') {
+			console.warn('[node.js fs] readdir with filetypes failed with error: ', error);
+		}
 	}
 
 	// Fallback to manually reading and resolving each
@@ -152,7 +154,9 @@ async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 			isDirectory = lstat.isDirectory();
 			isSymbolicLink = lstat.isSymbolicLink();
 		} catch (error) {
-			console.warn('[node.js fs] unexpected error from lstat after readdir: ', error);
+			if (error.code !== 'ENOENT') {
+				console.warn('[node.js fs] unexpected error from lstat after readdir: ', error);
+			}
 		}
 
 		result.push({
@@ -823,7 +827,10 @@ export const Promises = new class {
 		};
 	}
 
+	get readFile() { return promisify(fs.readFile); }
+
 	get fdatasync() { return promisify(fs.fdatasync); } // not exposed as API in 22.x yet
+	get fstat() { return promisify(fs.fstat); } 		// not exposed as API due to the `FileHandle` return type of `open`
 
 	get open() { return promisify(fs.open); } 			// changed to return `FileHandle` in promise API
 	get close() { return promisify(fs.close); } 		// not exposed as API due to the `FileHandle` return type of `open`

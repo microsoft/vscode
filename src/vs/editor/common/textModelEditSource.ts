@@ -98,60 +98,93 @@ export const EditSources = {
 		} as const);
 	},
 
-	rename: () => createEditSource({ source: 'rename' } as const),
+	rename: (oldName: string | undefined, newName: string) => createEditSource({ source: 'rename', $$$oldName: oldName, $$$newName: newName } as const),
 
 	chatApplyEdits(data: {
 		modelId: string | undefined;
+		autoTier?: string;
 		sessionId: string | undefined;
 		requestId: string | undefined;
 		languageId: string;
 		mode: string | undefined;
 		extensionId: VersionedExtensionId | undefined;
 		codeBlockSuggestionId: EditSuggestionId | undefined;
+		origin?: 'agentHost';
+		harness?: string;
+		chatSessionId?: string;
 	}) {
 		return createEditSource({
 			source: 'Chat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$autoTier: data.autoTier,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
+			$harness: data.harness,
+			$origin: data.origin,
 			$$languageId: data.languageId,
 			$$sessionId: data.sessionId,
+			...(data.chatSessionId !== undefined ? { $$chatSessionId: data.chatSessionId } : {}),
 			$$requestId: data.requestId,
 			$$mode: data.mode,
 			$$codeBlockSuggestionId: data.codeBlockSuggestionId,
 		} as const);
 	},
 
+	agentHostChatApplyEdits(data: {
+		modelId: string | undefined;
+		sessionId: string;
+		chatSessionId?: string;
+		requestId: string;
+		harness: string;
+	}) {
+		return EditSources.chatApplyEdits({
+			modelId: data.modelId,
+			sessionId: data.sessionId,
+			chatSessionId: data.chatSessionId,
+			requestId: data.requestId,
+			languageId: '',
+			mode: undefined,
+			extensionId: undefined,
+			codeBlockSuggestionId: undefined,
+			origin: 'agentHost',
+			harness: data.harness,
+		});
+	},
+
 	chatUndoEdits: () => createEditSource({ source: 'Chat.undoEdits' } as const),
 	chatReset: () => createEditSource({ source: 'Chat.reset' } as const),
 
-	inlineCompletionAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId }) {
+	inlineCompletionAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId; correlationId: string | undefined }) {
 		return createEditSource({
 			source: 'inlineCompletionAccept',
 			$nes: data.nes,
 			...toProperties(data.providerId),
+			$$correlationId: data.correlationId,
 			$$requestUuid: data.requestUuid,
 			$$languageId: data.languageId,
 		} as const);
 	},
 
-	inlineCompletionPartialAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId; type: 'word' | 'line' }) {
+	inlineCompletionPartialAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId; correlationId: string | undefined; type: 'word' | 'line' }) {
 		return createEditSource({
 			source: 'inlineCompletionPartialAccept',
 			type: data.type,
 			$nes: data.nes,
 			...toProperties(data.providerId),
+			$$correlationId: data.correlationId,
 			$$requestUuid: data.requestUuid,
 			$$languageId: data.languageId,
 		} as const);
 	},
 
-	inlineChatApplyEdit(data: { modelId: string | undefined; requestId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
+	inlineChatApplyEdit(data: { modelId: string | undefined; autoTier?: string; requestId: string | undefined; sessionId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
 		return createEditSource({
 			source: 'inlineChat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$autoTier: data.autoTier,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
+			$$sessionId: data.sessionId,
 			$$requestId: data.requestId,
 			$$languageId: data.languageId,
 		} as const);
@@ -250,8 +283,8 @@ export namespace EditSuggestionId {
 	/**
 	 * Use AiEditTelemetryServiceImpl to create a new id!
 	*/
-	export function newId(): EditSuggestionId {
-		const id = prefixedUuid('sgt');
+	export function newId(genPrefixedUuid?: (ns: string) => string): EditSuggestionId {
+		const id = genPrefixedUuid ? genPrefixedUuid('sgt') : prefixedUuid('sgt');
 		return toEditIdentity(id);
 	}
 }

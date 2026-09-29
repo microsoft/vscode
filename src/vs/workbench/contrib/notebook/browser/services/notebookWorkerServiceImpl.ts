@@ -6,7 +6,8 @@
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWebWorkerClient, Proxied } from '../../../../../base/common/worker/webWorker.js';
-import { createWebWorker } from '../../../../../base/browser/webWorkerFactory.js';
+import { WebWorkerDescriptor } from '../../../../../platform/webWorker/browser/webWorkerDescriptor.js';
+import { IWebWorkerService } from '../../../../../platform/webWorker/browser/webWorkerService.js';
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { CellUri, IMainCellDto, INotebookDiffResult, NotebookCellsChangeType, NotebookRawContentEventDto } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
@@ -26,10 +27,11 @@ export class NotebookEditorWorkerServiceImpl extends Disposable implements INote
 	constructor(
 		@INotebookService notebookService: INotebookService,
 		@IModelService modelService: IModelService,
+		@IWebWorkerService webWorkerService: IWebWorkerService,
 	) {
 		super();
 
-		this._workerManager = this._register(new WorkerManager(notebookService, modelService));
+		this._workerManager = this._register(new WorkerManager(notebookService, modelService, webWorkerService));
 	}
 	canComputeDiff(original: URI, modified: URI): boolean {
 		throw new Error('Method not implemented.');
@@ -55,6 +57,7 @@ class WorkerManager extends Disposable {
 	constructor(
 		private readonly _notebookService: INotebookService,
 		private readonly _modelService: IModelService,
+		private readonly _webWorkerService: IWebWorkerService,
 	) {
 		super();
 		this._editorWorkerClient = null;
@@ -64,7 +67,7 @@ class WorkerManager extends Disposable {
 	withWorker(): Promise<NotebookWorkerClient> {
 		// this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
-			this._editorWorkerClient = new NotebookWorkerClient(this._notebookService, this._modelService);
+			this._editorWorkerClient = new NotebookWorkerClient(this._notebookService, this._modelService, this._webWorkerService);
 			this._register(this._editorWorkerClient);
 		}
 		return Promise.resolve(this._editorWorkerClient);
@@ -240,7 +243,11 @@ class NotebookWorkerClient extends Disposable {
 	private _modelManager: NotebookEditorModelManager | null;
 
 
-	constructor(private readonly _notebookService: INotebookService, private readonly _modelService: IModelService) {
+	constructor(
+		private readonly _notebookService: INotebookService,
+		private readonly _modelService: IModelService,
+		private readonly _webWorkerService: IWebWorkerService,
+	) {
 		super();
 		this._worker = null;
 		this._modelManager = null;
@@ -273,9 +280,11 @@ class NotebookWorkerClient extends Disposable {
 	private _getOrCreateWorker(): IWebWorkerClient<NotebookWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(createWebWorker<NotebookWorker>(
-					FileAccess.asBrowserUri('vs/workbench/contrib/notebook/common/services/notebookWebWorkerMain.js'),
-					'NotebookEditorWorker'
+				this._worker = this._register(this._webWorkerService.createWorkerClient<NotebookWorker>(
+					new WebWorkerDescriptor({
+						esmModuleLocation: FileAccess.asBrowserUri('vs/workbench/contrib/notebook/common/services/notebookWebWorkerMain.js'),
+						label: 'NotebookEditorWorker'
+					})
 				));
 			} catch (err) {
 				throw (err);

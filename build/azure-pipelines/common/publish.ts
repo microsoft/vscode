@@ -10,10 +10,9 @@ import type { ReadableStream } from 'stream/web';
 import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import crypto from 'crypto';
-import { retry } from './retry';
+import { retry } from './retry.ts';
+import { getCertificatesFromPFX, getKeyFromPFX } from '../../lib/pfx.ts';
 import { CosmosClient } from '@azure/cosmos';
-import cp from 'child_process';
-import os from 'os';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
 import { ConfidentialClientApplication } from '@azure/msal-node';
 import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient, ContainerSASPermissions, generateBlobSASQueryParameters } from '@azure/storage-blob';
@@ -73,15 +72,16 @@ interface ReleaseError {
 	errorMessages: string[];
 }
 
-const enum StatusCode {
-	Pass = 'pass',
-	Aborted = 'aborted',
-	Inprogress = 'inprogress',
-	FailCanRetry = 'failCanRetry',
-	FailDoNotRetry = 'failDoNotRetry',
-	PendingAnalysis = 'pendingAnalysis',
-	Cancelled = 'cancelled'
-}
+const StatusCode = Object.freeze({
+	Pass: 'pass',
+	Aborted: 'aborted',
+	Inprogress: 'inprogress',
+	FailCanRetry: 'failCanRetry',
+	FailDoNotRetry: 'failDoNotRetry',
+	PendingAnalysis: 'pendingAnalysis',
+	Cancelled: 'cancelled'
+});
+type StatusCode = typeof StatusCode[keyof typeof StatusCode];
 
 interface ReleaseResultMessage {
 	activities: ReleaseActivityInfo[];
@@ -278,44 +278,10 @@ function getThumbprint(input: string, algorithm: string): Buffer {
 	return crypto.createHash(algorithm).update(buffer).digest();
 }
 
-function getKeyFromPFX(pfx: string): string {
-	const pfxCertificatePath = path.join(os.tmpdir(), 'cert.pfx');
-	const pemKeyPath = path.join(os.tmpdir(), 'key.pem');
-
-	try {
-		const pfxCertificate = Buffer.from(pfx, 'base64');
-		fs.writeFileSync(pfxCertificatePath, pfxCertificate);
-		cp.execSync(`openssl pkcs12 -in "${pfxCertificatePath}" -nocerts -nodes -out "${pemKeyPath}" -passin pass:`);
-		const raw = fs.readFileSync(pemKeyPath, 'utf-8');
-		const result = raw.match(/-----BEGIN PRIVATE KEY-----[\s\S]+?-----END PRIVATE KEY-----/g)![0];
-		return result;
-	} finally {
-		fs.rmSync(pfxCertificatePath, { force: true });
-		fs.rmSync(pemKeyPath, { force: true });
-	}
-}
-
-function getCertificatesFromPFX(pfx: string): string[] {
-	const pfxCertificatePath = path.join(os.tmpdir(), 'cert.pfx');
-	const pemCertificatePath = path.join(os.tmpdir(), 'cert.pem');
-
-	try {
-		const pfxCertificate = Buffer.from(pfx, 'base64');
-		fs.writeFileSync(pfxCertificatePath, pfxCertificate);
-		cp.execSync(`openssl pkcs12 -in "${pfxCertificatePath}" -nokeys -out "${pemCertificatePath}" -passin pass:`);
-		const raw = fs.readFileSync(pemCertificatePath, 'utf-8');
-		const matches = raw.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g);
-		return matches ? matches.reverse() : [];
-	} finally {
-		fs.rmSync(pfxCertificatePath, { force: true });
-		fs.rmSync(pemCertificatePath, { force: true });
-	}
-}
-
 class ESRPReleaseService {
 
 	static async create(
-		log: (...args: any[]) => void,
+		log: (...args: unknown[]) => void,
 		tenantId: string,
 		clientId: string,
 		authCertificatePfx: string,
@@ -341,7 +307,7 @@ class ESRPReleaseService {
 		});
 
 		const response = await app.acquireTokenByClientCredential({
-			scopes: ['https://api.esrp.microsoft.com/.default']
+			scopes: ['https://msazurecloud.onmicrosoft.com/api.esrp.microsoft.com/.default']
 		});
 
 		return new ESRPReleaseService(log, clientId, response!.accessToken, requestSigningCertificates, requestSigningKey, containerClient, stagingSasToken);
@@ -349,15 +315,31 @@ class ESRPReleaseService {
 
 	private static API_URL = 'https://api.esrp.microsoft.com/api/v3/releaseservices/clients/';
 
+	private readonly log: (...args: unknown[]) => void;
+	private readonly clientId: string;
+	private readonly accessToken: string;
+	private readonly requestSigningCertificates: string[];
+	private readonly requestSigningKey: string;
+	private readonly containerClient: ContainerClient;
+	private readonly stagingSasToken: string;
+
 	private constructor(
-		private readonly log: (...args: any[]) => void,
-		private readonly clientId: string,
-		private readonly accessToken: string,
-		private readonly requestSigningCertificates: string[],
-		private readonly requestSigningKey: string,
-		private readonly containerClient: ContainerClient,
-		private readonly stagingSasToken: string
-	) { }
+		log: (...args: unknown[]) => void,
+		clientId: string,
+		accessToken: string,
+		requestSigningCertificates: string[],
+		requestSigningKey: string,
+		containerClient: ContainerClient,
+		stagingSasToken: string
+	) {
+		this.log = log;
+		this.clientId = clientId;
+		this.accessToken = accessToken;
+		this.requestSigningCertificates = requestSigningCertificates;
+		this.requestSigningKey = requestSigningKey;
+		this.containerClient = containerClient;
+		this.stagingSasToken = stagingSasToken;
+	}
 
 	async createRelease(version: string, filePath: string, friendlyFileName: string) {
 		const correlationId = crypto.randomUUID();
@@ -418,10 +400,10 @@ class ESRPReleaseService {
 		const message: ReleaseRequestMessage = {
 			customerCorrelationId: correlationId,
 			esrpCorrelationId: correlationId,
-			driEmail: ['joao.moreno@microsoft.com'],
-			createdBy: { userPrincipalName: 'jomo@microsoft.com' },
-			owners: [{ owner: { userPrincipalName: 'jomo@microsoft.com' } }],
-			approvers: [{ approver: { userPrincipalName: 'jomo@microsoft.com' }, isAutoApproved: true, isMandatory: false }],
+			driEmail: ['lszomoru@microsoft.com'],
+			createdBy: { userPrincipalName: 'lszomoru@microsoft.com' },
+			owners: [{ owner: { userPrincipalName: 'lszomoru@microsoft.com' } }],
+			approvers: [{ approver: { userPrincipalName: 'lszomoru@microsoft.com' }, isAutoApproved: true, isMandatory: false }],
 			releaseInfo: {
 				title: 'VS Code',
 				properties: {
@@ -598,7 +580,7 @@ export async function requestAZDOAPI<T>(path: string): Promise<T> {
 			throw new Error(`Unexpected status code: ${res.status}`);
 		}
 
-		return await res.json();
+		return await res.json() as T;
 	} finally {
 		clearTimeout(timeout);
 	}
@@ -619,17 +601,89 @@ async function getPipelineArtifacts(): Promise<Artifact[]> {
 	return result.value.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
 }
 
+interface TimelineRecord {
+	readonly name: string;
+	readonly identifier?: string;
+	readonly type: string;
+	readonly state: string;
+	readonly result: string;
+}
+
 interface Timeline {
-	readonly records: {
-		readonly name: string;
-		readonly type: string;
-		readonly state: string;
-		readonly result: string;
-	}[];
+	readonly records: TimelineRecord[];
+}
+
+/**
+ * Whether the timeline record is the given stage. Stages are matched by their
+ * YAML identifier, since the record name is the stage's display name when one
+ * is set.
+ */
+function isStage(record: TimelineRecord, stage: string): boolean {
+	return record.type === 'Stage' && (record.identifier === stage || record.name === stage);
 }
 
 async function getPipelineTimeline(): Promise<Timeline> {
 	return await requestAZDOAPI<Timeline>('timeline');
+}
+
+/**
+ * Artifacts that can only be published once a job succeeded, by job name. The
+ * platform test jobs run in parallel with the jobs that produce these artifacts
+ * (see the platform-specific product-build job templates).
+ */
+const artifactsByGatingJob: Readonly<Record<string, readonly string[]>> = {
+	'Windows_x64_Test': [
+		'vscode_client_win32_x64_setup',
+		'vscode_client_win32_x64_user-setup',
+		'vscode_client_win32_x64_archive',
+		'vscode_server_win32_x64_archive',
+		'vscode_web_win32_x64_archive',
+		'vscode_cli_win32_x64_cli',
+	],
+	'Linux_x64_Test': [
+		'vscode_client_linux_x64_archive-unsigned',
+		'vscode_client_linux_x64_deb-package',
+		'vscode_client_linux_x64_rpm-package',
+		'vscode_client_linux_x64_snap',
+		'vscode_server_linux_x64_archive-unsigned',
+		'vscode_web_linux_x64_archive-unsigned',
+		'vscode_cli_linux_x64_cli',
+	],
+	'macOS_arm64_Test': [
+		'vscode_client_darwin_arm64_archive',
+		'vscode_client_darwin_arm64_dmg',
+		'vscode_server_darwin_arm64_archive',
+		'vscode_web_darwin_arm64_archive',
+		'vscode_cli_darwin_arm64_cli',
+		'vscode_client_darwin_universal_archive',
+		'vscode_client_darwin_universal_dmg',
+	],
+};
+
+interface IGatingJob {
+	readonly name: string;
+	/** `missing` when the job is not part of the pipeline run, e.g. when tests are skipped. */
+	readonly state: 'succeeded' | 'pending' | 'failed' | 'missing';
+}
+
+/** Returns the job that gates the publishing of the artifact, if any, see `artifactsByGatingJob`. */
+function getGatingJob(timeline: Timeline, artifactName: string): IGatingJob | undefined {
+	const name = Object.keys(artifactsByGatingJob).find(job => artifactsByGatingJob[job].includes(artifactName));
+
+	if (!name) {
+		return undefined;
+	}
+
+	// Job identifiers have the form `<stage>.<job>.__default`, and a retried job has a record for each attempt
+	const attempts = timeline.records.filter(r => r.type === 'Job' && (r.name === name || r.identifier?.split('.').includes(name)));
+
+	if (attempts.length === 0) {
+		return { name, state: 'missing' };
+	} else if (attempts.some(r => r.state === 'completed' && (r.result === 'succeeded' || r.result === 'succeededWithIssues'))) {
+		return { name, state: 'succeeded' };
+	} else {
+		return { name, state: attempts.some(r => r.state !== 'completed') ? 'pending' : 'failed' };
+	}
 }
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
@@ -765,10 +819,16 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 		case 'darwin':
 			switch (product) {
 				case 'client':
-					if (arch === 'x64') {
-						return 'darwin';
+					switch (type) {
+						case 'dmg':
+							return `darwin-${arch}-dmg`;
+						case 'archive':
+						default:
+							if (arch === 'x64') {
+								return 'darwin';
+							}
+							return `darwin-${arch}`;
 					}
-					return `darwin-${arch}`;
 				case 'server':
 					if (arch === 'x64') {
 						return 'server-darwin';
@@ -848,7 +908,7 @@ async function processArtifact(
 	artifact: Artifact,
 	filePath: string
 ) {
-	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
+	const log = (...args: unknown[]) => console.log(`[${artifact.name}]`, ...args);
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
 	if (!match) {
@@ -880,7 +940,7 @@ async function processArtifact(
 			await stagingContainerClient.createIfNotExists();
 
 			const now = new Date().valueOf();
-			const oneHour = 60 * 60 * 1000;
+			const oneHour = 120 * 60 * 1000;
 			const oneHourAgo = new Date(now - oneHour);
 			const oneHourFromNow = new Date(now + oneHour);
 			const userDelegationKey = await blobServiceClient.getUserDelegationKey(oneHourAgo, oneHourFromNow);
@@ -947,35 +1007,38 @@ async function main() {
 		console.log(`\u2705 ${name}`);
 	}
 
-	const stages = new Set<string>(['Compile']);
-
-	if (
-		e('VSCODE_BUILD_STAGE_LINUX') === 'True' ||
-		e('VSCODE_BUILD_STAGE_ALPINE') === 'True' ||
-		e('VSCODE_BUILD_STAGE_MACOS') === 'True' ||
-		e('VSCODE_BUILD_STAGE_WINDOWS') === 'True'
-	) {
-		stages.add('CompileCLI');
-	}
+	const stages = new Set<string>(['Quality']);
 
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
-	if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') { stages.add('Linux'); }
+	if (e('VSCODE_BUILD_STAGE_WINDOWS_ARM64') === 'True') { stages.add('WindowsARM64'); }
+	if (e('VSCODE_BUILD_STAGE_LINUX_X64') === 'True') { stages.add('LinuxX64'); }
+	if (e('VSCODE_BUILD_STAGE_LINUX_ARM64') === 'True') { stages.add('LinuxARM64'); }
+	if (e('VSCODE_BUILD_STAGE_LINUX_ARMHF') === 'True') { stages.add('LinuxARMHF'); }
 	if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') { stages.add('Alpine'); }
-	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_X64') === 'True') { stages.add('macOSX64'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_ARM64') === 'True') { stages.add('macOSARM64'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_UNIVERSAL') === 'True') { stages.add('macOSUniversal'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
 	let timeline: Timeline;
 	let artifacts: Artifact[];
+	let gatingJobs = new Map<string, IGatingJob | undefined>();
+	let artifactsBlocked: string[] = [];
+	const gateMessages = new Map<string, string>();
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
 
 	while (true) {
 		[timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
-		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
+		const stagesCompleted = new Set<string>([...stages].filter(stage => timeline.records.some(r => isStage(r, stage) && r.state === 'completed')));
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
+		gatingJobs = new Map(artifacts
+			.filter(a => !done.has(a.name) && !processing.has(a.name))
+			.map(a => [a.name, getGatingJob(timeline, a.name)]));
+		artifactsBlocked = [...gatingJobs].filter(([, job]) => job?.state === 'failed').map(([name]) => name);
 
-		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size) {
+		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size + artifactsBlocked.length) {
 			break;
 		} else if (stagesInProgress.length > 0) {
 			console.log('Stages in progress:', stagesInProgress.join(', '));
@@ -986,11 +1049,26 @@ async function main() {
 		}
 
 		for (const artifact of artifacts) {
-			if (done.has(artifact.name) || processing.has(artifact.name)) {
+			if (!gatingJobs.has(artifact.name)) {
+				continue;
+			}
+
+			const gatingJob = gatingJobs.get(artifact.name);
+
+			if (gatingJob?.state === 'pending' || gatingJob?.state === 'failed') {
+				const message = gatingJob.state === 'pending' ? `Waiting for job ${gatingJob.name} to succeed` : `Not published, since job ${gatingJob.name} did not succeed`;
+				if (gateMessages.get(artifact.name) !== message) {
+					console.log(`[${artifact.name}] ${message}`);
+					gateMessages.set(artifact.name, message);
+				}
 				continue;
 			}
 
 			console.log(`[${artifact.name}] Found new artifact`);
+
+			if (gatingJob) {
+				console.log(`[${artifact.name}] ${gatingJob.state === 'succeeded' ? `Job ${gatingJob.name} succeeded` : `Job ${gatingJob.name} is not part of this run`}`);
+			}
 
 			const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
 
@@ -1009,7 +1087,7 @@ async function main() {
 
 			processing.add(artifact.name);
 			const promise = new Promise<void>((resolve, reject) => {
-				const worker = new Worker(__filename, { workerData: { artifact, artifactFilePath } });
+				const worker = new Worker(import.meta.filename, { workerData: { artifact, artifactFilePath } });
 				worker.on('error', reject);
 				worker.on('exit', code => {
 					if (code === 0) {
@@ -1033,7 +1111,7 @@ async function main() {
 		await new Promise(c => setTimeout(c, 10_000));
 	}
 
-	console.log(`Found all ${done.size + processing.size} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
+	console.log(`Found all ${done.size + processing.size + artifactsBlocked.length} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
 
 	const artifactsInProgress = operations.filter(o => processing.has(o.name));
 
@@ -1056,11 +1134,17 @@ async function main() {
 		throw new Error('Some artifacts failed to publish');
 	}
 
-	// Also fail the job if any of the stages did not succeed
+	// Also fail the job if any of the stages did not succeed, or if any of the
+	// artifacts was not published because its gating job did not succeed
 	let shouldFail = false;
 
+	for (const name of artifactsBlocked) {
+		shouldFail = true;
+		console.error(`[${name}] Not published, since job ${gatingJobs.get(name)!.name} did not succeed`);
+	}
+
 	for (const stage of stages) {
-		const record = timeline.records.find(r => r.name === stage && r.type === 'Stage')!;
+		const record = timeline.records.find(r => isStage(r, stage))!;
 
 		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
 			shouldFail = true;
@@ -1069,13 +1153,13 @@ async function main() {
 	}
 
 	if (shouldFail) {
-		throw new Error('Some stages did not succeed');
+		throw new Error(artifactsBlocked.length > 0 ? 'Some artifacts were not published because their gating job did not succeed' : 'Some stages did not succeed');
 	}
 
 	console.log(`All ${done.size} artifacts published!`);
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main().then(() => {
 		process.exit(0);
 	}, err => {

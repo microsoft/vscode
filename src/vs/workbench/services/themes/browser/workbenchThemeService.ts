@@ -6,8 +6,8 @@
 import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
-import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS } from '../common/workbenchThemeService.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS, migrateThemeSettingsId, IColorMap } from '../common/workbenchThemeService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import * as errors from '../../../../base/common/errors.js';
@@ -16,7 +16,7 @@ import { ColorThemeData } from '../common/colorThemeData.js';
 import { IColorTheme, Extensions as ThemingExtensions, IThemingRegistry } from '../../../../platform/theme/common/themeService.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { registerFileIconThemeSchemas } from '../common/fileIconThemeSchema.js';
-import { IDisposable, Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IDisposable, Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { FileIconThemeData, FileIconThemeLoader } from './fileIconThemeData.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
@@ -39,9 +39,13 @@ import { IHostColorSchemeService } from '../common/hostColorSchemeService.js';
 import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { IUserDataInitializationService } from '../../userData/browser/userDataInit.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
-import { asCssVariableName, getColorRegistry } from '../../../../platform/theme/common/colorRegistry.js';
+import { getColorRegistry } from '../../../../platform/theme/common/colorRegistry.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { generateColorThemeCSS } from './colorThemeCss.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IHostService } from '../../host/browser/host.js';
+import { toAction } from '../../../../base/common/actions.js';
 
 // implementation
 
@@ -83,6 +87,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	private readonly colorThemeWatcher: ThemeFileWatcher;
 	private colorThemingParticipantChangeListener: IDisposable | undefined;
 	private readonly colorThemeSequencer: Sequencer;
+	private readonly colorThemeOverlays = new Set<{ getColors: (theme: IWorkbenchColorTheme) => IColorMap }>();
 
 	private readonly fileIconThemeRegistry: ThemeRegistry<FileIconThemeData>;
 	private currentFileIconTheme: FileIconThemeData;
@@ -109,7 +114,9 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
-		@ILanguageService private readonly languageService: ILanguageService
+		@ILanguageService private readonly languageService: ILanguageService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 		this.container = layoutService.mainContainer;
@@ -117,20 +124,20 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 		this.colorThemeRegistry = this._register(new ThemeRegistry(colorThemesExtPoint, ColorThemeData.fromExtensionTheme));
 		this.colorThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this)));
-		this.onColorThemeChange = new Emitter<IWorkbenchColorTheme>({ leakWarningThreshold: 400 });
+		this.onColorThemeChange = this._register(new Emitter<IWorkbenchColorTheme>({ leakWarningThreshold: 400, leakWarningName: 'ThemeService.onColorThemeChange' }));
 		this.currentColorTheme = ColorThemeData.createUnloadedTheme('');
 		this.colorThemeSequencer = new Sequencer();
 
 		this.fileIconThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentFileIconTheme.bind(this)));
 		this.fileIconThemeRegistry = this._register(new ThemeRegistry(fileIconThemesExtPoint, FileIconThemeData.fromExtensionTheme, true, FileIconThemeData.noIconTheme));
 		this.fileIconThemeLoader = new FileIconThemeLoader(extensionResourceLoaderService, languageService);
-		this.onFileIconThemeChange = new Emitter<IWorkbenchFileIconTheme>({ leakWarningThreshold: 400 });
+		this.onFileIconThemeChange = this._register(new Emitter<IWorkbenchFileIconTheme>({ leakWarningThreshold: 400, leakWarningName: 'ThemeService.onFileIconThemeChange' }));
 		this.currentFileIconTheme = FileIconThemeData.createUnloadedTheme('');
 		this.fileIconThemeSequencer = new Sequencer();
 
 		this.productIconThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentProductIconTheme.bind(this)));
 		this.productIconThemeRegistry = this._register(new ThemeRegistry(productIconThemesExtPoint, ProductIconThemeData.fromExtensionTheme, true, ProductIconThemeData.defaultTheme));
-		this.onProductIconThemeChange = new Emitter<IWorkbenchProductIconTheme>();
+		this.onProductIconThemeChange = this._register(new Emitter<IWorkbenchProductIconTheme>());
 		this.currentProductIconTheme = ProductIconThemeData.createUnloadedTheme('');
 		this.productIconThemeSequencer = new Sequencer();
 
@@ -140,6 +147,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
+		const previousColorThemeSetting = themeData?.settingsId;
 		const colorThemeSetting = this.settings.colorTheme;
 		if (themeData && colorThemeSetting !== themeData.settingsId) {
 			themeData = undefined;
@@ -173,7 +181,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			this.installConfigurationListener();
 			this.installPreferredSchemeListener();
 			this.installRegistryListeners();
-			this.initialize().catch(errors.onUnexpectedError);
+			this.initialize(previousColorThemeSetting).catch(errors.onUnexpectedError);
 		});
 
 		const codiconStyleSheet = createStyleSheet();
@@ -189,7 +197,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		delayer.schedule();
 	}
 
-	private initialize(): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
+	private async initialize(themePreviousSettingsId: string | undefined): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
 		const extDevLocs = this.environmentService.extensionDevelopmentLocationURI;
 		const extDevLoc = extDevLocs && extDevLocs.length === 1 ? extDevLocs[0] : undefined; // in dev mode, switch to a theme provided by the extension under dev.
 
@@ -239,7 +247,94 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		};
 
 
-		return Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
+		this.migrateColorThemeSettings();
+		const result = await Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
+		await this.showNewDefaultThemeNotification(themePreviousSettingsId);
+		return result;
+	}
+
+	private static readonly NEW_THEME_NOTIFICATION_KEY = 'workbench.newDefaultThemeNotification';
+
+	private async showNewDefaultThemeNotification(previousSettingsId: string | undefined): Promise<void> {
+		if (this.storageService.getBoolean(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, StorageScope.APPLICATION)) {
+			return; // already shown
+		}
+		if (!(await this.hostService.hadLastFocus()) || this.environmentService.isSessionsWindow) {
+			return;
+		}
+		try {
+			if (!this.settings.isDefaultColorTheme() || !previousSettingsId) {
+				return;
+			}
+			previousSettingsId = migrateThemeSettingsId(previousSettingsId);
+			if (!['Dark Modern', 'Light Modern'].includes(previousSettingsId)) {
+				return;
+			}
+			if (![ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT].includes(this.settings.colorTheme)) {
+				return;
+			}
+		} finally {
+			// remeber to not show the dialog again
+			this.storageService.store(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+		}
+
+		const keepTheme = await new Promise(resolve => {
+			this.notificationService.prompt(
+				Severity.Info,
+				nls.localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "VS Code has a new default theme: '{0}'.", this.getColorTheme().label),
+				[
+					toAction({
+						id: 'themeUpdated.tryItOut',
+						label: nls.localize('tryNewTheme', "Keep It"),
+						run: () => resolve(true)
+					}),
+					toAction({
+						id: 'themeUpdated.noThanks',
+						label: nls.localize('noThanks', "No Thanks"),
+						run: () => resolve(false)
+					})
+				],
+				{
+					onCancel: () => resolve(false)
+				}
+			);
+		});
+
+		if (!keepTheme) {
+			const previousTheme = this.colorThemeRegistry.findThemeBySettingsId(previousSettingsId);
+			if (previousTheme) {
+				this.setColorTheme(previousTheme.id, 'auto');
+			}
+		}
+	}
+
+	/**
+	 * Migrates legacy theme setting values to their current equivalents,
+	 * writing back the migrated value so settings sync distributes the correct ID.
+	 */
+	private migrateColorThemeSettings(): void {
+		const themeSettings = [
+			ThemeSettings.COLOR_THEME,
+			ThemeSettings.PREFERRED_DARK_THEME,
+			ThemeSettings.PREFERRED_LIGHT_THEME,
+			ThemeSettings.PREFERRED_HC_DARK_THEME,
+			ThemeSettings.PREFERRED_HC_LIGHT_THEME,
+		];
+		for (const key of themeSettings) {
+			const inspection = this.configurationService.inspect<string>(key);
+			for (const [target, value] of [
+				[ConfigurationTarget.USER, inspection.userValue],
+				[ConfigurationTarget.USER_REMOTE, inspection.userRemoteValue],
+				[ConfigurationTarget.WORKSPACE, inspection.workspaceValue],
+			] as const) {
+				if (value) {
+					const migrated = migrateThemeSettingsId(value);
+					if (migrated !== value) {
+						this.configurationService.updateValue(key, migrated, target);
+					}
+				}
+			}
+		}
 	}
 
 	private installConfigurationListener() {
@@ -276,6 +371,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 					hasColorChanges = true;
 				}
 				if (hasColorChanges) {
+					this.applyColorThemeOverlays(this.currentColorTheme);
 					this.updateDynamicCSSRules(this.currentColorTheme);
 					this.onColorThemeChange.fire(this.currentColorTheme);
 				}
@@ -283,7 +379,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		}));
 	}
 
-	private installRegistryListeners(): Promise<any> {
+	private installRegistryListeners(): Promise<void> {
 
 		let prevColorId: string | undefined = undefined;
 
@@ -355,8 +451,11 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	// preferred scheme handling
 
 	private installPreferredSchemeListener() {
+		let previous = { dark: this.hostColorService.dark, highContrast: this.hostColorService.highContrast };
 		this._register(this.hostColorService.onDidChangeColorScheme(() => {
-			if (this.settings.isDetectingColorScheme()) {
+			const restoreColorTheme = this.settings.isPreferredColorSchemeChange(previous);
+			previous = { dark: this.hostColorService.dark, highContrast: this.hostColorService.highContrast };
+			if (restoreColorTheme) {
 				this.restoreColorTheme();
 			}
 		}));
@@ -389,6 +488,40 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 	public get onDidColorThemeChange(): Event<IWorkbenchColorTheme> {
 		return this.onColorThemeChange.event;
+	}
+
+	public registerColorThemeOverlay(getColors: (theme: IWorkbenchColorTheme) => IColorMap): IDisposable {
+		const overlay = { getColors };
+		this.colorThemeOverlays.add(overlay);
+		this.refreshColorThemeOverlays();
+		return toDisposable(() => {
+			if (this.colorThemeOverlays.delete(overlay) && !this._store.isDisposed) {
+				this.refreshColorThemeOverlays();
+			}
+		});
+	}
+
+	public getBaseColorTheme(): IWorkbenchColorTheme {
+		return this.currentColorTheme.getBaseTheme();
+	}
+
+	private refreshColorThemeOverlays(): void {
+		this.applyColorThemeOverlays(this.currentColorTheme);
+		this.updateDynamicCSSRules(this.currentColorTheme);
+		this.onColorThemeChange.fire(this.currentColorTheme);
+	}
+
+	private applyColorThemeOverlays(theme: ColorThemeData): void {
+		if (this.colorThemeOverlays.size) {
+			const baseTheme = theme.getBaseTheme();
+			const colors: IColorMap = {};
+			for (const overlay of this.colorThemeOverlays) {
+				Object.assign(colors, overlay.getColors(baseTheme));
+			}
+			theme.setTransientColors(colors);
+		} else {
+			theme.setTransientColors(undefined);
+		}
 	}
 
 	public setColorTheme(themeIdOrTheme: string | undefined | IWorkbenchColorTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null> {
@@ -459,30 +592,17 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	}
 
 	private updateDynamicCSSRules(themeData: IColorTheme) {
-		const cssRules = new Set<string>();
-		const ruleCollector = {
-			addRule: (rule: string) => {
-				if (!cssRules.has(rule)) {
-					cssRules.add(rule);
-				}
-			}
-		};
-		ruleCollector.addRule(`.monaco-workbench { forced-color-adjust: none; }`);
-		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector, this.environmentService));
-
-		const colorVariables: string[] = [];
-		for (const item of getColorRegistry().getColors()) {
-			const color = themeData.getColor(item.id, true);
-			if (color) {
-				colorVariables.push(`${asCssVariableName(item.id)}: ${color.toString()};`);
-			}
-		}
-		ruleCollector.addRule(`.monaco-workbench { ${colorVariables.join('\n')} }`);
-
-		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
+		const css = generateColorThemeCSS(
+			themeData,
+			'.monaco-workbench',
+			themingRegistry.getThemingParticipants(),
+			this.environmentService
+		);
+		_applyRules(css.code, colorThemeRulesClassName);
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ThemeSettingTarget, silent = false): Promise<IWorkbenchColorTheme | null> {
+		this.applyColorThemeOverlays(newTheme);
 		this.updateDynamicCSSRules(newTheme);
 
 		if (this.currentColorTheme.id) {
@@ -538,7 +658,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 					publisherDisplayName: string;
 					themeId: string;
 				};
-				this.telemetryService.publicLog2<ActivatePluginEvent, ActivatePluginClassification>('activatePlugin', {
+				this.telemetryService.publicLog2<ActivatePluginEvent, ActivatePluginClassification>('activateThemeExtension', {
 					id: themeData.extensionId,
 					name: themeData.extensionName,
 					isBuiltin: themeData.extensionIsBuiltin,
@@ -793,6 +913,7 @@ class ThemeFileWatcher {
 }
 
 function _applyRules(styleSheetContent: string, rulesClassName: string) {
+	// eslint-disable-next-line no-restricted-syntax
 	const themeStyles = mainWindow.document.head.getElementsByClassName(rulesClassName);
 	if (themeStyles.length === 0) {
 		const elStyle = createStyleSheet();

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ITextSearchPreviewOptions, OneLineRange, TextSearchMatch, SearchRange } from '../../common/search.js';
+import { ITextSearchPreviewOptions, OneLineRange, TextSearchMatch, SearchRange, isFilePatternMatch } from '../../common/search.js';
 
 suite('TextSearchResult', () => {
 
@@ -140,4 +140,26 @@ suite('TextSearchResult', () => {
 	// 	assert.deepStrictEqual(result.range, range);
 	// 	assertPreviewRangeText('bar\nfoo', result);
 	// });
+});
+
+suite('isFilePatternMatch', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('glob match is case-sensitive by default', () => {
+		const candidate = { relativePath: 'src/Foo.ts', searchPath: undefined };
+		assert.strictEqual(isFilePatternMatch(candidate, '**/*.ts', false), true);
+		assert.strictEqual(isFilePatternMatch(candidate, '**/*.TS', false), false);
+	});
+
+	test('glob match is case-insensitive when ignoreCase is true', () => {
+		const candidate = { relativePath: 'src/Foo.ts', searchPath: undefined };
+		assert.strictEqual(isFilePatternMatch(candidate, '**/*.TS', false, true), true);
+		assert.strictEqual(isFilePatternMatch(candidate, '**/*.Ts', false, true), true);
+	});
+
+	test('glob match with mixed case pattern', () => {
+		const candidate = { relativePath: 'src/MyComponent.TSX', searchPath: undefined };
+		assert.strictEqual(isFilePatternMatch(candidate, '**/*.tsx', false), false);
+		assert.strictEqual(isFilePatternMatch(candidate, '**/*.tsx', false, true), true);
+	});
 });

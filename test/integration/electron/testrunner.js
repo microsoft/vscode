@@ -24,6 +24,9 @@ let mocha = new Mocha({
 });
 
 exports.configure = function configure(opts) {
+	if (process.env.MOCHA_GREP) {
+		opts.grep = process.env.MOCHA_GREP;
+	}
 	mocha = new Mocha(opts);
 };
 

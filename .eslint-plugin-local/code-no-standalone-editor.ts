@@ -5,9 +5,9 @@
 
 import * as eslint from 'eslint';
 import { join } from 'path';
-import { createImportRuleListener } from './utils';
+import { createImportRuleListener } from './utils.ts';
 
-export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule {
+export default new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -21,7 +21,7 @@ export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		if (/vs(\/|\\)editor/.test(context.getFilename())) {
+		if (/vs(\/|\\)editor/.test(context.filename)) {
 			// the vs/editor folder is allowed to use the standalone editor
 			return {};
 		}
@@ -30,7 +30,7 @@ export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule
 
 			// resolve relative paths
 			if (path[0] === '.') {
-				path = join(context.getFilename(), path);
+				path = join(context.filename, path);
 			}
 
 			if (

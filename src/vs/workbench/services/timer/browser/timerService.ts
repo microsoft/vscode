@@ -11,14 +11,14 @@ import { IUpdateService } from '../../../../platform/update/common/update.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryData, ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Barrier, timeout } from '../../../../base/common/async.js';
 import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
 import { ViewContainerLocation } from '../../../common/views.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { createBlobWorker } from '../../../../base/browser/webWorkerFactory.js';
+import { createBlobWorker } from '../../../../platform/webWorker/browser/webWorkerServiceImpl.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ITerminalBackendRegistry, TerminalExtensions } from '../../../../platform/terminal/common/terminal.js';
 
@@ -193,7 +193,7 @@ export interface IStartupMetrics {
 		 * The time it took to run the main bundle.
 		 *
 		 * * Happens in the main-process
-		 * * Measured with the `didStartMain` and `didRunMainBundle` performance marks.
+		 * * Measured with the `willRunMainBundle` and `didRunMainBundle` performance marks.
 		 */
 		readonly ellapsedRunMainBundle?: number;
 
@@ -644,7 +644,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				]
 			}
 		*/
-		this._telemetryService.publicLog('startupTimeVaried', metrics);
+		this._telemetryService.publicLog('startupTimeVaried', metrics as unknown as ITelemetryData);
 	}
 
 	protected _shouldReportPerfMarks(): boolean {
@@ -713,7 +713,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedAppReady: initialStartup ? this._marks.getDuration('code/didStartMain', 'code/mainAppReady') : undefined,
 				ellapsedNlsGeneration: initialStartup ? this._marks.getDuration('code/willGenerateNls', 'code/didGenerateNls') : undefined,
 				ellapsedLoadMainBundle: initialStartup ? this._marks.getDuration('code/willLoadMainBundle', 'code/didLoadMainBundle') : undefined,
-				ellapsedRunMainBundle: initialStartup ? this._marks.getDuration('code/didStartMain', 'code/didRunMainBundle') : undefined,
+				ellapsedRunMainBundle: initialStartup ? this._marks.getDuration('code/willRunMainBundle', 'code/didRunMainBundle') : undefined,
 				ellapsedCrashReporter: initialStartup ? this._marks.getDuration('code/willStartCrashReporter', 'code/didStartCrashReporter') : undefined,
 				ellapsedMainServer: initialStartup ? this._marks.getDuration('code/willStartMainServer', 'code/didStartMainServer') : undefined,
 				ellapsedWindowCreate: initialStartup ? this._marks.getDuration('code/willCreateCodeWindow', 'code/didCreateCodeWindow') : undefined,

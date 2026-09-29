@@ -1703,7 +1703,7 @@ export class PieceTreeBase {
 			prevNewLength
 		);
 
-		updateTreeMetadata(this, prev, - 1, -1);
+		updateTreeMetadata(this, prev, -1, -1);
 		if (prev.piece.length === 0) {
 			nodesToDel.push(prev);
 		}
@@ -1720,7 +1720,7 @@ export class PieceTreeBase {
 			newLength
 		);
 
-		updateTreeMetadata(this, next, - 1, -1);
+		updateTreeMetadata(this, next, -1, -1);
 		if (next.piece.length === 0) {
 			nodesToDel.push(next);
 		}

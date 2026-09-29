@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Stats, promises } from 'fs';
+import { Stats, constants, promises } from 'fs';
 import { Barrier, retry } from '../../../base/common/async.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -51,6 +51,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				FileSystemProviderCapabilities.FileReadStream |
 				FileSystemProviderCapabilities.FileFolderCopy |
 				FileSystemProviderCapabilities.FileWriteUnlock |
+				FileSystemProviderCapabilities.FileAppend |
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
@@ -73,12 +74,24 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		try {
 			const { stat, symbolicLink } = await SymlinkSupport.stat(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
+			let permissions: FilePermission | undefined = undefined;
+			if ((stat.mode & 0o200) === 0) {
+				permissions = FilePermission.Locked;
+			}
+			if (
+				stat.mode & constants.S_IXUSR ||
+				stat.mode & constants.S_IXGRP ||
+				stat.mode & constants.S_IXOTH
+			) {
+				permissions = (permissions ?? 0) | FilePermission.Executable;
+			}
+
 			return {
 				type: this.toType(stat, symbolicLink),
 				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
 				size: stat.size,
-				permissions: (stat.mode & 0o200) === 0 ? FilePermission.Locked : undefined
+				permissions
 			};
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
@@ -202,8 +215,13 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 
 			const filePath = this.toFilePath(resource);
+			const fd = await this.openFileForRead(filePath);
 
-			return await promises.readFile(filePath);
+			try {
+				return await Promises.readFile(fd);
+			} finally {
+				await Promises.close(fd);
+			}
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		} finally {
@@ -268,7 +286,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			locks.add(await this.createResourceLock(tempResource));
 
 			// Write to temp resource first
-			await this.doWriteFile(tempResource, content, opts, true /* disable write lock */);
+			await this.doWriteFile(tempResource, content, { ...opts, create: true, overwrite: true }, true /* disable write lock */);
 
 			try {
 
@@ -311,7 +329,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 
 			// Open
-			handle = await this.open(resource, { create: true, unlock: opts.unlock }, disableWriteLock);
+			handle = await this.open(resource, { create: true, append: opts.append, unlock: opts.unlock }, disableWriteLock);
 
 			// Write content at once
 			await this.write(handle, 0, content, 0, content.byteLength);
@@ -329,10 +347,34 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	private readonly writeHandles = new Map<number, URI>();
 
-	private static canFlush: boolean = true;
+	private static canFlush = true;
 
 	static configureFlushOnWrite(enabled: boolean): void {
 		DiskFileSystemProvider.canFlush = enabled;
+	}
+
+	private async openFileForRead(filePath: string): Promise<number> {
+		const fd = await Promises.open(filePath, isWindows ? 'r' : constants.O_RDONLY | constants.O_NONBLOCK);
+
+		try {
+			const stat = await Promises.fstat(fd);
+			if (stat.isDirectory()) {
+				throw createFileSystemProviderError(localize('fileIsDirectory', "File is a directory"), FileSystemProviderErrorCode.FileIsADirectory);
+			}
+			if (!stat.isFile()) {
+				throw createFileSystemProviderError(localize('fileNotRegular', "File is not a regular file"), FileSystemProviderErrorCode.Unavailable);
+			}
+
+			return fd;
+		} catch (error) {
+			try {
+				await Promises.close(fd);
+			} catch (closeError) {
+				this.logService.trace(closeError);
+			}
+
+			throw error;
+		}
 	}
 
 	async open(resource: URI, opts: IFileOpenOptions, disableWriteLock?: boolean): Promise<number> {
@@ -363,8 +405,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				}
 			}
 
-			// Windows gets special treatment (write only)
-			if (isWindows && isFileOpenForWriteOptions(opts)) {
+			// Windows gets special treatment (write only, but not for append)
+			if (isWindows && isFileOpenForWriteOptions(opts) && !opts.append) {
 				try {
 
 					// We try to use 'r+' for opening (which will fail if the file does not exist)
@@ -397,16 +439,15 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 
 			if (typeof fd !== 'number') {
-				fd = await Promises.open(filePath, isFileOpenForWriteOptions(opts) ?
+				if (isFileOpenForWriteOptions(opts)) {
 					// We take `opts.create` as a hint that the file is opened for writing
 					// as such we use 'w' to truncate an existing or create the
 					// file otherwise. we do not allow reading.
-					'w' :
-					// Otherwise we assume the file is opened for reading
-					// as such we use 'r' to neither truncate, nor create
-					// the file.
-					'r'
-				);
+					// If `opts.append` is true, use 'a' to append to the file.
+					fd = await Promises.open(filePath, opts.append ? 'a' : 'w');
+				} else {
+					fd = await this.openFileForRead(filePath);
+				}
 			}
 
 		} catch (error) {

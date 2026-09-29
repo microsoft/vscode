@@ -7,6 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import type { IStringDictionary } from '../../../../base/common/collections.js';
 import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { isString } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
@@ -121,7 +122,8 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.defaultLocation.view', "Create terminals in the terminal view")
 		],
 		default: 'view',
-		description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
+		description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear."),
+		agentsWindow: { default: 'view', readOnly: true },
 	},
 	[TerminalSettingId.TabsFocusMode]: {
 		type: 'string',
@@ -132,6 +134,11 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		],
 		default: 'doubleClick',
 		description: localize('terminal.integrated.tabs.focusMode', "Controls whether focusing the terminal of a tab happens on double or single click.")
+	},
+	[TerminalSettingId.TabsAllowAgentCliTitle]: {
+		description: localize('terminal.integrated.tabs.allowAgentCliTitle', "Controls whether agentic CLIs (such as Claude Code, Codex, Command Code, GitHub Copilot CLI, and Gemini CLI) are allowed to set the terminal tab title via escape sequences. When disabled, the configured tab title template is used instead."),
+		type: 'boolean',
+		default: true,
 	},
 	[TerminalSettingId.MacOptionIsMeta]: {
 		description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
@@ -172,6 +179,18 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSettingId.FontFamily]: {
 		markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal. Defaults to {0}'s value.", '`#editor.fontFamily#`'),
 		type: 'string',
+	},
+	[TerminalSettingId.FontRendering]: {
+		markdownDescription: localize('terminal.integrated.fontRendering', "Controls how terminal text is antialiased on high-DPI displays."),
+		type: 'string',
+		enum: ['inherit', 'grayscale'],
+		markdownEnumDescriptions: [
+			localize('terminal.integrated.fontRendering.inherit', "Follow {0}.", '`#workbench.fontAliasing#`'),
+			localize('terminal.integrated.fontRendering.grayscale', "Use grayscale antialiasing, which can make text look sharper. With GPU acceleration, this may require **Developer: Reload Window** to take effect.")
+		],
+		default: 'inherit',
+		tags: ['experimental', 'advanced'],
+		included: isMacintosh
 	},
 	[TerminalSettingId.FontLigaturesEnabled]: {
 		markdownDescription: localize('terminal.integrated.fontLigatures.enabled', "Controls whether font ligatures are enabled in the terminal. Ligatures will only work if the configured {0} supports them.", `\`#${TerminalSettingId.FontFamily}#\``),
@@ -284,6 +303,11 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.CursorBlinking]: {
 		description: localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
+		type: 'boolean',
+		default: false
+	},
+	[TerminalSettingId.TextBlinking]: {
+		description: localize('terminal.integrated.textBlinking', "Controls whether text blinking is enabled in the terminal."),
 		type: 'boolean',
 		default: false
 	},
@@ -469,10 +493,10 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: true
 	},
 	[TerminalSettingId.WindowsUseConptyDll]: {
-		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.22.250204002) shipped with VS Code, instead of the one bundled with Windows."),
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the conpty.dll (v1.25.260303002) shipped with VS Code, instead of the one bundled with Windows."),
 		type: 'boolean',
-		tags: ['preview'],
-		default: false
+		default: true,
 	},
 	[TerminalSettingId.SplitCwd]: {
 		description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
@@ -484,11 +508,6 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.splitCwd.inherited', "On macOS and Linux, a new split terminal will use the working directory of the parent terminal. On Windows, this behaves the same as initial."),
 		],
 		default: 'inherited'
-	},
-	[TerminalSettingId.WindowsEnableConpty]: {
-		description: localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). Winpty will be used if this is false."),
-		type: 'boolean',
-		default: true
 	},
 	[TerminalSettingId.WordSeparators]: {
 		markdownDescription: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators when double-clicking to select word and in the fallback 'word' link detection. Since this is used for link detection, including characters such as `:` that are used when detecting links will cause the line and column part of links like `file:10:5` to be ignored."),
@@ -557,7 +576,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('hideOnStartup.whenEmpty', "Only hide the terminal when there are no persistent sessions restored."),
 			localize('hideOnStartup.always', "Always hide the terminal, even when there are persistent sessions restored.")
 		],
-		default: 'never'
+		default: 'never',
 	},
 	[TerminalSettingId.HideOnLastClosed]: {
 		description: localize('terminal.integrated.hideOnLastClosed', "Whether to hide the terminal view when the last terminal is closed. This will only happen when the terminal is the only visible view in the view container."),
@@ -565,7 +584,15 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: true
 	},
 	[TerminalSettingId.CustomGlyphs]: {
-		markdownDescription: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
+		markdownDescription: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs instead of using the font for the following unicode ranges:\n\n{0}\n\nThis will typically result in better rendering with continuous lines, even when line height and letter spacing is used. This feature only works when {1} is enabled.", [
+			'- Box Drawing (U+2500-U+257F)',
+			'- Block Elements (U+2580-U+259F)',
+			'- Braille Patterns (U+2800-U+28FF)',
+			'- Powerline Symbols (U+E0A0-U+E0D4, Private Use Area)',
+			'- Progress Indicators (U+EE00-U+EE0B, Private Use Area)',
+			'- Git Branch Symbols (U+F5D0-U+F60D, Private Use Area)',
+			'- Symbols for Legacy Computing (U+1FB00-U+1FBFF)'
+		].join('\n'), `\`#${TerminalSettingId.GpuAcceleration}#\``),
 		type: 'boolean',
 		default: true
 	},
@@ -573,6 +600,23 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		markdownDescription: localize('terminal.integrated.rescaleOverlappingGlyphs', "Whether to rescale glyphs horizontally that are a single cell wide but have glyphs that would overlap following cell(s). This typically happens for ambiguous width characters (eg. the roman numeral characters U+2160+) which aren't featured in monospace fonts. Emoji glyphs are never rescaled."),
 		type: 'boolean',
 		default: true
+	},
+	[TerminalSettingId.EnableKittyKeyboardProtocol]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.enableKittyKeyboardProtocol', "Whether to enable the kitty keyboard protocol, which allows a program in the terminal to request more detailed keyboard input reporting. This can, for example, enable `Shift+Enter` to be handled by the program."),
+		type: 'boolean',
+		default: true,
+		tags: ['advanced']
+	},
+	[TerminalSettingId.EnableWin32InputMode]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.enableWin32InputMode', "Whether to enable the win32 input mode, which provides enhanced keyboard input support on Windows."),
+		type: 'boolean',
+		default: false,
+		tags: ['experimental', 'advanced'],
+		experiment: {
+			mode: 'auto'
+		}
 	},
 	[TerminalSettingId.ShellIntegrationEnabled]: {
 		restricted: true,
@@ -593,6 +637,20 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		],
 		default: 'both'
 	},
+	[TerminalSettingId.ShellIntegrationTimeout]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. The default value {0} uses a variable wait time based on whether shell integration injection is enabled and whether it's a remote window. Values between 1 and 499 are clamped to 500ms. Consider setting this to a large value if your shell starts very slowly.", '`-1`'),
+		type: 'integer',
+		minimum: -1,
+		maximum: 60000,
+		default: -1
+	},
+	[TerminalSettingId.ShellIntegrationQuickFixEnabled]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.shellIntegration.quickFixEnabled', "When shell integration is enabled, enables quick fixes for terminal commands that appear as a lightbulb or sparkle icon to the left of the prompt."),
+		type: 'boolean',
+		default: true
+	},
 	[TerminalSettingId.ShellIntegrationEnvironmentReporting]: {
 		markdownDescription: localize('terminal.integrated.shellIntegration.environmentReporting', "Controls whether to report the shell environment, enabling its use in features such as {0}. This may cause a slowdown when printing your shell's prompt.", `\`#${TerminalContribSettingId.SuggestEnabled}#\``),
 		type: 'boolean',
@@ -610,7 +668,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.EnableImages]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS. This will only work on Windows for versions of ConPTY >= v2 which is shipped with Windows itself, see also {1}. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.WindowsUseConptyDll}#\``),
+		markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Sixel and iTerm's inline image protocol are supported on Linux and macOS. The kitty graphics protocol is supported on all platforms. On Windows, all image protocols will only work for versions of ConPTY >= v2 which is shipped with Windows itself, see also {1}. Images will currently not be restored between window reloads/reconnects. When enabled, transparency mode is also turned on in the terminal.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.WindowsUseConptyDll}#\``),
 		type: 'boolean',
 		default: false
 	},
@@ -625,6 +683,32 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 		]
 	},
+	[TerminalSettingId.AllowInUntrustedWorkspace]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.allowInUntrustedWorkspace', "Controls whether terminals can be created in an untrusted workspace.\n\n**This feature bypasses a security protection that prevents terminals from launching in untrusted workspaces. The reason this is a security risk is because shells are often set up to potentially execute code automatically based on the contents of the current working directory. This should be safe to use provided your shell is set up in such a way that code execution in the folder never happens.**"),
+		type: 'boolean',
+		default: false
+	},
+	[TerminalSettingId.DeveloperPtyHostLatency]: {
+		description: localize('terminal.integrated.developer.ptyHost.latency', "Simulated latency in milliseconds applied to all calls made to the pty host. This is useful for testing terminal behavior under high latency conditions."),
+		type: 'number',
+		minimum: 0,
+		default: 0,
+		tags: ['advanced']
+	},
+	[TerminalSettingId.DeveloperPtyHostStartupDelay]: {
+		description: localize('terminal.integrated.developer.ptyHost.startupDelay', "Simulated startup delay in milliseconds for the pty host process. This is useful for testing terminal initialization under slow startup conditions."),
+		type: 'number',
+		minimum: 0,
+		default: 0,
+		tags: ['advanced']
+	},
+	[TerminalSettingId.DevMode]: {
+		description: localize('terminal.integrated.developer.devMode', "Enable developer mode for the terminal. This shows additional debug information and visualizations for shell integration sequences."),
+		type: 'boolean',
+		default: false,
+		tags: ['advanced']
+	},
 	...terminalContribConfiguration,
 };
 
@@ -635,20 +719,7 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 		order: 100,
 		title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
 		type: 'object',
-		properties: {
-			...terminalConfiguration,
-			// HACK: This is included here in order instead of in the contrib to support policy
-			// extraction as it doesn't compute runtime values.
-			[TerminalContribSettingId.EnableAutoApprove]: {
-				description: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
-				type: 'boolean',
-				default: true,
-				policy: {
-					name: 'ChatToolsTerminalEnableAutoApprove',
-					minimumVersion: '1.104',
-				}
-			}
-		}
+		properties: terminalConfiguration,
 	});
 	terminalConfiguration[TerminalSettingId.FontFamily].defaultSnippets = await getFontSnippets();
 }
@@ -659,7 +730,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		migrateFn: (enableBell, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
 			let announcement = accessor('accessibility.signals.terminalBell')?.announcement ?? accessor('accessibility.alert.terminalBell');
-			if (announcement !== undefined && typeof announcement !== 'string') {
+			if (announcement !== undefined && !isString(announcement)) {
 				announcement = announcement ? 'auto' : 'off';
 			}
 			configurationKeyValuePairs.push(['accessibility.signals.terminalBell', { value: { sound: enableBell ? 'on' : 'off', announcement } }]);

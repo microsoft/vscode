@@ -12,7 +12,7 @@ import { CopyFileConfiguration, getCopyFileConfiguration, parseGlob, resolveCopy
 
 export class NewFilePathGenerator {
 
-	private readonly _usedPaths = new Set<string>();
+	readonly #usedPaths = new Set<string>();
 
 	async getNewFilePath(
 		document: vscode.TextDocument,
@@ -33,13 +33,13 @@ export class NewFilePathGenerator {
 
 			const name = i === 0 ? baseName : `${baseName}-${i}`;
 			const uri = vscode.Uri.joinPath(root, name + ext);
-			if (this._wasPathAlreadyUsed(uri)) {
+			if (this.#wasPathAlreadyUsed(uri)) {
 				continue;
 			}
 
 			// Try overwriting if it already exists
 			if (config.overwriteBehavior === 'overwrite') {
-				this._usedPaths.add(uri.toString());
+				this.#usedPaths.add(uri.toString());
 				return { uri, overwrite: true };
 			}
 
@@ -47,17 +47,17 @@ export class NewFilePathGenerator {
 			try {
 				await vscode.workspace.fs.stat(uri);
 			} catch {
-				if (!this._wasPathAlreadyUsed(uri)) {
+				if (!this.#wasPathAlreadyUsed(uri)) {
 					// Does not exist
-					this._usedPaths.add(uri.toString());
+					this.#usedPaths.add(uri.toString());
 					return { uri, overwrite: false };
 				}
 			}
 		}
 	}
 
-	private _wasPathAlreadyUsed(uri: vscode.Uri) {
-		return this._usedPaths.has(uri.toString());
+	#wasPathAlreadyUsed(uri: vscode.Uri) {
+		return this.#usedPaths.has(uri.toString());
 	}
 }
 

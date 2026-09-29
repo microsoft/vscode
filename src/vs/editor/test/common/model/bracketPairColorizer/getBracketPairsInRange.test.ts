@@ -125,6 +125,102 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		});
 	});
 
+	test('unmatched closing brackets after position', () => {
+		disposeOnReturn(store => {
+			const languageId = 'testLanguage';
+			const instantiationService = createModelServices(store);
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			const languageService = instantiationService.get(ILanguageService);
+			store.add(languageService.registerLanguage({ id: languageId }));
+			store.add(languageConfigurationService.register(languageId, {
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+				]
+			}));
+			const model = store.add(instantiateTextModel(instantiationService, '} text }', languageId));
+
+			assert.deepStrictEqual([
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '{'),
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 2), '{'),
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 9), '{'),
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '['),
+			], [true, true, false, false]);
+		});
+	});
+
+	test('unmatched closing bracket query waits for background tokenization', () => {
+		disposeOnReturn(store => {
+			const languageId = 'testLanguage';
+			const instantiationService = createModelServices(store);
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			const languageService = instantiationService.get(ILanguageService);
+			store.add(languageService.registerLanguage({ id: languageId }));
+			store.add(languageConfigurationService.register(languageId, {
+				brackets: [['{', '}']]
+			}));
+
+			const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
+			const document = new TokenizedDocument([
+				new TokenInfo('"}"', encodedLanguageId, StandardTokenType.String, true),
+				new TokenInfo('}', encodedLanguageId, StandardTokenType.Other, true),
+			]);
+			store.add(TokenizationRegistry.register(languageId, {
+				...document.getTokenizationSupport(),
+				createBackgroundTokenizer: () => ({
+					dispose: () => { },
+					requestTokens: () => { },
+				}),
+			}));
+			const model = store.add(instantiateTextModel(instantiationService, document.getText(), languageId));
+
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+			const beforeTokenization = model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '{');
+			model.tokenization.forceTokenization(model.getLineCount());
+			const afterTokenization = model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '{');
+			model.setValue(`x${document.getText()}`);
+			assert.deepStrictEqual([
+				beforeTokenization,
+				afterTokenization,
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '{'),
+			], [false, true, false]);
+		});
+	});
+
+	test('unmatched closing brackets are language scoped', () => {
+		disposeOnReturn(store => {
+			const outerLanguageId = 'outerLanguage';
+			const innerLanguageId = 'innerLanguage';
+			const instantiationService = createModelServices(store);
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			const languageService = instantiationService.get(ILanguageService);
+			store.add(languageService.registerLanguage({ id: outerLanguageId }));
+			store.add(languageService.registerLanguage({ id: innerLanguageId }));
+			store.add(languageConfigurationService.register(outerLanguageId, {
+				brackets: [['{', '}']]
+			}));
+			store.add(languageConfigurationService.register(innerLanguageId, {
+				brackets: [['{', '}']]
+			}));
+
+			const encodedOuterLanguageId = languageService.languageIdCodec.encodeLanguageId(outerLanguageId);
+			const encodedInnerLanguageId = languageService.languageIdCodec.encodeLanguageId(innerLanguageId);
+			const document = new TokenizedDocument([
+				new TokenInfo('x', encodedOuterLanguageId, StandardTokenType.Other, true),
+				new TokenInfo('}', encodedInnerLanguageId, StandardTokenType.Other, true),
+			]);
+			store.add(TokenizationRegistry.register(outerLanguageId, document.getTokenizationSupport()));
+			const model = store.add(instantiateTextModel(instantiationService, document.getText(), outerLanguageId));
+			model.tokenization.forceTokenization(model.getLineCount());
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+
+			assert.deepStrictEqual([
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '{'),
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 2), '{'),
+			], [false, true]);
+		});
+	});
+
 	test('Basic All', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`¹ { ( [] ) [  { } ] () } [] ²`);
@@ -195,72 +291,72 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,2 -> 1,3]"
+						range: '[1,2 -> 1,3]'
 					},
 					{
 						level: 1,
 						levelEqualBracketType: 0,
-						range: "[1,4 -> 1,5]"
+						range: '[1,4 -> 1,5]'
 					},
 					{
 						level: 2,
 						levelEqualBracketType: 0,
-						range: "[1,6 -> 1,7]"
+						range: '[1,6 -> 1,7]'
 					},
 					{
 						level: 3,
 						levelEqualBracketType: 1,
-						range: "[1,8 -> 1,9]"
+						range: '[1,8 -> 1,9]'
 					},
 					{
 						level: 4,
 						levelEqualBracketType: 2,
-						range: "[1,10 -> 1,11]"
+						range: '[1,10 -> 1,11]'
 					},
 					{
 						level: 5,
 						levelEqualBracketType: 1,
-						range: "[1,12 -> 1,13]"
+						range: '[1,12 -> 1,13]'
 					},
 					{
 						level: 5,
 						levelEqualBracketType: 1,
-						range: "[1,15 -> 1,16]"
+						range: '[1,15 -> 1,16]'
 					},
 					{
 						level: 4,
 						levelEqualBracketType: 2,
-						range: "[1,17 -> 1,18]"
+						range: '[1,17 -> 1,18]'
 					},
 					{
 						level: 3,
 						levelEqualBracketType: 1,
-						range: "[1,19 -> 1,20]"
+						range: '[1,19 -> 1,20]'
 					},
 					{
 						level: 2,
 						levelEqualBracketType: 0,
-						range: "[1,21 -> 1,22]"
+						range: '[1,21 -> 1,22]'
 					},
 					{
 						level: 1,
 						levelEqualBracketType: 0,
-						range: "[1,23 -> 1,24]"
+						range: '[1,23 -> 1,24]'
 					},
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,25 -> 1,26]"
+						range: '[1,25 -> 1,26]'
 					},
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,27 -> 1,28]"
+						range: '[1,27 -> 1,28]'
 					},
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,29 -> 1,30]"
+						range: '[1,29 -> 1,30]'
 					},
 				]
 			);
@@ -280,22 +376,22 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 					{
 						level: 0,
 						isInvalid: true,
-						range: "[1,2 -> 1,3]",
+						range: '[1,2 -> 1,3]',
 					},
 					{
 						level: 1,
 						isInvalid: false,
-						range: "[1,4 -> 1,5]",
+						range: '[1,4 -> 1,5]',
 					},
 					{
 						level: 1,
 						isInvalid: false,
-						range: "[1,5 -> 1,6]",
+						range: '[1,5 -> 1,6]',
 					},
 					{
 						level: 0,
 						isInvalid: true,
-						range: "[1,7 -> 1,8]"
+						range: '[1,7 -> 1,8]'
 					}
 				]
 			);
@@ -316,42 +412,42 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,2 -> 1,3]",
+						range: '[1,2 -> 1,3]',
 					},
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,3 -> 1,4]",
+						range: '[1,3 -> 1,4]',
 					},
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,5 -> 1,6]",
+						range: '[1,5 -> 1,6]',
 					},
 					{
 						level: 1,
 						levelEqualBracketType: 0,
-						range: "[1,7 -> 1,8]",
+						range: '[1,7 -> 1,8]',
 					},
 					{
 						level: 1,
 						levelEqualBracketType: 0,
-						range: "[1,8 -> 1,9]",
+						range: '[1,8 -> 1,9]',
 					},
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,10 -> 1,11]",
+						range: '[1,10 -> 1,11]',
 					},
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,13 -> 1,14]",
+						range: '[1,13 -> 1,14]',
 					},
 					{
 						level: -1,
 						levelEqualBracketType: 0,
-						range: "[1,15 -> 1,16]",
+						range: '[1,15 -> 1,16]',
 					},
 				]
 			);
@@ -365,62 +461,62 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,2 -> 1,3]",
+						range: '[1,2 -> 1,3]',
 					},
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,3 -> 1,4]",
+						range: '[1,3 -> 1,4]',
 					},
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,5 -> 1,6]",
+						range: '[1,5 -> 1,6]',
 					},
 					{
 						level: 1,
 						levelEqualBracketType: 0,
-						range: "[1,6 -> 1,7]",
+						range: '[1,6 -> 1,7]',
 					},
 					{
 						level: 2,
 						levelEqualBracketType: 0,
-						range: "[1,7 -> 1,8]",
+						range: '[1,7 -> 1,8]',
 					},
 					{
 						level: 2,
 						levelEqualBracketType: 0,
-						range: "[1,8 -> 1,9]",
+						range: '[1,8 -> 1,9]',
 					},
 					{
 						level: 1,
 						levelEqualBracketType: 0,
-						range: "[1,9 -> 1,10]",
+						range: '[1,9 -> 1,10]',
 					},
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,10 -> 1,11]",
+						range: '[1,10 -> 1,11]',
 					},
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,12 -> 1,13]",
+						range: '[1,12 -> 1,13]',
 					},
 					{
 						level: 1,
 						levelEqualBracketType: 0,
-						range: "[1,13 -> 1,14]",
+						range: '[1,13 -> 1,14]',
 					},
 					{
 						level: 0,
 						levelEqualBracketType: 0,
-						range: "[1,14 -> 1,15]",
+						range: '[1,14 -> 1,15]',
 					},
 					{
 						level: -1,
 						levelEqualBracketType: 0,
-						range: "[1,15 -> 1,16]",
+						range: '[1,15 -> 1,16]',
 					},
 				]
 			);

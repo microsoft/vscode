@@ -56,6 +56,8 @@ export const HIDE_CATEGORY_FILTER_CONTEXT = new RawContextKey<string>('output.fi
 export interface IOutputViewFilters {
 	readonly onDidChange: Event<void>;
 	text: string;
+	readonly includePatterns: string[];
+	readonly excludePatterns: string[];
 	trace: boolean;
 	debug: boolean;
 	info: boolean;
@@ -109,7 +111,7 @@ export interface IOutputService {
 	/**
 	 * Allows to register on active output channel change.
 	 */
-	onActiveOutputChannel: Event<string>;
+	readonly onActiveOutputChannel: Event<string>;
 
 	/**
 	 * Register a compound log channel with the given channels.
@@ -119,7 +121,7 @@ export interface IOutputService {
 	/**
 	 * Save the logs to a file.
 	 */
-	saveOutputAs(...channels: IOutputChannelDescriptor[]): Promise<void>;
+	saveOutputAs(outputPath?: URI, ...channels: IOutputChannelDescriptor[]): Promise<void>;
 
 	/**
 	 * Checks if the log level can be set for the given channel.

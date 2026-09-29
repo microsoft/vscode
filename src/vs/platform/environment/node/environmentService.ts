@@ -13,16 +13,21 @@ import { IProductService } from '../../product/common/productService.js';
 export class NativeEnvironmentService extends AbstractNativeEnvironmentService {
 
 	constructor(args: NativeParsedArgs, productService: IProductService) {
+		const homeDir = homedir();
 		super(args, {
-			homeDir: homedir(),
+			homeDir,
 			tmpDir: tmpdir(),
-			userDataDir: getUserDataPath(args, productService.nameShort)
+			userDataDir: getUserDataPath(args, productService.nameShort),
 		}, productService);
 	}
 }
 
 export function parsePtyHostDebugPort(args: NativeParsedArgs, isBuilt: boolean): IDebugParams {
 	return parseDebugParams(args['inspect-ptyhost'], args['inspect-brk-ptyhost'], 5877, isBuilt, args.extensionEnvironment);
+}
+
+export function parseAgentHostDebugPort(args: NativeParsedArgs, isBuilt: boolean): IDebugParams {
+	return parseDebugParams(args['inspect-agenthost'], args['inspect-brk-agenthost'], 5878, isBuilt, args.extensionEnvironment);
 }
 
 export function parseSharedProcessDebugPort(args: NativeParsedArgs, isBuilt: boolean): IDebugParams {

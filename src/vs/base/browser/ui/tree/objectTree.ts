@@ -35,7 +35,7 @@ export interface IObjectTreeSetChildrenOptions<T> {
 	readonly diffIdentityProvider?: IIdentityProvider<T>;
 }
 
-export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
+export class ObjectTree<T, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
 	protected declare model: IObjectTreeModel<T, TFilterData>;
 
@@ -45,7 +45,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		protected readonly user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, unknown>[],
 		options: IObjectTreeOptions<T, TFilterData> = {}
 	) {
 		super(user, container, delegate, renderers, options as IObjectTreeOptions<T | null, TFilterData>);
@@ -71,6 +71,10 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		}
 
 		this.view.updateElementHeight(elementIndex, height);
+	}
+
+	getListRenderCount(element: T | null): number {
+		return this.model.getListRenderCount(element);
 	}
 
 	resort(element: T | null, recursive = true): void {
@@ -100,7 +104,7 @@ interface CompressibleTemplateData<T, TFilterData, TTemplateData> {
 	readonly data: TTemplateData;
 }
 
-class CompressibleRenderer<T extends NonNullable<any>, TFilterData, TTemplateData> implements ITreeRenderer<T, TFilterData, CompressibleTemplateData<T, TFilterData, TTemplateData>> {
+class CompressibleRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<T, TFilterData, CompressibleTemplateData<T, TFilterData, TTemplateData>> {
 
 	readonly templateId: string;
 	readonly onDidChangeTwistieState: Event<T> | undefined;
@@ -230,6 +234,9 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 			endIndex: lastStickyNode.endIndex,
 			position: stickyNodes[0].position,
 			height: stickyNodes[0].height,
+			sourceNodeEnd: stickyNodes[0].sourceNodeEnd,
+			sourceNodePartiallyVisible: stickyNodes.some(node => node.sourceNodePartiallyVisible),
+			hasExplicitHeight: stickyNodes[0].hasExplicitHeight,
 		};
 
 		this.compressedStickyNodes.set(stickyTreeNode, compressedNode);
@@ -271,11 +278,11 @@ function asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider: () => I
 	};
 }
 
-export interface ICompressibleObjectTreeOptionsUpdate extends IAbstractTreeOptionsUpdate {
+export interface ICompressibleObjectTreeOptionsUpdate<T> extends IAbstractTreeOptionsUpdate<T> {
 	readonly compressionEnabled?: boolean;
 }
 
-export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> implements ICompressedTreeNodeProvider<T, TFilterData> {
+export class CompressibleObjectTree<T, TFilterData = void> extends ObjectTree<T, TFilterData> implements ICompressedTreeNodeProvider<T, TFilterData> {
 
 	protected declare model: CompressibleObjectTreeModel<T, TFilterData>;
 
@@ -283,12 +290,12 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
+		renderers: ICompressibleTreeRenderer<T, TFilterData, unknown>[],
 		options: ICompressibleObjectTreeOptions<T, TFilterData> = {}
 	) {
 		const compressedTreeNodeProvider = () => this;
 		const stickyScrollDelegate = new CompressibleStickyScrollDelegate<T, TFilterData>(() => this.model);
-		const compressibleRenderers = renderers.map(r => new CompressibleRenderer<T, TFilterData, any>(compressedTreeNodeProvider, stickyScrollDelegate, r));
+		const compressibleRenderers = renderers.map(r => new CompressibleRenderer<T, TFilterData, unknown>(compressedTreeNodeProvider, stickyScrollDelegate, r));
 
 		super(user, container, delegate, compressibleRenderers, { ...asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider, options), stickyScrollDelegate });
 	}
@@ -301,7 +308,7 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		return new CompressibleObjectTreeModel(user, options);
 	}
 
-	override updateOptions(optionsUpdate: ICompressibleObjectTreeOptionsUpdate = {}): void {
+	override updateOptions(optionsUpdate: ICompressibleObjectTreeOptionsUpdate<T | null> = {}): void {
 		super.updateOptions(optionsUpdate);
 
 		if (typeof optionsUpdate.compressionEnabled !== 'undefined') {

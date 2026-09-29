@@ -345,6 +345,7 @@ export class Sound {
 	public static readonly chatUserActionRequired = Sound.register({ fileName: 'chatUserActionRequired.mp3' });
 	public static readonly codeActionTriggered = Sound.register({ fileName: 'codeActionTriggered.mp3' });
 	public static readonly codeActionApplied = Sound.register({ fileName: 'codeActionApplied.mp3' });
+	public static readonly confetti = Sound.register({ fileName: 'confetti.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -610,6 +611,12 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.chatResponseReceived'
 	});
 
+	public static readonly confetti = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.confetti', 'Confetti'),
+		sound: Sound.confetti,
+		settingsKey: 'accessibility.signals.confetti'
+	});
+
 	public static readonly codeActionTriggered = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.codeActionRequestTriggered', 'Code Action Request Triggered'),
 		sound: Sound.codeActionTriggered,
@@ -670,11 +677,25 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.voiceRecordingStarted'
 	});
 
+	public static readonly voiceModeStarted = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.voiceModeStarted', 'Voice Mode Started'),
+		sound: Sound.voiceRecordingStarted,
+		announcementMessage: localize('accessibility.signals.voiceModeStarted', 'Voice Mode Started'),
+		settingsKey: 'accessibility.signals.voiceModeStarted'
+	});
+
 	public static readonly voiceRecordingStopped = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.voiceRecordingStopped', 'Voice Recording Stopped'),
 		sound: Sound.voiceRecordingStopped,
 		legacySoundSettingsKey: 'audioCues.voiceRecordingStopped',
 		settingsKey: 'accessibility.signals.voiceRecordingStopped'
+	});
+
+	public static readonly voiceModeStopped = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.voiceModeStopped', 'Voice Mode Stopped'),
+		sound: Sound.voiceRecordingStopped,
+		announcementMessage: localize('accessibility.signals.voiceModeStopped', 'Voice Mode Stopped'),
+		settingsKey: 'accessibility.signals.voiceModeStopped'
 	});
 
 	public static readonly editsKept = AccessibilitySignal.register({
@@ -695,7 +716,6 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.chatUserActionRequired', 'Chat User Action Required'),
 		sound: Sound.chatUserActionRequired,
 		announcementMessage: localize('accessibility.signals.chatUserActionRequired', 'Chat User Action Required'),
-		settingsKey: 'accessibility.signals.chatUserActionRequired',
-		managesOwnEnablement: true
+		settingsKey: 'accessibility.signals.chatUserActionRequired'
 	});
 }

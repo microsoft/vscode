@@ -62,7 +62,7 @@ export class TestMcpMessageTransport extends Disposable implements IMcpMessageTr
 	 * The responder receives the sent message and should return a response object,
 	 * which will be simulated as a server response.
 	 */
-	public setResponder(method: string, responder: (message: any) => MCP.JSONRPCMessage | undefined): void {
+	public setResponder(method: string, responder: (message: unknown) => MCP.JSONRPCMessage | undefined): void {
 		if (!this._responders) {
 			this._responders = new Map();
 		}
@@ -168,10 +168,11 @@ export class TestMcpRegistry implements IMcpRegistry {
 		remoteAuthority: null,
 		label: 'Test Collection',
 		configTarget: ConfigurationTarget.USER,
+		order: 0,
 		serverDefinitions: observableValue(this, [{
 			id: 'test-server',
 			label: 'Test Server',
-			launch: { type: McpServerTransportType.Stdio, command: 'echo', args: ['Hello MCP'], env: {}, envFile: undefined, cwd: undefined },
+			launch: { type: McpServerTransportType.Stdio, command: 'echo', args: ['Hello MCP'], env: {}, envFile: undefined, cwd: undefined, sandbox: undefined },
 			cacheNonce: 'a',
 		} satisfies McpServerDefinition]),
 		trustBehavior: McpServerTrust.Kind.Trusted,
@@ -239,6 +240,7 @@ export class TestMcpRegistry implements IMcpRegistry {
 			definition.launch,
 			new NullLogger(),
 			false,
+			options.taskManager,
 			this._instantiationService,
 		));
 	}

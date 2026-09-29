@@ -380,6 +380,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	public finalize(endState: MonarchLineState): languages.EncodedTokenizationResult {
 		return new languages.EncodedTokenizationResult(
 			MonarchModernTokensCollector._merge(this._prependTokens, this._tokens, null),
+			[],
 			endState
 		);
 	}

@@ -12,7 +12,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IQuickChatOpenOptions, IQuickChatService } from '../chat.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 export const ASK_QUICK_QUESTION_ACTION_ID = 'workbench.action.quickchat.toggle';
 export function registerQuickChatActions() {
@@ -48,7 +48,7 @@ export function registerQuickChatActions() {
 				title: localize2('chat.closeQuickChat.label', "Close Quick Chat"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				icon: Codicon.close,
+				icon: Codicon.closeSmall,
 				menu: {
 					id: MenuId.ChatInputSide,
 					group: 'navigation',

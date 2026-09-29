@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/microsoft/vscode-mssql/blob/master/syntaxes/SQL.plist",
+		"This file has been converted from https://github.com/microsoft/vscode-mssql/blob/master/extensions/mssql/syntaxes/SQL.plist",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-mssql/commit/ff0c7d3b3582100856fe5b839663b2a8704dc4e4",
+	"version": "https://github.com/microsoft/vscode-mssql/commit/684648ee5414eb2d9df22b0392ef05079f91e44e",
 	"name": "SQL",
 	"scopeName": "source.sql",
 	"patterns": [
@@ -13,8 +13,26 @@
 			"name": "text.variable"
 		},
 		{
-			"match": "(\\[)[^\\]]*(\\])",
-			"name": "text.bracketed"
+			"applyEndPatternLast": 1,
+			"begin": "\\[",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.bracket.begin.sql"
+				}
+			},
+			"end": "\\]",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.bracket.end.sql"
+				}
+			},
+			"name": "text.bracketed",
+			"patterns": [
+				{
+					"match": "\\[|\\]\\]",
+					"name": "constant.character.bracket.sql"
+				}
+			]
 		},
 		{
 			"include": "#comments"
@@ -528,7 +546,7 @@
 						}
 					},
 					"comment": "this is faster than the next begin/end rule since sub-pattern will match till end-of-line and SQL files tend to have very long lines.",
-					"match": "(N)?(')[^']*(')",
+					"match": "(?:(?<![a-zA-Z0-9_])(N))?(')[^']*(')",
 					"name": "string.quoted.single.sql"
 				},
 				{

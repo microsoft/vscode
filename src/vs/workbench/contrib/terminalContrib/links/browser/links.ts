@@ -14,6 +14,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
 import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
 import type { IHoverAction } from '../../../../../base/browser/ui/hover/hover.js';
+import type { MaybePromise } from '../../../../../base/common/async.js';
 
 export const ITerminalLinkProviderService = createDecorator<ITerminalLinkProviderService>('terminalLinkProviderService');
 export interface ITerminalLinkProviderService {
@@ -57,7 +58,7 @@ export interface ITerminalLinkDetector {
 	 * @param endLine The end of the wrapped line.  This _will not_ be validated that it is indeed
 	 * the end of a wrapped line.
 	 */
-	detect(lines: IBufferLine[], startLine: number, endLine: number): ITerminalSimpleLink[] | Promise<ITerminalSimpleLink[]>;
+	detect(lines: IBufferLine[], startLine: number, endLine: number): MaybePromise<ITerminalSimpleLink[]>;
 }
 
 export interface ITerminalSimpleLink {
@@ -163,4 +164,6 @@ export interface IResolvedValidLink {
 	isDirectory: boolean;
 }
 
+// Suppress as the any type is being removed anyway
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type OmitFirstArg<F> = F extends (x: any, ...args: infer P) => infer R ? (...args: P) => R : never;

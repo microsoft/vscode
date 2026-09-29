@@ -1,0 +1,42 @@
+{
+  "name": "vscode-pr-pinger",
+  "displayName": "VSCode PR Pinger",
+  "description": "PR Pinger shows a PR in the statusbar for you to review (VS Code Team Only)",
+  "engines": {
+    "vscode": "^1.67.0"
+  },
+  "version": "0.0.6",
+  "publisher": "ms-vscode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  },
+  "main": "out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "PR Pinger",
+      "properties": {
+        "prpinger.presentation": {
+          "type": "string",
+          "default": "short",
+          "enum": [
+            "number",
+            "short"
+          ],
+          "description": "How PR are shown in the status bar - either as number or without vowels"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "watch": "gulp watch-extension:vscode-pr-pinger",
+    "compile": "gulp compile-extension:vscode-pr-pinger"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@octokit/graphql": "^5.0.1"
+  }
+}

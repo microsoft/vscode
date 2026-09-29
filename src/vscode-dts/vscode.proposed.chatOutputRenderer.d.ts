@@ -44,6 +44,40 @@ declare module 'vscode' {
 		readonly value: Uint8Array;
 	}
 
+	/**
+	 * A webview used to render chat output.
+	 */
+	export interface ChatOutputWebview {
+		/**
+		 * The webview to render content into.
+		 */
+		readonly webview: Webview;
+
+		/**
+		 * Fired when the webview is disposed.
+		 */
+		readonly onDidDispose: Event<void>;
+	}
+
+	/**
+	 * Additional context for rendering chat output.
+	 */
+	export interface ChatOutputRenderContext {
+		/**
+		 * Context when a code block is being rendered.
+		 *
+		 * This is set when a renderer contributed through `chatOutputRenderers` renders
+		 * a completed fenced code block whose identifier matches one of the contributed
+		 * `codeBlockLanguageIdentifiers`.
+		 */
+		readonly codeBlockContext?: {
+			/**
+			 * The language identifier of the code block being rendered.
+			 */
+			readonly languageIdentifier: string;
+		};
+	}
+
 	export interface ChatOutputRenderer {
 		/**
 		 * Given an output, render it into the provided webview.
@@ -57,7 +91,7 @@ declare module 'vscode' {
 		 *
 		 * @returns A promise that resolves when the webview has been initialized and is ready to be presented to the user.
 		 */
-		renderChatOutput(data: ChatOutputDataItem, webview: Webview, ctx: {}, token: CancellationToken): Thenable<void>;
+		renderChatOutput(data: ChatOutputDataItem, webview: ChatOutputWebview, ctx: ChatOutputRenderContext, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace chat {
@@ -69,10 +103,11 @@ declare module 'vscode' {
 		 *
 		 * ```json
 		 * "contributes": {
-		 *   "chatOutputRenderer": [
+		 *   "chatOutputRenderers": [
 		 *     {
 		 *       "viewType": "myExt.myChatOutputRenderer",
-		 *       "mimeTypes": ["application/your-mime-type"]
+		 *       "mimeTypes": ["application/your-mime-type"],
+		 *       "codeBlockLanguageIdentifiers": ["mermaid"]
 		 *     }
 		 *   ]
 		 * }

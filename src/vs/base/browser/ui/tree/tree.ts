@@ -142,8 +142,8 @@ export interface ITreeModel<T, TFilterData, TRef> {
 
 	getListIndex(location: TRef): number;
 	getListRenderCount(location: TRef): number;
-	getNode(location?: TRef): ITreeNode<T, any>;
-	getNodeLocation(node: ITreeNode<T, any>): TRef;
+	getNode(location?: TRef): ITreeNode<T, TFilterData>;
+	getNodeLocation(node: ITreeNode<T, TFilterData>): TRef;
 	getParentNodeLocation(location: TRef): TRef | undefined;
 
 	getFirstElementChild(location: TRef): T | undefined;
@@ -164,10 +164,12 @@ export interface ITreeElementRenderDetails extends IListElementRenderDetails {
 }
 
 export interface ITreeRenderer<T, TFilterData = void, TTemplateData = void> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
+	/** CSS class applied to list rows created for this renderer. */
+	readonly rowClassName?: string;
 	renderElement(element: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData, details?: ITreeElementRenderDetails): void;
 	disposeElement?(element: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData, details?: ITreeElementRenderDetails): void;
 	renderTwistie?(element: T, twistieElement: HTMLElement): boolean;
-	onDidChangeTwistieState?: Event<T>;
+	readonly onDidChangeTwistieState?: Event<T>;
 }
 
 export interface ITreeEvent<T> {

@@ -1,0 +1,109 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as DOM from '../../../../../base/browser/dom.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IChatPromptSlashCommand } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { AICustomizationManagementSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { IAICustomizationWorkspaceService } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationWelcomePage } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationWelcomePage.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+
+import '../../../../../platform/theme/common/colors/inputColors.js';
+import '../../../../../platform/theme/common/colors/listColors.js';
+import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
+
+const visibleSections = new Set<AICustomizationManagementSection>([
+	AICustomizationManagementSection.Agents,
+	AICustomizationManagementSection.Skills,
+	AICustomizationManagementSection.Instructions,
+	AICustomizationManagementSection.Prompts,
+	AICustomizationManagementSection.Hooks,
+	AICustomizationManagementSection.McpServers,
+	AICustomizationManagementSection.Plugins,
+]);
+
+function createMockWorkspaceService(): IAICustomizationWorkspaceService {
+	return new class extends mock<IAICustomizationWorkspaceService>() {
+		override readonly isSessionsWindow = false;
+		override readonly managementSections = Array.from(visibleSections);
+		override readonly welcomePageFeatures = {
+			showGettingStartedBanner: true,
+		};
+		override readonly activeProjectRoot = constObservable(URI.file('/workspace'));
+		override readonly activeProjectLabel = constObservable('workspace');
+		override readonly hasOverrideProjectRoot = constObservable(false);
+		override getActiveProjectRoot(): URI {
+			return URI.file('/workspace');
+		}
+		override async commitFiles(): Promise<void> { }
+		override async deleteFiles(): Promise<void> { }
+		override async generateCustomization(): Promise<void> { }
+		override setOverrideProjectRoot(): void { }
+		override clearOverrideProjectRoot(): void { }
+		override async getFilteredPromptSlashCommands(_token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
+			return [];
+		}
+		override getSkillUIIntegrations(): ReadonlyMap<string, string> {
+			return new Map();
+		}
+	}();
+}
+
+function createHost(container: HTMLElement): HTMLElement {
+	container.style.width = '1024px';
+	container.style.height = '960px';
+	const editor = DOM.append(container, DOM.$('.ai-customization-management-editor'));
+	editor.style.height = '100%';
+	const content = DOM.append(editor, DOM.$('.management-content'));
+	return DOM.append(content, DOM.$('.content-inner'));
+}
+
+function renderWelcomePage(ctx: ComponentFixtureContext): void {
+	const host = createHost(ctx.container);
+	const workspaceService = createMockWorkspaceService();
+	const configuration = new TestConfigurationService();
+	ctx.disposableStore.add(configuration.onDidChangeConfigurationEmitter);
+	const instantiationService = createEditorServices(ctx.disposableStore, {
+		colorTheme: ctx.theme,
+		additionalServices: reg => {
+			reg.defineInstance(IAICustomizationWorkspaceService, workspaceService);
+			reg.defineInstance(IConfigurationService, configuration);
+			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = Object.values(CustomizationMarketplaceSources);
+			}());
+		},
+	});
+	const page = ctx.disposableStore.add(instantiationService.createInstance(AICustomizationWelcomePage,
+		host,
+		workspaceService.welcomePageFeatures,
+		{
+			selectSection: () => { },
+			selectSectionWithMarketplace: () => { },
+			closeEditor: () => { },
+			reviewMigrations: () => { },
+			prefillChat: () => { },
+		},
+		'Local',
+	));
+	page.rebuildCards(visibleSections);
+	if (page.isDiscover || !host.querySelector('.welcome-prompts-content-container')) {
+		throw new Error('The disabled marketplace must show the original Overview.');
+	}
+}
+
+export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
+	WelcomePage: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: renderWelcomePage,
+	}),
+});

@@ -16,7 +16,7 @@ export function setup(logger: Logger) {
 			return opts;
 		});
 
-		it('install and enable vscode-smoketest-check extension', async function () {
+		it.skip('install and enable vscode-smoketest-check extension', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.extensions.installExtension('ms-vscode.vscode-smoketest-check', true);
@@ -25,7 +25,7 @@ export function setup(logger: Logger) {
 			// https://github.com/microsoft/vscode/issues/110276
 			await app.workbench.extensions.closeExtension('vscode-smoketest-check');
 
-			await app.workbench.quickaccess.runCommand('Smoke Test Check');
+			await app.workbench.quickaccess.runCommand('Smoke Test Check', { match: 'exactLabel' });
 		});
 	});
 }

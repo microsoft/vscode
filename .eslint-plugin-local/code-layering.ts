@@ -5,14 +5,14 @@
 
 import * as eslint from 'eslint';
 import { join, dirname } from 'path';
-import { createImportRuleListener } from './utils';
+import { createImportRuleListener } from './utils.ts';
 
 type Config = {
 	allowed: Set<string>;
 	disallowed: Set<string>;
 };
 
-export = new class implements eslint.Rule.RuleModule {
+export default new class implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -36,10 +36,9 @@ export = new class implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const fileDirname = dirname(context.getFilename());
+		const fileDirname = dirname(context.filename);
 		const parts = fileDirname.split(/\\|\//);
-		const ruleArgs = <Record<string, string[]>>context.options[0];
-
+		const ruleArgs = context.options[0] as Record<string, string[]>;
 		let config: Config | undefined;
 		for (let i = parts.length - 1; i >= 0; i--) {
 			if (ruleArgs[parts[i]]) {
@@ -63,7 +62,7 @@ export = new class implements eslint.Rule.RuleModule {
 
 		return createImportRuleListener((node, path) => {
 			if (path[0] === '.') {
-				path = join(dirname(context.getFilename()), path);
+				path = join(dirname(context.filename), path);
 			}
 
 			const parts = dirname(path).split(/\\|\//);
@@ -91,4 +90,3 @@ export = new class implements eslint.Rule.RuleModule {
 		});
 	}
 };
-

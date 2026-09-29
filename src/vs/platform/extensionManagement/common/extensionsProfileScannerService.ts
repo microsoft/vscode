@@ -390,20 +390,21 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 	}
 }
 
-function isStoredProfileExtension(candidate: any): candidate is IStoredProfileExtension {
+function isStoredProfileExtension(obj: unknown): obj is IStoredProfileExtension {
+	const candidate = obj as IStoredProfileExtension | undefined;
 	return isObject(candidate)
 		&& isIExtensionIdentifier(candidate.identifier)
-		&& (isUriComponents(candidate.location) || (isString(candidate.location) && candidate.location))
+		&& (isUriComponents(candidate.location) || (isString(candidate.location) && !!candidate.location))
 		&& (isUndefined(candidate.relativeLocation) || isString(candidate.relativeLocation))
-		&& candidate.version && isString(candidate.version);
+		&& !!candidate.version
+		&& isString(candidate.version);
 }
 
-function isUriComponents(thing: unknown): thing is UriComponents {
-	if (!thing) {
+function isUriComponents(obj: unknown): obj is UriComponents {
+	if (!obj) {
 		return false;
 	}
-	// eslint-disable-next-line local/code-no-any-casts
-	return isString((<any>thing).path) &&
-		// eslint-disable-next-line local/code-no-any-casts
-		isString((<any>thing).scheme);
+	const thing = obj as UriComponents | undefined;
+	return typeof thing?.path === 'string' &&
+		typeof thing?.scheme === 'string';
 }

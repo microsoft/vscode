@@ -13,7 +13,7 @@ import { FIND_IDS } from './findModel.js';
 import { FindReplaceState } from './findState.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import type { IHoverLifecycleOptions } from '../../../../base/browser/ui/hover/hover.js';
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
@@ -53,12 +53,12 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground),
 		};
 
-		const hoverDelegate = this._register(createInstantHoverDelegate());
+		const hoverLifecycleOptions: IHoverLifecycleOptions = { groupId: 'find-options-widget' };
 
 		this.caseSensitive = this._register(new CaseSensitiveToggle({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
 			isChecked: this._state.matchCase,
-			hoverDelegate,
+			hoverLifecycleOptions,
 			...toggleStyles
 		}));
 		this._domNode.appendChild(this.caseSensitive.domNode);
@@ -71,7 +71,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this.wholeWords = this._register(new WholeWordsToggle({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
 			isChecked: this._state.wholeWord,
-			hoverDelegate,
+			hoverLifecycleOptions,
 			...toggleStyles
 		}));
 		this._domNode.appendChild(this.wholeWords.domNode);
@@ -84,7 +84,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this.regex = this._register(new RegexToggle({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
 			isChecked: this._state.isRegex,
-			hoverDelegate,
+			hoverLifecycleOptions,
 			...toggleStyles
 		}));
 		this._domNode.appendChild(this.regex.domNode);
@@ -120,11 +120,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _keybindingLabelFor(actionId: string): string {
-		const kb = this._keybindingService.lookupKeybinding(actionId);
-		if (!kb) {
-			return '';
-		}
-		return ` (${kb.getLabel()})`;
+		return this._keybindingService.appendKeybinding('', actionId);
 	}
 
 	public override dispose(): void {

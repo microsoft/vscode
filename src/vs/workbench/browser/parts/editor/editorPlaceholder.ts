@@ -186,7 +186,7 @@ export class WorkspaceTrustRequiredPlaceholderEditor extends EditorPlaceholder {
 	static readonly ID = 'workbench.editors.workspaceTrustRequiredEditor';
 	private static readonly LABEL = localize('trustRequiredEditor', "Workspace Trust Required");
 
-	static readonly DESCRIPTOR = EditorPaneDescriptor.create(WorkspaceTrustRequiredPlaceholderEditor, this.ID, this.LABEL);
+	static readonly DESCRIPTOR = EditorPaneDescriptor.create(this, this.ID, this.LABEL);
 
 	constructor(
 		group: IEditorGroup,
@@ -224,7 +224,7 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 	private static readonly ID = 'workbench.editors.errorEditor';
 	private static readonly LABEL = localize('errorEditor', "Error Editor");
 
-	static readonly DESCRIPTOR = EditorPaneDescriptor.create(ErrorPlaceholderEditor, this.ID, this.LABEL);
+	static readonly DESCRIPTOR = EditorPaneDescriptor.create(this, this.ID, this.LABEL);
 
 	constructor(
 		group: IEditorGroup,

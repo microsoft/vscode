@@ -101,14 +101,14 @@ export class Link extends Disposable {
 		this.el.setAttribute('role', 'button');
 
 		const onClickEmitter = this._register(new DomEmitter(this.el, 'click'));
-		const onKeyPress = this._register(new DomEmitter(this.el, 'keypress'));
-		const onEnterPress = Event.chain(onKeyPress.event, $ =>
+		const onKeyDown = this._register(new DomEmitter(this.el, 'keydown'));
+		const onKeyActivate = Event.chain(onKeyDown.event, $ =>
 			$.map(e => new StandardKeyboardEvent(e))
-				.filter(e => e.keyCode === KeyCode.Enter)
+				.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
 		);
 		const onTap = this._register(new DomEmitter(this.el, TouchEventType.Tap)).event;
 		this._register(Gesture.addTarget(this.el));
-		const onOpen = Event.any<EventLike>(onClickEmitter.event, onEnterPress, onTap);
+		const onOpen = Event.any<EventLike>(onClickEmitter.event, onKeyActivate, onTap);
 
 		this._register(onOpen(e => {
 			if (!this.enabled) {

@@ -5,8 +5,9 @@
 
 import { Schemas } from '../common/network.js';
 import { reset } from './dom.js';
+import { createTrustedTypesPolicy } from './trustedTypes.js';
 // eslint-disable-next-line no-restricted-imports
-import dompurify from './dompurify/dompurify.js';
+import dompurify, * as DomPurifyTypes from './dompurify/dompurify.js';
 
 /**
  * List of safe, non-input html tags.
@@ -135,22 +136,35 @@ function validateLink(value: string, allowedProtocols: AllowedLinksConfig): bool
 }
 
 /**
- * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
- * attributes are valid.
+ * Hooks dompurify using `afterSanitizeAttributes` to check link and media-loading attributes.
  */
-function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConfig, allowedMediaProtocols: AllowedLinksConfig) {
+function hookDomPurifyHrefAndSrcSanitizer(
+	allowedLinkProtocols: AllowedLinksConfig,
+	allowedMediaProtocols: AllowedLinksConfig,
+	mediaSourceIsAllowed: ((source: string) => boolean) | undefined,
+	replaceWithPlaintext: boolean,
+) {
 	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// check all href/src attributes for validity
-		for (const attr of ['href', 'src']) {
+		for (const attr of ['href', 'src', 'poster']) {
 			if (node.hasAttribute(attr)) {
 				const attrValue = node.getAttribute(attr) as string;
-				if (attr === 'href') {
+				if (attr === 'href' && node.nodeName.toLowerCase() === 'a') {
 					if (!attrValue.startsWith('#') && !validateLink(attrValue, allowedLinkProtocols)) {
 						node.removeAttribute(attr);
 					}
-				} else { // 'src'
+				} else if (attr === 'href' && attrValue.startsWith('#')) {
+					continue;
+				} else {
 					if (!validateLink(attrValue, allowedMediaProtocols)) {
 						node.removeAttribute(attr);
+					} else if (mediaSourceIsAllowed && !mediaSourceIsAllowed(attrValue)) {
+						const replacement = replaceWithPlaintext ? convertTagToPlaintext(node) : undefined;
+						if (replacement && node.parentNode) {
+							node.parentNode.replaceChild(replacement, node);
+							return;
+						} else {
+							node.removeAttribute(attr);
+						}
 					}
 				}
 			}
@@ -213,6 +227,11 @@ export interface DomSanitizerConfig {
 	readonly allowRelativeMediaPaths?: boolean;
 
 	/**
+	 * Additional validation for otherwise valid media source attributes.
+	 */
+	readonly mediaSourceIsAllowed?: (source: string) => boolean;
+
+	/**
 	 * If set, replaces unsupported tags with their plaintext representation instead of removing them.
 	 *
 	 * For example, <p><bad>"text"</bad></p> becomes <p>"<bad>text</bad>"</p>.
@@ -225,7 +244,7 @@ const defaultDomPurifyConfig = Object.freeze({
 	ALLOWED_ATTR: [...defaultAllowedAttrs],
 	// We sanitize the src/href attributes later if needed
 	ALLOW_UNKNOWN_PROTOCOLS: true,
-} satisfies dompurify.Config);
+} satisfies DomPurifyTypes.Config);
 
 /**
  * Sanitizes an html string.
@@ -243,7 +262,7 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefined, outputType: 'trusted'): TrustedHTML;
 function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefined, outputType: 'dom' | 'trusted'): TrustedHTML | DocumentFragment {
 	try {
-		const resolvedConfig: dompurify.Config = { ...defaultDomPurifyConfig };
+		const resolvedConfig: DomPurifyTypes.Config = { ...defaultDomPurifyConfig };
 
 		if (config?.allowedTags) {
 			if (config.allowedTags.override) {
@@ -298,7 +317,10 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 			{
 				override: config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https],
 				allowRelativePaths: config?.allowRelativeMediaPaths ?? false
-			});
+			},
+			config?.mediaSourceIsAllowed,
+			config?.replaceWithPlaintext ?? false,
+		);
 
 		if (config?.replaceWithPlaintext) {
 			dompurify.addHook('uponSanitizeElement', replaceWithPlainTextHook);
@@ -322,47 +344,93 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 		}
 
 		if (outputType === 'dom') {
-			return dompurify.sanitize(untrusted, {
-				...resolvedConfig,
-				RETURN_DOM_FRAGMENT: true
-			});
+			return sanitizeSurvivingStalePolicy(untrusted, { ...resolvedConfig, RETURN_DOM_FRAGMENT: true }) as DocumentFragment;
 		} else {
-			return dompurify.sanitize(untrusted, {
-				...resolvedConfig,
-				RETURN_TRUSTED_TYPE: true
-			});
+			return sanitizeSurvivingStalePolicy(untrusted, { ...resolvedConfig, RETURN_TRUSTED_TYPE: true }) as unknown as TrustedHTML; // Cast from lib TrustedHTML to global TrustedHTML
 		}
 	} finally {
 		dompurify.removeAllHooks();
 	}
 }
 
-const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+/** Names a replacement policy; Trusted Types rejects a name that is already taken. */
+let stalePolicyReplacementCount = 0;
 
-function replaceWithPlainTextHook(element: Element, data: dompurify.SanitizeElementHookEvent, _config: dompurify.Config) {
-	if (!data.allowedTags[data.tagName] && data.tagName !== 'body') {
-		const replacement = convertTagToPlaintext(element);
-		if (element.nodeType === Node.COMMENT_NODE) {
-			// Workaround for https://github.com/cure53/DOMPurify/issues/1005
-			// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
-			// an exception. Instead we insert the text node before the comment.
-			element.parentElement?.insertBefore(replacement, element);
-		} else {
-			element.parentElement?.replaceChild(replacement, element);
+/** The sanitizer call this module recovers around. */
+type SanitizeCall = (untrusted: string, config: DomPurifyTypes.Config) => ReturnType<typeof dompurify.sanitize>;
+
+/**
+ * Sanitizes HTML, replacing the sanitizer's Trusted Types policy first when the policy's
+ * creating realm is gone and every call would otherwise throw. The replacement is kept
+ * for later calls, so this recovers once rather than on every call.
+ *
+ * Exported, with `sanitize` injectable, only so a test can drive the recovery: dompurify
+ * caches one policy for the lifetime of the module, so once anything has sanitized, no
+ * later stand-in policy is ever consulted. Prefer {@link sanitizeHtml}.
+ */
+export function sanitizeSurvivingStalePolicy(
+	untrusted: string,
+	config: DomPurifyTypes.Config,
+	sanitize: SanitizeCall = (html, cfg) => dompurify.sanitize(html, cfg),
+): string | DocumentFragment | TrustedHTML {
+	try {
+		return sanitize(untrusted, config);
+	} catch (error) {
+		if (!isStaleTrustedTypesPolicy(error)) {
+			throw error;
 		}
+		const replacement = createTrustedTypesPolicy(`domSanitize${stalePolicyReplacementCount++}`, {
+			createHTML: (value: string) => value,
+			createScriptURL: (value: string) => value,
+		});
+		if (!replacement) {
+			throw error;
+		}
+		// Named through dompurify's own config rather than the global `TrustedTypePolicy`.
+		// The two spell the same type, but the editor build resolves `trusted-types` twice
+		// and the branded declarations then do not unify.
+		const policy = replacement as unknown as DomPurifyTypes.Config['TRUSTED_TYPES_POLICY'];
+		return sanitize(untrusted, { ...config, TRUSTED_TYPES_POLICY: policy });
 	}
 }
 
-export function convertTagToPlaintext(element: Element): DocumentFragment {
+/** Whether the failure is a Trusted Types policy whose realm is gone, rather than bad markup. */
+function isStaleTrustedTypesPolicy(error: unknown): boolean {
+	return error instanceof Error && /no longer runnable/i.test(error.message);
+}
+
+const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+
+const replaceWithPlainTextHook: DomPurifyTypes.UponSanitizeElementHook = (node, data, _config) => {
+	if (!data.allowedTags[data.tagName] && data.tagName !== 'body') {
+		const replacement = convertTagToPlaintext(node);
+		if (replacement) {
+			if (node.nodeType === Node.COMMENT_NODE) {
+				// Workaround for https://github.com/cure53/DOMPurify/issues/1005
+				// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
+				// an exception. Instead we insert the text node before the comment.
+				node.parentElement?.insertBefore(replacement, node);
+			} else {
+				node.parentElement?.replaceChild(replacement, node);
+			}
+		}
+	}
+};
+
+export function convertTagToPlaintext(node: Node): DocumentFragment | undefined {
+	if (!node.ownerDocument) {
+		return;
+	}
+
 	let startTagText: string;
 	let endTagText: string | undefined;
-	if (element.nodeType === Node.COMMENT_NODE) {
-		startTagText = `<!--${element.textContent}-->`;
-	} else {
-		const tagName = element.tagName.toLowerCase();
+	if (node.nodeType === Node.COMMENT_NODE) {
+		startTagText = `<!--${node.textContent}-->`;
+	} else if (node instanceof Element) {
+		const tagName = node.tagName.toLowerCase();
 		const isSelfClosing = selfClosingTags.includes(tagName);
-		const attrString = element.attributes.length ?
-			' ' + Array.from(element.attributes)
+		const attrString = node.attributes.length ?
+			' ' + Array.from(node.attributes)
 				.map(attr => `${attr.name}="${attr.value}"`)
 				.join(' ')
 			: '';
@@ -370,16 +438,18 @@ export function convertTagToPlaintext(element: Element): DocumentFragment {
 		if (!isSelfClosing) {
 			endTagText = `</${tagName}>`;
 		}
+	} else {
+		return;
 	}
 
-	const fragment = document.createDocumentFragment();
-	const textNode = element.ownerDocument.createTextNode(startTagText);
+	const fragment = node.ownerDocument.createDocumentFragment();
+	const textNode = node.ownerDocument.createTextNode(startTagText);
 	fragment.appendChild(textNode);
-	while (element.firstChild) {
-		fragment.appendChild(element.firstChild);
+	while (node.firstChild) {
+		fragment.appendChild(node.firstChild);
 	}
 
-	const endTagTextNode = endTagText ? element.ownerDocument.createTextNode(endTagText) : undefined;
+	const endTagTextNode = endTagText ? node.ownerDocument.createTextNode(endTagText) : undefined;
 	if (endTagTextNode) {
 		fragment.appendChild(endTagTextNode);
 	}

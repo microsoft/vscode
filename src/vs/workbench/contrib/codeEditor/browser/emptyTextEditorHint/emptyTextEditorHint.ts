@@ -15,7 +15,6 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
-import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -28,15 +27,16 @@ import { ChangeLanguageAction } from '../../../../browser/parts/editor/editorSta
 import { LOG_MODE_ID, OUTPUT_MODE_ID } from '../../../../services/output/common/output.js';
 import { SEARCH_RESULT_LANGUAGE_ID } from '../../../../services/search/common/search.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { IChatAgentService } from '../../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
+import { EmptyTextEditorHintContributionId, IEmptyTextEditorHintContribution } from './emptyTextEditorHintTypes.js';
 import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
-export class EmptyTextEditorHintContribution extends Disposable implements IEditorContribution {
+export class EmptyTextEditorHintContribution extends Disposable implements IEmptyTextEditorHintContribution {
 
-	static readonly ID = 'editor.contrib.emptyTextEditorHint';
+	static readonly ID = EmptyTextEditorHintContributionId;
 
 	private textHintContentWidget: EmptyTextEditorHintContentWidget | undefined;
 
@@ -66,13 +66,11 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEdit
 		}));
 		this._register(inlineChatSessionService.onWillStartSession(editor => {
 			if (this.editor === editor) {
-				this.textHintContentWidget?.dispose();
+				this.disposeHint();
 			}
 		}));
-		this._register(inlineChatSessionService.onDidEndSession(e => {
-			if (this.editor === e.editor) {
-				this.update();
-			}
+		this._register(inlineChatSessionService.onDidChangeSessions(() => {
+			this.update();
 		}));
 	}
 
@@ -92,7 +90,7 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEdit
 			return false;
 		}
 
-		if (this.inlineChatSessionService.getSession(this.editor, model.uri)) {
+		if (this.inlineChatSessionService.getSessionByTextModel(model.uri)) {
 			return false;
 		}
 
@@ -120,15 +118,19 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEdit
 		if (shouldRenderHint && !this.textHintContentWidget) {
 			this.textHintContentWidget = this.instantiationService.createInstance(EmptyTextEditorHintContentWidget, this.editor);
 		} else if (!shouldRenderHint && this.textHintContentWidget) {
-			this.textHintContentWidget.dispose();
-			this.textHintContentWidget = undefined;
+			this.disposeHint();
 		}
+	}
+
+	disposeHint(): void {
+		this.textHintContentWidget?.dispose();
+		this.textHintContentWidget = undefined;
 	}
 
 	override dispose(): void {
 		super.dispose();
 
-		this.textHintContentWidget?.dispose();
+		this.disposeHint();
 	}
 }
 
@@ -266,6 +268,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		const ariaLabel = hasInlineChatProvider ?
 			localize('defaultHintAriaLabelWithInlineChat', 'Execute {0} to ask a question, execute {1} to select a language and get started. Start typing to dismiss.', ...keybindingLabels) :
 			localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language and get started. Start typing to dismiss.', ...keybindingLabels);
+		// eslint-disable-next-line no-restricted-syntax
 		for (const anchor of hintElement.querySelectorAll('a')) {
 			anchor.style.cursor = 'pointer';
 		}

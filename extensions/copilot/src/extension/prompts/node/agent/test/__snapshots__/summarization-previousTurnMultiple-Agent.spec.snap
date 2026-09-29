@@ -1,0 +1,89 @@
+### User
+~~~md
+<environment_info>
+The user's current OS is: Linux
+</environment_info>
+<workspace_info>
+I am working in a workspace with the following folders:
+- /workspace 
+</workspace_info>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### User
+~~~md
+<conversation-summary>
+summarized 2!
+</conversation-summary>
+
+~~~
+
+
+### Assistant
+~~~md
+next response
+🛠️ insert_edit_into_file (tooluse_4) {
+  "filePath": "/workspace/file.ts",
+  "code": "// existing code...
+console.log('hi')"
+}
+~~~
+
+
+### Tool
+~~~md
+🛠️ tooluse_4
+success
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### User
+~~~md
+<attachments>
+<attachment id="file" filePath="/workspace/file.ts">
+line 1
+line 2
+
+line 4
+line 5
+</attachment>
+
+</attachments>
+<context>
+(Date removed from snapshot)
+</context>
+<reminderInstructions>
+
+</reminderInstructions>
+<userRequest>
+edit this file
+</userRequest>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### Assistant
+~~~md
+hello next round
+🛠️ insert_edit_into_file (tooluse_5) {
+  "filePath": "/workspace/file.ts",
+  "code": "// existing code...
+console.log('hi')"
+}
+~~~
+
+
+### Tool
+~~~md
+🛠️ tooluse_5
+success
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~

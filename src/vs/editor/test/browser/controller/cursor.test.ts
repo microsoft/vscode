@@ -1335,7 +1335,7 @@ suite('Editor Controller - Cursor', () => {
 			getInitialState: () => NullState,
 			tokenize: undefined!,
 			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
-				return new EncodedTokenizationResult(new Uint32Array(0), state);
+				return new EncodedTokenizationResult(new Uint32Array(0), [], state);
 			}
 		};
 
@@ -1533,7 +1533,7 @@ suite('Editor Controller', () => {
 					);
 					startIndex += tokens[i].length;
 				}
-				return new EncodedTokenizationResult(result, state);
+				return new EncodedTokenizationResult(result, [], state);
 
 				function advance(): void {
 					if (state instanceof BaseState) {
@@ -2239,6 +2239,37 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #256039: paste from multiple cursors with empty selections and multiCursorPaste full', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			],
+			editorOpts: {
+				multiCursorPaste: 'full'
+			}
+		}, (editor, model, viewModel) => {
+			// 2 cursors on lines 1 and 2
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+
+			viewModel.paste(
+				'line1\nline2\n',
+				true,
+				['line1\n', 'line2\n']
+			);
+
+			// Each cursor gets its respective line
+			assert.strictEqual(model.getValue(), [
+				'line1',
+				'line1',
+				'line2',
+				'line2',
+				'line3'
+			].join('\n'));
+		});
+	});
+
 	test('issue #3071: Investigate why undo stack gets corrupted', () => {
 		const model = createTextModel(
 			[
@@ -2454,6 +2485,40 @@ suite('Editor Controller', () => {
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 5) });
 			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 5, 1, 8));
+		});
+	});
+
+	test('Double-click on punctuation should select the character, not adjacent space', () => {
+		const model = createTextModel(
+			[
+				'// a b c 1 2 3 ~ ! @ # $ % ^ & * ( ) _ + \\ /'
+			].join('\n')
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			// Test double-click on '@' at position 20
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 20) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 20, 1, 21), 'Should select @ character');
+
+			// Test double-click on '#' at position 22
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 22) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 22, 1, 23), 'Should select # character');
+
+			// Test double-click on '!' at position 18
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 18) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 18, 1, 19), 'Should select ! character');
+
+			// Test double-click on first '/' in '//' at position 1
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 1) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 1, 1, 3), 'Should select // token');
+
+			// Test double-click on second '/' in '//' at position 2
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 2) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 1, 1, 3), 'Should select // token');
+
+			// Test double-click on '\' at position 42
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 42) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 42, 1, 43), 'Should select \\ character');
 		});
 	});
 
@@ -2760,7 +2825,7 @@ suite('Editor Controller', () => {
 			getInitialState: () => NullState,
 			tokenize: undefined!,
 			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
-				return new EncodedTokenizationResult(new Uint32Array(0), state);
+				return new EncodedTokenizationResult(new Uint32Array(0), [], state);
 			}
 		};
 
@@ -3079,6 +3144,23 @@ suite('Editor Controller', () => {
 				assertCursor(viewModel, [
 					new Selection(1, 22, 1, 24),
 				]);
+			}
+		);
+	});
+
+	test('move right normalizes the cursor to the next wrapped line', () => {
+		withTestCodeEditor(
+			'text edit',
+			{
+				wordWrap: 'wordWrapColumn',
+				wordWrapColumn: 5,
+				wrappingIndent: 'none'
+			},
+			(editor, viewModel) => {
+				viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+				moveRight(editor, viewModel);
+
+				assert.deepStrictEqual(viewModel.getCursorStates()[0].viewState.position, new Position(2, 1));
 			}
 		);
 	});
@@ -4514,8 +4596,8 @@ suite('Editor Controller', () => {
 				['(', ')']
 			],
 			indentationRules: {
-				increaseIndentPattern: new RegExp("(^.*\\{[^}]*$)"),
-				decreaseIndentPattern: new RegExp("^\\s*\\}")
+				increaseIndentPattern: new RegExp('(^.*\\{[^}]*$)'),
+				decreaseIndentPattern: new RegExp('^\\s*\\}')
 			}
 		}));
 
@@ -4599,8 +4681,8 @@ suite('Editor Controller', () => {
 				['(', ')']
 			],
 			indentationRules: {
-				increaseIndentPattern: new RegExp("({+(?=([^\"]*\"[^\"]*\")*[^\"}]*$))|(\\[+(?=([^\"]*\"[^\"]*\")*[^\"\\]]*$))"),
-				decreaseIndentPattern: new RegExp("^\\s*[}\\]],?\\s*$")
+				increaseIndentPattern: new RegExp('({+(?=([^"]*"[^"]*")*[^"}]*$))|(\\[+(?=([^"]*"[^"]*")*[^"\\]]*$))'),
+				decreaseIndentPattern: new RegExp('^\\s*[}\\]],?\\s*$')
 			}
 		}));
 
@@ -5414,6 +5496,109 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #6841: Auto closing brackets should balance brackets', () => {
+		const languageId = 'balancedAutoClosingLanguage';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')'],
+			],
+			autoClosingPairs: [
+				{ open: '{', close: '}' },
+				{ open: '[', close: ']' },
+				{ open: '(', close: ')' },
+			],
+		}));
+
+		usingCursor({
+			text: [''],
+			languageId,
+		}, (editor, model, viewModel) => {
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+			const testCases = [
+				{ text: '\n}', selection: new Selection(1, 1, 1, 1), type: '{', expected: '{\n}' },
+				{ text: '', selection: new Selection(1, 1, 1, 1), type: '{', expected: '{}' },
+				{ text: '{}', selection: new Selection(1, 2, 1, 2), type: '{', expected: '{{}}' },
+				{ text: '{\n', selection: new Selection(2, 1, 2, 1), type: '{', expected: '{\n{}' },
+				{ text: '\n]', selection: new Selection(1, 1, 1, 1), type: '{', expected: '{}\n]' },
+				{ text: ')\n', selection: new Selection(2, 1, 2, 1), type: '(', expected: ')\n()' },
+				{ text: 'function foo() {\n\n}', selection: new Selection(2, 1, 2, 1), type: '{', expected: 'function foo() {\n{}\n}' },
+				{ text: 'someFunction);', selection: new Selection(1, 13, 1, 13), type: '(', expected: 'someFunction();' },
+				{ text: 'someFunction;', selection: new Selection(1, 13, 1, 13), type: '(', expected: 'someFunction();' },
+				{ text: 'someFunctionsomeParam);', selection: new Selection(1, 13, 1, 13), type: '(', expected: 'someFunction(someParam);' },
+			];
+			const actual = testCases.map(testCase => {
+				model.setValue(testCase.text);
+				viewModel.setSelections('test', [testCase.selection]);
+				viewModel.type(testCase.type, 'keyboard');
+				return model.getValue();
+			});
+			assert.deepStrictEqual(actual, testCases.map(testCase => testCase.expected));
+		});
+
+		usingCursor({
+			text: [
+				'',
+				'}',
+				'',
+			],
+			languageId,
+		}, (editor, model, viewModel) => {
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+			viewModel.setSelections('test', [
+				new Selection(1, 1, 1, 1),
+				new Selection(3, 1, 3, 1),
+			]);
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{\n}\n{');
+		});
+
+		usingCursor({
+			text: [
+				'',
+				')',
+			],
+			languageId,
+			editorOpts: {
+				autoClosingBrackets: 'always',
+			},
+		}, (editor, model, viewModel) => {
+			viewModel.type('(', 'keyboard');
+			assert.strictEqual(model.getValue(), '()\n)');
+		});
+
+		disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
+			brackets: [['{', '}']],
+		}));
+		setupAutoClosingLanguageTokenization();
+		usingCursor({
+			text: [
+				'',
+				'"}"',
+			],
+			languageId: autoClosingLanguageId,
+		}, (editor, model, viewModel) => {
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{}\n"}"');
+		});
+
+		usingCursor({
+			text: [
+				'',
+				'"}"',
+				'// }',
+			],
+			languageId: autoClosingLanguageId,
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(model.getLineCount());
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{}\n"}"\n// }');
+		});
+	});
+
 	test('issue #25658 - Do not auto-close single/double quotes after word characters', () => {
 		usingCursor({
 			text: [
@@ -5568,6 +5753,41 @@ suite('Editor Controller', () => {
 
 			viewModel.type(')', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=(())');
+		});
+	});
+
+	test('issue #205598 - retains auto-closed actions created by a reentrant decorations listener', () => {
+		usingCursor({
+			text: [''],
+			languageId: autoClosingLanguageId
+		}, (editor, model) => {
+			const results = [];
+			for (let iteration = 0; iteration < 3; iteration++) {
+				editor.executeEdits('test', [{ range: model.getFullModelRange(), text: '' }], [new Selection(1, 1, 1, 1)]);
+				for (let pair = 0; pair <= iteration; pair++) {
+					editor.trigger('keyboard', 'type', { text: '(' });
+				}
+				let armed = true;
+				const listener = disposables.add(model.onDidChangeDecorations(() => {
+					if (armed) {
+						armed = false;
+						editor.trigger('keyboard', 'type', { text: '(' });
+					}
+				}));
+				editor.setPosition(new Position(1, model.getLineMaxColumn(1)));
+				listener.dispose();
+				editor.trigger('keyboard', 'type', { text: ')' });
+				editor.setPosition(new Position(1, 1));
+				results.push({
+					value: model.getValue(),
+					autoClosedDecorations: model.getAllDecorations().filter(d => d.options.description.startsWith('auto-closed-')).length
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{ value: '()()', autoClosedDecorations: 0 },
+				{ value: '(())()', autoClosedDecorations: 0 },
+				{ value: '((()))()', autoClosedDecorations: 0 }
+			]);
 		});
 	});
 

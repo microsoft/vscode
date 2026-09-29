@@ -494,4 +494,143 @@ suite('TokensStore', () => {
 			18, createTMMetadata(1, FontStyle.None, 53)
 		]);
 	});
+
+
+	test('BUG: setPartial with startLineNumber > 1 and token removal creates invalid state', () => {
+		/**
+		 * The bug is the same regardless of the starting line number.
+		 * If a piece starts at line 5 and all tokens are removed via setPartial:
+		 * - startLineNumber stays at 5
+		 * - endLineNumber becomes 5 + (-1) = 4
+		 */
+		const codec = new LanguageIdCodec();
+		const store = new SparseTokensStore(codec);
+
+		// Set initial tokens on line 5
+		store.set([
+			SparseMultilineTokens.create(5, new Uint32Array([
+				0, 5, 10, 1,  // line 5, chars 5-10
+			]))
+		], false);
+
+		assert.strictEqual(store.isEmpty(), false);
+
+		// Remove all tokens via setPartial
+		store.setPartial(new Range(5, 1, 5, 20), []);
+
+		// BUG: During processing, pieces can have invalid line numbers
+		// The store should remove empty pieces and remain valid
+		assert.strictEqual(store.isEmpty(), true,
+			'Store should be empty after setPartial removes all tokens');
+	});
+
+	test('BUG: setPartial with split that creates empty first piece with invalid line numbers', () => {
+		const codec = new LanguageIdCodec();
+		const store = new SparseTokensStore(codec);
+
+		// Set initial tokens - token is on line 11
+		store.set([
+			SparseMultilineTokens.create(1, new Uint32Array([
+				10, 5, 10, 1,  // line 11 (deltaLine=10 from startLineNumber=1), chars 5-10
+			]))
+		], false);
+
+		// setPartial with a range [1,1 -> 5,1] that will cause a split where the first piece is empty
+		store.setPartial(new Range(1, 1, 5, 1), []);
+
+		assert.strictEqual(store.isEmpty(), false, 'Store should still have the token on line 11');
+
+		// The token at line 11 should be retrievable after the split
+		const lineTokens = store.addSparseTokens(11, new LineTokens(new Uint32Array([22, 1]), `    test line text    `, codec));
+		assert.strictEqual(lineTokens.getCount(), 3, 'Should have 3 tokens: base token start + semantic token from line 11 + base token end');
+		assert.strictEqual(lineTokens.getStartOffset(1), 5, 'Semantic token should start at offset 5');
+		assert.strictEqual(lineTokens.getEndOffset(1), 10, 'Semantic token should end at offset 10');
+	});
+
+	test('addSparseTokens skips overlapping semantic tokens that produce backward endOffsets', () => {
+		// This test reproduces a rendering glitch where characters are duplicated in the DOM.
+		// When typing at a semantic token boundary, `acceptInsertText` can expand a token
+		// and create overlapping ranges (e.g., token '+' at (3,5) and token '2' at (4,5)).
+		// The merge in `addSparseTokens` must not produce backward endOffset sequences,
+		// otherwise `LineTokens.withInserted` re-copies characters causing duplication.
+		const codec = new LanguageIdCodec();
+		const store = new SparseTokensStore(codec);
+
+		// Simulate overlapping semantic tokens after an edit:
+		// Original: f=1+2 with tokens at (0,1), (1,2), (2,3), (3,4), (4,5)
+		// After inserting 'a' at offset 4: token (3,4) expands to (3,5), token (4,5) stays
+		// This creates overlap: (3,5) and (4,5)
+		const semanticMeta1 = (1 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.SEMANTIC_USE_FOREGROUND;
+		const semanticMeta2 = (2 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.SEMANTIC_USE_FOREGROUND;
+		store.set([
+			SparseMultilineTokens.create(1, new Uint32Array([
+				// deltaLine, startChar, endChar, metadata
+				0, 0, 1, semanticMeta1,  // 'f' at (0,1)
+				0, 1, 2, semanticMeta2,  // '=' at (1,2)
+				0, 2, 3, semanticMeta1,  // '1' at (2,3)
+				0, 3, 5, semanticMeta2,  // '+a' at (3,5) - expanded after edit
+				0, 4, 5, semanticMeta1,  // overlapping: 'a' at (4,5) - stale position
+			]))
+		], true);
+
+		const tmMeta = (3 << MetadataConsts.FOREGROUND_OFFSET) >>> 0;
+		const lineTokens = store.addSparseTokens(1, new LineTokens(new Uint32Array([
+			6, tmMeta, // entire line "f=1+a2" covered by one TM token
+		]), `f=1+a2`, codec));
+
+		// Verify endOffsets are monotonically increasing (no backward sequences)
+		const endOffsets: number[] = [];
+		for (let i = 0; i < lineTokens.getCount(); i++) {
+			endOffsets.push(lineTokens.getEndOffset(i));
+		}
+		for (let i = 1; i < endOffsets.length; i++) {
+			assert.ok(endOffsets[i] > endOffsets[i - 1],
+				`endOffset[${i}]=${endOffsets[i]} should be > endOffset[${i - 1}]=${endOffsets[i - 1]}`);
+		}
+
+		// When used with injected text, the resulting LineTokens must not duplicate characters.
+		// Simulate injected text "  " at offset 0 (like the repro's `before: { content: "  " }`)
+		const withInjected = lineTokens.withInserted([{ offset: 0, text: '  ', tokenMetadata: LineTokens.defaultTokenMetadata }]);
+		assert.strictEqual(withInjected.getLineContent(), '  f=1+a2',
+			'withInserted must not duplicate characters when semantic tokens overlap');
+	});
+
+	test('piece with startLineNumber 0 and endLineNumber -1 after encompassing deletion', () => {
+		const codec = new LanguageIdCodec();
+		const store = new SparseTokensStore(codec);
+
+		// Set initial tokens on lines 5-10
+		const piece = SparseMultilineTokens.create(5, new Uint32Array([
+			0, 0, 5, 1,  // line 5, chars 0-5
+			5, 0, 5, 2,  // line 10, chars 0-5
+		]));
+
+		store.set([piece], false);
+
+		// Verify initial state
+		assert.strictEqual(piece.startLineNumber, 5);
+		assert.strictEqual(piece.endLineNumber, 10);
+		assert.strictEqual(piece.isEmpty(), false);
+
+		// Perform an edit that completely encompasses the token range
+		// Delete from line 1 to line 20 (encompasses lines 5-10)
+		// This triggers the case in _acceptDeleteRange where:
+		// if (firstLineIndex < 0 && lastLineIndex >= tokenMaxDeltaLine + 1)
+		// Which sets this._startLineNumber = 0 and calls this._tokens.clear()
+		store.acceptEdit(
+			{ startLineNumber: 1, startColumn: 1, endLineNumber: 20, endColumn: 1 },
+			0, // eolCount - no new lines inserted
+			0, // firstLineLength
+			0, // lastLineLength
+			0  // firstCharCode
+		);
+
+		// After an encompassing deletion, the piece should be empty
+		assert.strictEqual(piece.isEmpty(), true, 'Piece should be empty after encompassing deletion');
+
+		// EXPECTED BEHAVIOR: The store should be empty (no pieces with invalid line numbers)
+		// Currently fails because the piece remains with startLineNumber=0, endLineNumber=-1
+		assert.strictEqual(store.isEmpty(), true, 'Store should be empty after all tokens are deleted by encompassing edit');
+	});
 });
+

@@ -7,9 +7,9 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from '../../../services/remote/common/remoteAgentService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { localize } from '../../../../nls.js';
-import { isWeb } from '../../../../base/common/platform.js';
+import { isWeb, OperatingSystem } from '../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
+import { getRemoteName, getRemoteServerRootPath } from '../../../../platform/remote/common/remoteHosts.js';
 import { IBannerService } from '../../../services/banner/browser/bannerService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -18,10 +18,12 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import Severity from '../../../../base/common/severity.js';
+import { ILinkDescriptor } from '../../../../platform/opener/browser/link.js';
 
 
 const REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY = 'remote.unsupportedConnectionChoice';
 const BANNER_REMOTE_UNSUPPORTED_CONNECTION_DISMISSED_KEY = 'workbench.banner.remote.unsupportedConnection.dismissed';
+const BANNER_REMOTE_ARM32_DEPRECATION_DISMISSED_KEY = 'workbench.banner.remote.arm32Deprecation.dismissed';
 
 export class InitialRemoteConnectionHealthContribution implements IWorkbenchContribution {
 
@@ -84,6 +86,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 	private async _checkInitialRemoteConnectionHealth(): Promise<void> {
 		try {
 			const environment = await this._remoteAgentService.getRawEnvironment();
+			const isArm32Server = environment?.os === OperatingSystem.Linux && environment.arch === 'arm';
 
 			if (environment && environment.isUnsupportedGlibc) {
 				let allowed = this.storageService.getBoolean(`${REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY}.${this._environmentService.remoteAuthority}`, StorageScope.PROFILE);
@@ -91,31 +94,35 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 					allowed = await this._confirmConnection();
 				}
 				if (allowed) {
-					const bannerDismissedVersion = this.storageService.get(`${BANNER_REMOTE_UNSUPPORTED_CONNECTION_DISMISSED_KEY}`, StorageScope.PROFILE) ?? '';
-					// Ignore patch versions and dismiss the banner if the major and minor versions match.
-					const shouldShowBanner = bannerDismissedVersion.slice(0, bannerDismissedVersion.lastIndexOf('.')) !== this.productService.version.slice(0, this.productService.version.lastIndexOf('.'));
-					if (shouldShowBanner) {
-						const actions = [
+					this._showVersionedBanner(
+						'unsupportedGlibcWarning.banner',
+						BANNER_REMOTE_UNSUPPORTED_CONNECTION_DISMISSED_KEY,
+						localize('unsupportedGlibcWarning.banner', "You are connected to an OS version that is unsupported by {0}.", this.productService.nameLong),
+						[
 							{
 								label: localize('unsupportedGlibcBannerLearnMore', "Learn More"),
 								href: 'https://aka.ms/vscode-remote/faq/old-linux'
 							}
-						];
-						this.bannerService.show({
-							id: 'unsupportedGlibcWarning.banner',
-							message: localize('unsupportedGlibcWarning.banner', "You are connected to an OS version that is unsupported by {0}.", this.productService.nameLong),
-							actions,
-							icon: Codicon.warning,
-							closeLabel: `Do not show again in v${this.productService.version}`,
-							onClose: () => {
-								this.storageService.store(`${BANNER_REMOTE_UNSUPPORTED_CONNECTION_DISMISSED_KEY}`, this.productService.version, StorageScope.PROFILE, StorageTarget.MACHINE);
-							}
-						});
-					}
+						]
+					);
 				} else {
 					this.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: null });
 					return;
 				}
+			}
+
+			if (isArm32Server) {
+				this._showVersionedBanner(
+					'arm32ServerDeprecation.banner',
+					BANNER_REMOTE_ARM32_DEPRECATION_DISMISSED_KEY,
+					localize('arm32ServerDeprecation.banner', "Support for 32-bit ARM remote servers is deprecated and will be removed in a future release of {0}.", this.productService.nameLong),
+					[
+						{
+							label: localize('arm32ServerDeprecationBannerLearnMore', "Learn More"),
+							href: 'https://aka.ms/vscode-remote-linux-arm-32-eol'
+						}
+					]
+				);
 			}
 
 			type RemoteConnectionSuccessClassification = {
@@ -124,16 +131,19 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Is web ui.' };
 				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connected' };
 				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+				tunnelName?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the tunnel for tunnel connections.' };
 			};
 			type RemoteConnectionSuccessEvent = {
 				web: boolean;
 				connectionTimeMs: number | undefined;
 				remoteName: string | undefined;
+				tunnelName?: string;
 			};
 			this._telemetryService.publicLog2<RemoteConnectionSuccessEvent, RemoteConnectionSuccessClassification>('remoteConnectionSuccess', {
 				web: isWeb,
 				connectionTimeMs: await this._remoteAgentService.getConnection()?.getInitialConnectionTimeMs(),
-				remoteName: getRemoteName(this._environmentService.remoteAuthority)
+				remoteName: getRemoteName(this._environmentService.remoteAuthority),
+				tunnelName: getRemoteServerRootPath(this._environmentService.remoteAuthority)
 			});
 
 			await this._measureExtHostLatency();
@@ -162,6 +172,26 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 			});
 
 		}
+	}
+
+	private _showVersionedBanner(id: string, storageKey: string, message: string, actions?: ReadonlyArray<ILinkDescriptor>): void {
+		const bannerDismissedVersion = this.storageService.get(storageKey, StorageScope.PROFILE) ?? '';
+		// Ignore patch versions and dismiss the banner if the major and minor versions match.
+		const shouldShowBanner = bannerDismissedVersion.slice(0, bannerDismissedVersion.lastIndexOf('.')) !== this.productService.version.slice(0, this.productService.version.lastIndexOf('.'));
+		if (!shouldShowBanner) {
+			return;
+		}
+
+		this.bannerService.show({
+			id,
+			message,
+			actions,
+			icon: Codicon.warning,
+			closeLabel: localize('remoteBannerDoNotShowAgainThisVersion', "Do not show again in v{0}", this.productService.version),
+			onClose: () => {
+				this.storageService.store(storageKey, this.productService.version, StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+		});
 	}
 
 	private async _measureExtHostLatency() {

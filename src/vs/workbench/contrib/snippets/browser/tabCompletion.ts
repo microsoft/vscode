@@ -93,7 +93,7 @@ export class TabCompletionController implements IEditorContribution {
 		const model = this._editor.getModel();
 		model.tokenization.tokenizeIfCheap(selection.positionLineNumber);
 		const id = model.getLanguageIdAtPosition(selection.positionLineNumber, selection.positionColumn);
-		const snippets = this._snippetService.getSnippetsSync(id);
+		const snippets = this._snippetService.getSnippetsSync(id, model.uri);
 
 		if (!snippets) {
 			// nothing for this language

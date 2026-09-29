@@ -21,7 +21,6 @@ export interface IResolvedEditorCommandsContext {
 }
 
 export function resolveCommandsContext(commandArgs: unknown[], editorService: IEditorService, editorGroupsService: IEditorGroupsService, listService: IListService): IResolvedEditorCommandsContext {
-
 	const commandContext = getCommandsContext(commandArgs, editorService, editorGroupsService, listService);
 	const preserveFocus = commandContext.length ? commandContext[0].preserveFocus || false : false;
 	const resolvedContext: IResolvedEditorCommandsContext = { groupedEditors: [], preserveFocus };
@@ -59,6 +58,7 @@ export function resolveCommandsContext(commandArgs: unknown[], editorService: IE
 }
 
 function getCommandsContext(commandArgs: unknown[], editorService: IEditorService, editorGroupsService: IEditorGroupsService, listService: IListService): IEditorCommandsContext[] {
+
 	// Figure out if command is executed from a list
 	const list = listService.lastFocusedList;
 	let isListAction = list instanceof List && list.getHTMLElement() === getActiveElement();
@@ -66,9 +66,10 @@ function getCommandsContext(commandArgs: unknown[], editorService: IEditorServic
 	// Get editor context for which the command was triggered
 	let editorContext = getEditorContextFromCommandArgs(commandArgs, isListAction, editorService, editorGroupsService, listService);
 
-	// If the editor context can not be determind use the active editor
+	// If the editor context can not be determined use the active editor
 	if (!editorContext) {
-		const activeGroup = editorGroupsService.activeGroup;
+		const modalEditorPart = editorGroupsService.activeModalEditorPart;
+		const activeGroup = modalEditorPart?.activeGroup ?? editorGroupsService.activeGroup;
 		const activeEditor = activeGroup.activeEditor;
 		editorContext = { groupId: activeGroup.id, editorIndex: activeEditor ? activeGroup.getIndexOfEditor(activeEditor) : undefined };
 		isListAction = false;
@@ -103,6 +104,7 @@ function moveCurrentEditorContextToFront(editorContext: IEditorCommandsContext, 
 }
 
 function getEditorContextFromCommandArgs(commandArgs: unknown[], isListAction: boolean, editorService: IEditorService, editorGroupsService: IEditorGroupsService, listService: IListService): IEditorCommandsContext | undefined {
+
 	// We only know how to extraxt the command context from URI and IEditorCommandsContext arguments
 	const filteredArgs = commandArgs.filter(arg => isEditorCommandsContext(arg) || URI.isUri(arg));
 
@@ -177,7 +179,6 @@ function groupOrEditorToEditorContext(element: IEditorIdentifier | IEditorGroup,
 	}
 
 	const group = editorGroupsService.getGroup(element.groupId);
-
 	return { groupId: element.groupId, editorIndex: group ? group.getIndexOfEditor(element.editor) : -1, preserveFocus };
 }
 

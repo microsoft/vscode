@@ -25,6 +25,10 @@
 		word-break: break-all;
 	}
 
+	.config-value .env-entry {
+		display: block;
+	}
+
 	.no-config {
 		color: var(--vscode-descriptionForeground);
 		font-style: italic;

@@ -12,7 +12,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IRange } from '../../../editor/common/core/range.js';
 import * as languages from '../../../editor/common/languages.js';
-import { ExtensionIdentifierMap, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
 import * as extHostTypeConverter from './extHostTypeConverters.js';
 import * as types from './extHostTypes.js';
@@ -37,9 +37,6 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 
 		private _commentControllers: Map<ProviderHandle, ExtHostCommentController> = new Map<ProviderHandle, ExtHostCommentController>();
-
-		private _commentControllersByExtension: ExtensionIdentifierMap<ExtHostCommentController[]> = new ExtensionIdentifierMap<ExtHostCommentController[]>();
-
 
 		constructor(
 		) {
@@ -150,12 +147,10 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		createCommentController(extension: IExtensionDescription, id: string, label: string): vscode.CommentController {
 			const handle = ExtHostCommentsImpl.handlePool++;
-			const commentController = new ExtHostCommentController(extension, handle, id, label);
+			const commentController = new ExtHostCommentController(extension, handle, id, label, () => {
+				this._commentControllers.delete(handle);
+			});
 			this._commentControllers.set(commentController.handle, commentController);
-
-			const commentControllers = this._commentControllersByExtension.get(extension.identifier) || [];
-			commentControllers.push(commentController);
-			this._commentControllersByExtension.set(extension.identifier, commentControllers);
 
 			return commentController.value;
 		}
@@ -419,6 +414,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			private _comments: vscode.Comment[],
 			public readonly extensionDescription: IExtensionDescription,
 			private _isTemplate: boolean,
+			onDidDispose: () => void,
 			editorId?: string
 		) {
 			this._acceptInputDisposables.value = new DisposableStore();
@@ -439,7 +435,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				editorId
 			);
 
-			this._localDisposables = [];
+			this._localDisposables = [new types.Disposable(onDidDispose)];
 			this._isDiposed = false;
 
 			this._localDisposables.push(this.onDidUpdateCommentThread(() => {
@@ -583,8 +579,12 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		dispose() {
+			if (this._isDiposed) {
+				return;
+			}
 			this._isDiposed = true;
 			this._acceptInputDisposables.dispose();
+			this._onDidUpdateCommentThread.dispose();
 			this._localDisposables.forEach(disposable => disposable.dispose());
 		}
 	}
@@ -664,7 +664,8 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			private _extension: IExtensionDescription,
 			private _handle: number,
 			private _id: string,
-			private _label: string
+			private _label: string,
+			onDidDispose: () => void
 		) {
 			proxy.$registerCommentController(this.handle, _id, _label, this._extension.identifier.value);
 
@@ -692,10 +693,13 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 					proxy.$unregisterCommentController(this.handle);
 				}
 			});
+			this._localDisposables.push({ dispose: onDidDispose });
 		}
 
 		createCommentThread(resource: vscode.Uri, range: vscode.Range | undefined, comments: vscode.Comment[]): ExtHostCommentThread {
-			const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, resource, range, comments, this._extension, false);
+			const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, resource, range, comments, this._extension, false, () => {
+				this._threads.delete(commentThread.handle);
+			});
 			this._threads.set(commentThread.handle, commentThread);
 			return commentThread;
 		}
@@ -714,7 +718,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		$createCommentThreadTemplate(uriComponents: UriComponents, range: IRange | undefined, editorId?: string): ExtHostCommentThread {
-			const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, URI.revive(uriComponents), extHostTypeConverter.Range.to(range), [], this._extension, true, editorId);
+			const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, URI.revive(uriComponents), extHostTypeConverter.Range.to(range), [], this._extension, true, () => {
+				this._threads.delete(commentThread.handle);
+			}, editorId);
 			commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 			this._threads.set(commentThread.handle, commentThread);
 			return commentThread;

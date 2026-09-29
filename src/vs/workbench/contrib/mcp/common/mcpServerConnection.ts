@@ -5,22 +5,27 @@
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { IMcpClientMethods, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
+import { McpTaskManager } from './mcpTaskManager.js';
+import { IMcpClientMethods, IMcpPotentialSandboxBlock, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 export class McpServerConnection extends Disposable implements IMcpServerConnection {
 	private readonly _launch = this._register(new MutableDisposable<IReference<IMcpMessageTransport>>());
 	private readonly _state = observableValue<McpConnectionState>('mcpServerState', { state: McpConnectionState.Kind.Stopped });
+	private readonly _stopRequested = observableValue(this, false);
 	private readonly _requestHandler = observableValue<McpServerRequestHandler | undefined>('mcpServerRequestHandler', undefined);
+	private readonly _onPotentialSandboxBlock = this._register(new Emitter<IMcpPotentialSandboxBlock>());
 
 	public readonly state: IObservable<McpConnectionState> = this._state;
 	public readonly handler: IObservable<McpServerRequestHandler | undefined> = this._requestHandler;
+	public readonly onPotentialSandboxBlock = this._onPotentialSandboxBlock.event;
 
 	constructor(
 		private readonly _collection: McpCollectionDefinition,
@@ -29,6 +34,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		public readonly launchDefinition: McpServerLaunch,
 		private readonly _logger: ILogger,
 		private readonly _errorOnUserInteraction: boolean | undefined,
+		private readonly _taskManager: McpTaskManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -36,13 +42,19 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 
 	/** @inheritdoc */
 	public async start(methods: IMcpClientMethods): Promise<McpConnectionState> {
+		if (this._store.isDisposed) {
+			return this._state.get();
+		}
 		const currentState = this._state.get();
 		if (!McpConnectionState.canBeStarted(currentState.state)) {
 			return this._waitForState(McpConnectionState.Kind.Running, McpConnectionState.Kind.Error);
 		}
 
 		this._launch.value = undefined;
-		this._state.set({ state: McpConnectionState.Kind.Starting }, undefined);
+		transaction(tx => {
+			this._stopRequested.set(false, tx);
+			this._state.set({ state: McpConnectionState.Kind.Starting }, tx);
+		});
 		this._logger.info(localize('mcpServer.starting', 'Starting server {0}', this.definition.label));
 
 		try {
@@ -67,6 +79,10 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		store.add(launch);
 		store.add(launch.onDidLog(({ level, message }) => {
 			log(this._logger, level, message);
+			const potentialBlock = this._toPotentialSandboxBlock(message);
+			if (potentialBlock) {
+				this._onPotentialSandboxBlock.fire(potentialBlock);
+			}
 		}));
 
 		let didStart = false;
@@ -78,10 +94,11 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 			if (state.state === McpConnectionState.Kind.Running && !didStart) {
 				didStart = true;
 				McpServerRequestHandler.create(this._instantiationService, {
+					...methods,
 					launch,
 					logger: this._logger,
 					requestLogLevel: this.definition.devMode ? LogLevel.Info : LogLevel.Debug,
-					...methods,
+					taskManager: this._taskManager,
 				}, cts.token).then(
 					handler => {
 						if (!store.isDisposed) {
@@ -111,31 +128,81 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 	}
 
 	public async stop(): Promise<void> {
+		this._stopRequested.set(true, undefined);
 		this._logger.info(localize('mcpServer.stopping', 'Stopping server {0}', this.definition.label));
 		this._launch.value?.object.stop();
 		await this._waitForState(McpConnectionState.Kind.Stopped, McpConnectionState.Kind.Error);
 	}
 
 	public override dispose(): void {
-		this._requestHandler.get()?.dispose();
-		super.dispose();
-		this._state.set({ state: McpConnectionState.Kind.Stopped }, undefined);
+		transaction(tx => {
+			this._stopRequested.set(true, tx);
+			this._requestHandler.get()?.dispose();
+			super.dispose();
+			this._state.set({ state: McpConnectionState.Kind.Stopped }, tx);
+		});
 	}
 
 	private _waitForState(...kinds: McpConnectionState.Kind[]): Promise<McpConnectionState> {
 		const current = this._state.get();
-		if (kinds.includes(current.state)) {
+		if (kinds.includes(current.state) || (current.state === McpConnectionState.Kind.Stopped && this._stopRequested.get())) {
 			return Promise.resolve(current);
 		}
 
 		return new Promise(resolve => {
 			const disposable = autorun(reader => {
 				const state = this._state.read(reader);
-				if (kinds.includes(state.state)) {
+				// A transport may still expose its previous Stopped state while a restart begins.
+				const stopped = this._stopRequested.read(reader) && state.state === McpConnectionState.Kind.Stopped;
+				if (kinds.includes(state.state) || stopped) {
 					disposable.dispose();
 					resolve(state);
 				}
 			});
 		});
+	}
+
+	private _toPotentialSandboxBlock(message: string): IMcpPotentialSandboxBlock | undefined {
+		if (!this.definition.sandboxEnabled) {
+			return undefined;
+		}
+
+		if (/No matching config rule, denying:/i.test(message)) {
+			return {
+				kind: 'network',
+				message,
+				host: this._extractSandboxHost(message),
+			};
+		}
+
+		if (/(?:\b(?:EACCES|EPERM|ENOENT|EROFS|fail(?:ed|ure)?)\b|not accessible|read[- ]only)/i.test(message)) {
+			return {
+				kind: 'filesystem',
+				message,
+				path: this._extractSandboxPath(message),
+			};
+		}
+
+		return undefined;
+	}
+
+	private _extractSandboxPath(line: string): string | undefined {
+		const bracketedPath = line.match(/\[(\/[^\]\r\n]+)\]/);
+		if (bracketedPath?.[1]) {
+			return bracketedPath[1].trim();
+		}
+
+		const quotedPath = line.match(/["'`](\/[^"'`]+)["'`]/);
+		if (quotedPath?.[1]) {
+			return quotedPath[1];
+		}
+
+		const trailingPath = line.match(/(\/[\w.\-~/ ]+)$/);
+		return trailingPath?.[1]?.trim();
+	}
+
+	private _extractSandboxHost(value: string): string | undefined {
+		const match = value.match(/No matching config rule, denying:\s+(?<host>[^:\s]+):\d+\.?$/i);
+		return match?.groups?.host;
 	}
 }

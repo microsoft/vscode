@@ -31,8 +31,7 @@ import { NotificationsToasts } from './parts/notifications/notificationsToasts.j
 import { setARIAContainer } from '../../base/browser/ui/aria/aria.js';
 import { FontMeasurements } from '../../editor/browser/config/fontMeasurements.js';
 import { createBareFontInfoFromRawSettings } from '../../editor/common/config/fontInfoFromSettings.js';
-import { ILogService } from '../../platform/log/common/log.js';
-import { toErrorMessage } from '../../base/common/errorMessage.js';
+import { createUnexpectedErrorHandler, ILogService } from '../../platform/log/common/log.js';
 import { WorkbenchContextKeysHandler } from './contextkeys.js';
 import { coalesce } from '../../base/common/arrays.js';
 import { InstantiationService } from '../../platform/instantiation/common/instantiationService.js';
@@ -45,9 +44,11 @@ import { IHoverService, WorkbenchHoverDelegate } from '../../platform/hover/brow
 import { setHoverDelegateFactory } from '../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { setBaseLayerHoverDelegate } from '../../base/browser/ui/hover/hoverDelegate2.js';
 import { AccessibilityProgressSignalScheduler } from '../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler.js';
-import { setProgressAcccessibilitySignalScheduler } from '../../base/browser/ui/progressbar/progressAccessibilitySignal.js';
+import { setProgressAccessibilitySignalScheduler } from '../../base/browser/ui/progressbar/progressAccessibilitySignal.js';
 import { AccessibleViewRegistry } from '../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { NotificationAccessibleView } from './parts/notifications/notificationAccessibleView.js';
+import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
+import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 
 export interface IWorkbenchOptions {
 
@@ -86,6 +87,11 @@ export class Workbench extends Layout {
 
 	private registerErrorHandler(logService: ILogService): void {
 
+		// Increase stack trace limit for better errors stacks
+		if (!isFirefox) {
+			Error.stackTraceLimit = 100;
+		}
+
 		// Listen on unhandled rejection events
 		// Note: intentionally not registered as disposable to handle
 		//       errors that can occur during shutdown phase.
@@ -99,26 +105,7 @@ export class Workbench extends Layout {
 		});
 
 		// Install handler for unexpected errors
-		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
-	}
-
-	private previousUnexpectedError: { message: string | undefined; time: number } = { message: undefined, time: 0 };
-	private handleUnexpectedError(error: unknown, logService: ILogService): void {
-		const message = toErrorMessage(error, true);
-		if (!message) {
-			return;
-		}
-
-		const now = Date.now();
-		if (message === this.previousUnexpectedError.message && now - this.previousUnexpectedError.time <= 1000) {
-			return; // Return if error message identical to previous and shorter than 1 second
-		}
-
-		this.previousUnexpectedError.time = now;
-		this.previousUnexpectedError.message = message;
-
-		// Log it
-		logService.error(message);
+		setUnexpectedErrorHandler(createUnexpectedErrorHandler(logService));
 	}
 
 	startup(): IInstantiationService {
@@ -138,6 +125,10 @@ export class Workbench extends Layout {
 				const hoverService = accessor.get(IHoverService);
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
+				const markdownRendererService = accessor.get(IMarkdownRendererService);
+
+				// Set code block renderer for markdown rendering
+				markdownRendererService.setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 				// Default Hover Delegate must be registered before creating any workbench/layout components
 				// as these possibly will use the default hover delegate
@@ -310,7 +301,7 @@ export class Workbench extends Layout {
 
 		// ARIA & Signals
 		setARIAContainer(this.mainContainer);
-		setProgressAcccessibilitySignalScheduler((msDelayTime: number, msLoopTime?: number) => instantiationService.createInstance(AccessibilityProgressSignalScheduler, msDelayTime, msLoopTime));
+		setProgressAccessibilitySignalScheduler((msDelayTime: number, msLoopTime?: number) => instantiationService.createInstance(AccessibilityProgressSignalScheduler, msDelayTime, msLoopTime));
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';

@@ -65,9 +65,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	}
 
 	private _onDidOpenNotebookDocument = new Emitter<vscode.NotebookDocument>();
-	onDidOpenNotebookDocument: Event<vscode.NotebookDocument> = this._onDidOpenNotebookDocument.event;
+	readonly onDidOpenNotebookDocument: Event<vscode.NotebookDocument> = this._onDidOpenNotebookDocument.event;
 	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>();
-	onDidCloseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
+	readonly onDidCloseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
 
 	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>();
 	onDidChangeVisibleNotebookEditors = this._onDidChangeVisibleNotebookEditors.event;
@@ -269,6 +269,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	}
 
 	$releaseNotebookCellStatusBarItems(cacheId: number): void {
+		this._statusBarCache.get(cacheId, 0)?.dispose();
 		this._statusBarCache.delete(cacheId);
 	}
 
@@ -291,6 +292,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			ExtHostNotebookController._convertNotebookRegistrationData(extension, registration)
 		);
 		return toDisposable(() => {
+			this._notebookSerializer.delete(handle);
 			this._notebookProxy.$unregisterNotebookSerializer(handle);
 		});
 	}
@@ -385,8 +387,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				size: stat.size,
 				readonly: Boolean((stat.permissions ?? 0) & files.FilePermission.Readonly) || !this._extHostFileSystem.value.isWritableFileSystem(uri.scheme),
 				locked: Boolean((stat.permissions ?? 0) & files.FilePermission.Locked),
-				etag: files.etag({ mtime: stat.mtime, size: stat.size }),
-				children: undefined
+				executable: Boolean((stat.permissions ?? 0) & files.FilePermission.Executable),
+				etag: files.etag({ mtime: stat.mtime, size: stat.size })
 			};
 
 			this.trace(`exit saveNotebook(versionId: ${versionId}, ${uri.toString()})`);
@@ -459,7 +461,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 							finalMatchedTargets.add(uri);
 						});
 					}).catch(err => {
-						// temporary fix for https://github.com/microsoft/vscode/issues/205044: don't show notebook results for remotehub repos.
+						// don't show notebook results for remotehub repos.
 						if (err.code === 'ENOENT') {
 							console.warn(`Could not find notebook search results, ignoring notebook results.`);
 							return {

@@ -5,35 +5,33 @@
 
 import * as vscode from 'vscode';
 import { TsServerLogLevel } from '../configuration/configuration';
+import { UnifiedConfigValue, unifiedConfigSection } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 
 
 export class LogLevelMonitor extends Disposable {
 
-	private static readonly logLevelConfigKey = 'typescript.tsserver.log';
 	private static readonly logLevelChangedStorageKey = 'typescript.tsserver.logLevelChanged';
 	private static readonly doNotPromptLogLevelStorageKey = 'typescript.tsserver.doNotPromptLogLevel';
+
+	private readonly _logLevel: UnifiedConfigValue<string>;
 
 	constructor(private readonly context: vscode.ExtensionContext) {
 		super();
 
-		this._register(vscode.workspace.onDidChangeConfiguration(this.onConfigurationChange, this, this._disposables));
+		this._logLevel = this._register(new UnifiedConfigValue<string>('tsserver.log', 'off', { fallbackSection: 'typescript' }));
+
+		this._register(this._logLevel.onDidChange(() => {
+			this.context.globalState.update(LogLevelMonitor.logLevelChangedStorageKey, new Date());
+		}));
 
 		if (this.shouldNotifyExtendedLogging()) {
 			this.notifyExtendedLogging();
 		}
 	}
 
-	private onConfigurationChange(event: vscode.ConfigurationChangeEvent) {
-		const logLevelChanged = event.affectsConfiguration(LogLevelMonitor.logLevelConfigKey);
-		if (!logLevelChanged) {
-			return;
-		}
-		this.context.globalState.update(LogLevelMonitor.logLevelChangedStorageKey, new Date());
-	}
-
 	private get logLevel(): TsServerLogLevel {
-		return TsServerLogLevel.fromString(vscode.workspace.getConfiguration().get<string>(LogLevelMonitor.logLevelConfigKey, 'off'));
+		return TsServerLogLevel.fromString(this._logLevel.getValue());
 	}
 
 	/**
@@ -90,7 +88,7 @@ export class LogLevelMonitor extends Disposable {
 					return;
 				}
 				if (selection.choice === Choice.DisableLogging) {
-					return vscode.workspace.getConfiguration().update(LogLevelMonitor.logLevelConfigKey, 'off', true);
+					return vscode.workspace.getConfiguration().update(`${unifiedConfigSection}.tsserver.log`, 'off', true);
 				} else if (selection.choice === Choice.DoNotShowAgain) {
 					return this.context.globalState.update(LogLevelMonitor.doNotPromptLogLevelStorageKey, true);
 				}

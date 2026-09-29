@@ -5,7 +5,7 @@
 
 import { deepStrictEqual, strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapability, type ICommandDetectionCapability, type ICwdDetectionCapability, type INaiveCwdDetectionCapability, type ITerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore, TerminalCapabilityStoreMultiplexer } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 
 suite('TerminalCapabilityStore', () => {
@@ -25,33 +25,28 @@ suite('TerminalCapabilityStore', () => {
 
 	test('should fire events when capabilities are added', () => {
 		assertEvents(addEvents, []);
-		// eslint-disable-next-line local/code-no-any-casts
-		capabilityStore.add(TerminalCapability.CwdDetection, {} as any);
+		capabilityStore.add(TerminalCapability.CwdDetection, {} as unknown as ICwdDetectionCapability);
 		assertEvents(addEvents, [TerminalCapability.CwdDetection]);
 	});
 	test('should fire events when capabilities are removed', async () => {
 		assertEvents(removeEvents, []);
-		// eslint-disable-next-line local/code-no-any-casts
-		capabilityStore.add(TerminalCapability.CwdDetection, {} as any);
+		capabilityStore.add(TerminalCapability.CwdDetection, {} as unknown as ICwdDetectionCapability);
 		assertEvents(removeEvents, []);
 		capabilityStore.remove(TerminalCapability.CwdDetection);
 		assertEvents(removeEvents, [TerminalCapability.CwdDetection]);
 	});
 	test('has should return whether a capability is present', () => {
 		deepStrictEqual(capabilityStore.has(TerminalCapability.CwdDetection), false);
-		// eslint-disable-next-line local/code-no-any-casts
-		capabilityStore.add(TerminalCapability.CwdDetection, {} as any);
+		capabilityStore.add(TerminalCapability.CwdDetection, {} as unknown as ICwdDetectionCapability);
 		deepStrictEqual(capabilityStore.has(TerminalCapability.CwdDetection), true);
 		capabilityStore.remove(TerminalCapability.CwdDetection);
 		deepStrictEqual(capabilityStore.has(TerminalCapability.CwdDetection), false);
 	});
 	test('items should reflect current state', () => {
 		deepStrictEqual(Array.from(capabilityStore.items), []);
-		// eslint-disable-next-line local/code-no-any-casts
-		capabilityStore.add(TerminalCapability.CwdDetection, {} as any);
+		capabilityStore.add(TerminalCapability.CwdDetection, {} as unknown as ICwdDetectionCapability);
 		deepStrictEqual(Array.from(capabilityStore.items), [TerminalCapability.CwdDetection]);
-		// eslint-disable-next-line local/code-no-any-casts
-		capabilityStore.add(TerminalCapability.NaiveCwdDetection, {} as any);
+		capabilityStore.add(TerminalCapability.NaiveCwdDetection, {} as unknown as INaiveCwdDetectionCapability);
 		deepStrictEqual(Array.from(capabilityStore.items), [TerminalCapability.CwdDetection, TerminalCapability.NaiveCwdDetection]);
 		capabilityStore.remove(TerminalCapability.CwdDetection);
 		deepStrictEqual(Array.from(capabilityStore.items), [TerminalCapability.NaiveCwdDetection]);
@@ -91,21 +86,17 @@ suite('TerminalCapabilityStoreMultiplexer', () => {
 		assertEvents(addEvents, []);
 		multiplexer.add(store1);
 		multiplexer.add(store2);
-		// eslint-disable-next-line local/code-no-any-casts
-		store1.add(TerminalCapability.CwdDetection, {} as any);
+		store1.add(TerminalCapability.CwdDetection, {} as unknown as ICwdDetectionCapability);
 		assertEvents(addEvents, [TerminalCapability.CwdDetection]);
-		// eslint-disable-next-line local/code-no-any-casts
-		store2.add(TerminalCapability.NaiveCwdDetection, {} as any);
+		store2.add(TerminalCapability.NaiveCwdDetection, {} as unknown as INaiveCwdDetectionCapability);
 		assertEvents(addEvents, [TerminalCapability.NaiveCwdDetection]);
 	});
 	test('should fire events when capabilities are disabled', async () => {
 		assertEvents(removeEvents, []);
 		multiplexer.add(store1);
 		multiplexer.add(store2);
-		// eslint-disable-next-line local/code-no-any-casts
-		store1.add(TerminalCapability.CwdDetection, {} as any);
-		// eslint-disable-next-line local/code-no-any-casts
-		store2.add(TerminalCapability.NaiveCwdDetection, {} as any);
+		store1.add(TerminalCapability.CwdDetection, {} as unknown as ICwdDetectionCapability);
+		store2.add(TerminalCapability.NaiveCwdDetection, {} as unknown as INaiveCwdDetectionCapability);
 		assertEvents(removeEvents, []);
 		store1.remove(TerminalCapability.CwdDetection);
 		assertEvents(removeEvents, [TerminalCapability.CwdDetection]);
@@ -114,11 +105,9 @@ suite('TerminalCapabilityStoreMultiplexer', () => {
 	});
 	test('should fire events when stores are added', async () => {
 		assertEvents(addEvents, []);
-		// eslint-disable-next-line local/code-no-any-casts
-		store1.add(TerminalCapability.CwdDetection, {} as any);
+		store1.add(TerminalCapability.CwdDetection, {} as unknown as ICwdDetectionCapability);
 		assertEvents(addEvents, []);
-		// eslint-disable-next-line local/code-no-any-casts
-		store2.add(TerminalCapability.NaiveCwdDetection, {} as any);
+		store2.add(TerminalCapability.NaiveCwdDetection, {} as unknown as INaiveCwdDetectionCapability);
 		multiplexer.add(store1);
 		multiplexer.add(store2);
 		assertEvents(addEvents, [TerminalCapability.CwdDetection, TerminalCapability.NaiveCwdDetection]);
@@ -127,13 +116,10 @@ suite('TerminalCapabilityStoreMultiplexer', () => {
 		deepStrictEqual(Array.from(multiplexer.items).sort(), [].sort());
 		multiplexer.add(store1);
 		multiplexer.add(store2);
-		// eslint-disable-next-line local/code-no-any-casts
-		store1.add(TerminalCapability.CwdDetection, {} as any);
+		store1.add(TerminalCapability.CwdDetection, {} as unknown as ICwdDetectionCapability);
 		deepStrictEqual(Array.from(multiplexer.items).sort(), [TerminalCapability.CwdDetection].sort());
-		// eslint-disable-next-line local/code-no-any-casts
-		store1.add(TerminalCapability.CommandDetection, {} as any);
-		// eslint-disable-next-line local/code-no-any-casts
-		store2.add(TerminalCapability.NaiveCwdDetection, {} as any);
+		store1.add(TerminalCapability.CommandDetection, {} as unknown as ICommandDetectionCapability);
+		store2.add(TerminalCapability.NaiveCwdDetection, {} as unknown as INaiveCwdDetectionCapability);
 		deepStrictEqual(Array.from(multiplexer.items).sort(), [TerminalCapability.CwdDetection, TerminalCapability.CommandDetection, TerminalCapability.NaiveCwdDetection].sort());
 		store2.remove(TerminalCapability.NaiveCwdDetection);
 		deepStrictEqual(Array.from(multiplexer.items).sort(), [TerminalCapability.CwdDetection, TerminalCapability.CommandDetection].sort());
@@ -141,8 +127,7 @@ suite('TerminalCapabilityStoreMultiplexer', () => {
 	test('has should return whether a capability is present', () => {
 		deepStrictEqual(multiplexer.has(TerminalCapability.CwdDetection), false);
 		multiplexer.add(store1);
-		// eslint-disable-next-line local/code-no-any-casts
-		store1.add(TerminalCapability.CwdDetection, {} as any);
+		store1.add(TerminalCapability.CwdDetection, {} as unknown as ICwdDetectionCapability);
 		deepStrictEqual(multiplexer.has(TerminalCapability.CwdDetection), true);
 		store1.remove(TerminalCapability.CwdDetection);
 		deepStrictEqual(multiplexer.has(TerminalCapability.CwdDetection), false);

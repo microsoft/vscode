@@ -10,7 +10,7 @@ import type * as Proto from '../tsServer/protocol/protocol';
 import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import FileConfigurationManager from './fileConfigurationManager';
-import { conditionalRegistration, requireGlobalConfiguration } from './util/dependentRegistration';
+import { conditionalRegistration, requireGlobalUnifiedConfig } from './util/dependentRegistration';
 
 class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEditProvider, vscode.OnTypeFormattingEditProvider {
 	public constructor(
@@ -46,10 +46,10 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 		ch: string,
 		options: vscode.FormattingOptions,
 		token: vscode.CancellationToken
-	): Promise<vscode.TextEdit[]> {
+	): Promise<vscode.TextEdit[] | undefined> {
 		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
-			return [];
+			return undefined;
 		}
 
 		await this.fileConfigurationManager.ensureConfigurationOptions(document, options, token);
@@ -92,7 +92,7 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager
 ) {
 	return conditionalRegistration([
-		requireGlobalConfiguration(language.id, 'format.enable'),
+		requireGlobalUnifiedConfig('format.enabled', { fallbackSection: language.id, fallbackSubSectionNameOverride: 'format.enable' }),
 	], () => {
 		const formattingProvider = new TypeScriptFormattingProvider(client, fileConfigurationManager);
 		return vscode.Disposable.from(

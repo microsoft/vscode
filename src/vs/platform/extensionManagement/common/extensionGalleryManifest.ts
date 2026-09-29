@@ -10,7 +10,6 @@ export const enum ExtensionGalleryResourceType {
 	ExtensionQueryService = 'ExtensionQueryService',
 	ExtensionLatestVersionUri = 'ExtensionLatestVersionUriTemplate',
 	ExtensionStatisticsUri = 'ExtensionStatisticsUriTemplate',
-	WebExtensionStatisticsUri = 'WebExtensionStatisticsUriTemplate',
 	PublisherViewUri = 'PublisherViewUriTemplate',
 	ExtensionDetailsViewUri = 'ExtensionDetailsViewUriTemplate',
 	ExtensionRatingViewUri = 'ExtensionRatingViewUriTemplate',
@@ -99,3 +98,5 @@ export function getExtensionGalleryManifestResourceUri(manifest: IExtensionGalle
 }
 
 export const ExtensionGalleryServiceUrlConfigKey = 'extensions.gallery.serviceUrl';
+
+export const ExtensionGalleryAuthProviderConfigKey = 'extensions.gallery.authProvider';

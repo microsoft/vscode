@@ -18,7 +18,7 @@ import { INotebookCellStatusBarItemProvider, INotebookContributionData, INoteboo
 import { INotebookService, SimpleNotebookProviderInfo } from '../../contrib/notebook/common/notebookService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape, NotebookDataDto } from '../common/extHost.protocol.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { INotebookFileMatchNoModel } from '../../contrib/search/common/searchNotebookHelpers.js';
@@ -47,6 +47,8 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	dispose(): void {
 		this._disposables.dispose();
 		dispose(this._notebookSerializer.values());
+		dispose(this._notebookCellStatusBarRegistrations.values());
+		this._notebookCellStatusBarRegistrations.clear();
 	}
 
 	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: TransientOptions, data: INotebookContributionData | undefined): void {
@@ -210,11 +212,8 @@ CommandsRegistry.registerCommand('_executeDataToNotebook', async (accessor, ...a
 	return new SerializableObjectWithBuffers(NotebookDto.toNotebookDataDto(dto));
 });
 
-CommandsRegistry.registerCommand('_executeNotebookToData', async (accessor, ...args) => {
-
-	const [notebookType, dto] = args;
+CommandsRegistry.registerCommand('_executeNotebookToData', async (accessor, notebookType: string, dto: SerializableObjectWithBuffers<NotebookDataDto>) => {
 	assertType(typeof notebookType === 'string', 'string');
-	assertType(typeof dto === 'object');
 
 	const notebookService = accessor.get(INotebookService);
 	const info = await notebookService.withNotebookDataProvider(notebookType);
@@ -227,6 +226,7 @@ CommandsRegistry.registerCommand('_executeNotebookToData', async (accessor, ...a
 	return bytes;
 });
 
-function isFileOperationError(error: any): error is FileOperationError {
-	return typeof error.fileOperationResult === 'number' && typeof error.message === 'string';
+function isFileOperationError(error: unknown): error is FileOperationError {
+	const candidate = error as FileOperationError | undefined;
+	return typeof candidate?.fileOperationResult === 'number' && typeof candidate?.message === 'string';
 }

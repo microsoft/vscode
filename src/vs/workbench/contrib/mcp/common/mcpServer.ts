@@ -7,17 +7,23 @@ import { AsyncIterableProducer, raceCancellationError, Sequencer } from '../../.
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import * as json from '../../../../base/common/json.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { normalizeDriveLetter } from '../../../../base/common/labels.js';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { mapValues } from '../../../../base/common/objects.js';
-import { autorun, autorunSelfDisposable, derived, disposableObservableValue, IDerivedReader, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, autorunSelfDisposable, derived, derivedDisposable, disposableObservableValue, IDerivedReader, IObservable, IReader, ITransaction, observableFromEvent, ObservablePromise, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createURITransformer } from '../../../../base/common/uriTransformer.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { hasConfigurationVariable } from '../../../../platform/configuration/common/configurationVariables.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IMcpServerIdentity } from '../../../../platform/mcp/common/allowedMcpServers.js';
+import { IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -28,15 +34,20 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IOutputService } from '../../../services/output/common/output.js';
-import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { chatSessionResourceToId } from '../../chat/common/model/chatUri.js';
+import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { McpIcons, parseAndValidateMcpIcon, StoredMcpIcons } from './mcpIcons.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
+import { IMcpSandboxService } from './mcpSandboxService.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName, UserInteractionRequiredError } from './mcpTypes.js';
+import { McpTaskManager } from './mcpTaskManager.js';
+import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPotentialSandboxBlock, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerLaunch, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, McpToolVisibility, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
+import { ContributionEnablementState, IEnablementModel } from '../../chat/common/enablement.js';
 import { MCP } from './modelContextProtocol.js';
-import { UriTemplate } from './uriTemplate.js';
+import { McpApps } from './modelContextProtocolApps.js';
+import { UriTemplate } from '../../../../base/common/uriTemplate.js';
 
 type ServerBootData = {
 	supportsLogging: boolean;
@@ -206,6 +217,53 @@ export class McpServerMetadataCache extends Disposable {
 	}
 }
 
+/**
+ * Shared across all {@link McpServer}s. Each server `take`s the name it wants
+ * to base its tool prefix on (announced `serverInfo.title`/`name` when known,
+ * otherwise the mcp.json key) and gets back a stable, collision-resolved prefix
+ * observable. When a server's preferred name changes (e.g. after the live
+ * `serverInfo` arrives), it simply takes again and disposes the previous
+ * reference; other servers that share the name keep the suffix they were
+ * already assigned. See #299749.
+ */
+export class McpPrefixGenerator {
+	private readonly _buckets = new Map<string, { usedIndexes: Set<number>; size: number }>();
+
+	take(name: string): IReference<string> {
+		const safeName = name.toLowerCase().replace(/[^a-z0-9_.-]+/g, '_').slice(0, McpToolName.MaxPrefixLen - McpToolName.Prefix.length - 1);
+		let bucket = this._buckets.get(safeName);
+		if (!bucket) {
+			bucket = { usedIndexes: new Set(), size: 0 };
+			this._buckets.set(safeName, bucket);
+		}
+
+		let index = 1;
+		while (bucket.usedIndexes.has(index)) {
+			index++;
+		}
+		bucket.usedIndexes.add(index);
+		bucket.size++;
+
+		// Trim safeName for this output if a multi-digit suffix would push us past
+		// MaxPrefixLen. The bucket is keyed on the un-trimmed safeName so collisions
+		// are still detected consistently across indexes.
+		const suffix = (index === 1 ? '' : String(index)) + '_';
+		const maxNameLen = McpToolName.MaxPrefixLen - McpToolName.Prefix.length - suffix.length;
+		const prefix = McpToolName.Prefix + safeName.slice(0, maxNameLen) + suffix;
+
+		return {
+			object: prefix,
+			dispose: () => {
+				bucket!.usedIndexes.delete(index);
+				bucket!.size--;
+				if (bucket!.size === 0) {
+					this._buckets.delete(safeName);
+				}
+			},
+		};
+	}
+}
+
 type ValidatedMcpTool = MCP.Tool & {
 	_icons: StoredMcpIcons;
 
@@ -215,6 +273,18 @@ type ValidatedMcpTool = MCP.Tool & {
 	 * in {@link McpServer._getValidatedTools}.
 	 */
 	serverToolName: string;
+
+	/**
+	 * Visibility of the tool, parsed from `_meta.ui.visibility`.
+	 * Defaults to Model | App if not specified.
+	 */
+	visibility: McpToolVisibility;
+
+	/**
+	 * UI resource URI if this tool has an associated MCP App UI.
+	 * Parsed from `_meta.ui.resourceUri`.
+	 */
+	uiResourceUri?: string;
 };
 
 interface StoredServerMetadata {
@@ -230,9 +300,20 @@ interface ServerMetadata {
 }
 
 class CachedPrimitive<T, C> {
+	/**
+	 * @param _definitionId Server definition ID
+	 * @param _cache Metadata cache instance
+	 * @param _fromStaticDefinition Static definition that came with the server.
+	 * This should ONLY have a value if it should be used instead of whatever
+	 * is currently in the cache.
+	 * @param _fromCache Pull the value from the cache entry.
+	 * @param _toT Transform the value to the observable type.
+	 * @param defaultValue Default value if no cache entry.
+	 */
 	constructor(
 		private readonly _definitionId: string,
 		private readonly _cache: McpServerMetadataCache,
+		private readonly _fromStaticDefinition: IObservable<C | undefined> | undefined,
 		private readonly _fromCache: (entry: IToolCacheEntry) => C,
 		private readonly _toT: (values: C, reader: IDerivedReader<void>) => T,
 		private readonly defaultValue: C,
@@ -241,6 +322,10 @@ class CachedPrimitive<T, C> {
 	public get fromCache(): { nonce: string | undefined; data: C } | undefined {
 		const c = this._cache.get(this._definitionId);
 		return c ? { data: this._fromCache(c), nonce: c.nonce } : undefined;
+	}
+
+	public hasStaticDefinition(reader: IReader | undefined) {
+		return !!this._fromStaticDefinition?.read(reader);
 	}
 
 	public readonly fromServerPromise = observableValue<ObservablePromise<{
@@ -252,17 +337,20 @@ class CachedPrimitive<T, C> {
 
 	public readonly value: IObservable<T> = derived(reader => {
 		const serverTools = this.fromServer.read(reader);
-		const definitions = serverTools?.data ?? this.fromCache?.data ?? this.defaultValue;
+		const definitions = serverTools?.data ?? this._fromStaticDefinition?.read(reader) ?? this.fromCache?.data ?? this.defaultValue;
 		return this._toT(definitions, reader);
 	});
 }
 
 export class McpServer extends Disposable implements IMcpServer {
+	/** Shared task manager that survives reconnections */
+	private readonly _taskManager = this._register(new McpTaskManager());
+
 	/**
 	 * Helper function to call the function on the handler once it's online. The
 	 * connection started if it is not already.
 	 */
-	public static async callOn<R>(server: IMcpServer, fn: (handler: McpServerRequestHandler) => Promise<R>, token: CancellationToken = CancellationToken.None): Promise<R> {
+	public static async callOn<R>(server: IMcpServer, fn: (handler: McpServerRequestHandler, connection: IMcpServerConnection) => Promise<R>, token: CancellationToken = CancellationToken.None): Promise<R> {
 		await server.start({ promptType: 'all-untrusted' }); // idempotent
 
 		let ranOnce = false;
@@ -271,8 +359,20 @@ export class McpServer extends Disposable implements IMcpServer {
 		const callPromise = new Promise<R>((resolve, reject) => {
 
 			d = autorun(reader => {
+				if (ranOnce) {
+					return;
+				}
+
 				const connection = server.connection.read(reader);
-				if (!connection || ranOnce) {
+				if (!connection) {
+					// No live connection: the server may be blocked by policy (its connection is torn
+					// down while blocked) or stopped. Surface the terminal state instead of waiting forever.
+					const state = server.connectionState.read(reader);
+					if (state.state === McpConnectionState.Kind.Error) {
+						reject(new McpConnectionFailedError(`MCP server could not be started: ${state.message}`));
+					} else if (state.state === McpConnectionState.Kind.Stopped) {
+						reject(new McpConnectionFailedError('MCP server has stopped'));
+					}
 					return;
 				}
 
@@ -291,7 +391,7 @@ export class McpServer extends Disposable implements IMcpServer {
 					}
 				}
 
-				resolve(fn(handler));
+				resolve(fn(handler, connection));
 				ranOnce = true; // aggressive prevent multiple racey calls, don't dispose because autorun is sync
 			});
 		});
@@ -302,24 +402,33 @@ export class McpServer extends Disposable implements IMcpServer {
 	public readonly collection: McpCollectionReference;
 	private readonly _connectionSequencer = new Sequencer();
 	private readonly _connection = this._register(disposableObservableValue<IMcpServerConnection | undefined>(this, undefined));
+	private readonly _resolvedPolicyIdentity = observableValue<{ definition: McpServerDefinition; identity: IMcpServerIdentity } | undefined>(this, undefined);
 
 	public readonly connection = this._connection;
-	public readonly connectionState: IObservable<McpConnectionState> = derived(reader => this._connection.read(reader)?.state.read(reader) ?? { state: McpConnectionState.Kind.Stopped });
+
+	private readonly _policyEpoch: IObservable<void>;
+	/** Retains policy enforcement for the last resolved launch while its definition is unchanged. */
+	private readonly _policyBlock: IObservable<McpConnectionState.Error | undefined>;
+	public readonly connectionState: IObservable<McpConnectionState> = derived(reader => this._policyBlock.read(reader) ?? this._connection.read(reader)?.state.read(reader) ?? { state: McpConnectionState.Kind.Stopped });
 
 
-	private readonly _capabilities = observableValue<number | undefined>('mcpserver.capabilities', undefined);
+	private readonly _capabilities: CachedPrimitive<number | undefined, number | undefined>;
 	public get capabilities() {
-		return this._capabilities;
+		return this._capabilities.value;
 	}
 
 	private readonly _tools: CachedPrimitive<readonly IMcpTool[], readonly ValidatedMcpTool[]>;
+	/** Cached tools are suppressed while the server is blocked by policy so they cannot be listed, referenced, or executed. */
+	private readonly _gatedTools: IObservable<readonly IMcpTool[]> = derived(reader => this._policyBlock.read(reader) ? [] : this._tools.value.read(reader));
 	public get tools() {
-		return this._tools.value;
+		return this._gatedTools;
 	}
 
 	private readonly _prompts: CachedPrimitive<readonly IMcpPrompt[], readonly StoredMcpPrompt[]>;
+	/** Cached prompts are suppressed while the server is blocked by policy. */
+	private readonly _gatedPrompts: IObservable<readonly IMcpPrompt[]> = derived(reader => this._policyBlock.read(reader) ? [] : this._prompts.value.read(reader));
 	public get prompts() {
-		return this._prompts.value;
+		return this._gatedPrompts;
 	}
 
 	private readonly _serverMetadata: CachedPrimitive<ServerMetadata, StoredServerMetadata | undefined>;
@@ -343,6 +452,10 @@ export class McpServer extends Disposable implements IMcpServer {
 	public readonly cacheState = derived(reader => {
 		const currentNonce = () => this._fullDefinitions.read(reader)?.server?.cacheNonce;
 		const stateWhenServingFromCache = () => {
+			if (this._tools.hasStaticDefinition(reader)) {
+				return McpServerCacheState.Cached;
+			}
+
 			if (!this._tools.fromCache) {
 				return McpServerCacheState.Unknown;
 			}
@@ -369,11 +482,21 @@ export class McpServer extends Disposable implements IMcpServer {
 		return fromServerResult.data?.nonce === currentNonce() ? McpServerCacheState.Live : McpServerCacheState.Outdated;
 	});
 
+	public get logger(): ILogger {
+		return this._logger;
+	}
+
 	private readonly _loggerId: string;
 	private readonly _logger: ILogger;
 	private _lastModeDebugged = false;
+	private _isQuietStart = false;
+	private _isSandboxSuggestionDialogVisible = false;
+	private _potentialSandboxBlocks: IMcpPotentialSandboxBlock[] = [];
+	private _potentialSandboxBlockListener = this._register(new MutableDisposable<IDisposable>());
 	/** Count of running tool calls, used to detect if sampling is during an LM call */
 	public runningToolCalls = new Set<IMcpToolCallContext>();
+
+	public readonly enablement: IObservable<ContributionEnablementState>;
 
 	constructor(
 		initialCollection: McpCollectionDefinition,
@@ -381,8 +504,10 @@ export class McpServer extends Disposable implements IMcpServer {
 		explicitRoots: URI[] | undefined,
 		private readonly _requiresExtensionActivation: boolean | undefined,
 		private readonly _primitiveCache: McpServerMetadataCache,
-		toolPrefix: string,
+		prefixGenerator: McpPrefixGenerator,
+		enablementModel: IEnablementModel,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
+		@IAllowedMcpServersService private readonly _allowedMcpServersService: IAllowedMcpServersService,
 		@IWorkspaceContextService workspacesService: IWorkspaceContextService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILoggerService private readonly _loggerService: ILoggerService,
@@ -390,16 +515,53 @@ export class McpServer extends Disposable implements IMcpServer {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IMcpSamplingService private readonly _samplingService: IMcpSamplingService,
 		@IMcpElicitationService private readonly _elicitationService: IMcpElicitationService,
+		@IMcpSandboxService private readonly _mcpSandboxService: IMcpSandboxService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
 		this.collection = initialCollection;
 		this._fullDefinitions = this._mcpRegistry.getServerDefinition(this.collection, this.definition);
+		this.enablement = derived(r => enablementModel.readEnabled(definition.id, r));
+
+		this._policyEpoch = observableSignalFromEvent(this, this._allowedMcpServersService.onDidChangeAllowedMcpServers);
+		this._policyBlock = derived<McpConnectionState.Error | undefined>(this, reader => {
+			this._policyEpoch.read(reader);
+			const connection = this._connection.read(reader);
+			if (connection) {
+				// Authoritative: the connection carries the fully resolved launch.
+				return this._evaluatePolicy(this._identityFromLaunch(connection.launchDefinition));
+			}
+			const definition = this._fullDefinitions.read(reader).server;
+			const resolved = this._resolvedPolicyIdentity.read(reader);
+			if (resolved && definition && McpServerDefinition.equals(resolved.definition, definition)) {
+				return this._evaluatePolicy(resolved.identity);
+			}
+			const launch = definition?.launch;
+			if (!launch) {
+				return undefined;
+			}
+			return this._evaluatePolicy(this._identityFromLaunch(launch), 'definition');
+		});
+
+		this._register(autorun(reader => {
+			const resolved = this._resolvedPolicyIdentity.read(reader);
+			const definition = this._fullDefinitions.read(reader).server;
+			// A reverted definition must not revive an identity from before its last change.
+			if (resolved && (!definition || !McpServerDefinition.equals(resolved.definition, definition))) {
+				this._resolvedPolicyIdentity.set(undefined, undefined);
+			}
+
+			if (this._policyBlock.read(reader) && this._connection.read(undefined)) {
+				this._connection.set(undefined, undefined); // disposes and stops the connection
+			}
+		}));
+
 		this._loggerId = `mcpServer.${definition.id}`;
 		this._logger = this._register(_loggerService.createLogger(this._loggerId, { hidden: true, name: `MCP: ${definition.label}` }));
 
@@ -429,10 +591,14 @@ export class McpServer extends Disposable implements IMcpServer {
 
 			cnx.roots = workspaces.read(reader)
 				.filter(w => w.uri.authority === (initialCollection.remoteAuthority || ''))
-				.map(w => ({
-					name: w.name,
-					uri: URI.from(uriTransformer?.transformIncoming(w.uri) ?? w.uri).toString()
-				}));
+				.map(w => {
+					let uri = URI.from(uriTransformer?.transformIncoming(w.uri) ?? w.uri);
+					if (uri.scheme === Schemas.file) { // #271812
+						uri = URI.file(normalizeDriveLetter(uri.fsPath, true));
+					}
+
+					return { name: w.name, uri: uri.toString() };
+				});
 		}));
 
 		// 2. Populate this.tools when we connect to a server.
@@ -440,18 +606,50 @@ export class McpServer extends Disposable implements IMcpServer {
 			const cnx = this._connection.read(reader);
 			const handler = cnx?.handler.read(reader);
 			if (handler) {
-				this.populateLiveData(handler, cnx?.definition.cacheNonce, reader.store);
+				this._populateLiveData(handler, cnx?.definition.cacheNonce, reader.store);
 			} else if (this._tools) {
 				this.resetLiveData();
 			}
 		}));
 
+		this._register(autorun(reader => {
+			const cnx = this._connection.read(reader);
+			this._potentialSandboxBlockListener.value = cnx?.onPotentialSandboxBlock(block => this.recordPotentialSandboxBlock(block));
+		}));
+
+		const staticMetadata = derived(reader => {
+			const def = this._fullDefinitions.read(reader).server;
+			return def && def.cacheNonce !== this._tools.fromCache?.nonce ? def.staticMetadata : undefined;
+		});
+
+		this._serverMetadata = new CachedPrimitive<ServerMetadata, StoredServerMetadata | undefined>(
+			this.definition.id,
+			this._primitiveCache,
+			staticMetadata.map(m => m ? this._toStoredMetadata(m?.serverInfo, m?.instructions) : undefined),
+			(entry) => ({ serverName: entry.serverName, serverInstructions: entry.serverInstructions, serverIcons: entry.serverIcons }),
+			(entry) => ({ serverName: entry?.serverName, serverInstructions: entry?.serverInstructions, icons: McpIcons.fromStored(entry?.serverIcons) }),
+			undefined,
+		);
+
+		// Form the tool prefix from the server-announced name when known so that
+		// registry-style mcp.json keys like `io.github.upstash/context7` don't end
+		// up in `mcp_io_github_ups_*` truncated names. See #299749.
+		const preferredName = derived(reader => this._serverMetadata.value.read(reader)?.serverName || this.definition.label);
+		const prefixRef = derivedDisposable(reader => prefixGenerator.take(preferredName.read(reader)));
+		const toolPrefix = prefixRef.map(ref => ref.object);
+
 		// 3. Publish tools
 		this._tools = new CachedPrimitive<readonly IMcpTool[], readonly ValidatedMcpTool[]>(
 			this.definition.id,
 			this._primitiveCache,
+			staticMetadata
+				.map(m => {
+					const tools = m?.tools?.filter(t => t.availability === McpServerStaticToolAvailability.Initial).map(t => t.definition);
+					return tools?.length ? new ObservablePromise(this._getValidatedTools(tools)) : undefined;
+				})
+				.map((o, reader) => o?.promiseResult.read(reader)?.data),
 			(entry) => entry.tools,
-			(entry) => entry.map(def => new McpTool(this, toolPrefix, def)).sort((a, b) => a.compare(b)),
+			(entry, reader) => entry.map(def => this._instantiationService.createInstance(McpTool, this, toolPrefix.read(reader), def)).sort((a, b) => a.compare(b)),
 			[],
 		);
 
@@ -459,20 +657,24 @@ export class McpServer extends Disposable implements IMcpServer {
 		this._prompts = new CachedPrimitive<readonly IMcpPrompt[], readonly StoredMcpPrompt[]>(
 			this.definition.id,
 			this._primitiveCache,
+			undefined,
 			(entry) => entry.prompts || [],
 			(entry) => entry.map(e => new McpPrompt(this, e)),
 			[],
 		);
 
-		this._serverMetadata = new CachedPrimitive<ServerMetadata, StoredServerMetadata | undefined>(
+		this._capabilities = new CachedPrimitive<number | undefined, number | undefined>(
 			this.definition.id,
 			this._primitiveCache,
-			(entry) => ({ serverName: entry.serverName, serverInstructions: entry.serverInstructions, serverIcons: entry.serverIcons }),
-			(entry) => ({ serverName: entry?.serverName, serverInstructions: entry?.serverInstructions, icons: McpIcons.fromStored(entry?.serverIcons) }),
+			staticMetadata.map(m => m?.capabilities !== undefined ? encodeCapabilities(m.capabilities) : undefined),
+			(entry) => entry.capabilities,
+			(entry) => entry,
 			undefined,
 		);
 
-		this._capabilities.set(this._primitiveCache.get(this.definition.id)?.capabilities, undefined);
+		// Hold the prefix for the lifetime of the server so its tool name stays
+		// stable even when no one is currently observing the tools list.
+		prefixRef.recomputeInitiallyAndOnChange(this._store);
 	}
 
 	public readDefinitions(): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }> {
@@ -505,10 +707,56 @@ export class McpServer extends Disposable implements IMcpServer {
 		}, token);
 	}
 
+	private _identityFromLaunch(launch: McpServerLaunch | undefined): IMcpServerIdentity {
+		if (launch?.type === McpServerTransportType.HTTP) {
+			return { name: this.definition.label, url: launch.uri.toString(true) };
+		}
+		if (launch?.type === McpServerTransportType.Stdio) {
+			// `launch.command`/`launch.args` are typed as non-nullable but can be `undefined` at
+			// runtime when they originate from user/discovery configuration that omitted the field.
+			// When `command` is present, build the full command line (defaulting `args` to an empty
+			// array and dropping any non-string entries); the produced `IMcpServerIdentity.command`
+			// then never contains a non-string entry, which would otherwise break policy matching and
+			// the unresolved-variable check. Use a string check so a valid-but-empty command string is
+			// preserved while malformed non-string command values are dropped. When `command` is absent
+			// the full command line is unknown, so omit the field entirely rather than matching on args
+			// alone (which could collide with unrelated servers).
+			return typeof launch.command === 'string'
+				? { name: this.definition.label, command: [launch.command, ...(launch.args ?? []).filter(arg => typeof arg === 'string')] }
+				: { name: this.definition.label };
+		}
+		return { name: this.definition.label };
+	}
+
+	private _evaluatePolicy(identity: IMcpServerIdentity, phase: 'definition' | 'resolved' = 'resolved'): McpConnectionState.Error | undefined {
+		const allowed = phase === 'definition'
+			? this._allowedMcpServersService.isServerAllowedBeforeResolution(identity)
+			: this._allowedMcpServersService.isServerAllowed(identity);
+		return allowed === true ? undefined : { state: McpConnectionState.Kind.Error, message: allowed.value };
+	}
+
+	/** Whether policy URL/command fields contain unresolved configuration variables; the server name is literal. */
+	private static _hasUnresolvedVariables(identity: IMcpServerIdentity): boolean {
+		return (identity.url !== undefined && hasConfigurationVariable(identity.url))
+			|| (identity.command?.some(hasConfigurationVariable) ?? false);
+	}
+
 	public start({ interaction, autoTrustChanges, promptType, debug, errorOnUserInteraction }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
 		interaction?.participants.set(this.definition.id, { s: 'unknown' });
 
 		return this._connectionSequencer.queue<McpConnectionState>(async () => {
+			const preStartBlock = this._policyBlock.get();
+			if (preStartBlock) {
+				const definition = this._fullDefinitions.get().server;
+				const identity = definition && this._identityFromLaunch(definition.launch);
+				const canResolveAgain = !errorOnUserInteraction && this._resolvedPolicyIdentity.get()
+					&& identity && McpServer._hasUnresolvedVariables(identity) && !this._evaluatePolicy(identity, 'definition');
+				// Keep cached metadata blocked while an interactive retry resolves the current inputs.
+				if (!canResolveAgain) {
+					return preStartBlock;
+				}
+			}
+
 			const activationEvent = mcpActivationEvent(this.collection.id.slice(extensionMcpCollectionPrefix.length));
 			if (this._requiresExtensionActivation && !this._extensionService.activationEventIsDone(activationEvent)) {
 				await this._extensionService.activateByEvent(activationEvent);
@@ -522,6 +770,7 @@ export class McpServer extends Disposable implements IMcpServer {
 			}
 
 			let connection = this._connection.get();
+			this._isQuietStart = !!errorOnUserInteraction;
 			if (connection && McpConnectionState.canBeStarted(connection.state.get().state)) {
 				connection.dispose();
 				connection = undefined;
@@ -544,6 +793,7 @@ export class McpServer extends Disposable implements IMcpServer {
 					definitionRef: this.definition,
 					debug,
 					errorOnUserInteraction,
+					taskManager: this._taskManager,
 				});
 				if (!connection) {
 					return { state: McpConnectionState.Kind.Stopped };
@@ -554,21 +804,34 @@ export class McpServer extends Disposable implements IMcpServer {
 					return { state: McpConnectionState.Kind.Stopped };
 				}
 
-				this._connection.set(connection, undefined);
+				const resolvedPolicyIdentity = { definition: connection.definition, identity: this._identityFromLaunch(connection.launchDefinition) };
+				transaction(tx => {
+					this._resolvedPolicyIdentity.set(resolvedPolicyIdentity, tx);
+					this._connection.set(connection, tx);
+				});
+
+				if (connection.definition.devMode) {
+					this.showOutput();
+				}
 			}
 
-			if (connection.definition.devMode) {
-				this.showOutput();
+			// Check the local resolved connection: reactive policy enforcement may already have cleared `_connection`.
+			const resolvedBlock = this._evaluatePolicy(this._identityFromLaunch(connection.launchDefinition));
+			if (resolvedBlock) {
+				this._connection.set(undefined, undefined); // dispose the just-resolved connection
+				return resolvedBlock;
 			}
+
+			this._potentialSandboxBlocks.length = 0;
 
 			const start = Date.now();
 			let state = await connection.start({
-				createMessageRequestHandler: params => this._samplingService.sample({
+				createMessageRequestHandler: (params, token) => this._samplingService.sample({
 					isDuringToolCall: this.runningToolCalls.size > 0,
 					server: this,
 					params,
-				}).then(r => r.sample),
-				elicitationRequestHandler: req => {
+				}, token).then(r => r.sample),
+				elicitationRequestHandler: async (req, token) => {
 					const serverInfo = connection.handler.get()?.serverInfo;
 					if (serverInfo) {
 						this._telemetryService.publicLog2<ElicitationTelemetryData, ElicitationTelemetryClassification>('mcp.elicitationRequested', {
@@ -577,18 +840,21 @@ export class McpServer extends Disposable implements IMcpServer {
 						});
 					}
 
-					return this._elicitationService.elicit(this, Iterable.first(this.runningToolCalls), req, CancellationToken.None);
+					const r = await this._elicitationService.elicit(this, Iterable.first(this.runningToolCalls), req, token || CancellationToken.None);
+					r.dispose();
+					return r.value;
 				}
 			});
+
+			const policyBlock = this._policyBlock.get();
+			if (policyBlock) {
+				return policyBlock;
+			}
 
 			this._telemetryService.publicLog2<ServerBootState, ServerBootStateClassification>('mcp/serverBootState', {
 				state: McpConnectionState.toKindString(state.state),
 				time: Date.now() - start,
 			});
-
-			if (state.state === McpConnectionState.Kind.Error) {
-				this.showInteractiveError(connection, state, debug);
-			}
 
 			// MCP servers that need auth can 'start' but will stop with an interaction-needed
 			// error they first make a request. In this case, wait until the handler fully
@@ -614,6 +880,23 @@ export class McpServer extends Disposable implements IMcpServer {
 				}).finally(() => disposable.dispose());
 			}
 
+			if (state.state === McpConnectionState.Kind.Error) {
+				let disposable: IDisposable;
+				state = await new Promise<McpConnectionState>((resolve, reject) => {
+					disposable = autorun(reader => {
+						const cnx = this._connection.read(reader);
+						const state = cnx?.state.read(reader);
+						if (cnx && state?.state === McpConnectionState.Kind.Error) {
+							if (!this._isQuietStart) {
+								this.showInteractiveError(cnx, state, this._lastModeDebugged);
+							} else {
+								reject(new UserInteractionRequiredError('start'));
+							}
+						}
+					});
+				}).finally(() => disposable.dispose());
+			}
+
 			return state;
 		}).finally(() => {
 			interaction?.participants.set(this.definition.id, { s: 'resolved' });
@@ -621,6 +904,12 @@ export class McpServer extends Disposable implements IMcpServer {
 	}
 
 	private showInteractiveError(cnx: IMcpServerConnection, error: McpConnectionState.Error, debug?: boolean) {
+		if (cnx.definition.sandboxEnabled) {
+			if (!this.showSandboxConfigSuggestionFromPotentialBlocks(cnx, this._potentialSandboxBlocks)) {
+				this._notificationService.warn(localize('mcpServerError', 'The MCP server {0} could not be started: {1}', cnx.definition.label, error.message));
+			}
+			return;
+		}
 		if (error.code === 'ENOENT' && cnx.launchDefinition.type === McpServerTransportType.Stdio) {
 			let docsLink: string | undefined;
 			switch (cnx.launchDefinition.command) {
@@ -664,6 +953,82 @@ export class McpServer extends Disposable implements IMcpServer {
 		}
 	}
 
+	public showSandboxConfigSuggestionFromPotentialBlocks(cnx: IMcpServerConnection, potentialBlocks: readonly IMcpPotentialSandboxBlock[]): boolean {
+		if (!cnx.definition.sandboxEnabled || !potentialBlocks.length || this._isSandboxSuggestionDialogVisible) {
+			return false;
+		}
+		if (this._isQuietStart) {
+			throw new UserInteractionRequiredError('sandbox-suggestion');
+		}
+
+		const existingSandboxConfig = this._fullDefinitions.get().collection?.sandbox;
+		const suggestion = this._mcpSandboxService.getSandboxConfigSuggestionMessage(cnx.definition.label, potentialBlocks, existingSandboxConfig);
+		if (!suggestion) {
+			// clear potential blocks as there are no suggestions for them.
+			this._removePotentialSandboxBlocks(potentialBlocks);
+			return false;
+		}
+
+		this._confirmAndApplySandboxConfigSuggestion(cnx, potentialBlocks, suggestion);
+		return true;
+	}
+
+	private _confirmAndApplySandboxConfigSuggestion(cnx: IMcpServerConnection, potentialBlocks: readonly IMcpPotentialSandboxBlock[], suggestion: NonNullable<ReturnType<IMcpSandboxService['getSandboxConfigSuggestionMessage']>>): void {
+		const mcpResource = cnx.definition.presentation?.origin?.uri ?? this.collection.presentation?.origin;
+		const configTarget = this._fullDefinitions.get().collection?.configTarget;
+		this._isSandboxSuggestionDialogVisible = true;
+
+		void this._dialogService.confirm({
+			type: 'warning',
+			message: localize('mcpSandboxSuggestion.confirm.message', "Update sandbox configuration in mcp.json for {0}?", cnx.definition.label),
+			detail: suggestion.message,
+			primaryButton: localize('mcpSandboxSuggestion.confirm.yes', "Yes"),
+			cancelButton: localize('mcpSandboxSuggestion.confirm.no', "No"),
+		}).then(async result => {
+			if (!result.confirmed) {
+				return;
+			}
+
+			if (!mcpResource || configTarget === undefined) {
+				this._notificationService.warn(localize('mcpSandboxSuggestion.apply.unavailable', "Couldn't determine where to update sandbox configuration for {0}.", cnx.definition.label));
+				return;
+			}
+
+			try {
+				const updated = await this._mcpSandboxService.applySandboxConfigSuggestion(cnx.definition, mcpResource, configTarget, potentialBlocks, suggestion.sandboxConfig);
+				if (updated) {
+					this._removePotentialSandboxBlocks(potentialBlocks);
+					this._notificationService.info(localize('mcpSandboxSuggestion.apply.success', "Updated sandbox configuration for {0} in mcp.json. Restart server.", cnx.definition.label));
+				}
+			} catch (e) {
+				this._notificationService.error(localize('mcpSandboxSuggestion.apply.error', "Failed to update sandbox configuration for {0}: {1}", cnx.definition.label, e instanceof Error ? e.message : String(e)));
+			}
+		}).finally(() => {
+			this._isSandboxSuggestionDialogVisible = false;
+		});
+	}
+
+	public recordPotentialSandboxBlock(block: IMcpPotentialSandboxBlock): void {
+		this._potentialSandboxBlocks.push(block);
+		if (this._potentialSandboxBlocks.length > 200) {
+			this._potentialSandboxBlocks.splice(0, this._potentialSandboxBlocks.length - 200);
+		}
+
+		const connection = this._connection.get();
+		if (connection?.state.get().state === McpConnectionState.Kind.Running) {
+			this.showSandboxConfigSuggestionFromPotentialBlocks(connection, this._potentialSandboxBlocks);
+		}
+	}
+
+	private _removePotentialSandboxBlocks(blocks: readonly IMcpPotentialSandboxBlock[]): void {
+		if (!blocks.length || !this._potentialSandboxBlocks.length) {
+			return;
+		}
+
+		const toRemove = new Set(blocks);
+		this._potentialSandboxBlocks = this._potentialSandboxBlocks.filter(block => !toRemove.has(block));
+	}
+
 	public stop(): Promise<void> {
 		return this._connection.get()?.stop() || Promise.resolve();
 	}
@@ -689,10 +1054,28 @@ export class McpServer extends Disposable implements IMcpServer {
 	}
 
 	private async _normalizeTool(originalTool: MCP.Tool): Promise<ValidatedMcpTool | { error: string[] }> {
+		// Parse MCP Apps UI metadata from _meta.ui
+		const uiMeta = originalTool._meta?.ui as McpApps.McpUiToolMeta | undefined;
+
+		// Compute visibility from _meta.ui.visibility, defaulting to Model | App
+		let visibility: McpToolVisibility = McpToolVisibility.Model | McpToolVisibility.App;
+		if (uiMeta?.visibility && Array.isArray(uiMeta.visibility)) {
+			visibility &= 0;
+
+			if (uiMeta.visibility.includes('model')) {
+				visibility |= McpToolVisibility.Model;
+			}
+			if (uiMeta.visibility.includes('app')) {
+				visibility |= McpToolVisibility.App;
+			}
+		}
+
 		const tool: ValidatedMcpTool = {
 			...originalTool,
 			serverToolName: originalTool.name,
 			_icons: this._parseIcons(originalTool),
+			visibility,
+			uiResourceUri: uiMeta?.resourceUri,
 		};
 		if (!tool.description) {
 			// Ensure a description is provided for each tool, #243919
@@ -703,6 +1086,13 @@ export class McpServer extends Disposable implements IMcpServer {
 		if (toolInvalidCharRe.test(tool.name)) {
 			this._logger.warn(`Tool ${JSON.stringify(tool.name)} is invalid. Tools names may only contain [a-z0-9_-]`);
 			tool.name = tool.name.replace(toolInvalidCharRe, '_');
+		}
+
+		// Per MCP spec, properties is optional. But JSON Schema Draft 7 requires
+		// it for object types. Normalize the schema to include an empty properties
+		// object if not present. https://github.com/microsoft/vscode/issues/251723
+		if (tool.inputSchema && !tool.inputSchema.properties) {
+			tool.inputSchema = { ...tool.inputSchema, properties: {} };
 		}
 
 		type JsonDiagnostic = { message: string; range: { line: number; character: number }[] };
@@ -731,7 +1121,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		return { error: messages };
 	}
 
-	private async _getValidatedTools(handler: McpServerRequestHandler, tools: MCP.Tool[]): Promise<ValidatedMcpTool[]> {
+	private async _getValidatedTools(tools: MCP.Tool[]): Promise<ValidatedMcpTool[]> {
 		let error = '';
 
 		const validations = await Promise.all(tools.map(t => this._normalizeTool(t)));
@@ -749,7 +1139,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		}
 
 		if (error) {
-			handler.logger.warn(`${tools.length - validated.length} tools have invalid JSON schemas and will be omitted`);
+			this._logger.warn(`${tools.length - validated.length} tools have invalid JSON schemas and will be omitted`);
 			warnInvalidTools(this._instantiationService, this.definition.label, error);
 		}
 
@@ -771,76 +1161,87 @@ export class McpServer extends Disposable implements IMcpServer {
 		return parseAndValidateMcpIcon(icons, cnx.launchDefinition, this._logger);
 	}
 
-	private populateLiveData(handler: McpServerRequestHandler, cacheNonce: string | undefined, store: DisposableStore) {
+	private _setServerTools(nonce: string | undefined, toolsPromise: Promise<MCP.Tool[]>, tx: ITransaction | undefined) {
+		const toolPromiseSafe = toolsPromise.then(async tools => {
+			this._logger.info(`Discovered ${tools.length} tools`);
+			const data = await this._getValidatedTools(tools);
+			this._primitiveCache.store(this.definition.id, { tools: data, nonce });
+			return { data, nonce };
+		});
+		this._tools.fromServerPromise.set(new ObservablePromise(toolPromiseSafe), tx);
+		return toolPromiseSafe;
+	}
+
+	private _setServerPrompts(nonce: string | undefined, promptsPromise: Promise<MCP.Prompt[]>, tx: ITransaction | undefined) {
+		const promptsPromiseSafe = promptsPromise.then((result): { data: StoredMcpPrompt[]; nonce: string | undefined } => {
+			const data: StoredMcpPrompt[] = result.map(prompt => ({
+				...prompt,
+				_icons: this._parseIcons(prompt)
+			}));
+			this._primitiveCache.store(this.definition.id, { prompts: data, nonce });
+			return { data, nonce };
+		});
+
+		this._prompts.fromServerPromise.set(new ObservablePromise(promptsPromiseSafe), tx);
+		return promptsPromiseSafe;
+	}
+
+	private _toStoredMetadata(serverInfo?: MCP.Implementation, instructions?: string): StoredServerMetadata {
+		return {
+			serverName: serverInfo ? serverInfo.title || serverInfo.name : undefined,
+			serverInstructions: instructions,
+			serverIcons: serverInfo ? this._parseIcons(serverInfo) : undefined,
+		};
+	}
+
+	private _setServerMetadata(
+		nonce: string | undefined,
+		{ serverInfo, instructions, capabilities }: { serverInfo: MCP.Implementation; instructions: string | undefined; capabilities: MCP.ServerCapabilities },
+		tx: ITransaction | undefined,
+	) {
+		const serverMetadata: StoredServerMetadata = this._toStoredMetadata(serverInfo, instructions);
+		this._serverMetadata.fromServerPromise.set(ObservablePromise.resolved({ nonce, data: serverMetadata }), tx);
+
+		const capabilitiesEncoded = encodeCapabilities(capabilities);
+		this._capabilities.fromServerPromise.set(ObservablePromise.resolved({ data: capabilitiesEncoded, nonce }), tx);
+		this._primitiveCache.store(this.definition.id, { ...serverMetadata, nonce, capabilities: capabilitiesEncoded });
+	}
+
+	private _populateLiveData(handler: McpServerRequestHandler, cacheNonce: string | undefined, store: DisposableStore) {
 		const cts = new CancellationTokenSource();
 		store.add(toDisposable(() => cts.dispose(true)));
 
-		// todo: add more than just tools here
-
 		const updateTools = (tx: ITransaction | undefined) => {
 			const toolPromise = handler.capabilities.tools ? handler.listTools({}, cts.token) : Promise.resolve([]);
-			const toolPromiseSafe = toolPromise.then(async tools => {
-				handler.logger.info(`Discovered ${tools.length} tools`);
-				return { data: await this._getValidatedTools(handler, tools), nonce: cacheNonce };
-			});
-			this._tools.fromServerPromise.set(new ObservablePromise(toolPromiseSafe), tx);
-			return toolPromiseSafe;
+			return this._setServerTools(cacheNonce, toolPromise, tx);
 		};
 
 		const updatePrompts = (tx: ITransaction | undefined) => {
 			const promptsPromise = handler.capabilities.prompts ? handler.listPrompts({}, cts.token) : Promise.resolve([]);
-			const promptsPromiseSafe = promptsPromise.then(data => ({
-				data: data.map(prompt => ({
-					...prompt,
-					_icons: this._parseIcons(prompt)
-				})),
-				nonce: cacheNonce
-			}));
-			this._prompts.fromServerPromise.set(new ObservablePromise(promptsPromiseSafe), tx);
-			return promptsPromiseSafe;
+			return this._setServerPrompts(cacheNonce, promptsPromise, tx);
 		};
 
 		store.add(handler.onDidChangeToolList(() => {
-			handler.logger.info('Tool list changed, refreshing tools...');
+			this._logger.info('Tool list changed, refreshing tools...');
 			updateTools(undefined);
 		}));
 
 		store.add(handler.onDidChangePromptList(() => {
-			handler.logger.info('Prompts list changed, refreshing prompts...');
+			this._logger.info('Prompts list changed, refreshing prompts...');
 			updatePrompts(undefined);
 		}));
 
-		const serverMetadata = {
-			serverName: handler.serverInfo.title || handler.serverInfo.name,
-			serverInstructions: handler.serverInstructions,
-			serverIcons: this._parseIcons(handler.serverInfo),
-		};
-
-		const metadataPromise = new ObservablePromise(Promise.resolve({
-			nonce: cacheNonce,
-			data: serverMetadata,
-		}));
-
 		transaction(tx => {
-			// note: all update* methods must use tx synchronously
-			const capabilities = encodeCapabilities(handler.capabilities);
-			this._primitiveCache.store(this.definition.id, { ...serverMetadata, capabilities });
-			this._capabilities.set(capabilities, tx);
-			this._serverMetadata.fromServerPromise.set(metadataPromise, tx);
+			this._setServerMetadata(cacheNonce, { serverInfo: handler.serverInfo, instructions: handler.serverInstructions, capabilities: handler.capabilities }, tx);
+			updatePrompts(tx);
+			const toolUpdate = updateTools(tx);
 
-			Promise.all([updateTools(tx), updatePrompts(tx)]).then(([{ data: tools }, { data: prompts }]) => {
-				this._primitiveCache.store(this.definition.id, {
-					nonce: cacheNonce,
-					tools,
-					prompts,
-					capabilities,
-				});
-
+			toolUpdate.then(tools => {
 				this._telemetryService.publicLog2<ServerBootData, ServerBootClassification>('mcp/serverBoot', {
 					supportsLogging: !!handler.capabilities.logging,
 					supportsPrompts: !!handler.capabilities.prompts,
 					supportsResources: !!handler.capabilities.resources,
-					toolCount: tools.length,
+					toolCount: tools.data.length,
 					serverName: handler.serverInfo.name,
 					serverVersion: handler.serverInfo.version,
 				});
@@ -917,42 +1318,27 @@ export class McpTool implements IMcpTool {
 	readonly id: string;
 	readonly referenceName: string;
 	readonly icons: IMcpIcons;
+	readonly visibility: McpToolVisibility;
 
 	public get definition(): MCP.Tool { return this._definition; }
+	public get uiResourceUri(): string | undefined { return this._definition.uiResourceUri; }
 
 	constructor(
 		private readonly _server: McpServer,
 		idPrefix: string,
 		private readonly _definition: ValidatedMcpTool,
+		@IMcpElicitationService private readonly _elicitationService: IMcpElicitationService,
 	) {
 		this.referenceName = _definition.name.replaceAll('.', '_');
 		this.id = (idPrefix + _definition.name).replaceAll('.', '_').slice(0, McpToolName.MaxLength);
 		this.icons = McpIcons.fromStored(this._definition._icons);
+		this.visibility = _definition.visibility ?? (McpToolVisibility.Model | McpToolVisibility.App);
 	}
 
 	async call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
-		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
-		const name = this._definition.serverToolName ?? this._definition.name;
 		if (context) { this._server.runningToolCalls.add(context); }
 		try {
-			const meta: Record<string, unknown> = {};
-			if (context?.chatSessionId) {
-				meta['vscode.conversationId'] = context.chatSessionId;
-			}
-			if (context?.chatRequestId) {
-				meta['vscode.requestId'] = context.chatRequestId;
-			}
-
-			const result = await McpServer.callOn(this._server, h => h.callTool({
-				name,
-				arguments: params,
-				_meta: Object.keys(meta).length > 0 ? meta : undefined
-			}, token), token);
-
-			// Wait for tools to refresh for dynamic servers (#261611)
-			await this._server.awaitToolRefresh();
-
-			return result;
+			return await this._callWithProgress(params, undefined, context, token);
 		} finally {
 			if (context) { this._server.runningToolCalls.delete(context); }
 		}
@@ -967,36 +1353,63 @@ export class McpTool implements IMcpTool {
 		}
 	}
 
-	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken, allowRetry = true): Promise<MCP.CallToolResult> {
+	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress | undefined, context?: IMcpToolCallContext, token = CancellationToken.None, allowRetry = true): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
-		const progressToken = generateUuid();
+		const progressToken = progress ? generateUuid() : undefined;
+		const store = new DisposableStore();
 
 		return McpServer.callOn(this._server, async h => {
-			const listener = h.onDidReceiveProgressNotification((e) => {
-				if (e.params.progressToken === progressToken) {
-					progress.report({
-						message: e.params.message,
-						progress: e.params.total !== undefined && e.params.progress !== undefined ? e.params.progress / e.params.total : undefined,
-					});
-				}
-			});
+			if (progress) {
+				store.add(h.onDidReceiveProgressNotification((e) => {
+					if (e.params.progressToken === progressToken) {
+						progress.report({
+							message: e.params.message,
+							progress: e.params.total !== undefined && e.params.progress !== undefined ? e.params.progress / e.params.total : undefined,
+						});
+					}
+				}));
+			}
 
 			const meta: Record<string, unknown> = { progressToken };
-			if (context?.chatSessionId) {
-				meta['vscode.conversationId'] = context.chatSessionId;
+			if (context?.chatSessionResource) {
+				meta['vscode.conversationId'] = chatSessionResourceToId(context.chatSessionResource);
 			}
 			if (context?.chatRequestId) {
 				meta['vscode.requestId'] = context.chatRequestId;
 			}
+			// Propagate W3C trace context to the MCP server (MCP SEP-414) so server-side
+			// spans can be correlated with the client trace.
+			if (context?.traceparent) {
+				meta['traceparent'] = context.traceparent;
+				if (context.tracestate) {
+					meta['tracestate'] = context.tracestate;
+				}
+			}
+
+			const taskHint = this._definition.execution?.taskSupport;
+			const serverSupportsTasksForTools = h.capabilities.tasks?.requests?.tools?.call !== undefined;
+			const shouldUseTask = serverSupportsTasksForTools && (taskHint === 'required' || taskHint === 'optional');
 
 			try {
-				const result = await h.callTool({ name, arguments: params, _meta: meta }, token);
+				const result = await h.callTool({
+					name,
+					arguments: params,
+					task: shouldUseTask ? {} : undefined,
+					_meta: meta,
+				}, token, progress ? (message) => progress.report({ message }) : undefined);
+
 				// Wait for tools to refresh for dynamic servers (#261611)
 				await this._server.awaitToolRefresh();
 
 				return result;
 			} catch (err) {
+				// Handle URL elicitation required error
+				if (err instanceof MpcResponseError && err.code === MCP.URL_ELICITATION_REQUIRED && allowRetry) {
+					await this._handleElicitationErr(err, context, token);
+					return this._callWithProgress(params, progress, context, token, false);
+				}
+
 				const state = this._server.connectionState.get();
 				if (allowRetry && state.state === McpConnectionState.Kind.Error && state.shouldRetry) {
 					return this._callWithProgress(params, progress, context, token, false);
@@ -1004,9 +1417,30 @@ export class McpTool implements IMcpTool {
 					throw err;
 				}
 			} finally {
-				listener.dispose();
+				store.dispose();
 			}
 		}, token);
+	}
+
+	private async _handleElicitationErr(err: MpcResponseError, context: IMcpToolCallContext | undefined, token: CancellationToken) {
+		const elicitations = (err.data as MCP.URLElicitationRequiredError['error']['data'])?.elicitations;
+		if (Array.isArray(elicitations) && elicitations.length > 0) {
+			for (const elicitation of elicitations) {
+				const elicitResult = await this._elicitationService.elicit(this._server, context, elicitation, token);
+
+				try {
+					if (elicitResult.value.action !== 'accept') {
+						throw err;
+					}
+
+					if (elicitResult.kind === ElicitationKind.URL) {
+						await elicitResult.wait;
+					}
+				} finally {
+					elicitResult.dispose();
+				}
+			}
+		}
 	}
 
 	compare(other: IMcpTool): number {

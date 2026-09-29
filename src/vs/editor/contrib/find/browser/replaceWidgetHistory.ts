@@ -53,7 +53,7 @@ export class ReplaceWidgetHistory implements IHistory<string> {
 		this.save();
 	}
 
-	forEach(callbackfn: (value: string, value2: string, set: Set<string>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: string, value2: string, set: Set<string>) => void, thisArg?: unknown): void {
 		// fetch latest from storage
 		this.load();
 		return this.inMemoryValues.forEach(callbackfn);

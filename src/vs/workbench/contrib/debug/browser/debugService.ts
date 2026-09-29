@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { Action, IAction } from '../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { RunOnceScheduler, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -117,10 +117,10 @@ export class DebugService implements IDebugService {
 	) {
 		this.breakpointsToSendOnResourceSaved = new Set<URI>();
 
-		this._onDidChangeState = new Emitter<State>();
-		this._onDidNewSession = new Emitter<IDebugSession>();
-		this._onWillNewSession = new Emitter<IDebugSession>();
-		this._onDidEndSession = new Emitter();
+		this._onDidChangeState = this.disposables.add(new Emitter<State>());
+		this._onDidNewSession = this.disposables.add(new Emitter<IDebugSession>());
+		this._onWillNewSession = this.disposables.add(new Emitter<IDebugSession>());
+		this._onDidEndSession = this.disposables.add(new Emitter());
 
 		this.adapterManager = this.instantiationService.createInstance(AdapterManager, {
 			onDidNewSession: this.onDidNewSession,
@@ -136,7 +136,7 @@ export class DebugService implements IDebugService {
 		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
 		this.telemetry = this.instantiationService.createInstance(DebugTelemetry, this.model);
 
-		this.viewModel = new ViewModel(contextKeyService);
+		this.viewModel = this.disposables.add(new ViewModel(contextKeyService));
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
 
 		this.disposables.add(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
@@ -572,17 +572,14 @@ export class DebugService implements IDebugService {
 
 					const actionList: IAction[] = [];
 
-					actionList.push(new Action(
-						'installAdditionalDebuggers',
-						nls.localize({ key: 'installAdditionalDebuggers', comment: ['Placeholder is the debug type, so for example "node", "python"'] }, "Install {0} Extension", resolvedConfig.type),
-						undefined,
-						true,
-						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers', resolvedConfig?.type)
-					));
+					actionList.push(toAction({
+						id: 'installAdditionalDebuggers',
+						label: nls.localize({ key: 'installAdditionalDebuggers', comment: ['Placeholder is the debug type, so for example "node", "python"'] }, "Install {0} Extension", resolvedConfig.type),
+						enabled: true,
+						run: async () => this.commandService.executeCommand('debug.installAdditionalDebuggers', resolvedConfig?.type)
+					}));
 
-					await this.showError(message, actionList);
-
-					return false;
+					await this.showError(message, actionList); return false;
 				}
 
 				if (!dbg.enabled) {
@@ -644,8 +641,9 @@ export class DebugService implements IDebugService {
 		this._onWillNewSession.fire(session);
 
 		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
-		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
-		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug !== 'neverOpen' && this.viewModel.firstSessionStart)) && !session.suppressDebugView) {
+		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'.
+		// Note: 'openOnDebugBreak' is intentionally excluded here - that case is handled in debugSession when a breakpoint is hit.
+		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart)) && !session.suppressDebugView) {
 			await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
 		}
 
@@ -1001,7 +999,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private async showError(message: string, errorActions: ReadonlyArray<IAction> = [], promptLaunchJson = true): Promise<void> {
-		const configureAction = new Action(DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, undefined, true, () => this.commandService.executeCommand(DEBUG_CONFIGURE_COMMAND_ID));
+		const configureAction = toAction({ id: DEBUG_CONFIGURE_COMMAND_ID, label: DEBUG_CONFIGURE_LABEL, enabled: true, run: () => this.commandService.executeCommand(DEBUG_CONFIGURE_COMMAND_ID) });
 		// Don't append the standard command if id of any provided action indicates it is a command
 		const actions = errorActions.filter((action) => action.id.endsWith('.command')).length > 0 ?
 			errorActions :
@@ -1130,9 +1128,13 @@ export class DebugService implements IDebugService {
 		}
 	}
 
-	async removeBreakpoints(id?: string): Promise<void> {
+	async removeBreakpoints(id?: string | string[]): Promise<void> {
 		const breakpoints = this.model.getBreakpoints();
-		const toRemove = breakpoints.filter(bp => !id || bp.getId() === id);
+		const toRemove = id === undefined
+			? breakpoints
+			: id instanceof Array
+				? breakpoints.filter(bp => id.includes(bp.getId()))
+				: breakpoints.filter(bp => bp.getId() === id);
 		// note: using the debugger-resolved uri for aria to reflect UI state
 		toRemove.forEach(bp => aria.status(nls.localize('breakpointRemoved', "Removed breakpoint, line {0}, file {1}", bp.lineNumber, bp.uri.fsPath)));
 		const urisToClear = new Set(toRemove.map(bp => bp.originalUri.toString()));
@@ -1197,8 +1199,8 @@ export class DebugService implements IDebugService {
 		this.debugStorage.storeBreakpoints(this.model);
 	}
 
-	async removeInstructionBreakpoints(instructionReference?: string, offset?: number): Promise<void> {
-		this.model.removeInstructionBreakpoints(instructionReference, offset);
+	async removeInstructionBreakpoints(instructionReference?: string, offset?: number, address?: bigint): Promise<void> {
+		this.model.removeInstructionBreakpoints(instructionReference, offset, address);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendInstructionBreakpoints();
 	}

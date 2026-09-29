@@ -1,0 +1,17 @@
+[
+  {
+    "name": "goWebApp",
+    "question": "/setupTests",
+    "keywords": {
+      "anyOf": [
+        "testing",
+        "ginkgo"
+      ]
+    },
+    "files": [
+      "main.go",
+      "go.mod",
+      "go.sum"
+    ]
+  }
+]

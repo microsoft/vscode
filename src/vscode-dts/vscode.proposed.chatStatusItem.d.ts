@@ -14,7 +14,7 @@ declare module 'vscode' {
 		/**
 		 * The main name of the entry, like 'Indexing Status'
 		 */
-		title: string | { label: string; link: string };
+		title: string | { label: string; link: string; helpText?: string };
 
 		/**
 		 * Optional additional description of the entry.
@@ -31,6 +31,11 @@ declare module 'vscode' {
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
 		 */
 		detail: string | undefined;
+
+		/**
+		 * Optional tooltip text shown when hovering over the description.
+		 */
+		tooltip: string | undefined;
 
 		/**
 		 * Shows the entry in the chat status.

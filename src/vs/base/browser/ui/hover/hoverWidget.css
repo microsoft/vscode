@@ -112,23 +112,25 @@
 	white-space: var(--vscode-hover-sourceWhiteSpace, pre-wrap);
 }
 
-.monaco-hover .hover-row.status-bar {
+.hover-row.status-bar {
 	font-size: 12px;
 	line-height: 22px;
 }
 
-.monaco-hover .hover-row.status-bar .info {
+.hover-row.status-bar .info {
 	font-style: italic;
 	padding: 0px 8px;
 }
 
-.monaco-hover .hover-row.status-bar .actions {
+.hover-row.status-bar .actions {
 	display: flex;
 	padding: 0px 8px;
 	width: 100%;
+	box-sizing: border-box;
+	background: var(--vscode-editorHoverWidget-statusBarBackground);
 }
 
-.monaco-hover .hover-row.status-bar .actions .action-container {
+.hover-row.status-bar .actions .action-container {
 	margin-right: 16px;
 	cursor: pointer;
 	overflow: hidden;
@@ -136,17 +138,22 @@
 	text-overflow: ellipsis;
 }
 
-.monaco-hover .hover-row.status-bar .actions .action-container .action .icon {
-	padding-right: 4px;
-	vertical-align: middle;
+.hover-row.status-bar .actions .action-container .action {
+	display: inline-flex;
+	align-items: center;
 }
 
-.monaco-hover .hover-row.status-bar .actions .action-container a {
+.hover-row.status-bar .actions .action-container .action .icon {
+	padding-right: 4px;
+	font-size: inherit;
+}
+
+.hover-row.status-bar .actions .action-container a {
 	color: var(--vscode-textLink-foreground);
 	text-decoration: var(--text-link-decoration);
 }
 
-.monaco-hover .hover-row.status-bar .actions .action-container a .icon.codicon {
+.hover-row.status-bar .actions .action-container a .icon.codicon {
 	color: var(--vscode-textLink-foreground);
 }
 
@@ -179,19 +186,6 @@
 
 .monaco-hover .hover-contents a.code-link > span:hover {
 	color: var(--vscode-textLink-activeForeground);
-}
-
-/**
- * Spans in markdown hovers need a margin-bottom to avoid looking cramped:
- * https://github.com/microsoft/vscode/issues/101496
-
- * This was later refined to only apply when the last child of a rendered markdown block (before the
- * border or a `hr`) uses background color:
- * https://github.com/microsoft/vscode/issues/228136
- */
-.monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) p:last-child [style*="background-color"] {
-	margin-bottom: 4px;
-	display: inline-block;
 }
 
 /**

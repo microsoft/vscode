@@ -48,6 +48,14 @@ export class ViewContentWidgets extends ViewPart {
 
 	public override dispose(): void {
 		super.dispose();
+		// Widgets outlive the view, so detach their dom nodes to not keep this view's DOM alive (#146841)
+		for (const widget of Object.values(this._widgets)) {
+			const domNode = widget.domNode.domNode;
+			if (domNode.parentElement === this.domNode.domNode || domNode.parentElement === this.overflowingContentWidgetsDomNode.domNode) {
+				domNode.remove();
+				domNode.removeAttribute('monaco-visible-content-widget');
+			}
+		}
 		this._widgets = {};
 	}
 
@@ -116,7 +124,9 @@ export class ViewContentWidgets extends ViewPart {
 		const myWidget = this._widgets[widget.getId()];
 		myWidget.setPosition(primaryAnchor, secondaryAnchor, preference, affinity);
 
-		this.setShouldRender();
+		if (!myWidget.useDisplayNone) {
+			this.setShouldRender();
+		}
 	}
 
 	public removeWidget(widget: IContentWidget): void {
@@ -140,7 +150,7 @@ export class ViewContentWidgets extends ViewPart {
 		return false;
 	}
 
-	public onBeforeRender(viewportData: ViewportData): void {
+	public override onBeforeRender(viewportData: ViewportData): void {
 		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
 			this._widgets[widgetId].onBeforeRender(viewportData);
@@ -209,6 +219,7 @@ class Widget {
 	private _isVisible: boolean;
 
 	private _renderData: IRenderData | null;
+	public readonly useDisplayNone: boolean;
 
 	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>, actual: IContentWidget) {
 		this._context = context;
@@ -223,6 +234,7 @@ class Widget {
 		this.id = this._actual.getId();
 		this.allowEditorOverflow = (this._actual.allowEditorOverflow || false) && allowOverflow;
 		this.suppressMouseDown = this._actual.suppressMouseDown || false;
+		this.useDisplayNone = this._actual.useDisplayNone || false;
 
 		this._fixedOverflowWidgets = options.get(EditorOption.fixedOverflowWidgets);
 		this._contentWidth = layoutInfo.contentWidth;
@@ -289,7 +301,7 @@ class Widget {
 	public setPosition(primaryAnchor: IPosition | null, secondaryAnchor: IPosition | null, preference: ContentWidgetPositionPreference[] | null, affinity: PositionAffinity | null): void {
 		this._setPosition(affinity, primaryAnchor, secondaryAnchor);
 		this._preference = preference;
-		if (this._primaryAnchor.viewPosition && this._preference && this._preference.length > 0) {
+		if (!this.useDisplayNone && this._primaryAnchor.viewPosition && this._preference && this._preference.length > 0) {
 			// this content widget would like to be visible if possible
 			// we change it from `display:none` to `display:block` even if it
 			// might be outside the viewport such that we can measure its size

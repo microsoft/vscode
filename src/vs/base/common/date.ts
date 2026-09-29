@@ -15,6 +15,31 @@ const month = day * 30;
 const year = day * 365;
 
 /**
+ * Returns the absolute expiration time for a relative lifetime in seconds.
+ */
+export function getExpirationTime(expiresIn: number | undefined, now = Date.now()): number | undefined {
+	return expiresIn === undefined ? undefined : now + expiresIn * 1000;
+}
+
+/**
+ * Returns whether a known expiration time has passed.
+ */
+export function isExpired(expiresAt: number | undefined, now = Date.now()): boolean {
+	return expiresAt !== undefined && expiresAt <= now;
+}
+
+/**
+ * Returns the positive number of whole seconds until `expiresAt`, rounded up.
+ */
+export function getRemainingTimeInSeconds(expiresAt: number | undefined, now = Date.now()): number | undefined {
+	if (expiresAt === undefined) {
+		return undefined;
+	}
+	const remaining = Math.ceil((expiresAt - now) / 1000);
+	return remaining > 0 ? remaining : undefined;
+}
+
+/**
  * Create a localized difference of the time between now and the specified date.
  * @param date The date to generate the difference from.
  * @param appendAgoLabel Whether to append the " ago" to the end.
@@ -24,13 +49,17 @@ const year = day * 365;
  * is less than 30 seconds.
  */
 export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTimeWords?: boolean, disallowNow?: boolean): string {
+	if (typeof date === 'undefined') {
+		return localize('date.fromNow.unknown', 'unknown');
+	}
+
 	if (typeof date !== 'number') {
 		date = date.getTime();
 	}
 
 	const seconds = Math.round((new Date().getTime() - date) / 1000);
 	if (seconds < -30) {
-		return localize('date.fromNow.in', 'in {0}', fromNow(new Date().getTime() + seconds * 1000, false));
+		return localize('date.fromNow.in', 'in {0}', fromNow(new Date().getTime() + seconds * 1000, false, useFullTimeWords, disallowNow));
 	}
 
 	if (!disallowNow && seconds < 30) {
@@ -65,7 +94,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < hour) {
-		value = Math.floor(seconds / minute);
+		value = Math.round(seconds / minute);
 		if (appendAgoLabel) {
 			if (value === 1) {
 				return useFullTimeWords
@@ -90,7 +119,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < day) {
-		value = Math.floor(seconds / hour);
+		value = Math.round(seconds / hour);
 		if (appendAgoLabel) {
 			if (value === 1) {
 				return useFullTimeWords
@@ -115,7 +144,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < week) {
-		value = Math.floor(seconds / day);
+		value = Math.round(seconds / day);
 		if (appendAgoLabel) {
 			return value === 1
 				? localize('date.fromNow.days.singular.ago', '{0} day ago', value)
@@ -128,7 +157,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < month) {
-		value = Math.floor(seconds / week);
+		value = Math.round(seconds / week);
 		if (appendAgoLabel) {
 			if (value === 1) {
 				return useFullTimeWords
@@ -153,7 +182,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < year) {
-		value = Math.floor(seconds / month);
+		value = Math.round(seconds / month);
 		if (appendAgoLabel) {
 			if (value === 1) {
 				return useFullTimeWords
@@ -177,7 +206,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 		}
 	}
 
-	value = Math.floor(seconds / year);
+	value = Math.round(seconds / year);
 	if (appendAgoLabel) {
 		if (value === 1) {
 			return useFullTimeWords

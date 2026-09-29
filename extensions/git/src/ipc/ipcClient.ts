@@ -19,7 +19,7 @@ export class IPCClient {
 		this.ipcHandlePath = ipcHandlePath;
 	}
 
-	call(request: any): Promise<any> {
+	call(request: unknown): Promise<unknown> {
 		const opts: http.RequestOptions = {
 			socketPath: this.ipcHandlePath,
 			path: `/${this.handlerName}`,

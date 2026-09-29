@@ -82,8 +82,7 @@ export class TestTestItem implements ITestItemLike {
 export class TestTestCollection extends TestItemCollection<TestTestItem> {
 	constructor(controllerId = 'ctrlId') {
 		const root = new TestTestItem(new TestId([controllerId]), 'root');
-		// eslint-disable-next-line local/code-no-any-casts
-		(root as any)._isRoot = true;
+		(root as TestTestItem & { _isRoot: boolean })._isRoot = true;
 
 		super({
 			controllerId,

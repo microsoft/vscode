@@ -10,11 +10,11 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { DiffEditorInput } from '../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../common/editor/editorInput.js';
 import { ExtensionKeyedWebviewOriginStore, WebviewOptions } from '../../contrib/webview/browser/webview.js';
-import { WebviewInput } from '../../contrib/webviewPanel/browser/webviewEditorInput.js';
-import { WebviewIcons } from '../../contrib/webviewPanel/browser/webviewIconManager.js';
+import { WebviewIconPath, WebviewInput } from '../../contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IWebViewShowOptions, IWebviewWorkbenchService } from '../../contrib/webviewPanel/browser/webviewWorkbenchService.js';
 import { editorGroupToColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../services/editor/common/editorGroupsService.js';
@@ -23,6 +23,7 @@ import { IExtensionService } from '../../services/extensions/common/extensions.j
 import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import * as extHostProtocol from '../common/extHost.protocol.js';
 import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from './mainThreadWebviews.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 
 /**
  * Bi-directional map between webview handles and inputs.
@@ -95,9 +96,10 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IExtensionService extensionService: IExtensionService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IStorageService storageService: IStorageService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -125,7 +127,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			canResolve: (webview: WebviewInput) => {
 				const viewType = this.webviewPanelViewType.toExternal(webview.viewType);
 				if (typeof viewType === 'string') {
-					extensionService.activateByEvent(`onWebviewPanel:${viewType}`);
+					this._extensionService.activateByEvent(`onWebviewPanel:${viewType}`);
 				}
 				return false;
 			},
@@ -171,7 +173,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			options: reviveWebviewOptions(initData.panelOptions),
 			contentOptions: reviveWebviewContentOptions(initData.webviewOptions),
 			extension
-		}, this.webviewPanelViewType.fromExternal(viewType), initData.title, mainThreadShowOptions);
+		}, this.webviewPanelViewType.fromExternal(viewType), initData.title, undefined, mainThreadShowOptions);
 
 		this.addWebviewInput(handle, webview, { serializeBuffersForPostMessage: initData.serializeBuffersForPostMessage });
 	}
@@ -185,7 +187,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	}
 
 	public $setTitle(handle: extHostProtocol.WebviewHandle, value: string): void {
-		this.tryGetWebviewInput(handle)?.setName(value);
+		this.tryGetWebviewInput(handle)?.setWebviewTitle(value);
 	}
 
 	public $setIconPath(handle: extHostProtocol.WebviewHandle, value: extHostProtocol.IWebviewIconPath | undefined): void {
@@ -269,6 +271,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 				}
 
 				try {
+					await this.updateExtensionLocation(webviewInput);
 					await this._proxy.$deserializeWebviewPanel(handle, viewType, {
 						title: webviewInput.getTitle(),
 						state,
@@ -282,6 +285,33 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 				}
 			}
 		}));
+	}
+
+	private async updateExtensionLocation(webviewInput: WebviewInput): Promise<void> {
+		const oldExtension = webviewInput.extension;
+		if (!oldExtension?.location) {
+			return;
+		}
+
+		const extension = await this._extensionService.getExtension(oldExtension.id.value);
+		const extUri = this._uriIdentityService.extUri;
+		if (!extension || extUri.isEqual(oldExtension.location, extension.extensionLocation)) {
+			return;
+		}
+
+		const webview = webviewInput.webview;
+		const oldLocation = extUri.removeTrailingPathSeparator(extUri.normalizePath(oldExtension.location));
+		webview.contentOptions = {
+			...webview.contentOptions,
+			localResourceRoots: webview.contentOptions.localResourceRoots?.map(root => {
+				const normalizedRoot = extUri.normalizePath(root);
+				if (!extUri.isEqualOrParent(normalizedRoot, oldLocation)) {
+					return root;
+				}
+				return URI.joinPath(extension.extensionLocation, normalizedRoot.path.slice(oldLocation.path.length));
+			}),
+		};
+		webview.extension = { id: extension.identifier, location: extension.extensionLocation };
 	}
 
 	public $unregisterSerializer(viewType: string): void {
@@ -337,10 +367,15 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	}
 }
 
-function reviveWebviewIcon(value: extHostProtocol.IWebviewIconPath | undefined): WebviewIcons | undefined {
+function reviveWebviewIcon(value: extHostProtocol.IWebviewIconPath | undefined): WebviewIconPath | undefined {
 	if (!value) {
 		return undefined;
 	}
+
+	if (ThemeIcon.isThemeIcon(value)) {
+		return value;
+	}
+
 	return {
 		light: URI.revive(value.light),
 		dark: URI.revive(value.dark),

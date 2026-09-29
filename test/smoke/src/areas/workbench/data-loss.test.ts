@@ -27,11 +27,12 @@ export function setup(ensureStableCode: () => { stableCodePath: string | undefin
 			});
 			await app.start();
 
+
 			// Open 3 editors
 			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'bin', 'www'));
-			await app.workbench.quickaccess.runCommand('View: Keep Editor');
+			await app.workbench.quickaccess.runCommand('View: Keep Editor', { match: 'exactLabel' });
 			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
-			await app.workbench.quickaccess.runCommand('View: Keep Editor');
+			await app.workbench.quickaccess.runCommand('View: Keep Editor', { match: 'exactLabel' });
 			await app.workbench.editors.newUntitledFile();
 
 			await app.restart();
@@ -83,6 +84,10 @@ export function setup(ensureStableCode: () => { stableCodePath: string | undefin
 		});
 
 		it('verifies that auto save triggers on shutdown', function () {
+			// Quarantined on remote Linux/Windows: https://github.com/microsoft/vscode/issues/338154
+			if (this.defaultOptions.remote && (process.platform === 'linux' || process.platform === 'win32')) {
+				this.skip();
+			}
 			return testHotExit.call(this, 'test_verifies_that_auto_save_triggers_on_shutdown', undefined, true);
 		});
 
@@ -177,9 +182,9 @@ export function setup(ensureStableCode: () => { stableCodePath: string | undefin
 
 			// Open 3 editors
 			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePathOrFolder, 'bin', 'www'));
-			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
+			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor', { match: 'exactLabel' });
 			await stableApp.workbench.quickaccess.openFile(join(stableApp.workspacePathOrFolder, 'app.js'));
-			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
+			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor', { match: 'exactLabel' });
 			await stableApp.workbench.editors.newUntitledFile();
 
 			await stableApp.stop();

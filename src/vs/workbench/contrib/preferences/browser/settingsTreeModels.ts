@@ -14,15 +14,19 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { ConfigurationTarget, getLanguageTagSettingPlainKey, IConfigurationValue } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { USER_LOCAL_AND_REMOTE_SETTINGS } from '../../../../platform/request/common/request.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
+import { SandboxSettingsResolutionHelper } from '../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
 import { APPLICATION_SCOPES, FOLDER_SCOPES, IWorkbenchConfigurationService, LOCAL_MACHINE_SCOPES, REMOTE_MACHINE_SCOPES, WORKSPACE_SCOPES } from '../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatchType, SettingValueType } from '../../../services/preferences/common/preferences.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
-import { ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, compareTwoNullableNumbers, wordifyKey } from '../common/preferences.js';
+import { AGENTS_WINDOW_SETTING_TAG, ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, EXP_ASSIGNMENT_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, compareTwoNullableNumbers, wordifyKey } from '../common/preferences.js';
 import { SettingsTarget } from './preferencesWidgets.js';
 import { ITOCEntry, tocData } from './settingsLayout.js';
+import { IExperimentalSettingsService } from '../../../services/configuration/common/experimentalSettings.js';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -34,7 +38,7 @@ export interface ISettingsEditorViewState {
 	featureFilters?: Set<string>;
 	idFilters?: Set<string>;
 	languageFilter?: string;
-	filterToCategory?: SettingsTreeGroupElement;
+	categoryFilter?: SettingsTreeGroupElement;
 }
 
 export abstract class SettingsTreeElement extends Disposable {
@@ -154,6 +158,11 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 */
 	hasPolicyValue = false;
 
+	/**
+	 * Whether the setting is read-only in the Agents window.
+	 */
+	isAgentsWindowReadOnly = false;
+
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
 	overriddenDefaultsLanguageList: string[] = [];
@@ -176,6 +185,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		private readonly productService: IProductService,
 		private readonly userDataProfileService: IUserDataProfileService,
 		private readonly configurationService: IWorkbenchConfigurationService,
+		private readonly isSessionsWindow: boolean,
+		private readonly experimentalSettingsService: IExperimentalSettingsService,
+		private readonly managedSettingsService: IManagedSettingsService,
 	) {
 		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
@@ -184,6 +196,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		// Make sure description and valueType are initialized
 		this.initSettingDescription();
 		this.initSettingValueType();
+	}
+
+	get hasExPAssignment(): boolean {
+		return this.experimentalSettingsService.hasAssignment(this.setting.key);
 	}
 
 	get displayCategory(): string {
@@ -343,11 +359,13 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		// so we reset the default value source to the non-language-specific default value source for now.
 		this.defaultValueSource = this.setting.nonLanguageSpecificDefaultValueSource;
 
-		if (inspected.policyValue !== undefined) {
-			this.hasPolicyValue = true;
+		// Runtime restrictions affect presentation only; they are not VS Code configuration policies.
+		const policyValue = this.getManagedSandboxValue() ?? inspected.policyValue;
+		this.hasPolicyValue = policyValue !== undefined;
+		if (this.hasPolicyValue) {
 			isConfigured = false; // The user did not manually configure the setting themselves.
-			displayValue = inspected.policyValue;
-			this.scopeValue = inspected.policyValue;
+			displayValue = policyValue;
+			this.scopeValue = policyValue;
 			this.defaultValue = inspected.defaultValue;
 		} else if (languageSelector && this.languageOverrideValues.has(languageSelector)) {
 			const overrideValues = this.languageOverrideValues.get(languageSelector)!;
@@ -368,9 +386,19 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.defaultValue = inspected.defaultValue;
 		}
 
+		let hasAgentsWindowOverride = false;
+		if (this.isSessionsWindow) {
+			const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[this.setting.key];
+			hasAgentsWindowOverride = !!property?.agentsWindow;
+			this.isAgentsWindowReadOnly = !!property?.agentsWindow?.readOnly;
+			if (this.isAgentsWindowReadOnly) {
+				isConfigured = false;
+			}
+		}
+
 		this.value = displayValue;
 		this.isConfigured = isConfigured;
-		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted || this.hasPolicyValue) {
+		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted || this.hasPolicyValue || hasAgentsWindowOverride || this.hasExPAssignment) {
 			// Don't create an empty Set for all 1000 settings, only if needed
 			this.tags = new Set<string>();
 			if (isConfigured) {
@@ -378,6 +406,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 
 			this.setting.tags?.forEach(tag => this.tags!.add(tag));
+			this.tags.delete(EXP_ASSIGNMENT_SETTING_TAG);
+			if (this.hasExPAssignment) {
+				this.tags.add(EXP_ASSIGNMENT_SETTING_TAG);
+			}
 
 			if (this.setting.restricted) {
 				this.tags.add(REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG);
@@ -386,7 +418,28 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			if (this.hasPolicyValue) {
 				this.tags.add(POLICY_SETTING_TAG);
 			}
+
+			if (hasAgentsWindowOverride) {
+				this.tags.add(AGENTS_WINDOW_SETTING_TAG);
+			}
 		}
+	}
+
+	private getManagedSandboxValue(): AgentSandboxEnabledValue | boolean | undefined {
+		if (this.setting.key === AgentSandboxSettingId.AgentSandboxAllowNetwork) {
+			const allowOutbound = this.managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY);
+			return SandboxSettingsResolutionHelper.resolveAllowOutbound(undefined, typeof allowOutbound === 'boolean' ? allowOutbound : undefined);
+		}
+		const isSandboxEnabled = this.setting.key === AgentSandboxSettingId.AgentSandboxEnabled || this.setting.key === AgentSandboxSettingId.AgentSandboxWindowsEnabled;
+		if (!isSandboxEnabled && this.setting.key !== AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) {
+			return undefined;
+		}
+		const enabled = this.managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY) === true;
+		const allowBypass = this.managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ALLOW_BYPASS_KEY);
+		if (isSandboxEnabled) {
+			return SandboxSettingsResolutionHelper.resolveEnabled(undefined, enabled);
+		}
+		return SandboxSettingsResolutionHelper.resolveAllowBypass(undefined, typeof allowBypass === 'boolean' ? allowBypass : undefined, enabled);
 	}
 
 	matchesAllTags(tagFilters?: Set<string>): boolean {
@@ -400,6 +453,21 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			// The setting must inspect itself to get tag information
 			// including for the hasPolicy tag.
 			this.inspectSelf();
+		}
+
+		// Handle the special 'stable' tag filter
+		if (tagFilters.has('stable')) {
+			// For stable filter, exclude preview and experimental settings
+			if (this.tags?.has('preview') || this.tags?.has('experimental')) {
+				return false;
+			}
+			// Check other filters (excluding 'stable' itself)
+			const otherFilters = new Set(Array.from(tagFilters).filter(tag => tag !== 'stable'));
+			if (otherFilters.size === 0) {
+				return true;
+			}
+			return !!this.tags?.size &&
+				Array.from(otherFilters).every(tag => this.tags!.has(tag));
 		}
 
 		// Check that the filter tags are a subset of this setting's tags
@@ -456,14 +524,31 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			return true;
 		}
 
-		const features = tocData.children!.find(child => child.id === 'features');
+		// Restrict to core settings
+		if (this.setting.extensionInfo) {
+			return false;
+		}
 
+		// Chat settings are now in their own top-level category
+		if (featureFilters.has('chat')) {
+			const chatFeatures = tocData.children!.find(child => child.id === 'chat');
+			if (chatFeatures?.children) {
+				const patterns = chatFeatures.children
+					.flatMap(feature => feature.settings ?? [])
+					.map(setting => createSettingMatchRegExp(setting));
+				if (patterns.some(pattern => pattern.test(this.setting.key))) {
+					return true;
+				}
+			}
+		}
+
+		const features = tocData.children!.find(child => child.id === 'features');
 		return Array.from(featureFilters).some(filter => {
-			if (features && features.children) {
+			if (features?.children) {
 				const feature = features.children.find(feature => 'features/' + filter === feature.id);
-				if (feature) {
-					const patterns = feature.settings?.map(setting => createSettingMatchRegExp(setting));
-					return patterns && !this.setting.extensionInfo && patterns.some(pattern => pattern.test(this.setting.key.toLowerCase()));
+				if (feature?.settings) {
+					const patterns = feature.settings.map(setting => createSettingMatchRegExp(setting));
+					return patterns.some(pattern => pattern.test(this.setting.key));
 				} else {
 					return false;
 				}
@@ -477,7 +562,23 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		if (!idFilters || !idFilters.size) {
 			return true;
 		}
-		return idFilters.has(this.setting.key);
+
+		// Check for exact match first
+		if (idFilters.has(this.setting.key)) {
+			return true;
+		}
+
+		// Check for wildcard patterns (ending with .*)
+		for (const filter of idFilters) {
+			if (filter.endsWith('*')) {
+				const prefix = filter.slice(0, -1); // Remove '*' suffix
+				if (this.setting.key.startsWith(prefix)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	matchesAllLanguages(languageFilter?: string): boolean {
@@ -522,7 +623,10 @@ export class SettingsTreeModel implements IDisposable {
 		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IExperimentalSettingsService private readonly _experimentalSettingsService: IExperimentalSettingsService,
+		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
 	) {
 	}
 
@@ -638,7 +742,10 @@ export class SettingsTreeModel implements IDisposable {
 			this._languageService,
 			this._productService,
 			this._userDataProfileService,
-			this._configurationService);
+			this._configurationService,
+			this._environmentService.isSessionsWindow,
+			this._experimentalSettingsService,
+			this._managedSettingsService);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) ?? [];
 		nameElements.push(element);
@@ -703,8 +810,8 @@ export function inspectSetting(key: string, target: SettingsTarget, languageFilt
 	return { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelector: languageFilter };
 }
 
-function sanitizeId(id: string): string {
-	return id.replace(/[\.\/]/, '_');
+export function sanitizeId(id: string): string {
+	return id.replace(/[\.\/]/g, '_');
 }
 
 export function settingKeyToDisplayFormat(key: string, groupId: string = '', isLanguageTagSetting: boolean = false): { category: string; label: string } {
@@ -936,9 +1043,11 @@ export class SearchResultModel extends SettingsTreeModel {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService languageService: ILanguageService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IExperimentalSettingsService experimentalSettingsService: IExperimentalSettingsService,
+		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 	) {
-		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService);
+		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService, environmentService, experimentalSettingsService, managedSettingsService);
 		this.settingsOrderByTocIndex = settingsOrderByTocIndex;
 		this.cachedUniqueSearchResults = new Map();
 		this.update({ id: 'searchResultModel', label: '' });
@@ -1166,6 +1275,17 @@ export function parseQuery(query: string): IParsedQuery {
 
 	query = query.replace(`@${POLICY_SETTING_TAG}`, () => {
 		tags.push(POLICY_SETTING_TAG);
+		return '';
+	});
+
+	query = query.replace(`@${AGENTS_WINDOW_SETTING_TAG}`, () => {
+		tags.push(AGENTS_WINDOW_SETTING_TAG);
+		return '';
+	});
+
+	// Handle @stable by excluding preview and experimental tags
+	query = query.replace(/@stable/g, () => {
+		tags.push('stable');
 		return '';
 	});
 

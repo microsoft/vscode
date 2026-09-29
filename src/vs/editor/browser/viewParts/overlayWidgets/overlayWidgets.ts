@@ -69,6 +69,13 @@ export class ViewOverlayWidgets extends ViewPart {
 
 	public override dispose(): void {
 		super.dispose();
+		// Widgets outlive the view, so detach their dom nodes to not keep this view's DOM alive (#146841)
+		for (const widgetData of Object.values(this._widgets)) {
+			const domNode = widgetData.domNode.domNode;
+			if (domNode.parentElement === this._domNode.domNode || domNode.parentElement === this.overflowingOverlayWidgetsDomNode.domNode) {
+				domNode.remove();
+			}
+		}
 		this._widgets = {};
 	}
 
@@ -124,7 +131,7 @@ export class ViewOverlayWidgets extends ViewPart {
 	public setWidgetPosition(widget: IOverlayWidget, position: IOverlayWidgetPosition | null): boolean {
 		const widgetData = this._widgets[widget.getId()];
 		const preference = position ? position.preference : null;
-		const stack = position?.stackOridinal;
+		const stack = position?.stackOrdinal;
 		if (widgetData.preference === preference && widgetData.stack === stack) {
 			this._updateMaxMinWidth();
 			return false;

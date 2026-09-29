@@ -8,7 +8,6 @@ import 'mocha';
 import { assertNoRpc } from '../utils';
 import { pki } from 'node-forge';
 import { AddressInfo } from 'net';
-import { resetCaches } from '@vscode/proxy-agent';
 import * as vscode from 'vscode';
 import { Straightforward, Middleware, RequestContext, ConnectContext, isRequest, isConnect } from 'straightforward';
 import assert from 'assert';
@@ -55,15 +54,10 @@ import assert from 'assert';
 			rejectPort(err);
 		});
 
-		// Using https.globalAgent because it is shared with proxyResolver.ts and mutable.
-		// eslint-disable-next-line local/code-no-any-casts
-		(https.globalAgent as any).testCertificates = [certPEM];
-		resetCaches();
-
 		try {
 			const portNumber = await port;
 			await new Promise<void>((resolve, reject) => {
-				https.get(`https://127.0.0.1:${portNumber}`, { servername: 'localhost-proxy-test' }, res => {
+				https.get(`https://127.0.0.1:${portNumber}`, { servername: 'localhost-proxy-test', testCertificates: [certPEM] } as https.RequestOptions, res => {
 					if (res.statusCode === 200) {
 						resolve();
 					} else {
@@ -73,9 +67,6 @@ import assert from 'assert';
 					.on('error', reject);
 			});
 		} finally {
-			// eslint-disable-next-line local/code-no-any-casts
-			delete (https.globalAgent as any).testCertificates;
-			resetCaches();
 			server.close();
 		}
 	});

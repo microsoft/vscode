@@ -6,6 +6,7 @@
 import * as browser from '../../../../base/browser/browser.js';
 import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import * as platform from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
 import { IVisibleLine } from '../../view/viewLayer.js';
 import { RangeUtil } from './rangeUtil.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
@@ -116,7 +117,7 @@ export class ViewLine implements IVisibleLine {
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const options = this._options;
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
-		const renderWhitespace = (lineData.hasVariableFonts || options.experimentalWhitespaceRendering === 'off') ? options.renderWhitespace : 'none';
+		const renderWhitespace = options.experimentalWhitespaceRendering === 'off' ? options.renderWhitespace : 'none';
 		const allowFastRendering = !lineData.hasVariableFonts;
 
 		// Only send selection information when needed for rendering whitespace
@@ -169,7 +170,9 @@ export class ViewLine implements IVisibleLine {
 			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine,
 			lineData.textDirection,
-			options.verticalScrollbarSize
+			options.verticalScrollbarSize,
+			false,
+			options.useTwoCellFullwidthCharacters
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -323,6 +326,10 @@ export class ViewLine implements IVisibleLine {
 		}
 		return this._renderedViewLine.getColumnOfNodeOffset(spanNode, offset);
 	}
+
+	public resetCachedWidth(): void {
+		this._renderedViewLine?.resetCachedWidth();
+	}
 }
 
 interface IRenderedViewLine {
@@ -330,6 +337,7 @@ interface IRenderedViewLine {
 	readonly input: RenderLineInput;
 	getWidth(context: DomReadingContext | null): number;
 	getWidthIsFast(): boolean;
+	resetCachedWidth(): void;
 	getVisibleRangesForRange(lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null;
 	getColumnOfNodeOffset(spanNode: HTMLElement, offset: number): number;
 }
@@ -389,6 +397,10 @@ class FastRenderedViewLine implements IRenderedViewLine {
 
 	public getWidthIsFast(): boolean {
 		return (this.input.lineContent.length < Constants.MaxMonospaceDistance) || this._cachedWidth !== -1;
+	}
+
+	public resetCachedWidth(): void {
+		this._cachedWidth = -1;
 	}
 
 	public monospaceAssumptionsAreValid(): boolean {
@@ -528,6 +540,15 @@ class RenderedViewLine implements IRenderedViewLine {
 		return true;
 	}
 
+	public resetCachedWidth(): void {
+		this._cachedWidth = -1;
+		if (this._pixelOffsetCache !== null) {
+			for (let column = 0, len = this._pixelOffsetCache.length; column < len; column++) {
+				this._pixelOffsetCache[column] = -1;
+			}
+		}
+	}
+
 	/**
 	 * Visible ranges for a model range
 	 */
@@ -624,6 +645,25 @@ class RenderedViewLine implements IRenderedViewLine {
 
 		const domPosition = this._characterMapping.getDomPosition(column);
 
+		if (this.input.useTwoCellFullwidthCharacters) {
+			const target = this._getReadingTarget(domNode);
+			// The first branch needs the left edge of the character to the right
+			if (strings.isFullWidthCharacter(this.input.lineContent.charCodeAt(column - 1))) {
+				const r = RangeUtil.readHorizontalRangeForElement(target, domPosition.partIndex, context);
+				if (r) {
+					return r.left;
+				}
+			}
+			// The second branch needs the right edge of the character to the left.
+			else if (strings.isFullWidthCharacter(this.input.lineContent.charCodeAt(column - 2))) {
+				const previousDomPosition = this._characterMapping.getDomPosition(column - 1);
+				const r = RangeUtil.readHorizontalRangeForElement(target, previousDomPosition.partIndex, context);
+				if (r) {
+					return r.left + r.width;
+				}
+			}
+		}
+
 		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context);
 		if (!r || r.length === 0) {
 			return -1;
@@ -704,7 +744,7 @@ function createNormalRenderedLine(domNode: FastDomNode<HTMLElement> | null, rend
 }
 
 export function getColumnOfNodeOffset(characterMapping: CharacterMapping, spanNode: HTMLElement, offset: number): number {
-	const spanNodeTextContentLength = spanNode.textContent!.length;
+	const spanNodeTextContentLength = spanNode.textContent.length;
 
 	let spanIndex = -1;
 	while (spanNode) {

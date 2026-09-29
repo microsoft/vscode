@@ -27,6 +27,9 @@ export class BrowserStorageService extends AbstractStorageService {
 	private applicationStorageDatabase: IIndexedDBStorageDatabase | undefined;
 	private readonly applicationStoragePromise = new DeferredPromise<{ indexedDb: IIndexedDBStorageDatabase; storage: IStorage }>();
 
+	private applicationSharedStorage: IStorage | undefined;
+	private applicationSharedStorageDatabase: IIndexedDBStorageDatabase | undefined;
+
 	private profileStorage: IStorage | undefined;
 	private profileStorageDatabase: IIndexedDBStorageDatabase | undefined;
 	private profileStorageProfile: IUserDataProfile;
@@ -38,9 +41,18 @@ export class BrowserStorageService extends AbstractStorageService {
 	get hasPendingUpdate(): boolean {
 		return Boolean(
 			this.applicationStorageDatabase?.hasPendingUpdate ||
+			this.applicationSharedStorageDatabase?.hasPendingUpdate ||
 			this.profileStorageDatabase?.hasPendingUpdate ||
 			this.workspaceStorageDatabase?.hasPendingUpdate
 		);
+	}
+
+	async getApplicationStorageValue(key: string): Promise<string | undefined> {
+		return (await this.applicationStoragePromise.p).indexedDb.getValue(key);
+	}
+
+	async compareAndSwapApplicationStorage(key: string, expectedValue: string | undefined, newValue: string): Promise<{ readonly swapped: boolean; readonly currentValue: string | undefined }> {
+		return (await this.applicationStoragePromise.p).indexedDb.compareAndSwap(key, expectedValue, newValue);
 	}
 
 	constructor(
@@ -64,6 +76,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Init storages
 		await Promises.settled([
 			this.createApplicationStorage(),
+			this.createApplicationSharedStorage(),
 			this.createProfileStorage(this.profileStorageProfile),
 			this.createWorkspaceStorage()
 		]);
@@ -82,6 +95,19 @@ export class BrowserStorageService extends AbstractStorageService {
 		this.updateIsNew(this.applicationStorage);
 
 		this.applicationStoragePromise.complete({ indexedDb: applicationStorageIndexedDB, storage: this.applicationStorage });
+	}
+
+	private async createApplicationSharedStorage(): Promise<void> {
+		const applicationSharedStorageIndexedDB = await IndexedDBStorageDatabase.createApplicationSharedStorage(this.logService);
+
+		this.applicationSharedStorageDatabase = this._register(applicationSharedStorageIndexedDB);
+		this.applicationSharedStorage = this._register(new Storage(this.applicationSharedStorageDatabase));
+
+		this._register(this.applicationSharedStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.APPLICATION_SHARED, e)));
+
+		await this.applicationSharedStorage.init();
+
+		this.updateIsNew(this.applicationSharedStorage);
 	}
 
 	private async createProfileStorage(profile: IUserDataProfile): Promise<void> {
@@ -143,6 +169,8 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	protected getStorage(scope: StorageScope): IStorage | undefined {
 		switch (scope) {
+			case StorageScope.APPLICATION_SHARED:
+				return this.applicationSharedStorage;
 			case StorageScope.APPLICATION:
 				return this.applicationStorage;
 			case StorageScope.PROFILE:
@@ -154,6 +182,8 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
 		switch (scope) {
+			case StorageScope.APPLICATION_SHARED:
+				return this.applicationSharedStorageDatabase?.name;
 			case StorageScope.APPLICATION:
 				return this.applicationStorageDatabase?.name;
 			case StorageScope.PROFILE:
@@ -212,6 +242,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// we expect data to be written when the unload happens.
 		if (isSafari) {
 			this.applicationStorage?.close();
+			this.applicationSharedStorageDatabase?.close();
 			this.profileStorageDatabase?.close();
 			this.workspaceStorageDatabase?.close();
 		}
@@ -224,7 +255,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	async clear(): Promise<void> {
 
 		// Clear key/values
-		for (const scope of [StorageScope.APPLICATION, StorageScope.PROFILE, StorageScope.WORKSPACE]) {
+		for (const scope of [StorageScope.APPLICATION, StorageScope.APPLICATION_SHARED, StorageScope.PROFILE, StorageScope.WORKSPACE]) {
 			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
 				for (const key of this.keys(scope, target)) {
 					this.remove(key, scope);
@@ -237,6 +268,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Clear databases
 		await Promises.settled([
 			this.applicationStorageDatabase?.clear() ?? Promise.resolve(),
+			this.applicationSharedStorageDatabase?.clear() ?? Promise.resolve(),
 			this.profileStorageDatabase?.clear() ?? Promise.resolve(),
 			this.workspaceStorageDatabase?.clear() ?? Promise.resolve()
 		]);
@@ -264,6 +296,9 @@ interface IIndexedDBStorageDatabase extends IStorageDatabase, IDisposable {
 	 */
 	readonly hasPendingUpdate: boolean;
 
+	getValue(key: string): Promise<string | undefined>;
+	compareAndSwap(key: string, expectedValue: string | undefined, newValue: string): Promise<{ readonly swapped: boolean; readonly currentValue: string | undefined }>;
+
 	/**
 	 * For testing only.
 	 */
@@ -274,6 +309,21 @@ class InMemoryIndexedDBStorageDatabase extends InMemoryStorageDatabase implement
 
 	readonly hasPendingUpdate = false;
 	readonly name = 'in-memory-indexedb-storage';
+
+	async getValue(key: string): Promise<string | undefined> {
+		return (await this.getItems()).get(key);
+	}
+
+	async compareAndSwap(key: string, expectedValue: string | undefined, newValue: string): Promise<{ readonly swapped: boolean; readonly currentValue: string | undefined }> {
+		const items = await this.getItems();
+		const currentValue = items.get(key);
+		if (currentValue !== expectedValue) {
+			return { swapped: false, currentValue };
+		}
+
+		await this.updateItems({ insert: new Map([[key, newValue]]) });
+		return { swapped: true, currentValue: newValue };
+	}
 
 	async clear(): Promise<void> {
 		(await this.getItems()).clear();
@@ -293,6 +343,10 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 
 	static async createApplicationStorage(logService: ILogService): Promise<IIndexedDBStorageDatabase> {
 		return IndexedDBStorageDatabase.create({ id: 'global', broadcastChanges: true }, logService);
+	}
+
+	static async createApplicationSharedStorage(logService: ILogService): Promise<IIndexedDBStorageDatabase> {
+		return IndexedDBStorageDatabase.create({ id: 'global-shared', broadcastChanges: true }, logService);
 	}
 
 	static async createProfileStorage(profile: IUserDataProfile, logService: ILogService): Promise<IIndexedDBStorageDatabase> {
@@ -377,6 +431,12 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		return db.getKeyValues<string>(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, isValid);
 	}
 
+	async getValue(key: string): Promise<string | undefined> {
+		const db = await this.whenConnected;
+		const value = await db.runInTransaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readonly', objectStore => objectStore.get(key));
+		return typeof value === 'string' ? value : undefined;
+	}
+
 	async updateItems(request: IUpdateRequest): Promise<void> {
 
 		// Run the update
@@ -398,6 +458,23 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 
 			this.broadcastChannel.postData(event);
 		}
+	}
+
+	async compareAndSwap(key: string, expectedValue: string | undefined, newValue: string): Promise<{ readonly swapped: boolean; readonly currentValue: string | undefined }> {
+		const db = await this.whenConnected;
+		const result = await db.compareAndSwap(
+			IndexedDBStorageDatabase.STORAGE_OBJECT_STORE,
+			key,
+			expectedValue,
+			newValue,
+			(value): value is string => typeof value === 'string',
+		);
+		if (result.swapped) {
+			const event = { changed: new Map([[key, newValue]]) };
+			this._onDidChangeItemsExternal.fire(event);
+			this.broadcastChannel?.postData(event);
+		}
+		return result;
 	}
 
 	private async doUpdateItems(request: IUpdateRequest): Promise<boolean> {

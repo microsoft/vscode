@@ -4,10 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import type * as ESTree from 'estree';
+import { readFileSync } from 'fs';
 import { join } from 'path';
 
+// Lazy initialization for module list generation to optimize performance on demand
+let cachedModules: Set<string> | undefined;
 
-export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
+function getModules(): Set<string> {
+	if (!cachedModules) {
+		try {
+			const packageJson = JSON.parse(readFileSync(join(import.meta.dirname, '../package.json'), 'utf-8'));
+			const { dependencies = {}, optionalDependencies = {} } = packageJson;
+			const all = Object.keys(dependencies).concat(Object.keys(optionalDependencies));
+			cachedModules = new Set(all);
+		} catch (e) {
+			console.error('Failed to load package.json for AmdModuleImportCheck rule:', e);
+			throw e; // Rethrow the error to prevent silencing it
+		}
+	}
+	return cachedModules;
+}
+
+export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -18,31 +37,17 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const modules = new Set<string>();
+		const checkImport = (node: ESTree.Literal & { parent?: ESTree.Node & { importKind?: string } }) => {
 
-		try {
-			const { dependencies, optionalDependencies } = require(join(__dirname, '../package.json'));
-			const all = Object.keys(dependencies).concat(Object.keys(optionalDependencies));
-			for (const key of all) {
-				modules.add(key);
-			}
-
-		} catch (e) {
-			console.error(e);
-			throw e;
-		}
-
-
-		const checkImport = (node: any) => {
-
-			if (node.type !== 'Literal' || typeof node.value !== 'string') {
+			if (typeof node.value !== 'string') {
 				return;
 			}
 
-			if (node.parent.importKind === 'type') {
+			if (node.parent?.type === 'ImportDeclaration' && node.parent.importKind === 'type') {
 				return;
 			}
 
+			const modules = getModules();
 			if (!modules.has(node.value)) {
 				return;
 			}

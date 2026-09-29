@@ -23,7 +23,7 @@ export class SyncScroll extends Disposable implements IWorkbenchContribution {
 	private readonly paneInitialScrollTop = new Map<IEditorPane, IEditorPaneScrollPosition | undefined>();
 
 	private readonly syncScrollDispoasbles = this._register(new DisposableStore());
-	private readonly paneDisposables = new DisposableStore();
+	private readonly paneDisposables = this._register(new DisposableStore());
 
 	private readonly statusBarEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 

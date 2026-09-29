@@ -36,6 +36,7 @@ export namespace Schemas {
 	 * An embedded code snippet.
 	 */
 	export const walkThroughSnippet = 'walkThroughSnippet';
+	export const vscodeOnboardingSample = 'vscode-onboarding-sample';
 
 	export const http = 'http';
 
@@ -75,6 +76,9 @@ export namespace Schemas {
 
 	export const vscodeTerminal = 'vscode-terminal';
 
+	/** Scheme used for the image carousel editor. */
+	export const vscodeImageCarousel = 'vscode-image-carousel';
+
 	/** Scheme used for code blocks in chat. */
 	export const vscodeChatCodeBlock = 'vscode-chat-code-block';
 
@@ -87,8 +91,18 @@ export namespace Schemas {
 	/** Scheme used for the chat input part */
 	export const vscodeChatInput = 'chatSessionInput';
 
-	/** Scheme for chat session content */
-	export const vscodeChatSession = 'vscode-chat-session';
+	/** Scheme used for the Agents window new-session composer input */
+	export const sessionsChatInput = 'sessions-chat';
+
+	/** Scheme used for local chat session content */
+	export const vscodeLocalChatSession = 'vscode-chat-session';
+
+	/** Scheme used for read-only resources owned by a chat response or attachment */
+	export const vscodeChatResponseResource = 'vscode-chat-response-resource';
+	/** Scheme used for Agent Host terminal channels. */
+	export const agentHostTerminal = 'agenthost-terminal';
+	/** Scheme used for subscription-backed Agent Host terminal output editors. */
+	export const vscodeChatTerminalOutput = 'vscode-chat-terminal-output';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
@@ -99,6 +113,11 @@ export namespace Schemas {
 	 * Scheme used for loading the wrapper html and script in webviews.
 	 */
 	export const vscodeWebview = 'vscode-webview';
+
+	/**
+	 * Scheme used for integrated browser tabs using WebContentsView.
+	 */
+	export const vscodeBrowser = 'vscode-browser';
 
 	/**
 	 * Scheme used for extension pages
@@ -151,6 +170,11 @@ export namespace Schemas {
 	 */
 	export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
 	export const chatEditingModel = 'chat-editing-text-model';
+
+	/**
+	 * Used for rendering multidiffs in copilot agent sessions
+	 */
+	export const copilotPr = 'copilot-pr';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {
@@ -214,7 +238,7 @@ class RemoteAuthoritiesImpl {
 			try {
 				return this._delegate(uri);
 			} catch (err) {
-				errors.onUnexpectedError(err);
+				errors.onUnexpectedExternalError(err);
 				return uri;
 			}
 		}
@@ -260,6 +284,7 @@ export const nodeModulesPath: AppResourcePath = 'vs/../../node_modules';
 export const nodeModulesAsarPath: AppResourcePath = 'vs/../../node_modules.asar';
 export const nodeModulesAsarUnpackedPath: AppResourcePath = 'vs/../../node_modules.asar.unpacked';
 
+export const AGENTS_AUTHORITY = 'agents';
 export const VSCODE_AUTHORITY = 'vscode-app';
 
 class FileAccessImpl {
@@ -413,8 +438,7 @@ export namespace COI {
 	 * isn't enabled the current context
 	 */
 	export function addSearchParam(urlOrSearch: URLSearchParams | Record<string, string>, coop: boolean, coep: boolean): void {
-		// eslint-disable-next-line local/code-no-any-casts
-		if (!(<any>globalThis).crossOriginIsolated) {
+		if (!(globalThis as typeof globalThis & { crossOriginIsolated?: boolean }).crossOriginIsolated) {
 			// depends on the current context being COI
 			return;
 		}
@@ -422,7 +446,7 @@ export namespace COI {
 		if (urlOrSearch instanceof URLSearchParams) {
 			urlOrSearch.set(coiSearchParamName, value);
 		} else {
-			(<Record<string, string>>urlOrSearch)[coiSearchParamName] = value;
+			urlOrSearch[coiSearchParamName] = value;
 		}
 	}
 }

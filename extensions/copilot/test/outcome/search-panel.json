@@ -1,0 +1,158 @@
+[
+	{
+		"name": "search [panel] - aaaaaaaaaaaaaaaa",
+		"requests": [
+			"53e90c06bf6079f2be327ff93a8307f84c4d34a91d1dd7f4fcbeb1e88dd61a15"
+		]
+	},
+	{
+		"name": "search [panel] - css background color attributes",
+		"requests": [
+			"4aa20ec3a164ec0bf2793eedd449660bd2c0b1d54565b1c63f2fc5f7c57ea1eb"
+		]
+	},
+	{
+		"name": "search [panel] - email addresses",
+		"requests": [
+			"a4cfd7a73e1cf50fe2cab1e2dd26e57c4c8ad19a185aebcd8f2befaad3e221ca"
+		]
+	},
+	{
+		"name": "search [panel] - find all image tags in html files",
+		"requests": [
+			"0853c1e02bfd3efdfc5dbb34f0b2a74a78bb179802aa7aea91179d25a69e140c"
+		]
+	},
+	{
+		"name": "search [panel] - find all instances of \"foo\" in non-html files",
+		"requests": [
+			"62115eb42e6067baf8b17d4dc4161538a57482ba76f1c5e8e9c38f53eea14b6d"
+		]
+	},
+	{
+		"name": "search [panel] - find all links",
+		"requests": [
+			"ff2ad2f1a4ed5878e4a1b4689abc1ff6782b09854d111c8c5a993387cf227da3"
+		]
+	},
+	{
+		"name": "search [panel] - find all markdown headings",
+		"requests": [
+			"ec219808863ee33338e34e679864a087dfcf5a388ed055762c5fead94210a8af"
+		]
+	},
+	{
+		"name": "search [panel] - generate typescript constructor",
+		"requests": [
+			"14c8e5930298b6da0f75218870f8d170bc7ec601b9ad09facb25d98bdc7c54cb"
+		]
+	},
+	{
+		"name": "search [panel] - github links",
+		"requests": [
+			"7f61b79aef44c3b64f757cdfdf19959cdd9357dbf7627678dc6f5d02a72cbd9d"
+		]
+	},
+	{
+		"name": "search [panel] - hex colors",
+		"requests": [
+			"5f6bac4efc0e0c4435f89952de4015bfc35a60b47d7dd0fea7fa3c3b4a5079c4"
+		]
+	},
+	{
+		"name": "search [panel] - html comments ",
+		"requests": [
+			"888bfbbf0b623dcba8d2d8d7ea7f5595d9978730986e06874e27add780b471f4"
+		]
+	},
+	{
+		"name": "search [panel] - HTML Tags except <p> </p> ",
+		"requests": [
+			"dda67d8da16e5f27c23fac486ccf66e5939b04642c5f2680f44ffb9ff7fb1d43"
+		]
+	},
+	{
+		"name": "search [panel] - ipv4 addresses",
+		"requests": [
+			"75c3cb1581a8d5ec3c44112c5c7963916109ff050af858d0ad31c9289cc70e97"
+		]
+	},
+	{
+		"name": "search [panel] - markdown images",
+		"requests": [
+			"7009c512f43338372b9a57aae020da25fc09f8c770128fc3372ae35a2a41f02c"
+		]
+	},
+	{
+		"name": "search [panel] - markdown link",
+		"requests": [
+			"d40c74a323d2e549d528d49bcf4d008e4ec5e313643ada2b75ad5dbbc93abd31"
+		]
+	},
+	{
+		"name": "search [panel] - markdown links",
+		"requests": [
+			"a746ccec7a0e61acaf3ae18bc7a05f13ad5d9a6d6f3a8a4f4691b9e50275c153"
+		]
+	},
+	{
+		"name": "search [panel] - numbers",
+		"requests": [
+			"ed8a7b9f9a4132d74ed9e29eda0838807ec1ecb0cb114a2374662f43b34a0fa0"
+		]
+	},
+	{
+		"name": "search [panel] - private fields in typescript files",
+		"requests": [
+			"e1e748c9e5b6f98bf72c17653337ad2acdc02f2f4877267fa7fa1b2562e0d15e"
+		]
+	},
+	{
+		"name": "search [panel] - python function",
+		"requests": [
+			"21986607477558f2c141224ec1e36d7c4d83c64e82eae12c98dc8c2c173e0e51"
+		]
+	},
+	{
+		"name": "search [panel] - replace all 3-digit hex colors with 6 digits",
+		"requests": [
+			"221911e1e9231a3b1c44c1ba9fe99677f5ff062b8f9e6508e8987637c6f5e207"
+		]
+	},
+	{
+		"name": "search [panel] - Replace all bold text with italic in markdown files.",
+		"requests": [
+			"8e5517c5bc3d8f6cc9192d610506c6f093bdad71f317b8efd761ef314a0b2be8"
+		]
+	},
+	{
+		"name": "search [panel] - text in square brackets",
+		"requests": [
+			"f8c80d469b3b3651b9eb7415b882f58fbe2c3964f52338af263afef71759e407"
+		]
+	},
+	{
+		"name": "search [panel] - typescript comments ",
+		"requests": [
+			"e9ff207988560439b6c4fce960dbfdab0ac51bfe46e32674387eab862b7c9d99"
+		]
+	},
+	{
+		"name": "search [panel] - typescript constructor",
+		"requests": [
+			"981485e8afe5fa8707a6952bd1a205c3727f8fc4c00e70e1a7ed9d32536772cc"
+		]
+	},
+	{
+		"name": "search [panel] - typescript interface",
+		"requests": [
+			"211fd233ab650a6afea9113adcdba6d523d118ca73766c2aefc472488e2c70b4"
+		]
+	},
+	{
+		"name": "search [panel] - words that start with \"get\"",
+		"requests": [
+			"9fe02aae5e5989ff85c203d246b29cd8fa6b4a3270dce0aa14a4b29b837bacbb"
+		]
+	}
+]

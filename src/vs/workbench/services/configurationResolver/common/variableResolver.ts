@@ -93,11 +93,11 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		return expr.toObject() as (T extends ConfigurationResolverExpression<infer R> ? R : T);
 	}
 
-	public resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: any): Promise<any> {
+	public resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: unknown): Promise<unknown> {
 		throw new Error('resolveWithInteractionReplace not implemented.');
 	}
 
-	public resolveWithInteraction(folder: IWorkspaceFolderData | undefined, config: any): Promise<Map<string, string> | undefined> {
+	public resolveWithInteraction(folder: IWorkspaceFolderData | undefined, config: unknown): Promise<Map<string, string> | undefined> {
 		throw new Error('resolveWithInteraction not implemented.');
 	}
 

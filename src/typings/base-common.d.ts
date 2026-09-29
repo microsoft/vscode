@@ -25,7 +25,7 @@ declare global {
 	function setTimeout(handler: string | Function, timeout?: number, ...arguments: any[]): Timeout;
 	function clearTimeout(timeout: Timeout | undefined): void;
 
-	function setInterval(callback: (...args: any[]) => void, delay?: number, ...args: any[]): Timeout;
+	function setInterval(callback: (...args: unknown[]) => void, delay?: number, ...args: unknown[]): Timeout;
 	function clearInterval(timeout: Timeout | undefined): void;
 
 

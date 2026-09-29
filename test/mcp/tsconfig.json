@@ -8,12 +8,16 @@
 		"strict": true,
 		"noUnusedParameters": false,
 		"noUnusedLocals": true,
+		"rootDir": "./src",
 		"outDir": "out",
 		"sourceMap": true,
 		"skipLibCheck": true,
 		"lib": [
 			"esnext", // for #201187
 			"dom"
+		],
+		"types": [
+			"node"
 		]
 	},
 	"exclude": [

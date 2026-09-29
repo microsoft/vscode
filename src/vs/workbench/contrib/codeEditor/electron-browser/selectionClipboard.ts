@@ -85,9 +85,6 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 		}
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 }
 
 class LinuxSelectionClipboardPastePreventer extends Disposable implements IWorkbenchContribution {
@@ -125,7 +122,7 @@ class PasteSelectionClipboardAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 
 		// read selection clipboard

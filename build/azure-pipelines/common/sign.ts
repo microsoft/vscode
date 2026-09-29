@@ -216,7 +216,7 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]) {
 	}
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main(process.argv.slice(2));
 	process.exit(0);
 }

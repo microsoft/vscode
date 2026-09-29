@@ -22,7 +22,7 @@ import { alert } from '../../../../base/browser/ui/aria/aria.js';
 type executionUpdate = { cellHandle: number; state: NotebookCellExecutionState | undefined };
 
 export class NotebookAccessibilityProvider extends Disposable implements IListAccessibilityProvider<CellViewModel> {
-	private readonly _onDidAriaLabelChange = new Emitter<CellViewModel>();
+	private readonly _onDidAriaLabelChange = this._register(new Emitter<CellViewModel>());
 	private readonly onDidAriaLabelChange = this._onDidAriaLabelChange.event;
 
 	constructor(

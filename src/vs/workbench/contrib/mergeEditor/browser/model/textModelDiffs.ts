@@ -126,31 +126,43 @@ export class TextModelDiffs extends Disposable {
 		this.ensureUpToDate();
 
 		diffToRemoves.sort(compareBy((d) => d.inputRange.startLineNumber, numberComparator));
-		diffToRemoves.reverse();
+		diffToRemoves.reverse(); // process from bottom of document upward
 
-		let diffs = this._diffs.get();
+		const diffs = this._diffs.get();
 
-		for (const diffToRemove of diffToRemoves) {
-			// TODO improve performance
-			const len = diffs.length;
-			diffs = diffs.filter((d) => d !== diffToRemove);
-			if (len === diffs.length) {
+		// Validate all diffs-to-remove exist using Set for O(1) lookup
+		const toRemoveSet = new Set(diffToRemoves);
+		if (toRemoveSet.size !== diffToRemoves.length) {
+			throw new BugIndicatingError(); // duplicate entries
+		}
+		const diffsSet = new Set(diffs);
+		for (const d of diffToRemoves) {
+			if (!diffsSet.has(d)) {
 				throw new BugIndicatingError();
 			}
+		}
 
+		// Apply text model edits in reverse document order (bottom-up, safe for line shifting)
+		for (const diffToRemove of diffToRemoves) {
 			this._barrier.runExclusivelyOrThrow(() => {
 				const edits = diffToRemove.getReverseLineEdit().toEdits(this.textModel.getLineCount());
 				this.textModel.pushEditOperations(null, edits, () => null, group);
 			});
-
-			diffs = diffs.map((d) =>
-				d.outputRange.isAfter(diffToRemove.outputRange)
-					? d.addOutputLineDelta(diffToRemove.inputRange.length - diffToRemove.outputRange.length)
-					: d
-			);
 		}
 
-		this._diffs.set(diffs, transaction, TextModelDiffChangeReason.other);
+		// Single forward pass: accumulate delta from removed diffs above, apply to remaining diffs below
+		let cumulativeDelta = 0;
+		const newDiffs: DetailedLineRangeMapping[] = [];
+
+		for (const d of diffs) {
+			if (toRemoveSet.has(d)) {
+				cumulativeDelta += d.inputRange.length - d.outputRange.length;
+			} else {
+				newDiffs.push(cumulativeDelta !== 0 ? d.addOutputLineDelta(cumulativeDelta) : d);
+			}
+		}
+
+		this._diffs.set(newDiffs, transaction, TextModelDiffChangeReason.other);
 	}
 
 	/**

@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { OpenDialogOptions, SaveDialogOptions } from '../../../../../base/parts/sandbox/common/electronTypes.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -35,10 +36,11 @@ import { IPathService } from '../../../path/common/pathService.js';
 import { BrowserWorkspaceEditingService } from '../../../workspaces/browser/workspaceEditingService.js';
 import { IWorkspaceEditingService } from '../../../workspaces/common/workspaceEditing.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
 
 class TestFileDialogService extends FileDialogService {
 	constructor(
-		private simple: ISimpleFileDialog,
+		private simple: ISimpleFileDialog | undefined,
 		@IHostService hostService: IHostService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IHistoryService historyService: IHistoryService,
@@ -56,10 +58,11 @@ class TestFileDialogService extends FileDialogService {
 		@ICommandService commandService: ICommandService,
 		@IEditorService editorService: IEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService,
-			openerService, nativeHostService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService, logService);
+			openerService, nativeHostService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService, logService, remoteAgentService);
 	}
 
 	protected override getSimpleFileDialog() {
@@ -87,10 +90,10 @@ suite('FileDialogService', function () {
 
 	test('Local - open/save workspaces availableFilesystems', async function () {
 		class TestSimpleFileDialog implements ISimpleFileDialog {
-			async showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined> {
+			async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 1);
 				assert.strictEqual(options.availableFileSystems[0], Schemas.file);
-				return testFile;
+				return [testFile];
 			}
 			async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 1);
@@ -109,10 +112,10 @@ suite('FileDialogService', function () {
 
 	test('Virtual - open/save workspaces availableFilesystems', async function () {
 		class TestSimpleFileDialog {
-			async showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined> {
+			async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 1);
 				assert.strictEqual(options.availableFileSystems[0], Schemas.file);
-				return testFile;
+				return [testFile];
 			}
 			async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 1);
@@ -135,11 +138,11 @@ suite('FileDialogService', function () {
 
 	test('Remote - open/save workspaces availableFilesystems', async function () {
 		class TestSimpleFileDialog implements ISimpleFileDialog {
-			async showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined> {
+			async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 2);
 				assert.strictEqual(options.availableFileSystems[0], Schemas.vscodeRemote);
 				assert.strictEqual(options.availableFileSystems[1], Schemas.file);
-				return testFile;
+				return [testFile];
 			}
 			async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 2);
@@ -168,8 +171,8 @@ suite('FileDialogService', function () {
 
 	test('Remote - filters default files/folders to RA (#195938)', async function () {
 		class TestSimpleFileDialog implements ISimpleFileDialog {
-			async showOpenDialog(): Promise<URI | undefined> {
-				return testFile;
+			async showOpenDialog(): Promise<URI[] | undefined> {
+				return [testFile];
 			}
 			async showSaveDialog(): Promise<URI | undefined> {
 				return testFile;
@@ -198,5 +201,54 @@ suite('FileDialogService', function () {
 
 		await dialogService.defaultFolderPath();
 		assert.deepStrictEqual(getLastActiveWorkspaceRoot.args[1], [Schemas.vscodeRemote, 'testRemote']);
+	});
+
+	test('Native dialogs always provide an explicit default path', async function () {
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('files', { simpleDialog: { enable: false } });
+		instantiationService.stub(IConfigurationService, configurationService);
+
+		const nativeOptions: { open: (string | undefined)[]; save: (string | undefined)[] } = { open: [], save: [] };
+		instantiationService.stub(INativeHostService, new class extends mock<INativeHostService>() {
+			override async showOpenDialog(options: OpenDialogOptions) {
+				nativeOptions.open.push(options.defaultPath);
+				return { canceled: true, filePaths: [] };
+			}
+
+			override async showSaveDialog(options: SaveDialogOptions) {
+				nativeOptions.save.push(options.defaultPath);
+				return { canceled: true, filePath: '' };
+			}
+		});
+
+		const simplifiedDialog = new class implements ISimpleFileDialog {
+			showOpenDialog(): Promise<URI[] | undefined> {
+				throw new Error('Unexpected simplified open dialog');
+			}
+
+			showSaveDialog(): Promise<URI | undefined> {
+				throw new Error('Unexpected simplified save dialog');
+			}
+
+			dispose(): void { }
+		};
+		const dialogService = instantiationService.createInstance(TestFileDialogService, simplifiedDialog);
+		const defaultFolder = URI.file('/default/folder');
+		const defaultFile = URI.file('/default/file');
+		const providedOpen = URI.file('/provided/open');
+		const providedSave = URI.file('/provided/save');
+		sinon.stub(dialogService, 'defaultFolderPath').resolves(defaultFolder);
+		sinon.stub(dialogService, 'defaultFilePath').resolves(defaultFile);
+
+		await dialogService.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false });
+		await dialogService.showOpenDialog({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false });
+		await dialogService.showOpenDialog({ defaultUri: providedOpen, canSelectFiles: true, canSelectFolders: false, canSelectMany: false });
+		await dialogService.showSaveDialog({});
+		await dialogService.showSaveDialog({ defaultUri: providedSave });
+
+		assert.deepStrictEqual(nativeOptions, {
+			open: [defaultFolder.fsPath, defaultFile.fsPath, providedOpen.fsPath],
+			save: [defaultFile.fsPath, providedSave.fsPath]
+		});
 	});
 });

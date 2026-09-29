@@ -21,7 +21,7 @@ import { LineTokens } from '../../tokens/lineTokens.js';
 export class BracketPairsTextModelPart extends Disposable implements IBracketPairsTextModelPart {
 	private readonly bracketPairsTree = this._register(new MutableDisposable<IReference<BracketPairsTree>>());
 
-	private readonly onDidChangeEmitter = new Emitter<void>();
+	private readonly onDidChangeEmitter = this._register(new Emitter<void>());
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
 	private get canBuildAST() {
@@ -116,6 +116,20 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		this.bracketsRequested = true;
 		this.updateBracketPairsTree();
 		return this.bracketPairsTree.value?.object.getBracketsInRange(range, onlyColorizedBrackets) || CallbackIterable.empty;
+	}
+
+	public hasUnmatchedClosingBracketAfter(_position: IPosition, openingBracket: string): boolean {
+		const position = this.textModel.validatePosition(_position);
+		const languageId = this.textModel.getLanguageIdAtPosition(position.lineNumber, position.column);
+		const openingBracketInfo = this.languageConfigurationService
+			.getLanguageConfiguration(languageId)
+			.bracketsNew.getOpeningBracketInfo(openingBracket);
+		if (!openingBracketInfo) {
+			return false;
+		}
+		this.bracketsRequested = true;
+		this.updateBracketPairsTree();
+		return this.bracketPairsTree.value?.object.hasUnmatchedClosingBracketAfter(position, openingBracketInfo) ?? false;
 	}
 
 	public findMatchingBracketUp(_bracket: string, _position: IPosition, maxDuration?: number): Range | null {

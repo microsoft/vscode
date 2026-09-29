@@ -1,0 +1,1706 @@
+[
+	{
+		"name": "intent [panel] - [relaxed] [builtin] - create a grid of cards. the grid should be 4x4, 6x6, or 8x8. - choose number o…",
+		"requests": [
+			"ab1a78d7f2ad0822b347fbd7b70f53788e4ae4c54cda05b30d556032b9aaa7ed"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] .net 8 web app",
+		"requests": [
+			"83ab9d31126c9322ffa2fd95e0db82da86fafa6cbd72a5debba5524e33504e20"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] #file:race-routes.test.ts generate tests based on existing race route tests",
+		"requests": [
+			"125e39c1e29faddbd16a69250c25671262c01ed526e12ec85e6f931dcdf327ae"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] #file:race-routes.test.ts using the structure in race-routes.test.ts, create tes…",
+		"requests": [
+			"cbc154eadb7379b9641bc4799ce735d67f24d6c99f064e9b4ddcf618c44cb8c4"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] #selection generate unit tests for the xunit framework.",
+		"requests": [
+			"5007582d0bc12c26aeb2306af47ae56ee07d7563516127e5a437db1c8687d4b1"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Add a dog to this comment.",
+		"requests": [
+			"8fa3b0b1e9aa9425f620e8dd4eff8acf6892be9259d16748d81971789054d812"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] add a get all files method",
+		"requests": [
+			"349c0a7d632d3be38c2b86e15b1f7981d76b2d1fd844c12526520f52d70e8b89"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Add a method to get all files",
+		"requests": [
+			"620c19698061965f9dbf2c5627a4c4135c8fe96307d82ce27b5f737b14d7dacf"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Add an editor toolbar icon that triggers inline chat",
+		"requests": [
+			"5fb534e05b5a41f41c2f9b1fb614571dc1ba47f6afe26e80eb409f26093a4945"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] add unit tests for selected code",
+		"requests": [
+			"4dea8ab275264b7ff1611b21ef8b5694bf98ca5fe346cc67c0904beaf91df1a3"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] can i turn off the warning about committing to a protected branch",
+		"requests": [
+			"80b08f4cceddfd4bfed44b959926525633f1c48985028a38b404ecfc207ebe0d"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] can you create a new razor project with a page that uses #file:homecontroller.cs",
+		"requests": [
+			"9809108d8896f0394fccf4692e4bdcdf9d582ad9b1c67f12ef01008a092de0b5"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Can you generate a function to find string patterns like '11111111' in powers of…",
+		"requests": [
+			"a3dc9d58630b3b0edfe8be57f8711d0634848cbb830967476ae7abd7997cf896"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] can you generate unit tests for the order product function",
+		"requests": [
+			"b69a783e8af69510eb7b9570d37cfa09d2065f7901963c581234ef65ae0c1205"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] can you help me create a new notebook to generate prompts against gpt4",
+		"requests": [
+			"126f9b7d28a1cded976101b8f4efd663c231441e7ccd3136c59acafd49b2ae21"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Can you please write tests for the current file",
+		"requests": [
+			"215a9b6bfc596ca6bac22fb47063f1b5ae3598babea473f3b12dd5d136b6b631"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] console.log `testExampleFile` given #editor",
+		"requests": [
+			"0ab98c6dfeba9004c6c4a49b1aa1e648c7032fa11627199c433608f4e04d9268"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a basic command line tool in javascript that takes a username and queries…",
+		"requests": [
+			"d7a1360196e93846f52820749c3420112b7119564535b1a606d906cb35b26462"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a jupytor notebook to read the json file containing daily sales informati…",
+		"requests": [
+			"4ff62a951eba13e7d2d394477b1e62bd5572fd500d0d0a5974748567f32c36ec"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Create a new dotnet workspace",
+		"requests": [
+			"fffa3a57c43f065f6a9aa8bf638b4cf13a04f3c92d3b5f7710d5a9d412ed0125"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a new java workspace, which will call an api from us national weather ser…",
+		"requests": [
+			"960802888a472092cdee47d8f15f514830f2fd2798dae3acbca723b1006f5c80"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a new jupyter notebook",
+		"requests": [
+			"8912e63857e113addc3376e7dc681067780f4cb057fb998dd77567d63bc80daa"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a new notebook for sentiment analysis; add sample 50 feedbacks about rais…",
+		"requests": [
+			"2ef2fc63fefb0ae92de152feaf29d5cebbb1ac982266265e77d8cf7b1ed8e838"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a new notebook to create this file and text",
+		"requests": [
+			"2ac582bac6ab3b569bcf6143ecbbb1d738488fec60394efecf857798fa9619ee"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Create a new Python AI project",
+		"requests": [
+			"c4493cd2f23ed68e52b37af9f53372b0837b8b872936790dadbfcb82705cd35a"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a new react app with a form that accepts firstname lastname and a view to…",
+		"requests": [
+			"5fe7db88bcf32878e65fa60456bb74d5f2fd9124e7ecf849cba506deda190f1c"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a node webapp that creates and deletes customers into a sql database.",
+		"requests": [
+			"1f3f63c0be94a16ab0c519d11cc899798a1a2b2b4726ec9ca23292c2054e64b0"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a notebook called \"covid19 worldwide testing data\" that imports the #file…",
+		"requests": [
+			"d1b62620339090353e227964a37e04631149f5ca4cc7dc090c29b43897ca0db0"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a notebook that connect to the microsoft graph api and retrieves direct r…",
+		"requests": [
+			"440ddc184bf2f85e3bf2c0ef07332381e7b5fb189268924bee09fe1007554180"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a react app with a node api and a mongo db",
+		"requests": [
+			"f95b60cdf026395fac33575e2db62ea9d7ec60841a07d5909a9cdbb2a71ff0f9"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Create a RESTful API server using typescript",
+		"requests": [
+			"8457581dc6a605cfbb417f21c8b27cb3ff8a8387d6226006490bbb6248ca259c"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a terraform project that deploys an app into app service on azure",
+		"requests": [
+			"1f7e41c7aae62cfa46f7193d7ddd6f2b856129f086847f4c6e398009843afd6b"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a test using testng framework",
+		"requests": [
+			"9cb17332df8599ab0041d436183852ba03419cb55b7a96928cab5fe3fe4dfee8"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create a venv",
+		"requests": [
+			"ba774c5265fb730cb7c669f76c3fc64dbce6431fb72d9d127a619aa35c052100"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create me a react web app with node js api and a mongo db",
+		"requests": [
+			"ce0025b9f098969f0ad105c1f6de0c5cb4b75353aaef8d78d126faf49a8d7e8c"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] create new jupyter notebook",
+		"requests": [
+			"1f1f3f028269d6445ad7a0064f3f01a2124769b72e4c1867d776f4877d2eae33"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] delete branch master",
+		"requests": [
+			"de6b962590f407a9e5c66c1edae3d8297e21e5b0a01839fd5f52273f4d93cbcc"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] delete git branch from cmd palette",
+		"requests": [
+			"2bd8109af9cfd67b7661b76d317b88a335bebb55665d305200797f01e2e4a392"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] design a skeleton to satisfy these requirements considering java as the primary …",
+		"requests": [
+			"bbf9fabc11407944ebeedbf2d60976bc5196b790fbeba420ef004c10bcc8e07c"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] do ls include size of the folder in ascending order",
+		"requests": [
+			"0cc4529036344cc743e72e11e89fa68392f9388d2bb221fd8ea56462ab9daa8f"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] explain me this code",
+		"requests": [
+			"23ada678b5f6acbe6d34352ec168f1e92adc1c002efb44459ed37260f0f546f4"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] explain please what this piece of code means.",
+		"requests": [
+			"8e98cf29b651babef60e48d9c88607bd4cdac3ccc9564bb950453c717db37d84"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Extension project contributing a walkthrough",
+		"requests": [
+			"4df694ea3d6d2c6b21f379d1e6678f0e17f39e956f0f40f4e760e982eebb3388"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] favor ajudar com a troca da tela de fundo do visual studio code.",
+		"requests": [
+			"1bfd587c305b3261566ace872faa4970c4245a2d99aefbc3b93a18bcb937c69f"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] favor sugerir uma estrutura de teste unitário.",
+		"requests": [
+			"524e821914b20f4500a742f0b309558042939d61a9447119bfe3b2a141f78b0a"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] fix this error: × you're importing a component that needs usestate. it only work…",
+		"requests": [
+			"0b68acdd9d51c2b2695314e45b8df59db2def03786d6efb3f83fa58b58a6cfaf"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] flutter app that is a calculator",
+		"requests": [
+			"a7cf0a1710f9ce6d982ad213a66aedbb31b0f8cd7dea43f9c9d35d12046958ca"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] for the selected evaluatoraccordion component definition, can we have any tests …",
+		"requests": [
+			"5540a7bf663914b7bc920215e4a9d27370335cbc4a237e342a7eaa7fbdb9b3ec"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] generate a notebook which reads csv file from fath <REDACTED FILEPATH>",
+		"requests": [
+			"6aba406f2519aea1a73882d8c888552a2bd0e37f5fbff53418df5f684830ace5"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] generate a notebook which reads csv file, loads into a dataframe, remove the las…",
+		"requests": [
+			"05d40a32083c6515ba0a0e488ca96b597e43eb244e63a89b8723110e6073eb1a"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] generate a test suite using junit 4 and mockito to simulate database connections",
+		"requests": [
+			"e344c7aa1d565bd13de7be4fa41c6443526fb5419dff433f089164b77f45e3c9"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] generate tests for the covered code",
+		"requests": [
+			"8bf64249cba291174274dbf409088ecdf9ea6cc665060ef50ece521626121798"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] generate unit test cases for selected code",
+		"requests": [
+			"f073dfa3c7c89ac01adcf4c44e66eeed97e093f2c2d88b1fecfedef5b428bf2f"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] generate unit test cases for selected code with auto tear down and test",
+		"requests": [
+			"d40d0c7191020f30ee4f4a6242174917ac749a96d12ed94973f8df693377f5d5"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] generate unit test for adding numbers for a calculator application in python",
+		"requests": [
+			"cee771eb0446db8341e9740a50c1f9e6543775da9760490c40906422bb1e4a1e"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] generate unit test for the selected code",
+		"requests": [
+			"b37c3d7152a35062cc949828964ac317adec446d3801729ae31a1ed4c2350fdb"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] generate unit test for the selected evaluatoraccordion component based on the be…",
+		"requests": [
+			"2fe4acf7bae8d35b83b3f5523a942707aee0796b8018a3d150f66955158bd2c5"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] generate unit tests according to the above recommendations",
+		"requests": [
+			"4a0ac951b3a888f9474fc8e66f8452b16bd44fe37f7ab821040dee71a080ccb1"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] generate unit tests for the selected code",
+		"requests": [
+			"1e12b8397b3f159a9bac9325f7c54784d8d14704ed86e9a5954ad902d0d8af9e"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] generate unit tests this #file:createteamstab.tsx",
+		"requests": [
+			"0b1b6d138946bf9ad134697fc07520dc56f1cea3f2cc446d34b1d9a9821cee48"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] gerar testes para #file:fib.py",
+		"requests": [
+			"546902c70a66f9bfa59c838622ce6061168fba27aa90552fab2c828c87cce72f"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] git delete branch",
+		"requests": [
+			"f2547ada31762b5a636310c9da4a450ca4670854208d6b561d1717e30c53e01b"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] git diff --name-only b7a9a95e4fba2b0aecc019739ec98b52523e6708 -- projects/mdmlff…",
+		"requests": [
+			"4bb5d7f3a7f5e12b76f56749d55a4f838460b974795a246f5b2315266811d0ef"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] go to next change using keyboard shortcut",
+		"requests": [
+			"cb089047921342c080029b246839609aff53aea4b13e3e47a0a8b4fc697bb792"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] How about if I want an extension that contributes code lenses",
+		"requests": [
+			"126c95c44038e5922aa8ea6cba72b4f03b5115fd66b98e67957d2802e1bdac3e"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] How can I center my layout in the workbench?",
+		"requests": [
+			"6f89ed1de504b42e444dc1ef33a5fc8344d336e112bb8c92dceb5f73ae1b8872"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] how can i change the code colours in the screen?",
+		"requests": [
+			"f69214cccf66bb6e3616541b893d4ce4ee701188fb542c5ed33d849c44a7d743"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] how can i collapse all code sections of a file",
+		"requests": [
+			"98a09e771e9d455b13114f4aad85e6454a9220262c061c3e32261e66b970dab1"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] how can i configure visual studio code to automatically trim trailing whitespace…",
+		"requests": [
+			"11d9ffadc9865f5d3d0134727cd364ea0fda1cc3dfd6b0450a204f10826779e6"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] how can i run the unit tests using the `bats` testing framework?",
+		"requests": [
+			"125d57ee62eab73681ade8a3f7ed4b7ae0362d53823131e971ae19d82f79c85e"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] how do i add env var to a test execution of jest in vscode?",
+		"requests": [
+			"65326ae5b6e618ce2a3cecaa6eda1d72ef5bd5da106bfb30455fcf3eba8187ce"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] how do i create a notebook to load data from a csv file?",
+		"requests": [
+			"8d5a6364198e45f465ddcf302ba85049ae2b0221fb0546603b669e656d49e950"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] How do I create a notebook to load data from a csv file?",
+		"requests": [
+			"fccd597461156764fefaeb14551d9b16e40f85206030b5536c087ef9b7729e62"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] How do I deploy my app to azure",
+		"requests": [
+			"b6beb8f844316e4e558f2c1a1806584de0079a3bcdb51213c624e7138206f50f"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] How do I list files in the terminal",
+		"requests": [
+			"d11f86229dea32e94fcfb58caadee61454452ef5fd00aeff593b7cd43c638508"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] how do i see env var to file contents and preserve end of lines",
+		"requests": [
+			"0af847aaca8476b7c55af073b25412cceac6e540baf60c24f8b20bd72e7e96ff"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] how to add debug configuration for a node js app",
+		"requests": [
+			"46732c2caff6a69e73c723bac82879199fbaa1b87361f7f0d9f4fef7affce914"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] How to change colour theme in VS Code?",
+		"requests": [
+			"09588d8be53a0f1d1805ee37c19df787533a1c6e17eb48a3107f77028487a631"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] how to change position of explorer in vs code",
+		"requests": [
+			"ea5103c927010d9fd2d54baff2d3a92efeceb9661691cdc8551a96ad94c83639"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] how to change the workspace in debug view",
+		"requests": [
+			"c8783418e496bd1f70388b9913dc18d75fac08084379194f27ff68023b92dc0f"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] how to install extension",
+		"requests": [
+			"f029072664b77e1045f6f2dc861d731a370274a5fcd6f03db5aa93f5914ab44d"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] how would i fix the highlighted error base on the #file:simpledateformat.java fi…",
+		"requests": [
+			"3d02e137345cd1a42d01285513f9dae727b83ae2cca0e7f4f03522e6addd44eb"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] i need new project where i need to create an ui like youtube where i need to par…",
+		"requests": [
+			"d9f24b30e7ddfa63f121ae1bf84c90bd19e0a2745e291d3156ba5227ba1fe291"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] in the test method of testautoclassificationsensitiveinfotypes, i want to test i…",
+		"requests": [
+			"5233c2b55d2149d77aa7ac47ac310ad1a242cd2043425e175d22ad3a9c97e805"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Keyboard shortcut to toggle chat panel",
+		"requests": [
+			"0b191165906a26b79043fa16062955f3b63387e824fc7e9d9c1ad2130cf722da"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] kill processes running on port 8080",
+		"requests": [
+			"4ead523cdf225bfa2675473f90c40f4bb93065e7b1380670301acf09020703a9"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Latest updated features in vscode",
+		"requests": [
+			"32742552a1dd8e2a523c82d37df95d55d6217e78c75a5029494dcfaf1fbef346"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] make a test for generate_plugin_configs",
+		"requests": [
+			"fa697fcf21acd1b9133ba0c3ea18591ecd963fdd00e3e7095079ceedd0a17b19"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] make a unittest based on this",
+		"requests": [
+			"ecf76072923019432d693d25194a77c2d97148cf15cfce13d57e5c9b619651fa"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] make a unittest code based on this",
+		"requests": [
+			"142e5c1e24246b39a9c9fd11693273b1366c307b2eea3cc8b0684e8f016f5477"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] make sure we have at least 80% test coverage",
+		"requests": [
+			"406df1ce8c8b315b95c0fdcd1c55de8f38ac61a463532eaae75690c526e8a5d7"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] make tests",
+		"requests": [
+			"983c3f9d9b545bf9fccd63c9046e2349d20ea9d79ab11b14699b1502b1ed6c46"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] multiple cursors by holding ctrl alt and the arrow keys",
+		"requests": [
+			"40053c4d4fcab0af4fc126da4121de6136cd420254c3b41f2e04650e5b662987"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] need to test new code in the file directsendemailprocessor.cs method publishdire…",
+		"requests": [
+			"be39b016753df0fca7891feaac99a5cbd8c22d17ed4fd61d1e6a4ea0f08a511b"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] newnotebook that creates four agents based on the microsoft autogen framework. t…",
+		"requests": [
+			"7380a6da254633571ec5a502f94396f4219a34fcffef2d5d353be3bd25148b3a"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] nodejs web app that will display weath forecast of major cities in australia. da…",
+		"requests": [
+			"38f95041bf696ec2937e4f6fbbb9ae27e2e18abdc74bbc5408e992fedc53488e"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] open command palette",
+		"requests": [
+			"8bd1882a2bafad22c9ae59cbb7cef446bcaef883050e68af79d8266f0544d47b"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] please help me implement tests for this program",
+		"requests": [
+			"d9cec3f66e48475fd4bd52fe5001d4abcc6bc85cdadd052be11f1b14212d1422"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] powershell json to csv and csv to json example",
+		"requests": [
+			"6e8f259e04bf02fb48688ad2eee6637637f79cf2c1e5a86a9e8226485d27152b"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] project to deploy terrafrom code for 3 virutal mahcines and a vnet",
+		"requests": [
+			"fc5a68bf86f001e28c615b3af7619a6a806ddf49908181e33e641bf34ae69653"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] provide an overview of this class",
+		"requests": [
+			"88bdb5a137a5a054c1fe3414f194572ef7ea8949397323c6f979707f0a4714a5"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] pyhton calculator",
+		"requests": [
+			"855efb628990dbe7d648ff60b9521014c4d4bb862a584eb01fb73db859355f42"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] remove current changes in branch with git?",
+		"requests": [
+			"19c2a02577c273d4f8aad0292f7d0448ab60b101ae6ef8693b7f310382f80ca0"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] run command azure app service: deploy to web app",
+		"requests": [
+			"b829914ae2ce93792b209f2079ae04da91caafcef1b07a92707f077400786223"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] scaffold .net api app addording to spec in #file:eshop.md",
+		"requests": [
+			"6fb5b8c449418d228667bbc065ba91d17dab346aa57b65af9cf9ed3b8c30de98"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] scaffold a new c# console project",
+		"requests": [
+			"bd1cf4f5fbb4f7f2ee79bce24c2257bd225341b4dfd7a525b38b2ca8f4fa4f66"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] scaffold a spring boot app using the maven build and azure openai sdk. the name …",
+		"requests": [
+			"a7ef7a12ebfe6500132f3e80a93e8de45d30a51d986184d4f7e24d7b35c10418"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] scaffold a spring boot app with azure openai sdk",
+		"requests": [
+			"21cdb1a6dfc74625bb791076e14b2acef5b433dfbb78cb2bac5e613f4f089211"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] scaffold a system in java for me to setup account and customer management - abil…",
+		"requests": [
+			"95eec2282e8591eb2618aad3bc8bc82ecb2f83ef7329403d32c7e5ecb8a7f0a2"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] scaffold code for a new winui3 desktop app using c#.",
+		"requests": [
+			"8554e07f00f2e67c93a21189056128eb064de86c59c3c865eaf26059aa7cac22"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] scaffold code for fastify api server",
+		"requests": [
+			"f01ef9f3baf065cdfe617cff1b79ea97b4fde704df9530362964e4b3d84c8f5d"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] scaffold code for new test project",
+		"requests": [
+			"acea644a1ebd75b7f69617a509ae347079c245dec130f1863ffa1a79b5baf1c3"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] set typescript spaces to 2",
+		"requests": [
+			"f9168ab469cc987c02419786c9ef78526ff1b1a0b728095df1bf289a2e85c47b"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] shortcut to delete a line",
+		"requests": [
+			"4dabaad947d564f9a19ff1a5b7ba7b62a4b2eecb9885352acf41d4d33fd9a81a"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] small and basic project in go",
+		"requests": [
+			"737d5b76d2d19cb31a3f79d4abf5a5febadc94785aec6c7b81d09d83c7d8e4db"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Sorting function in python with tests",
+		"requests": [
+			"5f033a38257644fc7e2e5de9c492e680f0e4d239467b0f2d7e8a28eab8f33849"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] the backgrond image is repeating vertically. fix it so that only 1 image is disp…",
+		"requests": [
+			"8bb2545260bee7815c5b25f2bda8b336841fac25a7f75a14f2888ab408800853"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] There is a problem in this code. Rewrite the code to show it with the bug fixed",
+		"requests": [
+			"93cadea52c314235301e1adc3cd869730e89aaac784e3012330c1909d006524e"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] this code is splitting my uploaded file chracter by character, i want it to spli…",
+		"requests": [
+			"a6239cb1705cd48e28eda233958ac114b77b0381c33edb41b266d820f27093d5"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] to fix the error, you need to handle the case where selectedrepo is null before …",
+		"requests": [
+			"b5b45bf9a9770f4c42df97106ef76d1f1ea38e0ef3fac6ff7f19c87d8a1b30b1"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] use the test() syntax instead of it()",
+		"requests": [
+			"ea4e9037e2edaba28cc770b1c02a59229cbe8706a941ec10eeb3949dd8393d8a"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] using testng framework, write a test that reads two files, one being a sequence …",
+		"requests": [
+			"d2ad2ebada39948a6c8b85d5f2a9eb49d50084f76801989d9593fb4dd2dfdea4"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] using testng framework, write one test that reads two files, one being a sequenc…",
+		"requests": [
+			"6eb08a0515d83cc1f5f317aba7ce234120c8c8757814340cec1b23c2400f753e"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] using vitest",
+		"requests": [
+			"142121407ce15d06bfd2b3baaa9c2b86ea939b40f0703315e5df6c37a05bb17b"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] vscode extension for chat participants, the extension should be updated to use c…",
+		"requests": [
+			"1eb02b48c0c3ca6d7d1de95863f301d76fbfa43dba0ba3ed411776561d125644"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] vscode extension for chat participants, the extension will be for accessing inte…",
+		"requests": [
+			"c6b78c83afc46ed08af2e8f5dd91eeb365c3b6879463a9b211212ccc2c2254ad"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] what are some best practices for unit testing the `publishdirectemail()` method …",
+		"requests": [
+			"625923fa0de91b2d20d142eaed1b985b13754dac737230710001538190564b7e"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] What are the benefits of dynamic programming",
+		"requests": [
+			"cc91f3271c8d3e5973ca21a2c0a652b640bd45a12188623b210f52092ce9408a"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] What did the last command do?",
+		"requests": [
+			"6c95cbf9cbbfa414802108ebb762416e34cc15b34923c50a01e584bb1607f837"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] what do you call that debug panel that has the continue, step in, step out butto…",
+		"requests": [
+			"c098a6100bbca1b816ebf8144165463fca4b2c5502e4d965de461301814d87a3"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] What is a good vscode extensions starting point if I want to contribute to the c…",
+		"requests": [
+			"7a96061182bf70aad6b1f0ab56251fe024da5c89cf5e4db4fc6773b7da2a1771"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] What is in the #editor",
+		"requests": [
+			"2fcb3140120359724899c10172023c72badd1a4e5e23102b23be870d16fa93f9"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] What is the command to open the integrated terminal?",
+		"requests": [
+			"6e73ddb7da20999895095279802b19962e460ab9d64851e8f8bf74c23a99a94d"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] What is the last error in the terminal",
+		"requests": [
+			"f6c1a0cd888f351ec625a7216cd4fbe16f9eff6a6b51bd123a1fed7f6da7d692"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] What is the name of that setting when vscode fake opens a file and how to disabl…",
+		"requests": [
+			"2dcc6f05c09021bfe0ddaffa0fde93f0c97f1a84a09d96fe86277a2a3a90d46a"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] What would this mean or do at the top of a dockerfile: # escape=`ARG TAG=xenial",
+		"requests": [
+			"1e8967d15ba6918852c4a4c524bfd3c893c983252437f914a5d861b921759f0e"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Write a set of detailed unit test functions for the code above.",
+		"requests": [
+			"d6675c6e378f1ed5ca0fbcbe9fa4f6c5e26e3383246c534f1b32a9e626bbf7ff"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] write an example of using web crypto to compute a sha256",
+		"requests": [
+			"cd376052ba7bbb5fd545dac819172be45aa7a1eba9c20cfd32a868dfff97b2c8"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] Write an explanation for the code above as paragraphs of text.",
+		"requests": [
+			"029885f52d9402ff9006f365cd17182d0956cb1e1655a9f5d3e7c172aeefd4e8"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [builtin] write tests",
+		"requests": [
+			"0925a22236c226c05f4e2d51b2abd7df3ad5b388a31c77124299f543bcc411be"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [github] delete git branch",
+		"requests": [
+			"ae555557194ebd92fb69929a83b727f4d1a0bdce44d9d8a5af5114cf88b7f367"
+		]
+	},
+	{
+		"name": "intent [panel] - [relaxed] [github] What are the most popular terminals that developers use",
+		"requests": [
+			"5cb7baa9692a30bf967815d92b1e7e9f7be862da0adc7e58f4481e47828e70a3"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] - create a grid of cards. the grid should be 4x4, 6x6, or 8x8. - choose number of…",
+		"requests": [
+			"ab1a78d7f2ad0822b347fbd7b70f53788e4ae4c54cda05b30d556032b9aaa7ed"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] .net 8 web app",
+		"requests": [
+			"83ab9d31126c9322ffa2fd95e0db82da86fafa6cbd72a5debba5524e33504e20"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] #file:race-routes.test.ts generate tests based on existing race route tests",
+		"requests": [
+			"125e39c1e29faddbd16a69250c25671262c01ed526e12ec85e6f931dcdf327ae"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] #file:race-routes.test.ts using the structure in race-routes.test.ts, create test…",
+		"requests": [
+			"cbc154eadb7379b9641bc4799ce735d67f24d6c99f064e9b4ddcf618c44cb8c4"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] #selection generate unit tests for the xunit framework.",
+		"requests": [
+			"5007582d0bc12c26aeb2306af47ae56ee07d7563516127e5a437db1c8687d4b1"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Add a dog to this comment.",
+		"requests": [
+			"8fa3b0b1e9aa9425f620e8dd4eff8acf6892be9259d16748d81971789054d812"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] add a get all files method",
+		"requests": [
+			"349c0a7d632d3be38c2b86e15b1f7981d76b2d1fd844c12526520f52d70e8b89"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Add a method to get all files",
+		"requests": [
+			"620c19698061965f9dbf2c5627a4c4135c8fe96307d82ce27b5f737b14d7dacf"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Add an editor toolbar icon that triggers inline chat",
+		"requests": [
+			"5fb534e05b5a41f41c2f9b1fb614571dc1ba47f6afe26e80eb409f26093a4945"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] add unit tests for selected code",
+		"requests": [
+			"4dea8ab275264b7ff1611b21ef8b5694bf98ca5fe346cc67c0904beaf91df1a3"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] can i turn off the warning about committing to a protected branch",
+		"requests": [
+			"80b08f4cceddfd4bfed44b959926525633f1c48985028a38b404ecfc207ebe0d"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] can you create a new razor project with a page that uses #file:homecontroller.cs",
+		"requests": [
+			"9809108d8896f0394fccf4692e4bdcdf9d582ad9b1c67f12ef01008a092de0b5"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Can you generate a function to find string patterns like '11111111' in powers of …",
+		"requests": [
+			"a3dc9d58630b3b0edfe8be57f8711d0634848cbb830967476ae7abd7997cf896"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] can you generate unit tests for the order product function",
+		"requests": [
+			"b69a783e8af69510eb7b9570d37cfa09d2065f7901963c581234ef65ae0c1205"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] can you help me create a new notebook to generate prompts against gpt4",
+		"requests": [
+			"126f9b7d28a1cded976101b8f4efd663c231441e7ccd3136c59acafd49b2ae21"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Can you please write tests for the current file",
+		"requests": [
+			"215a9b6bfc596ca6bac22fb47063f1b5ae3598babea473f3b12dd5d136b6b631"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] console.log `testExampleFile` given #editor",
+		"requests": [
+			"0ab98c6dfeba9004c6c4a49b1aa1e648c7032fa11627199c433608f4e04d9268"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a basic command line tool in javascript that takes a username and queries …",
+		"requests": [
+			"d7a1360196e93846f52820749c3420112b7119564535b1a606d906cb35b26462"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a jupytor notebook to read the json file containing daily sales informatio…",
+		"requests": [
+			"4ff62a951eba13e7d2d394477b1e62bd5572fd500d0d0a5974748567f32c36ec"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Create a new dotnet workspace",
+		"requests": [
+			"fffa3a57c43f065f6a9aa8bf638b4cf13a04f3c92d3b5f7710d5a9d412ed0125"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a new java workspace, which will call an api from us national weather serv…",
+		"requests": [
+			"960802888a472092cdee47d8f15f514830f2fd2798dae3acbca723b1006f5c80"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a new jupyter notebook",
+		"requests": [
+			"8912e63857e113addc3376e7dc681067780f4cb057fb998dd77567d63bc80daa"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a new notebook for sentiment analysis; add sample 50 feedbacks about raisi…",
+		"requests": [
+			"2ef2fc63fefb0ae92de152feaf29d5cebbb1ac982266265e77d8cf7b1ed8e838"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a new notebook to create this file and text",
+		"requests": [
+			"2ac582bac6ab3b569bcf6143ecbbb1d738488fec60394efecf857798fa9619ee"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Create a new Python AI project",
+		"requests": [
+			"c4493cd2f23ed68e52b37af9f53372b0837b8b872936790dadbfcb82705cd35a"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a new react app with a form that accepts firstname lastname and a view to …",
+		"requests": [
+			"5fe7db88bcf32878e65fa60456bb74d5f2fd9124e7ecf849cba506deda190f1c"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a node webapp that creates and deletes customers into a sql database.",
+		"requests": [
+			"1f3f63c0be94a16ab0c519d11cc899798a1a2b2b4726ec9ca23292c2054e64b0"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a notebook called \"covid19 worldwide testing data\" that imports the #file:…",
+		"requests": [
+			"d1b62620339090353e227964a37e04631149f5ca4cc7dc090c29b43897ca0db0"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a notebook that connect to the microsoft graph api and retrieves direct re…",
+		"requests": [
+			"440ddc184bf2f85e3bf2c0ef07332381e7b5fb189268924bee09fe1007554180"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a react app with a node api and a mongo db",
+		"requests": [
+			"f95b60cdf026395fac33575e2db62ea9d7ec60841a07d5909a9cdbb2a71ff0f9"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Create a RESTful API server using typescript",
+		"requests": [
+			"8457581dc6a605cfbb417f21c8b27cb3ff8a8387d6226006490bbb6248ca259c"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a terraform project that deploys an app into app service on azure",
+		"requests": [
+			"1f7e41c7aae62cfa46f7193d7ddd6f2b856129f086847f4c6e398009843afd6b"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a test using testng framework",
+		"requests": [
+			"9cb17332df8599ab0041d436183852ba03419cb55b7a96928cab5fe3fe4dfee8"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create a venv",
+		"requests": [
+			"ba774c5265fb730cb7c669f76c3fc64dbce6431fb72d9d127a619aa35c052100"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create me a react web app with node js api and a mongo db",
+		"requests": [
+			"ce0025b9f098969f0ad105c1f6de0c5cb4b75353aaef8d78d126faf49a8d7e8c"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] create new jupyter notebook",
+		"requests": [
+			"1f1f3f028269d6445ad7a0064f3f01a2124769b72e4c1867d776f4877d2eae33"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] delete branch master",
+		"requests": [
+			"de6b962590f407a9e5c66c1edae3d8297e21e5b0a01839fd5f52273f4d93cbcc"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] delete git branch from cmd palette",
+		"requests": [
+			"2bd8109af9cfd67b7661b76d317b88a335bebb55665d305200797f01e2e4a392"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] design a skeleton to satisfy these requirements considering java as the primary t…",
+		"requests": [
+			"bbf9fabc11407944ebeedbf2d60976bc5196b790fbeba420ef004c10bcc8e07c"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] do ls include size of the folder in ascending order",
+		"requests": [
+			"0cc4529036344cc743e72e11e89fa68392f9388d2bb221fd8ea56462ab9daa8f"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] explain me this code",
+		"requests": [
+			"23ada678b5f6acbe6d34352ec168f1e92adc1c002efb44459ed37260f0f546f4"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] explain please what this piece of code means.",
+		"requests": [
+			"8e98cf29b651babef60e48d9c88607bd4cdac3ccc9564bb950453c717db37d84"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Extension project contributing a walkthrough",
+		"requests": [
+			"4df694ea3d6d2c6b21f379d1e6678f0e17f39e956f0f40f4e760e982eebb3388"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] favor ajudar com a troca da tela de fundo do visual studio code.",
+		"requests": [
+			"1bfd587c305b3261566ace872faa4970c4245a2d99aefbc3b93a18bcb937c69f"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] favor sugerir uma estrutura de teste unitário.",
+		"requests": [
+			"524e821914b20f4500a742f0b309558042939d61a9447119bfe3b2a141f78b0a"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] fix this error: × you're importing a component that needs usestate. it only works…",
+		"requests": [
+			"0b68acdd9d51c2b2695314e45b8df59db2def03786d6efb3f83fa58b58a6cfaf"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] flutter app that is a calculator",
+		"requests": [
+			"a7cf0a1710f9ce6d982ad213a66aedbb31b0f8cd7dea43f9c9d35d12046958ca"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] for the selected evaluatoraccordion component definition, can we have any tests t…",
+		"requests": [
+			"5540a7bf663914b7bc920215e4a9d27370335cbc4a237e342a7eaa7fbdb9b3ec"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] generate a notebook which reads csv file from fath <REDACTED FILEPATH>",
+		"requests": [
+			"6aba406f2519aea1a73882d8c888552a2bd0e37f5fbff53418df5f684830ace5"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] generate a notebook which reads csv file, loads into a dataframe, remove the last…",
+		"requests": [
+			"05d40a32083c6515ba0a0e488ca96b597e43eb244e63a89b8723110e6073eb1a"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] generate a test suite using junit 4 and mockito to simulate database connections",
+		"requests": [
+			"e344c7aa1d565bd13de7be4fa41c6443526fb5419dff433f089164b77f45e3c9"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] generate tests for the covered code",
+		"requests": [
+			"8bf64249cba291174274dbf409088ecdf9ea6cc665060ef50ece521626121798"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] generate unit test cases for selected code",
+		"requests": [
+			"f073dfa3c7c89ac01adcf4c44e66eeed97e093f2c2d88b1fecfedef5b428bf2f"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] generate unit test cases for selected code with auto tear down and test",
+		"requests": [
+			"d40d0c7191020f30ee4f4a6242174917ac749a96d12ed94973f8df693377f5d5"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] generate unit test for adding numbers for a calculator application in python",
+		"requests": [
+			"cee771eb0446db8341e9740a50c1f9e6543775da9760490c40906422bb1e4a1e"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] generate unit test for the selected code",
+		"requests": [
+			"b37c3d7152a35062cc949828964ac317adec446d3801729ae31a1ed4c2350fdb"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] generate unit test for the selected evaluatoraccordion component based on the bel…",
+		"requests": [
+			"2fe4acf7bae8d35b83b3f5523a942707aee0796b8018a3d150f66955158bd2c5"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] generate unit tests according to the above recommendations",
+		"requests": [
+			"4a0ac951b3a888f9474fc8e66f8452b16bd44fe37f7ab821040dee71a080ccb1"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] generate unit tests for the selected code",
+		"requests": [
+			"1e12b8397b3f159a9bac9325f7c54784d8d14704ed86e9a5954ad902d0d8af9e"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] generate unit tests this #file:createteamstab.tsx",
+		"requests": [
+			"0b1b6d138946bf9ad134697fc07520dc56f1cea3f2cc446d34b1d9a9821cee48"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] gerar testes para #file:fib.py",
+		"requests": [
+			"546902c70a66f9bfa59c838622ce6061168fba27aa90552fab2c828c87cce72f"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] git delete branch",
+		"requests": [
+			"f2547ada31762b5a636310c9da4a450ca4670854208d6b561d1717e30c53e01b"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] git diff --name-only b7a9a95e4fba2b0aecc019739ec98b52523e6708 -- projects/mdmlff …",
+		"requests": [
+			"4bb5d7f3a7f5e12b76f56749d55a4f838460b974795a246f5b2315266811d0ef"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] go to next change using keyboard shortcut",
+		"requests": [
+			"cb089047921342c080029b246839609aff53aea4b13e3e47a0a8b4fc697bb792"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] How about if I want an extension that contributes code lenses",
+		"requests": [
+			"126c95c44038e5922aa8ea6cba72b4f03b5115fd66b98e67957d2802e1bdac3e"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] How can I center my layout in the workbench?",
+		"requests": [
+			"6f89ed1de504b42e444dc1ef33a5fc8344d336e112bb8c92dceb5f73ae1b8872"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] how can i change the code colours in the screen?",
+		"requests": [
+			"f69214cccf66bb6e3616541b893d4ce4ee701188fb542c5ed33d849c44a7d743"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] how can i collapse all code sections of a file",
+		"requests": [
+			"98a09e771e9d455b13114f4aad85e6454a9220262c061c3e32261e66b970dab1"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] how can i configure visual studio code to automatically trim trailing whitespace …",
+		"requests": [
+			"11d9ffadc9865f5d3d0134727cd364ea0fda1cc3dfd6b0450a204f10826779e6"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] how can i run the unit tests using the `bats` testing framework?",
+		"requests": [
+			"125d57ee62eab73681ade8a3f7ed4b7ae0362d53823131e971ae19d82f79c85e"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] how do i add env var to a test execution of jest in vscode?",
+		"requests": [
+			"65326ae5b6e618ce2a3cecaa6eda1d72ef5bd5da106bfb30455fcf3eba8187ce"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] how do i create a notebook to load data from a csv file?",
+		"requests": [
+			"8d5a6364198e45f465ddcf302ba85049ae2b0221fb0546603b669e656d49e950"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] How do I create a notebook to load data from a csv file?",
+		"requests": [
+			"fccd597461156764fefaeb14551d9b16e40f85206030b5536c087ef9b7729e62"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] How do I deploy my app to azure",
+		"requests": [
+			"b6beb8f844316e4e558f2c1a1806584de0079a3bcdb51213c624e7138206f50f"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] How do I list files in the terminal",
+		"requests": [
+			"d11f86229dea32e94fcfb58caadee61454452ef5fd00aeff593b7cd43c638508"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] how do i see env var to file contents and preserve end of lines",
+		"requests": [
+			"0af847aaca8476b7c55af073b25412cceac6e540baf60c24f8b20bd72e7e96ff"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] how to add debug configuration for a node js app",
+		"requests": [
+			"46732c2caff6a69e73c723bac82879199fbaa1b87361f7f0d9f4fef7affce914"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] How to change colour theme in VS Code?",
+		"requests": [
+			"09588d8be53a0f1d1805ee37c19df787533a1c6e17eb48a3107f77028487a631"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] how to change position of explorer in vs code",
+		"requests": [
+			"ea5103c927010d9fd2d54baff2d3a92efeceb9661691cdc8551a96ad94c83639"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] how to change the workspace in debug view",
+		"requests": [
+			"c8783418e496bd1f70388b9913dc18d75fac08084379194f27ff68023b92dc0f"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] how to install extension",
+		"requests": [
+			"f029072664b77e1045f6f2dc861d731a370274a5fcd6f03db5aa93f5914ab44d"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] how would i fix the highlighted error base on the #file:simpledateformat.java fil…",
+		"requests": [
+			"3d02e137345cd1a42d01285513f9dae727b83ae2cca0e7f4f03522e6addd44eb"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] i need new project where i need to create an ui like youtube where i need to pars…",
+		"requests": [
+			"d9f24b30e7ddfa63f121ae1bf84c90bd19e0a2745e291d3156ba5227ba1fe291"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] in the test method of testautoclassificationsensitiveinfotypes, i want to test if…",
+		"requests": [
+			"5233c2b55d2149d77aa7ac47ac310ad1a242cd2043425e175d22ad3a9c97e805"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Keyboard shortcut to toggle chat panel",
+		"requests": [
+			"0b191165906a26b79043fa16062955f3b63387e824fc7e9d9c1ad2130cf722da"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] kill processes running on port 8080",
+		"requests": [
+			"4ead523cdf225bfa2675473f90c40f4bb93065e7b1380670301acf09020703a9"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Latest updated features in vscode",
+		"requests": [
+			"32742552a1dd8e2a523c82d37df95d55d6217e78c75a5029494dcfaf1fbef346"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] make a test for generate_plugin_configs",
+		"requests": [
+			"fa697fcf21acd1b9133ba0c3ea18591ecd963fdd00e3e7095079ceedd0a17b19"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] make a unittest based on this",
+		"requests": [
+			"ecf76072923019432d693d25194a77c2d97148cf15cfce13d57e5c9b619651fa"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] make a unittest code based on this",
+		"requests": [
+			"142e5c1e24246b39a9c9fd11693273b1366c307b2eea3cc8b0684e8f016f5477"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] make sure we have at least 80% test coverage",
+		"requests": [
+			"406df1ce8c8b315b95c0fdcd1c55de8f38ac61a463532eaae75690c526e8a5d7"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] make tests",
+		"requests": [
+			"983c3f9d9b545bf9fccd63c9046e2349d20ea9d79ab11b14699b1502b1ed6c46"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] multiple cursors by holding ctrl alt and the arrow keys",
+		"requests": [
+			"40053c4d4fcab0af4fc126da4121de6136cd420254c3b41f2e04650e5b662987"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] need to test new code in the file directsendemailprocessor.cs method publishdirec…",
+		"requests": [
+			"be39b016753df0fca7891feaac99a5cbd8c22d17ed4fd61d1e6a4ea0f08a511b"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] newnotebook that creates four agents based on the microsoft autogen framework. th…",
+		"requests": [
+			"7380a6da254633571ec5a502f94396f4219a34fcffef2d5d353be3bd25148b3a"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] nodejs web app that will display weath forecast of major cities in australia. dat…",
+		"requests": [
+			"38f95041bf696ec2937e4f6fbbb9ae27e2e18abdc74bbc5408e992fedc53488e"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] open command palette",
+		"requests": [
+			"8bd1882a2bafad22c9ae59cbb7cef446bcaef883050e68af79d8266f0544d47b"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] please help me implement tests for this program",
+		"requests": [
+			"d9cec3f66e48475fd4bd52fe5001d4abcc6bc85cdadd052be11f1b14212d1422"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] powershell json to csv and csv to json example",
+		"requests": [
+			"6e8f259e04bf02fb48688ad2eee6637637f79cf2c1e5a86a9e8226485d27152b"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] project to deploy terrafrom code for 3 virutal mahcines and a vnet",
+		"requests": [
+			"fc5a68bf86f001e28c615b3af7619a6a806ddf49908181e33e641bf34ae69653"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] provide an overview of this class",
+		"requests": [
+			"88bdb5a137a5a054c1fe3414f194572ef7ea8949397323c6f979707f0a4714a5"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] pyhton calculator",
+		"requests": [
+			"855efb628990dbe7d648ff60b9521014c4d4bb862a584eb01fb73db859355f42"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] remove current changes in branch with git?",
+		"requests": [
+			"19c2a02577c273d4f8aad0292f7d0448ab60b101ae6ef8693b7f310382f80ca0"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] run command azure app service: deploy to web app",
+		"requests": [
+			"b829914ae2ce93792b209f2079ae04da91caafcef1b07a92707f077400786223"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] scaffold .net api app addording to spec in #file:eshop.md",
+		"requests": [
+			"6fb5b8c449418d228667bbc065ba91d17dab346aa57b65af9cf9ed3b8c30de98"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] scaffold a new c# console project",
+		"requests": [
+			"bd1cf4f5fbb4f7f2ee79bce24c2257bd225341b4dfd7a525b38b2ca8f4fa4f66"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] scaffold a spring boot app using the maven build and azure openai sdk. the name o…",
+		"requests": [
+			"a7ef7a12ebfe6500132f3e80a93e8de45d30a51d986184d4f7e24d7b35c10418"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] scaffold a spring boot app with azure openai sdk",
+		"requests": [
+			"21cdb1a6dfc74625bb791076e14b2acef5b433dfbb78cb2bac5e613f4f089211"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] scaffold a system in java for me to setup account and customer management - abili…",
+		"requests": [
+			"95eec2282e8591eb2618aad3bc8bc82ecb2f83ef7329403d32c7e5ecb8a7f0a2"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] scaffold code for a new winui3 desktop app using c#.",
+		"requests": [
+			"8554e07f00f2e67c93a21189056128eb064de86c59c3c865eaf26059aa7cac22"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] scaffold code for fastify api server",
+		"requests": [
+			"f01ef9f3baf065cdfe617cff1b79ea97b4fde704df9530362964e4b3d84c8f5d"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] scaffold code for new test project",
+		"requests": [
+			"acea644a1ebd75b7f69617a509ae347079c245dec130f1863ffa1a79b5baf1c3"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] set typescript spaces to 2",
+		"requests": [
+			"f9168ab469cc987c02419786c9ef78526ff1b1a0b728095df1bf289a2e85c47b"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] shortcut to delete a line",
+		"requests": [
+			"4dabaad947d564f9a19ff1a5b7ba7b62a4b2eecb9885352acf41d4d33fd9a81a"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] small and basic project in go",
+		"requests": [
+			"737d5b76d2d19cb31a3f79d4abf5a5febadc94785aec6c7b81d09d83c7d8e4db"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Sorting function in python with tests",
+		"requests": [
+			"5f033a38257644fc7e2e5de9c492e680f0e4d239467b0f2d7e8a28eab8f33849"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] the backgrond image is repeating vertically. fix it so that only 1 image is displ…",
+		"requests": [
+			"8bb2545260bee7815c5b25f2bda8b336841fac25a7f75a14f2888ab408800853"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] There is a problem in this code. Rewrite the code to show it with the bug fixed",
+		"requests": [
+			"93cadea52c314235301e1adc3cd869730e89aaac784e3012330c1909d006524e"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] this code is splitting my uploaded file chracter by character, i want it to split…",
+		"requests": [
+			"a6239cb1705cd48e28eda233958ac114b77b0381c33edb41b266d820f27093d5"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] to fix the error, you need to handle the case where selectedrepo is null before c…",
+		"requests": [
+			"b5b45bf9a9770f4c42df97106ef76d1f1ea38e0ef3fac6ff7f19c87d8a1b30b1"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] use the test() syntax instead of it()",
+		"requests": [
+			"ea4e9037e2edaba28cc770b1c02a59229cbe8706a941ec10eeb3949dd8393d8a"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] using testng framework, write a test that reads two files, one being a sequence d…",
+		"requests": [
+			"d2ad2ebada39948a6c8b85d5f2a9eb49d50084f76801989d9593fb4dd2dfdea4"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] using testng framework, write one test that reads two files, one being a sequence…",
+		"requests": [
+			"6eb08a0515d83cc1f5f317aba7ce234120c8c8757814340cec1b23c2400f753e"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] using vitest",
+		"requests": [
+			"142121407ce15d06bfd2b3baaa9c2b86ea939b40f0703315e5df6c37a05bb17b"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] vscode extension for chat participants, the extension should be updated to use ca…",
+		"requests": [
+			"1eb02b48c0c3ca6d7d1de95863f301d76fbfa43dba0ba3ed411776561d125644"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] vscode extension for chat participants, the extension will be for accessing inter…",
+		"requests": [
+			"c6b78c83afc46ed08af2e8f5dd91eeb365c3b6879463a9b211212ccc2c2254ad"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] what are some best practices for unit testing the `publishdirectemail()` method i…",
+		"requests": [
+			"625923fa0de91b2d20d142eaed1b985b13754dac737230710001538190564b7e"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] What are the benefits of dynamic programming",
+		"requests": [
+			"cc91f3271c8d3e5973ca21a2c0a652b640bd45a12188623b210f52092ce9408a"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] What did the last command do?",
+		"requests": [
+			"6c95cbf9cbbfa414802108ebb762416e34cc15b34923c50a01e584bb1607f837"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] what do you call that debug panel that has the continue, step in, step out button…",
+		"requests": [
+			"c098a6100bbca1b816ebf8144165463fca4b2c5502e4d965de461301814d87a3"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] What is a good vscode extensions starting point if I want to contribute to the ch…",
+		"requests": [
+			"7a96061182bf70aad6b1f0ab56251fe024da5c89cf5e4db4fc6773b7da2a1771"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] What is in the #editor",
+		"requests": [
+			"2fcb3140120359724899c10172023c72badd1a4e5e23102b23be870d16fa93f9"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] What is the command to open the integrated terminal?",
+		"requests": [
+			"6e73ddb7da20999895095279802b19962e460ab9d64851e8f8bf74c23a99a94d"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] What is the last error in the terminal",
+		"requests": [
+			"f6c1a0cd888f351ec625a7216cd4fbe16f9eff6a6b51bd123a1fed7f6da7d692"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] What is the name of that setting when vscode fake opens a file and how to disable…",
+		"requests": [
+			"2dcc6f05c09021bfe0ddaffa0fde93f0c97f1a84a09d96fe86277a2a3a90d46a"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] What would this mean or do at the top of a dockerfile: # escape=`ARG TAG=xenial",
+		"requests": [
+			"1e8967d15ba6918852c4a4c524bfd3c893c983252437f914a5d861b921759f0e"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Write a set of detailed unit test functions for the code above.",
+		"requests": [
+			"d6675c6e378f1ed5ca0fbcbe9fa4f6c5e26e3383246c534f1b32a9e626bbf7ff"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] write an example of using web crypto to compute a sha256",
+		"requests": [
+			"cd376052ba7bbb5fd545dac819172be45aa7a1eba9c20cfd32a868dfff97b2c8"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] Write an explanation for the code above as paragraphs of text.",
+		"requests": [
+			"029885f52d9402ff9006f365cd17182d0956cb1e1655a9f5d3e7c172aeefd4e8"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [builtin] write tests",
+		"requests": [
+			"0925a22236c226c05f4e2d51b2abd7df3ad5b388a31c77124299f543bcc411be"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [github] delete git branch",
+		"requests": [
+			"ae555557194ebd92fb69929a83b727f4d1a0bdce44d9d8a5af5114cf88b7f367"
+		]
+	},
+	{
+		"name": "intent [panel] - [strict] [github] What are the most popular terminals that developers use",
+		"requests": [
+			"5cb7baa9692a30bf967815d92b1e7e9f7be862da0adc7e58f4481e47828e70a3"
+		]
+	}
+]

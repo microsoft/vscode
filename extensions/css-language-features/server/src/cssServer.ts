@@ -8,12 +8,12 @@ import {
 } from 'vscode-languageserver';
 import { URI } from 'vscode-uri';
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position, CodeActionKind } from 'vscode-css-languageservice';
-import { getLanguageModelCache } from './languageModelCache';
-import { runSafeAsync } from './utils/runner';
-import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
-import { getDocumentContext } from './utils/documentContext';
-import { fetchDataProviders } from './customData';
-import { RequestService, getRequestService } from './requests';
+import { getLanguageModelCache } from './languageModelCache.js';
+import { runSafeAsync } from './utils/runner.js';
+import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation.js';
+import { getDocumentContext } from './utils/documentContext.js';
+import { fetchDataProviders } from './customData.js';
+import { RequestService, getRequestService } from './requests.js';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('css/customDataChanged');
@@ -68,16 +68,15 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// in the passed params the rootPath of the workspace plus the client capabilities.
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const initializationOptions = params.initializationOptions as any || {};
+		const initializationOptions = params.initializationOptions || {};
 
-		// eslint-disable-next-line local/code-no-any-casts
-		workspaceFolders = (<any>params).workspaceFolders;
-		if (!Array.isArray(workspaceFolders)) {
+		if (!Array.isArray(params.workspaceFolders)) {
 			workspaceFolders = [];
 			if (params.rootPath) {
 				workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString(true) });
 			}
+		} else {
+			workspaceFolders = params.workspaceFolders;
 		}
 
 		requestService = getRequestService(initializationOptions?.handledSchemas || ['file'], connection, runtime);
@@ -143,7 +142,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		let service = languageServices[document.languageId];
 		if (!service) {
 			connection.console.log('Document type is ' + document.languageId + ', using css instead.');
-			service = languageServices['css'];
+			service = languageServices.css;
 		}
 		return service;
 	}
@@ -168,11 +167,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration(change => {
-		// eslint-disable-next-line local/code-no-any-casts
-		updateConfiguration(change.settings as any);
+		updateConfiguration(change.settings as { [languageId: string]: LanguageSettings });
 	});
 
-	function updateConfiguration(settings: any) {
+	function updateConfiguration(settings: { [languageId: string]: LanguageSettings }) {
 		for (const languageId in languageServices) {
 			languageServices[languageId].configure(settings[languageId]);
 		}

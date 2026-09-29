@@ -31,6 +31,7 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { DiffEditorOptions } from '../../diffEditorOptions.js';
 import { Range } from '../../../../../common/core/range.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
+import { ILineBreaksComputerContext } from '../../../../../common/modelLineProjectionData.js';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -163,8 +164,15 @@ export class DiffEditorViewZones extends Disposable {
 			}
 
 			const renderSideBySide = this._options.renderSideBySide.read(reader);
-
-			const deletedCodeLineBreaksComputer = !renderSideBySide ? this._editors.modified._getViewModel()?.createLineBreaksComputer() : undefined;
+			const context: ILineBreaksComputerContext = {
+				getLineContent: (lineNumber: number): string => {
+					return this._editors.original.getModel()!.getLineContent(lineNumber);
+				},
+				getLineInjectedText: (lineNumber: number) => {
+					return null;
+				}
+			};
+			const deletedCodeLineBreaksComputer = !renderSideBySide ? this._editors.modified._getViewModel()?.createLineBreaksComputer(context) : undefined;
 			if (deletedCodeLineBreaksComputer) {
 				const originalModel = this._editors.original.getModel()!;
 				for (const a of alignmentsVal) {
@@ -176,7 +184,7 @@ export class DiffEditorViewZones extends Disposable {
 							if (i > originalModel.getLineCount()) {
 								return { orig: origViewZones, mod: modViewZones };
 							}
-							deletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, null);
+							deletedCodeLineBreaksComputer?.addRequest(i, null);
 						}
 					}
 				}
@@ -199,7 +207,7 @@ export class DiffEditorViewZones extends Disposable {
 						originalModelTokenizationCompleted.read(reader); // Update view-zones once tokenization completes
 
 						const deletedCodeDomNode = document.createElement('div');
-						deletedCodeDomNode.classList.add('view-lines', 'line-delete', 'monaco-mouse-cursor-text');
+						deletedCodeDomNode.classList.add('view-lines', 'line-delete', 'line-delete-selectable', 'monaco-mouse-cursor-text');
 						const originalModel = this._editors.original.getModel()!;
 						// `a.originalRange` can be out of bound when the diff has not been updated yet.
 						// In this case, we do an early return.
@@ -241,10 +249,11 @@ export class DiffEditorViewZones extends Disposable {
 							new InlineDiffDeletedCodeMargin(
 								() => assertReturnsDefined(zoneId),
 								marginDomNode,
+								deletedCodeDomNode,
 								this._editors.modified,
 								a.diff,
 								this._diffEditorWidget,
-								result.viewLineCounts,
+								result,
 								this._editors.original.getModel()!,
 								this._contextMenuService,
 								this._clipboardService,
@@ -273,7 +282,7 @@ export class DiffEditorViewZones extends Disposable {
 							marginDomNode,
 							setZoneId(id) { zoneId = id; },
 							showInHiddenAreas: true,
-							suppressMouseDown: true,
+							suppressMouseDown: false,
 						});
 					}
 

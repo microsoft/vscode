@@ -29,6 +29,10 @@ export function assertNever(value: never, message = 'Unreachable'): never {
 	throw new Error(message);
 }
 
+export function softAssertNever(value: never): void {
+	// no-op
+}
+
 /**
  * Asserts that a condition is `truthy`.
  *
@@ -65,8 +69,6 @@ export function softAssert(condition: boolean, message = 'Soft Assertion Failed'
  */
 export function assertFn(condition: () => boolean): void {
 	if (!condition()) {
-		// eslint-disable-next-line no-debugger
-		debugger;
 		// Reevaluate `condition` again to make debugging easier
 		condition();
 		onUnexpectedError(new BugIndicatingError('Assertion Failed'));

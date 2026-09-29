@@ -1,0 +1,11 @@
+{
+	"question": "hex colors",
+	"isRegex": true,
+	"queryShouldFind": [
+		[ "style.css", [
+				"#eee",
+				"#fbfbfb",
+				"#ccc"
+			] ]
+	]
+}

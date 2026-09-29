@@ -10,7 +10,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AbstractNativeEnvironmentService } from '../../../environment/common/environmentService.js';
+import { AbstractNativeEnvironmentService, INativeEnvironmentPaths } from '../../../environment/common/environmentService.js';
 import product from '../../../product/common/product.js';
 import { InMemoryUserDataProfilesService, UserDataProfilesService } from '../../common/userDataProfile.js';
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
@@ -21,7 +21,13 @@ const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 class TestEnvironmentService extends AbstractNativeEnvironmentService {
 	constructor(private readonly _appSettingsHome: URI) {
-		super(Object.create(null), Object.create(null), { _serviceBrand: undefined, ...product });
+		const userDataDir = _appSettingsHome.fsPath.replace(/\/User$/, '');
+		const paths: INativeEnvironmentPaths = {
+			userDataDir,
+			homeDir: userDataDir,
+			tmpDir: userDataDir,
+		};
+		super(Object.create(null), paths, { _serviceBrand: undefined, ...product });
 	}
 	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 	override get cacheHome() { return this.userRoamingDataHome; }
@@ -211,6 +217,14 @@ suite('UserDataProfileService (Common)', () => {
 		assert.strictEqual(profile.isDefault, false);
 		assert.deepStrictEqual(profile.useDefaultFlags, { extensions: true });
 		assert.strictEqual(profile.extensionsResource.toString(), testObject.defaultProfile.extensionsResource.toString());
+	});
+
+	test('profile using default profile for language models', async () => {
+		const profile = await testObject.createNamedProfile('name', { useDefaultFlags: { languageModels: true } });
+
+		assert.strictEqual(profile.isDefault, false);
+		assert.deepStrictEqual(profile.useDefaultFlags, { languageModels: true });
+		assert.strictEqual(profile.languageModelsResource.toString(), testObject.defaultProfile.languageModelsResource.toString());
 	});
 
 	test('update profile using default profile for keybindings', async () => {

@@ -10,7 +10,7 @@ import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
@@ -22,7 +22,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/b
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+
 import { AccessibilityHelpNLS } from '../../../../editor/common/standaloneStrings.js';
 import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController.js';
 import { FloatingEditorToolbar } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
@@ -32,7 +32,7 @@ import { ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX, IAccessibilityService } from '../
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -46,14 +46,16 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../plat
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { FloatingEditorClickMenu } from '../../../browser/codeeditor.js';
 import { IChatCodeBlockContextProviderService } from '../../chat/browser/chat.js';
-import { ICodeBlockActionContext } from '../../chat/browser/codeBlockPart.js';
+import { ICodeBlockActionContext } from '../../chat/browser/widget/chatContentParts/codeBlockPart.js';
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { AccessibilityCommandId } from '../common/accessibilityCommands.js';
 import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewHasAssignedKeybindings, accessibleViewHasUnassignedKeybindings, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from './accessibilityConfiguration.js';
 import { resolveContentAndKeybindingItems } from './accessibleViewKeybindingResolver.js';
 
 const enum DIMENSIONS {
-	MAX_WIDTH = 600
+	MAX_WIDTH = 900,
+	WIDTH_RATIO = 0.75,
+	MAX_HEIGHT_RATIO = 0.6
 }
 
 export type AccesibleViewContentProvider = AccessibleContentProvider | ExtensionContentProvider;
@@ -63,10 +65,10 @@ interface ICodeBlock {
 	endLine: number;
 	code: string;
 	languageId?: string;
-	chatSessionId: string | undefined;
+	chatSessionResource: URI | undefined;
 }
 
-export class AccessibleView extends Disposable implements ITextModelContentProvider {
+export class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
 
 	private _accessiblityHelpIsShown: IContextKey<boolean>;
@@ -88,11 +90,21 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	private _container: HTMLElement;
 	private _title: HTMLElement;
 	private readonly _toolbar: WorkbenchToolBar;
+	private readonly _toolbarMenu = this._register(new MutableDisposable<IMenu>());
+	/** Listeners tied to the provider of the current {@link show} call. */
+	private readonly _showDisposables = this._register(new MutableDisposable<DisposableStore>());
+	/** Listeners tied to the most recent {@link _render} call. */
+	private readonly _renderDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _lastProviderListener = this._register(new MutableDisposable());
+	private readonly _helpClearListener = this._register(new MutableDisposable());
+	private readonly _codeBlockContextProviderRegistration = this._register(new MutableDisposable());
+	private readonly _configureKeybindingsDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private _currentProvider: AccesibleViewContentProvider | undefined;
 	private _currentContent: string | undefined;
 
 	private _lastProvider: AccesibleViewContentProvider | undefined;
+	private _lastProviderPosition: Map<string, Position> = new Map();
 
 	private _viewContainer: HTMLElement | undefined;
 
@@ -111,7 +123,6 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		@ICommandService private readonly _commandService: ICommandService,
 		@IChatCodeBlockContextProviderService private readonly _codeBlockContextProviderService: IChatCodeBlockContextProviderService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
@@ -167,7 +178,6 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			readOnly: true,
 			fontFamily: 'var(--monaco-monospace-font)'
 		};
-		this.textModelResolverService.registerTextModelContentProvider(Schemas.accessibleView, this);
 
 		this._editorWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._container, editorOptions, codeEditorWidgetOptions));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
@@ -200,6 +210,9 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	private _playDiffSignals(): void {
+		if (this._currentProvider?.id !== AccessibleViewProviderId.DiffEditor && this._currentProvider?.id !== AccessibleViewProviderId.InlineCompletions) {
+			return;
+		}
 		const position = this._editorWidget.getPosition();
 		const model = this._editorWidget.getModel();
 		if (!position || !model) {
@@ -211,10 +224,6 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		} else if (lineContent?.startsWith('-')) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted);
 		}
-	}
-
-	provideTextContent(resource: URI): Promise<ITextModel | null> | null {
-		return this._getTextModel(resource);
 	}
 
 	private _resetContextKeys(): void {
@@ -258,7 +267,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!codeBlock || codeBlockIndex === undefined) {
 			return;
 		}
-		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined, chatSessionId: codeBlock.chatSessionId };
+		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined, chatSessionResource: codeBlock.chatSessionResource };
 	}
 
 	navigateToCodeBlock(type: 'next' | 'previous'): void {
@@ -286,22 +295,44 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this.show(this._lastProvider);
 	}
 
+	public getAccessibilityStatus(): { providerId: string | undefined; isInCodeBlock: boolean; onLastLine: boolean } {
+		return {
+			providerId: this._currentProvider?.id,
+			isInCodeBlock: this._accessibleViewInCodeBlock.get() ?? false,
+			onLastLine: this._onLastLine.get() ?? false
+		};
+	}
+
 	show(provider?: AccesibleViewContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, position?: IPosition): void {
 		provider = provider ?? this._currentProvider;
 		if (!provider) {
 			return;
 		}
-		provider.onOpen?.();
+		const showDisposables = new DisposableStore();
+		this._showDisposables.value = showDisposables;
+		const onOpenDisposable = provider.onOpen?.();
+		if (onOpenDisposable) {
+			showDisposables.add(onOpenDisposable);
+		}
 		const delegate: IContextViewDelegate = {
-			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
+			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * DIMENSIONS.WIDTH_RATIO, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
 				this._viewContainer = container;
 				this._viewContainer.classList.add('accessible-view-container');
-				return this._render(provider, container, showAccessibleViewHelp);
+				this._render(provider, container, showAccessibleViewHelp);
+				return toDisposable(() => this._renderDisposables.clear());
 			},
 			onHide: () => {
+				showDisposables.dispose();
+				this._toolbarMenu.clear();
 				if (!showAccessibleViewHelp) {
-					this._updateLastProvider();
+					// Save cursor position before disposing so it can be restored on reopen
+					if (this._currentProvider) {
+						const currentPosition = this._editorWidget.getPosition();
+						if (currentPosition) {
+							this._lastProviderPosition.set(this._currentProvider.id, currentPosition);
+						}
+					}
 					this._currentProvider?.dispose();
 					this._currentProvider = undefined;
 					this._resetContextKeys();
@@ -321,28 +352,36 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (symbol && this._currentProvider) {
 			this.showSymbol(this._currentProvider, symbol);
 		}
-		if (provider instanceof AccessibleContentProvider && provider.onDidRequestClearLastProvider) {
-			this._register(provider.onDidRequestClearLastProvider((id: string) => {
-				if (this._lastProvider?.options.id === id) {
-					this._lastProvider = undefined;
-				}
-			}));
-		}
 		if (provider.options.id) {
 			// only cache a provider with an ID so that it will eventually be cleared.
-			this._lastProvider = provider;
+			this._setLastProvider(provider);
 		}
 		if (provider.id === AccessibleViewProviderId.PanelChat || provider.id === AccessibleViewProviderId.QuickChat) {
-			this._register(this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView'));
+			if (!this._codeBlockContextProviderRegistration.value) {
+				this._codeBlockContextProviderRegistration.value = this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView');
+			}
 		}
 		if (provider instanceof ExtensionContentProvider) {
 			this._storageService.store(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${provider.id}`, true, StorageScope.APPLICATION, StorageTarget.USER);
 		}
-		if (provider.onDidChangeContent) {
-			this._register(provider.onDidChangeContent(() => {
+		// `showSymbol` above can re-enter `show`, which releases the listeners of this call
+		if (provider.onDidChangeContent && !showDisposables.isDisposed) {
+			showDisposables.add(provider.onDidChangeContent(() => {
 				if (this._viewContainer) { this._render(provider, this._viewContainer, showAccessibleViewHelp); }
 			}));
 		}
+	}
+
+	private _setLastProvider(provider: AccesibleViewContentProvider | undefined): void {
+		this._lastProvider = provider;
+		this._lastProviderListener.value = isIAccessibleViewContentProvider(provider) && provider.onDidRequestClearLastProvider
+			? provider.onDidRequestClearLastProvider((id: string) => {
+				if (this._lastProvider?.options.id === id) {
+					this._setLastProvider(undefined);
+				}
+				this._lastProviderPosition.delete(id);
+			})
+			: undefined;
 	}
 
 	previous(): void {
@@ -402,7 +441,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				inBlock = false;
 				const endLine = i;
 				const code = lines.slice(startLine, endLine).join('\n');
-				this._codeBlocks?.push({ startLine, endLine, code, languageId, chatSessionId: undefined });
+				this._codeBlocks?.push({ startLine, endLine, code, languageId, chatSessionResource: undefined });
 			}
 		});
 		this._accessibleViewContainsCodeBlocks.set(this._codeBlocks.length > 0);
@@ -443,7 +482,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!items) {
 			return;
 		}
-		const disposables = this._register(new DisposableStore());
+		const disposables = new DisposableStore();
+		this._configureKeybindingsDisposables.value = disposables;
 		const quickPick: IQuickPick<IQuickPickItem> = disposables.add(this._quickInputService.createQuickPick());
 		quickPick.items = items;
 		quickPick.title = localize('keybindings', 'Configure keybindings');
@@ -542,6 +582,10 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this._accessibleViewGoToSymbolSupported.set(this._goToSymbolsSupported() ? this.getSymbols()?.length! > 0 : false);
 	}
 
+	private _getStableUri(providerId: string): URI {
+		return URI.from({ path: `accessible-view-${providerId}`, scheme: Schemas.accessibleView });
+	}
+
 	private _updateContent(provider: AccesibleViewContentProvider, updatedContent?: string): void {
 		let content = updatedContent ?? provider.provideContent();
 		if (provider.options.type === AccessibleViewType.View) {
@@ -577,7 +621,10 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this._currentContent = content + configureKbHint + configureAssignedKbHint;
 	}
 
-	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
+	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): void {
+		const isSameProvider = this._currentProvider?.id === provider.id;
+		const previousPosition = isSameProvider ? this._editorWidget.getPosition() : undefined;
+		const previousScrollTop = isSameProvider ? this._editorWidget.getScrollTop() : undefined;
 		this._currentProvider = provider;
 		this._accessibleViewCurrentProviderId.set(provider.id);
 		const verbose = this._verbosityEnabled();
@@ -585,11 +632,20 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this.calculateCodeBlocks(this._currentContent);
 		this._updateContextKeys(provider, true);
 		const widgetIsFocused = this._editorWidget.hasTextFocus() || this._editorWidget.hasWidgetFocus();
-		this._getTextModel(URI.from({ path: `accessible-view-${provider.id}`, scheme: Schemas.accessibleView, fragment: this._currentContent })).then((model) => {
+		const stableUri = this._getStableUri(provider.id);
+		this._getTextModel(stableUri).then((model) => {
 			if (!model) {
 				return;
 			}
-			this._editorWidget.setModel(model);
+			// Update the content of the existing model instead of creating a new one
+			// This preserves the cursor position when content changes
+			const currentContent = this._currentContent ?? '';
+			if (model.getValue() !== currentContent) {
+				model.setValue(currentContent);
+			}
+			if (this._editorWidget.getModel() !== model) {
+				this._editorWidget.setModel(model);
+			}
 			const domNode = this._editorWidget.getDomNode();
 			if (!domNode) {
 				return;
@@ -618,12 +674,40 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			if (this._currentProvider?.options.position) {
 				const position = this._editorWidget.getPosition();
 				const isDefaultPosition = position?.lineNumber === 1 && position.column === 1;
-				if (this._currentProvider.options.position === 'bottom' || this._currentProvider.options.position === 'initial-bottom' && isDefaultPosition) {
-					const lastLine = this.editorWidget.getModel()?.getLineCount();
+				const lineCount = this.editorWidget.getModel()?.getLineCount();
+				const savedPosition = this._lastProviderPosition.get(provider.id);
+				const preservedPosition = this._currentProvider.options.position === 'initial-bottom-preserve'
+					? previousPosition ?? savedPosition
+					: this._currentProvider.options.position === 'initial-bottom' && !isSameProvider ? savedPosition : undefined;
+				if (preservedPosition && preservedPosition.lineNumber <= (lineCount ?? 0)) {
+					this._editorWidget.setPosition(preservedPosition);
+					// When always preserving the cursor position, keep the current scroll
+					// position on content updates instead of revealing the cursor, which
+					// would cause the view to jump while the user is scrolling.
+					if (this._currentProvider.options.position === 'initial-bottom-preserve' && previousScrollTop !== undefined) {
+						this._editorWidget.setScrollTop(previousScrollTop);
+					} else {
+						this._editorWidget.revealLine(preservedPosition.lineNumber);
+					}
+				} else if (this._currentProvider.options.position === 'bottom' || this._currentProvider.options.position === 'initial-bottom-preserve' || this._currentProvider.options.position === 'initial-bottom' && isDefaultPosition) {
+					const lastLine = lineCount;
 					const position = lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;
 					if (position) {
 						this._editorWidget.setPosition(position);
 						this._editorWidget.revealLine(position.lineNumber);
+					}
+				}
+			} else if (previousPosition) {
+				this._editorWidget.setPosition(previousPosition);
+			} else {
+				// Restore the saved position for this provider if available (e.g., after close and reopen)
+				const savedPosition = this._lastProviderPosition.get(provider.id);
+				if (savedPosition) {
+					const lineCount = this._editorWidget.getModel()?.getLineCount() ?? 0;
+					// Only restore if the saved position is still valid within the current content
+					if (savedPosition.lineNumber <= lineCount) {
+						this._editorWidget.setPosition(savedPosition);
+						this._editorWidget.revealPosition(savedPosition);
 					}
 				}
 			}
@@ -647,12 +731,18 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				return;
 			}
 			this._updateContextKeys(provider, false);
-			this._lastProvider = undefined;
+			// Save the cursor position for this provider so it can be restored on reopen
+			const currentPosition = this._editorWidget.getPosition();
+			if (currentPosition) {
+				this._lastProviderPosition.set(provider.id, currentPosition);
+			}
+			this._setLastProvider(undefined);
 			this._currentContent = undefined;
 			this._currentProvider?.dispose();
 			this._currentProvider = undefined;
 		};
 		const disposableStore = new DisposableStore();
+		this._renderDisposables.value = disposableStore;
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Enter) {
 				this._commandService.executeCommand('editor.action.openLink');
@@ -682,12 +772,12 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		}));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
 		disposableStore.add(this._layoutService.onDidLayoutActiveContainer(() => this._layout()));
-		return disposableStore;
 	}
 
 	private _updateToolbar(providedActions?: IAction[], type?: AccessibleViewType): void {
 		this._toolbar.setAriaLabel(type === AccessibleViewType.Help ? localize('accessibleHelpToolbar', 'Accessibility Help') : localize('accessibleViewToolbar', "Accessible View"));
-		const toolbarMenu = this._register(this._menuService.createMenu(MenuId.AccessibleView, this._contextKeyService));
+		const toolbarMenu = this._menuService.createMenu(MenuId.AccessibleView, this._contextKeyService);
+		this._toolbarMenu.value = toolbarMenu;
 		const menuActions = getFlatActionBarActions(toolbarMenu.getActions({}));
 		if (providedActions) {
 			for (const providedAction of providedActions) {
@@ -702,9 +792,9 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 
 	private _layout(): void {
 		const dimension = this._layoutService.activeContainerDimension;
-		const maxHeight = dimension.height && dimension.height * .4;
+		const maxHeight = dimension.height && dimension.height * DIMENSIONS.MAX_HEIGHT_RATIO;
 		const height = Math.min(maxHeight, this._editorWidget.getContentHeight());
-		const width = Math.min(dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH);
+		const width = Math.min(dimension.width * DIMENSIONS.WIDTH_RATIO, DIMENSIONS.MAX_WIDTH);
 		this._editorWidget.layout({ width, height });
 	}
 
@@ -713,7 +803,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (existing && !existing.isDisposed()) {
 			return existing;
 		}
-		return this._modelService.createModel(resource.fragment, null, resource, false);
+		// Create an empty model - content will be set via setValue() to preserve cursor position
+		return this._modelService.createModel('', null, resource, false);
 	}
 
 	private _goToSymbolsSupported(): boolean {
@@ -728,7 +819,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!provider) {
 			return;
 		}
-		const lastProvider = provider instanceof AccessibleContentProvider ? new AccessibleContentProvider(
+		const lastProvider = isIAccessibleViewContentProvider(provider) ? new AccessibleContentProvider(
 			provider.id,
 			provider.options,
 			provider.provideContent.bind(provider),
@@ -741,6 +832,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			provider.onDidChangeContent?.bind(provider),
 			provider.onKeyDown?.bind(provider),
 			provider.getSymbols?.bind(provider),
+			provider.onDidRequestClearLastProvider,
 		) : new ExtensionContentProvider(
 			provider.id,
 			provider.options,
@@ -760,17 +852,30 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!lastProvider) {
 			return;
 		}
+		// The provider can request to be cleared (e.g. its terminal was killed) while help is open
+		let clearRequested = false;
+		this._helpClearListener.value = isIAccessibleViewContentProvider(lastProvider) ? lastProvider.onDidRequestClearLastProvider?.(id => {
+			if (lastProvider.options.id === id) {
+				clearRequested = true;
+			}
+		}) : undefined;
+		const restoreLastProvider = () => {
+			this._helpClearListener.clear();
+			this._contextViewService.hideContextView();
+			if (clearRequested) {
+				lastProvider.dispose();
+				return;
+			}
+			// HACK: Delay to allow the context view to hide #207638
+			queueMicrotask(() => this.show(lastProvider));
+		};
 		let accessibleViewHelpProvider;
 		if (lastProvider instanceof AccessibleContentProvider) {
 			accessibleViewHelpProvider = new AccessibleContentProvider(
 				lastProvider.id,
 				{ type: AccessibleViewType.Help },
 				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._accessibleViewHelpDialogContent(this._goToSymbolsSupported()),
-				() => {
-					this._contextViewService.hideContextView();
-					// HACK: Delay to allow the context view to hide #207638
-					queueMicrotask(() => this.show(lastProvider));
-				},
+				restoreLastProvider,
 				lastProvider.verbositySettingKey
 			);
 		} else {
@@ -778,11 +883,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				lastProvider.id,
 				{ type: AccessibleViewType.Help },
 				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._accessibleViewHelpDialogContent(this._goToSymbolsSupported()),
-				() => {
-					this._contextViewService.hideContextView();
-					// HACK: Delay to allow the context view to hide #207638
-					queueMicrotask(() => this.show(lastProvider));
-				},
+				restoreLastProvider,
 			);
 		}
 		this._contextViewService.hideContextView();
@@ -824,7 +925,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	private _navigationHint(): string {
-		return localize('accessibleViewNextPreviousHint', "Show the next item{0} or previous item{1}.", `<keybinding:${AccessibilityCommandId.ShowNext}`, `<keybinding:${AccessibilityCommandId.ShowPrevious}>`);
+		return localize('accessibleViewNextPreviousHint', "Show the next item{0} or previous item{1}.", `<keybinding:${AccessibilityCommandId.ShowNext}>`, `<keybinding:${AccessibilityCommandId.ShowPrevious}>`);
 	}
 
 	private _disableVerbosityHint(provider: AccesibleViewContentProvider): string {

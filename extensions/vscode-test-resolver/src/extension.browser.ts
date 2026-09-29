@@ -24,7 +24,7 @@ export function activate(_context: vscode.ExtensionContext) {
  * actual WebSocket.
  */
 class InitialManagedMessagePassing implements vscode.ManagedMessagePassing {
-	private readonly dataEmitter = new vscode.EventEmitter<Uint8Array>();
+	private readonly dataEmitter = new vscode.EventEmitter<Uint8Array<ArrayBuffer>>();
 	private readonly closeEmitter = new vscode.EventEmitter<Error | undefined>();
 	private readonly endEmitter = new vscode.EventEmitter<void>();
 
@@ -38,7 +38,7 @@ class InitialManagedMessagePassing implements vscode.ManagedMessagePassing {
 	public send(d: Uint8Array): void {
 		if (this._actual) {
 			// we already got the HTTP headers
-			this._actual.send(d);
+			this._actual.send(d as Uint8Array<ArrayBuffer>);
 			return;
 		}
 
@@ -80,7 +80,7 @@ class OpeningManagedMessagePassing {
 
 	private readonly socket: WebSocket;
 	private isOpen = false;
-	private bufferedData: Uint8Array[] = [];
+	private bufferedData: Uint8Array<ArrayBuffer>[] = [];
 
 	constructor(
 		url: URL,
@@ -119,7 +119,7 @@ class OpeningManagedMessagePassing {
 		});
 	}
 
-	public send(d: Uint8Array): void {
+	public send(d: Uint8Array<ArrayBuffer>): void {
 		if (!this.isOpen) {
 			this.bufferedData.push(d);
 			return;

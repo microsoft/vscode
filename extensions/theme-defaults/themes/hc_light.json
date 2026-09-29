@@ -122,7 +122,8 @@
 		{
 			"scope": "markup.italic",
 			"settings": {
-				"fontStyle": "italic"
+				"fontStyle": "italic",
+				"foreground": "#800080"
 			}
 		},
 		{
@@ -570,6 +571,9 @@
 	],
 	"colors": {
 		"actionBar.toggledBackground": "#dddddd",
+		"browser.border": "#00000000",
+		"titleBar.inactiveBackground": "#FFFFFF",
+		"statusBar.inactiveBackground": "#FFFFFF",
 		"statusBarItem.remoteBackground": "#FFFFFF",
 		"statusBarItem.remoteForeground": "#000000"
 	}
