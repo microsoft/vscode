@@ -38,7 +38,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../platf
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatService, type ChatSendResult, type IChatSendRequestOptions, type IChatRequestAcceptedEvent } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -273,7 +273,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined> }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent> }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
@@ -295,6 +295,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
 	});
 	instantiationService.stub(IChatService, {
+		onDidAcceptRequest: overrides?.onDidAcceptRequest ?? Event.None,
 		acquireOrLoadSession: async () => undefined,
 		sendRequest: overrides?.sendRequest ?? (async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never })),
 	});
@@ -3287,6 +3288,85 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}));
 
+});
+
+suite('CloudSandboxSessionsProvider external sessions', () => {
+	const disposables = new DisposableStore();
+	teardown(() => disposables.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSandbox(storageService: IStorageService, onDidAcceptRequest: Event<IChatRequestAcceptedEvent> = Event.None) {
+		const connection = disposables.add(new MockAgentConnection());
+		const provider = createProvider(disposables, connection, {
+			address: 'cloudsandbox:external-test',
+			ctor: CloudSandboxSessionsProvider,
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			noConnection: true,
+			storageService,
+			onDidAcceptRequest,
+		}) as CloudSandboxSessionsProvider;
+		return { provider, connection };
+	}
+
+	test('discovered sessions remain external across host metadata updates and reloads', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const { provider, connection } = createSandbox(storage);
+		const metadata = createSession('external', { provider: 'copilot' });
+		provider.seedSessions([metadata], { updateExisting: true });
+		const session = provider.getSessions()[0];
+		const discovered = session.isExternal?.get();
+		connection.addSession({ ...metadata, session: AgentSession.uri('ahp-session', 'external') });
+		provider.setConnection(connection);
+		await timeout(0);
+		const connected = session.isExternal?.get();
+		await storage.flush();
+		const restored = createSandbox(storage).provider;
+		restored.seedSessions([metadata], { updateExisting: true });
+		assert.deepStrictEqual({
+			discovered,
+			connected,
+			restored: restored.getSessions()[0].isExternal?.get(),
+		}, { discovered: true, connected: true, restored: true });
+	}));
+
+	test('sessions created in this profile stay internal after rediscovery and reload', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const { provider } = createSandbox(storage);
+		const metadata = createSession('created-here', { provider: 'copilot' });
+		provider.seedProvisionalSession(metadata);
+		provider.publishWithheldSession('created-here');
+		provider.seedSessions([metadata], { updateExisting: true });
+		const created = provider.getSessions()[0].isExternal?.get();
+		const restored = createSandbox(storage).provider;
+		restored.seedSessions([metadata], { updateExisting: true });
+		const otherProfile = createSandbox(disposables.add(new InMemoryStorageService())).provider;
+		otherProfile.seedSessions([metadata], { updateExisting: true });
+		assert.deepStrictEqual({
+			created,
+			restored: restored.getSessions()[0].isExternal?.get(),
+			otherProfile: otherProfile.getSessions()[0].isExternal?.get(),
+		}, { created: false, restored: false, otherProfile: true });
+	});
+
+	test('an accepted user message adopts only its session and persists across reloads', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+		const { provider } = createSandbox(storage, accepted.event);
+		const metadata = createSession('adopted', { provider: 'copilot' });
+		provider.seedSessions([metadata, createSession('other', { provider: 'copilot' })]);
+		const session = provider.getCachedSession('adopted')!;
+		const observed: boolean[] = [];
+		disposables.add(autorun(reader => observed.push(session.isExternal!.read(reader))));
+		accepted.fire({ chatSessionResource: session.resource.with({ scheme: 'another-host' }), isNewSession: false });
+		accepted.fire({ chatSessionResource: session.resource.with({ fragment: 'peer-chat' }), isNewSession: false });
+		const restored = createSandbox(storage).provider;
+		restored.seedSessions([metadata]);
+		assert.deepStrictEqual({
+			observed,
+			other: provider.getCachedSession('other')!.isExternal?.get(),
+			restored: restored.getSessions()[0].isExternal?.get(),
+		}, { observed: [true, false], other: true, restored: false });
+	});
 });
 
 suite('CloudSandboxSessionsProvider discovery metadata', () => {
