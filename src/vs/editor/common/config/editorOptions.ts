@@ -5936,7 +5936,6 @@ export const enum EditorOption {
 	multiCursorLimit,
 	occurrencesHighlight,
 	occurrencesHighlightDelay,
-	occurrencesHighlightFromAllProviders,
 	overtypeCursorStyle,
 	overtypeOnPaste,
 	overviewRulerBorder,
@@ -6024,7 +6023,8 @@ export const enum EditorOption {
 	doubleClickSelectsBlock,
 	fullwidthCharacterWidth,
 	// Must come after `fullwidthCharacterWidth`, which it is computed from.
-	effectiveFullwidthCharacterWidth
+	effectiveFullwidthCharacterWidth,
+	occurrencesHighlightFromAllProviders
 }
 
 export const EditorOptions = {
