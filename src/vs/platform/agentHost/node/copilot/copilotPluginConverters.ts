@@ -3,17 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CustomAgentConfig, MCPServerConfig } from '@github/copilot-sdk';
+import { spawn } from 'child_process';
+import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
 import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
+import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
+
+type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
+type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
+type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
+type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
+type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
+type ErrorOccurredHookInput = Parameters<NonNullable<SessionHooks['onErrorOccurred']>>[0];
 
 // ---------------------------------------------------------------------------
 // MCP servers
@@ -247,6 +257,288 @@ function toSdkResourceDirectories(resources: readonly INamedPluginResource[]): s
 		}
 	}
 	return result;
+}
+
+// ---------------------------------------------------------------------------
+// Hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the effective command for the current platform from a parsed hook command.
+ */
+function resolveEffectiveCommand(hook: IParsedHookCommand, os: OperatingSystem): string | undefined {
+	if (os === OperatingSystem.Windows && hook.windows) {
+		return hook.windows;
+	} else if (os === OperatingSystem.Macintosh && hook.osx) {
+		return hook.osx;
+	} else if (os === OperatingSystem.Linux && hook.linux) {
+		return hook.linux;
+	}
+	return hook.command;
+}
+
+/**
+ * Executes a hook command as a shell process. Returns the stdout on success,
+ * or throws on non-zero exit code or timeout.
+ */
+function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<string> {
+	const command = resolveEffectiveCommand(hook, OS);
+	if (!command) {
+		return Promise.resolve('');
+	}
+
+	const timeout = (hook.timeout ?? 30) * 1000;
+	const cwd = hook.cwd?.fsPath;
+
+	return new Promise<string>((resolve, reject) => {
+		const isWindows = OS === OperatingSystem.Windows;
+		const shell = isWindows ? 'cmd.exe' : '/bin/sh';
+		const shellArgs = isWindows ? ['/c', command] : ['-c', command];
+
+		const child = spawn(shell, shellArgs, {
+			cwd,
+			env: { ...process.env, ...hook.env },
+			stdio: ['pipe', 'pipe', 'pipe'],
+			timeout,
+		});
+
+		let stdout = '';
+		let stderr = '';
+
+		child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
+		child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+
+		if (stdin) {
+			child.stdin.write(stdin);
+			child.stdin.end();
+		} else {
+			child.stdin.end();
+		}
+
+		child.on('error', reject);
+		child.on('close', (code) => {
+			if (code === 0) {
+				resolve(stdout);
+			} else {
+				reject(new Error(`Hook command exited with code ${code}: ${stderr || stdout}`));
+			}
+		});
+	});
+}
+
+/**
+ * Runs a list of hook commands sequentially, passing `input` as JSON stdin.
+ * Returns every parsed object so the caller can reduce all hook outputs.
+ * Command failures are swallowed — hooks are non-fatal.
+ */
+async function runHookCommands(commands: readonly IParsedHookCommand[] | undefined, input: unknown): Promise<object[]> {
+	if (!commands) {
+		return [];
+	}
+	const results: object[] = [];
+	const stdin = JSON.stringify(input);
+	for (const cmd of commands) {
+		try {
+			const output = await executeHookCommand(cmd, stdin);
+			if (output.trim()) {
+				try {
+					const parsed = JSON.parse(output);
+					if (parsed && typeof parsed === 'object') {
+						results.push(parsed);
+					}
+				} catch {
+					// Non-JSON output is fine — no modification
+				}
+			}
+		} catch {
+			// Hook failures are non-fatal
+		}
+	}
+	return results;
+}
+
+function mergeHookOutputs(outputs: readonly object[]): Record<string, unknown> | undefined {
+	if (outputs.length === 0) {
+		return undefined;
+	}
+	const merged: Record<string, unknown> = {};
+	const additionalContext: string[] = [];
+	for (const output of outputs) {
+		Object.assign(merged, output);
+		const context = (output as { additionalContext?: unknown }).additionalContext;
+		if (typeof context === 'string' && context.length > 0) {
+			additionalContext.push(context);
+		}
+	}
+	if (additionalContext.length > 0) {
+		merged.additionalContext = additionalContext.join('\n\n');
+	}
+	return merged;
+}
+
+const permissionDecisionPriority = { allow: 0, ask: 1, deny: 2 } as const;
+
+function mergePreToolUseOutputs(outputs: readonly object[]): Exclude<PreToolUseHookOutput, void> | undefined {
+	const merged = mergeHookOutputs(outputs);
+	if (!merged) {
+		return undefined;
+	}
+	let decision: keyof typeof permissionDecisionPriority | undefined;
+	const denyReasons: string[] = [];
+	let decisionReason: string | undefined;
+	for (const output of outputs) {
+		const candidate = output as { permissionDecision?: unknown; permissionDecisionReason?: unknown };
+		const candidateDecision = candidate.permissionDecision;
+		if (candidateDecision !== 'allow' && candidateDecision !== 'ask' && candidateDecision !== 'deny') {
+			continue;
+		}
+		const candidateReason = typeof candidate.permissionDecisionReason === 'string' ? candidate.permissionDecisionReason : undefined;
+		if (candidateDecision === 'deny' && candidateReason) {
+			denyReasons.push(candidateReason);
+		}
+		if (!decision || permissionDecisionPriority[candidateDecision] > permissionDecisionPriority[decision]) {
+			decision = candidateDecision;
+			decisionReason = candidateReason;
+		}
+	}
+	if (decision) {
+		merged.permissionDecision = decision;
+		const reason = decision === 'deny' && denyReasons.length > 0 ? denyReasons.join('\n') : decisionReason;
+		if (reason !== undefined) {
+			merged.permissionDecisionReason = reason;
+		} else {
+			delete merged.permissionDecisionReason;
+		}
+	}
+	return merged;
+}
+
+/**
+ * Mapping from canonical hook type identifiers to SDK SessionHooks handler keys.
+ */
+const HOOK_TYPE_TO_SDK_KEY: Record<string, keyof SessionHooks> = {
+	'PreToolUse': 'onPreToolUse',
+	'PostToolUse': 'onPostToolUse',
+	'UserPromptSubmit': 'onUserPromptSubmitted',
+	'SessionStart': 'onSessionStart',
+	'SessionEnd': 'onSessionEnd',
+	'ErrorOccurred': 'onErrorOccurred',
+};
+
+/**
+ * Converts parsed plugin hooks into SDK {@link SessionHooks} handler functions.
+ *
+ * Each handler executes the hook's shell commands sequentially when invoked.
+ * Hook types that don't map to SDK handler keys are silently ignored.
+ *
+ * The optional `editTrackingHooks` parameter provides internal edit-tracking
+ * callbacks from {@link CopilotAgentSession} that are merged with plugin hooks.
+ */
+export function toSdkHooks(
+	hookGroups: readonly IParsedHookGroup[],
+	editTrackingHooks?: {
+		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<PreToolUseHookOutput>;
+		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
+		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
+	},
+): SessionHooks {
+	// Group all commands by SDK handler key
+	const commandsByKey = new Map<keyof SessionHooks, IParsedHookCommand[]>();
+	for (const group of hookGroups) {
+		const sdkKey = HOOK_TYPE_TO_SDK_KEY[group.type];
+		if (!sdkKey) {
+			continue;
+		}
+		const existing = commandsByKey.get(sdkKey) ?? [];
+		existing.push(...group.commands);
+		commandsByKey.set(sdkKey, existing);
+	}
+
+	const hooks: SessionHooks = {};
+
+	// Pre-tool-use handler
+	const preToolCommands = commandsByKey.get('onPreToolUse');
+	if (preToolCommands?.length || editTrackingHooks) {
+		hooks.onPreToolUse = async (input: PreToolUseHookInput) => {
+			const internalResult = await editTrackingHooks?.onPreToolUse(input);
+			if (internalResult !== undefined) {
+				return internalResult;
+			}
+			return mergePreToolUseOutputs(await runHookCommands(preToolCommands, input));
+		};
+	}
+
+	// Post-tool-use handler
+	const postToolCommands = commandsByKey.get('onPostToolUse');
+	if (postToolCommands?.length || editTrackingHooks) {
+		hooks.onPostToolUse = async (input: PostToolUseHookInput) => {
+			await editTrackingHooks?.onPostToolUse(input);
+			return mergeHookOutputs(await runHookCommands(postToolCommands, input));
+		};
+	}
+
+	// User-prompt-submitted handler
+	const promptCommands = commandsByKey.get('onUserPromptSubmitted');
+	if (promptCommands?.length || editTrackingHooks?.onUserPromptSubmitted) {
+		hooks.onUserPromptSubmitted = async (input: UserPromptSubmittedHookInput) => {
+			const stdin = JSON.stringify(input);
+			for (const cmd of promptCommands ?? []) {
+				try {
+					await executeHookCommand(cmd, stdin);
+				} catch {
+					// Hook failures are non-fatal
+				}
+			}
+			return editTrackingHooks?.onUserPromptSubmitted?.();
+		};
+	}
+
+	// Session-start handler
+	const startCommands = commandsByKey.get('onSessionStart');
+	if (startCommands?.length) {
+		hooks.onSessionStart = async (input: SessionStartHookInput) => {
+			const stdin = JSON.stringify(input);
+			for (const cmd of startCommands) {
+				try {
+					await executeHookCommand(cmd, stdin);
+				} catch {
+					// Hook failures are non-fatal
+				}
+			}
+		};
+	}
+
+	// Session-end handler
+	const endCommands = commandsByKey.get('onSessionEnd');
+	if (endCommands?.length) {
+		hooks.onSessionEnd = async (input: SessionEndHookInput) => {
+			const stdin = JSON.stringify(input);
+			for (const cmd of endCommands) {
+				try {
+					await executeHookCommand(cmd, stdin);
+				} catch {
+					// Hook failures are non-fatal
+				}
+			}
+		};
+	}
+
+	// Error-occurred handler
+	const errorCommands = commandsByKey.get('onErrorOccurred');
+	if (errorCommands?.length) {
+		hooks.onErrorOccurred = async (input: ErrorOccurredHookInput) => {
+			const stdin = JSON.stringify(input);
+			for (const cmd of errorCommands) {
+				try {
+					await executeHookCommand(cmd, stdin);
+				} catch {
+					// Hook failures are non-fatal
+				}
+			}
+		};
+	}
+
+	return hooks;
 }
 
 /**

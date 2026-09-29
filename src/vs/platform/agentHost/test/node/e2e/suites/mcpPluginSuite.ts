@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationConfig.js';
+import { toAgentClientUri } from '../../../../common/agentClientUri.js';
 import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
@@ -477,6 +479,94 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 
 			assert.ok(hookContent.includes('customization_probe'));
 			assert.ok(hookContent.includes('PreToolUseAfter:'));
+		});
+
+		pluginHookTest('host-configured client filesystem hooks use the non-file fallback', async function () {
+			this.timeout(180_000);
+			const hostPlugin = mkdtempSync(join(tmpdir(), 'ahp-non-file-hook-'));
+			const hookLog = join(hostPlugin, 'hook.log');
+			const manifestDirectory = join(hostPlugin, '.plugin');
+			const hooksDirectory = join(hostPlugin, 'hooks');
+			tempDirs.push(hostPlugin);
+			mkdirSync(manifestDirectory, { recursive: true });
+			mkdirSync(hooksDirectory, { recursive: true });
+			writeFileSync(join(manifestDirectory, 'plugin.json'), JSON.stringify({ name: 'Non-File Hook Plugin' }));
+			const hookCommand = (tag: string, output: object) => {
+				const script = [
+					`require('fs').appendFileSync(${JSON.stringify(hookLog)}, ${JSON.stringify(`${tag}\n`)});`,
+					`process.stdout.write(Buffer.from('${Buffer.from(JSON.stringify(output)).toString('base64')}', 'base64').toString());`,
+				].join('');
+				return [process.execPath, '-e', script].map(value => JSON.stringify(value)).join(' ');
+			};
+			writeFileSync(join(hooksDirectory, 'hooks.json'), JSON.stringify({
+				hooks: {
+					PreToolUse: [{
+						hooks: [
+							{ type: 'command', command: hookCommand('first', {}), cwd: tmpdir() },
+							{ type: 'command', command: hookCommand('second', { permissionDecision: 'deny', permissionDecisionReason: 'non-file fallback denied' }), cwd: tmpdir() },
+						],
+					}],
+				},
+			}));
+
+			const { sessionUri, pluginUri, clientId } = await createPluginSession('hook-non-file-fallback');
+			await pluginState(sessionUri, pluginUri);
+			const nonFilePluginUri = toAgentClientUri(URI.file(hostPlugin), clientId).toString();
+			await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+			context.client.clearServedReverseRequests();
+			try {
+				context.client.dispatch({
+					channel: ROOT_STATE_URI,
+					clientSeq: 100,
+					action: {
+						type: ActionType.RootConfigChanged,
+						config: { [AgentHostConfigKey.Customizations]: [{ uri: nonFilePluginUri, displayName: 'Non-File Hook Plugin' }] },
+					},
+				});
+				await context.client.waitForNotification(notification =>
+					isActionNotification(notification, ActionType.RootConfigChanged)
+					&& getActionEnvelope(notification).channel === ROOT_STATE_URI
+					&& getActionEnvelope(notification).origin?.clientSeq === 100,
+				);
+				await retry(async () => {
+					const result = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+					const plugin = (result.snapshot!.state as SessionState).customizations?.find((customization): customization is PluginCustomization =>
+						customization.type === CustomizationType.Plugin && customization.uri === nonFilePluginUri);
+					assert.ok(plugin?.children?.some(child => child.type === CustomizationType.Hook));
+				}, 100, 100);
+				const hostPluginPaths = [hostPlugin, realpathSync(hostPlugin)].map(candidate => URI.file(candidate).fsPath);
+				assert.ok(context.client.servedReverseRequests.some(request => {
+					const uri = request.uri;
+					return request.method === 'resourceRead'
+						&& uri !== undefined
+						&& hostPluginPaths.some(candidate => URI.parse(uri).fsPath.startsWith(candidate));
+				}), `served reverse requests: ${JSON.stringify(context.client.servedReverseRequests)}`);
+
+				const turnId = 'turn-hook-non-file-fallback';
+				await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply that the tool was denied.', 2);
+				const hookEntries = await retry(async () => {
+					const entries = existsSync(hookLog) ? readFileSync(hookLog, 'utf8').trim().split('\n') : [];
+					assert.ok(entries.length >= 2);
+					return entries;
+				}, 100, 100);
+
+				assert.deepStrictEqual(hookEntries.slice(0, 2), ['first', 'second']);
+				assert.ok(!toolResultTexts(sessionUri, turnId).includes('MCP_PLUGIN_RESULT'));
+			} finally {
+				context.client.dispatch({
+					channel: ROOT_STATE_URI,
+					clientSeq: 101,
+					action: {
+						type: ActionType.RootConfigChanged,
+						config: { [AgentHostConfigKey.Customizations]: [] },
+					},
+				});
+				await context.client.waitForNotification(notification =>
+					isActionNotification(notification, ActionType.RootConfigChanged)
+					&& getActionEnvelope(notification).channel === ROOT_STATE_URI
+					&& getActionEnvelope(notification).origin?.clientSeq === 101,
+				);
+			}
 		});
 
 		pluginHookTest('plugin PostToolUse hook runs after an MCP tool result', async function () {

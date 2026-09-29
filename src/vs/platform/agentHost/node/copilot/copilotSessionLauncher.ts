@@ -34,7 +34,7 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
-import { toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
@@ -627,6 +627,7 @@ export async function applySandboxConfig(session: CopilotSessionWrapper['session
 }
 
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
+
 	/**
 	 * Memoized handle for the single shared BYOK loopback proxy, started lazily
 	 * on the first session launch that surfaces BYOK models (see
@@ -928,6 +929,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
 		// exception: the SDK validates the session-start `agent:` against `customAgents`
 		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
+		// Hooks without an on-disk plugin directory are projected explicitly below.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
@@ -1058,11 +1060,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// VS Code owns durable MCP credentials; the runtime must not consult its keychain store.
 			mcpOAuthTokenStorage: 'in-memory',
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
-			hooks: {
+			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
-			},
+			}),
 			mcpServers,
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,

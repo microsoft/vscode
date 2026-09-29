@@ -773,11 +773,18 @@ suite('CopilotSessionLauncher shared session config', () => {
 		const launcher = createTestLauncher(managedSettingsPermissions, {}, logService);
 		const pluginDir = URI.file('/tmp/synced-customizations');
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
+		const commandOutput = (value: object) => `node -e "process.stdout.write(Buffer.from('${Buffer.from(JSON.stringify(value)).toString('base64')}','base64').toString())"`;
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
 		const instructionUri = URI.joinPath(pluginDir, 'rules', 'user.instructions.md');
 		const plugin: ICopilotPluginInfo = {
 			format: PluginFormat.Copilot,
-			hooks: [],
+			hooks: [{
+				type: 'PreToolUse',
+				commands: [{ command: commandOutput({ permissionDecision: 'deny', permissionDecisionReason: 'file-backed hook must be SDK-owned' }) }],
+				uri: URI.joinPath(pluginDir, 'hooks.json'),
+				originalId: 'PreToolUse',
+				customization: { type: CustomizationType.Hook, id: 'file-hook', uri: URI.joinPath(pluginDir, 'hooks.json').toString(), name: 'hooks.json' },
+			}],
 			mcpServers: [{
 				name: 'native-plugin-server',
 				uri: URI.joinPath(pluginDir, '.mcp.json'),
@@ -828,12 +835,31 @@ suite('CopilotSessionLauncher shared session config', () => {
 			instructions: [],
 			pluginDir: syntheticPluginDir,
 		};
+		const nonFilePluginDir = URI.parse('vscode-agent-client://test-client/file/-/tmp/non-file-plugin');
+		const nonFilePlugin: ICopilotPluginInfo = {
+			format: PluginFormat.Copilot,
+			hooks: [{
+				type: 'PreToolUse',
+				commands: [
+					{ command: commandOutput({}) },
+					{ command: commandOutput({ permissionDecision: 'deny', permissionDecisionReason: 'non-file fallback denied' }) },
+				],
+				uri: URI.joinPath(nonFilePluginDir, 'hooks.json'),
+				originalId: 'PreToolUse',
+				customization: { type: CustomizationType.Hook, id: 'non-file-hook', uri: URI.joinPath(nonFilePluginDir, 'hooks.json').toString(), name: 'hooks.json' },
+			}],
+			mcpServers: [],
+			agents: [],
+			skills: [],
+			instructions: [],
+			pluginDir: nonFilePluginDir,
+		};
 		const basePlan = {
 			client,
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [plugin, syntheticPlugin], mcpServers: {} },
+			snapshot: { tools: [], plugins: [plugin, syntheticPlugin, nonFilePlugin], mcpServers: {} },
 			disabledRootMcpServers: ['github', 'azure'],
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
@@ -972,6 +998,14 @@ suite('CopilotSessionLauncher shared session config', () => {
 					'[Copilot:session-1] SDK resumeSession started: attemptId=<id>',
 					'[Copilot:session-1] SDK resumeSession settled: attemptId=<id>, outcome=success, elapsedMs=<ms>',
 				],
+			});
+			const hookResult = await createConfigs[0].hooks?.onPreToolUse?.(
+				{ toolName: 'bash', toolArgs: {}, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' },
+				{ sessionId: 'test' },
+			);
+			assert.deepStrictEqual(hookResult, {
+				permissionDecision: 'deny',
+				permissionDecisionReason: 'non-file fallback denied',
 			});
 		} finally {
 			sessions.dispose();
