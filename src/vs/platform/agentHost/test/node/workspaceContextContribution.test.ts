@@ -321,6 +321,23 @@ suite('WorkspaceContextContribution', () => {
 		assert.deepStrictEqual(context.disk.reads, ['/workspace', '/workspace', '/workspace']);
 	});
 
+	test('does not treat a restored chat as new before its history is loaded', async () => {
+		const context = await setupContext();
+		const restored = buildChatUri(context.session, 'restored');
+		const previousTurn: Turn = { id: 'old', state: TurnState.Complete, message: { text: 'old', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined };
+		context.state.registerRestoredChatSummary(context.session, restored, {
+			title: 'Restored',
+			origin: { kind: ChatOriginKind.User },
+			resolver: async () => ({ turns: [previousTurn] }),
+		});
+		const unresolved = await context.firstTurn(restored);
+		await context.state.resolveChatState(restored);
+		const resolved = await context.firstTurn(restored);
+		assert.deepStrictEqual({ unresolved, resolved, reads: context.disk.reads, events: context.events() }, {
+			unresolved: { message: userMessage }, resolved: { message: userMessage }, reads: [], events: [],
+		});
+	});
+
 	test('skips chats that continue or were delegated from another conversation', async () => {
 		const context = await setupContext();
 		const origins = {

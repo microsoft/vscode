@@ -275,11 +275,14 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	 * The chat's working directories when its next turn starts a new Copilot
 	 * conversation, otherwise `undefined`. Forks and side chats inherit history
 	 * that already carries the source chat's context, and tool-spawned chats
-	 * receive a focused task from the chat that delegated it.
+	 * receive a focused task from the chat that delegated it. A restored chat
+	 * whose history is not loaded yet is never treated as new: it may already
+	 * have a snapshot in its provider conversation.
 	 */
 	private _firstTurnWorkingDirectories(chat: ProtocolURI): URI[] | undefined {
 		const state = this._stateManager.getSessionState(chat);
-		if (state?.provider !== 'copilotcli' || state.turns.length > 0 || this._context.memento(firstTurnSeenMemento, chat).get()) {
+		const chatState = this._stateManager.getChatState(chat);
+		if (state?.provider !== 'copilotcli' || !chatState || chatState.turns.length > 0 || this._context.memento(firstTurnSeenMemento, chat).get()) {
 			return undefined;
 		}
 		const origin = this._stateManager.getChatOrigin(chat);
