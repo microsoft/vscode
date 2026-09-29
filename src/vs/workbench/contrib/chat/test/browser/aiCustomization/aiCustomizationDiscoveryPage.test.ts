@@ -893,10 +893,13 @@ suite('AICustomizationDiscoveryPage', () => {
 	});
 
 	test('catalog-backed installed skills open their installed detail page', async () => {
-		const fixture = createPage(['agentFinder'], undefined, undefined, undefined, ['installed-skill']);
+		const candidate = resource('installed-skill', { displayName: 'Local mail skill', mediaType: CustomizationMarketplaceMediaType.Skill });
+		const fixture = createPage(['agentFinder']);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'skill', uri: URI.file('/workspace/.github/skills/mail/SKILL.md') } });
+		fixture.notifyInstallChange();
 		fixture.page.setSearchQuery('mail');
 		fixture.page.setVisible(true);
-		await fixture.requests[0].result.complete({ items: [resource('installed-skill', { displayName: 'Local mail skill', mediaType: CustomizationMarketplaceMediaType.Skill })] });
+		await fixture.requests[0].result.complete({ items: [candidate] });
 		await timeout(0);
 		const primaryAction = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-primary')]
 			.find(element => element.getAttribute('aria-label') === 'Open installed customization Local mail skill');
@@ -904,6 +907,8 @@ suite('AICustomizationDiscoveryPage', () => {
 		primaryAction.click();
 		await timeout(0);
 		assert.deepStrictEqual({
+			rows: [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent),
+			accessibleNames: fixture.page.getAccessibilityContent().split('\n').filter(line => line === 'Local mail skill'),
 			marketplace: fixture.openedDetails,
 			installed: fixture.openedInstalled.map(target => ({
 				section: target.section,
@@ -911,6 +916,8 @@ suite('AICustomizationDiscoveryPage', () => {
 				uri: target.promptDetail?.uri.toString(),
 			})),
 		}, {
+			rows: ['Local mail skill'],
+			accessibleNames: ['Local mail skill'],
 			marketplace: [],
 			installed: [{
 				section: AICustomizationManagementSection.Skills,

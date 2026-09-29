@@ -44,7 +44,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
-import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource } from '../../common/customizationMarketplaceInstallService.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
@@ -212,12 +212,18 @@ function hasInstallationTarget(state: CustomizationMarketplaceInstallState): sta
 	return 'target' in state;
 }
 
-function matchesInstallationTarget(item: IInstalledDiscoveryItem, target: CustomizationMarketplaceInstallationTarget): boolean {
-	switch (target.kind) {
-		case 'skill': return item.type === 'skill' && !!item.uri && isEqual(item.uri, target.uri);
-		case 'plugin': return item.type === 'plugin' && !!item.uri && isEqual(item.uri, target.uri);
-		case 'mcp': return item.type === 'mcp' && item.mcpServerId === target.id;
-		case 'copilotConnector': return false;
+function getInstalledItemMarketplaceRecord(
+	item: IInstalledDiscoveryItem,
+	installations: ICustomizationMarketplaceInstallationSnapshot,
+): IRecordedCustomizationMarketplaceResource | undefined {
+	switch (item.type) {
+		case 'skill':
+		case 'plugin':
+			return item.uri ? installations.findByTarget({ kind: item.type, uri: item.uri }) : undefined;
+		case 'mcp':
+			return item.mcpServerId ? installations.findByTarget({ kind: 'mcp', id: item.mcpServerId }) : undefined;
+		default:
+			return undefined;
 	}
 }
 
@@ -1387,14 +1393,23 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private renderSearchResults(preserveResults: boolean): void {
 		this.resultStatusDisposables.clear();
 		const installed = [...this.getFilteredInstalledItems()];
+		const marketplaceInstallations = this.installService.installations.get();
+		const installedByMarketplaceRecord = new Map<IRecordedCustomizationMarketplaceResource, number>();
+		for (let index = 0; index < installed.length; index++) {
+			const marketplace = getInstalledItemMarketplaceRecord(installed[index], marketplaceInstallations);
+			if (marketplace && !installedByMarketplaceRecord.has(marketplace)) {
+				installedByMarketplaceRecord.set(marketplace, index);
+			}
+		}
 		const installedCatalog: IInstalledDiscoveryItem[] = [];
 		const available: ICatalogDiscoveryItem[] = [];
 		for (const resource of this.getSearchMarketplaceResources()) {
 			const type = getCatalogType(resource)!;
 			const state = this.getInstallState(resource);
 			if (hasInstallationTarget(state)) {
-				const matchingInstalledIndex = installed.findIndex(item => matchesInstallationTarget(item, state.target));
-				if (matchingInstalledIndex >= 0) {
+				const marketplace = marketplaceInstallations.findByResource(resource);
+				const matchingInstalledIndex = marketplace ? installedByMarketplaceRecord.get(marketplace) : undefined;
+				if (matchingInstalledIndex !== undefined) {
 					installed[matchingInstalledIndex] = {
 						...installed[matchingInstalledIndex],
 						sourceLabel: this.getMarketplaceResourceLabel(resource),
@@ -1965,10 +1980,18 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	getAccessibilityContent(): string {
 		const searchResources = this.getSearchMarketplaceResources();
+		const marketplaceInstallations = this.installService.installations.get();
 		const recorded = searchResources
 			.map(resource => ({ resource, state: this.getInstallState(resource) }))
 			.filter(entry => hasInstallationTarget(entry.state));
-		const installed = this.getFilteredInstalledItems().filter(item => !recorded.some(entry => hasInstallationTarget(entry.state) && matchesInstallationTarget(item, entry.state.target)));
+		const recordedInstallations = new Set(recorded.flatMap(({ resource }) => {
+			const installation = marketplaceInstallations.findByResource(resource);
+			return installation ? [installation] : [];
+		}));
+		const installed = this.getFilteredInstalledItems().filter(item => {
+			const marketplace = getInstalledItemMarketplaceRecord(item, marketplaceInstallations);
+			return !marketplace || !recordedInstallations.has(marketplace);
+		});
 		const available = searchResources.filter(item => {
 			const type = getCatalogType(item);
 			return type && this.matchesType(type) && !hasInstallationTarget(this.getInstallState(item));
