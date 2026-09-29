@@ -249,7 +249,7 @@
  * right-aligned model picker (relocated out of the add-context toolbar by ChatInputPart), then the
  * execute (voice/send) controls.
  */
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-toolbar {
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-toolbar:not(.chat-input-relocated-model-picker) {
 	order: 0;
 	/* Stay compact on the left so only the model's margin-left creates the gap (not this toolbar growing). */
 	flex: 0 1 auto;
@@ -261,6 +261,10 @@
 
 .agent-sessions-workbench:not(.phone-layout) .chat-view-chat .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-relocated-model-picker {
 	order: 2;
+	flex: 0 0 auto;
+	min-width: 0;
+	display: flex;
+	align-items: center;
 	/* Push the model (and the execute controls after it) to the right, mirroring the composer. */
 	margin-left: auto;
 }

@@ -599,9 +599,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!modelElement) {
 			return;
 		}
-		modelElement.classList.add('chat-input-relocated-model-picker');
-		if (modelElement.parentElement !== toolbarsContainer) {
-			toolbarsContainer.appendChild(modelElement);
+		let relocatedContainer = toolbarsContainer.querySelector('.chat-input-relocated-model-picker') as HTMLElement | null;
+		if (!relocatedContainer) {
+			relocatedContainer = dom.$('.chat-input-relocated-model-picker.chat-input-toolbar');
+			toolbarsContainer.appendChild(relocatedContainer);
+		}
+		if (modelElement.parentElement !== relocatedContainer) {
+			relocatedContainer.appendChild(modelElement);
 		}
 	}
 
