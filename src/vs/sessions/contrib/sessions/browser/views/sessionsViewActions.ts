@@ -29,7 +29,7 @@ import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSe
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SessionItemCanImportContext, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext, SessionShowsArchivedChatsContext } from './sessionsList.js';
+import { SessionItemCanImportContext, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext } from './sessionsList.js';
 import { getChatCapabilities, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
@@ -1176,52 +1176,6 @@ class RestoreArchivedChatAction extends BaseUnarchiveChatAction {
 	}
 }
 
-export const SHOW_SESSION_ARCHIVED_CHATS_COMMAND_ID = 'sessionsViewPane.showArchivedChats';
-
-abstract class BaseToggleSessionArchivedChatsAction extends Action2 {
-	constructor(wording: ChatSessionArchiveActionWording) {
-		super({
-			id: SHOW_SESSION_ARCHIVED_CHATS_COMMAND_ID,
-			title: wording === ChatSessionArchiveActionWording.MarkAsDone
-				? localize2('showDoneChats', "Show Done Chats")
-				: localize2('showArchivedChats', "Show Archived Chats"),
-			toggled: SessionShowsArchivedChatsContext,
-			menu: [{
-				id: SessionItemContextMenuId,
-				group: '1_newChat',
-				order: 1,
-			}],
-		});
-	}
-
-	override run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
-		const sessionsControl = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl;
-		if (!sessionsControl) {
-			return;
-		}
-		const sessions = getSessionActionTargets(accessor, context);
-		if (sessions.length === 0) {
-			return;
-		}
-		const visible = !sessionsControl.isSessionArchivedChatsVisible(sessions[0]);
-		for (const session of sessions) {
-			sessionsControl.setSessionArchivedChatsVisible(session, visible);
-		}
-	}
-}
-
-export class ShowArchivedChatsAction extends BaseToggleSessionArchivedChatsAction {
-	constructor() {
-		super(ChatSessionArchiveActionWording.Archive);
-	}
-}
-
-class ShowDoneChatsAction extends BaseToggleSessionArchivedChatsAction {
-	constructor() {
-		super(ChatSessionArchiveActionWording.MarkAsDone);
-	}
-}
-
 registerAction2(class RenameSessionAction extends Action2 {
 	constructor() {
 		super({
@@ -1513,7 +1467,6 @@ export function getSessionsArchiveActionConstructors(wording: ChatSessionArchive
 			MarkAllSessionsInGroupAsDoneAction,
 			MarkSessionAsDoneAction,
 			MarkChatAsDoneAction,
-			ShowDoneChatsAction,
 			RestoreArchivedSessionAction,
 			RestoreArchivedChatAction,
 			RestoreActiveSessionAction,
@@ -1523,7 +1476,6 @@ export function getSessionsArchiveActionConstructors(wording: ChatSessionArchive
 			ArchiveSessionsInGroupAction,
 			ArchiveSessionAction,
 			ArchiveChatAction,
-			ShowArchivedChatsAction,
 			UnarchiveSessionAction,
 			UnarchiveChatAction,
 			UnarchiveActiveSessionAction,

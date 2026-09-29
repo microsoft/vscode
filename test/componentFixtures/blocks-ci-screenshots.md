@@ -303,18 +303,6 @@
 #### sessions/sessionsList/SessionsList_ArchivedNestedChat/LightHighContrast
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/417627b2545ef2d74dc40a127180febf91b290c0b00d6d66297b0da325101104)
 
-#### sessions/sessionsList/SessionsList_ArchivedNestedChatSessionMenu/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/8378cff4af019d9b7177fa6223f0eca71a9f993d89c7e32ed267f7b36cb13aed)
-
-#### sessions/sessionsList/SessionsList_ArchivedNestedChatSessionMenu/DarkHighContrast
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/2db0ea3181a6163e9ea6956f55a39cf48ae160325dec3563e532602464b87cd1)
-
-#### sessions/sessionsList/SessionsList_ArchivedNestedChatSessionMenu/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/df423abf106f856e1fb38208c28ab6fa95ba5d6014b43b428bf2edd836456c75)
-
-#### sessions/sessionsList/SessionsList_ArchivedNestedChatSessionMenu/LightHighContrast
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/43e76d94a88338e7d16f4db2f33fcf8d89b4778977a9548987505b14fce0f8e1)
-
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Accent/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/f2a8889645a6c83d38ffcd6f4a168142063e56bb2b5f7b5407aa6276e86abf17)
 
