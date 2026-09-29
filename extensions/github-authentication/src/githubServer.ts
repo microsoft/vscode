@@ -67,8 +67,8 @@ export class GitHubServer implements IGitHubServer {
 		this._http = new FetchHttpClient(_logger);
 		// The Entra to GitHub identity mapping is a service GitHub runs, so a self-hosted GitHub
 		// Enterprise Server has no endpoint to exchange against. Where there is one it is the same
-		// endpoint the authorization code flow posts to, and it authenticates the client the same
-		// way, so the client id and secret carry over unchanged.
+		// endpoint the authorization code flow posts to, but this exchange identifies the client
+		// with only its client id.
 		const tokenExchange = isSupportedTarget(this._type, _ghesUri)
 			? this.baseUri.with({ path: '/login/oauth/access_token' }).toString(true)
 			: undefined;
