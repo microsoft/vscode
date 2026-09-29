@@ -4595,9 +4595,10 @@ suite('CopilotAgentSession', () => {
 				sessionDatabase: database,
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
 			});
-			mockSession.permissionModeSetSuccess = false;
+			const error = new Error('Injected preflight failure');
+			mockSession.permissionModeSetError = error;
 
-			await assert.rejects(() => session.send('hello', undefined, 'turn-preflight'), /rejected permission mode 'assisted'/);
+			await assert.rejects(() => session.send('hello', undefined, 'turn-preflight'), error);
 
 			assert.deepStrictEqual({
 				marker: await database.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY),
@@ -4745,7 +4746,7 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('does not execute after cancellation races the durable transition', async () => {
+		test('preserves recovery after cancellation races the durable transition', async () => {
 			const entered = new DeferredPromise<void>();
 			const release = new DeferredPromise<void>();
 			const database = new class extends TestSessionDatabase {
@@ -4755,15 +4756,84 @@ suite('CopilotAgentSession', () => {
 					await super.deleteMetadata(keys);
 				}
 			};
-			await database.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 }));
+			const marker = JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 });
+			await database.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, marker);
 			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase: database });
 			const send = session.send('cancel me', undefined, 'turn-cancel');
 			await entered.p;
-			session.abort();
+			await session.abort();
 			release.complete();
 			await send;
 
+			assert.deepStrictEqual({
+				sendRequests: mockSession.sendRequests,
+				marker: await database.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY),
+			}, { sendRequests: [], marker });
+		});
+
+		test('serializes a new execution behind recovery-marker restoration', async () => {
+			const database = new class extends TestSessionDatabase {
+				readonly deleting = new DeferredPromise<void>();
+				readonly releaseDelete = new DeferredPromise<void>();
+				readonly restoring = new DeferredPromise<void>();
+				readonly releaseRestore = new DeferredPromise<void>();
+				deleteAttempts = 0;
+
+				override async deleteMetadata(keys: readonly string[]): Promise<void> {
+					this.deleteAttempts++;
+					this.deleting.complete();
+					await this.releaseDelete.p;
+					await super.deleteMetadata(keys);
+				}
+
+				override async setMetadata(key: string, value: string): Promise<void> {
+					if (this.deleteAttempts > 0) {
+						this.restoring.complete();
+						await this.releaseRestore.p;
+					}
+					await super.setMetadata(key, value);
+				}
+			};
+			await database.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, JSON.stringify({ sdkSessionId: 'test-session-1', startTime: 1, modifiedTime: 1 }));
+			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase: database });
+			const cancelled = session.send('cancel me', undefined, 'turn-cancel');
+			await database.deleting.p;
+			await session.abort();
+			database.releaseDelete.complete();
+			await database.restoring.p;
+
+			const retry = session.send('retry', undefined, 'turn-retry');
 			assert.deepStrictEqual(mockSession.sendRequests, []);
+			database.releaseRestore.complete();
+			await Promise.all([cancelled, retry]);
+
+			assert.deepStrictEqual({
+				sendRequests: mockSession.sendRequests,
+				marker: await database.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY),
+				deleteAttempts: database.deleteAttempts,
+			}, {
+				sendRequests: [{ prompt: 'retry', attachments: undefined }],
+				marker: undefined,
+				deleteAttempts: 2,
+			});
+		});
+
+		test('does not wait for SDK completion before dispatching another execution', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			const release = new DeferredPromise<void>();
+			mockSession.sendGate = release.p;
+			const first = session.sendSteering({ id: 'first', message: { text: 'first', origin: { kind: MessageKind.User } } });
+			try {
+				while (mockSession.sendRequests.length === 0) {
+					await timeout(0);
+				}
+				mockSession.sendGate = undefined;
+				await session.sendSteering({ id: 'second', message: { text: 'second', origin: { kind: MessageKind.User } } });
+				assert.strictEqual(mockSession.sendRequests.length, 2);
+			} finally {
+				release.complete();
+				await first;
+			}
 		});
 	});
 

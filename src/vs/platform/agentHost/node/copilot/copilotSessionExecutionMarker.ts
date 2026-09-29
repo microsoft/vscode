@@ -77,7 +77,7 @@ export async function deferCopilotSdkExecution(sessionDataService: ISessionDataS
 	}
 }
 
-export async function allowCopilotSdkExecution(sessionDataService: ISessionDataService, session: URI, sdkSessionId: string, logService: ILogService): Promise<void> {
+export async function allowCopilotSdkExecution(sessionDataService: ISessionDataService, session: URI, sdkSessionId: string, logService: ILogService): Promise<string | undefined> {
 	const dbRef = sessionDataService.openDatabase(session);
 	try {
 		const value = await dbRef.object.getMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY);
@@ -87,7 +87,18 @@ export async function allowCopilotSdkExecution(sessionDataService: ISessionDataS
 		const marker = parseDeferredCopilotSdkExecution(value, session, logService);
 		if (marker?.sdkSessionId === sdkSessionId) {
 			await dbRef.object.deleteMetadata([COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY]);
+			return value;
 		}
+		return undefined;
+	} finally {
+		dbRef.dispose();
+	}
+}
+
+export async function restoreDeferredCopilotSdkExecution(sessionDataService: ISessionDataService, session: URI, marker: string): Promise<void> {
+	const dbRef = sessionDataService.openDatabase(session);
+	try {
+		await dbRef.object.setMetadata(COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, marker);
 	} finally {
 		dbRef.dispose();
 	}

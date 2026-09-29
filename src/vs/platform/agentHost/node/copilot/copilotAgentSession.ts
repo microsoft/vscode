@@ -65,7 +65,7 @@ import { ActionType, isChatAction, type ChatAction, type SessionAction } from '.
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
-import { allowCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
+import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
@@ -1135,7 +1135,8 @@ export class CopilotAgentSession extends Disposable {
 	/** Reads the latest retained host snapshot for this session. */
 	private readonly _hostCustomizations: () => readonly Customization[];
 	private readonly _getUserMcpServerNames: (() => Promise<ReadonlySet<string>>) | undefined;
-	private _sdkExecutionEnabled: Promise<void> | undefined;
+	private readonly _sdkExecutionSequencer = new Sequencer();
+	private _sdkExecutionStarted = false;
 	/**
 	 * Serializes the metrics reads behind {@link _refreshSessionUsageMetrics}. Several
 	 * handlers refresh the total, so without this their RPCs overlap and an older
@@ -3139,38 +3140,35 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Clears recovery eligibility before execution; preflight alone must leave the backing recoverable. */
 	private async _executeSdkOperation<T>(operation: () => Promise<T>, turn: CopilotTurn | undefined, abortToken: CancellationToken, providerCall?: CopilotTurn): Promise<CopilotSdkExecutionOutcome<T>> {
-		if (!this._canSendTurn(turn, abortToken)) {
-			return { kind: 'skipped' };
-		}
-		await this._enableSdkExecution();
-		if (!this._canSendTurn(turn, abortToken)) {
-			return { kind: 'skipped' };
-		}
-
-		providerCall?.markProviderCallPending();
-		try {
-			const value = await operation();
-			providerCall?.markProviderCallResolved();
-			return { kind: 'executed', value };
-		} catch (error) {
-			providerCall?.markProviderCallRejected();
-			throw error;
-		}
-	}
-
-	private async _enableSdkExecution(): Promise<void> {
-		if (!this._sdkExecutionEnabled) {
-			this._sdkExecutionEnabled = allowCopilotSdkExecution(this._sessionDataService, this._ownerSessionUri, this.sessionId, this._logService);
-		}
-		const transition = this._sdkExecutionEnabled;
-		try {
-			await transition;
-		} catch (error) {
-			if (this._sdkExecutionEnabled === transition) {
-				this._sdkExecutionEnabled = undefined;
+		const execute = async (): Promise<T> => {
+			providerCall?.markProviderCallPending();
+			try {
+				const value = await operation();
+				providerCall?.markProviderCallResolved();
+				return value;
+			} catch (error) {
+				providerCall?.markProviderCallRejected();
+				throw error;
 			}
-			throw error;
-		}
+		};
+		const execution = await this._sdkExecutionSequencer.queue(async () => {
+			if (!this._canSendTurn(turn, abortToken)) {
+				return undefined;
+			}
+			if (!this._sdkExecutionStarted) {
+				const marker = await allowCopilotSdkExecution(this._sessionDataService, this._ownerSessionUri, this.sessionId, this._logService);
+				if (!this._canSendTurn(turn, abortToken)) {
+					if (marker !== undefined) {
+						await restoreDeferredCopilotSdkExecution(this._sessionDataService, this._ownerSessionUri, marker);
+					}
+					return undefined;
+				}
+				this._sdkExecutionStarted = true;
+			}
+			// Serialize marker changes and dispatch, but let SDK operations finish concurrently.
+			return { result: execute() };
+		});
+		return execution ? { kind: 'executed', value: await execution.result } : { kind: 'skipped' };
 	}
 
 	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined): Promise<void> {
