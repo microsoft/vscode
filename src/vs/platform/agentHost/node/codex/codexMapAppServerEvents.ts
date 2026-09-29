@@ -565,7 +565,7 @@ export function mapItemStarted(
 	// state, so nothing new is emitted here.
 	if (params.item.type === 'commandExecution') {
 		const pending = state.pendingPreflight;
-		if (pending && pending.turnId === params.turnId && pending.command === unwrapShellInvocation(params.item.command ?? '')) {
+		if (pending && pending.turnId === params.turnId && pending.command === (params.item.command ?? '')) {
 			state.pendingPreflight = undefined;
 			state.itemToToolCall.set(params.item.id, {
 				toolCallId: pending.toolCallId,
@@ -1113,7 +1113,7 @@ export function mapItemCompleted(
 		// turn end (see mapItemStarted / mapTurnCompleted).
 		if (success && !output && !declined) {
 			const flushed = flushPendingPreflight(state);
-			state.pendingPreflight = { toolCallId: entry.toolCallId, turnId: entry.turnId, command, completion };
+			state.pendingPreflight = { toolCallId: entry.toolCallId, turnId: entry.turnId, command: params.item.command ?? '', completion };
 			return [...flushed, ...flushDeferredResponseActions(state)];
 		}
 		return [...flushPendingPreflight(state), ...completion, ...flushDeferredResponseActions(state)];

@@ -9,7 +9,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
 import { toHostSnapshotAttachmentMeta } from '../../../common/meta/agentSnapshotAttachmentMeta.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
+import { ActionType } from '../../../common/state/sessionActions.js';
+import { createCodexSessionMapState, mapItemCompleted, mapItemStarted } from '../../../node/codex/codexMapAppServerEvents.js';
 import { replayThreadToTurns, type ICodexReplayedCommand } from '../../../node/codex/codexReplayMapper.js';
+import type { ThreadItem } from '../../../node/codex/protocol/generated/v2/ThreadItem.js';
 import { getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ModelSelection } from '../../../common/state/sessionState.js';
 
 suite('codexReplayMapper', () => {
@@ -795,6 +798,46 @@ suite('codexReplayMapper', () => {
 		const part = turns[0].responseParts[0] as { toolCall: { content?: { text: string }[] } };
 		assert.strictEqual(part.toolCall.content?.[0].text, 'Example Domain');
 	});
+
+	for (const rerunFlags of ['-NoProfile -ExecutionPolicy Bypass', '-NoProfile -ExecutionPolicy RemoteSigned', '-NoLogo']) {
+		test(`commandExecution preserves PowerShell flags in live and replay identity (${rerunFlags})`, () => {
+			const command = (id: string, flags: string, output: string): Extract<ThreadItem, { type: 'commandExecution' }> => ({
+				type: 'commandExecution', id, command: `pwsh ${flags} -Command "Write-Output hello"`,
+				cwd: '/tmp', processId: null, source: 'agent', status: 'completed',
+				commandActions: [], aggregatedOutput: output, exitCode: 0, durationMs: 1,
+			});
+			const preflightFlags = '-NoProfile -ExecutionPolicy Bypass';
+			const items = [command('pre', preflightFlags, ''), command('rerun', rerunFlags, 'hello')];
+			const state = createCodexSessionMapState();
+			const liveIds: string[] = [];
+			for (const item of items) {
+				const started = mapItemStarted(state, {
+					threadId: 'thr', turnId: 'turn_a', startedAtMs: 0,
+					item: { ...item, status: 'inProgress', aggregatedOutput: null, exitCode: null },
+				});
+				liveIds.push(...started.filter(action => action.type === ActionType.ChatToolCallStart).map(action => action.toolCallId));
+				mapItemCompleted(state, { item, threadId: 'thr', turnId: 'turn_a', completedAtMs: 1 });
+			}
+			const turns = replayThreadToTurns({
+				id: 'thr',
+				turns: [{
+					id: 'turn_a', items: [{ type: 'userMessage', id: 'u', clientId: null, content: [{ type: 'text', text: 'run', text_elements: [] }] }, ...items],
+					itemsView: { type: 'full' }, status: 'completed',
+					error: null, startedAt: null, completedAt: null, durationMs: null,
+				}],
+			} as never);
+			const expectedIds = rerunFlags === preflightFlags ? ['pre'] : ['pre', 'rerun'];
+			assert.deepStrictEqual({
+				liveIds,
+				replay: turns[0].responseParts.filter(part => part.kind === ResponsePartKind.ToolCall).map(part => ({
+					id: part.toolCall.toolCallId, input: part.toolCall.toolInput,
+				})),
+			}, {
+				liveIds: expectedIds,
+				replay: expectedIds.map(id => ({ id, input: 'Write-Output hello' })),
+			});
+		});
+	}
 
 	test('commandExecution keeps the codex item id and reports each restored command', () => {
 		const command = (id: string, commandLine: string, aggregatedOutput: string, exitCode: number) => ({

@@ -13,9 +13,9 @@
  * the inner script so both agents render identically. Falls back to the raw
  * command when it doesn't match a supported wrapper shape.
  *
- * This is a display-only transform: callers must keep the raw command for any
- * identity/round-trip purpose (accept-for-session memo keys, re-sending the
- * exact action to the app-server, etc.).
+ * Use the result for display or inspecting the inner script, but keep the raw
+ * command for identity and round-tripping, including pre-flight coalescing and
+ * accept-for-session memo keys.
  */
 export function unwrapShellInvocation(command: string): string {
 	const shellMatch = /^\s*\S*sh(?:\.exe)?\s+-[a-z]*c\s+([\s\S]+)$/i.exec(command);

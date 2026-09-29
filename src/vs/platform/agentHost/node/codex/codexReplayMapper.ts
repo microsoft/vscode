@@ -137,7 +137,7 @@ function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefine
 	for (const item of codexTurn.items ?? []) {
 		if (item.type === 'commandExecution') {
 			const command = unwrapShellInvocation(item.command ?? '');
-			if (pendingPreflight && pendingPreflight.command === command) {
+			if (pendingPreflight && pendingPreflight.item.command === item.command) {
 				// Escalated re-run of the deferred pre-flight: render only this
 				// item (it carries the real output/approval), dropping the
 				// output-less pre-flight box. The box keeps the pre-flight's
