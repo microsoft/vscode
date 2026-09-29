@@ -7,6 +7,8 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import type { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -113,7 +115,7 @@ export class ManagedAgentPluginActivation extends Disposable implements IWorkben
 			}
 
 			const installUri = this._pluginInstallService.getPluginInstallUri(plugin);
-			if (this._pluginMarketplaceService.isPluginInstalled(installUri)) {
+			if (this._isPluginInstalled(installUri)) {
 				continue;
 			}
 
@@ -126,7 +128,7 @@ export class ManagedAgentPluginActivation extends Disposable implements IWorkben
 				continue;
 			}
 
-			if (!this._pluginMarketplaceService.isPluginInstalled(installUri)) {
+			if (!this._isPluginInstalled(installUri)) {
 				this._logService.warn(`[ManagedAgentPluginActivation] Required plugin '${pluginId}' was not installed`);
 				continue;
 			}
@@ -144,5 +146,9 @@ export class ManagedAgentPluginActivation extends Disposable implements IWorkben
 			}
 		}
 		return required;
+	}
+
+	private _isPluginInstalled(pluginUri: URI): boolean {
+		return this._pluginMarketplaceService.installedPlugins.get().some(entry => isEqual(entry.pluginUri, pluginUri));
 	}
 }

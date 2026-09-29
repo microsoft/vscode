@@ -13,7 +13,7 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -480,9 +480,17 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		// the in-memory cache (e.g. after restart when installed.json is read
 		// but the metadata map is empty). Modern entries match by plugin name;
 		// older entries without names fall back to matching by install URI.
+		const marketplacesChanged = observableSignalFromEvent(this, this.onDidChangeMarketplaces);
 		this._register(autorun(reader => {
+			marketplacesChanged.read(reader);
 			const entries = this._installedPluginsStore.value.read(reader);
-			const unhydrated = entries.filter(e => !this._pluginMetadata.has(e.pluginUri.toString()));
+			const configuredReferences = new Map(this._getConfiguredMarketplaceReferences().map(reference => [reference.canonicalId, reference]));
+			const unhydrated = entries.filter(entry => {
+				const metadata = this._pluginMetadata.get(entry.pluginUri.toString());
+				const reference = parseMarketplaceReference(entry.marketplace);
+				const configuredReference = reference ? configuredReferences.get(reference.canonicalId) : undefined;
+				return !metadata || (configuredReference !== undefined && metadata.marketplace !== configuredReference.displayLabel);
+			});
 			if (unhydrated.length > 0) {
 				this._hydratePluginMetadata(unhydrated);
 			}
@@ -860,18 +868,16 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		for (const entry of entries) {
 			const key = entry.pluginUri.toString();
-			if (this._pluginMetadata.has(key)) {
-				continue;
-			}
 
 			const reference = parseMarketplaceReference(entry.marketplace);
 			if (!reference) {
 				this._logService.debug(`[PluginMarketplaceService] Cannot parse marketplace reference '${entry.marketplace}' for ${key}`);
 				continue;
 			}
+			const configuredReference = this._getConfiguredMarketplaceReferences().find(candidate => candidate.canonicalId === reference.canonicalId) ?? reference;
 
 			try {
-				const plugins = await this._readPluginsForInstalledEntry(reference, CancellationToken.None);
+				const plugins = await this._readPluginsForInstalledEntry(configuredReference, CancellationToken.None);
 				// A marketplace that resolves but no longer lists the entry (a renamed or
 				// removed plugin) must not fall back: marketplace plugin directories
 				// usually hold a manifest too, and reading it would reclassify the entry
@@ -881,10 +887,14 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				// `installPluginFromSource`, whose descriptor lives in the recorded
 				// install directory.
 				const match = plugins.length === 0
-					? await this.readSinglePluginManifest(entry.pluginUri, reference)
+					? await this.readSinglePluginManifest(entry.pluginUri, configuredReference)
 					: plugins.find(p => entry.name ? p.name === entry.name : isEqual(this._pluginRepositoryService.getPluginInstallUri(p), entry.pluginUri));
 				if (match) {
-					this._pluginMetadata.set(key, match);
+					this._pluginMetadata.set(key, {
+						...match,
+						marketplace: configuredReference.displayLabel,
+						marketplaceReference: configuredReference,
+					});
 					hydrated++;
 				}
 			} catch (err) {

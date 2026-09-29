@@ -1310,6 +1310,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		const fileService = new TestFileService();
 
 		const awesomeCopilot = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
+		const managedAwesomeCopilot = { ...awesomeCopilot, displayLabel: 'managed-marketplace' };
 		const azurePlugin = makeAzurePlugin(awesomeCopilot);
 		storeMarketplaceCache(storageService, awesomeCopilot, azurePlugin);
 		const azurePluginUri = URI.joinPath(CACHE_ROOT, 'github.com', 'microsoft', 'azure-skills', '.github', 'plugins', 'azure-skills');
@@ -1336,7 +1337,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IWorkspacePluginSettingsService, {
-			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			extraMarketplaces: observableValue('test.extraMarketplaces', [{ name: managedAwesomeCopilot.displayLabel, reference: managedAwesomeCopilot }]),
 			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
 		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
 		instantiationService.stub(IWorkspaceTrustManagementService, {
@@ -1363,6 +1364,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		assert.strictEqual(installed[0].plugin.name, 'azure');
 		assert.strictEqual(installed[0].plugin.sourceDescriptor.kind, PluginSourceKind.GitHub);
 		assert.strictEqual(installed[0].plugin.marketplaceReference.canonicalId, awesomeCopilot.canonicalId);
+		assert.strictEqual(installed[0].plugin.marketplace, managedAwesomeCopilot.displayLabel);
 	});
 
 	test('hydrates a single-plugin GitHub repo installed from source after restart', async () => {

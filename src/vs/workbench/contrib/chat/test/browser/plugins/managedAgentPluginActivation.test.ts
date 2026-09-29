@@ -72,9 +72,6 @@ suite('ManagedAgentPluginActivation', () => {
 		const marketplaceService = new class extends mock<IPluginMarketplaceService>() {
 			override readonly onDidChangeMarketplaces = Event.None;
 			override readonly installedPlugins = installedPlugins;
-			override isPluginInstalled(pluginUri: URI): boolean {
-				return installedPlugins.get().some(entry => entry.pluginUri.toString() === pluginUri.toString());
-			}
 			override async fetchMarketplacePlugins(): Promise<IMarketplacePlugin[]> {
 				fetchCount++;
 				return [plugin];
