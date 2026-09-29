@@ -293,6 +293,9 @@ export class Throttler implements IDisposable {
 	}
 }
 
+/**
+ * Ensures that queued tasks run sequentially in the order they are added.
+ */
 export class Sequencer {
 
 	private current: Promise<unknown> = Promise.resolve(null);
