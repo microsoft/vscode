@@ -30,6 +30,8 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService, ICustomizationMcpServerCompatibility } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
+import { mcpServerIcon } from './aiCustomizationIcons.js';
+import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 
 const $ = DOM.$;
 
@@ -38,6 +40,7 @@ export interface IMcpServerDetailInput {
 	readonly name: string;
 	readonly label: string;
 	readonly installState: McpServerInstallState;
+	readonly icon?: URI;
 	readonly config?: IMcpServerConfiguration;
 	/** Identifier used by the active harness's compatibility provider. */
 	readonly compatibilityId?: string;
@@ -87,6 +90,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private readonly root: HTMLElement;
 	private readonly headerEl: HTMLElement;
 	private readonly leadingSlotEl: HTMLElement;
+	private readonly iconEl: HTMLElement;
 	private readonly nameEl: HTMLElement;
 	private readonly pathEl: HTMLAnchorElement;
 	private readonly editConfigurationButton: Button;
@@ -100,6 +104,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private definitionEditor: CodeEditorWidget | undefined;
 	private readonly definitionModel = this._register(new MutableDisposable<ITextModel>());
 	private readonly diagnosticDisposables = this._register(new DisposableStore());
+	private readonly iconDisposables = this._register(new DisposableStore());
 	private readonly migrationLinkListener = this._register(new MutableDisposable());
 	private readonly emptyEl: HTMLElement;
 
@@ -129,6 +134,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 
 		this.headerEl = DOM.append(this.root, $('.editor-header.mcp-detail-header'));
 		this.leadingSlotEl = DOM.append(this.headerEl, $('.embedded-detail-leading-slot'));
+		this.iconEl = DOM.append(this.headerEl, $('.editor-item-icon'));
 		const headerText = DOM.append(this.headerEl, $('.editor-item-info'));
 		this.nameEl = DOM.append(headerText, $('.editor-item-name'));
 		this.pathEl = DOM.append(headerText, $('a.editor-item-path')) as HTMLAnchorElement;
@@ -175,8 +181,8 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		// Refresh when the underlying server changes (install state, enablement, etc.).
 		this._register(this.mcpWorkbenchService.onChange(server => {
 			if (this.current && server && server.id === this.current.id) {
-				const { error, compatibilityId, migratable } = this.current;
-				this.current = { ...createWorkbenchMcpServerDetailInput(server), error, compatibilityId, migratable };
+				const { error, compatibilityId, migratable, icon } = this.current;
+				this.current = { ...createWorkbenchMcpServerDetailInput(server), error, compatibilityId, migratable, icon };
 				this.bindDiagnostics();
 				this.renderItem();
 			}
@@ -242,6 +248,11 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.emptyEl.style.display = hasItem ? 'none' : '';
 		this.bodyEl.style.display = hasItem ? '' : 'none';
 		this.root.classList.toggle('is-empty', !hasItem);
+		this.iconDisposables.clear();
+		this.iconEl.style.display = server?.icon ? '' : 'none';
+		if (server?.icon) {
+			renderCustomizationMarketplaceIcon(this.iconEl, mcpServerIcon, server.icon, this.iconDisposables);
+		}
 		if (!server) {
 			this.nameEl.textContent = '';
 			this.pathEl.textContent = '';

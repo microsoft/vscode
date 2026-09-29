@@ -940,6 +940,14 @@ const copilotConnectorMarketplaceResource: ICustomizationMarketplaceResource = {
 	installation: { kind: 'copilotConnector', name: fixtureCopilotConnectors[0].name },
 };
 
+function createEmptyCustomizationMarketplaceInstallService(): ICustomizationMarketplaceInstallService {
+	return new class extends mock<ICustomizationMarketplaceInstallService>() {
+		override readonly onDidChange = Event.None;
+		override getRecordedResources() { return []; }
+		override getRecordedResourcesWithState() { return []; }
+	}();
+}
+
 function createMockCopilotConnectorsService(enabled: boolean, availableConnectors: readonly ICopilotConnector[] = fixtureCopilotConnectors): ICopilotConnectorsService {
 	const connectors = enabled ? availableConnectors : [];
 	return new class extends mock<ICopilotConnectorsService>() {
@@ -2063,6 +2071,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
+			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
@@ -2362,6 +2371,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
+			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
 			reg.defineInstance(IConfigurationService, createDisabledConfigService(mcpAccessConfig, McpAccessValue.None, byPolicy));
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
