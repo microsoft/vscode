@@ -91,6 +91,16 @@ const STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS = 'sessions.agentHost.sessionC
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS = 50;
 
+/**
+ * Session config properties derived from settings (see `_derivedNewSessionConfig`),
+ * with the value that clears them on the agent host.
+ */
+const SETTINGS_DERIVED_SESSION_CONFIG_CLEARED_VALUES: Readonly<Record<string, unknown>> = {
+	[SessionConfigKey.WorktreeBranchPrefix]: '',
+	[SessionConfigKey.WorktreeIncludeFiles]: [],
+	[SessionConfigKey.WorktreeSymlinkFolders]: [],
+};
+
 function mergeSessionChangeEvents(events: readonly ISessionChangeEvent[]): ISessionChangeEvent {
 	const changes = new Map<string, { added?: ISession; removed?: ISession; changed?: ISession }>();
 	for (const event of events) {
@@ -4548,6 +4558,24 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return config;
 	}
 
+	/**
+	 * Re-reads the settings-derived config values of a draft before its first
+	 * request. The Agents window loads the settings of the draft's folder only
+	 * once the draft is active, so the values seeded at creation can miss them.
+	 * The agent host merges the config it receives on first send into the values
+	 * it got at creation, so a property whose setting is gone is cleared explicitly.
+	 */
+	private _refreshSettingsDerivedNewSessionConfig(newSession: NewSession): void {
+		const values = newSession.getConfigValues();
+		const derivedValues = this._derivedNewSessionConfig(newSession.session.workspace.get());
+		for (const [property, clearedValue] of Object.entries(SETTINGS_DERIVED_SESSION_CONFIG_CLEARED_VALUES)) {
+			const value = derivedValues[property] ?? (values && Object.hasOwn(values, property) ? clearedValue : undefined);
+			if (!equals(values?.[property], value)) {
+				newSession.setConfigValue(property, value);
+			}
+		}
+	}
+
 	// -- Dynamic session config ----------------------------------------------
 
 	getAutomationModelConfiguration(sessionId: string): AutomationModelConfiguration | undefined {
@@ -6085,6 +6113,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!this.connection) {
 			throw new Error(this._notConnectedSendErrorMessage());
 		}
+		this._refreshSettingsDerivedNewSessionConfig(newSession);
 
 		const selectedModelId = this._resolveSendModelId(chatId, newSession.getSelectedModelId());
 		const selectedModelSource = newSession.session.mainChat.get().modelSource.get() ?? ChatModelSource.Chosen;

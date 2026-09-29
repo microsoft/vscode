@@ -5622,6 +5622,43 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('sendRequest forwards Git worktree settings of the folder loaded after the draft was created', async () => {
+		const folder = URI.file('/home/user/project');
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('git.worktreeIncludeFiles', ['user.json']);
+		configService.setUserConfiguration('git.worktreeSymlinkFolders', ['node_modules']);
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'worktree', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
+		};
+		let sentConfig: Record<string, unknown> | undefined;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: configService,
+			openSession: true,
+			sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+				sentConfig = options?.agentHostSessionConfig;
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(folder, provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+		const chat = await provider.createNewChat(session.sessionId);
+
+		// The Agents window loads the folder settings once it mounts the draft's folder.
+		configService.setUserConfiguration('git.worktreeIncludeFiles', ['folder.json'], folder);
+		configService.setUserConfiguration('git.worktreeSymlinkFolders', [], folder);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+		assert.deepStrictEqual({
+			createdWith: agentHost.createSessionConfigs.at(-1)?.config,
+			sentConfig,
+		}, {
+			createdWith: { isolation: 'worktree', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
+			sentConfig: { isolation: 'worktree', worktreeIncludeFiles: ['folder.json'], worktreeSymlinkFolders: [] },
+		});
+	});
+
 	test('Automation drafts merge derived worktree settings with saved provider configuration', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('git.branchPrefix', 'automation/');
