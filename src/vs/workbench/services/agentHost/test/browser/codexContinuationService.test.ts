@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -15,7 +15,8 @@ import { AgentSession } from '../../../../../platform/agentHost/common/agent.js'
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ICodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { RootState, SessionModelInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { INotification, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ROOT_STATE_URI, RootState, SessionModelInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryData } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -36,13 +37,15 @@ suite('Codex continuation coordination', () => {
 		const order: string[] = [];
 		const activity = { listSessions: 0 };
 		const backend = AgentSession.uri('codex', 'existing');
-		const session = { session: backend, startTime: 1, modifiedTime: 2, model: { id: source.id } };
+		const session: { session: URI; startTime: number; modifiedTime: number; model?: { id: string } } = { session: backend, startTime: 1, modifiedTime: 2, model: { id: source.id } };
+		const notifications = store.add(new Emitter<INotification>());
 		const root = new class extends mock<IAgentSubscription<RootState>>() {
 			override onDidChange = Event.None;
 			override value = new class extends mock<RootState>() { override agents = [{ provider: 'codex', displayName: 'Codex', description: '', models: [source, target] }]; }();
 		}();
 		const agent = new class extends NullAgentHostService {
 			override get rootState() { return root; }
+			override readonly onDidNotification = notifications.event;
 			override dispatch(): void { }
 			override async listSessions() { activity.listSessions++; return [session]; }
 		}();
@@ -81,7 +84,7 @@ suite('Codex continuation coordination', () => {
 
 		const service = store.add(new CodexContinuationService(agent, connections, account, entitlement, host, storage, telemetry, assignment, config, environment));
 		service.setSelectableModels([{ id: target.id, vendor: 'agent-host-codex' }]);
-		return { service, order, host, account, entitlement, session, activity };
+		return { service, order, host, account, entitlement, session, activity, notifications };
 	}
 
 	for (const treatment of [false, true]) {
@@ -108,6 +111,29 @@ suite('Codex continuation coordination', () => {
 		}, {
 			lowUsage: { candidate: undefined, listSessions: 0 },
 			free: { candidate: undefined, listSessions: 0 },
+		});
+	}));
+	test('an ordinary live-session notification re-evaluates a newly published model without discovery', () => runWithFakedTimers({}, async () => {
+		const { service, session, activity, notifications } = create(store.add(new InMemoryStorageService()));
+		delete session.model;
+		await timeout(101);
+		assert.strictEqual(service.candidate.get(), undefined);
+
+		session.model = { id: source.id };
+		notifications.fire({
+			type: NotificationType.SessionSummaryChanged,
+			channel: ROOT_STATE_URI,
+			session: session.session.toString(),
+			changes: { _meta: {} },
+		});
+		await timeout(101);
+
+		assert.deepStrictEqual({
+			candidate: service.candidate.get()?.session.session.toString(),
+			listSessions: activity.listSessions,
+		}, {
+			candidate: session.session.toString(),
+			listSessions: 2,
 		});
 	}));
 	test('two windows race for one reservation; only visible surface consumes the episode', () => runWithFakedTimers({}, async () => {

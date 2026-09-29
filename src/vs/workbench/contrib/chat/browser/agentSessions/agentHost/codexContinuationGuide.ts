@@ -143,6 +143,7 @@ export class CodexContinuationGuide extends Disposable {
 		store.add(toDisposable(() => cancellation.dispose(true)));
 		let widget: IChatWidget | undefined;
 		let completed = false;
+		let guideShown = false;
 		this._nudge.log('continueClicked', surface);
 		try {
 			let current = await this._nudge.resolve(candidate);
@@ -223,10 +224,15 @@ export class CodexContinuationGuide extends Disposable {
 						steps: [{
 							id: 'chooseCopilot', targetId: id, title: CODEX_CONTINUATION_LABEL,
 							description: localize('codexContinuation.guide', "Select {0} from GitHub Copilot to continue this session.", current.target.name),
-							placement: 'right',
+							placement: 'left',
 							openTarget: true, allowTargetInteraction: true, advanceOnTargetSelection: true, hideNext: true,
 							missingTarget: { kind: 'wait', timeoutMs: WIDGET_MATERIALIZATION_TIMEOUT, onTimeout: 'abort' },
-							onDidShow: () => this._nudge.log('guideShown', surface),
+							onDidShow: () => {
+								if (!guideShown) {
+									guideShown = true;
+									this._nudge.log('guideShown', surface);
+								}
+							},
 							onBeforeShow: async () => {
 								if (!await this._nudge.resolve(candidate) || !validOwner()) { throw new Error('unavailable'); }
 							},

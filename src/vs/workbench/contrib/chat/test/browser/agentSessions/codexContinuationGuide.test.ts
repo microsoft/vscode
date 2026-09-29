@@ -59,6 +59,7 @@ suite('Codex continuation exact widget guide', () => {
 			let replaced = false;
 			const opened: object[] = [];
 			const actions: CodexContinuationAction[] = [];
+			let spotlightShows = 0;
 			const input = upcastPartial<ChatInputPart>({
 				availableLanguageModels: [target], selectedLanguageModel: selected,
 				onDidChangeUserSelectedModel: selections.event,
@@ -87,18 +88,26 @@ suite('Codex continuation exact widget guide', () => {
 					const step = (registered.presentation.payload as ISpotlightPayload).steps[0];
 					await step.onBeforeShow?.();
 					let resolved = resolveOnboardingTarget(mainWindow, id);
-					if (scenario === 'replaced') {
-						replaced = true;
-						resolved = resolveOnboardingTarget(mainWindow, id);
-					}
 					if (!resolved) {
 						return OnboardingOutcome.Aborted;
 					}
+					spotlightShows++;
 					step.onDidShow?.();
 					await resolved.open?.();
+					if (scenario === 'replaced') {
+						replaced = true;
+						resolved = resolveOnboardingTarget(mainWindow, id);
+						assert.ok(resolved, 'replacement control resolves through the same exact owner');
+						spotlightShows++;
+						step.onDidShow?.();
+						await resolved.open?.();
+					}
 					assert.strictEqual(resolved.element.getAttribute(ONBOARDING_TARGET_ATTR), id);
-					assert.strictEqual(step.placement, 'right');
-					assert.deepStrictEqual(opened, [{ initialFilterValue: target.metadata.name, initialFocusItemId: target.identifier }]);
+					assert.strictEqual(step.placement, 'left');
+					assert.deepStrictEqual(opened, Array.from({ length: scenario === 'replaced' ? 2 : 1 }, () => ({
+						initialFilterValue: target.metadata.name,
+						initialFocusItemId: target.identifier,
+					})));
 					assert.strictEqual(selected.get(), undefined, 'opening never changes the model');
 					if (scenario === 'cancelled') { return OnboardingOutcome.Dismissed; }
 					let result: Promise<boolean> | undefined;
@@ -120,6 +129,8 @@ suite('Codex continuation exact widget guide', () => {
 			let opens = 0;
 			await guide.run(candidate, 'editorWindow', async requested => { assert.strictEqual(requested.toString(), resource.toString()); opens++; return widget; });
 			assert.strictEqual(actions.includes('guideCompleted'), scenario === 'accepted' || scenario === 'replaced');
+			assert.strictEqual(actions.filter(action => action === 'guideShown').length, scenario === 'restricted' || scenario === 'noSearch' ? 0 : 1);
+			assert.strictEqual(spotlightShows, scenario === 'restricted' || scenario === 'noSearch' ? 0 : scenario === 'replaced' ? 2 : 1);
 			assert.strictEqual(element.hasAttribute(ONBOARDING_TARGET_ATTR), false, 'run target is disposed');
 			assert.strictEqual(foreign.hasAttribute(ONBOARDING_TARGET_ATTR), false, 'replacement target is disposed');
 			assert.strictEqual(opens, scenario === 'restricted' ? 0 : 1);
