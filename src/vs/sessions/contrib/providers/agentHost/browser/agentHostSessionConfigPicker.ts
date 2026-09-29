@@ -14,7 +14,7 @@ import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { Delayer, SequencerByKey } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -1046,7 +1046,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				}
 
 				const nextValue = schema.type === 'boolean' ? item.value === 'true' : item.value;
-				this._setSessionConfigValue(provider, sessionId, property, nextValue).catch(error => this._notificationService.error(error));
+				this._setSessionConfigValue(provider, sessionId, property, nextValue).catch(error => {
+					if (!isCancellationError(error)) {
+						this._notificationService.error(error);
+					}
+				});
 			},
 			onFilter: schema.enumDynamic
 				? query => branchCompletions !== undefined ? filterItems(query) : this._filterDelayer.trigger(() => filterItems(query))
