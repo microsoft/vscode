@@ -39,7 +39,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../platform/worksp
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' }, microsoft: { id: '', name: '' } },
-	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? '',
+	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? 'github-enterprise.uri',
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 };
 
