@@ -2285,6 +2285,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 					return repo ? (pluginInstallUris.get(repo) ?? URI.file('/dev/null')) : URI.file('/dev/null');
 				}
 			}());
+			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
 			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
@@ -2459,6 +2460,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 				override async fetchMarketplacePlugins() { return []; }
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
+			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
 			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
