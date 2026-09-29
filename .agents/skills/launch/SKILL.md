@@ -459,7 +459,7 @@ rm -rf "$(dirname "$LOG")"
 On Windows, use the cleanup helper. The PID returned by `code.bat` can be a short-lived wrapper, so the helper finds and terminates only `Code - OSS.exe` processes whose `--user-data-dir` references this launch's exact `runDir`, then removes the throwaway profile:
 
 ```powershell
-$cleanup = Join-Path $skillDir 'scripts\cleanup.ps1'
+$cleanup = Join-Path $skillDir 'scripts\cleanup\cleanup.ps1'
 & $cleanup -RunDir $info.runDir -PlaywrightSession $pwSession
 ```
 
