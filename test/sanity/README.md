@@ -58,6 +58,12 @@ there is no update service metadata to compare against.
 
 ### Timeouts
 
+Desktop tests allow up to three minutes for Electron's first window, then wait for the workbench
+restoration mark before checking for the optional welcome dialog and sending keyboard commands.
+A window can open well before the workbench is ready, especially when launching directly from a
+mounted macOS DMG. The macOS CI job allows 45 minutes for the suite and its retries; other jobs allow
+30 minutes.
+
 Extension installation makes at most three attempts, each allowing 30 seconds to click Install,
 30 seconds for installation to start, and one minute to wait for completion, with a five-second delay
 between attempts. These waits total at most 6 minutes 10 seconds, leaving room for setup and cleanup

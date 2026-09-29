@@ -788,7 +788,8 @@ export class TestContext {
 	 */
 	public unmountDmg(mountPoint: string): void {
 		this.log(`Unmounting DMG ${mountPoint}`);
-		this.runNoErrors('hdiutil', 'detach', mountPoint);
+		// The test mounts read-only images; subprocesses may still hold files open after Electron exits.
+		this.runNoErrors('hdiutil', 'detach', '-force', mountPoint);
 		this.log(`Unmounted DMG ${mountPoint}`);
 	}
 

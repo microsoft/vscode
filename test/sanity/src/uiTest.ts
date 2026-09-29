@@ -53,6 +53,8 @@ export class UITest {
 	 */
 	public async run(page: Page) {
 		try {
+			this.context.log('Waiting for the workbench to finish restoring');
+			await page.waitForFunction(() => performance.getEntriesByName('code/didStartWorkbench').length > 0);
 			await this.dismissWelcomeDialog(page);
 			await this.createTextFile(page);
 			await this.searchInWorkspace(page);
