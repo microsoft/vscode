@@ -335,6 +335,9 @@ export class ThrottlerByKey<TKey> implements IDisposable {
 	}
 }
 
+/**
+ * Runs queued tasks sequentially for each key; tasks for different keys run independently.
+ */
 export class SequencerByKey<TKey> {
 
 	private promiseMap = new Map<TKey, Promise<unknown>>();
