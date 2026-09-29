@@ -165,7 +165,7 @@ Provider-specific configuration remains opaque to shared Sessions code. Scoped A
 
 ### Operations
 
-Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, chat creation, and optional worktree disk-usage measurement. Shared cleanup UI consumes the optional measurement through the management service and remains independent of provider transport or filesystem details. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
+Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, session read state, optional chat-scoped read state, deletion, chat creation, and optional worktree disk-usage measurement. Opening a chat marks that chat read; providers without chat-scoped state fall back to the owning session's read state. Shared cleanup UI consumes the optional measurement through the management service and remains independent of provider transport or filesystem details. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
 
 ### Provider ownership
 

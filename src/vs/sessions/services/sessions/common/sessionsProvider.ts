@@ -484,6 +484,12 @@ export interface ISessionsProvider {
 	setSessionReadState(sessionId: string, isRead: boolean): Promise<void>;
 
 	/**
+	 * Set the read/unread state of one chat. Providers without chat-scoped read
+	 * state omit this capability and use the session-level fallback.
+	 */
+	setChatReadState?(sessionId: string, chatResource: URI, isRead: boolean): Promise<void>;
+
+	/**
 	 * Delete a session.
 	 * @param sessionId The ID of the session to delete.
 	 */

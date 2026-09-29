@@ -7310,6 +7310,97 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.strictEqual(updateCount, 1);
 		});
 
+		test('default and peer chats update their modified times independently', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-modified-times');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-modified-times').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const state = (defaultModifiedAt: number, peerModifiedAt: number) => makeState([
+				{ ...makeChatSummary(defaultChat, ''), modifiedAt: new Date(defaultModifiedAt).toISOString() },
+				{ ...makeChatSummary(peerChat, 'Peer'), modifiedAt: new Date(peerModifiedAt).toISOString() },
+			], { defaultChat });
+
+			agentHost.setSessionState('multi-modified-times', 'copilotcli', state(1_000, 2_000));
+			const main = session.mainChat.get();
+			const peer = session.chats.get()[1];
+			const before = {
+				main: main.updatedAt.get().getTime(),
+				peer: peer.updatedAt.get().getTime(),
+			};
+
+			agentHost.setSessionState('multi-modified-times', 'copilotcli', state(3_000, 2_000));
+
+			assert.deepStrictEqual({
+				before,
+				after: {
+					main: main.updatedAt.get().getTime(),
+					peer: peer.updatedAt.get().getTime(),
+				},
+			}, {
+				before: { main: 1_000, peer: 2_000 },
+				after: { main: 3_000, peer: 2_000 },
+			});
+		});
+
+		test('default and peer chats expose independent read state from their summaries', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-read-state');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-read-state').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer');
+			const state = (defaultStatus: ProtocolSessionStatus, peerStatus: ProtocolSessionStatus) => makeState([
+				makeChatSummary(defaultChat, 'Default', defaultStatus),
+				makeChatSummary(peerChat, 'Peer', peerStatus),
+			], { defaultChat });
+
+			agentHost.setSessionState('multi-read-state', 'copilotcli', state(ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead, ProtocolSessionStatus.Idle));
+			const main = session.mainChat.get();
+			const peer = session.chats.get()[1];
+			const before = { main: main.isRead.get(), peer: peer.isRead.get() };
+
+			agentHost.setSessionState('multi-read-state', 'copilotcli', state(ProtocolSessionStatus.Idle, ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead));
+
+			assert.deepStrictEqual({
+				before,
+				after: { main: main.isRead.get(), peer: peer.isRead.get() },
+			}, {
+				before: { main: true, peer: false },
+				after: { main: false, peer: true },
+			});
+		});
+
+		test('marking a peer chat read survives unchanged catalog updates until the chat changes', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-mark-chat-read');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-mark-chat-read').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer');
+			const state = (peerModifiedAt: number) => makeState([
+				makeChatSummary(defaultChat, 'Default', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+				{ ...makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle), modifiedAt: new Date(peerModifiedAt).toISOString() },
+			], { defaultChat });
+
+			agentHost.setSessionState('multi-mark-chat-read', 'copilotcli', state(1_000));
+			const peer = session.chats.get()[1];
+			await provider.setChatReadState(session.sessionId, peer.resource, true);
+			const afterOpen = peer.isRead.get();
+
+			agentHost.setSessionState('multi-mark-chat-read', 'copilotcli', state(1_000));
+			const afterUnchangedCatalog = peer.isRead.get();
+			agentHost.setSessionState('multi-mark-chat-read', 'copilotcli', state(2_000));
+
+			assert.deepStrictEqual({
+				afterOpen,
+				afterUnchangedCatalog,
+				afterNewActivity: peer.isRead.get(),
+			}, {
+				afterOpen: true,
+				afterUnchangedCatalog: true,
+				afterNewActivity: false,
+			});
+		});
+
 		test('peer chats map protocol interactivity to the provider-agnostic tri-state', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-ro');
@@ -9601,6 +9692,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 
 		detailsObserver.dispose();
+		await timeout(31_000);
+		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()), 1);
+	}));
+
+	test('observing the main chat modified time holds the state subscription until released', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const rawId = 'main-chat-modified-time-lease';
+		const sessionUri = AgentSession.uri('copilotcli', rawId);
+		const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+		agentHost.addSession(createSession(rawId, {
+			summary: 'Session',
+			chats: [{ chat: defaultChat, kind: 'default', summary: 'Default' }],
+		}));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Session');
+		assert.ok(session);
+
+		let observedModifiedTime: number | undefined;
+		const modifiedTimeObserver = disposables.add(autorun(reader => {
+			observedModifiedTime = session.mainChat.read(reader).updatedAt.read(reader).getTime();
+		}));
+		agentHost.setSessionState(rawId, 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat: defaultChat.toString(),
+			chats: [{
+				resource: defaultChat.toString(),
+				title: 'Default',
+				status: ProtocolSessionStatus.Idle,
+				modifiedAt: new Date(5_000).toISOString(),
+			}],
+		});
+		await timeout(31_000);
+		assert.deepStrictEqual({
+			observedModifiedTime,
+			subscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()),
+			unsubscriptions: agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()) ?? 0,
+		}, {
+			observedModifiedTime: 5_000,
+			subscriptions: 1,
+			unsubscriptions: 0,
+		});
+
+		modifiedTimeObserver.dispose();
 		await timeout(31_000);
 		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(sessionUri.toString()), 1);
 	}));

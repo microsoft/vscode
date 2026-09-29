@@ -956,6 +956,8 @@ class AdditionalChat extends Disposable {
 	private readonly _interactivity: ISettableObservable<ChatInteractivity>;
 	private readonly _isNew: ISettableObservable<boolean>;
 	private readonly _isArchived: ISettableObservable<boolean>;
+	private readonly _isRead: ISettableObservable<boolean>;
+	private _protocolIsRead: boolean;
 
 	constructor(resource: URI, summary: ChatSummary, changesets: IObservable<readonly ISessionChangeset[] | undefined>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), canArchive: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
 		super();
@@ -973,6 +975,8 @@ class AdditionalChat extends Disposable {
 		this._interactivity = observableValue<ChatInteractivity>('chatInteractivity', toChatInteractivity(summary.interactivity));
 		this._isNew = observableValue<boolean>('chatIsNew', isNew);
 		this._isArchived = observableValue<boolean>('chatIsArchived', isSessionStatusArchived(summary.status));
+		this._protocolIsRead = isSessionStatusRead(summary.status);
+		this._isRead = observableValue<boolean>('chatIsRead', this._protocolIsRead);
 		const status = derived(this, reader => this._isNew.read(reader) ? SessionStatus.Untitled : this._status.read(reader));
 		const workspace = derived(this, reader => {
 			const workingDirectories = this._workingDirectories.read(reader);
@@ -1007,7 +1011,7 @@ class AdditionalChat extends Disposable {
 			modelSource: this._withDetails(this._modelSource),
 			mode: this._withDetails(this._mode),
 			isArchived: this._isArchived,
-			isRead: constObservable(true),
+			isRead: this._withDetails(this._isRead),
 			// Archived or replay-only chats must not expose mutating controls.
 			interactivity,
 			description: this._withDetails(this._description),
@@ -1034,6 +1038,10 @@ class AdditionalChat extends Disposable {
 
 	update(summary: ChatSummary): void {
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : this._updatedAt.get();
+		const modifiedAtChanged = !dateEquals(modifiedAt, this._updatedAt.get());
+		const protocolIsRead = isSessionStatusRead(summary.status);
+		const protocolReadChanged = protocolIsRead !== this._protocolIsRead;
+		this._protocolIsRead = protocolIsRead;
 		transaction(tx => {
 			this._title.set(summary.title || localize('newChatTab', "New Chat"), tx);
 			this._status.set(mapProtocolStatus(summary.status), tx);
@@ -1043,6 +1051,9 @@ class AdditionalChat extends Disposable {
 			this._lastTurnEnd.set(modifiedAt, tx);
 			this._interactivity.set(toChatInteractivity(summary.interactivity), tx);
 			this._isArchived.set(isSessionStatusArchived(summary.status), tx);
+			if (modifiedAtChanged || protocolReadChanged || protocolIsRead) {
+				this._isRead.set(protocolIsRead, tx);
+			}
 		});
 	}
 
@@ -1078,6 +1089,10 @@ class AdditionalChat extends Disposable {
 
 	setAgent(agent: ISessionAgentRef | undefined): void {
 		this._mode.set(agent ? { id: agent.uri, kind: AGENT_MODE_KIND } : undefined, undefined);
+	}
+
+	setRead(isRead: boolean): void {
+		this._isRead.set(isRead, undefined);
 	}
 }
 
@@ -1173,6 +1188,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * (or host) renamed the default chat independently of the session.
 	 */
 	private readonly _defaultChatTitleOverride = observableValue<string | undefined>('defaultChatTitleOverride', undefined);
+	private readonly _defaultChatUpdatedAtOverride = observableValueOpts<Date | undefined>({ owner: this, debugName: 'defaultChatUpdatedAtOverride', equalsFn: dateEquals }, undefined);
+	private readonly _defaultChatIsReadOverride = observableValue<boolean | undefined>('defaultChatIsReadOverride', undefined);
+	private _defaultChatProtocolIsRead: boolean | undefined;
 	/**
 	 * Independent status override for the default chat tab. `undefined` means the
 	 * default chat reflects the aggregated session status (the single-chat case,
@@ -1461,12 +1479,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._createChatCurrentTurnChangesObservable(defaultChatUriObs),
 		);
 		const defaultChatChanges = createChangesObservable(defaultChatChangesets);
+		const defaultChatUpdatedAt = derived(this, reader => this._defaultChatUpdatedAtOverride.read(reader) ?? this.updatedAt.read(reader));
+		const defaultChatIsRead = derived(this, reader => this._defaultChatIsReadOverride.read(reader) ?? this.isRead.read(reader));
 		const mainChat: IChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
 			workspace: defaultChatWorkspace,
 			title: derived(this, reader => this._defaultChatTitleOverride.read(reader) ?? this.title.read(reader)),
-			updatedAt: this.updatedAt,
+			updatedAt: this._withChatDetails(defaultChatUpdatedAt),
 			status: toPresentedSessionStatus(this, defaultChatStatus, this._options.preserveStatusWhenDisconnected ? undefined : connectionStatus),
 			changes: defaultChatChanges,
 			changesets: defaultChatChangesets,
@@ -1483,7 +1503,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			modelSource: this.modelSource,
 			mode: this.mode,
 			isArchived: this.isArchived,
-			isRead: this.isRead,
+			isRead: this._withChatDetails(defaultChatIsRead),
 			// Archived or replay-only chats must not expose mutating controls.
 			interactivity: derived(this, reader => effectiveChatInteractivity(
 				this.isArchived.read(reader) || (this._options.readOnly?.read(reader) ?? false),
@@ -1518,6 +1538,16 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			};
 		});
 		this.applyChatMetadata(metadata.chats);
+	}
+
+	private _withChatDetails<T>(observable: IObservable<T>): IObservable<T> {
+		const onDidChange = Event.fromObservableLight(observable);
+		return observableFromEvent(this, listener => {
+			const store = new DisposableStore();
+			store.add(this._acquireChatDetails(this.sessionId));
+			store.add(onDidChange(listener));
+			return store;
+		}, () => observable.get());
 	}
 
 	/**
@@ -1641,6 +1671,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			: isDefaultChatUri(summary.resource);
 		const defaultSummary = state.chats.find(isDefault);
 		this._defaultChatTitleOverride.set(defaultSummary?.title || undefined, undefined);
+		const defaultChatModifiedTime = defaultSummary ? Date.parse(defaultSummary.modifiedAt) : NaN;
+		const previousDefaultChatModifiedTime = this._defaultChatUpdatedAtOverride.get()?.getTime();
+		const defaultChatModifiedTimeChanged = Number.isFinite(defaultChatModifiedTime) && defaultChatModifiedTime !== previousDefaultChatModifiedTime;
+		const defaultChatProtocolIsRead = defaultSummary ? isSessionStatusRead(defaultSummary.status) : undefined;
+		const defaultChatProtocolReadChanged = defaultChatProtocolIsRead !== this._defaultChatProtocolIsRead;
+		this._defaultChatProtocolIsRead = defaultChatProtocolIsRead;
+		this._defaultChatUpdatedAtOverride.set(Number.isFinite(defaultChatModifiedTime) ? new Date(defaultChatModifiedTime) : undefined, undefined);
 		this._defaultChatInteractivity.set(toChatInteractivity(defaultSummary?.interactivity), undefined);
 		this._defaultChatWorkingDirectories.set(defaultSummary?.workingDirectories, undefined);
 
@@ -1678,6 +1715,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			// Single visible chat: the default chat is the session, so let it
 			// reflect the aggregated session status directly (clear any override).
 			this._defaultChatStatusOverride.set(undefined, undefined);
+			this._defaultChatIsReadOverride.set(undefined, undefined);
 			if (this._additionalChats.size > 0) {
 				this._additionalChats.clearAndDisposeAll();
 			}
@@ -1693,6 +1731,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// Multiple chats: the default chat must show its own status, not the
 		// session aggregate which may have been promoted by a running peer chat.
 		this._defaultChatStatusOverride.set(defaultSummary ? mapProtocolStatus(defaultSummary.status) : undefined, undefined);
+		if (!defaultSummary) {
+			this._defaultChatIsReadOverride.set(undefined, undefined);
+		} else if (defaultChatModifiedTimeChanged || defaultChatProtocolReadChanged || defaultChatProtocolIsRead || this._defaultChatIsReadOverride.get() === undefined) {
+			this._defaultChatIsReadOverride.set(defaultChatProtocolIsRead, undefined);
+		}
 
 		const ordered: IChat[] = [];
 		for (const summary of state.chats) {
@@ -1957,6 +2000,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	/** Optimistically set an additional peer chat's title ahead of the host's `chatUpdated`. */
 	setAdditionalChatTitle(chatId: string, title: string): void {
 		this._additionalChats.get(chatId)?.setTitle(title);
+	}
+
+	setChatReadState(chatResource: URI, isRead: boolean): void {
+		if (isEqual(this._defaultChat.resource, chatResource)) {
+			this._defaultChatIsReadOverride.set(isRead, undefined);
+		} else {
+			this._getAdditionalChat(chatResource)?.setRead(isRead);
+		}
 	}
 
 	private _toModelSelection(modelId: string): ModelSelection {
@@ -5668,6 +5719,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				const action = { type: ActionType.SessionIsReadChanged as const, isRead };
 				connection.dispatch(sessionUri.toString(), action);
 			}
+		}
+	}
+
+	async setChatReadState(sessionId: string, chatResource: URI, isRead: boolean): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (rawId) {
+			this._sessionCache.get(rawId)?.setChatReadState(chatResource, isRead);
 		}
 	}
 

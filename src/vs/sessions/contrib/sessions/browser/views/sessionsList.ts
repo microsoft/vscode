@@ -280,6 +280,13 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 	return mainChatStatus;
 }
 
+function getSessionRowIsRead(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): boolean {
+	if (!deriveFromMainChat || collapsed) {
+		return session.isRead.read(reader);
+	}
+	return session.mainChat.read(reader).isRead.read(reader);
+}
+
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
 	return 'group' in item;
 }
@@ -351,7 +358,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
 	private static readonly CHAT_ITEM_HEIGHT = 28;
 	private static readonly CHAT_ITEM_HEIGHT_PHONE = 44;
-	private static readonly CHAT_FOLDER_ROW_HEIGHT = 16;
+	private static readonly CHAT_DETAILS_ROW_HEIGHT = 16;
 	/**
 	 * Bottom slack reserved under a chat row's approval prompt. The session row
 	 * absorbs the rendered code-block's line-height rounding in its own bottom
@@ -399,8 +406,8 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	getHeight(element: SessionListItem): number {
 		if (isSessionChatItem(element)) {
 			let chatHeight = this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
-			if (!this._isCompact() && getChatWorkspaceBadgeLabel(element.session.workspace.get(), element.chat.workspace.get())) {
-				chatHeight += SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT;
+			if (!this._isCompact()) {
+				chatHeight += SessionsTreeDelegate.CHAT_DETAILS_ROW_HEIGHT;
 			}
 			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, chatHeight));
 		}
@@ -450,13 +457,6 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			height += SessionItemRenderer.CI_ROW_HEIGHT;
 		}
 		return this.withInsetRowSpacing(height);
-	}
-
-	getHeightWithoutChatWorkspace(element: ISessionChatItem): number {
-		return this.withInsetRowSpacing(this.withChatApprovalHeight(
-			element,
-			this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT,
-		));
 	}
 
 	private withChatApprovalHeight(element: ISessionChatItem, height: number): number {
@@ -558,7 +558,7 @@ interface ISessionChatItemTemplate {
 	readonly titleContainer: HTMLElement;
 	readonly titleInputContainer: HTMLElement;
 	readonly compactHoverDescription: HTMLElement;
-	readonly folderRow: HTMLElement;
+	readonly detailsRow: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 	readonly approvalRow: HTMLElement;
 	readonly approvalLabel: HTMLElement;
@@ -587,6 +587,19 @@ function withSessionsListHoverPresentation(hover: Pick<IDelayedHoverOptions, 'co
 		position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 		persistence: { hideOnHover: false },
 	};
+}
+
+function renderRelativeTime(element: HTMLElement, date: Date): IDisposable {
+	const formatTime = () => {
+		const seconds = Math.round((Date.now() - date.getTime()) / 1000);
+		return seconds < 60 ? localize('secondsDuration', "now") : fromNow(date, true);
+	};
+	element.textContent = formatTime();
+	const targetWindow = DOM.getWindow(element);
+	const interval = targetWindow.setInterval(() => {
+		element.textContent = formatTime();
+	}, 60_000);
+	return toDisposable(() => targetWindow.clearInterval(interval));
 }
 
 function getCreatorHoverData(
@@ -659,8 +672,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		const title = disposables.add(new HighlightedLabel(titleContainer));
 		const titleInputContainer = DOM.append(titleRow, $('.session-chat-title-input.session-inline-rename-input'));
 		const compactHoverDescription = DOM.append(titleRow, $('.session-compact-hover-description'));
-		const folderRow = DOM.append(container, $('.session-chat-folder-row'));
-		folderRow.setAttribute('aria-hidden', 'true');
+		const detailsRow = DOM.append(container, $('.session-chat-details-row'));
+		detailsRow.setAttribute('aria-hidden', 'true');
 		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
 		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
 			disposables.add(DOM.addDisposableListener(titleInputContainer, eventType, e => e.stopPropagation()));
@@ -688,7 +701,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 		disposables.add(Gesture.ignoreTarget(approvalRow));
 
-		return { container, statusIcon, title, titleContainer, titleInputContainer, compactHoverDescription, folderRow, titleToolbar, approvalRow, approvalLabel, approvalButtonContainer, canArchiveContext, isArchivedContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleInputContainer, compactHoverDescription, detailsRow, titleToolbar, approvalRow, approvalLabel, approvalButtonContainer, canArchiveContext, isArchivedContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
@@ -700,13 +713,14 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.clear();
 		template.titleToolbar.context = element;
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
+		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
 		const chats = getSessionListChats(element.session, undefined, this.showArchivedChats());
 		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
-		let hadFolderRow: boolean | undefined;
 		template.elementDisposables.add(autorun(reader => {
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
 			const isArchived = element.chat.isArchived.read(reader);
+			const isRead = element.chat.isRead.read(reader);
 			const completedStateIcon = (element.session.workspace.read(reader)?.folders.length ?? 0) > 1
 				? getHighestPriorityPullRequestIcon(
 					element.chat.workspace.read(reader)?.folders.flatMap(folder =>
@@ -719,17 +733,20 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			template.isArchivedContext.set(isArchived);
 			template.statusIcon.setStatus(
 				status,
-				true,
+				isRead,
 				isArchived,
 				completedStateIcon,
 				element.chat.resource,
 			);
 			template.container.classList.toggle('archived', isArchived);
+			template.container.classList.toggle('unread', !isRead && !isArchived);
 			template.container.classList.toggle('needs-input', status === SessionStatus.NeedsInput);
 		}));
 		template.elementDisposables.add(autorun(reader => {
 			const sessionWorkspace = element.session.workspace.read(reader);
 			const chatWorkspace = element.chat.workspace.read(reader);
+			const status = element.chat.status.read(reader);
+			const description = element.chat.description.read(reader);
 			const folderLabel = getChatWorkspaceBadgeLabel(sessionWorkspace, chatWorkspace);
 			template.container.classList.toggle('has-folder-label', !!folderLabel);
 			DOM.clearNode(template.compactHoverDescription);
@@ -738,27 +755,47 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				reader.store.add(this.hoverService.setupDelayedHover(badge, { content: folderLabel }, { groupId: 'sessions-list' }));
 			}
 
-			const showFolderRow = !this.compact() && !!folderLabel;
-			template.folderRow.hidden = !showFolderRow;
-			DOM.clearNode(template.folderRow);
-			if (showFolderRow && folderLabel && chatWorkspace) {
-				const kind = getSessionWorkspaceKind(chatWorkspace, false);
-				const icon = kind === SessionWorkspaceKind.Worktree ? Codicon.worktreeCompact : Codicon.folderCompact;
-				const iconContainer = DOM.append(template.folderRow, $('span.session-chat-folder-icon'));
-				DOM.append(iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
-				const label = DOM.append(template.folderRow, $('span.session-chat-folder-label', undefined, folderLabel));
-				reader.store.add(this.hoverService.setupDelayedHover(label, { content: folderLabel }, { groupId: 'sessions-list' }));
-			}
-			if (hadFolderRow === undefined) {
-				hadFolderRow = showFolderRow;
-				// A row sized while offscreen reserved no folder row, since its
-				// workspace was not read then; correct it once it is rendered.
-				if (showFolderRow) {
-					template.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(template.container), () => this._onDidChangeItemHeight.fire(element)));
+			const showDetailsRow = !this.compact();
+			template.detailsRow.hidden = !showDetailsRow;
+			DOM.clearNode(template.detailsRow);
+			descriptionDisposable.clear();
+			if (showDetailsRow) {
+				const parts: HTMLElement[] = [];
+				const hideDetails = status === SessionStatus.InProgress || status === SessionStatus.NeedsInput;
+				if (!hideDetails && folderLabel && chatWorkspace) {
+					const kind = getSessionWorkspaceKind(chatWorkspace, false);
+					const icon = kind === SessionWorkspaceKind.Worktree ? Codicon.worktreeCompact : Codicon.folderCompact;
+					const iconContainer = DOM.append(template.detailsRow, $('span.session-chat-folder-icon'));
+					DOM.append(iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
+					parts.push(iconContainer);
+					const label = DOM.append(template.detailsRow, $('span.session-chat-folder-label', undefined, folderLabel));
+					parts.push(label);
+					reader.store.add(this.hoverService.setupDelayedHover(label, { content: folderLabel }, { groupId: 'sessions-list' }));
 				}
-			} else if (hadFolderRow !== showFolderRow) {
-				hadFolderRow = showFolderRow;
-				this._onDidChangeItemHeight.fire(element);
+
+				const statusMessage = getSessionStatusMessage(status, description);
+				if (statusMessage !== undefined) {
+					if (parts.length > 0) {
+						DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
+					}
+					const statusElement = DOM.append(template.detailsRow, $('span.session-description'));
+					if (typeof statusMessage === 'string') {
+						statusElement.textContent = statusMessage;
+					} else if (this.markdownRendererService) {
+						descriptionDisposable.value = this.markdownRendererService.render(statusMessage, { sanitizerConfig: { replaceWithPlaintext: true } }, statusElement);
+					} else {
+						statusElement.textContent = statusMessage.value;
+					}
+					parts.push(statusElement);
+				}
+
+				if (!hideDetails) {
+					if (parts.length > 0) {
+						DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
+					}
+					const time = DOM.append(template.detailsRow, $('span.session-time'));
+					reader.store.add(renderRelativeTime(time, element.chat.updatedAt.read(reader)));
+				}
 			}
 		}));
 		template.elementDisposables.add(autorun(reader => {
@@ -1504,15 +1541,17 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// CSS spin animation.
 		let agentMergeConfiguration: IObservable<ISessionAgentMergeConfiguration | undefined> | undefined;
 		template.elementDisposables.add(autorun(reader => {
+			const collapsed = this.options.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true;
 			const sessionStatus = getSessionRowStatus(
 				element,
 				reader,
 				!!this.options.deriveStatusFromMainChat,
-				this.options.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true,
+				collapsed,
 			);
 			template.statusContext.set(sessionStatus);
-			const isRead = element.isRead.read(reader);
-			template.isReadContext.set(isRead);
+			const sessionIsRead = element.isRead.read(reader);
+			const isRead = getSessionRowIsRead(element, reader, !!this.options.deriveStatusFromMainChat, collapsed);
+			template.isReadContext.set(sessionIsRead);
 			const isArchived = element.isArchived.read(reader);
 			template.isArchivedContext.set(isArchived);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
@@ -1565,7 +1604,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				this.options.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true,
 			);
 			const workspace = element.workspace.read(reader);
-			const description = element.description.read(reader);
+			const mainChat = this.options.deriveStatusFromMainChat ? element.mainChat.read(reader) : undefined;
+			const description = mainChat ? mainChat.description.read(reader) : element.description.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
 
 			// Clear and rebuild details row
@@ -1598,8 +1638,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				return;
 			}
 
-			const diffStats = this.options.deriveStatusFromMainChat && (workspace?.folders.length ?? 0) > 1
-				? getSessionListChatDiffStats(element, element.mainChat.read(reader), this.options.activeSession, reader)
+			const diffStats = mainChat && (workspace?.folders.length ?? 0) > 1
+				? getSessionListChatDiffStats(element, mainChat, this.options.activeSession, reader)
 				: getSessionDiffStats(element, reader);
 			let timeDate: Date | undefined;
 
@@ -1607,7 +1647,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const hideDetails = sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput;
 
 			if (!hideDetails) {
-				timeDate = element.updatedAt.read(reader);
+				timeDate = (mainChat ?? element.mainChat.read(reader)).updatedAt.read(reader);
 			}
 
 			const parts: HTMLElement[] = [];
@@ -1670,17 +1710,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
-				const definiteTimeDate = timeDate;
-				const formatTime = () => {
-					const seconds = Math.round((Date.now() - definiteTimeDate.getTime()) / 1000);
-					return seconds < 60 ? localize('secondsDuration', "now") : fromNow(definiteTimeDate, true);
-				};
-				timeEl.textContent = formatTime();
-				const targetWindow = DOM.getWindow(timeEl);
-				const interval = targetWindow.setInterval(() => {
-					timeEl.textContent = formatTime();
-				}, 60_000);
-				timeDisposable.value = toDisposable(() => targetWindow.clearInterval(interval));
+				timeDisposable.value = renderRelativeTime(timeEl, timeDate);
 			} else {
 				timeDisposable.clear();
 			}
@@ -2604,9 +2634,13 @@ class SessionsAccessibilityProvider {
 				const label = folderLabel
 					? localize('sessionChatItemFolderAria', "{0}, chat in folder {1}, updated {2}, {3}", title, folderLabel, updated, status)
 					: localize('sessionChatItemAria', "{0}, chat, updated {1}, {2}", title, updated, status);
-				return element.chat.isArchived.read(reader)
-					? localize('sessionChatItemArchivedAria', "{0}, archived", label)
+				const isArchived = element.chat.isArchived.read(reader);
+				const readLabel = !isArchived && !element.chat.isRead.read(reader)
+					? localize('sessionChatItemUnreadAria', "{0}, unread", label)
 					: label;
+				return isArchived
+					? localize('sessionChatItemArchivedAria', "{0}, archived", readLabel)
+					: readLabel;
 			});
 		}
 		if (isSessionGroupItem(element)) {
@@ -2670,7 +2704,7 @@ class SessionsAccessibilityProvider {
 		}
 		return derived(this, reader => {
 			const title = element.title.read(reader);
-			const updated = fromNow(element.updatedAt.read(reader), true);
+			const updated = fromNow(element.mainChat.read(reader).updatedAt.read(reader), true);
 			let label: string;
 			if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
 				label = localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, updated);
@@ -2679,14 +2713,18 @@ class SessionsAccessibilityProvider {
 			} else {
 				label = localize('sessionItemAria', "{0}, updated {1}", title, updated);
 			}
+			const collapsed = this.options?.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true;
 			const status = getSessionRowStatus(
 				element,
 				reader,
 				!!this.options?.deriveStatusFromMainChat,
-				this.options?.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true,
+				collapsed,
 			);
 			if (this.options?.deriveStatusFromMainChat) {
 				label = localize('sessionItemStatusAria', "{0}, {1}", label, getSessionConversationStatusAriaLabel(status));
+			}
+			if (!element.isArchived.read(reader) && !getSessionRowIsRead(element, reader, !!this.options?.deriveStatusFromMainChat, collapsed)) {
+				label = localize('sessionItemUnreadAria', "{0}, unread", label);
 			}
 			const inputNeededMessage = this.options
 				? getCompactInputNeededMessage(element, reader, this.options, this.options.approvalModel)
@@ -4473,7 +4511,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/**
 	 * (Re-)establish the list-owned autorun that keeps each chat row's cached
-	 * height in sync with its live approval and workspace state, independent of
+	 * height in sync with its live approval state, independent of
 	 * whether the row is currently rendered. Chat items are rebuilt on every
 	 * {@link update}, so the autorun is recreated to track the current set.
 	 */
@@ -4497,12 +4535,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.chatRowHeightReconcile.value = autorun(reader => {
 			for (const chatItem of chatItems) {
 				this._approvalModel.getApproval(chatItem.chat.resource).read(reader);
-				if (this.tree.hasElement(chatItem) && this.tree.getRelativeTop(chatItem) !== null) {
-					chatItem.session.workspace.read(reader);
-					chatItem.chat.workspace.read(reader);
+				if (this.tree.hasElement(chatItem)) {
 					this.tree.updateElementHeight(chatItem, this._delegate.getHeight(chatItem));
-				} else if (this.tree.hasElement(chatItem)) {
-					this.tree.updateElementHeight(chatItem, this._delegate.getHeightWithoutChatWorkspace(chatItem));
 				}
 			}
 		});
@@ -4911,7 +4945,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.pendingOpenRequest !== request) {
 			return false;
 		}
-		if (this._sessionsService.activeSession.get()?.sessionId !== session.sessionId) {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (chat) {
+			this.markChatRead(session, chat, activeSession?.sessionId === session.sessionId);
+		} else if (activeSession?.sessionId !== session.sessionId) {
 			this.markRead(session);
 		}
 		this.invokeOpenRequest(request);
@@ -5457,6 +5494,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	markRead(session: ISession): void {
 		this._sessionsManagementService.markRead(session);
+	}
+
+	markChatRead(session: ISession, chat: IChat, preserveExplicitUnread: boolean): void {
+		this._sessionsManagementService.markChatRead(session, chat, { preserveExplicitUnread });
 	}
 
 	markUnread(session: ISession): void {
