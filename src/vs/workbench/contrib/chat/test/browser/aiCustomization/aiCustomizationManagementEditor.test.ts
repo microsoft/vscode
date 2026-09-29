@@ -2000,9 +2000,21 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 		editor.customizationMigrationService.computeMigration = async (_session, type, token = CancellationToken.None) => {
 			migrationTokens.push(token);
-			return type === CustomizationMigrationType.UserData
-				? { type, files: [candidate.uri], candidates: [candidate] }
-				: { type, files: [], candidates: [] };
+			switch (type) {
+				case CustomizationMigrationType.UserData:
+					return { type, files: [candidate.uri], candidates: [candidate] };
+				case CustomizationMigrationType.McpServers:
+					return {
+						type,
+						servers: [],
+						candidates: [],
+						exclusions: [],
+						discoveryComplete: true,
+						coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+					};
+				default:
+					return { type, files: [], candidates: [] };
+			}
 		};
 		editor.harnessService.findHarnessById = () => ({
 			id: 'agent-host-copilotcli',
