@@ -149,4 +149,31 @@ suite('AgentHostConnectionsService', () => {
 			resolutionChanges: 2,
 		});
 	});
+
+	test('resolves remote session identity while disconnected', () => {
+		const { service } = createService([info('myhost', 'My Remote')], new Map());
+		store.add(service.registerSessionResolutionPolicy('myhost', {
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			defaultChangesetKind: ChangesetKind.Session,
+		}));
+
+		const resource = URI.parse('remote-myhost-copilot:/xyz789');
+		const identity = service.resolveSessionResourceIdentity(resource);
+
+		assert.deepStrictEqual({
+			identity: identity && {
+				connectionAuthority: identity.connectionAuthority,
+				backendSession: identity.backendSession.toString(),
+				defaultChangesetKind: identity.defaultChangesetKind,
+			},
+			resolution: service.resolveSessionResource(resource),
+		}, {
+			identity: {
+				connectionAuthority: 'myhost',
+				backendSession: 'ahp-session:/xyz789',
+				defaultChangesetKind: ChangesetKind.Session,
+			},
+			resolution: undefined,
+		});
+	});
 });

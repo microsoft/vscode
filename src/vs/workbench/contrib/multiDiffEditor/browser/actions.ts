@@ -22,9 +22,10 @@ import { resolveCommandsContext } from '../../../browser/parts/editor/editorComm
 import { MultiDiffEditor } from './multiDiffEditor.js';
 import { MultiDiffEditorInput } from './multiDiffEditorInput.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { ActiveEditorContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { createMultiDiffEditorLayoutDebugModel, isMultiDiffEditorLayoutDebugStateProvider } from './multiDiffEditorLayoutDebug.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: MenuId.DiffEditorViewSubmenu,
@@ -98,6 +99,7 @@ export class OpenMultiDiffEditorLayoutDebugAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 		const activeEditorPane = editorService.activeEditorPane;
 		if (!isMultiDiffEditorLayoutDebugStateProvider(activeEditorPane)) {
 			return;
@@ -111,7 +113,7 @@ export class OpenMultiDiffEditorLayoutDebugAction extends Action2 {
 		try {
 			const editor = await editorService.openEditor(
 				{ resource: model.uri, options: { pinned: true } },
-				SIDE_GROUP,
+				environmentService.isSessionsWindow ? AUX_WINDOW_GROUP : SIDE_GROUP,
 			);
 			if (!editor) {
 				model.dispose();

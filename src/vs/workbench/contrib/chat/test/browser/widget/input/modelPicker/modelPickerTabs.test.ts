@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
-import { IModelConfigurationAccess, getModelConfigProperty, getModelConfigSummary, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { IModelConfigurationAccess, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { getModelBadge } from '../../../../../browser/widget/input/modelPicker/modelPickerBadges.js';
 import { latestOfEachLine, parseModelLine } from '../../../../../browser/widget/input/modelPicker/modelPickerLineage.js';
 import { buildSpeedVariants, collapseSpeedVariants } from '../../../../../browser/widget/input/modelPicker/modelPickerVariants.js';
@@ -144,6 +144,22 @@ suite('Model picker destinations', () => {
 		assert.deepStrictEqual(
 			summarize([auto]),
 			[{ id: 'builtIn', label: 'GitHub Copilot', models: [] }],
+		);
+	});
+
+	test('a model with its own row, such as HydraFusion, is left out of every destination', () => {
+		const hydraFusion = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot' });
+		const hasOwnRow = (model: ILanguageModelChatMetadataAndIdentifier) => model === auto || model === hydraFusion;
+		const summarizeWithOwnRows = (models: readonly ILanguageModelChatMetadataAndIdentifier[]) =>
+			buildModelPickerDestinations(models, service, [], hasOwnRow).map(destination => ({ id: destination.id, models: destination.models.map(model => model.metadata.name) }));
+		assert.deepStrictEqual(
+			[summarizeWithOwnRows([hydraFusion]), summarizeWithOwnRows([auto, hydraFusion, gpt]), summarize([auto, hydraFusion, gpt])],
+			[
+				[{ id: 'builtIn', models: [] }],
+				[{ id: 'builtIn', models: ['GPT-5.5'] }],
+				// Without its own row, e.g. when this build is too old for it, it stays listed.
+				[{ id: 'builtIn', label: 'GitHub Copilot', models: ['HydraFusion', 'GPT-5.5'] }],
+			],
 		);
 	});
 
@@ -508,28 +524,105 @@ suite('Model picker destinations', () => {
 		);
 	});
 
-	test('badges rank a retiring model over an offer over the settings a model was tuned to', () => {
+	test('a pair remembers its speed without overriding an explicit selection', () => {
+		const standard = createModel('example-2.5', 'Example 2.5');
+		const fast = createModel('example-2.5-fast', 'Example 2.5 (fast mode)');
+		const models = [gpt, standard, fast];
+		const variants = buildSpeedVariants(models);
+		const preferred = new Map([[standard.identifier, fast.identifier]]);
+		const ids = (selected: string | undefined) =>
+			collapseSpeedVariants(models, variants, selected, preferred).map(model => model.identifier);
+
+		assert.deepStrictEqual({
+			unselected: ids(undefined),
+			otherSelected: ids(gpt.identifier),
+			standardSelected: ids(standard.identifier),
+			fastSelected: ids(fast.identifier),
+		}, {
+			unselected: [gpt.identifier, fast.identifier],
+			otherSelected: [gpt.identifier, fast.identifier],
+			standardSelected: [gpt.identifier, standard.identifier],
+			fastSelected: [gpt.identifier, fast.identifier],
+		});
+	});
+
+	test('pins on either speed produce one pinned row for the selected variant', () => {
+		const standard = createModel('example-2.5', 'Example 2.5');
+		const fast = createModel('example-2.5-fast', 'Example 2.5 (fast mode)');
+		const sections = buildModelPickerSections({
+			models: [gpt, standard, fast],
+			selectedModelId: fast.identifier,
+			recentModelIds: [],
+			pinnedModelIds: [standard.identifier, fast.identifier],
+			controlModels: {},
+			showSuggested: true,
+		});
+
+		assert.deepStrictEqual({
+			pinned: sections.pinned.map(model => model.identifier),
+			suggested: sections.suggested.map(model => model.identifier),
+			other: sections.other.map(model => model.identifier),
+		}, {
+			pinned: [fast.identifier],
+			suggested: [gpt.identifier],
+			other: [],
+		});
+	});
+
+	test('collapsing speed variants preserves real availability and update restrictions', () => {
+		const standard = createModel('example-2.5', 'Example 2.5');
+		const fast = createModel('example-2.5-fast', 'Example 2.5 (fast mode)');
+		const inspect = (models: ILanguageModelChatMetadataAndIdentifier[], minVSCodeVersion?: string) => {
+			const sections = buildModelPickerSections({
+				models,
+				selectedModelId: fast.identifier,
+				recentModelIds: [],
+				pinnedModelIds: [],
+				controlModels: {
+					[standard.metadata.id]: { label: standard.metadata.name, featured: true, exists: false },
+					[fast.metadata.id]: { label: fast.metadata.name, featured: true, exists: false, minVSCodeVersion },
+				},
+				showSuggested: true,
+				showUnavailable: true,
+				currentVSCodeVersion: '1.100.0',
+			});
+			return {
+				selectable: [...sections.pinned, ...sections.suggested, ...sections.other].map(model => model.identifier),
+				unavailable: sections.unavailable.map(entry => ({ id: entry.id, needsUpdate: entry.needsUpdate })),
+				pairedVariants: sections.speedVariants.size,
+			};
+		};
+
+		assert.deepStrictEqual({
+			bothAvailable: inspect([standard, fast]),
+			standardUnavailable: inspect([fast]),
+			fastNeedsUpdate: inspect([standard, fast], '99.0.0'),
+		}, {
+			bothAvailable: { selectable: [fast.identifier], unavailable: [], pairedVariants: 2 },
+			standardUnavailable: { selectable: [fast.identifier], unavailable: [{ id: standard.metadata.id, needsUpdate: false }], pairedVariants: 0 },
+			fastNeedsUpdate: { selectable: [standard.identifier], unavailable: [{ id: fast.metadata.id, needsUpdate: true }], pairedVariants: 0 },
+		});
+	});
+
+	test('badges retain notices and provider labels independently of configuration', () => {
 		const retiring = { ...gpt, metadata: { ...gpt.metadata, warningText: { model_pending_deprecation: 'Retiring soon.' } } };
 		const promo = { ...claude, metadata: { ...claude.metadata, promo: { id: 'p', discountPercent: 25, message: 'Save now.' } } };
 		const tuned = createConfigurableModel();
-		const badge = (model: ILanguageModelChatMetadataAndIdentifier, values: IStringDictionary<unknown> = {}, providerLabel?: string) =>
-			getModelBadge(model, { configurationAccess: createConfigurationAccess(values), providerLabel });
+		const badge = (model: ILanguageModelChatMetadataAndIdentifier, providerLabel?: string) =>
+			getModelBadge(model, { providerLabel });
 
 		assert.deepStrictEqual(
 			{
 				retiring: badge(retiring),
 				promo: badge(promo),
-				tuned: badge(tuned, { reasoningEffort: 'xhigh', contextSize: 1000000 }),
-				// Left at its defaults, so there is nothing to report.
-				untouched: badge(tuned),
-				provider: badge(gpt, {}, 'Ollama'),
+				configurable: badge(tuned),
+				provider: badge(gpt, 'Ollama'),
 				plain: badge(gpt),
 			},
 			{
 				retiring: { text: 'Retiring', tone: 'warning' },
 				promo: { text: '25% off', tone: 'promo' },
-				tuned: { text: 'Extra high \u00b7 1M', tone: 'selected' },
-				untouched: undefined,
+				configurable: undefined,
 				provider: { text: 'Ollama', tone: 'neutral' },
 				plain: undefined,
 			},
@@ -645,16 +738,77 @@ suite('Model picker destinations', () => {
 		);
 	});
 
-	test('the configuration summary names only what was changed from the defaults', () => {
+	test('the configuration summary includes effective defaults and fixed context', () => {
 		const model = createConfigurableModel();
 		assert.deepStrictEqual(
 			{
 				defaults: getModelConfigSummary(model, createConfigurationAccess()),
+				explicitDefaults: getModelConfigSummary(model, createConfigurationAccess({ reasoningEffort: 'medium', contextSize: 264000 })),
 				bothChanged: getModelConfigSummary(model, createConfigurationAccess({ reasoningEffort: 'xhigh', contextSize: 1000000 })),
 				oneChanged: getModelConfigSummary(model, createConfigurationAccess({ contextSize: 1000000 })),
 				noSchema: getModelConfigSummary(gpt, createConfigurationAccess()),
 			},
-			{ defaults: undefined, bothChanged: 'Extra high · 1M', oneChanged: '1M', noSchema: undefined },
+			{ defaults: 'Medium · 264K', explicitDefaults: 'Medium · 264K', bothChanged: 'Extra high · 1M', oneChanged: 'Medium · 1M', noSchema: '132K' },
 		);
+	});
+
+	test('summaries use scoped defaults without changing provider metadata', () => {
+		const model = createConfigurableModel();
+		const schema = model.metadata.configurationSchema!;
+		const access: IModelConfigurationAccess = {
+			...createConfigurationAccess(),
+			getModelConfigurationSchema: () => ({
+				properties: {
+					...schema.properties,
+					reasoningEffort: { ...schema.properties!.reasoningEffort, default: 'xhigh' },
+				},
+			}),
+		};
+		assert.deepStrictEqual({
+			summary: getModelConfigSummary(model, access),
+			description: getModelConfigDescription(model, access),
+			providerDefault: schema.properties?.reasoningEffort.default,
+		}, {
+			summary: 'Extra high · 264K',
+			description: 'Thinking Effort: Extra high, Context: 264K',
+			providerDefault: 'medium',
+		});
+	});
+
+	test('unknown settings and routing models never invent effective values', () => {
+		const model = createConfigurableModel();
+		const properties = model.metadata.configurationSchema!.properties!;
+		const unresolved = {
+			...model,
+			metadata: {
+				...model.metadata,
+				configurationSchema: {
+					properties: {
+						reasoningEffort: { ...properties.reasoningEffort, default: undefined },
+						contextSize: { ...properties.contextSize, default: undefined },
+					}
+				},
+			},
+		};
+		assert.deepStrictEqual({
+			unresolved: getModelConfigSummary(unresolved, createConfigurationAccess()),
+			stale: getModelConfigSummary(model, createConfigurationAccess({ reasoningEffort: 'removed', contextSize: NaN })),
+			auto: getModelConfigSummary(createModel('auto', 'Auto'), createConfigurationAccess()),
+			hydra: getModelConfigSummary(createModel('hydrafusion', 'HydraFusion'), createConfigurationAccess()),
+			missing: getModelConfigSummary(undefined, createConfigurationAccess()),
+		}, { unresolved: undefined, stale: undefined, auto: undefined, hydra: undefined, missing: undefined });
+	});
+
+	test('effort-only and context-only models summarize the available settings', () => {
+		const model = createConfigurableModel();
+		const properties = model.metadata.configurationSchema!.properties!;
+		const summarize = (keys: string[]) => getModelConfigSummary({
+			...model,
+			metadata: { ...model.metadata, configurationSchema: { properties: Object.fromEntries(keys.map(key => [key, properties[key]])) } },
+		}, createConfigurationAccess());
+		assert.deepStrictEqual({
+			effort: summarize(['reasoningEffort']),
+			context: summarize(['contextSize']),
+		}, { effort: 'Medium · 132K', context: '264K' });
 	});
 });

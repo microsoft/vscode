@@ -9,7 +9,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableFromEvent, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditorActivation, IEditorOptions } from '../../../../../platform/editor/common/editor.js';
@@ -92,9 +92,9 @@ interface IPendingReconcile {
  * (not a strategy) because both belong to one reconcile pipeline that must stay single-instance
  * across the New→Existing submit transition — see `SinglePaneLayoutStrategy`'s doc comment.
  * Owned and disposed by {@link import('./singlePaneExistingSessionStrategy.js').SinglePaneExistingSessionStrategy}.
- * `SinglePaneNewSessionStrategy` supplies its own supplementary reconcile intents via
- * {@link queueReconcile}; `SinglePaneQuickChatStrategy` never wants managed tabs, so it never
- * calls in — the ambient session-change trigger below reconciles them away on its own.
+ * `SinglePaneDraftSessionStrategy` supplies workspace-draft supplementary reconcile intents via
+ * {@link queueReconcile}; workspace-less drafts never want managed tabs, so the ambient
+ * session-change trigger below reconciles them away on its own.
  *
  * See `SINGLE_PANE_SCENARIOS.md` for the full reconcile rules.
  */
@@ -173,10 +173,14 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		// below, not here — the editor change fires *during* the async apply, racing the empty
 		// state.
 		const partVisibilityChangedSignal = observableSignalFromEvent(this, this._layoutService.onDidChangePartVisibility);
-		const editorsChangedSignal = observableSignalFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange));
+		// Modal changes must not start a reconcile that suppresses revealing a file opened in the main part.
+		const mainEditorsChanged = Event.filter(this._editorService.onDidEditorsChange, e => !!this._editorGroupsService.mainPart.getGroup(e.groupId));
+		const editorsChangedSignal = observableSignalFromEvent(this, mainEditorsChanged);
+		const activeMainGroup = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorGroupsService.mainPart.activeGroup);
 		this._register(autorun(reader => {
 			partVisibilityChangedSignal.read(reader);
 			editorsChangedSignal.read(reader);
+			activeMainGroup.read(reader);
 			this.queueReconcile(this._readTarget(undefined), {});
 		}));
 
@@ -259,7 +263,7 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		}));
 
 		this._register(this._ctx.onDidEndSessionLayoutRestore(() => this._queueCollapseIfDetailsOnly()));
-		this._register(this._editorService.onDidEditorsChange(() => {
+		this._register(mainEditorsChanged(() => {
 			if (!this._ctx.isRestoringSessionLayout) {
 				this._queueCollapseIfDetailsOnly();
 			}
@@ -344,6 +348,9 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			const successor = this._pending as IPendingReconcile | undefined;
 			if (generation !== this._generation && successor && successor.sessionKey === pending.sessionKey) {
 				this._pending = { ...successor, trigger: mergeTriggers(successor.trigger, pending.trigger) };
+			}
+			if (generation === this._generation && !this._ctx.isRestoringSessionLayout) {
+				this._ctx.completeChangesEditorTransition();
 			}
 		}
 	}

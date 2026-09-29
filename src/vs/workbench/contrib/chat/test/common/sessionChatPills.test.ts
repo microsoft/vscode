@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { getSessionChatPillMenu, SessionChatPillKind, SessionChatPillVisibility } from '../../common/sessionChatPills.js';
 
@@ -83,6 +84,31 @@ suite('SessionChatPills', () => {
 		});
 	});
 
+	test('encapsulates PR filtering separately from hiding the whole pill', () => {
+		const visibility = disposables.add(new SessionChatPillVisibility(disposables.add(new TestStorageService())));
+		const states = ['open', 'draft', 'closed', 'merged', undefined] as const;
+		const initiallyShowAll = visibility.pullRequests.showAll.get();
+		visibility.pullRequests.setShowAll(false);
+		const filtered = {
+			pillVisible: visibility.isVisible(SessionChatPillKind.PullRequests, undefined),
+			states: states.map(state => visibility.pullRequests.isVisible(state, undefined)),
+		};
+		visibility.hide(SessionChatPillKind.PullRequests);
+		visibility.pullRequests.setShowAll(true);
+
+		assert.deepStrictEqual({
+			initiallyShowAll,
+			filtered,
+			pillVisibleAfterHide: visibility.isVisible(SessionChatPillKind.PullRequests, undefined),
+			statesAfterShowAll: states.map(state => visibility.pullRequests.isVisible(state, undefined)),
+		}, {
+			initiallyShowAll: true,
+			filtered: { pillVisible: true, states: [true, true, false, false, true] },
+			pillVisibleAfterHide: false,
+			statesAfterShowAll: [true, true, true, true, true],
+		});
+	});
+
 	test('changes cannot be hidden or toggled off', () => {
 		const visibility = disposables.add(new SessionChatPillVisibility(disposables.add(new TestStorageService())));
 		visibility.hide(SessionChatPillKind.Changes);
@@ -94,6 +120,41 @@ suite('SessionChatPills', () => {
 		}, {
 			visible: true,
 			hiddenKinds: [SessionChatPillKind.Customizations, SessionChatPillKind.Subagents],
+		});
+	});
+
+	test('persists independent subagent and pull request filters without changing pill visibility', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const visibility = disposables.add(new SessionChatPillVisibility(storageService));
+		visibility.toggle(SessionChatPillKind.Subagents);
+		const initiallyShowAll = visibility.subagents.showAll.get();
+		visibility.subagents.setShowAll(false);
+		const restored = disposables.add(new SessionChatPillVisibility(storageService));
+		const filtered = {
+			subagents: restored.subagents.showAll.get(),
+			pullRequests: restored.pullRequests.showAll.get(),
+			pillVisible: restored.isVisible(SessionChatPillKind.Subagents, undefined),
+			application: storageService.getBoolean('sessions.chatPills.subagents.showAll', StorageScope.APPLICATION),
+			profile: storageService.getBoolean('sessions.chatPills.subagents.showAll', StorageScope.PROFILE),
+			workspace: storageService.getBoolean('sessions.chatPills.subagents.showAll', StorageScope.WORKSPACE),
+		};
+		visibility.hide(SessionChatPillKind.Subagents);
+		visibility.pullRequests.setShowAll(false);
+		visibility.subagents.setShowAll(true);
+		const after = disposables.add(new SessionChatPillVisibility(storageService));
+
+		assert.deepStrictEqual({
+			initiallyShowAll,
+			filtered,
+			after: {
+				subagents: after.subagents.showAll.get(),
+				pullRequests: after.pullRequests.showAll.get(),
+				pillVisible: after.isVisible(SessionChatPillKind.Subagents, undefined),
+			},
+		}, {
+			initiallyShowAll: true,
+			filtered: { subagents: false, pullRequests: true, pillVisible: true, application: false, profile: undefined, workspace: undefined },
+			after: { subagents: true, pullRequests: false, pillVisible: false },
 		});
 	});
 

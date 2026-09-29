@@ -13,7 +13,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingsPick, IManagedSettingsService, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, hasRawManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
-import { IManagedSettingsFreshness, isManagedSettingsFreshnessBlocking } from '../../../../platform/policy/common/managedSettingsFreshness.js';
+import { IManagedSettingsFreshness, isManagedSettingsFreshnessBlocking, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
@@ -62,6 +62,17 @@ export interface IAccountPolicyGateService {
 	readonly _serviceBrand: undefined;
 	readonly gateInfo: IAccountPolicyGateInfo;
 	readonly onDidChangeGateInfo: Event<IAccountPolicyGateInfo>;
+	/** Completes after the gate and policy values incorporate the initialized account. */
+	whenInitialized(): Promise<void>;
+}
+
+/** Waits for authoritative policy, including settled fail-closed restrictions. */
+export async function whenAccountPolicySettled(gateService: IAccountPolicyGateService): Promise<void> {
+	await gateService.whenInitialized();
+	while (gateService.gateInfo.reason === AccountPolicyGateUnsatisfiedReason.PolicyNotResolved
+		|| gateService.gateInfo.managedSettingsFreshness?.state === ManagedSettingsFreshnessState.Pending) {
+		await Event.toPromise(gateService.onDidChangeGateInfo);
+	}
 }
 
 interface IResolvedPolicyData {
@@ -92,6 +103,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	private readonly managedPolicyReader?: IPolicyService;
 	private readonly nativeManagedSettingsService?: INativeManagedSettingsService;
 	private readonly fileManagedSettingsService?: IFileManagedSettingsService;
+	private readonly initialization: Promise<void>;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -137,9 +149,17 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		// The initial account load sets `currentDefaultAccount` but does NOT fire
 		// `onDidChangeDefaultAccount`. Re-evaluate once the account has resolved
 		// so the gate doesn't stay stuck on `noAccount`.
-		this.defaultAccountService.getDefaultAccount().then(() => {
-			this._updatePolicyDefinitions(this.policyDefinitions);
-		});
+		this.initialization = this.initialize();
+		this.initialization.catch(error => this.logService.error('AccountPolicyService: Failed to initialize account policy', error));
+	}
+
+	whenInitialized(): Promise<void> {
+		return this.initialization;
+	}
+
+	private async initialize(): Promise<void> {
+		await this.defaultAccountService.getDefaultAccount();
+		await this._updatePolicyDefinitions(this.policyDefinitions);
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
@@ -255,10 +275,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		const nativeManagedSettings = mdmManagedSettings ?? this.nativeManagedSettingsService?.managedSettings;
 		const fileManagedSettings = this.fileManagedSettingsService?.managedSettings;
 
-		// Per-key precedence: native MDM wins over the server-delivered channel, which in turn wins
-		// over the file-based channel — but resolved key-by-key, so a key left unset by a higher
-		// channel is still filled in by a lower one. A key locked by a higher channel cannot be
-		// overwritten. See `.github/skills/policy-and-managed-settings/github-managed-settings.md` for the rationale.
+		// Share channel resolution, including the force-on sandbox floor, with Policy Diagnostics.
 		const pick = pickManagedSettings(nativeManagedSettings, accountPolicyData?.managedSettings, fileManagedSettings);
 		const activeSources = new Set(pick.activeSources);
 		if (accountPolicyData?.managedSettingsActive === true) {

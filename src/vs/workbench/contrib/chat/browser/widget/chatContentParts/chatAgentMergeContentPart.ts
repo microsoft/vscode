@@ -122,11 +122,16 @@ export function getAgentMergeSummaryLabel(summary: IAgentMergePromptSummary): st
  * `undefined` for every other request, which keeps its own text.
  */
 export function getAgentMergeRequestLabel(element: IChatRequestViewModel): string | undefined {
-	if (element.systemInitiatedLabel !== undefined) {
+	const summary = getAgentMergeRequestSummary(element);
+	return summary && getAgentMergeSummaryLabel(summary);
+}
+
+/** Extracts display data only for explicitly identified Agent Merge requests. */
+export function getAgentMergeRequestSummary(element: IChatRequestViewModel): IAgentMergePromptSummary | undefined {
+	if (!element.isSystemInitiated || element.requestSource !== 'agentMerge' || element.systemInitiatedLabel !== undefined) {
 		return undefined;
 	}
-	const summary = parseAgentMergePrompt(element.messageText);
-	return summary && getAgentMergeSummaryLabel(summary);
+	return parseAgentMergePrompt(element.messageText);
 }
 
 /** Renders the Agent Merge prompt as a compact disclosure whose header action switches between merge details and the agent message. Mirrored review file labels link to their local comments. */

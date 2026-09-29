@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const enum AgentSystemNotificationKind {
+	/** A content-free milestone in a HydraFusion workflow. */
+	FusionProgress = 'fusionProgress',
 	WorktreeCreationFailure = 'worktreeCreationFailure',
 	/** The session successfully changed to a requested workspace. */
 	WorkspaceTransition = 'workspaceTransition',
@@ -19,8 +21,10 @@ export const enum AgentSystemNotificationKind {
 	AgentMergeConfigurationChanged = 'agentMergeConfigurationChanged',
 	/** Agent Merge stopped monitoring the session, usually on its own. */
 	AgentMergeDisabled = 'agentMergeDisabled',
-	/** Agent Merge merged the pull request it was monitoring. */
+	/** The pull request Agent Merge was monitoring was merged. */
 	AgentMergePullRequestMerged = 'agentMergePullRequestMerged',
+	/** The model ended a response round without text or tool calls; clients settle any open thinking section and render nothing. */
+	ResponseRoundEnded = 'responseRoundEnded',
 }
 
 export const enum AgentSystemNotificationWorkspaceKind {
@@ -32,7 +36,12 @@ export const enum AgentSystemNotificationSeverity {
 	Warning = 'warning',
 }
 
+export type AgentFusionProgressStatus = 'selected' | 'completed' | 'failed' | 'cancelled' | 'degraded';
+const fusionStatuses: ReadonlySet<string> = new Set(['selected', 'completed', 'failed', 'cancelled', 'degraded']);
+const VSCODE_FUSION_DESCRIPTION_META_KEY = 'vscode.chat.fusionDescription';
+
 const knownKinds: ReadonlySet<string> = new Set<string>([
+	AgentSystemNotificationKind.FusionProgress,
 	AgentSystemNotificationKind.WorktreeCreationFailure,
 	AgentSystemNotificationKind.WorkspaceTransition,
 	AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut,
@@ -42,6 +51,7 @@ const knownKinds: ReadonlySet<string> = new Set<string>([
 	AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 	AgentSystemNotificationKind.AgentMergeDisabled,
 	AgentSystemNotificationKind.AgentMergePullRequestMerged,
+	AgentSystemNotificationKind.ResponseRoundEnded,
 ]);
 
 interface IHasSystemNotificationMeta {
@@ -53,6 +63,8 @@ export interface IAgentSystemNotificationMeta {
 	readonly severity?: AgentSystemNotificationSeverity;
 	readonly workspaceKind?: AgentSystemNotificationWorkspaceKind;
 	readonly workspaceName?: string;
+	readonly fusionStatus?: AgentFusionProgressStatus;
+	readonly fusionDescription?: string;
 }
 
 export interface IAgentWorkspaceTransitionRecord {
@@ -69,17 +81,22 @@ export function readAgentSystemNotificationMeta(source: IHasSystemNotificationMe
 	}
 	const kind = meta['kind'];
 	const workspaceKind = meta['workspaceKind'];
+	const fusionStatus = meta['fusionStatus'];
+	const fusionDescription = meta[VSCODE_FUSION_DESCRIPTION_META_KEY];
 	return {
 		kind: typeof kind === 'string' && knownKinds.has(kind) ? kind as AgentSystemNotificationKind : undefined,
 		severity: meta['severity'] === AgentSystemNotificationSeverity.Warning ? meta['severity'] : undefined,
 		workspaceKind: workspaceKind === AgentSystemNotificationWorkspaceKind.Folder || workspaceKind === AgentSystemNotificationWorkspaceKind.Worktree ? workspaceKind : undefined,
 		workspaceName: typeof meta['workspaceName'] === 'string' ? meta['workspaceName'] : undefined,
+		fusionStatus: typeof fusionStatus === 'string' && fusionStatuses.has(fusionStatus) ? fusionStatus as AgentFusionProgressStatus : undefined,
+		...(typeof fusionDescription === 'string' ? { fusionDescription } : {}),
 	};
 }
 
 /** Serializes Agent Host system-notification metadata for the open protocol bag. */
 export function toAgentSystemNotificationMeta(meta: IAgentSystemNotificationMeta): Record<string, unknown> {
-	return { ...meta };
+	const { fusionDescription, ...rest } = meta;
+	return fusionDescription === undefined ? rest : { ...rest, [VSCODE_FUSION_DESCRIPTION_META_KEY]: fusionDescription };
 }
 
 /** Serializes a durable workspace-transition boundary. */

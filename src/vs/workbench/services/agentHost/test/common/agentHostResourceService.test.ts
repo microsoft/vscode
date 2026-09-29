@@ -763,6 +763,40 @@ suite('AgentHostResourceService', () => {
 		assert.strictEqual(config.lastUpdate?.target, ConfigurationTarget.USER_LOCAL);
 	});
 
+	test('workspace-configured grants do not authorize filesystem access', async () => {
+		const workspaceGrants: AgentHostPermissionsSetting = {
+			'192.168.48.1:9492': {
+				[URI.file('/Users').toString()]: AgentHostAccessMode.Read,
+			},
+		};
+		const config = new CapturingConfigurationService();
+		await config.setUserConfiguration(AgentHostLocalFilePermissionsSettingId, workspaceGrants);
+		const originalInspect = config.inspect.bind(config);
+		(config as { inspect: (key: string) => unknown }).inspect = (key: string) => {
+			if (key === AgentHostLocalFilePermissionsSettingId) {
+				return {
+					value: workspaceGrants,
+					defaultValue: {},
+					workspaceValue: workspaceGrants,
+					workspaceFolderValue: workspaceGrants,
+					overrideIdentifiers: [],
+				};
+			}
+			return originalInspect(key);
+		};
+		const service = disposables.add(new AgentHostResourceService(config, createStubFileService(), stubTextModelService, new NullLogService()));
+
+		assert.strictEqual(await service.check('192.168.48.1:9492', URI.file('/Users/victim/secret.txt'), AgentHostPermissionMode.Read), false);
+		await assert.rejects(
+			service.read('192.168.48.1:9492', URI.file('/Users/victim/secret.txt')),
+			(err: unknown) => err instanceof AgentHostResourcePermissionError,
+		);
+		await assert.rejects(
+			service.list('192.168.48.1:9492', URI.file('/Users')),
+			(err: unknown) => err instanceof AgentHostResourcePermissionError,
+		);
+	});
+
 	// ---- Defensive: malformed settings entries --------------------------
 
 	test('persisted entries with malformed URI keys or unknown modes are ignored', async () => {

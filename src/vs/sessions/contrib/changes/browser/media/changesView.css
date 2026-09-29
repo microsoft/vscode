@@ -240,10 +240,6 @@
 	margin-left: 6px;
 }
 
-.changes-view-body .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
 /* Action bar in list rows */
 .changes-file-list .monaco-list-row .chat-collapsible-list-action-bar {
 	padding-left: 6px;

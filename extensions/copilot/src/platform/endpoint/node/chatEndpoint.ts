@@ -119,7 +119,7 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 		const messageText = getTextPart(message.content);
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const { serverExperiments } = getRequestId(response.headers);
+		const { serverExperiments, copilotServiceRequestId } = getRequestId(response.headers);
 
 
 		const completion: ChatCompletion = {
@@ -131,7 +131,7 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 			message: message,
 			usage: jsonResponse.usage,
 			tokens: [], // This is used for repetition detection so not super important to be accurate
-			requestId: { headerRequestId: requestId, gitHubRequestId: ghRequestId, completionId: jsonResponse.id, created: jsonResponse.created, deploymentId: '', serverExperiments },
+			requestId: { headerRequestId: requestId, gitHubRequestId: ghRequestId, copilotServiceRequestId, completionId: jsonResponse.id, created: jsonResponse.created, deploymentId: '', serverExperiments },
 			telemetryData: telemetryData
 		};
 		const functionCall: ICopilotToolCall[] = [];
@@ -172,6 +172,7 @@ function undefinedIfEmpty(record: Record<string, string>): Record<string, string
 export class ChatEndpoint implements IChatEndpoint {
 	private readonly _maxTokens: number;
 	private readonly _maxOutputTokens: number;
+	public readonly maxContextWindowTokens: number | undefined;
 	public readonly model: string;
 	public readonly name: string;
 	public readonly version: string;
@@ -219,6 +220,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this._maxTokens = modelMetadata.capabilities.limits?.max_prompt_tokens ?? 8192;
 		// This metadata should always be present, but if not we will default to 4096 tokens
 		this._maxOutputTokens = modelMetadata.capabilities.limits?.max_output_tokens ?? 4096;
+		this.maxContextWindowTokens = modelMetadata.capabilities.limits?.max_context_window_tokens;
 		this.model = modelMetadata.id;
 		this.modelProvider = modelMetadata.vendor;
 		this.name = modelMetadata.name;
@@ -480,18 +482,6 @@ export class ChatEndpoint implements IChatEndpoint {
 				} else {
 					this._logService.warn(`[reasoningEffort] Dropping reasoning effort '${candidateEffort}' for model '${this.model}' — not in server-declared levels [${declaredLevels.join(', ')}].`);
 				}
-			}
-		}
-
-		// Force low reasoning effort for Gemini 3 models when the experiment is
-		// enabled, unless the user has already selected an explicit effort above.
-		if (body.reasoning_effort === undefined && this.family.toLowerCase().includes('gemini-3')) {
-			const lowReasoningEnabled = this._configurationService.getExperimentBasedConfig(
-				ConfigKey.EnableGemini3LowReasoningEffort,
-				this._expService
-			);
-			if (lowReasoningEnabled) {
-				body.reasoning_effort = 'low';
 			}
 		}
 

@@ -21,8 +21,7 @@ import { getSessionChangesFileCountLabel } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../common/sessionChangesService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 
 export { ISessionChangesService } from '../common/sessionChangesService.js';
 export type { ISessionChangesEditorOptions } from '../common/sessionChangesService.js';
@@ -36,7 +35,7 @@ interface IChangesMultiDiffUriFields {
 export class SessionChangesService extends Disposable implements ISessionChangesService {
 
 	declare readonly _serviceBrand: undefined;
-	readonly activeSessionChangeCountObs: IObservable<number | undefined>;
+	readonly activeSessionUncommittedChangesCountObs: IObservable<number | undefined>;
 
 	private readonly _onDidChangeDecorations = this._register(new Emitter<readonly URI[]>());
 
@@ -49,16 +48,10 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IDecorationsService decorationsService: IDecorationsService,
-		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
 
-		this.activeSessionChangeCountObs = derived(this, reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
-			if (activeSession?.status.read(reader) !== SessionStatus.Untitled) {
-				return undefined;
-			}
-
+		this.activeSessionUncommittedChangesCountObs = derived(this, reader => {
 			if (changesViewService.activeSessionChangesetObs.read(reader)?.id !== UNCOMMITTED_CHANGES_CHANGESET_ID) {
 				return undefined;
 			}
@@ -79,7 +72,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 
 		this._register(autorun(reader => {
 			const activeSessionResource = changesViewService.activeSessionResourceObs.read(reader);
-			const changeCount = this.activeSessionChangeCountObs.read(reader);
+			const changeCount = this.activeSessionUncommittedChangesCountObs.read(reader);
 			const resource = activeSessionResource ? this.getChangesEditorResource(activeSessionResource) : undefined;
 			if (isEqual(this._decoratedResource, resource) && this._decoratedChangeCount === changeCount) {
 				return;

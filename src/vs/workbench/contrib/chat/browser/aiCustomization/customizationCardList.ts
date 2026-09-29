@@ -11,6 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 
 const $ = DOM.$;
+const DEFAULT_VIRTUALIZED_SECTION_ROWS = 4;
 let collapsibleSectionIdPool = 0;
 
 export interface ICustomizationCardListItem {
@@ -77,6 +78,10 @@ export interface IVirtualizedSectionLayout {
 	readonly minimumHeight: number;
 }
 
+export function getVirtualizedSectionMinimumHeight<T>(items: readonly T[], getHeight: (item: T) => number): number {
+	return items.slice(0, DEFAULT_VIRTUALIZED_SECTION_ROWS).reduce((height, item) => height + getHeight(item), 0);
+}
+
 export function renderVirtualizedSectionLoadingPlaceholder(container: HTMLElement, label: string, height: number): HTMLElement {
 	const placeholder = DOM.append(container, $('.virtualized-section-loading'));
 	placeholder.style.height = `${height}px`;
@@ -113,7 +118,10 @@ export function setVirtualizedRowActionsTabbable(container: HTMLElement, tabbabl
 				|| role === 'menuitem';
 			if (isAction) {
 				const disabled = DOM.isHTMLButtonElement(element) && element.disabled || element.getAttribute('aria-disabled') === 'true';
-				element.tabIndex = tabbable && !disabled ? 0 : -1;
+				const tabIndex = tabbable && !disabled ? 0 : -1;
+				if (element.tabIndex !== tabIndex) {
+					element.tabIndex = tabIndex;
+				}
 			}
 		}
 		for (const child of element.children) {
@@ -223,8 +231,10 @@ export class CustomizationCardListController extends Disposable {
 			this._register(DOM.sharedMutationObserver.observe(action, mutationDisposables, {
 				attributes: true,
 				attributeFilter: ['aria-disabled', 'disabled', 'style', 'tabindex'],
+				childList: true,
+				subtree: true,
 			})(() => this.updateActionTabIndex(entry, action)));
-			this._register(DOM.addDisposableListener(action, 'focus', () => {
+			this._register(DOM.addDisposableListener(action, DOM.EventType.FOCUS_IN, () => {
 				this.setActiveItem(entry);
 				this.setActionsTabbable(entry, true);
 			}));
@@ -238,7 +248,7 @@ export class CustomizationCardListController extends Disposable {
 					this.setActionsTabbable(entry, false);
 				}
 			}));
-			this._register(DOM.addDisposableListener(action, 'blur', () => {
+			this._register(DOM.addDisposableListener(action, DOM.EventType.FOCUS_OUT, () => {
 				DOM.getWindow(entry.row).queueMicrotask(() => {
 					if (!entry.row.contains(entry.row.ownerDocument.activeElement)) {
 						this.setActionsTabbable(entry, false);
@@ -342,14 +352,33 @@ export class CustomizationCardListController extends Disposable {
 	}
 
 	private updateActionTabIndex(item: ICardListItem, action: HTMLElement): void {
-		const tabIndex = item.actionsTabbable && this.isFocusableAction(action) ? 0 : -1;
-		if (action.tabIndex !== tabIndex) {
-			action.tabIndex = tabIndex;
-		}
+		setVirtualizedRowActionsTabbable(action, item.actionsTabbable);
 	}
 
 	private getFocusableActions(item: ICardListItem): readonly HTMLElement[] {
-		return item.actions.filter(action => this.isFocusableAction(action));
+		const result: HTMLElement[] = [];
+		const visit = (element: Element): void => {
+			if (DOM.isHTMLElement(element) && this.isActionElement(element) && this.isFocusableAction(element)) {
+				result.push(element);
+			}
+			for (const child of element.children) {
+				visit(child);
+			}
+		};
+		for (const action of item.actions) {
+			visit(action);
+		}
+		return result;
+	}
+
+	private isActionElement(element: HTMLElement): boolean {
+		const role = element.getAttribute('role');
+		return DOM.isHTMLButtonElement(element)
+			|| DOM.isHTMLAnchorElement(element) && element.hasAttribute('href')
+			|| role === 'button'
+			|| role === 'switch'
+			|| role === 'checkbox'
+			|| role === 'menuitem';
 	}
 
 	private isFocusableAction(action: HTMLElement): boolean {

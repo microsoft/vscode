@@ -7,14 +7,23 @@ import assert from 'assert';
 import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
 import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
+import { IUserDataSyncEnablementService } from '../../../../../platform/userDataSync/common/userDataSync.js';
 import { ISetting } from '../../../../services/preferences/common/preferences.js';
 import { SettingsTarget } from '../../browser/preferencesWidgets.js';
-import { AbstractSettingRenderer } from '../../browser/settingsTree.js';
-import { SettingsTreeGroupElement, SettingsTreeSettingElement } from '../../browser/settingsTreeModels.js';
+import { AbstractSettingRenderer, SettingTreeRenderers } from '../../browser/settingsTree.js';
+import { SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from '../../browser/settingsTreeModels.js';
+import { ExperimentalSettingsService, IExperimentalSettingsService } from '../../../../services/configuration/common/experimentalSettings.js';
+import { APPLY_ALL_PROFILES_SETTING } from '../../../../services/configuration/common/configuration.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 class TestSettingRenderer extends AbstractSettingRenderer {
 	readonly templateId = 'test';
@@ -88,13 +97,78 @@ function createSettingElement(deprecationMessageSeverity: 'warning' | 'info'): S
 		{ currentProfile: { isDefault: true } } as never,
 		new TestConfigurationService() as unknown as never,
 		false,
+		new class extends mock<IExperimentalSettingsService>() { override hasAssignment() { return false; } }(),
+		new NullManagedSettingsService(),
 	);
 	element.inspectSelf = () => { };
 	return element;
 }
 
 suite('SettingsTree renderer', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const key of [AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, AgentSandboxSettingId.AgentSandboxAllowNetwork]) {
+		test(`renders managed state and unlocks ${key} after policy removal`, () => {
+			const isEnabled = key === AgentSandboxSettingId.AgentSandboxEnabled || key === AgentSandboxSettingId.AgentSandboxWindowsEnabled;
+			const configuration = new class extends TestConfigurationService {
+				isSettingAppliedForAllProfiles(): boolean { return false; }
+			}({ [key]: isEnabled ? 'off' : true, [APPLY_ALL_PROFILES_SETTING]: [] });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
+			let required = true;
+			let allowBypass: boolean | undefined = false;
+			let allowOutbound: boolean | undefined = false;
+			instantiationService.stub(IManagedSettingsService, new class extends mock<IManagedSettingsService>() {
+				override readonly onDidChangeManagedSettings = Event.None;
+				override getManagedSettingValue(key: string) {
+					if (key === COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY) {
+						return allowOutbound;
+					}
+					return key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY ? allowBypass : key === COPILOT_SANDBOX_ENABLED_KEY && required ? true : undefined;
+				}
+			}());
+			instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+			instantiationService.stub(IUserDataSyncEnablementService, { isEnabled: () => false });
+			const model = store.add(instantiationService.createInstance(SettingsTreeModel, { settingsTarget: ConfigurationTarget.USER_LOCAL }, true));
+			model.update({
+				id: 'test', label: 'Test',
+				settings: [new class extends mock<ISetting>() {
+					override key = key;
+					override type = isEnabled ? 'string' : 'boolean';
+					override enum = isEnabled ? ['off', 'on'] : undefined;
+					override description = ['Sandbox setting'];
+					override scope = ConfigurationScope.RESOURCE;
+				}()],
+			});
+			const element = model.getElementsByName(key)![0];
+			const renderers = store.add(instantiationService.createInstance(SettingTreeRenderers));
+			const renderer = renderers.allRenderers.find(renderer => renderer.templateId === (isEnabled ? 'settings.enum.template' : 'settings.bool.template'))!;
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			store.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const node = new class extends mock<ITreeNode<SettingsTreeElement, never>>() { override element = element; }();
+			const render = () => {
+				renderer.renderElement(node, 0, template);
+				return {
+					disabled: isEnabled ? container.querySelector('select')!.disabled : container.querySelector('[role="checkbox"]')!.getAttribute('aria-disabled') === 'true',
+					value: isEnabled ? container.querySelector('select')!.selectedOptions[0].text : container.querySelector('[role="checkbox"]')!.getAttribute('aria-checked') === 'true',
+					indicator: container.textContent?.includes('Managed by organization'),
+				};
+			};
+			const managed = render();
+			allowBypass = true;
+			allowOutbound = true;
+			const bypassAllowed = render();
+			required = false;
+			allowBypass = undefined;
+			allowOutbound = undefined;
+			assert.deepStrictEqual({ managed, bypassAllowed, removed: render() }, {
+				managed: { disabled: true, value: isEnabled ? 'on' : false, indicator: true },
+				bypassAllowed: { disabled: isEnabled, value: isEnabled ? 'on' : true, indicator: isEnabled },
+				removed: { disabled: false, value: isEnabled ? 'off' : true, indicator: false },
+			});
+		});
+	}
 
 	test('disposes the setting toolbar with its template', () => {
 		const renderer = new TestSettingRenderer();

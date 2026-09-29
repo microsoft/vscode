@@ -125,9 +125,11 @@ suite('Pull Request Actions', () => {
 
 		assert.deepStrictEqual({
 			entryIcon: model.pullRequests.get()[0].icon?.id,
+			ciStatus: model.pullRequests.get()[0].ciStatus,
 			summaryIcon: model.icon.get().id,
 		}, {
 			entryIcon: Codicon.gitPullRequest.id,
+			ciStatus: GitHubCIOverallStatus.Failure,
 			summaryIcon: Codicon.gitPullRequest.id,
 		});
 	});
@@ -252,6 +254,49 @@ suite('Pull Request Actions', () => {
 			openExternal: true,
 			allowContributedOpeners: true,
 		}]);
+	});
+
+	test('Open and Copy Pull Request actions support multiple selected sessions', async () => {
+		const firstPullRequestUri = URI.parse('https://github.com/owner/repo/pull/1');
+		const secondPullRequestUri = URI.parse('https://github.com/owner/repo/pull/2');
+		const sessions = [
+			createSessionWithPullRequest(firstPullRequestUri),
+			createSessionWithPullRequest(undefined),
+			createSessionWithPullRequest(secondPullRequestUri),
+		];
+
+		const instantiationService = new TestInstantiationService();
+		const openerService = new TestOpenerService();
+		const clipboardService = new class extends mock<IClipboardService>() {
+			readonly writes: string[] = [];
+			override async writeText(text: string): Promise<void> {
+				this.writes.push(text);
+			}
+		};
+		instantiationService.stub(IOpenerService, openerService);
+		instantiationService.stub(IClipboardService, clipboardService);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(undefined);
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openPullRequest')!.handler(accessor, sessions));
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, sessions));
+
+		assert.deepStrictEqual({
+			opened: openerService.opened,
+			copied: clipboardService.writes,
+		}, {
+			opened: [{
+				resource: firstPullRequestUri,
+				openExternal: true,
+				allowContributedOpeners: true,
+			}, {
+				resource: secondPullRequestUri,
+				openExternal: true,
+				allowContributedOpeners: true,
+			}],
+			copied: [`${firstPullRequestUri.toString(true)}\n${secondPullRequestUri.toString(true)}`],
+		});
 	});
 
 	test('Copy Pull Request URL uses an explicit contextual pull request', async () => {

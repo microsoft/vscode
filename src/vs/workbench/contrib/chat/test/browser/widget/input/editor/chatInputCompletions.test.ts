@@ -148,6 +148,28 @@ suite('AgentHostInputCompletionsBase', () => {
 		});
 	});
 
+	test('requests nested slash command completions after a space', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new TestChatSessionsService('server-name'), CompletionItemKind.Text, ['/', ' ']));
+		store.add(completions.register());
+		const model = store.add(createTextModel('/mcp enable ', null, undefined, URI.parse('test:input')));
+		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 13), { triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: ' ' }, CancellationToken.None);
+
+		assert.deepStrictEqual(result, {
+			suggestions: [{
+				label: 'server-name',
+				insertText: 'server-name',
+				filterText: 'server-name',
+				sortText: '000000',
+				range: new Range(1, 13, 1, 13),
+				kind: CompletionItemKind.Text,
+			}],
+			incomplete: true,
+		});
+	});
+
 	test('uses a common current-token filter score to preserve host order', async () => {
 		const languageFeaturesService = new LanguageFeaturesService();
 		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new OrderedTestChatSessionsService()));
@@ -217,6 +239,109 @@ suite('AgentHostInputCompletions #chat references', () => {
 			// Covers `#chat:Design chat` (columns 1..18, end-exclusive) — the whole
 			// token minus the trailing space, never a partial slice.
 			range: new Range(1, 1, 1, 18),
+		});
+	});
+});
+
+suite('AgentHostInputCompletions plain text', () => {
+
+	const store = new DisposableStore();
+
+	teardown(() => store.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('builds a Monaco text completion without an accept command', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+
+		const built = completions.buildItem(new Position(1, 13), {
+			insertText: 'microsoft/playwright-mcp',
+			start: { lineNumber: 1, column: 13 },
+			end: { lineNumber: 1, column: 13 },
+			attachment: { kind: 'text' },
+		}, upcastPartial<IChatWidget>({}));
+
+		assert.deepStrictEqual(built, {
+			label: 'microsoft/playwright-mcp',
+			insertText: 'microsoft/playwright-mcp',
+			filterText: 'microsoft/playwright-mcp',
+			range: {
+				insert: new Range(1, 13, 1, 13),
+				replace: new Range(1, 13, 1, 13),
+			},
+			kind: CompletionItemKind.Text,
+		});
+	});
+});
+
+suite('AgentHostInputCompletions follow-up suggestions', () => {
+
+	const store = new DisposableStore();
+
+	teardown(() => store.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('carries the retrigger hint into the command accept handler', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+
+		const built = completions.buildItem(new Position(1, 12), {
+			insertText: 'enable ',
+			start: { lineNumber: 1, column: 6 },
+			end: { lineNumber: 1, column: 12 },
+			attachment: {
+				kind: 'command',
+				command: 'mcp',
+				description: 'Enable an MCP server',
+				retriggerSuggestions: true,
+			},
+		}, upcastPartial<IChatWidget>({}));
+		const acceptArgument = built?.command?.arguments?.[0] as { retriggerSuggestions?: boolean } | undefined;
+
+		assert.deepStrictEqual({
+			command: built?.command?.id,
+			retriggerSuggestions: acceptArgument?.retriggerSuggestions,
+		}, {
+			command: '_chatAgentHostAddReferenceCmd',
+			retriggerSuggestions: true,
+		});
+	});
+
+	test('carries the submit hint into the command accept handler', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+
+		const built = completions.buildItem(new Position(1, 14), {
+			insertText: 'list ',
+			start: { lineNumber: 1, column: 9 },
+			end: { lineNumber: 1, column: 14 },
+			attachment: {
+				kind: 'command',
+				command: 'skills',
+				description: 'List skills',
+				submitOnAccept: true,
+			},
+		}, upcastPartial<IChatWidget>({}));
+		const acceptArgument = built?.command?.arguments?.[0] as { submitOnAccept?: boolean } | undefined;
+
+		assert.deepStrictEqual({
+			command: built?.command?.id,
+			submitOnAccept: acceptArgument?.submitOnAccept,
+		}, {
+			command: '_chatAgentHostAddReferenceCmd',
+			submitOnAccept: true,
 		});
 	});
 });
@@ -630,6 +755,19 @@ suite('isAtTriggerCharacterToken', () => {
 
 	test('cursor in token whose first char is not a trigger char', () => {
 		check('abc@def', 8, false); // first char of token is 'a', not '@'
+	});
+
+	test('cursor in slash command arguments', () => {
+		const slashTriggerChars = ['/', ' '];
+		assert.deepStrictEqual(([
+			['/mcp enable ', 13],
+			['/mcp enable ser', 16],
+			['  /mcp enable server', 21],
+			['say /mcp enable server', 23],
+		] as const).map(([text, column]) => {
+			const model = store.add(createTextModel(text, null, undefined, URI.parse('test:input')));
+			return isAtTriggerCharacterToken(model, new Position(1, column), slashTriggerChars);
+		}), [true, true, true, false]);
 	});
 
 	test('returns false when no trigger characters are configured', () => {

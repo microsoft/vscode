@@ -20,6 +20,7 @@ import { extractFileListData } from '../../../../platform/dnd/browser/dnd.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -194,7 +195,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		let uri: URI | undefined;
-		const startIn = Iterable.first(this.fileSystemProvider.directories) ?? 'documents';
+		const startIn = await this.getFilePickerStartIn(options.defaultUri) ?? 'documents';
 
 		try {
 			if (options.canSelectFiles) {
@@ -211,6 +212,21 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		return uri ? [uri] : undefined;
+	}
+
+	private async getFilePickerStartIn(defaultUri: URI | undefined): Promise<FileSystemDirectoryHandle | undefined> {
+		if (defaultUri) {
+			try {
+				const handle = await this.fileSystemProvider.getDirectoryHandle(defaultUri);
+				if (handle) {
+					return handle;
+				}
+			} catch (error) {
+				this.logService.debug(`[FileDialogService] Failed to resolve default URI to a directory handle: ${getErrorMessage(error)}`);
+			}
+		}
+
+		return Iterable.first(this.fileSystemProvider.directories);
 	}
 
 	private async showUnsupportedBrowserWarning(context: 'save' | 'open'): Promise<undefined> {

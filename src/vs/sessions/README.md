@@ -31,11 +31,12 @@ Do not turn those files into general Sessions guidance.
 |------|------------------------|
 | Internal layer hierarchy and import rules | [LAYERS.md](LAYERS.md) |
 | Session/chat model, services, provider contract, and core data flow | [SESSIONS.md](SESSIONS.md) |
-| Automations ownership, routing, migration, persistence, and run lifecycle | [AUTOMATIONS.md](AUTOMATIONS.md) |
+| Automations ownership, AHP routing, persistence, and run lifecycle | [AUTOMATIONS.md](AUTOMATIONS.md) |
 | Workbench parts, grid, title bar, and editor presentation | [LAYOUT.md](LAYOUT.md) |
 | Session-aware layout capture and restoration | [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md) |
 | Single-pane behavior scenarios | [SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md) |
 | Sessions sidebar list | [SESSIONS_LIST.md](SESSIONS_LIST.md) |
+| System-wide Open Agents Window keybinding ownership | [SYSTEM_WIDE_KEYBINDING.md](SYSTEM_WIDE_KEYBINDING.md) |
 | Phone layout and mobile components | [MOBILE.md](MOBILE.md) |
 | AI customizations | [AI_CUSTOMIZATIONS.md](AI_CUSTOMIZATIONS.md) |
 | Copilot customizations | [copilot-customizations-spec.md](copilot-customizations-spec.md) |

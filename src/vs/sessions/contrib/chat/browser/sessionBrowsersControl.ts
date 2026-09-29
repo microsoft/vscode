@@ -9,7 +9,7 @@ import { derived, derivedOpts, IObservable, IReader, observableSignal, observabl
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
-import { browserViewUrlMatches, BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
+import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { getChatPillEntries, type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ChatOriginKind, IChat } from '../../../services/sessions/common/session.js';
@@ -67,7 +67,7 @@ export class SessionBrowsersControl extends Disposable {
 			return !this._debugData.read(reader) && enabled.read(reader) && currentSession && currentChat
 				// Read the chat list through the reader so browsers registered by a
 				// subagent show up as soon as that subagent joins the session.
-				? this._collectBrowsers(this._collectOwnerIds(currentSession, currentChat, reader))
+				? getAgentBrowserViewsNewestFirst(this._browserViewService, this._collectOwnerIds(currentSession, currentChat, reader))
 				: [];
 		});
 
@@ -123,17 +123,6 @@ export class SessionBrowsersControl extends Disposable {
 			}
 		}
 		return ownerIds;
-	}
-
-	private _collectBrowsers(ownerIds: ReadonlySet<string>): BrowserEditorInput[] {
-		const inputs: BrowserEditorInput[] = [];
-		for (const input of this._browserViewService.getKnownBrowserViews().values()) {
-			const ownerId = input.model?.owner.type === 'agent' ? input.model.owner.sessionId : undefined;
-			if (ownerId && ownerIds.has(ownerId)) {
-				inputs.push(input);
-			}
-		}
-		return inputs;
 	}
 
 	private _entry(label: string, input: BrowserEditorInput | undefined, chat: IChat | undefined): IChatPillEntry {

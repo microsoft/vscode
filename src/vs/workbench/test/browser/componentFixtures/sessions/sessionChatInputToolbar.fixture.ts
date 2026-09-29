@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mock } from '../../../../../base/test/common/mock.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
+import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
+import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
 import { chatPersistentContentVisibleClass } from '../../../../contrib/chat/browser/widget/chatWidget.js';
 import { BrowserEditorInput } from '../../../../contrib/browserView/common/browserEditorInput.js';
@@ -25,8 +27,6 @@ import { ISessionChatPillsDebugData } from '../../../../../sessions/contrib/chat
 // eslint-disable-next-line local/code-import-patterns
 import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { GitHubPullRequestModel } from '../../../../../sessions/contrib/github/browser/models/githubPullRequestModel.js';
-// eslint-disable-next-line local/code-import-patterns
 import { SessionInputBanners } from '../../../../../sessions/contrib/sessionInputBanners/browser/sessionInputBanners.js';
 // eslint-disable-next-line local/code-import-patterns
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../sessions/common/agentHostSessionsProvider.js';
@@ -35,7 +35,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/wo
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionChangeset, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFileChange, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -43,6 +43,7 @@ import { ISessionsProvidersService } from '../../../../../sessions/services/sess
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from '../chat/chatFixtureUtils.js';
 import { IFixtureMessage, renderChatWidget } from '../chat/chatWidget.fixture.js';
+import { createFixtureGitHubService } from './githubFixtureUtils.js';
 
 // ============================================================================
 // Mock helpers
@@ -134,8 +135,6 @@ function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 		override readonly isRead = constObservable(true);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false });
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
-		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(spec.turnChanges ?? []);
-		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 		override readonly artifacts: IObservable<readonly ISessionArtifact[]> = constObservable(spec.artifacts ?? []);
 	}();
 	const browsers = (spec.browsers ?? []).map((browser, index) => {
@@ -173,29 +172,33 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 	registration.defineInstance(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 		override async openChangesEditor(): Promise<undefined> { return undefined; }
 	}());
-	registration.defineInstance(IGitHubService, new class extends mock<IGitHubService>() {
-		override readonly activeSessionPullRequestObs = constObservable(undefined);
-		override readonly activeSessionPullRequestCIObs = constObservable(undefined);
-		override readonly activeSessionPullRequestReviewThreadsObs = constObservable(undefined);
-		override createPullRequestModelReference(owner: string, repo: string, prNumber: number) {
-			const model = new class extends mock<GitHubPullRequestModel>() {
-				override readonly pullRequest = constObservable(undefined);
-				override readonly owner = owner;
-				override readonly repo = repo;
-				override readonly prNumber = prNumber;
-				override refresh(): Promise<void> { return Promise.resolve(); }
-				override startPolling() { return Disposable.None; }
-			}();
-			return { object: model, dispose: () => { } };
-		}
-	}());
+	registration.defineInstance(IGitHubService, createFixtureGitHubService([]));
 }
 
 // ============================================================================
 // Render helpers
 // ============================================================================
 
-function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly enabled?: boolean; readonly width?: string }): void {
+async function createImageReferenceContent(resource: URI): Promise<IFileContent> {
+	const fixtureUrl = resource.path.includes('refined-chat')
+		? new URL('../chat/media/image-hover-portrait.png', import.meta.url)
+		: new URL('../chat/media/image-hover-wide.png', import.meta.url);
+	const value = VSBuffer.wrap(new Uint8Array(await (await fetch(fixtureUrl)).arrayBuffer()));
+	return {
+		resource,
+		name: resource.path.split('/').at(-1) ?? resource.path,
+		mtime: 0,
+		ctime: 0,
+		etag: 'fixture',
+		size: value.byteLength,
+		readonly: true,
+		locked: false,
+		executable: false,
+		value,
+	};
+}
+
+function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly height?: string; readonly width?: string }): void {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -207,6 +210,20 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 			// (which register a partial ISessionsService).
 			registerChatFixtureServices(reg);
 			registerSessionChatPillFixtureServices(reg, sessionMock);
+			reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
+				override readonly mainContainer = container;
+				override readonly activeContainer = container;
+				override readonly onDidLayoutContainer = Event.None;
+				override getContainer(): HTMLElement { return container; }
+			}());
+			reg.define(IContextViewService, ContextViewService);
+			reg.define(IActionWidgetService, ActionWidgetService);
+			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
+				override readonly onDidFilesChange = Event.None;
+				override readonly onDidRunOperation = Event.None;
+				override hasProvider(): boolean { return true; }
+				override async readFile(resource: URI): Promise<IFileContent> { return createImageReferenceContent(resource); }
+			}());
 			if (options?.debugData) {
 				reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 					override readonly onDidChangeFeedback = Event.None;
@@ -221,8 +238,6 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 		},
 	});
 
-	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, options?.enabled ?? true);
-
 	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, options?.compact ?? false, undefined));
 	pills.setSession(sessionMock.session, sessionMock.chat);
 	pills.setDebugData(options?.debugData);
@@ -234,6 +249,7 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 	}
 
 	container.style.padding = '12px';
+	container.style.height = options?.height ?? 'auto';
 	container.style.width = options?.width ?? 'auto';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 }
@@ -252,11 +268,6 @@ async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMock
 			}
 			: undefined,
 		decorateInputPart: (inputPart, instantiationService) => {
-			// The fixture's test configuration has no product defaults, so opt in
-			// explicitly to make sure the pills render.
-			instantiationService.invokeFunction(accessor => {
-				(accessor.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, true);
-			});
 			const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
 			const updateChatPillsVisibility = (visible: boolean) => {
 				inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
@@ -455,6 +466,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		})),
 	}),
 
+	SessionChatPills_ImageReferences: defineComponentFixture({
+		render: ctx => renderPills(ctx, createMockSession({
+			artifacts: [
+				{ id: 'r1', kind: SessionArtifactKind.File, label: 'Swipe action', isArtifact: false, uri: URI.file('/repo/design/refined-swipe-right-320.png') },
+				{ id: 'r2', kind: SessionArtifactKind.File, label: 'Mobile chat', isArtifact: false, uri: URI.file('/repo/design/refined-chat-320.png') },
+				{ id: 'r3', kind: SessionArtifactKind.File, label: 'Voice state', isArtifact: false, uri: URI.file('/repo/design/refined-voice-idle-320.png') },
+			],
+		}), { height: '500px', width: '760px' }),
+	}),
+
 	SessionChatPills_ArtifactsAndReferences: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
 			artifacts: [
@@ -531,7 +552,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	SessionChatPills_DebugFakeData: defineComponentFixture({
 		render: ctx => renderPills(ctx, createMockSession({ providerId: 'debug-provider' }), {
-			enabled: false,
 			debugData: {
 				stats: { files: 7, insertions: 128, deletions: 34 },
 				markdownFiles: ['README.md', 'CONTRIBUTING.md', 'docs/testing.md'],
@@ -652,9 +672,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				additionalServices: registration => registerSessionChatPillFixtureServices(registration, mock),
 				decorateInputPart: (inputPart, instantiationService) => {
-					instantiationService.invokeFunction(accessor => {
-						(accessor.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, true);
-					});
 					const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
 					pills.setSession(mock.session, mock.chat);
 					inputPart.persistentContentContainerElement.appendChild(pills.element);

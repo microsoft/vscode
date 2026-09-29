@@ -433,6 +433,10 @@ class MockTextModelService implements ITextModelService {
 		throw new Error('MockTextModelService.registerTextModelContentProvider not implemented');
 	}
 
+	createSyntheticDocument(): never {
+		throw new Error('MockTextModelService.createSyntheticDocument not implemented');
+	}
+
 	canHandleResource(): boolean {
 		return false;
 	}

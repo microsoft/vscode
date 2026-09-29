@@ -7,6 +7,7 @@ import type { CancellationToken } from '../../../base/common/cancellation.js';
 import type { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
@@ -16,7 +17,11 @@ import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
+import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
+import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
+import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -111,14 +116,17 @@ export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.
 /** Configuration key controlling the GitHub MCP server in agent-host sessions. */
 export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMcpServer.enabled';
 
-/** Configuration key gating active-agent session and chat title generation. */
-export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
-
 /** Configuration key enabling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.experimental.markdownPlanRichLinks';
 
+/** Configuration key controlling Agent Host agent-orchestration safety limits. */
+export const AgentHostAgentOrchestrationLimitsSettingId = 'chat.agentHost.agentOrchestrationLimits';
+
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
+
+/** Configuration key controlling automatic pull request association for the checked-out branch. */
+export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';
 
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
@@ -181,9 +189,11 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
 
 /**
  * Configuration key controlling whether the Codex provider is registered in
- * the agent host process. When `false` (the default), the agent host skips
- * registering the Codex provider regardless of SDK availability. The agent
- * host process must be restarted for changes to take effect.
+ * the agent host process. When `false`, the agent host skips registering the
+ * Codex provider regardless of SDK availability. The setting defaults to
+ * enabled outside Stable and disabled in Stable, subject to its startup
+ * experiment override. The agent host process must be restarted to unregister
+ * a provider that is already running.
  */
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
@@ -208,14 +218,17 @@ export const AgentHostClaudeSdkRootEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_ROOT';
 /**
  * Environment variable form of {@link AgentHostClaudeAgentEnabledSettingId}.
  * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`true` for Claude, `false` for Codex).
+ * `'false'`; absent uses the agent host's Claude fallback (`true`). The
+ * starters normally forward the resolved setting explicitly.
  */
 export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT_ENABLED';
 
 /**
  * Environment variable form of {@link AgentHostCodexAgentEnabledSettingId}.
  * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`false`).
+ * `'false'`; absent uses the host-level fallback (`false`), independently of
+ * the product-quality-specific setting default. The starters normally forward
+ * the resolved setting explicitly.
  */
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
 
@@ -249,46 +262,18 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 	return defaultEnabled;
 }
 
-/**
- * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
- * shell tool (the path taken when `AgentHostCustomTerminalToolEnabledSettingId`
- * is `false`). Supported values are:
- *
- *  - `'off'` (the default): no sandbox policy is forwarded for the SDK shell
- *    path \u2014 commands run unsandboxed.
- *  - `'on'`: the Agent Host runs the SDK\u2019s shell tool inside a sandbox
- *    using the user's `chat.agent.sandbox.fileSystem.*` filesystem policy.
- *    Outbound network is blocked.
- *
- * Unrestricted outbound network is controlled separately by
- * `chat.agent.sandbox.allowNetwork`.
- *
- * Has no effect when `AgentHostCustomTerminalToolEnabledSettingId` is
- * `true` \u2014 the host\u2019s own terminal sandbox engine then handles shell
- * commands and reads `chat.agent.sandbox.enabled` directly.
- */
+/** @deprecated Use {@link AgentSandboxSettingId.AgentSandboxEnabled} for both terminal implementations. */
 export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
 
-/**
- * Configuration key that controls the sandbox mode for the Copilot SDK's
- * built-in shell tool on Windows. This is independent of
- * {@link AgentHostSdkSandboxEnabledSettingId} so Windows support can be rolled
- * out separately. Supported values are `'off'` and `'on'`; the default is
- * `'off'`.
- */
+/** @deprecated Use {@link AgentSandboxSettingId.AgentSandboxWindowsEnabled} for both terminal implementations. */
 export const AgentHostSdkSandboxWindowsEnabledSettingId = 'chat.agentHost.sdkSandbox.enabledWindows';
 
 export type AgentHostCopilotSandboxSettingId =
 	| AgentSandboxSettingId.AgentSandboxEnabled
-	| AgentSandboxSettingId.AgentSandboxWindowsEnabled
-	| typeof AgentHostSdkSandboxEnabledSettingId
-	| typeof AgentHostSdkSandboxWindowsEnabledSettingId;
+	| AgentSandboxSettingId.AgentSandboxWindowsEnabled;
 
-export function getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled: boolean, windows = isWindows): AgentHostCopilotSandboxSettingId {
-	if (customTerminalToolEnabled) {
-		return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
-	}
-	return windows ? AgentHostSdkSandboxWindowsEnabledSettingId : AgentHostSdkSandboxEnabledSettingId;
+export function getAgentHostCopilotSandboxSettingId(windows = isWindows): AgentHostCopilotSandboxSettingId {
+	return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
 }
 
 /**
@@ -457,6 +442,12 @@ export interface IAgentHostOTelSettings {
  */
 export const AgentHostOTelPolicyIpcChannel = 'vscode:agentHostOTelPolicy';
 
+/** Whether the renderer has a settled policy rather than startup/refresh placeholders. */
+export interface IAgentHostOTelPolicyReadiness {
+	isReady(): boolean;
+	readonly onDidChange: Event<void>;
+}
+
 /** Renderer-to-main request to replace the shared local Agent Host process. */
 export const AgentHostRestartIpcChannel = 'vscode:restartAgentHost';
 
@@ -520,6 +511,38 @@ export function sanitizeAgentHostOTelPolicySettings(raw: unknown): IAgentHostOTe
 		serviceName: asString(record.serviceName),
 		resourceAttributes: asStringRecord(record.resourceAttributes),
 	};
+}
+
+/** Tracks renderer-forwarded policy and coalesces restart requests until the host starts. */
+export class AgentHostOTelPolicyState {
+	private _policy: IAgentHostOTelSettings | undefined;
+	private _restartPending = false;
+	private _hasSettledPolicy = false;
+
+	get policy(): IAgentHostOTelSettings | undefined {
+		return this._policy;
+	}
+
+	update(raw: unknown, agentHostRunning: boolean, ready = true): boolean {
+		if (!ready && (agentHostRunning || this._hasSettledPolicy)) {
+			return false;
+		}
+		this._hasSettledPolicy ||= ready;
+		const policy = sanitizeAgentHostOTelPolicySettings(raw);
+		if (equals(this._policy, policy)) {
+			return false;
+		}
+		this._policy = policy;
+		if (!agentHostRunning || this._restartPending) {
+			return false;
+		}
+		this._restartPending = true;
+		return true;
+	}
+
+	didStart(): void {
+		this._restartPending = false;
+	}
 }
 
 /**
@@ -780,6 +803,8 @@ export interface IAgentHostManagementService {
 	claimDetachedWorktree(handle: string): Promise<void>;
 	deleteDetachedWorktree(handle: string): Promise<void>;
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
+	/** Local-only bridge for refreshing live Copilot sessions after Connector membership changes. */
+	refreshCopilotConnectorSessions(): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -818,11 +843,16 @@ export interface IAgentService {
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Permanently adopts an external session without sending a message. */
+	importSession?(session: URI): Promise<void>;
+	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
+	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
 	deleteDetachedWorktree?(handle: string): Promise<void>;
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
+	refreshCopilotConnectorSessions?(): Promise<void>;
 
 	/**
 	 * Create an additional chat within an existing session. Spins up the
@@ -865,7 +895,12 @@ export interface IAgentService {
 	/** Dispose a session in the agent host, freeing SDK resources. */
 	disposeSession(session: URI): Promise<void>;
 
-	createTerminal(params: CreateTerminalParams): Promise<void>;
+	/**
+	 * Create a terminal requested by a protocol client. Terminals created by
+	 * VS Code clients (per `clientType`) receive VS Code's terminal identity
+	 * (`TERM_PROGRAM`).
+	 */
+	createTerminal(params: CreateTerminalParams, clientType?: AgentHostClientType): Promise<void>;
 
 	/** Dispose a terminal and kill its process if still running. */
 	disposeTerminal(terminal: URI): Promise<void>;
@@ -1056,6 +1091,9 @@ export interface IAgentService {
  */
 export interface IAgentConnection {
 
+	/** Available for capable hosts, including while reconnecting; absent after permanent disconnection. */
+	readonly devContainerService?: IDevContainerAgentHostMainService;
+
 	readonly clientId: string;
 	readonly resourceUris: IAgentHostResourceUriMapper;
 
@@ -1121,9 +1159,18 @@ export interface IAgentConnection {
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
 	// ---- Session lifecycle --------------------------------------------------
+	/** Best-effort renderer diagnostics; supported only by hosts advertising the OTel timing capability. */
+	reportFirstResponse?(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void>;
+	reportUserInteraction?(timing: IChatUserInteractionTiming): Promise<void>;
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Requires the VS Code session import capability advertised by initialize. */
+	importSession?(session: URI): Promise<void>;
+	/** Requires the VS Code artifact removal capability advertised by initialize. */
+	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
+	/** Refresh a held subscription through the standard subscribe request, preserving pending actions. */
+	refreshSubscription?(resource: URI): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
@@ -1243,6 +1290,9 @@ export interface IAgentHostService extends IAgentConnection {
 
 	/** Update {@link authenticationPending}. Internal — only the auth driver should call this. */
 	setAuthenticationPending(pending: boolean): void;
+
+	/** Refresh live local Copilot sessions after Connector membership changes. */
+	refreshCopilotConnectorSessions?(): Promise<void>;
 
 	/** Start connecting to the agent host if it has not already started. */
 	startAgentHost(): void;

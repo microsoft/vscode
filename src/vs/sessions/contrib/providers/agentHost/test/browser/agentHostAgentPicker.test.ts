@@ -7,13 +7,51 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationType, type AgentCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../../platform/agentHost/common/customAgents.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { Menus } from '../../../../../browser/menus.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
+import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../common/contextkeys.js';
+import '../../browser/agentHostAgentPicker.js';
+import '../../browser/mobile/mobileChatInputConfigPicker.js';
 
 suite('agentHostAgentPicker', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const alpha: AgentCustomization = { type: CustomizationType.Agent, id: 'agent://a', uri: 'agent://a', name: 'alpha' };
 	const beta: AgentCustomization = { type: CustomizationType.Agent, id: 'agent://b', uri: 'agent://b', name: 'beta', description: 'b desc' };
 	const agents: readonly AgentCustomization[] = [alpha, beta];
+
+	test('uses the same desktop and phone agent controls in the automation prompt', () => {
+		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const enabled = ChatContextKeys.enabled.bindTo(context);
+		const inDialog = ChatContextKeys.inAutomationsDialog.bindTo(context);
+		const phone = IsPhoneLayoutContext.bindTo(context);
+		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
+		SessionUsesCombinedConfigPickerContext.bindTo(context).set(true);
+		enabled.set(true);
+		inDialog.set(true);
+		phone.set(false);
+		const visible = () => MenuRegistry.getMenuItems(Menus.AutomationsDialogInputToolbar)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith('sessions.agentHost.') && context.contextMatchesRules(item.when))
+			.map(item => item.command.id);
+		const desktop = visible();
+		phone.set(true);
+		const mobile = visible();
+		enabled.set(false);
+		const disabled = visible();
+		enabled.set(true);
+		inDialog.set(false);
+		assert.deepStrictEqual({ desktop, mobile, disabled, outsideDialog: visible() }, {
+			desktop: ['sessions.agentHost.agentPicker'],
+			mobile: ['sessions.agentHost.mobileChatInputConfigPicker'],
+			disabled: [],
+			outsideDialog: [],
+		});
+	});
 
 	suite('agentHostAgentPickerStorageKey', () => {
 		test('builds a per-scheme storage key', () => {

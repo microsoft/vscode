@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -15,9 +17,13 @@ import { IChatRequestDisablement } from '../../../../contrib/chat/common/model/c
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatAgentLocation } from '../../../../contrib/chat/common/constants.js';
+import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { ChatInputNotificationSeverity, IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
-import { defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import { renderChatInput } from './renderChatInput.js';
+import { ChatInputNotificationWidget } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
+import { CopilotHarnessIntroductionButtonVariant, copilotHarnessIntroductionButtonVariants, CopilotHarnessIntroductionCopyVariant, copilotHarnessIntroductionCopyVariants, getCopilotHarnessIntroductionContent } from '../../../../contrib/chat/browser/agentSessions/copilotHarnessIntroduction.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { registerChatFixtureServices } from './chatFixtureUtils.js';
+import { ChatInputFixtureOptions, renderChatInput } from './renderChatInput.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
@@ -91,6 +97,19 @@ const sampleNotification: IChatInputNotification = {
 	autoDismissOnMessage: false,
 };
 
+function createCopilotIntroductionNotification(copy: CopilotHarnessIntroductionCopyVariant = 'current', buttons: CopilotHarnessIntroductionButtonVariant = 'dismiss'): IChatInputNotification {
+	const content = getCopilotHarnessIntroductionContent(copy, buttons);
+	return {
+		id: 'chat.agentsParallelWork',
+		severity: ChatInputNotificationSeverity.Info,
+		message: content.title,
+		description: new MarkdownString(content.description),
+		actions: content.actions,
+		dismissible: content.dismissible,
+		autoDismissOnMessage: false,
+	};
+}
+
 const copilotHarnessSessionConfig: ResolveSessionConfigResult = {
 	schema: {
 		type: 'object',
@@ -117,6 +136,51 @@ const copilotHarnessSessionConfig: ResolveSessionConfigResult = {
 	},
 };
 
+const copilotHarnessModels = sampleModels.map(model => ({ ...model, metadata: { ...model.metadata, targetChatSessionType: SessionType.AgentHostCopilot } }));
+
+const combinedPickerOptions: ChatInputFixtureOptions = {
+	agentHostSessionConfig: { ...copilotHarnessSessionConfig, values: { mode: 'autopilot', autoApprove: 'autoApprove' } },
+	combinedModePermissionsPicker: true,
+	models: copilotHarnessModels,
+};
+
+const copilotIntroductionOptions: ChatInputFixtureOptions = {
+	agentHostSessionConfig: copilotHarnessSessionConfig,
+	models: copilotHarnessModels,
+	notification: createCopilotIntroductionNotification(),
+};
+
+function renderCopilotIntroductionComparison(context: ComponentFixtureContext): void {
+	const { container, disposableStore } = context;
+	const width = 500;
+	container.classList.add('monaco-workbench', 'copilot-introduction-comparison');
+	container.style.display = 'grid';
+	container.style.gridTemplateColumns = `repeat(2, ${width}px)`;
+	container.style.width = 'max-content';
+	container.style.gap = 'var(--vscode-spacing-size240)';
+	container.style.padding = 'var(--vscode-spacing-size160)';
+	container.style.backgroundColor = 'var(--vscode-editor-background)';
+	container.style.color = 'var(--vscode-foreground)';
+	for (const copy of copilotHarnessIntroductionCopyVariants) {
+		for (const buttons of copilotHarnessIntroductionButtonVariants) {
+			const card = dom.append(container, dom.$('section.copilot-introduction-comparison-card'));
+			card.dataset.copy = copy;
+			card.dataset.buttons = buttons;
+			const heading = dom.append(card, dom.$('h3'));
+			heading.textContent = `${copy} / ${buttons === 'dismiss' ? 'X + two buttons' : 'original feedback buttons'}`;
+			heading.style.margin = '0 0 var(--vscode-spacing-size80)';
+			heading.style.fontSize = 'var(--vscode-fontSize-body1)';
+			heading.style.fontWeight = 'var(--vscode-fontWeight-semiBold)';
+			const instantiationService = createEditorServices(disposableStore, {
+				colorTheme: context.theme,
+				additionalServices: reg => registerChatFixtureServices(reg, { notification: createCopilotIntroductionNotification(copy, buttons) }),
+			});
+			const widget = disposableStore.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+			dom.append(card, widget.domNode);
+		}
+	}
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
 	WithSandboxing: defineComponentFixture({ render: context => renderChatInput(context, { sandboxingEnabled: true }) }),
@@ -131,11 +195,46 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 		expectedVisualDescriptions: ['The editor chat input renders the real Copilot Agent Host mode and permissions pickers in compact state. Each compact icon is centered with equal padding inside a 22-pixel square control.'],
 		render: context => renderChatInput(context, { agentHostSessionConfig: copilotHarnessSessionConfig, width: 500, resizeWidths: [180] }),
 	}),
+	CopilotHarnessCombinedPickers: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderChatInput(context, combinedPickerOptions),
+	}),
+	CopilotHarnessCombinedCompactPickers: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderChatInput(context, {
+			...combinedPickerOptions,
+			width: 500,
+			resizeWidths: [180],
+		}),
+	}),
 	WithArtifacts: defineComponentFixture({ render: context => renderChatInput(context, { artifacts: sampleArtifacts }) }),
 	// The notice/input seam, the subject of #330483. Driven through the real
 	// notification service so the squared corner comes from the stack.
 	WithNotification: defineComponentFixture({
 		render: context => renderChatInput(context, { notification: sampleNotification })
+	}),
+	WithCopilotIntroduction: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, copilotIntroductionOptions)
+	}),
+	NarrowWithCopilotIntroduction: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { ...copilotIntroductionOptions, width: 320 })
+	}),
+	NarrowWithCopilotIntroductionFeedback: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { ...copilotIntroductionOptions, notification: createCopilotIntroductionNotification('current', 'feedback'), width: 320 })
+	}),
+	CopilotIntroductionExperiments: defineThemedFixtureGroup(Object.fromEntries(
+		copilotHarnessIntroductionCopyVariants.flatMap(copy => copilotHarnessIntroductionButtonVariants.map(buttons => [
+			`${copy}-${buttons}`,
+			defineComponentFixture({
+				render: context => renderChatInput(context, { ...copilotIntroductionOptions, notification: createCopilotIntroductionNotification(copy, buttons) })
+			}),
+		] as const))
+	)),
+	AllCopilotIntroductionVariants: defineComponentFixture({
+		render: renderCopilotIntroductionComparison,
 	}),
 	// A run of three: notice, todo list, then the input. Covers a notice docking
 	// to a widget rather than straight to the input.

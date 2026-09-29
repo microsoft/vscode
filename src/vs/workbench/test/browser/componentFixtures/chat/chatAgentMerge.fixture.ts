@@ -327,6 +327,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 						failedChecks,
 					})),
 					isSystemInitiated: true,
+					requestSource: 'agentMerge',
 					timestamp: fixtureTimestamp,
 					assistant: [{
 						kind: 'markdown',

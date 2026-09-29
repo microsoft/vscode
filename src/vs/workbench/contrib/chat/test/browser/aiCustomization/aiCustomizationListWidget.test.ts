@@ -9,11 +9,13 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
+import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationCardLayout } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
@@ -26,18 +28,18 @@ import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/se
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses the inventory card layout for all file customization sections', () => {
+	test('uses tree presentations for the redesigned customization sections', () => {
 		assert.deepStrictEqual({
-			agents: usesCustomizationCardLayout(AICustomizationManagementSection.Agents),
-			skills: usesCustomizationCardLayout(AICustomizationManagementSection.Skills),
-			instructions: usesCustomizationCardLayout(AICustomizationManagementSection.Instructions),
-			hooks: usesCustomizationCardLayout(AICustomizationManagementSection.Hooks),
-			prompts: usesCustomizationCardLayout(AICustomizationManagementSection.Prompts),
+			agents: usesCustomizationTreePresentation(AICustomizationManagementSection.Agents),
+			skills: usesCustomizationTreePresentation(AICustomizationManagementSection.Skills),
+			instructions: usesCustomizationTreePresentation(AICustomizationManagementSection.Instructions),
+			hooks: usesCustomizationTreePresentation(AICustomizationManagementSection.Hooks),
+			prompts: usesCustomizationTreePresentation(AICustomizationManagementSection.Prompts),
 		}, {
 			agents: true,
 			skills: true,
@@ -248,6 +250,16 @@ suite('aiCustomizationListWidget', () => {
 		assert.deepStrictEqual({ expanded, redistributed }, {
 			expanded: [110, 110],
 			redistributed: [0, 220],
+		});
+	});
+
+	test('virtualized sections show up to four rows by default', () => {
+		assert.deepStrictEqual({
+			fourOfFive: getVirtualizedSectionMinimumHeight([44, 44, 44, 44, 44], height => height),
+			allOfThree: getVirtualizedSectionMinimumHeight([44, 66, 44], height => height),
+		}, {
+			fourOfFive: 176,
+			allOfThree: 154,
 		});
 	});
 
@@ -558,10 +570,13 @@ suite('aiCustomizationListWidget', () => {
 		let instaService: TestInstantiationService;
 		const searchBarHeight = 40;
 		const headerHeight = 30;
+		const searchBarMargin = 16;
 		const setLayoutHeights = (widget: AICustomizationListWidget, clientHeight: number): void => {
 			Object.defineProperty(widget.element, 'clientHeight', { configurable: true, value: clientHeight });
 			Object.defineProperty(widget.element.querySelector('.list-search-and-button-container')!, 'offsetHeight', { configurable: true, value: searchBarHeight });
 			Object.defineProperty(widget.element.querySelector('.section-title-header')!, 'offsetHeight', { configurable: true, value: headerHeight });
+			Object.defineProperty(widget.element, 'getBoundingClientRect', { configurable: true, value: () => DOMRect.fromRect({ y: 0 }) });
+			Object.defineProperty(widget.element.querySelector('.list-container')!, 'getBoundingClientRect', { configurable: true, value: () => DOMRect.fromRect({ y: headerHeight + searchBarHeight + searchBarMargin }) });
 		};
 
 		const descriptor: IHarnessDescriptor = {
@@ -666,7 +681,7 @@ suite('aiCustomizationListWidget', () => {
 
 			widget.layout(900, 320);
 
-			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '430px');
+			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '414px');
 		});
 
 		test('falls back to supplied layout height when rendered container height is 0', () => {
@@ -678,7 +693,7 @@ suite('aiCustomizationListWidget', () => {
 
 			widget.layout(900, 320);
 
-			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '830px');
+			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '814px');
 		});
 
 		test('instruction rows use an overflow menu without loaded status or targeting badges', async () => {
@@ -714,16 +729,158 @@ suite('aiCustomizationListWidget', () => {
 				badgeDisplay: row?.querySelector<HTMLElement>('.item-badge')?.style.display,
 				statusDisplay: row?.querySelector<HTMLElement>('.item-status-icon')?.style.display,
 				hasOverflowAction: !!row?.querySelector('.item-right .codicon-ellipsis'),
-				sectionExpanded: widget.element.querySelector('.customization-section-toggle')?.getAttribute('aria-expanded'),
+				descriptionDisplay: row?.querySelector<HTMLElement>('.item-description')?.style.display,
 			}, {
 				badgeDisplay: 'none',
 				statusDisplay: 'none',
 				hasOverflowAction: true,
-				sectionExpanded: 'true',
+				descriptionDisplay: '',
 			});
 		});
 
-		test('async section rerenders discard disposed virtual lists before redistributing height', async () => {
+		test('replaces tree rows when switching customization pages', async () => {
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [{
+				id: 'agent-one',
+				uri: URI.file('/workspace/.github/agents/agent-one.agent.md'),
+				name: 'Agent One',
+				filename: 'agent-one.agent.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.agent,
+				disabled: false,
+			}]);
+			const skills = observableValue<readonly IAICustomizationListItem[]>('skills', [{
+				id: 'skill-one',
+				uri: URI.file('/workspace/.github/skills/skill-one/SKILL.md'),
+				name: 'Skill One',
+				filename: 'SKILL.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			}]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: section => section === AICustomizationManagementSection.Agents ? agents : skills,
+				getCount: section => observableValue('test', section === AICustomizationManagementSection.Agents ? agents.get().length : skills.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const agentRows = Array.from(widget.element.querySelectorAll('.item-name'), element => element.textContent);
+
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			const skillRows = Array.from(widget.element.querySelectorAll('.item-name'), element => element.textContent);
+
+			assert.deepStrictEqual({ agentRows, skillRows }, {
+				agentRows: ['Agent One'],
+				skillRows: ['Skill One'],
+			});
+		});
+
+		test('announces updated item count when the model changes after section load', async () => {
+			const ariaHost = document.createElement('div');
+			document.body.appendChild(ariaHost);
+			disposables.add(toDisposable(() => ariaHost.remove()));
+			setARIAContainer(ariaHost);
+
+			const createAgent = (index: number): IAICustomizationListItem => ({
+				id: `agent-${index}`,
+				uri: URI.file(`Q:\\workspace\\.github\\agents\\agent-${index}.agent.md`),
+				name: `agent-${index}`,
+				filename: `agent-${index}.agent.md`,
+				source: PromptsStorage.local,
+				promptType: PromptsType.agent,
+				disabled: false,
+			});
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [
+				createAgent(1),
+				createAgent(2),
+				createAgent(3),
+			]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', items.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			assert.deepStrictEqual(
+				[...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+				['3 agents'],
+			);
+
+			items.set([createAgent(1), createAgent(2)], undefined);
+			assert.deepStrictEqual(
+				[...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+				['2 agents'],
+			);
+		});
+
+		for (const isSessionsWindow of [false, true]) {
+			test(`keyboard-focused skill rows expose validation diagnostics in the ${isSessionsWindow ? 'Agents' : 'editor'} window`, async () => {
+				const listService = disposables.add(new ListService());
+				instaService.stub(IListService, listService);
+				instaService.stub(IAICustomizationWorkspaceService, 'isSessionsWindow', isSessionsWindow);
+				const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
+					id: 'dreaming',
+					uri: URI.file('/workspace/.codex/skills/dreaming/SKILL.md'),
+					name: 'dreaming',
+					filename: 'SKILL.md',
+					source: PromptsStorage.local,
+					promptType: PromptsType.skill,
+					disabled: true,
+					status: 'error',
+					statusMessage: 'missing field `description`',
+				}]);
+				instaService.stub(IAICustomizationItemsModel, {
+					getItems: () => items,
+					getCount: () => observableValue('test', 1),
+					getPluginCount: () => observableValue('test', 0),
+					whenSectionLoaded: async () => { },
+					getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('agent-host-codex:///session'), dispose() { } }),
+				});
+				const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+				document.body.appendChild(widget.element);
+				disposables.add(toDisposable(() => widget.element.remove()));
+				setLayoutHeights(widget, 500);
+
+				await widget.setSection(AICustomizationManagementSection.Skills);
+				widget.layout(800, 500);
+
+				const row = widget.element.querySelector<HTMLElement>('.ai-customization-list-item');
+				assert(row);
+				const list = row.closest<HTMLElement>('.monaco-list');
+				assert(list);
+				list.focus();
+				list.dispatchEvent(new FocusEvent('focus'));
+				const focusedList = listService.lastFocusedList;
+				assert(focusedList);
+				const activeDescendant = list.getAttribute('aria-activedescendant');
+				const focusedRow = activeDescendant ? document.getElementById(activeDescendant) : undefined;
+
+				assert.deepStrictEqual({
+					hasKeyboardFocus: document.activeElement === list,
+					activeDescendant,
+					label: focusedRow?.getAttribute('aria-label'),
+				}, {
+					hasKeyboardFocus: true,
+					activeDescendant: focusedRow?.id,
+					label: 'dreaming. SKILL.md. Error. missing field `description`, disabled',
+				});
+			});
+		}
+
+		test('async section rerenders update the grouped tree', async () => {
 			const items = observableValue<readonly IAICustomizationListItem[]>('test', []);
 			let completeLoading!: () => void;
 			const loading = new Promise<void>(resolve => completeLoading = resolve);
@@ -763,17 +920,16 @@ suite('aiCustomizationListWidget', () => {
 			completeLoading();
 			await setSection;
 
-			const content = widget.element.querySelector<HTMLElement>('.distributed-section-layout')!;
-			Object.defineProperty(content, 'clientHeight', { configurable: true, value: 399 });
 			widget.layout(500, 800);
 
-			const sectionHeights = Array.from(content.querySelectorAll<HTMLElement>('.virtualized-section-list'), section => section.style.height);
+			const groups = Array.from(widget.element.querySelectorAll<HTMLElement>('.group-label'), label => label.textContent);
+			const rowCount = widget.element.querySelectorAll('.list-container .ai-customization-list-item').length;
 			assert.deepStrictEqual({
-				sectionCount: sectionHeights.length,
-				hasExpandedSection: sectionHeights.some(height => Number.parseInt(height) > 44),
+				groups,
+				rowCount,
 			}, {
-				sectionCount: 2,
-				hasExpandedSection: true,
+				groups: ['Workspace', 'User'],
+				rowCount: 6,
 			});
 		});
 	});

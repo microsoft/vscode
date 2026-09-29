@@ -116,6 +116,14 @@ export function getResourceToLoad(
 }
 
 function containsResource(root: URI, resource: URI, uriIdentityService: IUriIdentityService): boolean {
+	// Normalize backslashes for non-file schemes that may target Windows remotes.
+	if (root.scheme !== Schemas.file) {
+		const normalizedPath = resource.path.replace(/\\/g, '/');
+		if (normalizedPath !== resource.path) {
+			resource = resource.with({ path: normalizedPath });
+		}
+	}
+
 	if (uriIdentityService.extUri.isEqual(root, resource, /* ignoreFragment */ true)) {
 		return false;
 	}
