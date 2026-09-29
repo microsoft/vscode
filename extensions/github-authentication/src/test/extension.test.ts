@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { enterpriseUriSetting } from '../common/enterpriseConfiguration';
+import { enterpriseUriSetting } from '../common/enterpriseStorage';
 import { activate } from '../extension';
 import { GitHubSessionEngine } from '../github';
 import { GitHubEnterpriseAuthenticationProvider } from '../githubEnterprise';

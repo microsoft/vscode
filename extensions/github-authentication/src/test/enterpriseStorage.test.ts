@@ -59,11 +59,19 @@ suite('GitHub Enterprise storage migration', () => {
 			vscode.Uri.parse('http://tenant.example/Team'),
 			vscode.Uri.parse('https://tenant.example:8443/Team'),
 			vscode.Uri.parse('https://tenant.example/team'),
+			vscode.Uri.parse('HTTPS://TENANT.example:443/Team/'),
+			vscode.Uri.parse('HTTPS://TENANT.example/'),
+			vscode.Uri.parse('https://TENANT.example/Team///'),
+			vscode.Uri.parse('https://TENANT.example/Team%20One%25/'),
 		].map(getEnterpriseStorageKey), [
 			canonicalKey, canonicalKey,
 			'http://tenant.example/Team.ghes.auth',
 			'https://tenant.example:8443/Team.ghes.auth',
 			'https://tenant.example/team.ghes.auth',
+			'https://tenant.example:443/Team.ghes.auth',
+			'https://tenant.example/.ghes.auth',
+			canonicalKey,
+			'https://tenant.example/Team%20One%25.ghes.auth',
 		]);
 	});
 

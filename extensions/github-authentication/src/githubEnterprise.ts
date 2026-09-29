@@ -5,8 +5,7 @@
 
 import * as vscode from 'vscode';
 import { GitHubSessionEngine, UriEventHandler } from './github';
-import { getEnterpriseUriKey } from './common/enterpriseConfiguration';
-import { getEnterpriseStorageKey, migrateEnterpriseStorage } from './common/enterpriseStorage';
+import { getEnterpriseStorageKey, getEnterpriseUriKey, migrateEnterpriseStorage } from './common/enterpriseStorage';
 
 interface EnterpriseHost {
 	readonly uri: vscode.Uri;

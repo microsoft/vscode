@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import { IAccountLink } from './accountLinks';
-import { enterpriseUriSetting, getEnterpriseUriKey } from './enterpriseConfiguration';
+
+export const enterpriseUriSetting = 'github-enterprise.uri';
 
 const tokenSuffix = '.ghes.auth';
 const accountLinksSuffix = '.microsoftAccountLinks';
@@ -14,6 +15,13 @@ interface EnterpriseStorage {
 	readonly key: string;
 	readonly tokens: string | undefined;
 	readonly links: readonly IAccountLink[] | undefined;
+}
+
+export function getEnterpriseUriKey(uri: vscode.Uri): string {
+	return uri.with({
+		scheme: uri.scheme.toLowerCase(),
+		path: uri.path.replace(/\/+$/, '')
+	}).toString();
 }
 
 export function getEnterpriseStorageKey(uri: vscode.Uri): string {
