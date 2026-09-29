@@ -11,6 +11,7 @@ import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHU
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
+import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
@@ -155,6 +156,23 @@ suite('AgentHostCatalogSourceResolver', () => {
 		}, {
 			catalog: { [scopeId]: gitState },
 			legacy: JSON.stringify({ [scopeId]: gitState }),
+			encoded: true,
+		});
+	});
+
+	test('projects the provider-qualified Codex model into the cached catalog metadata', async () => {
+		const state = sourceState();
+		const result = await createResolver({}).buildCatalogSyncRequest(session, {
+			...state,
+			meta: withCodexSessionModel(state.meta, { id: '@provider=openai:gpt-5.6-sol' }),
+		}, {}, false);
+		const encoded = encodeAgentHostCatalogPayload(result.data);
+
+		assert.deepStrictEqual({
+			model: readCodexSessionModel(result.data),
+			encoded: encoded.ok,
+		}, {
+			model: { id: '@provider=openai:gpt-5.6-sol' },
 			encoded: true,
 		});
 	});

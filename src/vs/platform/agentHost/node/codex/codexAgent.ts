@@ -31,6 +31,7 @@ import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty
 import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createContextSizeConfigSchemaPropertyFromLimits, getModelContextSize } from '../../common/agentModelConfiguration.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
+import { withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
@@ -1373,7 +1374,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const refreshRequest = this._configurationService.getRootConfigValues?.()[CODEX_ACCOUNT_REFRESH_REQUEST_KEY];
 			if (typeof refreshRequest === 'string') {
 				this._configurationService.updateRootConfig({ [CODEX_ACCOUNT_REFRESH_REQUEST_KEY]: undefined });
-				void this._refreshContinuationMetadata();
+				void this._refreshContinuationAccount();
 			}
 			const signInRequest = this._configurationService.getRootConfigValues?.()[CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY];
 			if (typeof signInRequest === 'string' && signInRequest !== this._lastSignInRequest) {
@@ -1452,36 +1453,17 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._configurationService.publishRootTransientValues?.({ [CODEX_ACCOUNT_META_KEY]: account });
 	}
 
-	/** Passive, on-demand discovery: no runtime registration, thread resume, or metadata overlay writes. */
-	private async _refreshContinuationMetadata(): Promise<void> {
+	/** Refreshes account limits without enumerating or publishing provider sessions. */
+	private async _refreshContinuationAccount(): Promise<void> {
 		try {
 			if (!(await this._isSdkResolvableWithoutDownload())) {
 				return;
 			}
 			await this._withOnDemandConnection(async client => {
 				await this._refreshAccount(client, true, true);
-				const threads = await collectThreadListPages<Thread>(request => client.request<'thread/list', ThreadListResponse>('thread/list', {
-					...request, useStateDbOnly: true, sortKey: 'updated_at',
-				}), () => { });
-				const discovered: IAgentDiscoveredChat[] = [];
-				for (const thread of threads) {
-					if (thread.parentThreadId || (typeof thread.source === 'object' && hasKey(thread.source, { subAgent: true }))) {
-						continue;
-					}
-					const live = [...this._sessions.values()].find(session => session.threadId === thread.id);
-					const resource = live?.sessionUri ?? AgentSession.uri(this.id, thread.id);
-					const metadata = await this._threadToMetadata(thread, URI.parse(buildDefaultChatUri(resource)));
-					discovered.push({ ...metadata, ...(live?.model ? { model: live.model } : {}), external: !(await this._isKnownCodexChat(metadata)) });
-				}
-				if (!this._store.isDisposed && !this._isShuttingDown) {
-					for (const chat of discovered) {
-						this._discoveredCodexChats.set(chat.chat.toString(), chat);
-					}
-					this._onDidDiscoverChats.fire(discovered);
-				}
 			});
 		} catch (error) {
-			this._logService.warn('[Codex] Passive continuation metadata refresh failed', error);
+			this._logService.warn('[Codex] Continuation account refresh failed', error);
 		}
 	}
 
@@ -7165,6 +7147,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._advertiseServerTools(live, session);
 			const discovered = this._discoveredCodexChats.get(chat.toString());
 			const nativeMetadata = !live.currentTurnId && discovered && discovered.modifiedTime >= live.modifiedTime ? discovered : undefined;
+			const meta = withCodexSessionModel(nativeMetadata?._meta, live.model);
 			return {
 				chat,
 				startTime: live.startTime,
@@ -7172,6 +7155,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				summary: nativeMetadata?.summary ?? live.summary,
 				workingDirectories: live.workingDirectories ?? (live.workingDirectory ? [live.workingDirectory] : undefined),
 				...(live.model ? { model: live.model } : {}),
+				...(meta ? { _meta: meta } : {}),
 			};
 		}
 		// Session listing is ambient. The host-owned registry supplies a stable
@@ -7614,6 +7598,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const model = toRolloutModelSelection(rolloutMetadata?.selectedModel)
 			?? (thread.model && thread.modelProvider ? { id: toCodexModelSelectionId(thread.modelProvider, thread.model) } : undefined);
+		const meta = withCodexSessionModel(generatedWorkspace && isDesktop ? withSessionWorkspaceless(undefined, true) : undefined, model);
 		return {
 			chat,
 			// Codex returns Unix seconds; the agent host expects ms.
@@ -7622,7 +7607,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			summary: codexDelegationDisplayText(thread.name) ?? codexDelegationDisplayText(thread.preview),
 			workingDirectories: thread.cwd ? [URI.file(thread.cwd)] : undefined,
 			...(model ? { model } : {}),
-			...(generatedWorkspace && isDesktop ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
+			...(meta ? { _meta: meta } : {}),
 		};
 	}
 

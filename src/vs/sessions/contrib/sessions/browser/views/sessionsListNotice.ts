@@ -66,9 +66,11 @@ export class SessionsListNotice extends Disposable {
 		const primary = this._register(new Button(actions, defaultButtonStyles));
 		primary.label = options.label;
 		this._register(primary.onDidClick(options.run));
+		this._register(primary.onDidEscape(close));
 		const secondary = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
 		secondary.label = options.disableLabel;
 		this._register(secondary.onDidClick(() => { options.disable(); options.focusSessionsList(); }));
+		this._register(secondary.onDidEscape(close));
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_DOWN, event => {
 			if (event.key === 'Escape') { DOM.EventHelper.stop(event, true); close(); }
 		}));

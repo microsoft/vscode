@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -21,13 +23,13 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { ICodexContinuationCandidate } from '../../../../../services/agentHost/browser/codexContinuation.js';
 import { CodexContinuationAction, ICodexContinuationService } from '../../../../../services/agentHost/browser/codexContinuationService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { openOnboardingTarget, onDidSelectOnboardingTarget, ONBOARDING_TARGET_ATTR } from '../../../../onboarding/browser/spotlight/onboardingTarget.js';
+import { onDidSelectOnboardingTarget, ONBOARDING_TARGET_ATTR, resolveOnboardingTarget } from '../../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload } from '../../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../../onboarding/common/onboardingRegistry.js';
 import { OnboardingOutcome } from '../../../../onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../onboarding/common/onboardingScenarioService.js';
-import { CodexContinuationGuide } from '../../../browser/agentSessions/agentHost/codexContinuationGuide.js';
-import { IChatWidget, IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
+import { CodexContinuationGuide, openAndWaitForChatWidget } from '../../../browser/agentSessions/agentHost/codexContinuationGuide.js';
+import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 
@@ -44,6 +46,11 @@ suite('Codex continuation exact widget guide', () => {
 			const target: ILanguageModelChatMetadataAndIdentifier = { identifier: `agent-host-codex:${candidate.target.id}`, metadata: upcastPartial<ILanguageModelChatMetadata>({ id: candidate.target.id, name: candidate.target.name, isUserSelectable: true }) };
 			const element = document.createElement('button');
 			const foreign = document.createElement('button');
+			for (const targetElement of [element, foreign]) {
+				targetElement.style.cssText = 'position: fixed; width: 100px; height: 30px;';
+				mainWindow.document.body.appendChild(targetElement);
+				store.add(toDisposable(() => targetElement.remove()));
+			}
 			const selected = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('selected', undefined);
 			const selections = store.add(new Emitter<{ fromModelId: string; toModelId: string }>());
 			const confirmations = store.add(new Emitter<ActionEnvelope>());
@@ -79,16 +86,23 @@ suite('Codex continuation exact widget guide', () => {
 					const registered = onboardingScenarioRegistry.getScenario(id)!;
 					const step = (registered.presentation.payload as ISpotlightPayload).steps[0];
 					await step.onBeforeShow?.();
+					let resolved = resolveOnboardingTarget(mainWindow, id);
+					if (scenario === 'replaced') {
+						replaced = true;
+						resolved = resolveOnboardingTarget(mainWindow, id);
+					}
+					if (!resolved) {
+						return OnboardingOutcome.Aborted;
+					}
 					step.onDidShow?.();
-					await openOnboardingTarget(element);
-					assert.strictEqual(element.getAttribute(ONBOARDING_TARGET_ATTR), id);
-					assert.strictEqual(foreign.hasAttribute(ONBOARDING_TARGET_ATTR), false);
+					await resolved.open?.();
+					assert.strictEqual(resolved.element.getAttribute(ONBOARDING_TARGET_ATTR), id);
+					assert.strictEqual(step.placement, 'right');
 					assert.deepStrictEqual(opened, [{ initialFilterValue: target.metadata.name, initialFocusItemId: target.identifier }]);
 					assert.strictEqual(selected.get(), undefined, 'opening never changes the model');
 					if (scenario === 'cancelled') { return OnboardingOutcome.Dismissed; }
-					if (scenario === 'replaced') { replaced = true; }
 					let result: Promise<boolean> | undefined;
-					const listener = onDidSelectOnboardingTarget(element)(promise => { result = promise; });
+					const listener = onDidSelectOnboardingTarget(resolved.element)(promise => { result = promise; });
 					try {
 						selected.set(target, undefined);
 						selections.fire({ fromModelId: 'source', toModelId: scenario === 'wrongModel' ? 'other' : target.identifier });
@@ -105,9 +119,62 @@ suite('Codex continuation exact widget guide', () => {
 				upcastPartial<IHostService>({ hasFocus: true, onDidChangeFocus: Event.None })));
 			let opens = 0;
 			await guide.run(candidate, 'editorWindow', async requested => { assert.strictEqual(requested.toString(), resource.toString()); opens++; return widget; });
-			assert.strictEqual(actions.includes('guideCompleted'), scenario === 'accepted');
+			assert.strictEqual(actions.includes('guideCompleted'), scenario === 'accepted' || scenario === 'replaced');
 			assert.strictEqual(element.hasAttribute(ONBOARDING_TARGET_ATTR), false, 'run target is disposed');
+			assert.strictEqual(foreign.hasAttribute(ONBOARDING_TARGET_ATTR), false, 'replacement target is disposed');
 			assert.strictEqual(opens, scenario === 'restricted' ? 0 : 1);
 		});
 	}
+
+	test('waits for the exact widget owner after session opening completes', async () => {
+		const resource = URI.parse('agent-host-codex:/one');
+		const otherResource = URI.parse('agent-host-codex:/other');
+		const added = store.add(new Emitter<IChatWidget>());
+		const focusedSessionChanged = store.add(new Emitter<void>());
+		const widgets: IChatWidget[] = [];
+		const other = upcastPartial<IChatWidget>({
+			viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: otherResource }),
+			onDidChangeViewModel: Event.None,
+		});
+		const exact = upcastPartial<IChatWidget>({
+			viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: resource }),
+			onDidChangeViewModel: Event.None,
+		});
+		const service = upcastPartial<IChatWidgetService>({
+			get lastFocusedWidget() { return widgets.at(-1); },
+			getAllWidgets: () => widgets,
+			onDidAddWidget: added.event,
+			onDidChangeFocusedSession: focusedSessionChanged.event,
+		});
+		const cancellation = store.add(new CancellationTokenSource());
+		const result = openAndWaitForChatWidget(resource, service, async () => undefined, cancellation.token, 1_000);
+		widgets.push(other);
+		added.fire(other);
+		widgets.push(exact);
+		added.fire(exact);
+
+		assert.strictEqual(await result, exact);
+	});
+
+	test('cancelling the widget wait ignores a late owner', async () => {
+		const resource = URI.parse('agent-host-codex:/one');
+		const added = store.add(new Emitter<IChatWidget>());
+		const widgets: IChatWidget[] = [];
+		const service = upcastPartial<IChatWidgetService>({
+			getAllWidgets: () => widgets,
+			onDidAddWidget: added.event,
+			onDidChangeFocusedSession: Event.None,
+		});
+		const cancellation = store.add(new CancellationTokenSource());
+		const result = openAndWaitForChatWidget(resource, service, async () => undefined, cancellation.token, 1_000);
+		cancellation.cancel();
+		const exact = upcastPartial<IChatWidget>({
+			viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: resource }),
+			onDidChangeViewModel: Event.None,
+		});
+		widgets.push(exact);
+		added.fire(exact);
+
+		assert.strictEqual(await result, undefined);
+	});
 });

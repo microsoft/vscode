@@ -52,6 +52,7 @@ import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../co
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
+import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -10025,6 +10026,49 @@ suite('AgentService (node dispatcher)', () => {
 					currentMarker: true,
 					oldGlobalMarker: false,
 					oldProviderMarker: false,
+				});
+			});
+
+			test('ordinary Codex discovery backfills a missing catalog model without a recency change', async () => {
+				class CodexDiscoveryAgent extends DirectImportAgent {
+					latest: IAgentChatMetadata | undefined;
+
+					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+						return this.latest ?? super.getChatMetadata(chat, context);
+					}
+				}
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new CodexDiscoveryAgent('codex'));
+				const session = AgentSession.uri('codex', 'model-metadata-backfill');
+				const modifiedTime = Date.now();
+				agent.catalog = [{ ...metadata(session), modifiedTime }];
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+				const before = readCodexSessionModel(catalogDataOf(await database.getSessionV2(session.toString())));
+
+				const latest = {
+					...metadata(session, withCodexSessionModel(undefined, { id: '@provider=openai:gpt-5.6-sol' })),
+					modifiedTime,
+				};
+				agent.latest = latest;
+				await (svc as unknown as {
+					_registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean>;
+				})._registerDiscoveredChats(agent, [{
+					...latest,
+					external: true,
+				}]);
+				await (svc as unknown as {
+					_catalogReconciliationService: { runPass(): Promise<unknown> };
+				})._catalogReconciliationService.runPass();
+
+				assert.deepStrictEqual({
+					before,
+					after: readCodexSessionModel(catalogDataOf(await database.getSessionV2(session.toString()))),
+				}, {
+					before: undefined,
+					after: { id: '@provider=openai:gpt-5.6-sol' },
 				});
 			});
 

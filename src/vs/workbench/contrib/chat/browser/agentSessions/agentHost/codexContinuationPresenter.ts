@@ -17,7 +17,7 @@ export interface ICodexContinuationPresentation {
 	readonly surface: CodexContinuationSurface;
 	readonly onDidChangePresentability: Event<void>;
 	isPresentable(): boolean;
-	show(candidate: ICodexContinuationCandidate, visible: () => Promise<boolean>, dismiss: () => void): IDisposable;
+	show(candidate: ICodexContinuationCandidate, visible: () => Promise<boolean>, close: (reason: 'action' | 'dismissed') => void): IDisposable;
 }
 
 /** Keeps both surfaces on the same experiment and visibility boundary. */
@@ -50,12 +50,18 @@ export class CodexContinuationPresenter extends Disposable {
 
 	private async _update(): Promise<void> {
 		if (this._store.isDisposed) { return; }
-		const presentable = this._host.hasFocus && this._delegate.isPresentable() && !!this._nudge.candidate.get();
+		const surfacePresentable = this._delegate.isPresentable() && !!this._nudge.candidate.get();
 		if (this._presentation.value) {
-			if (!presentable || (this._visible && !this._nudge.ownsEpisode())) { this._presentation.clear(); this._visible = false; void this._nudge.releasePresentation(); }
+			// Focus gates the initial presentation and claim, but ordinary window
+			// switching must not consume a nudge the user can no longer see.
+			if (!surfacePresentable || (!this._visible && !this._host.hasFocus) || (this._visible && !this._nudge.ownsEpisode())) {
+				this._presentation.clear();
+				this._visible = false;
+				void this._nudge.releasePresentation();
+			}
 			return;
 		}
-		if (!presentable || this._opening) { return; }
+		if (!surfacePresentable || !this._host.hasFocus || this._opening) { return; }
 		const generation = this._generation;
 		this._opening = true;
 		try {
@@ -84,9 +90,10 @@ export class CodexContinuationPresenter extends Disposable {
 					presentation.dispose();
 					return false;
 				} finally { claiming = false; }
-			}, () => {
-				if (this._visible) { this._nudge.dismiss(this._delegate.surface); }
+			}, reason => {
+				if (this._visible && reason === 'dismissed') { this._nudge.dismiss(this._delegate.surface); }
 				this._presentation.clear();
+				this._visible = false;
 				void this._nudge.releasePresentation();
 			}));
 

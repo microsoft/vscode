@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, toDisposable } from '../../../../../base/c
 import { autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { CODEX_CONTINUATION_DISABLE_LABEL, CODEX_CONTINUATION_LABEL, CODEX_CONTINUATION_MESSAGE, CodexContinuationGuide } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/codexContinuationGuide.js';
+import { CODEX_CONTINUATION_DISABLE_LABEL, CODEX_CONTINUATION_LABEL, CODEX_CONTINUATION_MESSAGE, CodexContinuationGuide, openAndWaitForChatWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/codexContinuationGuide.js';
 import { CodexContinuationPresenter } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/codexContinuationPresenter.js';
 import { ICodexContinuationService } from '../../../../../workbench/services/agentHost/browser/codexContinuationService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -30,19 +30,27 @@ class CodexContinuationNotice extends Disposable {
 			surface: 'agentsWindow',
 			onDidChangePresentability: Event.map(host.onDidChangeVisibility, () => undefined),
 			isPresentable: () => host.isVisible() && host.container.isConnected && host.container.getClientRects().length > 0,
-			show: (candidate, visible, dismiss) => {
+			show: (candidate, visible, close) => {
 				const store = new DisposableStore();
 				const notice = store.add(instantiation.createInstance(SessionsListNotice, {
 					description: CODEX_CONTINUATION_MESSAGE, label: CODEX_CONTINUATION_LABEL, disableLabel: CODEX_CONTINUATION_DISABLE_LABEL,
 					focusSessionsList: host.focusSessionsList,
-					dismiss,
-					disable: () => { void nudge.disable('agentsWindow'); },
+					dismiss: () => close('dismissed'),
+					disable: () => {
+						close('action');
+						void nudge.disable('agentsWindow');
+					},
 					run: () => {
-						dismiss();
-						void guide.run(candidate, 'agentsWindow', async resource => {
-							await sessions.openSession(resource, { forceMainChat: true });
-							return widgets.getWidgetBySessionResource(resource);
-						});
+						close('action');
+						void guide.run(candidate, 'agentsWindow', (resource, token) => openAndWaitForChatWidget(
+							resource,
+							widgets,
+							async () => {
+								await sessions.openSession(resource, { forceMainChat: true });
+								return undefined;
+							},
+							token,
+						));
 					},
 				}));
 				host.container.appendChild(notice.domNode);

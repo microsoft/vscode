@@ -34,6 +34,7 @@ suite('Codex continuation coordination', () => {
 
 	function create(storage: InMemoryStorageService, treatment = true) {
 		const order: string[] = [];
+		const activity = { listSessions: 0 };
 		const backend = AgentSession.uri('codex', 'existing');
 		const session = { session: backend, startTime: 1, modifiedTime: 2, model: { id: source.id } };
 		const root = new class extends mock<IAgentSubscription<RootState>>() {
@@ -43,7 +44,7 @@ suite('Codex continuation coordination', () => {
 		const agent = new class extends NullAgentHostService {
 			override get rootState() { return root; }
 			override dispatch(): void { }
-			override async listSessions() { return [session]; }
+			override async listSessions() { activity.listSessions++; return [session]; }
 		}();
 		const connections = new class extends mock<IAgentHostConnectionsService>() {
 			override ambientConnection = agent;
@@ -80,19 +81,35 @@ suite('Codex continuation coordination', () => {
 
 		const service = store.add(new CodexContinuationService(agent, connections, account, entitlement, host, storage, telemetry, assignment, config, environment));
 		service.setSelectableModels([{ id: target.id, vendor: 'agent-host-codex' }]);
-		return { service, order, host, account, entitlement, session };
+		return { service, order, host, account, entitlement, session, activity };
 	}
 
 	for (const treatment of [false, true]) {
 		test(`trigger precedes treatment and permanent-state gating in arm ${treatment}`, () => runWithFakedTimers({}, async () => {
 			const storage = store.add(new InMemoryStorageService());
 			storage.store(CODEX_CONTINUATION_STORAGE_KEY, { permanent: 'completed' }, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
-			const { service, order } = create(storage, treatment);
+			const { service, order, activity } = create(storage, treatment);
 			await timeout(101);
 			assert.strictEqual(await service.wouldShow('agentsWindow'), false);
-			assert.deepStrictEqual(order, ['trigger', 'treatment']);
+			assert.deepStrictEqual({ order, listSessions: activity.listSessions }, { order: ['trigger', 'treatment'], listSessions: 1 });
 		}));
 	}
+	test('low ChatGPT usage and Copilot Free never enumerate session metadata', () => runWithFakedTimers({}, async () => {
+		const lowUsage = create(store.add(new InMemoryStorageService()));
+		lowUsage.account.account = { ...lowUsage.account.account, rateLimits: [{ usedPercent: 1, windowDurationMins: 300 }] };
+		const free = create(store.add(new InMemoryStorageService()));
+		free.entitlement.entitlement = ChatEntitlement.Free;
+
+		await timeout(101);
+
+		assert.deepStrictEqual({
+			lowUsage: { candidate: lowUsage.service.candidate.get(), listSessions: lowUsage.activity.listSessions },
+			free: { candidate: free.service.candidate.get(), listSessions: free.activity.listSessions },
+		}, {
+			lowUsage: { candidate: undefined, listSessions: 0 },
+			free: { candidate: undefined, listSessions: 0 },
+		});
+	}));
 	test('two windows race for one reservation; only visible surface consumes the episode', () => runWithFakedTimers({}, async () => {
 		const storage = store.add(new InMemoryStorageService());
 		const a = create(storage);

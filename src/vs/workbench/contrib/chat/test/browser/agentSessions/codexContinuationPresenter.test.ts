@@ -71,4 +71,63 @@ suite('Codex continuation presentation boundary', () => {
 		await timeout(1);
 		assert.strictEqual(shown, 0);
 	}));
+
+	test('a visibly claimed presentation survives ordinary window blur', () => runWithFakedTimers({}, async () => {
+		const focusChanged = store.add(new Emitter<boolean>());
+		let hasFocus = true;
+		let disposed = 0;
+		let dismissed = 0;
+		const candidate = upcastPartial<ICodexContinuationCandidate>({});
+		const nudge = upcastPartial<ICodexContinuationService>({
+			candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { },
+			wouldShow: async () => true, resolve: async () => candidate, reservePresentation: async () => true,
+			releasePresentation: async () => { }, ownsEpisode: () => true, markVisible: async () => true,
+			dismiss: () => dismissed++,
+		});
+		let visible: (() => Promise<boolean>) | undefined;
+		let close: ((reason: 'action' | 'dismissed') => void) | undefined;
+		store.add(new CodexContinuationPresenter({
+			surface: 'editorWindow', onDidChangePresentability: Event.None, isPresentable: () => true,
+			show: (_candidate, didShow, didClose) => {
+				visible = didShow;
+				close = didClose;
+				return toDisposable(() => disposed++);
+			},
+		}, nudge, upcastPartial<IHostService>({ get hasFocus() { return hasFocus; }, onDidChangeFocus: focusChanged.event }),
+			upcastPartial<ILanguageModelsService>({ getLanguageModelIds: () => [], onDidChangeLanguageModels: Event.None })));
+		await timeout(1);
+		assert.strictEqual(await visible!(), true);
+		hasFocus = false;
+		focusChanged.fire(false);
+		await timeout(1);
+		assert.deepStrictEqual({ disposed, dismissed }, { disposed: 0, dismissed: 0 });
+		close!('dismissed');
+		assert.deepStrictEqual({ disposed, dismissed }, { disposed: 1, dismissed: 1 });
+	}));
+
+	test('an explicit action closes without recording a passive dismissal', () => runWithFakedTimers({}, async () => {
+		let dismissed = 0;
+		const candidate = upcastPartial<ICodexContinuationCandidate>({});
+		const nudge = upcastPartial<ICodexContinuationService>({
+			candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { },
+			wouldShow: async () => true, resolve: async () => candidate, reservePresentation: async () => true,
+			releasePresentation: async () => { }, ownsEpisode: () => true, markVisible: async () => true,
+			dismiss: () => dismissed++,
+		});
+		let visible: (() => Promise<boolean>) | undefined;
+		let close: ((reason: 'action' | 'dismissed') => void) | undefined;
+		store.add(new CodexContinuationPresenter({
+			surface: 'agentsWindow', onDidChangePresentability: Event.None, isPresentable: () => true,
+			show: (_candidate, didShow, didClose) => {
+				visible = didShow;
+				close = didClose;
+				return toDisposable(() => { });
+			},
+		}, nudge, upcastPartial<IHostService>({ hasFocus: true, onDidChangeFocus: Event.None }),
+			upcastPartial<ILanguageModelsService>({ getLanguageModelIds: () => [], onDidChangeLanguageModels: Event.None })));
+		await timeout(1);
+		assert.strictEqual(await visible!(), true);
+		close!('action');
+		assert.strictEqual(dismissed, 0);
+	}));
 });
