@@ -15,11 +15,25 @@ export interface IProjectBoardPlacement {
 	readonly columnId: string;
 }
 
+export const projectBoardIdentityLabelLimit = 512;
+
+/** Labels only: never a transcript, runtime state or model cache. */
+export interface IProjectBoardCardIdentity {
+	readonly title: string;
+	readonly sessionTitle: string;
+	readonly workspace?: string;
+}
+
+export interface IProjectBoardSavedPlacement extends IProjectBoardPlacement {
+	readonly cardId: string;
+	readonly lastKnown?: IProjectBoardCardIdentity;
+}
+
 export interface IProjectBoardConfiguration {
 	readonly version: 1;
 	readonly rows: readonly IProjectBoardAxis[];
 	readonly columns: readonly IProjectBoardAxis[];
-	readonly placements: readonly (IProjectBoardPlacement & { readonly cardId: string })[];
+	readonly placements: readonly IProjectBoardSavedPlacement[];
 	readonly autoIncludeSessions: boolean;
 	readonly openChatInSidePanel?: boolean;
 	readonly display?: IProjectBoardDisplayOptions;
@@ -54,7 +68,10 @@ export function freezeConfiguration(configuration: IProjectBoardConfiguration): 
 		version: configuration.version,
 		rows: Object.freeze(configuration.rows.map(axis => Object.freeze({ ...axis }))),
 		columns: Object.freeze(configuration.columns.map(axis => Object.freeze({ ...axis }))),
-		placements: Object.freeze(configuration.placements.map(placement => Object.freeze({ ...placement }))),
+		placements: Object.freeze(configuration.placements.map(placement => Object.freeze({
+			...placement,
+			...(placement.lastKnown ? { lastKnown: Object.freeze({ ...placement.lastKnown }) } : {}),
+		}))),
 		autoIncludeSessions: configuration.autoIncludeSessions,
 		...(configuration.openChatInSidePanel !== undefined ? { openChatInSidePanel: configuration.openChatInSidePanel } : {}),
 		...(configuration.display ? { display: Object.freeze({ ...configuration.display }) } : {}),
@@ -118,14 +135,24 @@ export function validateConfiguration(value: unknown): IProjectBoardConfiguratio
 	const rowIds = new Set(value.rows.map(axis => axis.id));
 	const columnIds = new Set(value.columns.map(axis => axis.id));
 	const cardIds = new Set<string>();
-	const placements: (IProjectBoardPlacement & { cardId: string })[] = [];
+	const placements: IProjectBoardSavedPlacement[] = [];
 	for (const placement of value.placements) {
-		if (!hasKeys(placement, ['cardId', 'rowId', 'columnId']) || !isIdentifier(placement.cardId) || !isIdentifier(placement.rowId) || !isIdentifier(placement.columnId)
+		if (!hasKeys(placement, ['cardId', 'rowId', 'columnId'], ['lastKnown']) || !isIdentifier(placement.cardId) || !isIdentifier(placement.rowId) || !isIdentifier(placement.columnId)
 			|| !rowIds.has(placement.rowId) || !columnIds.has(placement.columnId) || cardIds.has(placement.cardId)) {
 			throw new Error(localize('projectBoard.invalidPlacements', "The saved board contains an invalid or duplicate placement."));
 		}
+		let lastKnown: IProjectBoardCardIdentity | undefined;
+		if (Object.hasOwn(placement, 'lastKnown')) {
+			const identity = placement.lastKnown;
+			const isLabel = (value: unknown): value is string => typeof value === 'string' && value.length <= projectBoardIdentityLabelLimit;
+			if (!hasKeys(identity, ['title', 'sessionTitle'], ['workspace']) || !isLabel(identity.title) || !isLabel(identity.sessionTitle)
+				|| Object.hasOwn(identity, 'workspace') && !isLabel(identity.workspace)) {
+				throw new Error(localize('projectBoard.invalidSavedIdentity', "The saved board contains invalid last-known chat details."));
+			}
+			lastKnown = { title: identity.title, sessionTitle: identity.sessionTitle, ...(typeof identity.workspace === 'string' ? { workspace: identity.workspace } : {}) };
+		}
 		cardIds.add(placement.cardId);
-		placements.push({ cardId: placement.cardId, rowId: placement.rowId, columnId: placement.columnId });
+		placements.push({ cardId: placement.cardId, rowId: placement.rowId, columnId: placement.columnId, ...(lastKnown ? { lastKnown } : {}) });
 	}
 	return {
 		version: 1,

@@ -30,7 +30,7 @@ import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbe
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, ISessionArtifact, SessionArtifactKind, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ProjectBoardService } from '../../browser/projectBoardService.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from '../../browser/projectBoardNavigation.js';
 import { IProjectBoardNewSessionOptions, ProjectBoardNewSessionDialog } from '../../browser/projectBoardNewSessionDialog.js';
@@ -40,6 +40,7 @@ import { ProjectBoardState } from '../../browser/projectBoardState.js';
 import { ProjectBoardCatalogService } from '../../browser/projectBoardCatalog.js';
 import { ProjectBoardPreviewPool } from '../../browser/projectBoardPreviewPool.js';
 import { DEFAULT_PROJECT_BOARD_ID, IProjectBoardCatalogService } from '../../common/projectBoardCatalog.js';
+import { projectBoardIdentityLabelLimit } from '../../common/projectBoardConfiguration.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IProjectBoardInputConfiguration, IProjectBoardMetadata, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -80,6 +81,7 @@ class TestBoardSession extends mock<ISession>() {
 	override readonly resource = URI.parse(`test-session:${this.name}`);
 	override readonly providerId = 'test';
 	override readonly title = observableValue('session-title', 'Owning session');
+	override readonly workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
 	override readonly chats = observableValue<readonly IChat[]>('chats', this.initialChats);
 	override readonly mainChat = constObservable(this.initialChats[0] ?? new TestChat('Empty session main'));
 	override readonly isArchived = observableValue('archived', false);
@@ -2070,6 +2072,127 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.container.textContent, closedText);
 	});
 
+	test('unavailable placements retain the last known chat identity across board reopen', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const chat = new TestChat('Investigate build failures');
+		const h = createBoard(mainWindow.document, [chat], storage);
+		h.session.workspace.set(new class extends mock<ISessionWorkspace>() {
+			override readonly label = 'Build tools';
+			override readonly folders = [];
+		}(), undefined);
+		await h.service.open();
+		await h.moveViaPicker('General, P1');
+		chat.title.set('Investigate build failures - updated', undefined);
+		h.state.sessions = [];
+		h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
+		const unavailable = h.container.querySelector('.project-board-card-unavailable')!;
+		assert.strictEqual(unavailable.querySelector('h4')?.textContent, 'Investigate build failures - updated');
+		for (const text of ['Owning session', 'Build tools', 'Provider: test', 'Unavailable - last known details', 'not currently listed by its provider']) {
+			assert.ok(unavailable.textContent?.includes(text), text);
+			assert.ok(h.service.getAccessibleContent().includes(text), text);
+		}
+		h.closeBoard();
+		await Promise.resolve();
+		const reopened = createBoard(mainWindow.document, [], storage);
+		await reopened.service.open();
+		assert.strictEqual(reopened.container.querySelector('.project-board-card-unavailable h4')?.textContent, 'Investigate build failures - updated');
+		chat.title.set('Recovered and renamed', undefined);
+		reopened.state.sessions = [h.session];
+		reopened.sessionsChanged.fire({ added: [h.session], removed: [], changed: [] });
+		assert.strictEqual(reopened.container.querySelectorAll('.project-board-card').length, 1);
+		assert.strictEqual(reopened.container.querySelector('.project-board-card-unavailable'), null);
+		assert.strictEqual(reopened.container.querySelector('[aria-label="General, P1"] h4')?.textContent, 'Recovered and renamed');
+		assert.strictEqual(reopened.opened.length, 0);
+		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	test('legacy unavailable placements show their identifier in card, list and accessible views', async () => {
+		const h = createBoard(mainWindow.document);
+		const cardId = 'remote-test\0test-session:older\0test-chat:older';
+		h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+			...configuration, placements: [{ cardId, rowId: 'general', columnId: 'p1' }],
+		}));
+		await h.service.open();
+		const assertDetails = () => {
+			const unavailable = h.container.querySelector('.project-board-card-unavailable')!;
+			for (const text of ['Unavailable - no saved title', 'Provider: remote-test', 'Chat: test-chat:older']) {
+				assert.ok(unavailable.textContent?.includes(text), text);
+				assert.ok(h.service.getAccessibleContent().includes(text), text);
+			}
+		};
+		assertDetails();
+		h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+			...configuration, display: { showSessionList: true, showCredits: false, showStateDuration: false },
+		}));
+		assertDetails();
+	});
+
+	test('identity snapshots stay bounded, update across boards while closed and ignore runtime activity', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const chat = new TestChat('Identity');
+		const h = createBoard(mainWindow.document, [chat], storage);
+		const other = h.catalog.createBoard('Other');
+		await h.service.open();
+		await h.moveViaPicker('General, P1');
+		h.catalog.updateBoard(other, configuration => ({
+			...configuration, placements: [{ cardId: getProjectBoardCardId(h.session, chat), rowId: 'general', columnId: 'p3' }],
+		}));
+		h.closeBoard();
+		await Promise.resolve();
+		const writes = sinon.spy(storage, 'store');
+		try {
+			chat.status.set(SessionStatus.NeedsInput, undefined);
+			chat.isRead.set(true, undefined);
+			chat.description.set({ value: 'Streaming output, not an identity label' }, undefined);
+			h.sessionsChanged.fire({ added: [], removed: [], changed: [h.session] });
+			assert.strictEqual(writes.callCount, 0);
+			chat.title.set('x'.repeat(projectBoardIdentityLabelLimit + 100), undefined);
+			assert.strictEqual(writes.callCount, 1);
+			for (const board of h.catalog.boards.get()) {
+				assert.deepStrictEqual(board.configuration.placements[0].lastKnown, { title: 'x'.repeat(projectBoardIdentityLabelLimit), sessionTitle: 'Owning session' });
+			}
+			assert.ok(!storage.get(ProjectBoardCatalogService.STORAGE_KEY, StorageScope.PROFILE)!.includes('Streaming output'));
+		} finally {
+			writes.restore();
+		}
+	});
+
+	test('another window identity update does not trigger stale snapshot writeback', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const chat = new TestChat('Shared title');
+		const first = createBoard(mainWindow.document, [chat], storage);
+		await first.service.open();
+		await first.moveViaPicker('General, P1');
+		const second = createBoard(mainWindow.document, [new TestChat('Shared title')], storage);
+		const writes = sinon.spy(storage, 'store');
+		try {
+			chat.title.set('Renamed in first window', undefined);
+			second.sessionsChanged.fire({ added: [], removed: [], changed: [second.session] });
+			assert.strictEqual(writes.callCount, 1);
+			assert.strictEqual(second.catalog.boards.get()[0].configuration.placements[0].lastKnown?.title, 'Renamed in first window');
+		} finally {
+			writes.restore();
+		}
+	});
+
+	test('identity save failures retain the previous snapshot without breaking live updates', async () => {
+		const chat = new TestChat('Saved title');
+		const h = createBoard(mainWindow.document, [chat]);
+		await h.service.open();
+		await h.moveViaPicker('General, P1');
+		const update = sinon.stub(h.catalog, 'updateCardIdentities').throws(new Error('Identity save failed'));
+		try {
+			chat.title.set('Unsaved live title', undefined);
+			assert.strictEqual(h.container.querySelector('[data-chat-resource] h4')?.textContent, 'Unsaved live title');
+			assert.strictEqual(h.catalog.boards.get()[0].configuration.placements[0].lastKnown?.title, 'Saved title');
+			assert.strictEqual(update.callCount, 1);
+		} finally {
+			update.restore();
+		}
+		chat.title.set('Retry on next identity change', undefined);
+		assert.strictEqual(h.catalog.boards.get()[0].configuration.placements[0].lastKnown?.title, 'Retry on next identity change');
+	});
+
 	test('PB-12 disconnect/reconnect preserves runtime state, identity and placement without duplicate cards', async () => {
 		const chat = new TestChat('Remote work');
 		const h = createBoard(mainWindow.document, [chat]);
@@ -2424,7 +2547,10 @@ suite('ProjectBoardService', () => {
 		h.state.creationPlacement = { rowId: 'general', columnId: 'p2' };
 		await h.service.createSession();
 		const session = h.state.createdSession!;
-		const expected = { cardId: getProjectBoardCardId(session, session.mainChat.get()), rowId: 'general', columnId: 'p2' };
+		const expected = {
+			cardId: getProjectBoardCardId(session, session.mainChat.get()), rowId: 'general', columnId: 'p2',
+			lastKnown: { title: session.mainChat.get().title.get(), sessionTitle: session.title.get() },
+		};
 		assert.deepStrictEqual({
 			origin: h.state.creationOptions?.boardState.boardId,
 			windows: h.state.openCount,
@@ -3243,7 +3369,7 @@ suite('ProjectBoardService', () => {
 		chat.interactivity.set(ChatInteractivity.Full, undefined);
 		h.state.sessions = [];
 		h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
-		assert.strictEqual(h.container.querySelector('[aria-label="General, P0"] .project-board-card-unavailable h4')?.textContent, 'Unavailable Chat');
+		assert.strictEqual(h.container.querySelector('[aria-label="General, P0"] .project-board-card-unavailable h4')?.textContent, 'Temporarily missing');
 		h.state.sessions = [h.session];
 		h.sessionsChanged.fire({ added: [h.session], removed: [], changed: [] });
 		assert.strictEqual(h.container.querySelector('[aria-label="General, P0"] h4')?.textContent, 'Temporarily missing');

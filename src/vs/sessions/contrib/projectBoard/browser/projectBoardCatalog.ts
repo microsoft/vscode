@@ -15,7 +15,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { DEFAULT_PROJECT_BOARD_ID, IProjectBoardCatalogService, IProjectBoardCollection, IProjectBoardRecord } from '../common/projectBoardCatalog.js';
-import { defaultConfiguration, freezeConfiguration, hasKeys, IProjectBoardConfiguration, isIdentifier, validateConfiguration } from '../common/projectBoardConfiguration.js';
+import { defaultConfiguration, freezeConfiguration, hasKeys, IProjectBoardCardIdentity, IProjectBoardConfiguration, isIdentifier, validateConfiguration } from '../common/projectBoardConfiguration.js';
 
 export class ProjectBoardCatalogService extends Disposable implements IProjectBoardCatalogService {
 	declare readonly _serviceBrand: undefined;
@@ -127,6 +127,22 @@ export class ProjectBoardCatalogService extends Disposable implements IProjectBo
 				}),
 			};
 		});
+	}
+
+	updateCardIdentities(identities: ReadonlyMap<string, IProjectBoardCardIdentity>): void {
+		this.mutate(collection => ({
+			...collection,
+			boards: collection.boards.map(board => ({
+				...board,
+				configuration: {
+					...board.configuration,
+					placements: board.configuration.placements.map(placement => {
+						const lastKnown = identities.get(placement.cardId);
+						return lastKnown ? { ...placement, lastKnown } : placement;
+					}),
+				},
+			})),
+		}));
 	}
 
 	reset(): void {

@@ -5,7 +5,7 @@
 
 import { IObservable } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IProjectBoardConfiguration } from './projectBoardConfiguration.js';
+import { IProjectBoardCardIdentity, IProjectBoardConfiguration } from './projectBoardConfiguration.js';
 
 export const DEFAULT_PROJECT_BOARD_ID = 'default';
 
@@ -38,6 +38,8 @@ export interface IProjectBoardCatalogService {
 	removeCardPlacements(cardIds: readonly string[]): void;
 	/** Preserve each board's latest placement when a provisional chat graduates. */
 	replaceCardPlacements(from: string, to: string): void;
+	/** Refresh labels only for existing placements, across all boards. */
+	updateCardIdentities(identities: ReadonlyMap<string, IProjectBoardCardIdentity>): void;
 	/** Explicit recovery of an unreadable Hub collection. */
 	reset(): void;
 }

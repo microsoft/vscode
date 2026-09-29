@@ -15,7 +15,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { ProjectBoardCatalogService } from '../../browser/projectBoardCatalog.js';
 import { ProjectBoardState } from '../../browser/projectBoardState.js';
 import { DEFAULT_PROJECT_BOARD_ID, IProjectBoardCollection } from '../../common/projectBoardCatalog.js';
-import { defaultConfiguration, IProjectBoardConfiguration } from '../../common/projectBoardConfiguration.js';
+import { defaultConfiguration, IProjectBoardConfiguration, projectBoardIdentityLabelLimit } from '../../common/projectBoardConfiguration.js';
 
 suite('ProjectBoardCatalog', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -70,6 +70,85 @@ suite('ProjectBoardCatalog', () => {
 		h.catalog.replaceCardPlacements('provisional', 'canonical');
 		assert.strictEqual(h.catalog.boards.get(), boards);
 		assert.strictEqual(writes.callCount, 1);
+	});
+
+	test('identity snapshots roundtrip, remain immutable and follow placement lifetimes across boards', () => {
+		const h = create();
+		const other = h.catalog.createBoard('Other');
+		h.state(defaultId).moveCard('chat', { rowId: 'general', columnId: 'p0' });
+		h.state(other).moveCard('chat', { rowId: 'general', columnId: 'p3' });
+		const writes = sinon.spy(h.storage, 'store');
+		const identity = { title: 'Known chat', sessionTitle: 'Session', workspace: 'Workspace' };
+		const identities = new Map([['chat', identity], ['unplaced', identity]]);
+		h.catalog.updateCardIdentities(identities);
+		h.catalog.updateCardIdentities(identities);
+		assert.strictEqual(writes.callCount, 1);
+		assert.deepStrictEqual(create(h.storage).catalog.boards.get(), h.catalog.boards.get());
+		for (const board of h.catalog.boards.get()) {
+			assert.strictEqual(board.configuration.placements.length, 1);
+			assert.deepStrictEqual(board.configuration.placements[0].lastKnown, identity);
+			assert.ok(Object.isFrozen(board.configuration.placements[0].lastKnown));
+		}
+		h.state(defaultId).moveCard('chat', { rowId: 'general', columnId: 'p2' });
+		h.catalog.replaceCardPlacements('chat', 'canonical');
+		assert.deepStrictEqual(h.state(defaultId).configuration.get().placements, [{ cardId: 'canonical', rowId: 'general', columnId: 'p2', lastKnown: identity }]);
+		h.state(defaultId).moveCard('canonical', undefined);
+		assert.deepStrictEqual(h.state(defaultId).configuration.get().placements, []);
+		assert.strictEqual(h.state(other).configuration.get().placements.length, 1);
+		h.catalog.removeCardPlacements(['canonical']);
+		assert.ok(h.catalog.boards.get().every(board => board.configuration.placements.length === 0));
+	});
+
+	test('identity updates preserve externally removed placements before the notification arrives', () => {
+		const h = create();
+		h.state(defaultId).moveCard('chat', { rowId: 'general', columnId: 'p0' });
+		const external = { ...collection(), boards: [{ ...collection().boards[0], name: 'External rename' }] };
+		const get = sinon.stub(h.storage, 'get').callThrough();
+		get.withArgs(key, StorageScope.PROFILE).returns(JSON.stringify(external));
+		h.catalog.updateCardIdentities(new Map([['chat', { title: 'Old discovery', sessionTitle: 'Session' }]]));
+		get.restore();
+		assert.deepStrictEqual(h.catalog.boards.get(), external.boards);
+	});
+
+	test('failed identity writes report failure and preserve the previous snapshot', () => {
+		const h = create();
+		h.state(defaultId).moveCard('chat', { rowId: 'general', columnId: 'p0' });
+		const before = h.storage.get(key, StorageScope.PROFILE);
+		const identities = new Map([['chat', { title: 'Known chat', sessionTitle: 'Session' }]]);
+		const write = sinon.stub(h.storage, 'store').throws(new Error('disk unavailable'));
+		assert.throws(() => h.catalog.updateCardIdentities(identities), /disk unavailable/);
+		assert.strictEqual(h.notifications.length, 1);
+		assert.strictEqual(h.errors.callCount, 1);
+		assert.strictEqual(h.storage.get(key, StorageScope.PROFILE), before);
+		assert.strictEqual(h.catalog.boards.get()[0].configuration.placements[0].lastKnown, undefined);
+		write.restore();
+		h.catalog.updateCardIdentities(identities);
+		assert.deepStrictEqual(h.catalog.boards.get()[0].configuration.placements[0].lastKnown, identities.get('chat'));
+	});
+
+	test('malformed or oversized saved identity metadata locks editing without discarding bytes', () => {
+		for (const lastKnown of [
+			null, [], 'title', {}, { title: 'Only title' }, { title: 42, sessionTitle: 'Session' },
+			{ title: 'Chat', sessionTitle: 'Session', workspace: false },
+			{ title: 'Chat', sessionTitle: 'Session', transcript: 'Not permitted' },
+			{ title: 'x'.repeat(projectBoardIdentityLabelLimit + 1), sessionTitle: 'Session' },
+			{ title: 'Chat', sessionTitle: 'x'.repeat(projectBoardIdentityLabelLimit + 1) },
+			{ title: 'Chat', sessionTitle: 'Session', workspace: 'x'.repeat(projectBoardIdentityLabelLimit + 1) },
+		]) {
+			const storage = disposables.add(new InMemoryStorageService());
+			const value = collection();
+			const saved = JSON.stringify({
+				...value, boards: [{ ...value.boards[0], configuration: {
+					...value.boards[0].configuration,
+					placements: [{ cardId: 'chat', rowId: 'general', columnId: 'p0', lastKnown }],
+				} }],
+			});
+			storage.store(key, saved, StorageScope.PROFILE, StorageTarget.MACHINE);
+			const h = create(storage);
+			assert.strictEqual(h.catalog.canEdit, false);
+			assert.strictEqual(h.notifications.length, 1);
+			assert.strictEqual(storage.get(key, StorageScope.PROFILE), saved);
+		}
 	});
 
 	test('migration preserves every placement, axis order and preference once, keeping legacy bytes untouched', () => {

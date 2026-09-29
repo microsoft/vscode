@@ -471,6 +471,16 @@
 	font-size: 13px;
 }
 
+.project-board-card-unavailable {
+	overflow-wrap: anywhere;
+}
+
+.project-board-card-unavailable p {
+	margin: var(--vscode-spacing-size80, 8px) 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1, 12px);
+}
+
 .project-board-card-status,
 .project-board-card-description {
 	margin-top: 4px;

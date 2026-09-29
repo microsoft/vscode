@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IProjectBoardCatalogService } from '../common/projectBoardCatalog.js';
-import { defaultConfiguration, IProjectBoardAxis, IProjectBoardConfiguration, IProjectBoardDisplayOptions, IProjectBoardPlacement, isIdentifier } from '../common/projectBoardConfiguration.js';
+import { defaultConfiguration, IProjectBoardAxis, IProjectBoardCardIdentity, IProjectBoardConfiguration, IProjectBoardDisplayOptions, IProjectBoardPlacement, isIdentifier } from '../common/projectBoardConfiguration.js';
 
 /** A board-scoped view of the shared catalog; it never follows embedded selection. */
 export class ProjectBoardState extends Disposable {
@@ -85,11 +85,11 @@ export class ProjectBoardState extends Disposable {
 		this.mutate(() => defaultConfiguration());
 	}
 
-	moveCard(cardId: string, placement: IProjectBoardPlacement | undefined): void {
-		this.moveCards([cardId], placement);
+	moveCard(cardId: string, placement: IProjectBoardPlacement | undefined, lastKnown?: IProjectBoardCardIdentity): void {
+		this.moveCards([cardId], placement, lastKnown ? new Map([[cardId, lastKnown]]) : undefined);
 	}
 
-	moveCards(cardIds: readonly string[], placement: IProjectBoardPlacement | undefined): void {
+	moveCards(cardIds: readonly string[], placement: IProjectBoardPlacement | undefined, identities?: ReadonlyMap<string, IProjectBoardCardIdentity>): void {
 		this.mutate(configuration => {
 			if (!cardIds.length || cardIds.some(cardId => !isIdentifier(cardId))) {
 				throw new Error(localize('projectBoard.invalidCardId', "A card must have a nonempty ID."));
@@ -103,7 +103,14 @@ export class ProjectBoardState extends Disposable {
 				...configuration,
 				placements: [
 					...configuration.placements.filter(candidate => !movedCardIds.has(candidate.cardId)),
-					...(placement ? [...movedCardIds].map(cardId => ({ cardId, rowId: placement.rowId, columnId: placement.columnId })) : []),
+					...(placement ? [...movedCardIds].map(cardId => {
+						const lastKnown = identities?.get(cardId);
+						return {
+							...configuration.placements.find(candidate => candidate.cardId === cardId),
+							cardId, rowId: placement.rowId, columnId: placement.columnId,
+							...(lastKnown ? { lastKnown } : {}),
+						};
+					}) : []),
 				],
 			};
 		});
