@@ -124,7 +124,7 @@ suite('AgentInstructionsLocator', () => {
 		expect(paths).toContain(`${parentFolder}/AGENTS.md`);
 	});
 
-	test('should collect parent instructions through a submodule .git file', async () => {
+	test('should not collect parent instructions through a submodule .git file', async () => {
 		await mockFiles(fileSystem, [
 			{ path: `${parentFolder}/.git/HEAD`, contents: ['ref: refs/heads/main'] },
 			{ path: `${rootFolder}/.git`, contents: ['gitdir: ../.git/modules/submodule'] },
@@ -133,21 +133,17 @@ suite('AgentInstructionsLocator', () => {
 			{ path: `${rootFolder}/src/file.ts`, contents: ['console.log("test");'] },
 		]);
 
-		workspaceService.setTrusted(parentFolderUri, true);
+		workspaceService.setTrusted(rootFolderUri, true);
 		await configService.setNonExtensionConfig(PromptConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
 		await configService.setConfig(ConfigKey.UseInstructionFiles, true);
 
 		const result = await locator.listAgentInstructions(CancellationToken.None);
-		expect(result.map(file => file.uri.path)).toEqual([
-			`${parentFolder}/.github/copilot-instructions.md`,
-			`${parentFolder}/AGENTS.md`,
-		]);
+		expect(result).toEqual([]);
 	});
 
 	test('should collect parent instructions from a git worktree', async () => {
 		await mockFiles(fileSystem, [
 			{ path: `${parentFolder}/.git`, contents: ['gitdir: ../main/.git/worktrees/feature'] },
-			{ path: '/main/.git/worktrees/feature/commondir', contents: ['../..'] },
 			{ path: `${parentFolder}/AGENTS.md`, contents: ['Parent agent guidelines'] },
 			{ path: `${parentFolder}/.github/copilot-instructions.md`, contents: ['Parent copilot instructions'] },
 			{ path: `${rootFolder}/src/file.ts`, contents: ['console.log("test");'] },
