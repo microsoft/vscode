@@ -38,9 +38,9 @@ import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat
  * Onboarding tour that introduces a brand-new user to the Copilot harness chat
  * input the first time they open the Chat view. It walks through three controls:
  *
- *  1. Agent mode — opens the mode and permissions picker on its agent mode section.
- *  2. Permissions — opens the same picker on its permissions section.
- *  3. The model picker — switch between language models to balance reasoning and cost.
+ *  1. The model picker — switch between language models to balance reasoning and cost.
+ *  2. Agent mode — opens the mode and permissions picker on its agent mode section.
+ *  3. Permissions — moves the same open menu to its permissions section.
  *
  * Which onboarding experience a user gets is controlled by
  * {@link ChatConfiguration.OnboardingExperience}. The setting is registered with
@@ -60,10 +60,18 @@ export const ChatInputTourTarget = {
 const chatInputTourPayload: ISpotlightPayload = {
 	steps: [
 		{
+			id: 'modelPicker',
+			targetId: ChatInputTourTarget.ModelPicker,
+			title: localize('chat.onboarding.chatInput.model.title', "Want Faster Answers or Deeper Thinking?"),
+			description: localize('chat.onboarding.chatInput.model.description', "Switch models to balance reasoning and cost. Save the strongest ones for hard problems."),
+			placement: 'above',
+			missingTarget: { kind: 'skip' },
+		},
+		{
 			id: 'agentMode',
 			targetId: ChatInputTourTarget.AgentMode,
 			title: localize('chat.onboarding.chatInput.agentMode.title', "Get the Right Kind of Help"),
-			description: localize('chat.onboarding.chatInput.agentMode.description', "Sometimes you want to work through a change together, and sometimes you want a plan to review first or the agent to finish on its own. Pick an agent mode to choose how hands-on the agent should be."),
+			description: localize('chat.onboarding.chatInput.agentMode.description', "Choose how hands-on the agent is. Work together, review a plan first, or let it run."),
 			placement: 'left',
 			openTarget: true,
 			missingTarget: { kind: 'skip' },
@@ -72,17 +80,9 @@ const chatInputTourPayload: ISpotlightPayload = {
 			id: 'permissions',
 			targetId: ChatInputTourTarget.Permissions,
 			title: localize('chat.onboarding.chatInput.permissions.title', "Decide What Needs Your Approval"),
-			description: localize('chat.onboarding.chatInput.permissions.description', "Permissions set when the agent checks with you before it edits files or runs commands. Keep approvals on while you get started, and allow more once you trust how it works."),
+			description: localize('chat.onboarding.chatInput.permissions.description', "Choose when the agent asks before editing files or running commands. Start cautious, then allow more as you trust it."),
 			placement: 'left',
 			openTarget: true,
-			missingTarget: { kind: 'skip' },
-		},
-		{
-			id: 'modelPicker',
-			targetId: ChatInputTourTarget.ModelPicker,
-			title: localize('chat.onboarding.chatInput.model.title', "Want Faster Answers or Deeper Thinking?"),
-			description: localize('chat.onboarding.chatInput.model.description', "Switch between models to balance reasoning and cost. Save the most capable models for complex problems and use lighter ones for everyday questions."),
-			placement: 'above',
 			missingTarget: { kind: 'skip' },
 		},
 	],
@@ -334,7 +334,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enum: [ChatOnboardingExperience.None, ChatOnboardingExperience.Spotlight],
 			enumDescriptions: [
 				localize('chat.onboarding.experience.none', "Do not show a chat onboarding experience."),
-				localize('chat.onboarding.experience.spotlight', "Spotlight the agent mode, permissions, and model pickers the first time the Chat view shows a Copilot harness chat, if no chat messages have been sent yet."),
+				localize('chat.onboarding.experience.spotlight', "Spotlight the model, agent mode, and permissions pickers the first time the Chat view shows a Copilot harness chat, if no chat messages have been sent yet."),
 			],
 			default: ChatOnboardingExperience.None,
 			scope: ConfigurationScope.APPLICATION,
