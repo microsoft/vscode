@@ -1089,8 +1089,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				getWidgetAriaLabel: () => localize('agentHostSessionConfig.ariaLabel', "{0} Picker", schema.title),
 			},
 			items.length > 10
-				? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options..."), minWidth: 255, preferredAnchorPosition: AnchorPosition.BELOW }
-				: { minWidth: 255, preferredAnchorPosition: AnchorPosition.BELOW },
+				? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options..."), minWidth: 255, anchorPosition: AnchorPosition.BELOW }
+				: { minWidth: 255, anchorPosition: AnchorPosition.BELOW },
 		);
 		const upstreamBranchName = repositoryState?.upstreamBranchName;
 		if (isBranchPicker && config?.values[SessionConfigKey.Isolation] === 'worktree' && upstreamBranchName && actionItems[0]?.item?.value === upstreamBranchName) {
