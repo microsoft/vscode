@@ -87,7 +87,7 @@ import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICo
 import { CODEX_PORTABLE_HISTORY_HEADER, ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isGitHubMcpToolName } from '../shared/agentMergeToolRestrictions.js';
-import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
+import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, shouldRecoverCommandCompletion, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
 import { planForkedTurnIdMap, resolveForkBoundary } from './codexForkPlan.js';
@@ -3137,7 +3137,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _retainRecoveredCommandOutputs(session: ICodexSession, items: TurnCompletedNotification['turn']['items']): ReadonlyMap<string, string> | undefined {
 		const resources = new Map<string, string>();
 		for (const item of items) {
-			if (item.type !== 'commandExecution' || (item.exitCode === null && item.status === 'completed') || !session.mapState.itemToToolCall.has(item.id)) {
+			if (!shouldRecoverCommandCompletion(session.mapState, item)) {
 				continue;
 			}
 			const resource = this._retainCommandOutput(session, item);

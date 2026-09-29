@@ -1220,6 +1220,10 @@ export function mapItemCompleted(
 	return [];
 }
 
+export function shouldRecoverCommandCompletion(state: ICodexSessionMapState, item: ItemCompletedNotification['item']): boolean {
+	return item.type === 'commandExecution' && (item.exitCode !== null || item.status !== 'completed') && state.itemToToolCall.has(item.id);
+}
+
 /**
  * `turn/completed` translates to either a normal complete signal or, when
  * the turn ended with `status: 'failed'`, an error followed by the
@@ -1239,7 +1243,7 @@ export function mapTurnCompleted(
 	// Live notifications normally use `itemsView: 'notLoaded'` and empty items.
 	const recoveredToolCallActions: (SessionAction | ChatAction)[] = [];
 	for (const item of params.turn.items) {
-		if (item.type === 'commandExecution' && (item.exitCode !== null || item.status !== 'completed') && state.itemToToolCall.has(item.id)) {
+		if (shouldRecoverCommandCompletion(state, item)) {
 			recoveredToolCallActions.push(...mapItemCompleted(state, {
 				threadId: params.threadId,
 				turnId: params.turn.id,
