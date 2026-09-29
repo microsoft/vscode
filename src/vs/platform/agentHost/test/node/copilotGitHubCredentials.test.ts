@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CopilotGitHubCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
+import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 
 suite('CopilotGitHubCredentials', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,6 +59,7 @@ suite('CopilotGitHubCredentials', () => {
 		const credentials = disposables.add(new CopilotGitHubCredentials());
 		credentials.update('static-token', undefined);
 		const staticSession = credentials.forSession();
+		const clientAuthenticatedSession = CopilotGitHubSessionCredentials.fromClientAuthentication(credentials.token);
 		const modeChange = credentials.update('provider-token', 7200);
 		const providerSession = credentials.forSession();
 
@@ -71,6 +72,11 @@ suite('CopilotGitHubCredentials', () => {
 				token: staticSession.token,
 				options: staticSession.sdkSessionOptions,
 			},
+			clientAuthenticatedSession: {
+				usesStaticToken: clientAuthenticatedSession.usesStaticToken,
+				token: clientAuthenticatedSession.token,
+				options: clientAuthenticatedSession.sdkSessionOptions,
+			},
 			providerSession: {
 				usesStaticToken: providerSession.usesStaticToken,
 				token: providerSession.token,
@@ -82,6 +88,11 @@ suite('CopilotGitHubCredentials', () => {
 				usesStaticToken: true,
 				token: 'updated-static-token',
 				options: { gitHubToken: 'updated-static-token' },
+			},
+			clientAuthenticatedSession: {
+				usesStaticToken: true,
+				token: 'static-token',
+				options: { gitHubToken: undefined },
 			},
 			providerSession: {
 				usesStaticToken: false,

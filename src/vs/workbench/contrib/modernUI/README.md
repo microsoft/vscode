@@ -7,6 +7,10 @@ Modern UI uses the standard workbench color theme system. Theme authors can use 
 
 The Modern UI colors below are experimental and require a build that supports them. Enable `workbench.experimental.modernUI` to use them in the main workbench. The shared `modernTab.*` and `modernEditorTab.*` colors also apply to the modern tab style in the Agents window. `statusBar.inactiveBackground` works in both classic and Modern UI layouts.
 
+## Layout density
+
+With Modern UI enabled, `window.density.layout` set to `default` keeps the workbench's floating cards, outer gutters, and rounded corners. In `compact` density, the main editor window's panels meet each other and the surrounding window chrome without outer spacing or corner radii. Internal separators and control padding remain intact; status bar items stay centered and keep their own horizontal inset. This perimeter treatment does not change modal editors, auxiliary editor windows, or the Agents window.
+
 ## Editor tab style
 
 `workbench.experimental.modernUIEditorTabStyle` chooses the editor tab treatment when `workbench.experimental.modernUI` is enabled:
@@ -28,7 +32,7 @@ Wrapped tabs reserve the same action space before and after row classification; 
 
 Automatic reveal includes the complete shoulder and rounds fractional layout bounds outward so the selected action is not clipped. Manual scrolling can still move part of the selected tab, including its action, offscreen. In that case a stationary cap and shoulder finish the visible outline; their stroke is aligned with the document separator, and the clipping mask falls back to `editor.background` when the theme does not define a tab-strip background.
 
-The connected design uses `editor.background` for the active tab; its action container is transparent so it cannot cover the cap stroke in compact rows. The selected tab and editor body read as one document well. Its outside stroke, shoulders, and strip separator use `editorGroupHeader.tabsBorder`, falling back to `tab.border`. Upper wrapped and separate pinned rows change only the tab shape, not its selected background. The strip and inactive tabs use `editorGroupHeader.connectedTabsBackground`, and their hover fill is derived from `foreground` over that background. Existing tab foreground customizations continue to apply. `modernEditorTab.activeBackground` remains available to the pill style.
+By default, the connected design uses `editor.background` for the active tab so the selected tab and editor body read as one document well. The strip and inactive tabs use `editorGroupHeader.connectedTabsBackground`, and their hover fill is derived from `foreground` over that background. Explicit tab fill and label color customizations from `tab.*`, `modernTab.*`, and `modernEditorTab.*` override those defaults for connected and pill tabs alike; editor-specific Modern UI colors take precedence over shared Modern UI colors, which take precedence over legacy colors. Connected action surfaces and frame colors retain their connected-specific treatment: the active tab's action container remains transparent, while its outside stroke, shoulders, and strip separator use `editorGroupHeader.tabsBorder`, falling back to `tab.border`. Upper wrapped and separate pinned rows change only the tab shape, not its fill or label color precedence.
 
 Agents chat tabs use the same connected shape, strip colors, and theme-aware stroke as side-panel tabs, with the selected tab joining the active or inactive session's background instead of `editor.background`. Overflowing chat tabs expose a thin, draggable horizontal scrollbar on hover without increasing the tab-row height. Tab selection, close actions, status indicators, inline renaming, drag and drop, and keyboard navigation retain their existing behavior.
 
@@ -36,7 +40,7 @@ Agents chat tabs use the same connected shape, strip colors, and theme-aware str
 
 Connected tabs use `tab.inactiveForeground` rather than dimming the general foreground to 50% opacity. The default palettes pair these fills with readable inactive text (at least 4.5:1), including in inactive editor groups. Light Modern and the classic light themes use the existing neutral `#616161`; the classic dark themes use `#A6A6A6`. Explicit legacy foreground customizations still take precedence. HC styling and the original pill label defaults are unchanged.
 
-In high contrast, the connected boundary uses `focusBorder` for the active editor group and `contrastBorder` for other groups. One rounded group frame encloses the title, breadcrumbs, editor header, and document body, including docked Details in the Agents window. With multiple tabs, the surrounding editor-area card stroke is transparent in HC, including compact-layout corner strokes, so it does not create a second frame. Single and hidden-tab modes retain their original editor-card outline. Keyboard focus and multi-selection indicators remain visible. The frame's inside paint layer does not change editor dimensions when switching themes or active groups.
+In high contrast, the connected boundary uses `focusBorder` for the active editor group and `contrastBorder` for other groups. One rounded group frame encloses the title, breadcrumbs, editor header, and document body, including docked Details in the Agents window. With multiple tabs, the surrounding editor-area card stroke is transparent in HC, including in compact layout, so it does not create a second frame. Single and hidden-tab modes retain their original editor-card outline. Keyboard focus and multi-selection indicators remain visible. The frame's inside paint layer does not change editor dimensions when switching themes or active groups.
 
 ## Colors
 
@@ -84,9 +88,11 @@ The `surface.*` colors provide shared framing defaults, not a replacement for ev
 
 Inside the panel, the existing `panelSection.border` separates horizontally arranged views and `panelSectionHeader.border` separates vertically stacked views. Neither controls the outer floating frame. Side bar section dividers use `sideBarSectionHeader.border`. High contrast border defaults use `contrastBorder`, but explicit theme overrides remain effective.
 
-Resize grip dots mark only boundaries between top-level parts, not editor splits or view resizers. They appear with `window.density.layout` set to `default` and are hidden in `compact` density. On hover or drag, the dots yield to the sash highlight controlled by `sash.hoverBorder`.
+Resize grip dots mark only boundaries between top-level parts, not modal editor frames, editor splits, or view resizers. They appear with `window.density.layout` set to `default` and are hidden in `compact` density. On hover or drag, the dots yield to the sash highlight controlled by `sash.hoverBorder`.
 
 Activity bar items in non-default top or bottom positions use the `modernTab.*` colors because they share the pane tab presentation.
+
+Editor tab fill and label colors have the same precedence in the `connected` and `pill` styles. Existing `tab.*` fill and label customizations remain effective unless the corresponding `modernTab.*` or `modernEditorTab.*` color is explicitly customized. Connected action backgrounds and frame borders continue to use the connected treatment described above.
 
 `statusBar.inactiveBackground` only changes the resting background in an inactive window with a workspace or folder open. Debugging and other status bar background overrides take precedence. Empty windows continue to use `statusBar.noFolderBackground`. Leaving the inactive color unset preserves the existing status bar behavior.
 

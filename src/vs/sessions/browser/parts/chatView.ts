@@ -28,6 +28,8 @@ export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
  * Options passed to a chat view when it is created.
  */
 export interface IChatViewOptions {
+	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
+	readonly hostVisible?: IObservable<boolean>;
 }
 
 export interface ISelectWorkspaceOptions {
@@ -36,6 +38,11 @@ export interface ISelectWorkspaceOptions {
 	readonly selectionOrigin?: WorkspaceSelectionOrigin;
 	/** Only replace an automatic default in a fresh, empty composer. */
 	readonly isDefault?: boolean;
+}
+
+export interface ISelectNoWorkspaceOptions {
+	readonly userSelection?: boolean;
+	readonly preserveNavigation?: boolean;
 }
 
 export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
@@ -99,6 +106,9 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	readonly isLoadingTranscript: IObservable<boolean> = constObservable(false);
 
+	/** Whether an input notification already explains a temporary sending restriction. */
+	readonly isInputBlocked: IObservable<boolean> = constObservable(false);
+
 	/**
 	 * Show the given chat in this view. The default implementation is a
 	 * no-op; subclasses that host a chat widget (e.g. `ChatView`) override
@@ -120,7 +130,7 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		return Promise.resolve('notReady');
 	}
 
-	selectNoWorkspace(): void {
+	selectNoWorkspace(_options?: ISelectNoWorkspaceOptions): void {
 		// no-op by default
 	}
 

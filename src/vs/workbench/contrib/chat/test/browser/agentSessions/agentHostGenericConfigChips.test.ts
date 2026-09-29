@@ -25,6 +25,7 @@ import { SessionState, SessionSummary } from '../../../../../../platform/agentHo
 import { INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -282,6 +283,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			refreshResolvedConfig: async (...args) => { refreshes.push(args); },
 		});
 		instantiationService.stub(IAgentHostEnablementService, { managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
+		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: undefined });
 		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
 		const lane = store.add(instantiationService.createInstance(AgentHostGenericConfigChips, widget));
 		const container = document.createElement('div');

@@ -38,7 +38,10 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
@@ -47,7 +50,6 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
-import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
@@ -279,6 +281,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			[IAgentHostWorktreeIsolation, worktreeIsolation],
 			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionDataService, worktreeIsolation)],
 			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+			[IAgentHostPeerChatPersistenceService, {
+				_serviceBrand: undefined,
+				setArchived: async () => { },
+			}],
 			[ISessionWorkspaceConversionService, {
 				_serviceBrand: undefined,
 				requestSessionWorkspaceUpdate: () => { },
@@ -290,13 +296,11 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
-		services.set(IAgentHostSessionPromptService, {
-			_serviceBrand: undefined,
-			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
-		});
 		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
-		services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
+		const providerService = createTestAgentHostProviderService(() => agent);
+		services.set(IAgentHostProviderService, providerService);
+		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -2078,7 +2082,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			failureStage: 'sendMessage',
 			errorType: 'sendFailed',
 			errorName: 'Error',
-			msg: 'Error: boom',
+			msg: 'boom',
 			hasStack: true,
 		}]);
 		assert.deepStrictEqual(sentEvents().map(event => event.data?.turnId), ['turn-1']);
@@ -2100,7 +2104,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			sendMessageCalls: agent.sendMessageCalls.length,
 		}, {
 			completed: { result: 'error', errorType: 'modelSelectionFailed', failureStage: 'modelSelection' },
-			failed: { errorType: 'modelSelectionFailed', failureStage: 'modelSelection', msg: 'Error: unknown model' },
+			failed: { errorType: 'modelSelectionFailed', failureStage: 'modelSelection', msg: 'unknown model' },
 			creationErrorType: 'modelSelectionFailed',
 			sendMessageCalls: 0,
 		});

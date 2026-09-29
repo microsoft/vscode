@@ -128,7 +128,7 @@ export function createTestActiveSession(sessionId: string, isCreated = true) {
 		override readonly status = constObservable(SessionStatus.Completed);
 		override readonly isRead = constObservable(true);
 		override readonly interactivity = constObservable(ChatInteractivity.Full);
-		override readonly capabilities = constObservable({ canRename: true, canDelete: false });
+		override readonly capabilities = constObservable({ canRename: true, canArchive: false, canDelete: false });
 		override readonly changes = constObservable([]);
 		override readonly changesets = constObservable([]);
 	}();

@@ -12,7 +12,7 @@ import { IAccessibleViewImplementation } from '../../../../platform/accessibilit
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { CustomViewVisibleContext, SessionsListPromoteNewChatActionContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, SessionsListPromoteNewChatActionContext, SessionWorktreeCleanupEditorFocusedContext } from '../../../common/contextkeys.js';
 import { localize } from '../../../../nls.js';
 import { FOCUS_AI_CUSTOMIZATION_VIEW_ID } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeView.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
@@ -20,40 +20,47 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID } from './promptTemplatePlaceholder.js';
 import { ARCHIVE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { areRemoteSessionToolsEnabled } from '../../remoteSessions/common/remoteSessions.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from './sessionArchiveNudge.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING } from '../../sessionInputBanners/browser/sessionWorktreeCleanupService.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
-import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
-import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from './sessionComparisonResult.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
+
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
 	readonly type = AccessibleViewType.Help;
-	// A custom view replaces the chat surface this help describes, so it does not apply then.
-	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate());
+	// A custom view replaces the chat surface this help describes, and the storage cleanup editor
+	// provides its own help, so this window-wide help does not apply in either case.
+	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate(), SessionWorktreeCleanupEditorFocusedContext.negate());
 
 	getProvider(accessor: ServicesAccessor) {
-		const restoreFocus = createSessionsChatFocusRestorer(accessor);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		const sessionsService = accessor.get(ISessionsService);
 		const configurationService = accessor.get(IConfigurationService);
 		const archiveActionWording = getChatSessionArchiveActionWording(configurationService);
+		const previouslyFocused = getActiveElement();
 
 		const content: string[] = [];
 		content.push(localize('sessionsChat.overview', "You are in the Agents window. The Agents window is a dedicated workspace for working with AI agents. It provides a chat interface, a changes view for reviewing agent-generated changes, a file explorer, and customization options."));
 		content.push(localize('sessionsChat.input', "You are in the chat input. Type a message and press Enter to send it."));
+		content.push(localize('sessionsChat.harnessSwitchFeedbackSurvey', "After you switch from Copilot to Local, a two-step feedback survey may appear above the chat input. Use Shift+Tab to reach it. In the first step, use Up and Down Arrow to choose why you switched, then press Enter or Space. In the second step, enter any optional feedback and use Tab to reach Submit. Dismiss Survey or Escape closes the survey. After submission, the questions are replaced above the input by a message that your feedback was recorded. Use Dismiss Feedback Acknowledgement or Escape to close it."));
+		if (configurationService.getValue<boolean>(NEW_SESSION_WELCOME_PHRASES_SETTING)) {
+			content.push(localize('sessionsChat.welcomeName', "In a new session, the welcome heading is announced when shown. To disable this announcement, set accessibility.verbosity.newSessionWelcome to false. Press Tab to reach Set Welcome Name beside the welcome heading, or open its context menu{0}. Enter a custom name, or clear it to use your GitHub first name when available.", '<keybinding:editor.action.showContextMenu>'));
+		}
 		content.push(localize('sessionsChat.preparation', "While a new session is being prepared, the transcript shows your submitted prompt and attachments followed by startup progress. Use Tab to reach Show Log beside the progress message and press Enter to open the Dev Container output channel. The chat input and attachment controls are disabled until preparation finishes. Use the input's Stop action or Cancel Chat command{0} to cancel preparation. If preparation fails or is canceled, your original prompt and attachments remain in the new-session composer.", '<keybinding:workbench.action.chat.cancel>'));
 		content.push(localize('sessionsChat.connectionLog', "While connecting to a Dev Container for an existing session, use Tab to reach Show Log and press Enter to open the Dev Container output channel."));
 		if (configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING)) {
-			content.push(localize('sessionsChat.responseSelectionMenu', "When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask with /btw opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text."));
+			content.push(localize('sessionsChat.responseSelectionMenu', "When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask in a Side Chat opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text."));
 		} else {
 			content.push(localize('sessionsChat.responseSelectionInput', "When you select assistant response text, an Ask Question input appears. Type a side question and press Enter to send it, press Shift+Enter to insert a new line, or press Escape to dismiss the input."));
 		}
 		content.push(getModePickerAccessibilityHelp());
-		content.push(localize('sessionsChat.closePane', "When multiple session panes are visible, move focus to a pane header and activate Close to remove that pane from the grid. Closing a pane keeps the session and its worktree available in the Sessions list."));
 		content.push(localize('sessionsChat.inputPills', "When session metadata or active-turn status pills appear above the input, press Shift+Tab to reach them, use the Left and Right arrow keys to move between them, and press Enter or Space to activate one. Open the context menu{0} to choose which pills are shown. Pull Requests Options lets you show all pull requests or only open and draft ones. Subagent Options offers Show All and Show In Progress. These choices are remembered across sessions. If every entry of a pill is filtered out, its options are also available in any other pill's context menu or the toolbar context menu.", '<keybinding:editor.action.showContextMenu>'));
 		content.push(localize('sessionsChat.removeSessionRecord', "Recorded artifacts and references offer Remove from Session for each row. Use Tab to reach row actions. When only one item is visible, use its pill hover actions or context menu instead. Removal waits for persistence and only deletes the session record; it does not delete the linked resource, close a pull request or issue, or remove independent session associations."));
 		content.push(localize('sessionsChat.externalSessionFilter', "The Sessions list Filter menu includes an External submenu. Choose None, Recent, Last 24 Hours, Last 7 Days, or Last 30 Days to control which sessions from other applications are shown."));
@@ -66,20 +73,24 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.externalSessionAdoption', "Once you send a message to an external session's agent, it becomes a regular session. Its banner and External hover label disappear, and it is no longer grouped or filtered as external."));
 		content.push(localize('sessionsChat.externalSessionImport', "To make an external session a regular session without sending a message, use Import in its row toolbar, before Archive or Mark as Done, or focus the session and choose Import from its context menu{0}. This action is available when the host supports importing sessions.", '<keybinding:editor.action.showContextMenu>'));
 		content.push(localize('sessionsChat.delegatedMessage', "Messages sent by another session or chat show a source annotation above the message. Press Tab to focus the annotation, then press Enter or Space to open the source chat."));
+		content.push(archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
+			? localize('sessionsChat.doneChat', "To mark an individual nested chat as done without marking its session as done, open the chat's context menu in the Sessions list or chat tab and choose Mark as Done. The chat is hidden from the Sessions list and closed, but is not deleted. Open the Sessions list Filter menu and enable Done to show it again, then open the chat's context menu and choose Restore.")
+			: localize('sessionsChat.archiveChat', "To archive an individual nested chat without archiving its session, open the chat's context menu in the Sessions list or chat tab and choose Archive. The chat is hidden from the Sessions list and closed, but is not deleted. Open the Sessions list Filter menu and enable Archived to show it again, then open the chat's context menu and choose Unarchive."));
 		content.push(localize('sessionsChat.createdBySession', "When a session was created by another session, focus it in the Sessions list and use the Show Hover command{0}. Move focus to the Created by link, then press Enter or Space to open the creator session.", '<keybinding:workbench.action.showHover>'));
-		content.push(localize('sessionsChat.promptOptions', "When prompt options appear above the new-session input, use Tab and Shift+Tab to move between them, then press Enter or Space to insert one. You can select a different option while the input is empty, exactly matches the inserted prompt, or only has its editable placeholder removed; other edits disable the options without hiding them. Clearing the input also clears the selected option. Use the Close action to hide the options and return focus to the input."));
-		if (configurationService.getValue<boolean>(COMPARE_AGENTS_ENABLED_SETTING)) {
-			content.push(localize('sessionsChat.compareAgents', "In the new-session input, open the agent picker and activate Run and Compare Agents to open a two-step comparison setup. Use Tab to reach the Attempts and Evaluation step buttons and activate either button to move directly to that step. In Attempts, choose a Git repository with at least one commit and a remote, choose the base branch, then edit the shared prompt or each attempt's agent, model, supported reasoning effort, and provider-specific Permissions selection. The Permissions picker uses the exact choices advertised by that agent, such as Manual permissions and Allow all for Copilot, Ask Before Edits and Bypass Permissions for Claude, or Default Permissions and Full Access for Codex. Check Allow all permissions for every participant to select each agent's allow-all choice for every attempt, the Judge, and the Synthesizer; uncheck it to restore every participant's provider default. Activate the adjacent information button for details about these choices. Organization policy may disable elevated choices or the bulk checkbox. Activate Next to configure the Judge and optional Synthesizer together on the Evaluation step, and use Back to revisit Attempts. Their information buttons describe each role. Use Add attempt for another run; Remove appears when more than two attempts exist. On the Evaluation step, activate Start sessions in parallel to submit, hover it for a token-usage warning, or press Escape to cancel. Open the comparison parent in the Sessions list to open every available attempt in a resizable grid. In the Sessions list, hover any working participant or focus its row to reveal Stop, then activate it to stop only that participant. Hover or focus the comparison header to reveal Stop All, which stops every running attempt, Judge, and Synthesizer in that comparison. With two attempt panes, both chat inputs remain visible. With three or more, only the active attempt pane shows its chat input; focus another attempt pane to show its input. Screen-reader optimized mode keeps every attempt input visible. After the Judge finishes, its chat shows the winning attempt and a concise categorized list covering the decisive comparison evidence, validation, code quality, and solution, followed by strong points from other attempts. Focus the comparison result and use Open Accessible View{0} to read its verdict, attempt metrics, and synthesis decisions as plain text. Use Tab to reach an attempt name and activate its link to reveal that session. Use Tab to reach Attempt time and token usage, then press Enter or Space to expand the table of total time and total tokens. Activate Focus Winning Session to open the recommended attempt, or use its adjacent dropdown to focus another attempt. When synthesis is available, Synthesize Attempts starts the Judge's default plan. Open its More Actions menu and choose Additional Synthesis Instructions to enter requirements that are remembered and applied to either recommended or custom synthesis. Activate Start Synthesis with Instructions, or press Ctrl+Enter (Cmd+Enter on macOS) in that field, to start the recommended plan with those requirements. When the Judge reports multiple implementation decisions, activate Custom Synthesis to reveal a decision table. Each row describes one implementation decision and rates the attempts as a better, neutral, or worse choice. The table scrolls when its decisions or attempt columns exceed the available space. Use Tab to move between the choice buttons, select one attempt per row or let the Synthesizer decide, then activate Start Custom Synthesis. The instructions and choices guide a new synthesis session and do not modify the original attempts.", '<keybinding:editor.action.accessibleView>'));
-			content.push(localize('sessionsChat.compareAgentsGroupActions', "Stop and Stop All are available only while their comparison sessions are running. When every comparison session is idle, activate the check-mark Archive Comparison action in the comparison header to archive its sessions without deleting them. Delete Group remains available from the comparison header context menu."));
-			content.push(localize('sessionsChat.compareAgentsRationaleOrder', "Judge results identify candidates as Attempt N with agent, model, and effort, then present Why it won in this order: Comparison, Validation, Code quality, Solution."));
-			content.push(localize('sessionsChat.compareAgentsInactivePaneNotification', "When a question tool needs input in an inactive visible pane, the confirmation notification setting can show an operating system notification even while another pane in the Agents window is active."));
+		if (areRemoteSessionToolsEnabled(configurationService)) {
+			content.push(localize('sessionsChat.remoteDelegation', "Ask the agent to list remote agent hosts or create a remote session with platform and resource requirements. Creation uses the standard tool confirmation and does not change the focused chat. The result includes a link to the remote session. Remote sessions can send messages back to the originating chat while this Agents window remains connected."));
+			content.push(localize('sessionsChat.remoteInspection', "Ask the agent to inspect a remote session using its session link. Inspection reads its current state and latest response or error without changing focus, marking the chat as read, or approving pending requests. If the host is unavailable, the result explains why; inspection does not reconnect it."));
 		}
+		content.push(localize('sessionsChat.promptOptions', "When prompt options appear above the new-session input, use Tab and Shift+Tab to move between them, then press Enter or Space to insert one. You can select a different option while the input is empty, exactly matches the inserted prompt, or only has its editable placeholder removed; other edits disable the options without hiding them. Clearing the input also clears the selected option. Use the Close action to hide the options and return focus to the input."));
 		content.push(localize('sessionsChat.migrations', "When agent customizations need an update, a notice below the new-session input shows how many need attention. Use Tab to reach Review Migrations and open the Migrations page. Dismiss Migration Notice for This Workspace hides the notice for that workspace, including after restarting, and returns focus to the input."));
 		if (configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)) {
 			content.push(localize('sessionsChat.newSessionPickers', "In a new-session composer, open and focus the workspace picker{0} or the harness picker{1}. Focus either picker control and open its context menu{2} to configure its keybinding.", `<keybinding:${FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID}>`, `<keybinding:${FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID}>`, '<keybinding:editor.action.showContextMenu>'));
 		}
 		content.push(localize('sessionsChat.promptTemplatePlaceholder', "When the new-session prompt contains a highlighted task placeholder, place the caret inside it and replace it{0} to type your task.", `<keybinding:${REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID}>`));
 		content.push(localize('sessionsChat.feedbackComments', "When pull requests have failing checks or unreviewed comments, one banner appears above the input. If several pull requests need attention, use the Previous Banner and Next Banner buttons to move between them. A pull request with both failing checks and comments uses a split button: activate the main action to address both, or use its More Actions button to address only the checks or comments. In-product agent review comments appear as their own carousel item."));
+		if (accessor.get(IConfigurationService).getValue<boolean>(AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING)) {
+			content.push(localize('sessionsChat.worktreeCleanupSuggestion', "When at least 20 inactive session worktrees are eligible for cleanup or eligible inactive worktrees can reclaim at least 5 GiB, a storage suggestion may appear below the Sessions list and is announced with the Clean Up Agent Worktrees Command Palette command. The command is also available from the Sessions More Actions menu and from a session's context menu. Active, running, needs-input, pinned, and recently used sessions are excluded. Use Tab or Shift+Tab to reach Clean Up Agent Worktrees, Don't Show Again, or Dismiss Session Storage Suggestion, then Enter or Space to activate it. Don't Show Again disables future suggestions and announcements across restarts. Press Escape while focus is in the suggestion to dismiss it for the current window. To stop these suggestions and announcements without using the suggestion itself, run Disable Session Storage Cleanup Suggestions from the Command Palette, or run Clean Up Agent Worktrees and clear the Suggest Cleaning Up Session Storage When It Grows Large checkbox."));
+		}
 		if (accessor.get(IConfigurationService).getValue<boolean>(SESSION_ARCHIVE_NUDGE_SETTING)) {
 			content.push(localize('sessionsChat.compactArchiveNudge', "After you successfully use the suggestion to archive or mark a session as done three times, future suggestions appear in a compact layout without the explanation. The buttons wrap below the title when space is limited, while Dismiss stays at the top right. The keyboard order is Archive or Mark as Done, Configure, then Dismiss. Configure opens the same automatic cleanup settings."));
 			content.push(localize('sessionsChat.archiveNudgeOnboarding', "The first time you activate the suggestion's Archive or Mark as Done button, a spotlight may reveal that session's action in the sessions list. It briefly waits for the list action to appear. The action waits until you activate the highlighted action, activate Understood, or press Escape to end the spotlight. Use Tab or Shift+Tab to move between the highlighted action and Understood, and Enter or Space to activate either. If the spotlight cannot be shown or is interrupted, the session is still archived or marked as done as long as the suggestion remains available. Once completed or skipped, the spotlight will not appear again."));
@@ -109,6 +120,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.mobileConfig', "On mobile, the mode and model pickers appear as tappable chips below the input. Tap a chip to open a bottom sheet where you can change the selection."));
 		content.push(localize('sessionsChat.history', "Use up and down arrows to navigate your request history in the input box."));
 		content.push(localize('sessionsChat.background', "Outside high contrast themes, use Set Background to choose no background, the built-in theme-aware Codicons pattern, a new image, or one of the five most recently selected images. One randomly selected icon in the Codicons pattern is a Celebrate button; press Tab to find it, then press Enter or Space to activate it. Each activation selects another random icon as the next Celebrate button. Use Change Background Layout to choose whether an image repeats, stretches, or appears at an edge or corner for the current color theme. Moving through the layout picker previews each option; select one to save it, or press Escape to restore the previous layout. Both commands are available from the Command Palette and by right-clicking empty chat space. Change Background Layout is shown only for images. Background customization is unavailable while a high contrast theme is active."));
+		content.push(localize('sessionsChat.backgroundTint', "When a background image is set, use Tint Window to Match Background in the Command Palette or the background context menu to turn matching window colors on or off. A check mark means tinting is enabled. Turning it off keeps the background image and restores the original window colors."));
 		content.push(localize('sessionsChat.vscodePet', "Use the checked Pet item in the new-session view context menu, or type /vscode-pet, to show or hide the VS Code pet above the input. Drag it horizontally to reposition it, or use Tab to focus it and the left and right arrow keys to move it. Press Enter or Space to show it some love."));
 		content.push(localize('sessionsChat.vscodePetAchievements', "When the pet is enabled, the user account menu lists unlocked achievement badges before locked badges and provides a View Achievements button. A gold star on the pet announces a newly unlocked achievement; activate the pet while the star is visible to open Achievements."));
 		content.push(localize('sessionsChat.aquariumAction', "To show or hide the aquarium action on the new-session view, use the checked Aquarium item in the context menu outside the composer, or run the Toggle Aquarium Action Visibility command."));
@@ -134,7 +146,11 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			: archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
 				? localize('sessionsChat.sessionsListDefaultDoneActions', "The session row toolbar offers Pin or Unpin before Mark as Done. For sessions that support multiple chats, open the session's context menu to start a new chat.")
 				: localize('sessionsChat.sessionsListDefaultArchiveActions', "The session row toolbar offers Pin or Unpin before Archive. For sessions that support multiple chats, open the session's context menu to start a new chat."));
+		content.push(archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
+			? localize('sessionsChat.showDoneChats', "Use Done in the Sessions list Filter menu to control whether done sessions and nested chats are shown. A check mark means done content is shown.")
+			: localize('sessionsChat.showArchivedChats', "Use Archived in the Sessions list Filter menu to control whether archived sessions and nested chats are shown. A check mark means archived content is shown."));
 		content.push(localize('sessionsChat.sessionsListChatContextMenu', "Open a nested chat's context menu to rename it, open it to the side, or, when supported, permanently delete it. Agent Host chats also offer Copy Link."));
+		content.push(localize('sessionsChat.mainChatToSide', "To open the main chat beside a peer chat, choose Open to the Side from the session row's context menu. You can also Alt-click (Option-click on macOS) the row or drag it to a chat pane's edge."));
 		content.push(localize('sessionsChat.forkToSide', "Alt-click, or Option-click on macOS, the Fork Conversation button at a checkpoint to open the fork beside its source. Ordinary activation keeps its existing behavior. With the keyboard, activate Fork Conversation, reopen the source from the Sessions list, then choose Open to the Side from the fork's context menu."));
 		content.push(localize('sessionsChat.copySessionLink', "To copy a browser link that opens an Agent Host session in the Agents window, open the session's context menu and choose Copy Link."));
 		content.push(localize('sessionsChat.subagentPills', "Activate a subagent pill in the chat transcript to open the subagent beside the current chat. With the keyboard, focus a pill and press Enter or Space; Alt+Enter also opens it to the side. You can also drag a pill to a chat group's edge to choose where it opens."));
@@ -167,46 +183,15 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			AccessibleViewProviderId.SessionsChat,
 			{ type: AccessibleViewType.Help },
 			() => content.join('\n'),
-			restoreFocus,
+			() => {
+				if (isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
+					previouslyFocused.focus();
+					return;
+				}
+				const view = sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId);
+				view?.focus();
+			},
 			AccessibilityVerbositySettingId.SessionsChat,
 		);
 	}
-}
-
-export class SessionComparisonAccessibleView implements IAccessibleViewImplementation {
-	readonly priority = 121;
-	readonly name = 'sessionComparison';
-	readonly type = AccessibleViewType.View;
-	readonly when = SessionComparisonResultFocused;
-
-	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
-		const session = accessor.get(ISessionsService).activeSession.get();
-		const comparison = session
-			? accessor.get(ISessionComparisonService).comparisons.get().find(candidate => isJudgeSession(candidate, session))
-			: undefined;
-		if (!comparison?.verdict) {
-			return undefined;
-		}
-		return new AccessibleContentProvider(
-			AccessibleViewProviderId.SessionsChat,
-			{ type: AccessibleViewType.View, language: 'plaintext' },
-			() => buildSessionComparisonAccessibleContent(comparison),
-			createSessionsChatFocusRestorer(accessor),
-			AccessibilityVerbositySettingId.SessionsChat,
-		);
-	}
-}
-
-function createSessionsChatFocusRestorer(accessor: ServicesAccessor): () => void {
-	const sessionsPartService = accessor.get(ISessionsPartService);
-	const sessionsService = accessor.get(ISessionsService);
-	const previouslyFocused = getActiveElement();
-	return () => {
-		if (isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
-			previouslyFocused.focus();
-			return;
-		}
-		const view = sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId);
-		view?.focus();
-	};
 }

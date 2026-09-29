@@ -15,6 +15,7 @@ import { IFileDialogService } from '../../../../../platform/dialogs/common/dialo
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IChatModelFeedbackSurveyService } from '../../../../contrib/chat/browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
+import { IChatHarnessSwitchFeedbackSurveyService } from '../../../../contrib/chat/browser/feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
 import { MockChatModelFeedbackSurveyService } from '../../../../contrib/chat/test/browser/feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
@@ -175,6 +176,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.define(IMarkdownRendererService, MarkdownRendererService);
 	reg.define(IListService, ListService);
 	reg.defineInstance(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+	reg.defineInstance(IChatHarnessSwitchFeedbackSurveyService, { _serviceBrand: undefined, prompt: () => { } });
 	reg.defineInstance(ILinkPresentationService, new class extends mock<ILinkPresentationService>() {
 		override getLinkPresentationRule() { return undefined; }
 		override createLinkPresentationWatcher() { return undefined; }
@@ -310,7 +312,6 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	}());
 	reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 		override getAllChatSessionContributions() { return []; }
-		override getChatSessionContribution() { return undefined; }
 		override readonly onDidChangeSessionOptions = Event.None;
 		override readonly onDidChangeOptionGroups = Event.None;
 		override readonly onDidChangeAvailability = Event.None;
@@ -374,7 +375,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() { override register() { return { dispose() { } }; } }());
 	reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 		override readonly onDidChange = Event.None;
-		override getActiveNotification() { return options.notification; }
+		override getActiveNotification(filter?: (notification: IChatInputNotification) => boolean) {
+			const notification = options.notification;
+			return notification && (!filter || filter(notification)) ? notification : undefined;
+		}
 		override announceRendered() { }
 	}());
 	reg.defineInstance(IAgentSdkSetupService, new class extends mock<IAgentSdkSetupService>() {

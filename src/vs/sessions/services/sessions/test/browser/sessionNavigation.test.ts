@@ -180,10 +180,6 @@ class MockSessionStore implements ISessionsManagementService {
 		return undefined;
 	}
 
-	getSessionContextReference(_resource: URI): string | undefined {
-		return undefined;
-	}
-
 	getAllSessionTypes(): ISessionType[] { return []; }
 	getAllProviderSessionTypes(): IProviderSessionType[] { return []; }
 	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] { return []; }
@@ -249,6 +245,8 @@ class MockSessionStore implements ISessionsManagementService {
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	importSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	archiveChat(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
+	unarchiveChat(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
 	setSessionReadState(_session: ISession, _isRead: boolean): Promise<void> { throw new Error('not implemented'); }
 	markRead(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	markUnread(_session: ISession): Promise<void> { throw new Error('not implemented'); }

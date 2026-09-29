@@ -10,10 +10,12 @@ import { Lazy } from '../../../base/common/lazy.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceQueryService, ICustomizationMarketplaceRequest, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
 
 export const CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME = 'customizationMarketplace';
+export const IPlatformCustomizationMarketplaceService = createDecorator<ICustomizationMarketplaceService>('platformCustomizationMarketplaceService');
 
 export class CustomizationMarketplaceChannel implements IServerChannel {
 	private readonly service: Lazy<ICustomizationMarketplaceQueryService>;
@@ -40,7 +42,7 @@ export class CustomizationMarketplaceChannel implements IServerChannel {
 
 export class CustomizationMarketplaceChannelClient implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
-	readonly sources: readonly ICustomizationMarketplaceSourceInfo[] = Object.values(CustomizationMarketplaceSources);
+	readonly sources: readonly ICustomizationMarketplaceSourceInfo[] = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
 
 	constructor(
 		private readonly channel: IChannel,
