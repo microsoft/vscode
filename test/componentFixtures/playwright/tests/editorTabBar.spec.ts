@@ -94,7 +94,7 @@ for (const [style, expected] of [
 	['Legacy', {
 		topIndicator: { display: 'block', color: 'rgb(34, 211, 238)' },
 		bottomIndicator: { display: 'block', color: 'rgb(244, 63, 94)' },
-		visibleDividers: ['rgb(255, 255, 255)', 'rgb(255, 255, 255)', 'rgb(255, 255, 255)'],
+		visibleDividers: Array(7).fill('rgb(255, 255, 255)'),
 	}],
 	['Pill', {
 		topIndicator: { display: 'none' },
@@ -104,7 +104,7 @@ for (const [style, expected] of [
 		fillSide: 'rgb(250, 204, 21)',
 		topAccent: 'rgb(34, 211, 238)',
 		bottomAccent: 'rgb(244, 63, 94)',
-		visibleDividers: ['rgb(255, 255, 255)', 'rgb(255, 255, 255)', 'rgb(255, 255, 255)'],
+		visibleDividers: Array(7).fill('rgb(255, 255, 255)'),
 	}],
 	['Connected', {
 		topIndicator: { display: 'none' },
@@ -112,7 +112,7 @@ for (const [style, expected] of [
 		fillTop: 'rgb(34, 211, 238)',
 		fillBottom: 'rgba(0, 0, 0, 0)',
 		fillSide: 'rgb(250, 204, 21)',
-		visibleDividers: ['rgb(255, 255, 255)'],
+		visibleDividers: Array(5).fill('rgb(255, 255, 255)'),
 	}],
 ] as const) {
 	test(`${style} tabs retain their border ownership`, async ({ page }) => {

@@ -414,11 +414,16 @@ function customizeTheme(theme: IColorTheme, customizations: Readonly<Record<stri
 function renderBorderOwnership(modernUI: boolean, editorTabStyle?: ModernUIEditorTabStyle): (ctx: ComponentFixtureContext) => void {
 	return render(modernUI, {
 		editorTabStyle,
+		width: 1200,
 		editors: [
 			{ resource: file('/project/alpha.ts'), pinned: true },
-			{ resource: file('/project/beta.ts'), pinned: true, active: true },
+			{ resource: file('/project/beta.ts'), pinned: true },
 			{ resource: file('/project/gamma.ts'), pinned: true },
-			{ resource: file('/project/delta.ts'), pinned: true },
+			{ resource: file('/project/delta.ts'), pinned: true, active: true },
+			{ resource: file('/project/epsilon.ts'), pinned: true },
+			{ resource: file('/project/zeta.ts'), pinned: true },
+			{ resource: file('/project/eta.ts'), pinned: true },
+			{ resource: file('/project/theta.ts'), pinned: true },
 		],
 		colorCustomizations: getLegacyEditorTabBorderCustomizations(),
 	});
@@ -1008,7 +1013,7 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		Connected: defineComponentFixture({
 			render: renderBorderOwnership(true, ModernUIEditorTabStyle.Connected),
 			themes: ['dark'],
-			expectedVisualDescriptions: ['Connected tabs paint the customized cyan top border on the rounded cap, retain the pink bottom indicator, and use yellow tab boundaries. A short white divider appears only between adjacent inactive tabs and overlays the shared boundary.'],
+			expectedVisualDescriptions: ['Connected tabs paint the customized cyan top border on the rounded cap, retain the pink bottom indicator, and use yellow tab boundaries. Five short white dividers span the long run of adjacent inactive tabs, while both boundaries beside the active tab suppress the divider.'],
 		}),
 	}),
 	ConnectedBorderContinuity: defineThemedFixtureGroup({
