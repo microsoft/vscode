@@ -225,6 +225,7 @@ import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
 import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
+import { CodexStatusBarEntry } from './chatStatus/codexStatusEntry.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
 import { ChatWindowNotifier } from './chatWindowNotifier.js';
 import { AgentPluginRecommendations } from './claudePluginRecommendations.js';
@@ -521,7 +522,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentSessions.showExternal.last7Days', "Show external sessions updated in the last 7 days."),
 				nls.localize('chat.agentSessions.showExternal.last30Days', "Show external sessions updated in the last 30 days."),
 			],
-			default: AgentHostExternalSessionsMode.Recent,
+			default: AgentHostExternalSessionsMode.Last7Days,
 			markdownDescription: nls.localize('chat.agentSessions.showExternal', "Controls which external agent sessions are shown. External sessions are sessions that were created in a different application and have not received a message from this application yet."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
@@ -1766,7 +1767,7 @@ configurationRegistry.registerConfiguration({
 		[AgentHostHydraFusionEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.copilot.hydraFusion.enabled', "When enabled, makes the experimental HydraFusion model available to local Copilot Agent Host sessions. Changing this setting restarts the local Copilot runtime."),
-			default: false,
+			default: true,
 			experiment: { mode: 'startup' },
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['preview', 'experimental', 'advanced'],
@@ -2565,17 +2566,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.customizations.structuredPreview.enabled', "Controls whether the Chat Customizations editor shows a structured preview for markdown customization files (agents, skills, instructions, prompts). When disabled, the editor always opens the raw markdown in the embedded code editor."),
 			default: false,
 		},
-		[ChatConfiguration.ChatCustomizationsToggleStyle]: {
-			type: 'string',
-			enum: ['checkbox', 'switch'],
-			enumDescriptions: [
-				nls.localize('chat.experimental.customizations.toggleStyle.checkbox', "Use checkboxes for customization enablement controls."),
-				nls.localize('chat.experimental.customizations.toggleStyle.switch', "Use switches for customization enablement controls."),
-			],
-			tags: ['experimental'],
-			description: nls.localize('chat.experimental.customizations.toggleStyle', "Controls whether Plugin, MCP, and Tools customization pages use checkboxes or switches for enablement."),
-			default: 'switch',
-		},
 		...customizationMarketplaceConfigurationProperties,
 		[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: {
 			type: 'boolean',
@@ -3349,6 +3339,7 @@ registerWorkbenchContribution2(ChatExpNotificationContribution.ID, ChatExpNotifi
 registerWorkbenchContribution2(HasByokModelsContribution.ID, HasByokModelsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(CodexStatusBarEntry.ID, CodexStatusBarEntry, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ClientToolSetsContribution.ID, ClientToolSetsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(UsagesToolContribution.ID, UsagesToolContribution, WorkbenchPhase.BlockRestore);

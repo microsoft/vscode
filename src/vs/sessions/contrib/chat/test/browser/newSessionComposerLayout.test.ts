@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
@@ -94,6 +95,62 @@ suite('New session composer layout', () => {
 			home: ['Repository'],
 			visibilityUpdates: 2,
 			layouts: 2,
+		});
+	});
+
+	test('tabs through repository controls when they are placed in the workspace row', () => {
+		const repositoryControlsHome = document.createElement('div');
+		const repositoryControls = document.createElement('div');
+		repositoryControlsHome.append(repositoryControls);
+		const controls = ['Worktree', 'Branch'].map(label => {
+			const slot = document.createElement('div');
+			slot.className = 'sessions-chat-picker-slot';
+			const control = document.createElement('button');
+			control.textContent = label;
+			control.tabIndex = label === 'Worktree' ? 0 : -1;
+			slot.append(control);
+			repositoryControls.append(slot);
+			return control;
+		});
+		const pickerRow = document.createElement('div');
+		const root = document.createElement('div');
+		root.append(repositoryControlsHome, pickerRow);
+		document.body.append(root);
+		store.add(toDisposable(() => root.remove()));
+		const harness = Object.assign(Object.create(NewChatInputWidget.prototype), {
+			_repositoryControlsContainer: repositoryControls,
+			_repositoryControlsHome: repositoryControlsHome,
+			_updateBottomContainerVisibility: () => { },
+			_secondaryPickerResponsiveLayout: { layout: () => { } },
+		});
+		const placeRepositoryControls = NewChatInputWidget.prototype.placeRepositoryControls as (this: typeof harness, container?: HTMLElement) => void;
+		const navigateRepositoryControls = (NewChatInputWidget.prototype as unknown as {
+			_navigateRepositionedRepositoryControls(this: typeof harness, event: KeyboardEvent): void;
+		})._navigateRepositionedRepositoryControls;
+		placeRepositoryControls.call(harness, pickerRow);
+		repositoryControls.addEventListener('keydown', event => navigateRepositoryControls.call(harness, event));
+
+		controls[0].focus();
+		const forward = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+		controls[0].dispatchEvent(forward);
+		const afterForward = document.activeElement;
+		const leaving = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+		controls[1].dispatchEvent(leaving);
+		const backward = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+		controls[1].dispatchEvent(backward);
+
+		assert.deepStrictEqual({
+			forwardPrevented: forward.defaultPrevented,
+			branchFocused: afterForward === controls[1],
+			leavingPrevented: leaving.defaultPrevented,
+			backwardPrevented: backward.defaultPrevented,
+			worktreeFocused: document.activeElement === controls[0],
+		}, {
+			forwardPrevented: true,
+			branchFocused: true,
+			leavingPrevented: false,
+			backwardPrevented: true,
+			worktreeFocused: true,
 		});
 	});
 });

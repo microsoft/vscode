@@ -550,7 +550,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		const files = resources.map(resource => {
 			const file = this._changesetFilesObs.get()?.find(candidate => {
 				const change = changesetFileToChange(candidate, this._options.mapDiffUri);
-				return isEqual(change?.modifiedUri, resource) || isEqual(change?.originalUri, resource);
+				return isEqual(change?.uri, resource) || isEqual(change?.modifiedUri, resource) || isEqual(change?.originalUri, resource);
 			});
 			if (!file) {
 				throw new Error(`Resource '${resource.toString()}' is not part of changeset '${this.id}'`);

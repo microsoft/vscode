@@ -16,7 +16,7 @@ import { IObjectTreeElement, ITreeContextMenuEvent, ObjectTreeElementCollapseSta
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -44,7 +44,6 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../platform/c
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { UpdateAgentPluginsCommandId } from '../chat.js';
-import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
@@ -247,7 +246,7 @@ class PluginSearchHeaderRenderer implements IListRenderer<IPluginSearchHeaderEnt
 
 interface IPluginInstalledItemTemplateData {
 	readonly container: HTMLElement;
-	readonly syncCheckboxContainer: HTMLElement;
+	readonly syncToggleContainer: HTMLElement;
 	readonly name: HTMLElement;
 	readonly source: HTMLElement;
 	readonly description: HTMLElement;
@@ -265,13 +264,13 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 	constructor(
 		private readonly _harnessService: ICustomizationHarnessService,
 		private readonly _renderActions: (item: IInstalledPluginItem, container: HTMLElement, actions: HTMLElement, disposables: DisposableStore) => void,
-		private readonly _showSyncCheckbox = true,
+		private readonly _showSyncToggle = true,
 	) { }
 
 	renderTemplate(container: HTMLElement): IPluginInstalledItemTemplateData {
 		container.classList.add('plugin-list-item', 'plugin-installed-item');
 
-		const syncCheckboxContainer = DOM.append(container, $('.item-sync-checkbox'));
+		const syncToggleContainer = DOM.append(container, $('.item-sync-toggle'));
 		const details = DOM.append(container, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
@@ -280,7 +279,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
 
-		const template = { container, syncCheckboxContainer, name, source, description, metadata, actions, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, syncToggleContainer, name, source, description, metadata, actions, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -312,22 +311,22 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 			templateData.container.classList.toggle('disabled', !enabled);
 		}));
 
-		const syncProvider = this._showSyncCheckbox ? this._harnessService.getActiveDescriptor().syncProvider : undefined;
+		const syncProvider = this._showSyncToggle ? this._harnessService.getActiveDescriptor().syncProvider : undefined;
 		if (syncProvider) {
-			templateData.syncCheckboxContainer.style.display = '';
+			templateData.syncToggleContainer.style.display = '';
 			const pluginUri = element.item.plugin.uri;
 			const disabled = syncProvider.isDisabled(pluginUri);
 			const title = disabled
 				? localize('enablePlugin', "Enable {0} for sync", element.item.name)
 				: localize('disablePlugin', "Disable {0} from sync", element.item.name);
-			const checkbox = templateData.disposables.add(new Checkbox(title, !disabled, defaultCheckboxStyles));
-			templateData.syncCheckboxContainer.replaceChildren(checkbox.domNode);
-			templateData.disposables.add(checkbox.onChange(() => {
-				syncProvider.setDisabled(pluginUri, !checkbox.checked);
+			const toggle = templateData.disposables.add(new CustomizationToggle({ ariaLabel: title, checked: !disabled }));
+			templateData.syncToggleContainer.replaceChildren(toggle.domNode);
+			templateData.disposables.add(toggle.onChange(checked => {
+				syncProvider.setDisabled(pluginUri, !checked);
 			}));
 		} else {
-			templateData.syncCheckboxContainer.style.display = 'none';
-			templateData.syncCheckboxContainer.replaceChildren();
+			templateData.syncToggleContainer.style.display = 'none';
+			templateData.syncToggleContainer.replaceChildren();
 		}
 		DOM.clearNode(templateData.actions);
 		this._renderActions(element.item, templateData.container, templateData.actions, templateData.disposables);

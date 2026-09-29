@@ -721,7 +721,7 @@ per-word capitalization does not survive translation. */
 	transform: translateY(-50%);
 }
 
-.ai-customization-management-editor .tools-list-setrow .customization-toggle.switch {
+.ai-customization-management-editor .tools-list-setrow .customization-toggle {
 	order: 10;
 	margin-left: auto;
 }
@@ -731,7 +731,7 @@ per-word capitalization does not survive translation. */
 	margin-left: 0;
 }
 
-.ai-customization-management-editor .tools-list-toolrow .customization-toggle.switch {
+.ai-customization-management-editor .tools-list-toolrow .customization-toggle {
 	order: 10;
 	margin-left: auto;
 }
@@ -741,13 +741,8 @@ per-word capitalization does not survive translation. */
 	display: contents;
 }
 
-.plugin-list-widget .plugin-installed-item .customization-toggle.checkbox,
-.plugin-list-widget .mcp-server-item .customization-toggle.checkbox {
-	order: -1;
-}
-
-.plugin-list-widget .plugin-installed-item .customization-toggle.switch,
-.plugin-list-widget .mcp-server-item .customization-toggle.switch {
+.plugin-list-widget .plugin-installed-item .customization-toggle,
+.plugin-list-widget .mcp-server-item .customization-toggle {
 	order: 10;
 	margin-left: auto;
 }
@@ -826,8 +821,9 @@ per-word capitalization does not survive translation. */
 	font-size: 14px;
 }
 
-/* Sync checkbox for local items in remote agent harness view */
-.ai-customization-list-item .item-sync-checkbox {
+/* Sync controls for local items and migration selections */
+.ai-customization-list-item .item-sync-checkbox,
+.ai-customization-list-item .item-sync-toggle {
 	flex-shrink: 0;
 	display: flex;
 	align-items: center;
@@ -3255,7 +3251,7 @@ per-word capitalization does not survive translation. */
 	min-width: 0;
 }
 
-.plugin-list-widget .plugin-list-item .item-sync-checkbox {
+.plugin-list-widget .plugin-list-item .item-sync-toggle {
 	flex-shrink: 0;
 	display: flex;
 	align-items: center;

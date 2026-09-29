@@ -73,6 +73,7 @@ import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../commo
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
+import { getWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -790,6 +791,8 @@ export interface IAgentHostAdapterOptions {
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
 	/** Keeps reported activity separate from connection availability for remotely discoverable sessions. */
 	readonly preserveStatusWhenDisconnected?: boolean;
+	/** Overrides host provenance when a provider tracks external sessions locally. */
+	readonly externalSessionState?: (resource: URI, store: DisposableStore) => IObservable<boolean>;
 }
 
 /**
@@ -1324,7 +1327,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
-		this.isExternal = derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
+		this.isExternal = _options.externalSessionState?.(this.resource, this._store)
+			?? derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
 		const connectionStatus = _options.connectionStatus;
 		this.remoteConnectionStatus = toSessionRemoteConnectionStatus(this, connectionStatus);
 		this.createdBySession = derived(this, reader => {
@@ -3629,7 +3633,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected'>;
+	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or
@@ -4625,6 +4629,36 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._runningSessionConfigs.get(sessionId);
 	}
 
+	getNewSessionCancellationToken(sessionId: string): CancellationToken {
+		const newSession = this._getNewSession(sessionId);
+		if (!newSession) {
+			throw new Error(`Cannot get cancellation token for unknown new session '${sessionId}'.`);
+		}
+		return newSession.cancellationToken;
+	}
+
+	async whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult> {
+		const newSession = this._getNewSession(sessionId);
+		if (!newSession) {
+			throw new Error(`Cannot resolve configuration for unknown new session '${sessionId}'.`);
+		}
+		const store = new DisposableStore();
+		const cancellation = store.add(new CancellationTokenSource(token));
+		store.add(newSession.cancellationToken.onCancellationRequested(() => cancellation.cancel()));
+		try {
+			await waitForState(this.authenticationPending, pending => !pending, undefined, cancellation.token);
+			await raceCancellationError(newSession.waitForConfigResolution(), cancellation.token);
+			const config = newSession.getConfig();
+			if (!this.connection || !config) {
+				throw new Error(localize('agentHost.sessionConfigUnavailable', "Could not resolve the Agent Host session configuration. Please try again."));
+			}
+			return config;
+		} finally {
+			cancellation.cancel();
+			store.dispose();
+		}
+	}
+
 	/**
 	 * Observable: `true` while a `resolveSessionConfig` round-trip is in
 	 * flight. Distinct from `session.loading` (which also covers the
@@ -5506,6 +5540,30 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (cached.isExternal.get()) {
 			await connection.importSession(cached.backendUri);
 		}
+	}
+
+	async getSessionWorktreeDiskUsage(sessionId: string): Promise<number | undefined> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!session || !connection) {
+			return undefined;
+		}
+		const worktrees = new Map<string, URI>();
+		for (const folder of session.workspace.get()?.folders ?? []) {
+			const worktreeUri = folder.gitRepository?.workTreeUri;
+			if (worktreeUri) {
+				worktrees.set(worktreeUri.toString(), worktreeUri);
+			}
+		}
+		if (worktrees.size === 0) {
+			return undefined;
+		}
+		const sizes = await Promise.all([...worktrees.values()].map(worktreeUri => getWorktreeDiskUsage(connection, worktreeUri)));
+		if (sizes.every(size => size === undefined)) {
+			return undefined;
+		}
+		return sizes.reduce<number>((total, size) => total + (size ?? 0), 0);
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {

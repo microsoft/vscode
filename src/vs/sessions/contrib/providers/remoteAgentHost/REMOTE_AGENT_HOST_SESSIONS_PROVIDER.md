@@ -41,6 +41,8 @@ In the Editor Window, a chat session contribution's `sessionListGroup` selects i
 
 Both sandbox adapters let fresh discovery update disk-cached activity while preserving host-owned workspace information and user flags. Host-reported activity takes precedence over discovery for the rest of that adapter's lifetime, including after disconnection; older discovery responses cannot replace a newer discovery result. The Agents Window's persisted discovery baselines let title, timestamp, and project fields continue to refresh until the host changes them. Missing activity does not clear a previously reported status. Sandbox connection availability and read-only interactivity remain separate from conversation activity, so disconnection does not turn a reported input request into a conversation error.
 
+In the Agents Window, sandbox sessions are external unless this VS Code profile created them, imported them, or accepted a user message for them. This provenance is persisted as machine-local profile state, independently of host metadata, discovery refreshes, and cached summaries.
+
 ## Host groups
 
 By default one provider is one entry in the host filter. A provider whose config carries `hostGroup` (`IAgentHostGroup`) instead declares itself a member of a larger user-facing host: every provider sharing a `hostGroup.id` folds into one `IAgentHostFilterEntry` whose `providerIds` covers all of them, and whose `status` is the most alive status among its members. Members keep their own connection, address and session-type authority.

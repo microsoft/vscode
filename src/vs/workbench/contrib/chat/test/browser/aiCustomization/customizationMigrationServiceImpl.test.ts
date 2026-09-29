@@ -173,6 +173,7 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 			itemProvider: {
 				onDidChange: Event.None,
 				provideChatSessionCustomizations: async () => [],
+				getWorkspaceGroupId: (_sessionResource, resource) => resource.path.startsWith('/workspace/') ? 'workspace' : undefined,
 				provideSourceFolders: async (_sessionResource, type) => {
 					this.requestedSourceFolderTypes.push(type);
 					switch (type) {
@@ -180,7 +181,7 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 							return [{ uri: URI.file('/copilot/agents'), label: 'Agents', source: PromptsStorage.user }];
 						case PromptsType.skill:
 							return [
-								{ uri: URI.file('/workspace/.github/skills'), label: 'Workspace Skills', source: PromptsStorage.local },
+								{ uri: URI.file('/workspace/.github/skills'), label: 'Workspace Skills', source: PromptsStorage.local, workspaceGroupId: 'workspace' },
 								{ uri: URI.file('/copilot/skills'), label: 'User Skills', source: PromptsStorage.user },
 							];
 						default:
@@ -468,6 +469,9 @@ suite('CustomizationMigrationService', () => {
 			localHint,
 			requestedTypes: promptsService.requestedTypes,
 			requestedSourceFolderTypes: harnessService.requestedSourceFolderTypes.toSorted(),
+			workspaceGroupIds: migrations
+				.filter(migration => migration.type !== CustomizationMigrationType.McpServers)
+				.flatMap(migration => migration.candidates.map(candidate => candidate.workspaceGroupId)),
 			requestedSessionType,
 			requestedRoots: requestedRoots?.map(requestedRoot => requestedRoot.path),
 			supportScopeDisposed,
@@ -549,6 +553,7 @@ suite('CustomizationMigrationService', () => {
 				PromptsType.instructions, PromptsType.instructions, PromptsType.instructions, PromptsType.instructions,
 				PromptsType.skill, PromptsType.skill, PromptsType.skill, PromptsType.skill,
 			],
+			workspaceGroupIds: [undefined, 'workspace', undefined, undefined, 'workspace'],
 			requestedSessionType: SessionType.AgentHostCopilot,
 			requestedRoots: ['/workspace'],
 			supportScopeDisposed: true,
