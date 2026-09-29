@@ -59,8 +59,8 @@ Moving a card changes only its placement on the current board. The same conversa
 - Start with one General row, P0/P1/P2/P3 columns and an Unassigned tray.
 - Support adding, renaming, reordering and deleting both axes. Persist stable IDs rather than labels.
 - Keep at least one row and column; require nonempty labels.
-- A chat has one placement or is Unassigned within each board independently. Drag/drop and Ctrl/Cmd+Shift+M provide movement; the latter opens a searchable destination picker.
-- Auto-include Sessions defaults on. Turning it off hides unplaced chats and drafts without deleting them; collapsed Unassigned counts exclude those entries. Dragging a session from the Sessions list into a cell explicitly places its visible chats, even with auto-inclusion off, and expands a collapsed destination.
+- A chat has one explicit placement per board or inherits its main chat's placement; roots without a placement are Unassigned. Drag/drop and Ctrl/Cmd+Shift+M provide movement; the latter opens a searchable destination picker.
+- Auto-include Sessions defaults on. Turning it off hides unplaced roots and drafts without deleting them; children of explicitly placed parents remain included. Collapsed Unassigned counts exclude hidden entries. Dragging a session from the Sessions list into a cell explicitly places its visible chats, even with auto-inclusion off, and expands a collapsed destination.
 - Hover/focus reveals the card Delete action where supported. Deletion explicitly warns that it deletes the backing session (including its chats) across every board, then removes its placements everywhere after successful deletion. Draft deletion closes its editor through the normal close lifecycle before discarding the owned draft; canceling either confirmation preserves it.
 - Card context menus do not enumerate every destination. Axis-edit menus remain.
 - Where the chat supports renaming, F2 or the card's Rename context-menu action changes that chat's title, not its owning session or sibling chats. Canceling leaves the title unchanged.
@@ -85,7 +85,10 @@ Moving a card changes only its placement on the current board. The same conversa
 
 ### Live cards
 
-- Render visible chats separately, including multiple chats from one session. Exclude provider-hidden internal workers; label visible read-only chats.
+- Keep one card per visible chat, nesting a session's secondary chats beneath its main chat with the same child eligibility as the Agents sidebar. Provider-hidden workers remain excluded; visible read-only chats retain their label and opening behavior.
+- Unplaced children follow their parent's cell without additional saved placements. An explicit child placement in another cell displays that child separately; clearing the override with **Follow Parent** in the move picker or a drop into Unassigned restores inheritance. Explicit same-cell children remain nested but retain their saved placement when the parent moves.
+- Child disclosure is initially expanded and temporary per view. Folding preserves each child's identity, pending input, running work and read state; child counts and Busy/Needs Input/Error summaries remain live. Hidden children are excluded from keyboard navigation, and returning from a child reveals its parent, including cell overflow.
+- If the main chat is filtered or temporarily unavailable, eligible children remain visible as independent cards. Existing placements remain intact across card/list toggles, and the native list keeps its session-wide movement rules.
 - Display title, workspace, runtime state, current-step description when reported, optional last prompt and available context links. Do not repeat the owning session title as a visible `Session:` line; preserve ownership in the accessible card label.
 - Use themed state color plus text and a decorative indicator: Busy/Starting, Needs Input, Error and Idle. Split Idle into visited/unvisited.
 - Idle uses one sleeping-face glyph when visited and one eyes glyph when unvisited to attract attention; keep visited/unvisited text and read semantics unchanged.

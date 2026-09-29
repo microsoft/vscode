@@ -81,7 +81,7 @@ class TestBoardSession extends mock<ISession>() {
 	override readonly providerId = 'test';
 	override readonly title = observableValue('session-title', 'Owning session');
 	override readonly chats = observableValue<readonly IChat[]>('chats', this.initialChats);
-	override readonly mainChat = constObservable(this.initialChats[0]);
+	override readonly mainChat = constObservable(this.initialChats[0] ?? new TestChat('Empty session main'));
 	override readonly isArchived = observableValue('archived', false);
 	override readonly artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', []);
 	override readonly status = observableValue('sessionStatus', SessionStatus.Untitled);
@@ -376,6 +376,12 @@ suite('ProjectBoardService', () => {
 		};
 	}
 
+	function createIndependentChatBoard(document: Document, chats: readonly TestChat[]) {
+		const h = createBoard(document, chats);
+		h.state.sessions = chats.map((chat, index) => new TestBoardSession([chat], `independent-${String(index).padStart(3, '0')}`));
+		return h;
+	}
+
 	test('PB-01 renders in an auxiliary document and reuses the window', async () => {
 		const document = mainWindow.document.implementation.createHTMLDocument();
 		document.createElement = () => { throw new Error('Auxiliary documents prohibit createElement'); };
@@ -389,6 +395,197 @@ suite('ProjectBoardService', () => {
 		await service.open();
 		assert.strictEqual(state.openCount, 1);
 		assert.ok(state.focusCount > firstFocusCount);
+	});
+
+	suite('child chat cards', () => {
+		test('nests children without duplicates, folds without opening, and opens the exact child', async () => {
+			const parent = new TestChat('Parent');
+			const child = new TestChat('Child');
+			const h = createBoard(mainWindow.document, [parent, child]);
+			await h.service.open();
+			const disclosure = () => h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!;
+			const children = () => h.container.querySelector<HTMLElement>('.project-board-child-cards')!;
+			assert.deepStrictEqual({
+				families: h.container.querySelectorAll('.project-board-card-family').length,
+				cards: h.container.querySelectorAll('.project-board-card').length,
+				child: children().querySelector('h4')?.textContent,
+				expanded: disclosure().getAttribute('aria-expanded'),
+			}, { families: 1, cards: 2, child: 'Child', expanded: 'true' });
+			disclosure().click();
+			const collapsed = { hidden: children().hidden, expanded: disclosure().getAttribute('aria-expanded'), opened: [...h.opened] };
+			child.status.set(SessionStatus.NeedsInput, undefined);
+			assert.deepStrictEqual({
+				collapsed, stillHidden: children().hidden, summary: h.container.querySelector('.project-board-child-summary')?.textContent,
+			}, { collapsed: { hidden: true, expanded: 'false', opened: [] }, stillHidden: true, summary: '1 child chat, 1 Needs Input' });
+			disclosure().click();
+			children().querySelector<HTMLElement>('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+			assert.deepStrictEqual(h.opened, [child.resource]);
+			assert.deepStrictEqual([parent.isRead.get(), child.isRead.get()], [false, false]);
+		});
+
+		test('navigation skips folded children and returning from a child reveals its parent', async () => {
+			const { document } = createBoardDocument();
+			const parent = new TestChat('Parent');
+			const child = new TestChat('Child');
+			const h = createBoard(document, [parent, child]);
+			await h.service.open();
+			h.container.querySelector<HTMLElement>('.project-board-child-cards .project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+			h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
+			const parentElement = h.container.querySelector<HTMLElement>('.project-board-card')!;
+			parentElement.focus();
+			parentElement.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 35, bubbles: true, cancelable: true }));
+			assert.strictEqual(document.activeElement, parentElement);
+			h.state.closedResource = child.resource;
+			await h.service.closeSession(12345);
+			assert.deepStrictEqual({
+				hidden: h.container.querySelector<HTMLElement>('.project-board-child-cards')!.hidden,
+				focused: document.activeElement?.getAttribute('data-chat-resource'),
+			}, { hidden: false, focused: child.resource.toString() });
+		});
+
+		test('new children follow placed parents, explicit child moves detach and clearing rejoins', async () => {
+			const parent = new TestChat('Parent');
+			const h = createBoard(mainWindow.document, [parent]);
+			store.add(h.service.createView(h.container));
+			await h.moveViaPicker('General, P0', parent.resource);
+			h.service.toggleAutoIncludeSessions();
+			const child = new TestChat('Child');
+			h.session.chats.set([parent, child], undefined);
+			const inCell = (cell: string) => [...h.container.querySelectorAll(`[aria-label="${cell}"] .project-board-card h4`)].map(e => e.textContent);
+			assert.deepStrictEqual(inCell('General, P0'), ['Parent', 'Child']);
+			await h.moveViaPicker('General, P1', child.resource);
+			assert.deepStrictEqual({ p0: inCell('General, P0'), p1: inCell('General, P1') }, { p0: ['Parent'], p1: ['Child'] });
+			await h.moveViaPicker('Follow Parent', child.resource);
+			assert.deepStrictEqual({ p0: inCell('General, P0'), p1: inCell('General, P1'), unassigned: inCell('Unassigned') }, {
+				p0: ['Parent', 'Child'], p1: [], unassigned: [],
+			});
+		});
+
+		test('keeps a child mounted while native focus leaves its parent', async () => {
+			const { document } = createBoardDocument();
+			const parent = new TestChat('Parent');
+			const h = createBoard(document, [parent, new TestChat('Child')]);
+			await h.service.open();
+			h.container.querySelector<HTMLElement>('.project-board-card')!.focus();
+			parent.title.set('Updated parent', undefined);
+			const parentElement = h.container.querySelector<HTMLElement>('.project-board-card')!;
+			const childElement = h.container.querySelector<HTMLElement>('.project-board-child-cards .project-board-card')!;
+			// Native focus dispatch can run microtasks before the incoming target receives focus.
+			const activeElement = sinon.stub(document, 'activeElement').get(() => document.body);
+			try {
+				parentElement.dispatchEvent(new mainWindow.FocusEvent('focusout', { bubbles: true, relatedTarget: childElement }));
+				await Promise.resolve();
+				assert.ok(childElement.isConnected);
+			} finally {
+				activeElement.restore();
+			}
+			childElement.focus();
+			assert.strictEqual(document.activeElement, childElement);
+		});
+
+		test('returning to an overflow child reveals its family beyond the cell cap', async () => {
+			const { document } = createBoardDocument();
+			const parents = Array.from({ length: 4 }, (_, index) => new TestChat(`Parent ${index}`));
+			const h = createIndependentChatBoard(document, parents);
+			const child = new TestChat('Delegated chat');
+			const session = h.state.sessions[3];
+			assert.ok(session instanceof TestBoardSession);
+			session.chats.set([parents[3], child], undefined);
+			await h.service.open();
+			h.container.querySelector<HTMLElement>('.project-board-child-cards .project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+			for (const parent of parents) {
+				await h.moveViaPicker('General, P0', parent.resource);
+			}
+			h.container.querySelector<HTMLElement>('.project-board-less')!.click();
+			assert.strictEqual(h.container.querySelector('.project-board-child-cards'), null);
+			assert.ok(h.container.querySelector('.project-board-recency-warning')?.textContent?.includes('2 hidden chats'));
+			h.state.closedResource = child.resource;
+			await h.service.closeSession(12345);
+			assert.deepStrictEqual({
+				cards: h.container.querySelectorAll('[aria-label="General, P0"] .project-board-card').length,
+				focus: document.activeElement?.getAttribute('data-chat-resource'),
+			}, { cards: 5, focus: child.resource.toString() });
+		});
+
+		test('embedded and standalone views fold the same family independently', async () => {
+			const { document } = createBoardDocument();
+			const h = createBoard(document, [new TestChat('Parent'), new TestChat('Child')]);
+			const embedded = mainWindow.document.createElement('div');
+			mainWindow.document.body.appendChild(embedded);
+			store.add(toDisposable(() => embedded.remove()));
+			store.add(h.service.createView(embedded));
+			await h.service.open();
+			h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
+			assert.deepStrictEqual({
+				standalone: h.container.querySelector<HTMLElement>('.project-board-child-cards')!.hidden,
+				embedded: embedded.querySelector<HTMLElement>('.project-board-child-cards')!.hidden,
+			}, { standalone: true, embedded: false });
+		});
+
+		test('folded axes count nested child activity without hiding it in the parent total', async () => {
+			const parent = new TestChat('Parent');
+			const child = new TestChat('Child');
+			child.status.set(SessionStatus.NeedsInput, undefined);
+			const h = createBoard(mainWindow.document, [parent, child]);
+			await h.service.open();
+			await h.moveViaPicker('General, P0', parent.resource);
+			h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p0"]')!.click();
+			assert.deepStrictEqual({
+				axis: h.container.querySelector('.project-board-column-heading .project-board-collapsed-summary')?.textContent,
+				cell: h.container.querySelector('[aria-label="General, P0"] .project-board-collapsed-summary')?.textContent,
+				attention: h.container.querySelector('[aria-label="General, P0"] .project-board-attention')?.textContent,
+			}, { axis: '2 sessions · 1 Needs Input', cell: '2 sessions', attention: '1 Needs Input' });
+		});
+
+		test('archiving or losing a parent preserves its visible children and folds survive live additions', async () => {
+			const parent = new TestChat('Parent');
+			const child = new TestChat('Child');
+			const h = createBoard(mainWindow.document, [parent, child]);
+			await h.service.open();
+			h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
+			const another = new TestChat('Another child');
+			h.session.chats.set([parent, child, another], undefined);
+			assert.deepStrictEqual({
+				hidden: h.container.querySelector<HTMLElement>('.project-board-child-cards')!.hidden,
+				children: h.container.querySelectorAll('.project-board-child-cards .project-board-card').length,
+			}, { hidden: true, children: 2 });
+			parent.isArchived.set(true, undefined);
+			assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-card h4')].map(e => e.textContent), ['Another child', 'Child']);
+			h.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+			assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-child-cards')!.hidden, true);
+			h.session.chats.set([child, another], undefined);
+			assert.deepStrictEqual({
+				children: h.container.querySelector('.project-board-child-cards'),
+				cards: h.container.querySelectorAll('.project-board-card').length,
+			}, { children: null, cards: 2 });
+		});
+
+		test('folded child answers retain their DOM and draft through live updates', async () => {
+			const parent = new TestChat('Parent');
+			parent.status.set(SessionStatus.Completed, undefined);
+			const child = new TestChat('Child question');
+			child.status.set(SessionStatus.NeedsInput, undefined);
+			const h = createBoard(mainWindow.document, [parent, child]);
+			const carousel = new ChatQuestionCarouselData([{
+				id: 'choice', type: 'singleSelect', title: 'Choice', options: [{ id: 'one', label: 'One', value: 'one' }], allowFreeformInput: true,
+			}], false, 'child-question');
+			h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
+			h.questionCarousels.set([{ carousel, requestId: 'child-request' }], undefined);
+			await h.service.open();
+			const textarea = h.container.querySelector<HTMLTextAreaElement>('.project-board-child-cards textarea')!;
+			textarea.value = 'My answer';
+			textarea.setSelectionRange(1, 4);
+			textarea.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
+			child.title.set('Renamed child question', undefined);
+			assert.deepStrictEqual({
+				same: h.container.querySelector('textarea') === textarea,
+				hidden: !!textarea.closest('[hidden]'), value: textarea.value,
+				selection: [textarea.selectionStart, textarea.selectionEnd], submissions: h.submittedAnswers,
+			}, { same: true, hidden: true, value: 'My answer', selection: [1, 4], submissions: [] });
+			h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
+			assert.strictEqual(h.container.querySelector('textarea'), textarea);
+		});
 	});
 
 	suite('Mark as Done', () => {
@@ -1087,7 +1284,7 @@ suite('ProjectBoardService', () => {
 
 	test('PB-21 board notifies content size changes so the host can rescan after +more expands a column', async () => {
 		const chats = Array.from({ length: 5 }, (_, index) => new TestChat(`Card ${index}`));
-		const h = createBoard(mainWindow.document, chats);
+		const h = createIndependentChatBoard(mainWindow.document, chats);
 		const container = mainWindow.document.createElement('div');
 		mainWindow.document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
@@ -1836,7 +2033,7 @@ suite('ProjectBoardService', () => {
 
 	test('PB-13 close/reopen preserves placements, resets expansion and releases the old view', async () => {
 		const chats = Array.from({ length: 8 }, (_, index) => new TestChat(`Lifecycle ${index}`));
-		const h = createBoard(mainWindow.document, chats);
+		const h = createIndependentChatBoard(mainWindow.document, chats);
 		await h.service.open();
 		for (const chat of chats) {
 			const card = [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === chat.resource.toString())!;
@@ -1905,7 +2102,7 @@ suite('ProjectBoardService', () => {
 		for (const chat of chats) {
 			chat.status.set(SessionStatus.Completed, undefined);
 		}
-		const h = createBoard(document, chats);
+		const h = createIndependentChatBoard(document, chats);
 		await h.service.open();
 		for (const [index, chat] of chats.entries()) {
 			const card = [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === chat.resource.toString())!;
@@ -1985,7 +2182,7 @@ suite('ProjectBoardService', () => {
 
 	test('PB-05/PB-11 arrows follow card geometry, reveal focus, and Enter opens exactly that chat', async () => {
 		const chats = Array.from({ length: 4 }, (_, index) => new TestChat(`Navigate ${index}`));
-		const h = createBoard(mainWindow.document, chats);
+		const h = createIndependentChatBoard(mainWindow.document, chats);
 		h.container.style.cssText = 'height: 240px; width: 900px; position: relative;';
 		await h.service.open();
 		const cards = [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')];
@@ -2435,7 +2632,7 @@ suite('ProjectBoardService', () => {
 		const { service, container } = createBoard(mainWindow.document.implementation.createHTMLDocument(), [main, child, hidden]);
 		await service.open();
 		child.title.set('Renamed child', undefined);
-		assert.deepStrictEqual(Array.from(container.querySelectorAll('h4'), element => element.textContent), ['Renamed child', 'main']);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('h4'), element => element.textContent), ['main', 'Renamed child']);
 		assert.strictEqual(container.querySelectorAll('.project-board-card-session').length, 0);
 		assert.ok([...container.querySelectorAll('[data-chat-resource]')].every(card => card.getAttribute('aria-label')?.includes('Owning session')));
 	});
@@ -2854,7 +3051,7 @@ suite('ProjectBoardService', () => {
 	test('PB-08 eight cards expand three at a time and include hidden Needs Input in the count', async () => {
 		const chats = Array.from({ length: 8 }, (_, i) => new TestChat(`Overflow ${i}`));
 		chats[7].status.set(SessionStatus.NeedsInput, undefined);
-		const { service, container } = createBoard(mainWindow.document, chats);
+		const { service, container } = createIndependentChatBoard(mainWindow.document, chats);
 		await service.open();
 		for (const chat of chats) {
 			const card = [...container.querySelectorAll('.project-board-card')].find(element => element.querySelector('h4')?.textContent === chat.title.get())!;
@@ -3052,7 +3249,7 @@ suite('ProjectBoardService', () => {
 
 	test('PB-07 loaded overflow chats reorder on submission without loading hidden transcripts', async () => {
 		const chats = Array.from({ length: 4 }, (_, i) => new TestChat(`Recency ${i}`));
-		const h = createBoard(mainWindow.document, chats);
+		const h = createIndependentChatBoard(mainWindow.document, chats);
 		const request = (timestamp: number) => new class extends mock<ChatRequestModel>() {
 			override readonly requestTimestamp = timestamp;
 		}();
