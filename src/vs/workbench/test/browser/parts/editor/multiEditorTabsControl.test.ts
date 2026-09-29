@@ -986,7 +986,7 @@ suite('MultiEditorTabsControl', () => {
 							...context,
 							insets: [0, 0, 0],
 							corners: [rowStart ? '0px' : radius, radius, active && !upper ? '0px' : '4px', rowStart || active && !upper ? '0px' : '4px'],
-							leftBorder: rowStart ? 'rgba(0, 0, 0, 0)' : undefined,
+							leftBorder: rowStart ? active ? 'rgb(0, 0, 0)' : 'rgba(0, 0, 0, 0)' : undefined,
 						});
 					}
 				}
@@ -1020,14 +1020,16 @@ suite('MultiEditorTabsControl', () => {
 					const expected = {
 						top: tab.offsetTop === tabs[0].offsetTop,
 						upper: tab.offsetTop !== tabs.at(-1)!.offsetTop,
+						first: index === 0 || (wrapping && tab.offsetTop !== tabs[index - 1].offsetTop),
 						last: wrapping && (index === tabs.length - 1 || tab.offsetTop !== tabs[index + 1].offsetTop),
 					};
 					const actual = {
 						top: tab.classList.contains('connected-tab-top-row'),
 						upper: tab.classList.contains('connected-tab-upper-row'),
+						first: tab.classList.contains('first-in-row'),
 						last: tab.classList.contains('last-in-row'),
 					};
-					if (actual.top !== expected.top || actual.upper !== expected.upper || actual.last !== expected.last) {
+					if (actual.top !== expected.top || actual.upper !== expected.upper || actual.first !== expected.first || actual.last !== expected.last) {
 						mismatches.push({ width, activeIndex, index, expected, actual });
 					}
 				}

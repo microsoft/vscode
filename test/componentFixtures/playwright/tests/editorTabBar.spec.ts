@@ -162,6 +162,49 @@ for (const [style, expected] of [
 	});
 }
 
+for (const [theme, expectedFocusBorder] of [
+	['DarkHighContrast', 'rgb(243, 133, 24)'],
+	['LightHighContrast', 'rgb(0, 107, 189)'],
+] as const) {
+	test(`connected borders retain high contrast ownership in ${theme}`, async ({ page }) => {
+		await openFixture(page, `editor/editorTabBar/editorTabBar/BorderOwnership/Connected/${theme}`, '.tabs-container > .tab.active');
+		const ownership = await page.locator('.editor-group-container').evaluate(group => {
+			const activeFill = group.querySelector<HTMLElement>('.tab.active > .tab-fill');
+			const inactiveFill = group.querySelector<HTMLElement>('.tab:not(.active) > .tab-fill');
+			if (!activeFill || !inactiveFill) {
+				throw new Error('Expected active and inactive connected tab fills');
+			}
+
+			const activeStyle = getComputedStyle(activeFill);
+			const inactiveStyle = getComputedStyle(inactiveFill);
+			return {
+				active: {
+					top: activeStyle.borderTopColor,
+					side: activeStyle.borderRightColor,
+					bottom: activeStyle.borderBottomColor,
+				},
+				inactive: {
+					top: inactiveStyle.borderTopColor,
+					side: inactiveStyle.borderRightColor,
+				},
+				frame: getComputedStyle(group, '::after').borderColor,
+			};
+		});
+		expect(ownership).toEqual({
+			active: {
+				top: 'rgb(34, 211, 238)',
+				side: expectedFocusBorder,
+				bottom: 'rgba(0, 0, 0, 0)',
+			},
+			inactive: {
+				top: 'rgb(250, 204, 21)',
+				side: 'rgb(250, 204, 21)',
+			},
+			frame: expectedFocusBorder,
+		});
+	});
+}
+
 for (const [fixture, expectedDividers] of [
 	['FirstActive', ['rgba(0, 0, 0, 0)']],
 	['MiddleActive', []],

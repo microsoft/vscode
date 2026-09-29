@@ -1013,7 +1013,11 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		Connected: defineComponentFixture({
 			render: renderBorderOwnership(true, ModernUIEditorTabStyle.Connected),
 			themes: ['dark'],
-			expectedVisualDescriptions: ['The active connected cap alone owns the customized yellow tab boundary, cyan top border, and pink bottom indicator. Five short white dividers span the long run of adjacent inactive tabs, whose fills remain unoutlined, while both boundaries beside the active tab suppress the divider.'],
+			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			expectedVisualDescriptions: [
+				'In the standard dark theme, the active connected cap alone owns the customized yellow tab boundary, cyan top border, and pink bottom indicator. Five short white dividers span the long run of adjacent inactive tabs, whose fills remain unoutlined.',
+				'In High Contrast themes, explicit contrast and focus outlines intentionally replace the standard-theme active-only boundary policy so every tab remains distinguishable.',
+			],
 		}),
 	}),
 	ConnectedBorderContinuity: defineThemedFixtureGroup({
