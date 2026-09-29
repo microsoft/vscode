@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -22,15 +23,19 @@ suite('SessionMcpServers', () => {
 	const first = upcastPartial<IActiveSession>({ resource: URI.parse('agent-host://local/first') });
 	const second = upcastPartial<IActiveSession>({ resource: URI.parse('agent-host://remote/second') });
 
-	function server(id: string, status: McpServerStatus, enabled = true): IAgentHostMcpServer {
-		return upcastPartial<IAgentHostMcpServer>({ id, name: id, status, enabled });
+	function server(id: string, status: McpServerStatus, enabled = true, reason = McpAuthRequiredReason.Required): IAgentHostMcpServer {
+		return upcastPartial<IAgentHostMcpServer>({
+			id, name: id, status, enabled,
+			...(status === McpServerStatus.AuthRequired ? {
+				state: { kind: status, reason, resource: { resource: 'https://mcp.example.com' } },
+			} : {}),
+		});
 	}
 
-	function setup(enabled: boolean | undefined = true) {
+	function setup(enabled = true, authenticate: () => Promise<boolean> = async () => true) {
 		const changed = store.add(new Emitter<void>());
 		const servers = new Map<string, readonly IAgentHostMcpServer[]>();
 		const authentications: { resource: string; id: string }[] = [];
-		let authenticated = true;
 		const customizations = new class extends NullAgentHostCustomizationService {
 			override readonly onDidChangeCustomizations = changed.event;
 			override getMcpServers(resource: URI): readonly IAgentHostMcpServer[] {
@@ -38,7 +43,7 @@ suite('SessionMcpServers', () => {
 			}
 			override async authenticateMcpServer(resource: URI, id: string): Promise<boolean> {
 				authentications.push({ resource: resource.toString(), id });
-				return authenticated;
+				return authenticate();
 			}
 		};
 		const session = observableValue<IActiveSession | undefined>('session', first);
@@ -50,7 +55,7 @@ suite('SessionMcpServers', () => {
 			servers.set(target.resource.toString(), value);
 			changed.fire();
 		};
-		return { model, session, configuration, setServers, authentications, cancelAuthentication: () => { authenticated = false; } };
+		return { model, session, configuration, setServers, authentications };
 	}
 
 	test('experiment gate is off by default and responds to configuration changes', async () => {
@@ -103,6 +108,30 @@ suite('SessionMcpServers', () => {
 		assert.deepStrictEqual(counts, [0, 1, 0, 1, 0, 1, 0]);
 	});
 
+	test('distinguishes sign-in from additional access without changing the authentication target', async () => {
+		const { model, setServers, authentications } = setup();
+		setServers(first, [
+			server('GitHub', McpServerStatus.AuthRequired),
+			server('Slack', McpServerStatus.AuthRequired, true, McpAuthRequiredReason.Expired),
+			server('Calendar', McpServerStatus.AuthRequired, true, McpAuthRequiredReason.InsufficientScope),
+		]);
+		const section = model.sections.get()[0];
+		await section.entries[2].open();
+		assert.deepStrictEqual({
+			title: section.title,
+			entries: section.entries.map(({ label, ariaDescription }) => ({ label, ariaDescription })),
+			authentications,
+		}, {
+			title: 'MCP Servers Requiring Authentication',
+			entries: [
+				{ label: 'Sign In to GitHub', ariaDescription: 'MCP server requires authentication' },
+				{ label: 'Sign In to Slack', ariaDescription: 'MCP server requires authentication' },
+				{ label: 'Grant Additional Access to Calendar', ariaDescription: 'MCP server requires additional permissions' },
+			],
+			authentications: [{ resource: first.resource.toString(), id: 'Calendar' }],
+		});
+	});
+
 	test('switching sessions never shows or authenticates another session server', async () => {
 		const { model, session, setServers, authentications } = setup();
 		setServers(first, [server('Local', McpServerStatus.AuthRequired)]);
@@ -122,17 +151,33 @@ suite('SessionMcpServers', () => {
 		});
 	});
 
-	test('cancelled or incomplete authentication remains actionable', async () => {
-		const { model, setServers, authentications, cancelAuthentication } = setup();
+	test('restores the action after Starting returns to AuthRequired when authentication is cancelled', async () => {
+		const signIn = new DeferredPromise<boolean>();
+		const { model, setServers, authentications } = setup(true, async () => {
+			// The start request is optimistic; the host restores its authoritative auth-required state.
+			setServers(first, [server('GitHub', McpServerStatus.Starting)]);
+			const result = await signIn.p;
+			setServers(first, [server('GitHub', McpServerStatus.AuthRequired)]);
+			return result;
+		});
 		setServers(first, [server('GitHub', McpServerStatus.AuthRequired)]);
-		cancelAuthentication();
+		const attempt = model.sections.get()[0].entries[0].open();
+		const whileStarting = model.sections.get();
+		await signIn.complete(false);
+		await attempt;
+		const restoredLabels = model.sections.get()[0].entries.map(entry => entry.label);
 		await model.sections.get()[0].entries[0].open();
 		assert.deepStrictEqual({
-			labels: model.sections.get()[0].entries.map(entry => entry.label),
+			whileStarting,
+			restoredLabels,
 			authentications,
 		}, {
-			labels: ['Sign In to GitHub'],
-			authentications: [{ resource: first.resource.toString(), id: 'GitHub' }],
+			whileStarting: [],
+			restoredLabels: ['Sign In to GitHub'],
+			authentications: [
+				{ resource: first.resource.toString(), id: 'GitHub' },
+				{ resource: first.resource.toString(), id: 'GitHub' },
+			],
 		});
 	});
 });

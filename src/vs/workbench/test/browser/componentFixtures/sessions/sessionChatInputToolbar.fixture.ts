@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { McpAuthRequiredReason, McpServerState, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
@@ -78,7 +78,7 @@ interface ISessionSpec {
 	readonly artifacts?: readonly ISessionArtifact[];
 	/** Customizations the chat used or read. */
 	readonly customizations?: readonly ISessionChatCustomization[];
-	readonly mcpServers?: readonly { readonly name: string; readonly status: McpServerStatus }[];
+	readonly mcpServers?: readonly { readonly name: string; readonly status: McpServerStatus.AuthRequired | McpServerStatus.Ready; readonly reason?: McpAuthRequiredReason }[];
 	readonly pullRequests?: readonly IGitHubPullRequestRef[];
 }
 
@@ -162,6 +162,9 @@ function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 		override readonly name = server.name;
 		override readonly enabled = true;
 		override readonly status = server.status;
+		override readonly state: McpServerState = server.status === McpServerStatus.AuthRequired
+			? { kind: server.status, reason: server.reason ?? McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com' } }
+			: { kind: server.status };
 	}());
 	return { session, chat, browsers, mcpServers };
 }
@@ -378,11 +381,17 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		}), FULL_VIEW_MESSAGES, { height: 480 }),
 	}),
 
+	SessionChatPills_McpSignInAdditionalAccess: defineComponentFixture({
+		render: ctx => renderChatViewWithPills(ctx, createMockSession({
+			mcpServers: [{ name: 'GitHub', status: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.InsufficientScope }],
+		}), FULL_VIEW_MESSAGES, { height: 480 }),
+	}),
+
 	SessionChatPills_McpSignInMultiple: defineComponentFixture({
 		render: ctx => renderChatViewWithPills(ctx, createMockSession({
 			mcpServers: [
 				{ name: 'GitHub', status: McpServerStatus.AuthRequired },
-				{ name: 'Slack', status: McpServerStatus.AuthRequired },
+				{ name: 'Slack', status: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.InsufficientScope },
 			],
 		}), FULL_VIEW_MESSAGES, { height: 480 }),
 	}),
@@ -392,10 +401,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			await renderChatViewWithPills(ctx, createMockSession({
 				mcpServers: [
 					{ name: 'GitHub', status: McpServerStatus.AuthRequired },
-					{ name: 'Slack', status: McpServerStatus.AuthRequired },
+					{ name: 'Slack', status: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.InsufficientScope },
 				],
 			}), FULL_VIEW_MESSAGES, { height: 480 });
-			ctx.container.querySelector<HTMLElement>('[aria-label="Show 2 MCP servers requiring sign-in"]')!.click();
+			ctx.container.querySelector<HTMLElement>('[aria-label="Show 2 MCP servers requiring authentication"]')!.click();
 		},
 	}),
 

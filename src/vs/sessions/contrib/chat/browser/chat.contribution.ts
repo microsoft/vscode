@@ -509,7 +509,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
-			description: localize('chat.agentSessions.mcpAuthPill.enabled', "Shows MCP servers requiring sign-in above the chat input in the Agents Window."),
+			description: localize('chat.agentSessions.mcpAuthPill.enabled', "Shows MCP servers requiring authentication above the chat input in the Agents Window."),
 		},
 		[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: {
 			type: 'boolean',

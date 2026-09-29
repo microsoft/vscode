@@ -15,7 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -780,7 +780,10 @@ suite('SessionChatInputToolbar', () => {
 			labels: [...toolbar.element.querySelectorAll('.chat-pill-label')].map(label => label.textContent),
 		});
 		const empty = read();
-		servers = [upcastPartial<IAgentHostMcpServer>({ id: 'github', name: 'GitHub', enabled: true, status: McpServerStatus.AuthRequired })];
+		servers = [upcastPartial<IAgentHostMcpServer>({
+			id: 'github', name: 'GitHub', enabled: true, status: McpServerStatus.AuthRequired,
+			state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.Required, resource: { resource: 'https://github.example.com' } },
+		})];
 		changed.fire();
 		const defaultLabels = read().labels;
 		await configuration.setUserConfiguration(SESSION_MCP_AUTH_PILL_SETTING, true);
@@ -792,16 +795,19 @@ suite('SessionChatInputToolbar', () => {
 		});
 		const single = read();
 		toolbar.element.querySelector<HTMLElement>('.chat-pill-button')?.click();
-		servers = [...servers, upcastPartial<IAgentHostMcpServer>({ id: 'slack', name: 'Slack', enabled: true, status: McpServerStatus.AuthRequired })];
+		servers = [...servers, upcastPartial<IAgentHostMcpServer>({
+			id: 'slack', name: 'Slack', enabled: true, status: McpServerStatus.AuthRequired,
+			state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.InsufficientScope, resource: { resource: 'https://slack.example.com' } },
+		})];
 		changed.fire();
 		const multiple = read();
-		servers = servers.map(server => ({ ...server, status: McpServerStatus.Ready }));
+		servers = servers.map(server => ({ ...server, status: McpServerStatus.Ready, state: { kind: McpServerStatus.Ready } }));
 		changed.fire();
 		assert.deepStrictEqual({ empty, defaultLabels, single, multiple, resolved: read(), authentications }, {
 			empty: { visible: false, labels: [] },
 			defaultLabels: [],
 			single: { visible: true, labels: ['Sign In to GitHub'] },
-			multiple: { visible: true, labels: ['2 MCP Servers Need Sign-In'] },
+			multiple: { visible: true, labels: ['2 MCP Servers Need Attention'] },
 			resolved: { visible: false, labels: [] },
 			authentications: ['session:1/github'],
 		});

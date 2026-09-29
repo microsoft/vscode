@@ -104,9 +104,9 @@ export const sessionCustomizationsPillOptions: IChatDropdownPillOptions = {
 export const sessionMcpServersPillOptions: IChatDropdownPillOptions = {
 	widgetId: 'sessionMcpServers',
 	icon: Codicon.mcp,
-	title: localize('sessionMcpServers.title', "MCP Servers Requiring Sign-In"),
-	summaryLabel: count => localize('sessionMcpServers.count', "{0} MCP Servers Need Sign-In", count),
-	summaryAriaLabel: count => localize('sessionMcpServers.show', "Show {0} MCP servers requiring sign-in", count),
+	title: localize('sessionMcpServers.title', "MCP Servers Requiring Authentication"),
+	summaryLabel: count => localize('sessionMcpServers.count', "{0} MCP Servers Need Attention", count),
+	summaryAriaLabel: count => localize('sessionMcpServers.show', "Show {0} MCP servers requiring authentication", count),
 };
 
 /** Shared presentation of the subagents pill. */
