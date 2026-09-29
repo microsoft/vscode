@@ -30,25 +30,6 @@
 	justify-content: center;
 }
 
-.new-chat-widget-content .new-session-heading {
-	display: none;
-}
-
-.new-chat-widget-content.experimental-new-session-composer .new-session-heading {
-	display: block;
-	margin: 0 0 var(--vscode-spacing-size240);
-	color: var(--vscode-foreground);
-	font-size: var(--vscode-fontSize-heading1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	line-height: 1.4;
-	text-align: center;
-}
-
-.new-chat-widget-content.quick-chat .new-session-heading,
-.new-chat-widget-content.no-agent-host .new-session-heading {
-	display: none;
-}
-
 .new-chat-widget-container.revealed .new-chat-input-container {
 	display: block;
 	margin-top: 0;

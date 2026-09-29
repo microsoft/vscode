@@ -619,7 +619,6 @@ export class NewChatWidget extends Disposable {
 			});
 		}));
 
-		dom.append(chatWidgetContent, dom.$('h1.new-session-heading', undefined, localize('newSessionHeading', "What should we build?")));
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		// On web (vscode.dev / insiders.vscode.dev) the workspace picker is
 		// scoped to the currently selected agent host. When no hosts are
@@ -1286,24 +1285,44 @@ export class NewChatWidget extends Disposable {
 		}));
 		toggle.element.classList.add('new-chat-session-options-toggle');
 		toggle.element.setAttribute('aria-controls', sessionOptions.id);
-		store.add(toggle.onDidClick(() => this._sessionOptionsExpanded.set(!this._sessionOptionsExpanded.get(), undefined)));
-		// Hovering or focusing the workspace picker row transiently reveals the session options so
-		// they can be previewed; leaving both pointer and focus collapses them again after a short
-		// delay. This never touches the persisted expanded state.
+		// Hovering the workspace picker row transiently reveals the session options so they can be
+		// previewed; the preview stays open while the pointer or focus is inside, and collapses a
+		// short delay after both leave. This never touches the persisted expanded state.
 		const COLLAPSE_AFTER_HOVER_MS = 2500;
 		const collapseAfterHover = store.add(new MutableDisposable());
 		let pointerInsideRow = false;
 		let focusInsideRow = false;
+		// Set when the user explicitly collapses while the pointer is still over the row, so that
+		// same hover does not immediately re-expand it. Cleared once the pointer leaves.
+		let hoverPreviewSuppressed = false;
 		const updateHoverExpanded = () => {
-			if (pointerInsideRow || focusInsideRow) {
-				collapseAfterHover.clear();
+			if (pointerInsideRow && !hoverPreviewSuppressed) {
 				this._hoverExpanded.set(true, undefined);
+			}
+			if ((pointerInsideRow || focusInsideRow) && this._hoverExpanded.get()) {
+				collapseAfterHover.clear();
 			} else if (this._hoverExpanded.get()) {
 				collapseAfterHover.value = disposableTimeout(() => this._hoverExpanded.set(false, undefined), COLLAPSE_AFTER_HOVER_MS);
 			}
 		};
+		store.add(toggle.onDidClick(() => {
+			// Toggle the state the user currently sees: a hover/focus preview counts as expanded, so
+			// the button always does the opposite of what is on screen.
+			const displayedExpanded = this._sessionOptionsExpanded.get() || this._hoverExpanded.get();
+			if (displayedExpanded) {
+				this._sessionOptionsExpanded.set(false, undefined);
+				collapseAfterHover.clear();
+				this._hoverExpanded.set(false, undefined);
+				// Only suppress the hover preview when the pointer is actually over the row; otherwise
+				// there is no hover to re-expand and no mouseleave would arrive to clear the flag.
+				hoverPreviewSuppressed = pointerInsideRow;
+			} else {
+				this._sessionOptionsExpanded.set(true, undefined);
+				hoverPreviewSuppressed = false;
+			}
+		}));
 		store.add(dom.addDisposableListener(row, dom.EventType.MOUSE_ENTER, () => { pointerInsideRow = true; updateHoverExpanded(); }));
-		store.add(dom.addDisposableListener(row, dom.EventType.MOUSE_LEAVE, () => { pointerInsideRow = false; updateHoverExpanded(); }));
+		store.add(dom.addDisposableListener(row, dom.EventType.MOUSE_LEAVE, () => { pointerInsideRow = false; hoverPreviewSuppressed = false; updateHoverExpanded(); }));
 		store.add(dom.addDisposableListener(row, dom.EventType.FOCUS_IN, () => { focusInsideRow = true; updateHoverExpanded(); }));
 		store.add(dom.addDisposableListener(row, dom.EventType.FOCUS_OUT, () => { focusInsideRow = false; updateHoverExpanded(); }));
 		store.add(dom.addDisposableListener(row, dom.EventType.KEY_DOWN, event => {

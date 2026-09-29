@@ -183,22 +183,6 @@
 	margin-left: var(--vscode-spacing-size80);
 }
 
-.new-chat-widget-container .sessions-chat-toolbar .agent-host-mode-permissions-trigger .agent-host-permissions-button::before {
-	left: calc(-1 * var(--vscode-spacing-size40));
-	width: var(--vscode-spacing-size20);
-	height: var(--vscode-spacing-size20);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background-color: currentColor;
-}
-
-.new-chat-widget-container .sessions-chat-toolbar .model-picker-split:not(.compact) .model-picker-config::before {
-	content: "";
-	width: var(--vscode-spacing-size20);
-	height: var(--vscode-spacing-size20);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background-color: currentColor;
-	flex-shrink: 0;
-}
 
 /* Voice mode controls (mic / stop / settings / disconnect) */
 .sessions-chat-voice-toolbar {

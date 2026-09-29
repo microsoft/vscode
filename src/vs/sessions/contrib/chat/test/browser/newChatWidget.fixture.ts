@@ -561,16 +561,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		}
 	}
 	await nextFrame();
-	const heading = view.element.querySelector<HTMLElement>('h1.new-session-heading');
-	assert(heading?.textContent === 'What should we build?');
-	const headingStyle = targetWindow.getComputedStyle(heading);
-	assert(experimentalComposerLayout
-		? headingStyle.display !== 'none'
-		&& headingStyle.textAlign === 'center'
-		&& headingStyle.fontSize === headingStyle.getPropertyValue('--vscode-fontSize-heading1').trim()
-		&& headingStyle.fontWeight === headingStyle.getPropertyValue('--vscode-fontWeight-semiBold').trim()
-		: headingStyle.display === 'none',
-		'The welcome heading must use the heading type role only in the experimental composer.');
 	const promptBox = view.element.querySelector<HTMLElement>('.new-chat-input-container');
 	assert(!!promptBox);
 	if (experimentalComposerLayout) {
@@ -725,27 +715,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			await nextFrame();
 			await nextFrame();
 		}
-	}
-	if (withConfiguredModel && withControlPickers && width >= 800) {
-		for (const selector of ['.agent-host-permissions-button', '.model-picker-config']) {
-			const picker = promptBox.querySelector<HTMLElement>(selector);
-			assert(!!picker);
-			const dot = targetWindow.getComputedStyle(picker, '::before');
-			assert(dot.content === '""' && dot.width === dot.height && parseFloat(dot.width) > 0,
-				'Combined pickers must separate their values with a dot.');
-		}
-		// The model picker's separator dot must sit an equal distance from the value on each side,
-		// rather than hugging one word.
-		const modelConfig = promptBox.querySelector<HTMLElement>('.model-picker-config');
-		const modelName = promptBox.querySelector<HTMLElement>('.model-picker-name .chat-input-picker-label');
-		const modelValue = modelConfig?.querySelector<HTMLElement>('.chat-input-picker-label');
-		assert(!!modelConfig && !!modelName && !!modelValue);
-		const dotSize = parseFloat(targetWindow.getComputedStyle(modelConfig, '::before').width);
-		const configLeft = modelConfig.getBoundingClientRect().left;
-		const gapBefore = configLeft - modelName.getBoundingClientRect().right;
-		const gapAfter = modelValue.getBoundingClientRect().left - (configLeft + dotSize);
-		assert(Math.abs(gapBefore - gapAfter) <= 1,
-			'The model separator dot must be centered between the name and the configuration value.');
 	}
 	if (migrationCount > 0) {
 		const notice = view.element.querySelector<HTMLElement>('.new-chat-migration-notice');
