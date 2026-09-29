@@ -470,7 +470,7 @@ try {
 	}
 	if ($hasGitHubAuthenticationSecret -eq $false) {
 		Write-LaunchError "[launch.ps1] WARNING: source profile $sourceUserDataDir has no stored GitHub session; the launched instance will prompt you to sign in."
-		Write-LaunchError 'To pre-authenticate future launches, use .agents\skills\launch\scripts\bootstrap-profile.ps1 after the user chooses the bootstrap option.'
+		Write-LaunchError 'To pre-authenticate future launches, use .agents\skills\launch\scripts\bootstrap\bootstrap-profile.ps1 after the user chooses the bootstrap option.'
 		Write-LaunchError 'Every future launch copies that profile and inherits the session.'
 	}
 

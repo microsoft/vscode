@@ -89,12 +89,12 @@ At that point, use the questions tool with these choices:
 If the user has signed in, continue with the current isolated launch. If they choose to bootstrap, clean up the current isolated launch and run the platform bootstrap script:
 
 ```bash
-BOOTSTRAP=<dir-of-this-SKILL.md>/scripts/bootstrap-profile.sh
+BOOTSTRAP=<dir-of-this-SKILL.md>/scripts/bootstrap/bootstrap-profile.sh
 "$BOOTSTRAP" --repo <vscode-repo-root>
 ```
 
 ```powershell
-$bootstrap = Join-Path $skillDir 'scripts\bootstrap-profile.ps1'
+$bootstrap = Join-Path $skillDir 'scripts\bootstrap\bootstrap-profile.ps1'
 & $bootstrap -Repo <vscode-repo-root>
 ```
 

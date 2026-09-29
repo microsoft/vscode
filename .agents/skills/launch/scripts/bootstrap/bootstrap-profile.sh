@@ -3,7 +3,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+SCRIPTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 USER_DATA_DIR="${CODE_OSS_DEV_AUTHED_USER_DATA_DIR:-$HOME/.vscode-oss-dev}"
 EXIT_MARKER=""
 
@@ -111,7 +112,7 @@ nohup node -e '
 ' "$PID" "$EXIT_MARKER" "$STOP_MARKER" >>"$LOG_FILE" 2>&1 &
 disown $! 2>/dev/null || true
 
-WAIT_FOR_CDP="$SCRIPT_DIR/waitForCdp.ts"
+WAIT_FOR_CDP="$SCRIPTS_DIR/waitForCdp.ts"
 if ! READY_MS=$(node "$WAIT_FOR_CDP" "$PID" "$CDP_PORT" "${CODE_OSS_BOOTSTRAP_READY_TIMEOUT_MS:-90000}"); then
 	touch "$STOP_MARKER"
 	for _ in {1..120}; do

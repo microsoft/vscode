@@ -73,7 +73,7 @@ $stopMarker = "$logFile.stop"
 $monitorScript = Join-Path $PSScriptRoot 'windows-process-tree-monitor.ps1'
 $monitorArguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$monitorScript`" -RootProcessId $($process.Id) -ExitMarker `"$exitMarker`" -StopMarker `"$stopMarker`""
 Start-Process -FilePath 'powershell.exe' -ArgumentList $monitorArguments -WindowStyle Hidden | Out-Null
-$waitForCdp = Join-Path $PSScriptRoot 'waitForCdp.ts'
+$waitForCdp = Join-Path (Split-Path -Parent $PSScriptRoot) 'waitForCdp.ts'
 $readyMs = & $node $waitForCdp $process.Id $cdpPort $ReadyTimeoutMs
 $readyStatus = $LASTEXITCODE
 if ($readyStatus -ne 0) {
