@@ -1,24 +1,34 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
-import { createServiceIdentifier } from '../../../util/common/services';
-
-export const IToolResultContentRenderer = createServiceIdentifier<IToolResultContentRenderer>('IToolResultContentRenderer');
-
 /**
- * Renders tool result content parts into human-readable strings.
- * Injected from the vscode-node layer to avoid layering violations
- * (the rendering depends on @vscode/prompt-tsx which lives in vscode-node).
+ * Extracts a text representation from the content parts of a tool result.
+ * Handles LanguageModelTextPart, LanguageModelPromptTsxPart, and LanguageModelDataPart.
+ * Uses lightweight string conversion to avoid expensive rendering on the hot path.
  */
-export interface IToolResultContentRenderer {
-	readonly _serviceBrand: undefined;
+renderToolResultContent(content: Iterable<unknown>): string[] {
+    if (!content) {
+        return [];
+    }
 
-	/**
-	 * Extracts a text representation from the content parts of a tool result.
-	 * Handles LanguageModelTextPart, LanguageModelPromptTsxPart, and LanguageModelDataPart.
-	 * Uses lightweight string conversion to avoid expensive rendering on the hot path.
-	 */
-	renderToolResultContent(content: Iterable<unknown>): string[];
+    const results: string[] = [];
+    
+    for (const part of content) {
+        if (!part || typeof part !== 'object') {
+            continue;
+        }
+
+        // Defensive narrowing for known language model part structures
+        if ('value' in part && typeof (part as { value: unknown }).value === 'string') {
+            results.push((part as { value: string }).value);
+        } else if ('data' in part && typeof (part as { data: unknown }).data === 'string') {
+            results.push((part as { data: string }).data);
+        } else {
+            // Future-proofing / Exhaustive type guard check fallback
+            // If an unhandled part type passes through on the hot path, we safely stringify or skip
+            const stringified = String(part);
+            if (stringified && stringified !== '[object Object]') {
+                results.push(stringified);
+            }
+        }
+    }
+
+    return results;
 }
