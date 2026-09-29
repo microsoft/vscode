@@ -143,7 +143,7 @@ suite('OnboardingVariationA', () => {
 			const input = container.querySelector<HTMLInputElement>('.onboarding-a-signin-ghe-input input');
 			assert.strictEqual(input?.value, 'not-a-url');
 			assert.ok(input);
-			input.value = 'http://ghe.local:8080/Team';
+			input.value = 'https://corrected.ghe.com';
 			input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 			input.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 			await commandInvoked;
@@ -152,7 +152,7 @@ suite('OnboardingVariationA', () => {
 				hosts: configuration.getValue(gitHubEnterpriseUrisSetting),
 				setupCalls: executeCommand.callCount
 			}, {
-				hosts: [...(values[gitHubEnterpriseUrisSetting] ?? []).filter(uri => uri !== 'not-a-url'), 'http://ghe.local:8080/Team'],
+				hosts: [...(values[gitHubEnterpriseUrisSetting] ?? []).filter(uri => uri !== 'not-a-url'), 'https://corrected.ghe.com'],
 				setupCalls: 1
 			});
 		});
@@ -174,6 +174,25 @@ suite('OnboardingVariationA', () => {
 		}, { hosts, writes: 0, setupCalls: 0 });
 	});
 
+	test('Copilot enrollment rejects a GHES URL without changing general enterprise configuration', () => {
+		const hosts = ['https://github.example.com', 'not-a-url'];
+		const configuration = new TestConfigurationService({ [gitHubEnterpriseUrisSetting]: hosts });
+		const write = sinon.stub(configuration, 'updateValue').resolves();
+		const { container, executeCommand } = createOnboarding(configuration);
+		clickEnterpriseSignIn(container);
+		const input = container.querySelector<HTMLInputElement>('.onboarding-a-signin-ghe-input input');
+		assert.ok(input);
+		input.value = 'https://another-server.example.com';
+		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		input.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		assert.deepStrictEqual({
+			hosts: configuration.getValue(gitHubEnterpriseUrisSetting),
+			writes: write.callCount,
+			setupCalls: executeCommand.callCount,
+			message: container.querySelector('.onboarding-a-signin-ghe-message')?.textContent
+		}, { hosts, writes: 0, setupCalls: 0, message: 'Enter a GHE.com instance name or HTTPS URL.' });
+	});
+
 	test('correction preserves hosts added while the invalid URI is being edited', async () => {
 		const configuration = new TestConfigurationService({ [gitHubEnterpriseUrisSetting]: ['https://valid.ghe.com', 'not-a-url'] });
 		sinon.stub(configuration, 'updateValue').callsFake((key, value) => configuration.setUserConfiguration(key, value));
@@ -182,12 +201,12 @@ suite('OnboardingVariationA', () => {
 		await configuration.setUserConfiguration(gitHubEnterpriseUrisSetting, ['https://valid.ghe.com', 'not-a-url', 'https://added.ghe.com']);
 		const input = container.querySelector<HTMLInputElement>('.onboarding-a-signin-ghe-input input');
 		assert.ok(input);
-		input.value = 'https://github.example.com/Team';
+		input.value = 'https://corrected.ghe.com';
 		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 		input.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 		await commandInvoked;
 		await executeCommand.firstCall.returnValue;
-		assert.deepStrictEqual(configuration.getValue(gitHubEnterpriseUrisSetting), ['https://valid.ghe.com', 'https://added.ghe.com', 'https://github.example.com/Team']);
+		assert.deepStrictEqual(configuration.getValue(gitHubEnterpriseUrisSetting), ['https://valid.ghe.com', 'https://added.ghe.com', 'https://corrected.ghe.com']);
 	});
 
 	test('repairs each invalid URI before starting setup and focuses the next correction', async () => {
@@ -213,12 +232,12 @@ suite('OnboardingVariationA', () => {
 		const second = container.querySelector<HTMLInputElement>('.onboarding-a-signin-ghe-input input');
 		assert.ok(second);
 		assert.deepStrictEqual({ setupCalls: executeCommand.callCount, focused: mainWindow.document.activeElement === second }, { setupCalls: 0, focused: true });
-		second.value = 'https://github.example.com/Team';
+		second.value = 'https://second.ghe.com';
 		second.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 		second.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 		await commandInvoked;
 		await executeCommand.firstCall.returnValue;
-		assert.deepStrictEqual(configuration.getValue(gitHubEnterpriseUrisSetting), ['https://first.ghe.com', 'https://github.example.com/Team']);
+		assert.deepStrictEqual(configuration.getValue(gitHubEnterpriseUrisSetting), ['https://first.ghe.com', 'https://second.ghe.com']);
 	});
 
 	test('enrollment preserves hosts added while the instance prompt is open', async () => {

@@ -65,8 +65,16 @@ suite('parseGheInstanceInput', () => {
 	});
 
 	for (const uri of ['https://github.example.com', 'http://ghe.local:8080/Team', 'https://ghe.local/Team%20One/', 'HTTPS://GHE.LOCAL:443/Team', 'http://octocat.ghe.com']) {
-		test(`accepts a GitHub Enterprise Server URL (${uri})`, () => {
-			assert.deepStrictEqual(parseGheInstanceInput(uri), { kind: GheParseResultKind.FullUri, resolvedUri: uri });
+		test(`Copilot enrollment rejects a non-GHE.com HTTPS instance (${uri})`, () => {
+			assert.deepStrictEqual(parseGheInstanceInput(uri), { kind: GheParseResultKind.Invalid });
 		});
 	}
+
+	test('Copilot enrollment rejects paths and query strings on GHE.com', () => {
+		assert.deepStrictEqual(['https://tenant.ghe.com/other', 'https://tenant.ghe.com?query', 'https://tenant.ghe.com#fragment'].map(parseGheInstanceInput), [
+			{ kind: GheParseResultKind.Invalid },
+			{ kind: GheParseResultKind.Invalid },
+			{ kind: GheParseResultKind.Invalid }
+		]);
+	});
 });

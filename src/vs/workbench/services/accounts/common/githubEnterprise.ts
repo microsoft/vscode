@@ -68,7 +68,7 @@ type GheParseResult =
 	| { readonly kind: GheParseResultKind.FullUri; readonly resolvedUri: string }
 	| { readonly kind: GheParseResultKind.Invalid };
 
-/** Accepts a GHE.com instance name or a full enterprise instance URL. */
+/** Accepts a GHE.com instance name or HTTPS URL for Copilot enrollment. */
 export function parseGheInstanceInput(value: string): GheParseResult {
 	const trimmed = value.trim();
 	if (!trimmed) {
@@ -78,7 +78,7 @@ export function parseGheInstanceInput(value: string): GheParseResult {
 		return { kind: GheParseResultKind.SingleWord, resolvedUri: `https://${trimmed}.ghe.com` };
 	}
 	const resolvedUri = /^(?:[a-zA-Z0-9-]+\.)+ghe\.com\/?$/i.test(trimmed) ? `https://${trimmed}` : trimmed;
-	return isValidGitHubEnterpriseUri(resolvedUri) ? { kind: GheParseResultKind.FullUri, resolvedUri } : { kind: GheParseResultKind.Invalid };
+	return /^https:\/\/(?:[a-zA-Z0-9-]+\.)+ghe\.com\/?$/i.test(resolvedUri) ? { kind: GheParseResultKind.FullUri, resolvedUri } : { kind: GheParseResultKind.Invalid };
 }
 
 /** Returns the enterprise base identified by a session's OAuth issuer, never by configuration. */

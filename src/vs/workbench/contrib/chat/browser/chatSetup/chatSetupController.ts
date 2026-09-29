@@ -372,7 +372,7 @@ export class ChatSetupController extends Disposable {
 
 			const result = await this.quickInputService.input({
 				prompt: localize('enterpriseInstance', "What is your {0} instance?", defaultChat.provider.enterprise.name),
-				placeHolder: localize('enterpriseInstancePlaceholder', 'i.e. "octocat" or "https://github.example.com"...'),
+				placeHolder: localize('enterpriseInstancePlaceholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
 				ignoreFocusLost: true,
 				value: invalidUri,
 				validateInput: async value => {
@@ -385,7 +385,7 @@ export class ChatSetupController extends Disposable {
 					}
 					if (parsed.kind === GheParseResultKind.Invalid) {
 						return {
-							content: localize('invalidEnterpriseInstance', "Enter a valid {0} instance name or URL.", defaultChat.provider.enterprise.name),
+							content: localize('invalidEnterpriseInstance', "Enter a GHE.com instance name or HTTPS URL."),
 							severity: Severity.Error
 						};
 					}
@@ -398,7 +398,7 @@ export class ChatSetupController extends Disposable {
 			}
 			const parsed = parseGheInstanceInput(result);
 			if (parsed.kind === GheParseResultKind.Empty || parsed.kind === GheParseResultKind.Invalid) {
-				throw new Error(localize('invalidEnterpriseInstance', "Enter a valid {0} instance name or URL.", defaultChat.provider.enterprise.name));
+				throw new Error(localize('invalidEnterpriseInstance', "Enter a GHE.com instance name or HTTPS URL."));
 			}
 			await addGitHubEnterpriseUri(this.configurationService, parsed.resolvedUri, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting, invalidUri);
 		}

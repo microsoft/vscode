@@ -601,7 +601,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		));
 
 		const inputBox = this.stepDisposables.add(new InputBox(container, undefined, {
-			placeholder: localize('onboarding.signIn.enterprise.placeholder', 'i.e. "octocat" or "https://github.example.com"...'),
+			placeholder: localize('onboarding.signIn.enterprise.placeholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
 			ariaLabel: enterprisePromptLabel,
 			actions: [submitAction],
 			inputBoxStyles: defaultInputBoxStyles,
@@ -645,7 +645,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				case GheParseResultKind.Invalid:
 					inputBox.element.classList.add('error');
 					message.classList.add('error');
-					message.textContent = localize('onboarding.signIn.enterprise.invalid', "Enter a valid {0} instance name or URL.", defaultChat.provider.enterprise.name);
+					message.textContent = localize('onboarding.signIn.enterprise.invalid', "Enter a GHE.com instance name or HTTPS URL.");
 					submitAction.enabled = false;
 					return false;
 			}

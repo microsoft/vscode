@@ -9,6 +9,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import Severity from '../../../../../base/common/severity.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -71,17 +72,20 @@ suite('ChatSetupController', () => {
 	]) {
 		test(`corrects invalid enterprise enrollment (${JSON.stringify(values)})`, async () => {
 			const { controller, configuration, input, setup } = createEnrollmentController(values);
-			input.resolves('https://github.example.com/Team');
+			input.resolves('https://corrected.ghe.com');
 			await controller.setupWithProvider({ useEnterpriseProvider: true });
+			const serverValidation = await input.firstCall.args[0]?.validateInput?.('https://github.example.com');
 			assert.deepStrictEqual({
 				prompts: input.getCalls().map(call => call.args[0]?.value),
-				validation: await input.firstCall.args[0]?.validateInput?.('https://github.example.com/Team'),
+				validation: await input.firstCall.args[0]?.validateInput?.('https://corrected.ghe.com'),
+				rejectsServer: typeof serverValidation === 'object' && serverValidation !== null && serverValidation.severity === Severity.Error,
 				hosts: configuration.getValue(gitHubEnterpriseUrisSetting),
 				setupCalls: setup.callCount
 			}, {
 				prompts: ['not-a-url'],
 				validation: undefined,
-				hosts: [...(values[gitHubEnterpriseUrisSetting] ?? []).filter(uri => uri !== 'not-a-url'), 'https://github.example.com/Team'],
+				rejectsServer: true,
+				hosts: [...(values[gitHubEnterpriseUrisSetting] ?? []).filter(uri => uri !== 'not-a-url'), 'https://corrected.ghe.com'],
 				setupCalls: 1
 			});
 		});
@@ -105,7 +109,7 @@ suite('ChatSetupController', () => {
 			[gitHubEnterpriseUrisSetting]: ['first invalid', 'https://valid.ghe.com', 'second invalid']
 		});
 		input.onFirstCall().resolves('https://first.ghe.com');
-		input.onSecondCall().resolves('http://ghe.local:8080/Team');
+		input.onSecondCall().resolves('https://second.ghe.com');
 		await controller.setupWithProvider({ useEnterpriseProvider: true });
 		assert.deepStrictEqual({
 			prompts: input.getCalls().map(call => call.args[0]?.value),
@@ -113,7 +117,7 @@ suite('ChatSetupController', () => {
 			setupCalls: setup.callCount
 		}, {
 			prompts: ['first invalid', 'second invalid'],
-			hosts: ['https://valid.ghe.com', 'https://first.ghe.com', 'http://ghe.local:8080/Team'],
+			hosts: ['https://valid.ghe.com', 'https://first.ghe.com', 'https://second.ghe.com'],
 			setupCalls: 1
 		});
 	});
