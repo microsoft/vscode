@@ -25,7 +25,7 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatHeader } from './chatHeader.js';
 
 /**
@@ -187,7 +187,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		this._register(this._chatHeader.onDidChangeVisibility(() => this._layoutChildren()));
 		this._register(this._chatHeader.onDidChangeHeight(() => this._layoutChildren()));
-		this._register(this._compositeBar.onDidChangeVisibility(() => this._layoutChildren()));
+		this._register(this._compositeBar.onDidChangeVisibility(() => {
+			this._contentContainer.classList.toggle('modern-ui-editor-tab-content', this._compositeBar.visible);
+			this._layoutChildren();
+		}));
 		this._register(this._compositeBar.onDidChangeHeight(() => this._layoutChildren()));
 
 		const focusTracker = this._register(trackFocus(this.element));
@@ -324,7 +327,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				return { banner: connectionBanner, recovery: undefined };
 			}
 
-			return { banner: readOnly?.content, recovery: undefined };
+			return { banner: view?.isInputBlocked.read(reader) ? undefined : readOnly?.content, recovery: undefined };
 		});
 
 		this._contextDisposables.add(autorun(reader => {
@@ -422,8 +425,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		return this._currentView.value?.selectWorkspace(folderUri, options) ?? 'notReady';
 	}
 
-	selectNoWorkspace(): void {
-		this._currentView.value?.selectNoWorkspace();
+	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): void {
+		this._currentView.value?.selectNoWorkspace(options);
 	}
 
 	prefillInput(text: string): void {

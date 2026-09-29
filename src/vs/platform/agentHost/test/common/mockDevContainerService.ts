@@ -20,6 +20,8 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 	readonly onDidOutput = this.output.event;
 	readonly connects: IDevContainerAgentHostConfig[] = [];
 	readonly disconnects: string[] = [];
+	readonly stops: string[] = [];
+	readonly removes: string[] = [];
 	readonly sent: IRelayMessage[] = [];
 	connectResult: Promise<IDevContainerAgentHostConnectResult> | undefined;
 
@@ -34,6 +36,16 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 
 	async disconnect(connectionId: string): Promise<void> {
 		this.disconnects.push(connectionId);
+	}
+
+	async stopContainer(workspaceFolder: string): Promise<boolean> {
+		this.stops.push(workspaceFolder);
+		return true;
+	}
+
+	async removeContainer(workspaceFolder: string): Promise<boolean> {
+		this.removes.push(workspaceFolder);
+		return true;
 	}
 
 	async relaySend(connectionId: string, data: string): Promise<void> {

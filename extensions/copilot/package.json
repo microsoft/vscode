@@ -81,6 +81,7 @@
     "onStartupFinished",
     "onLanguageModelChat:copilot",
     "onUri",
+    "onCommand:_github.copilot.chat.reportHarnessSwitchFeedbackSurvey",
     "onCommand:_github.copilot.chat.reportModelFeedbackSurvey",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
@@ -120,6 +121,7 @@
     "defaultChatParticipant",
     "contribSourceControlInputBoxMenu",
     "authLearnMore",
+    "authIssuers",
     "testObserver",
     "aiTextSearchProvider",
     "chatParticipantPrivate",
@@ -2462,7 +2464,8 @@
         "command": "github.copilot.cli.sessions.rename",
         "title": "%github.copilot.command.cli.sessions.rename%",
         "icon": "$(edit)",
-        "category": "Copilot CLI"
+        "category": "Copilot CLI",
+        "enablement": "!sessionItem.isMultiSelection"
       },
       {
         "command": "github.copilot.cli.sessions.setTitle",
@@ -3207,25 +3210,6 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cloudAgent.enabled%"
-          },
-          "github.copilot.chat.cloudAgent.sessionVisibility": {
-            "type": "string",
-            "enum": [
-              "24hours",
-              "7days",
-              "30days",
-              "90days",
-              "all"
-            ],
-            "default": "30days",
-            "markdownDescription": "%github.copilot.config.cloudAgent.sessionVisibility%",
-            "enumDescriptions": [
-              "%github.copilot.config.cloudAgent.sessionVisibility.24hours%",
-              "%github.copilot.config.cloudAgent.sessionVisibility.7days%",
-              "%github.copilot.config.cloudAgent.sessionVisibility.30days%",
-              "%github.copilot.config.cloudAgent.sessionVisibility.90days%",
-              "%github.copilot.config.cloudAgent.sessionVisibility.all%"
-            ]
           },
           "github.copilot.chat.localIndex.enabled": {
             "type": "boolean",
@@ -4094,7 +4078,7 @@
           },
           "github.copilot.chat.responsesApi.promptCacheBreakpoint.enabled": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "markdownDescription": "%github.copilot.config.responsesApi.promptCacheBreakpoint.enabled%",
             "tags": [
               "experimental",
@@ -4366,6 +4350,15 @@
             "type": "number",
             "default": 200,
             "markdownDescription": "%github.copilot.chat.tools.grepSearch.maxResultsCap%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.tools.readFile.allowLineAdjustments": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.chat.tools.readFile.allowLineAdjustments%",
             "tags": [
               "experimental",
               "onExp"

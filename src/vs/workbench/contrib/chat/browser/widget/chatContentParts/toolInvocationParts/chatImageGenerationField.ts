@@ -327,7 +327,9 @@ export class ImageGenerationField {
 				const wobble = (terms[term + PositionTerm.SinWobbleA] * cosWobbleAPhase + terms[term + PositionTerm.CosWobbleA] * sinWobbleAPhase) * 0.5
 					+ (terms[term + PositionTerm.SinWobbleB] * cosWobbleBPhase + terms[term + PositionTerm.CosWobbleB] * sinWobbleBPhase) * 0.35
 					+ (terms[term + PositionTerm.SinWobbleC] * cosWobbleCPhase + terms[term + PositionTerm.CosWobbleC] * sinWobbleCPhase) * 0.25;
-				const fade = smoothstep(edgeInset, edgeInset + edgeFadeWidth, this.edgeDistances[index] + wobble * edgeWobble);
+				// Keep the quiet perimeter outside the field even when a swell pushes its edge outward.
+				const edgeDistance = this.edgeDistances[index];
+				const fade = edgeDistance <= edgeInset ? 0 : smoothstep(edgeInset, edgeInset + edgeFadeWidth, edgeDistance + wobble * edgeWobble);
 				// Raising the surface to the power 1.5 narrows the crests and widens the troughs, like water.
 				const surface = (height / swellAmplitude + 1) / 2;
 				const crest = surface * Math.sqrt(surface) * fade;

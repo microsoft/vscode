@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentSession } from '../../common/agent.js';
+import { AgentSession, type IAgentTelemetryContext } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
@@ -43,11 +43,11 @@ suite('AgentHostInputRequestTracker', () => {
 	const rootChat = buildDefaultChatUri(rootSession);
 	const subagentChat = buildSubagentChatUri(rootSession, 'subagent-tool');
 
-	function createTracker(clientContext?: IAgentHostClientTelemetryContext): { telemetry: CapturingTelemetryService; tracker: AgentHostInputRequestTracker } {
+	function createTracker(clientContext?: IAgentHostClientTelemetryContext, telemetryContext?: IAgentTelemetryContext): { telemetry: CapturingTelemetryService; tracker: AgentHostInputRequestTracker } {
 		const telemetry = new CapturingTelemetryService();
 		return {
 			telemetry,
-			tracker: new AgentHostInputRequestTracker(new AgentHostTelemetryReporter(telemetry), () => ({ elapsed: () => 25 }), () => clientContext),
+			tracker: new AgentHostInputRequestTracker(new AgentHostTelemetryReporter(telemetry), () => ({ elapsed: () => 25 }), () => clientContext, () => telemetryContext),
 		};
 	}
 
@@ -85,7 +85,7 @@ suite('AgentHostInputRequestTracker', () => {
 			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
 			machineId: 'client-machine-id',
 			devDeviceId: 'client-dev-device-id',
-		});
+		}, { copilotSku: 'sku-a' });
 		const request: ChatInputRequest = withChatInputRequestPurpose({
 			id: 'request-1',
 			questions: [
@@ -119,6 +119,7 @@ suite('AgentHostInputRequestTracker', () => {
 				hostLaunchKind: 'vscode_main_process',
 				initiatorMachineId: 'client-machine-id',
 				initiatorDevDeviceId: 'client-dev-device-id',
+				copilotSku: 'sku-a',
 				requestId: 'turn-1',
 				questionCount: 7,
 				answeredCount: 5,

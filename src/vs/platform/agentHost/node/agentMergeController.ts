@@ -29,7 +29,7 @@ import { ActionType } from '../common/state/protocol/common/actions.js';
 import { AuthRequiredReason } from '../common/state/sessionActions.js';
 import { buildDefaultChatUri, getSessionRelatedPullRequestUrls, ISessionWithDefaultChat, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, readFolderGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
 import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
-import { resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -1434,22 +1434,7 @@ export class AgentMergeController extends Disposable {
 	 * works in the folder any more, so its work never lands in another checkout.
 	 */
 	private _resolveOwningChat(session: string, folderKey: string, agentMerge?: Pick<AgentMergeFolderState, 'chat'>): string | undefined {
-		const state = this._stateManager.getSessionState(session.toString());
-		const defaultChat = buildDefaultChatUri(session);
-		// Client-written, so only honored for a chat of this session.
-		const isSessionChat = (chat: string) => chat === defaultChat || state?.chats.some(candidate => candidate.resource === chat) === true;
-		if (agentMerge?.chat && isAhpChatChannel(agentMerge.chat) && isSessionChat(agentMerge.chat) && this._chatWorksInFolder(agentMerge.chat, folderKey)) {
-			return agentMerge.chat;
-		}
-		if (folderKey === this._sessionFolderKey(state)) {
-			return defaultChat;
-		}
-		for (const chat of [defaultChat, ...state?.chats.map(chat => chat.resource).filter(chat => chat !== defaultChat) ?? []]) {
-			if (this._chatWorksInFolder(chat, folderKey)) {
-				return chat;
-			}
-		}
-		return undefined;
+		return resolveAgentMergeOwningChat(this._stateManager, session, folderKey, agentMerge?.chat);
 	}
 
 	/**

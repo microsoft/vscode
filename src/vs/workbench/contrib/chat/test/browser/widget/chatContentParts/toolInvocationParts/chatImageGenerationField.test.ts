@@ -19,22 +19,22 @@ suite('ImageGenerationField', () => {
 
 	test('a still frame shows swells of denser glyphs over binary digits, fading out unevenly toward the edges', () => {
 		assert.strictEqual(render('image-generation', 24, 16, 123456, true).toString(), [
-			'  0100111001            ',
+			'   1  1                 ',
 			' 000010·:···010111      ',
 			'01001:****+==+=·0101000 ',
-			'01:=*##+=::·00010110010 ',
+			' 1:=*##+=::·00010110010 ',
 			'00*###+:··000101001000  ',
-			'0·###+:··1001:=+=:·0000 ',
+			' ·###+:··1001:=+=:·0000 ',
 			'10·+:···001·+####*=·1100',
-			'0000010101·=######+:·001',
+			' 000010101·=######+:·001',
 			'1010100000·+######*=·10 ',
 			'01110···0·:+######*+:100',
-			'10·:====::=+#######*=101',
-			'0:+*++++++++*#######+00 ',
-			'1·=++===+:::+:+=*****=0 ',
-			'1100··0·111001···:1:··0 ',
-			'000010101   0 101 00001 ',
-			' 0000 1            0 0  ',
+			' 0·:====::=+#######*=101',
+			' :+*++++++++*#######+00 ',
+			' ·=++===+:::+:+=*****=0 ',
+			' 100··0·111001···:1:··0 ',
+			' 00010101   0 101 00001 ',
+			'  0   1            0 0  ',
 		].join('\n'));
 	});
 
@@ -71,6 +71,33 @@ suite('ImageGenerationField', () => {
 			stillIgnoresTime: render('image-generation', 36, 12, 1000, true).toString() === render('image-generation', 36, 12, 9000, true).toString(),
 			decodes: [...frame.cells].every(cell => cell === 0 || (getImageGenerationFieldCellGlyph(cell) < imageGenerationFieldGlyphs.length && getImageGenerationFieldCellTone(cell) >= 0 && getImageGenerationFieldCellTone(cell) < imageGenerationFieldTones.length)),
 		}, { repeatable: true, seeded: true, animated: true, stillIgnoresTime: true, decodes: true });
+	});
+
+	test('animated swells cannot fill the corners of narrow or wide image placeholders', () => {
+		const occupiedCorners: string[] = [];
+		for (const seed of ['image-generation', 'image-placeholder', 'another-image']) {
+			for (const [columns, rows] of [[24, 16], [23, 18], [41, 33]]) {
+				const field = render(seed, columns, rows, 0);
+				const cornerSize = Math.ceil(columns * 0.04);
+				for (const start of [0, 1_790_000_000_000]) {
+					for (let time = start; time <= start + 60_000; time += 2500) {
+						field.update(time);
+						for (let row = 0; row < cornerSize; row++) {
+							for (let column = 0; column < cornerSize; column++) {
+								for (const y of [row, rows - 1 - row]) {
+									for (const x of [column, columns - 1 - column]) {
+										if (field.cells[y * columns + x]) {
+											occupiedCorners.push(`${seed} ${columns}x${rows} at ${time}: ${x},${y}`);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(occupiedCorners, []);
 	});
 
 	test('read as 8-bit ASCII, every row of digits spells the message, and no letters are drawn', () => {

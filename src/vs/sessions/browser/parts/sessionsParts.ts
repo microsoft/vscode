@@ -14,7 +14,7 @@ import { SessionView } from './sessionView.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridLayout } from '../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService, IToggleMaximizeSessionEvent } from '../../services/sessions/browser/sessionsPartService.js';
 
 /**
  * Owns the lifecycle of the {@link SessionsPart}. Selects the mobile vs. desktop
@@ -50,8 +50,8 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		this._mainPart = this._register(instantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
 	}
 
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, layout?: SessionGridLayout): void {
-		this._mainPart.updateVisibleSessions(visible, active, layout);
+	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void {
+		this._mainPart.updateVisibleSessions(visible, active);
 	}
 
 	setContentVisible(visible: boolean): void {

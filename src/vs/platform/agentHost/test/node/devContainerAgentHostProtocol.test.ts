@@ -9,7 +9,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import type { IDevContainerAgentHostConnectResult } from '../../common/devContainerAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { DevContainerAgentHostProtocol, normalizeDevContainerWorkspaceFolder } from '../../node/devContainerAgentHostProtocol.js';
@@ -119,6 +119,35 @@ suite('DevContainerAgentHostProtocol', () => {
 		assert.deepStrictEqual({ sent: service.sent, disconnects: service.disconnects }, { sent: [{ connectionId, data: 'frame' }], disconnects: [connectionId] });
 	});
 
+	test('requires workspace trust and routes lifecycle operations by normalized host path', async () => {
+		let trusted = false;
+		const workspaces: string[] = [];
+		const { service, protocol } = setup(async workspace => { workspaces.push(workspace); return trusted; });
+		const workspaceFolder = '/C:/repo with spaces';
+		const params = { workspaceFolder };
+		await assert.rejects(protocol.handleRequest(DevContainerStopExtensionMethod, params)!, { code: AhpErrorCodes.PermissionDenied });
+		trusted = true;
+		assert.deepStrictEqual({
+			stopped: await protocol.handleRequest(DevContainerStopExtensionMethod, params),
+			removed: await protocol.handleRequest(DevContainerRemoveExtensionMethod, params),
+			workspaces,
+			stops: service.stops,
+			removes: service.removes,
+		}, {
+			stopped: true,
+			removed: true,
+			workspaces: Array(3).fill(normalizeDevContainerWorkspaceFolder(workspaceFolder, OS)),
+			stops: [normalizeDevContainerWorkspaceFolder(workspaceFolder, OS)],
+			removes: [normalizeDevContainerWorkspaceFolder(workspaceFolder, OS)],
+		});
+	});
+
+	test('forwards explicit resume to the remote container launcher', async () => {
+		const { service, protocol } = setup();
+		await protocol.handleRequest(DevContainerConnectExtensionMethod, { ...config, resume: true });
+		assert.strictEqual(service.connects[0].resume, true);
+	});
+
 	test('validates all extension request parameters', async () => {
 		const { service, protocol } = setup();
 		const inputs: readonly [string, unknown][] = [
@@ -128,7 +157,10 @@ suite('DevContainerAgentHostProtocol', () => {
 			[DevContainerConnectExtensionMethod, { ...config, workspaceFolder: 'relative' }],
 			[DevContainerConnectExtensionMethod, { ...config, workspaceFolder: '/repo\0' }],
 			[DevContainerConnectExtensionMethod, { ...config, name: 1 }],
+			[DevContainerConnectExtensionMethod, { ...config, resume: 'yes' }],
 			[DevContainerDisconnectExtensionMethod, { connectionId: 1 }],
+			[DevContainerStopExtensionMethod, { workspaceFolder: 'relative' }],
+			[DevContainerRemoveExtensionMethod, { workspaceFolder: '/repo\0' }],
 			[DevContainerRelaySendExtensionMethod, { connectionId: config.connectionId, data: {} }],
 		];
 		for (const [method, params] of inputs) {

@@ -94,8 +94,7 @@ export interface IAgentHostSessionTitleControllerOptions {
 	readonly gitHubContextRequestTimeout?: number;
 	readonly octoKitService?: IAgentHostOctoKitService;
 	readonly copilotApiService?: ICopilotApiService;
-	readonly isActiveAgentTitleGenerationEnabled?: () => boolean;
-	readonly isDeferredTitleGenerationEnabled?: () => boolean;
+	readonly getInitialTitleGenerationStrategy?: () => AutomaticTitleGenerationStrategy;
 }
 
 export const IAgentHostSessionTitleController = createDecorator<IAgentHostSessionTitleController>('agentHostSessionTitleController');
@@ -917,8 +916,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		// Tool membership is only a compatibility fallback for sessions materialized before strategy snapshots.
 		const strategy = state?.serverTools
 			? state.serverTools.some(tool => tool.name === SessionServerToolName.RenameChat) ? 'activeAgent' : 'utility'
-			: this._options.isDeferredTitleGenerationEnabled?.() === true ? 'deferred'
-				: this._options.isActiveAgentTitleGenerationEnabled?.() === true ? 'activeAgent' : 'utility';
+			: this._options.getInitialTitleGenerationStrategy?.() ?? 'deferred';
 		if (channel && !this._isEphemeralSession(channel)) {
 			this._titleGenerationStrategies.set(channel, strategy);
 			if (state) {
@@ -930,7 +928,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		return strategy;
 	}
 
-	/** Restores scheduling without opting legacy sessions into the deferred experiment. */
+	/** Restores scheduling without changing the strategy of legacy sessions. */
 	async restoreTitleGenerationStrategy(channel: ProtocolURI, chatChannel?: ProtocolURI): Promise<void> {
 		await this._restoreTitleGenerationStrategy(channel);
 		if (chatChannel && this._titleGenerationStrategies.get(channel) === 'deferred') {
@@ -953,7 +951,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			}
 			const strategy = persisted === 'activeAgent' || persisted === 'utility' || persisted === 'deferred'
 				? persisted
-				: this._options.isActiveAgentTitleGenerationEnabled?.() === true ? 'activeAgent' : 'utility';
+				: 'utility';
 			this._titleGenerationStrategies.set(channel, strategy);
 			this._persistSessionFlag(channel, TITLE_GENERATION_STRATEGY_KEY, strategy);
 		};

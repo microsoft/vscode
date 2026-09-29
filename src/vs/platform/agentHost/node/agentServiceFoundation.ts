@@ -27,9 +27,9 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 	private callbacks: IAgentServiceCallbacks | undefined;
 
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor = {
-		isActiveAgentTitleGenerationEnabled: () => this.value.sessionServerToolAccessor.isActiveAgentTitleGenerationEnabled(),
 		getAutomaticTitleGenerationStrategy: session => this.value.sessionServerToolAccessor.getAutomaticTitleGenerationStrategy(session),
 		canConvertWorkspace: session => this.value.sessionServerToolAccessor.canConvertWorkspace(session),
+		supportsChatWorkingDirectories: session => this.value.sessionServerToolAccessor.supportsChatWorkingDirectories(session),
 		listSessions: () => this.value.sessionServerToolAccessor.listSessions(),
 		getSession: session => this.value.sessionServerToolAccessor.getSession(session),
 		getWorktreeRoots: workspace => this.value.sessionServerToolAccessor.getWorktreeRoots(workspace),
@@ -50,6 +50,10 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
 		isEnabled: () => this.value.artifactServerToolAccessor.isEnabled(),
 		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
+		associatePullRequest: (chat, url) => this.value.artifactServerToolAccessor.associatePullRequest?.(chat, url) ?? Promise.resolve(false),
+		associatePullRequests: (chat, urls) => this.value.artifactServerToolAccessor.associatePullRequests?.(chat, urls) ?? Promise.resolve({ pending: [], unmatched: [...urls] }),
+		removePendingPullRequest: (session, url) => this.value.artifactServerToolAccessor.removePendingPullRequest?.(session, url) ?? Promise.resolve(),
+		reportAssociationError: error => this.value.artifactServerToolAccessor.reportAssociationError?.(error),
 	};
 
 	bind(callbacks: IAgentServiceCallbacks): void {

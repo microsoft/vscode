@@ -6,6 +6,7 @@
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -18,7 +19,7 @@ import { PreferredGroup } from '../../../services/editor/common/editorService.js
 import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../common/attachments/chatVariables.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/participants/chatAgents.js';
-import { IChatResponseModel, IChatModelInputState } from '../common/model/chatModel.js';
+import { IChatModel, IChatResponseModel, IChatModelInputState } from '../common/model/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
 import { IHandOff } from '../common/promptSyntax/promptFileParser.js';
@@ -81,6 +82,8 @@ export interface IWorkspacePickerDelegate {
  */
 export interface ISessionTypePickerDelegate {
 	getActiveSessionProvider(): AgentSessionTarget | undefined;
+	/** Returns the chat session represented by this picker, when it is bound to one. */
+	getSessionResource?(): URI | undefined;
 	/**
 	 * Optional setter for the active session provider.
 	 * When provided, the picker will call this instead of executing the openNewChatSessionInPlace command.
@@ -208,7 +211,7 @@ export interface IQuickChatOpenOptions {
 export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
-	acceptRequest(uri: URI, skipRequestSignal?: boolean): void;
+	acceptRequest(uri: URI, skipRequestSignal?: boolean, model?: IChatModel): void;
 	disposeRequest(requestId: URI): void;
 	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: URI | undefined, isVoiceInput?: boolean): void;
 	acceptElicitation(message: IChatElicitationRequest): void;
@@ -261,6 +264,7 @@ export interface IChatListItemRendererOptions {
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
+	readonly progressMessageAction?: IObservable<{ readonly label: string; readonly run: () => void } | undefined>;
 	readonly contentHorizontalPadding?: number;
 	/**
 	 * Render options applied to code blocks in response markdown (e.g. force word-wrap
@@ -278,6 +282,10 @@ export interface IChatWidgetViewOptions {
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
 	renderGettingStartedTip?: boolean | (() => boolean);
+	customizationMigrationNotice?: {
+		readonly workspace: IObservable<URI | undefined>;
+		readonly onDidChangeAvailability: (available: boolean) => void;
+	};
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	/**
@@ -401,8 +409,6 @@ export interface IChatAcceptInputOptions {
 	preserveFocus?: boolean;
 	/** Keeps the input box contents and attachments after submitting a programmatic query, and omits them from it. The query itself is sent as-is: prompt slash commands in it are not resolved. */
 	preserveInput?: boolean;
-	/** Rejects if this existing session's writable model is no longer bound to the widget during submission preparation. Omit for submissions that may create or replace the session. */
-	expectedSessionResource?: URI;
 	/**
 	 * Called once the request has been handed over to the chat service, i.e. it was either sent
 	 * right away or queued because another request is in progress. Callers that must not wait for

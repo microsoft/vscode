@@ -11,7 +11,7 @@ import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../../ba
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { buildBranchChangesetUri, buildTurnChangesetUri, ChangesetKind, resolveChatChangesetCatalogue } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { buildBranchChangesetUri, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -201,13 +201,14 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				resolvedTurnSource.chatUri?.toString() ?? buildDefaultChatUri(backendSession.toString()),
 				resolvedTurnSource.changesets,
 				sessionState.changesets,
+				sessionState.defaultChat,
 			);
 			const turnEntry = resolvedCatalogue?.find(({ changeset }) => changeset.changeKind === ChangesetKind.Turn);
 			if (!turnEntry) {
 				return undefined;
 			}
 			const owner = turnEntry.owner === 'session' || !resolvedTurnSource.chatUri ? backendSession : resolvedTurnSource.chatUri;
-			return URI.parse(buildTurnChangesetUri(owner.toString(), requestId));
+			return URI.parse(resolveChangesetUriTemplate(owner.toString(), turnEntry.changeset.uriTemplate).replace('{turnId}', requestId));
 		});
 
 		const changesetStateObs = this._subscribeChangeset(turnChangesetUriObs);

@@ -174,7 +174,7 @@ async function renderImageLoadingLifecycle(context: ComponentFixtureContext): Pr
 		listHeight: input.viewportHeight,
 		defaultElementHeight: 200,
 		inputVisible: false,
-		persistentProgress: ChatProgressAnimation.Weave,
+		persistentProgress: ChatProgressAnimation.Draw,
 		collapseCompletedResponses: true,
 		menuItems: MenuRegistry.getMenuItems(MenuId.ChatToolOutputResourceToolbar).filter(isIMenuItem).map(item => ({ menuId: MenuId.ChatToolOutputResourceToolbar, item })),
 		additionalServices: registration => {
@@ -279,7 +279,7 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 					toolId: 'image_generation',
 					running: state === 'Generating',
 					failed: state === 'Failed',
-					progress: ChatProgressAnimation.Weave,
+					progress: ChatProgressAnimation.Draw,
 				});
 			}
 		},
@@ -298,7 +298,7 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 				earlierAttempt: input.earlierAttempt === 'None' ? undefined : input.earlierAttempt === 'Generating' ? 'running' : 'failed',
 				width: input.narrow ? 360 : 760,
 				reducedMotion: input.reducedMotion,
-				progress: ChatProgressAnimation.Weave,
+				progress: ChatProgressAnimation.Draw,
 				landscape: true,
 			});
 		},
@@ -307,49 +307,49 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 	Landscape: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderGeneratedImage(context, { landscape: true }) }),
 	Narrow: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderGeneratedImage(context, { width: 360, landscape: true }) }),
 	Gallery: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderGeneratedImage(context, { multiple: true }) }),
-	PersistentProgress: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderGeneratedImage(context, { progress: ChatProgressAnimation.Weave }) }),
+	PersistentProgress: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderGeneratedImage(context, { progress: ChatProgressAnimation.Draw }) }),
 	Running: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderGeneratedImage(context, { running: true }) }),
 	CopilotGenerating: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'animated' },
 		expectedVisualDescriptions: ['An unframed area of small monospace binary digits, as tall as a generated image and a little wider than tall, with swells of denser accent-colored glyphs rolling through it like water and edges that fade out unevenly, without a panel background. No unfinished tool header or tool icon is visible; Generating image appears in the persistent footer below. Reduced motion and high contrast show one still composition.'],
-		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, progress: ChatProgressAnimation.Weave }),
+		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, progress: ChatProgressAnimation.Draw }),
 	}),
 	CodexGenerating: defineComponentFixture({
 		labels: { kind: 'animated' },
-		render: context => renderGeneratedImage(context, { toolId: 'image_gen.imagegen', running: true, progress: ChatProgressAnimation.Weave }),
+		render: context => renderGeneratedImage(context, { toolId: 'image_gen.imagegen', running: true, progress: ChatProgressAnimation.Draw }),
 	}),
 	CopilotOverlapping: defineComponentFixture({
 		virtualTime: { enabled: false },
 		labels: { kind: 'animated' },
 		inputSchema: z.object({ enableAnimations: z.boolean().default(true) }),
 		expectedVisualDescriptions: ['Two concurrent image-generation attempts share exactly one unframed binary-digit placeholder and one Generating image footer. There is no second placeholder, empty tool row, or tool header.'],
-		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, earlierAttempt: 'running', progress: ChatProgressAnimation.Weave }),
+		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, earlierAttempt: 'running', progress: ChatProgressAnimation.Draw }),
 	}),
 	CodexOverlapping: defineComponentFixture({
 		virtualTime: { enabled: false },
 		labels: { kind: 'animated' },
 		inputSchema: z.object({ enableAnimations: z.boolean().default(true) }),
-		render: context => renderGeneratedImage(context, { toolId: 'image_gen.imagegen', running: true, earlierAttempt: 'running', progress: ChatProgressAnimation.Weave }),
+		render: context => renderGeneratedImage(context, { toolId: 'image_gen.imagegen', running: true, earlierAttempt: 'running', progress: ChatProgressAnimation.Draw }),
 	}),
 	GeneratingAfterFailure: defineComponentFixture({
 		labels: { kind: 'animated' },
-		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, earlierAttempt: 'failed', progress: ChatProgressAnimation.Weave }),
+		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, earlierAttempt: 'failed', progress: ChatProgressAnimation.Draw }),
 	}),
 	CompletedAfterFailure: defineComponentFixture({
 		virtualTime: { enabled: false },
-		render: context => renderGeneratedImage(context, { toolId: 'image_generation', earlierAttempt: 'failed', landscape: true, progress: ChatProgressAnimation.Weave }),
+		render: context => renderGeneratedImage(context, { toolId: 'image_generation', earlierAttempt: 'failed', landscape: true, progress: ChatProgressAnimation.Draw }),
 	}),
 	GeneratingNarrow: defineComponentFixture({
 		labels: { kind: 'animated' },
-		render: context => renderGeneratedImage(context, { width: 360, toolId: 'image_gen.imagegen', running: true, progress: ChatProgressAnimation.Weave }),
+		render: context => renderGeneratedImage(context, { width: 360, toolId: 'image_gen.imagegen', running: true, progress: ChatProgressAnimation.Draw }),
 	}),
 	GeneratingReducedMotion: defineComponentFixture({
-		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, reducedMotion: true, progress: ChatProgressAnimation.Weave }),
+		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, reducedMotion: true, progress: ChatProgressAnimation.Draw }),
 	}),
 	Failed: defineComponentFixture({
 		expectedVisualDescriptions: ['A Generated image failed tool dropdown with an error indicator remains available to inspect the prompt and failure output. There is no generation placeholder or large generated image.'],
-		render: context => renderGeneratedImage(context, { toolId: 'image_generation', failed: true, progress: ChatProgressAnimation.Weave }),
+		render: context => renderGeneratedImage(context, { toolId: 'image_generation', failed: true, progress: ChatProgressAnimation.Draw }),
 	}),
 	CompletedTool: defineComponentFixture({
 		virtualTime: { enabled: false },

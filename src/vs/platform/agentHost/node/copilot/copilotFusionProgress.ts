@@ -6,7 +6,7 @@
 import type { SessionEvent, SessionEventPayload } from '@github/copilot-sdk';
 import { getDurationString } from '../../../../base/common/date.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, isObject } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta, type AgentFusionProgressStatus } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readToolCallMeta, toToolCallMeta, type IFusionPhaseMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -23,6 +23,53 @@ const fusionEventTypes: ReadonlySet<string> = new Set(copilotFusionEventTypes);
 
 export function isCopilotFusionEvent(event: SessionEvent): event is CopilotFusionEvent {
 	return fusionEventTypes.has(event.type);
+}
+
+/** The id of the tool call that presents a Fusion phase, and of that phase's child chat. */
+export function getFusionPhaseToolCallId(fusionId: string, phaseId: string): string {
+	return `fusion:${fusionId}:${phaseId}`;
+}
+
+export const COPILOT_FUSION_PHASE_AGENT_NAME = 'hydrafusion-phase';
+
+/** Renders a review phase's structured output (critic or judge) as markdown, falling back to its raw text. */
+export function formatFusionReviewContent(content: string): string | undefined {
+	const text = content.trim();
+	if (!text) {
+		return undefined;
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		return text;
+	}
+	if (!isObject(parsed)) {
+		return text;
+	}
+	const review = parsed as { assessment?: unknown; score?: unknown; feedback?: unknown; rationale?: unknown; defect?: unknown };
+	const paragraphs: string[] = [];
+	const bold = (text: string) => `**${escapeMarkdownSyntaxTokens(text)}**`;
+	if (review.assessment === 'approve') {
+		paragraphs.push(bold(localize('copilot.fusion.review.approved', "Approved")));
+	} else if (review.assessment === 'revise') {
+		paragraphs.push(bold(localize('copilot.fusion.review.revise', "Changes requested")));
+	}
+	if (typeof review.score === 'number') {
+		paragraphs.push(bold(localize('copilot.fusion.review.score', "Score: {0}/5", review.score)));
+	}
+	const explanation = typeof review.feedback === 'string' ? review.feedback : typeof review.rationale === 'string' ? review.rationale : undefined;
+	if (explanation) {
+		paragraphs.push(escapeMarkdownSyntaxTokens(explanation));
+	}
+	if (isObject(review.defect)) {
+		const defect = review.defect as { target?: unknown; evidence?: unknown };
+		const details = [defect.target, defect.evidence].filter((value): value is string => typeof value === 'string' && value.length > 0).join(' — ');
+		if (details) {
+			paragraphs.push(`${bold(localize('copilot.fusion.review.issue', "Issue:"))} ${escapeMarkdownSyntaxTokens(details)}`);
+		}
+	}
+	return paragraphs.length ? paragraphs.join('\n\n') : text;
 }
 
 /** Provisional phase conversations are not the authoritative parent transcript. */
@@ -66,14 +113,6 @@ function phaseLabel(kind: FusionPhase['phaseKind'], pattern: FusionPhase['patter
 	}
 }
 
-function workflowDescription(pattern: FusionPhase['pattern']): string {
-	switch (pattern) {
-		case 'single': return localize('copilot.fusion.singleDescription', "Using Single: one solver will work on your request.");
-		case 'cascade': return localize('copilot.fusion.cascadeDescription', "Using Cascade: a solver will work on your request, then another model will review and fix up the result if needed.");
-		case 'critique': return localize('copilot.fusion.critiqueDescription', "Using Critique: a solver will draft a result, another model will critique it, and the original solver will revise it if needed.");
-	}
-}
-
 function milestone(summary: string, status: AgentFusionProgressStatus, details?: string, description?: string): SystemNotificationResponsePart {
 	const content = new MarkdownString().appendText(summary);
 	if (description) {
@@ -85,7 +124,11 @@ function milestone(summary: string, status: AgentFusionProgressStatus, details?:
 	return {
 		kind: ResponsePartKind.SystemNotification,
 		content: { markdown: content.value },
-		_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: status }),
+		_meta: toAgentSystemNotificationMeta({
+			kind: AgentSystemNotificationKind.FusionProgress,
+			fusionStatus: status,
+			fusionDescription: status === 'selected' ? description ?? '' : undefined,
+		}),
 	};
 }
 
@@ -101,6 +144,10 @@ export class CopilotFusionProgress {
 	private _interrupted = false;
 	private readonly _phaseTools = new Map<string, ToolCallRunningState | ToolCallCompletedState>();
 	private readonly _patterns = new Map<string, FusionPhase['pattern']>();
+
+	get runningPhaseToolCallId(): string | undefined {
+		return this._phase ? getFusionPhaseToolCallId(this._phase.fusionId, this._phase.phaseId) : undefined;
+	}
 
 	reset(): void {
 		this._milestones.clear();
@@ -159,7 +206,7 @@ export class CopilotFusionProgress {
 				this._inFlight = true;
 				this._fusionId = d.fusionId;
 				this._patterns.set(d.fusionId, d.pattern);
-				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', undefined, workflowDescription(d.pattern));
+				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', undefined, d.hint);
 				this._activity = localize('copilot.fusion.preparing', "Preparing the {0} workflow...", patternLabel(d.pattern));
 				break;
 			}
@@ -226,14 +273,13 @@ export class CopilotFusionProgress {
 				const d = event.data;
 				this._finishedFusions.add(d.fusionId);
 				this._inFlight = false;
+				// The phase pills already show a clean run; only a fallback or an abnormal ending needs a row.
 				const degraded = d.outcome === 'degraded' || (d.degradedReason !== null && d.degradedReason !== undefined);
-				const summary = degraded
-					? localize('copilot.fusion.completedDegraded', "HydraFusion workflow completed with a fallback")
-					: d.outcome === 'completed'
-						? localize('copilot.fusion.completed', "HydraFusion workflow completed")
-						: localize('copilot.fusion.ended', "HydraFusion workflow ended: {0}", d.outcome);
-				const details = localize('copilot.fusion.duration', "Duration: {0}", getDurationString(d.durationMs));
-				part = milestone(summary, degraded || d.outcome !== 'completed' ? 'degraded' : 'completed', details);
+				if (degraded) {
+					part = milestone(localize('copilot.fusion.completedDegraded', "HydraFusion workflow completed with a fallback"), 'degraded');
+				} else if (d.outcome !== 'completed') {
+					part = milestone(localize('copilot.fusion.ended', "HydraFusion workflow ended: {0}", d.outcome), 'degraded');
+				}
 				this._phase = undefined;
 				this._activity = undefined;
 				break;
@@ -243,7 +289,7 @@ export class CopilotFusionProgress {
 	}
 
 	private _updatePhase(data: Pick<FusionPhase, 'fusionId' | 'phaseId' | 'phaseKind' | 'model'>, status: IFusionPhaseMeta['status'], timestamp: string | undefined, duration?: number, verdict?: string | null): NonNullable<ICopilotFusionProgressUpdate['phase']> {
-		const toolCallId = `fusion:${data.fusionId}:${data.phaseId}`;
+		const toolCallId = getFusionPhaseToolCallId(data.fusionId, data.phaseId);
 		const previous = this._phaseTools.get(toolCallId);
 		const previousPhase = previous && readToolCallMeta(previous).fusionPhase;
 		const parsedTime = timestamp ? Date.parse(timestamp) : Date.now();

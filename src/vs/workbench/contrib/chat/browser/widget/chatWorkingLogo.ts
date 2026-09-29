@@ -12,39 +12,6 @@ import { ChatConfiguration, ChatProgressAnimation } from '../../common/constants
 import { chatWorkingProgressInsidersIconForeground, chatWorkingProgressStableIconForeground } from '../../common/widget/chatColors.js';
 import './media/chatWorkingLogo.css';
 
-export type ChatWorkingLogoMotion =
-	| 'fold' | 'weave' | 'weave-v' | 'draw' | 'relay' | 'stack' | 'orbit' | 'shutter'
-	| 'aperture' | 'accordion' | 'dial' | 'magnet' | 'trace' | 'pendulum' | 'prism'
-	| 'ladder' | 'carousel' | 'piston' | 'bridge' | 'fan' | 'comb' | 'braid' | 'sling' | 'folio' | 'helix';
-
-const durations: Record<ChatWorkingLogoMotion, number> = {
-	fold: 2800,
-	weave: 1200,
-	'weave-v': 1200,
-	draw: 2400,
-	relay: 3000,
-	stack: 3200,
-	orbit: 3000,
-	shutter: 2800,
-	aperture: 1600,
-	accordion: 1500,
-	dial: 1600,
-	magnet: 1600,
-	trace: 1800,
-	pendulum: 1800,
-	prism: 2000,
-	ladder: 1800,
-	carousel: 1800,
-	piston: 1600,
-	bridge: 1900,
-	fan: 1700,
-	comb: 1800,
-	braid: 1800,
-	sling: 1700,
-	folio: 2000,
-	helix: 1800,
-};
-
 const faces = [
 	{
 		name: 'ascending',
@@ -63,15 +30,11 @@ const faces = [
 /** Animates HTML wrappers around fixed SVG faces instead of changing SVG geometry per frame. */
 export class ChatWorkingLogo extends Disposable {
 	readonly domNode: HTMLElement;
+	readonly durationMs = 2400;
 
-	get durationMs(): number {
-		return durations[this.motion];
-	}
-
-	constructor(private motion: ChatWorkingLogoMotion, quality: 'stable' | 'insider' = 'stable') {
+	constructor(animation: ChatProgressAnimation, quality: 'stable' | 'insider' = 'stable') {
 		super();
-		this.domNode = $('span.chat-working-logo', { 'aria-hidden': 'true', 'data-motion': motion });
-		this.domNode.classList.add(`chat-working-logo-${motion}`);
+		this.domNode = $('span.chat-working-logo.chat-working-logo-draw', { 'aria-hidden': 'true' });
 		this.domNode.style.animationDuration = `${this.durationMs}ms`;
 		this.domNode.style.color = asCssVariable(quality === 'insider' ? chatWorkingProgressInsidersIconForeground : chatWorkingProgressStableIconForeground);
 
@@ -80,18 +43,16 @@ export class ChatWorkingLogo extends Disposable {
 			wrapper.appendChild($.SVG<SVGSVGElement>('svg', { viewBox: '6 6 84 84', width: '100%', height: '100%', focusable: 'false' },
 				$.SVG<SVGPathElement>('path', { d: face.path, fill: 'currentColor' })));
 		}
+		this.setAnimation(animation);
 		this.setActive(true);
 	}
 
-	setMotion(motion: ChatWorkingLogoMotion): void {
-		if (this.motion === motion) {
-			return;
-		}
-		this.domNode.classList.remove(`chat-working-logo-${this.motion}`);
-		this.motion = motion;
-		this.domNode.classList.add(`chat-working-logo-${motion}`);
-		this.domNode.dataset.motion = motion;
-		this.domNode.style.animationDuration = `${this.durationMs}ms`;
+	setAnimation(animation: ChatProgressAnimation): void {
+		const noIcon = animation === ChatProgressAnimation.DrawMonochromeNoIcon;
+		this.domNode.classList.toggle('chat-working-logo-static', animation === ChatProgressAnimation.Off || noIcon);
+		this.domNode.classList.toggle('chat-working-logo-monochrome', animation === ChatProgressAnimation.DrawMonochrome || noIcon);
+		this.domNode.classList.toggle('chat-working-logo-no-icon', noIcon);
+		this.domNode.dataset.animation = animation;
 	}
 
 	setActive(active: boolean): void {
@@ -110,37 +71,32 @@ export class ChatWorkingProgressLogo extends ChatWorkingLogo {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 	) {
-		const animation = getConfiguredProgressAnimation(configurationService, logService);
-		super(animation === ChatProgressAnimation.Off ? ChatProgressAnimation.Weave : animation, quality);
-		this.updateAnimation(animation);
+		super(getConfiguredProgressAnimation(configurationService, logService), quality);
 		this._register(configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.PersistentProgress)) {
-				this.updateAnimation(getConfiguredProgressAnimation(configurationService, logService));
+				this.setAnimation(getConfiguredProgressAnimation(configurationService, logService));
 			}
 		}));
-	}
-
-	private updateAnimation(animation: ChatProgressAnimation): void {
-		this.setMotion(animation === ChatProgressAnimation.Off ? ChatProgressAnimation.Weave : animation);
-		this.domNode.classList.toggle('chat-working-logo-static', animation === ChatProgressAnimation.Off);
-		this.domNode.dataset.animation = animation;
 	}
 }
 
 const warnedUnsupportedAnimations = new Set<string>();
 
 export function getConfiguredProgressAnimation(configurationService: IConfigurationService, logService: ILogService): ChatProgressAnimation {
-	const animation = configurationService.getValue<ChatProgressAnimation | undefined>(ChatConfiguration.PersistentProgress);
+	const animation = configurationService.getValue<string | undefined>(ChatConfiguration.PersistentProgress);
 	switch (animation) {
 		case undefined:
-			return ChatProgressAnimation.Draw;
+			return ChatProgressAnimation.Off;
 		case ChatProgressAnimation.Off:
-		case ChatProgressAnimation.Weave:
 		case ChatProgressAnimation.Draw:
-		case ChatProgressAnimation.Orbit:
-		case ChatProgressAnimation.Accordion:
-		case ChatProgressAnimation.Dial:
+		case ChatProgressAnimation.DrawMonochrome:
+		case ChatProgressAnimation.DrawMonochromeNoIcon:
 			return animation;
+		case 'weave':
+		case 'orbit':
+		case 'accordion':
+		case 'dial':
+			return ChatProgressAnimation.Draw;
 		default: {
 			// Resolved on render hot paths, so an unknown value (e.g. from an experiment targeting a newer
 			// client) must not warn on every call.

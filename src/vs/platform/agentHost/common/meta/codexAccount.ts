@@ -39,7 +39,9 @@ export interface ICodexAccountInfo {
 	readonly planType?: string;
 	readonly profileImage?: ICodexProfileImageReference;
 	readonly requiresOpenaiAuth?: boolean;
+	/** Summary window retained for clients that only display one limit. */
 	readonly rateLimit?: ICodexAccountRateLimitInfo;
+	readonly rateLimits?: readonly ICodexAccountRateLimitInfo[];
 	readonly authUrl?: string;
 	readonly authUrlNonce?: string;
 }
@@ -54,28 +56,36 @@ export function readCodexAccountInfo(state: RootState | undefined): ICodexAccoun
 	if (account.status !== 'unknown' && account.status !== 'downloading' && account.status !== 'signedIn' && account.status !== 'signedOut' && account.status !== 'unavailable' && account.status !== 'error') {
 		return { status: 'unknown' };
 	}
-	const rateLimit = account.rateLimit;
-	const validRateLimit = rateLimit
-		&& typeof rateLimit === 'object'
-		&& typeof rateLimit.usedPercent === 'number'
-		&& Number.isFinite(rateLimit.usedPercent)
-		&& rateLimit.usedPercent >= 0
-		&& rateLimit.usedPercent <= 100
-		&& (rateLimit.windowDurationMins === undefined || (typeof rateLimit.windowDurationMins === 'number' && Number.isFinite(rateLimit.windowDurationMins) && rateLimit.windowDurationMins > 0))
-		&& (rateLimit.resetsAt === undefined || (typeof rateLimit.resetsAt === 'number' && Number.isFinite(rateLimit.resetsAt) && rateLimit.resetsAt > 0));
 	return {
 		status: account.status,
 		email: typeof account.email === 'string' ? account.email : undefined,
 		planType: typeof account.planType === 'string' ? account.planType : undefined,
 		profileImage: readProfileImageReference(account.profileImage),
 		requiresOpenaiAuth: typeof account.requiresOpenaiAuth === 'boolean' ? account.requiresOpenaiAuth : undefined,
-		rateLimit: validRateLimit ? {
-			usedPercent: rateLimit.usedPercent,
-			windowDurationMins: rateLimit.windowDurationMins,
-			resetsAt: rateLimit.resetsAt,
-		} : undefined,
+		rateLimit: readRateLimitInfo(account.rateLimit),
+		rateLimits: Array.isArray(account.rateLimits) ? account.rateLimits.map(readRateLimitInfo).filter(limit => limit !== undefined) : undefined,
 		authUrl: typeof account.authUrl === 'string' ? account.authUrl : undefined,
 		authUrlNonce: typeof account.authUrlNonce === 'string' ? account.authUrlNonce : undefined,
+	};
+}
+
+function readRateLimitInfo(value: unknown): ICodexAccountRateLimitInfo | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const rateLimit = value as Partial<ICodexAccountRateLimitInfo>;
+	if (typeof rateLimit.usedPercent !== 'number'
+		|| !Number.isFinite(rateLimit.usedPercent)
+		|| rateLimit.usedPercent < 0
+		|| rateLimit.usedPercent > 100
+		|| (rateLimit.windowDurationMins !== undefined && (typeof rateLimit.windowDurationMins !== 'number' || !Number.isFinite(rateLimit.windowDurationMins) || rateLimit.windowDurationMins <= 0))
+		|| (rateLimit.resetsAt !== undefined && (typeof rateLimit.resetsAt !== 'number' || !Number.isFinite(rateLimit.resetsAt) || rateLimit.resetsAt <= 0))) {
+		return undefined;
+	}
+	return {
+		usedPercent: rateLimit.usedPercent,
+		windowDurationMins: rateLimit.windowDurationMins,
+		resetsAt: rateLimit.resetsAt,
 	};
 }
 

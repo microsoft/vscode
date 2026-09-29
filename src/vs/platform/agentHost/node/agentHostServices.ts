@@ -60,8 +60,8 @@ import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHost
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
-import { AgentHostSessionPromptService, IAgentHostSessionPromptService } from './agentHostSessionPromptService.js';
 import { AgentHostProviderService, IAgentHostProviderService } from './agentHostProviderService.js';
+import { AgentHostChatInputService, IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
@@ -72,6 +72,8 @@ import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/ag
 import { AgentHostTurnService, IAgentHostTurnService } from './agentHostTurnService.js';
 import { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 import { RemoteDevContainerAgentHostService } from './devContainerAgentHostService.js';
+import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AgentHostStartupMarks, AgentHostStartupPerformance, IAgentHostStartupPerformance } from './agentHostStartupPerformance.js';
 
 export interface IAgentHostCoreServiceInputs {
 	readonly storageResource: URI | undefined;
@@ -80,6 +82,8 @@ export interface IAgentHostCoreServiceInputs {
 	readonly fetchFn: typeof globalThis.fetch;
 	readonly gitHubServiceOptions: GitHubServiceOptions;
 	readonly copilotApiService?: ICopilotApiService;
+	readonly hostLaunchKind?: AgentHostLaunchKind;
+	readonly startupMarks?: AgentHostStartupMarks;
 }
 
 export function registerAgentHostCoreServices(services: ServiceCollection, inputs: IAgentHostCoreServiceInputs): void {
@@ -113,13 +117,14 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
 	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
 	services.set(IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
-	services.set(IAgentHostSessionPromptService, new SyncDescriptor(AgentHostSessionPromptService));
 	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
 	services.set(IAgentHostTurnService, new SyncDescriptor(AgentHostTurnService));
 	services.set(IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));
+	services.set(IAgentHostStartupPerformance, new SyncDescriptor(AgentHostStartupPerformance, [inputs.hostLaunchKind ?? AgentHostLaunchKind.Unknown, inputs.startupMarks]));
 	services.set(IAgentHostTurnTracker, new SyncDescriptor(AgentHostTurnTracker));
 	services.set(IAgentHostToolCallTracker, new SyncDescriptor(AgentHostToolCallTracker));
 	services.set(IAgentHostProviderService, new SyncDescriptor(AgentHostProviderService));
+	services.set(IAgentHostChatInputService, new SyncDescriptor(AgentHostChatInputService));
 	services.set(IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
 	services.set(IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
 	services.set(IAdditionalWorktreeLifecycleService, new SyncDescriptor(AdditionalWorktreeLifecycleService));

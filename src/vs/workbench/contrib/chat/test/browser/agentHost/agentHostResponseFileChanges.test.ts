@@ -29,6 +29,7 @@ import {
 	createSessionState,
 	MessageKind,
 	ResponsePartKind,
+	SessionLifecycle,
 	SessionStatus,
 	StateComponents,
 	ToolCallConfirmationReason,
@@ -152,6 +153,58 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		let runs = 0;
 		ds.add(autorun(r => { latest = obs.read(r); runs++; }));
 		return { latest: () => latest, runs: () => runs };
+	}
+
+	for (const owner of ['session', 'chat'] as const) {
+		test(`uses the advertised ${owner}-owned turn URI for an opaque chat`, () => {
+			const conn = new FakeAgentConnection();
+			const advertisedChatUri = 'ahp-chat:/primary';
+			const advertisedTurnUri = 'ahp-changeset:/review/t1';
+			const catalogue = [{
+				label: 'Turn Changes',
+				changeKind: 'turn',
+				uriTemplate: 'ahp-changeset:/review/{turnId}',
+			}];
+			const chat = createChatState({
+				resource: advertisedChatUri,
+				title: 'Chat',
+				status: SessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+			});
+			conn.setState(backendSession.toString(), {
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [chat],
+				defaultChat: advertisedChatUri,
+				changesets: owner === 'session' ? catalogue : undefined,
+			} satisfies SessionState);
+			conn.setState(advertisedChatUri, {
+				...chat,
+				changesets: owner === 'chat' ? catalogue : undefined,
+				turns: [{ ...completedTurn('t1'), responseParts: [] }],
+			} satisfies ChatState);
+			conn.setState(advertisedTurnUri, {
+				status: ChangesetStatus.Ready,
+				files: [{ id: 'edited', edit: fileEdit('/repo/hello-world.html', 36) }],
+			} satisfies ChangesetState);
+			const provider = store.add(createProvider(conn, () => backendSession, () => URI.parse(advertisedChatUri)));
+			const observed = observe(provider, store.add(new DisposableStore()));
+
+			assert.deepStrictEqual({
+				files: observed.latest().map(diff => ({
+					path: fromAgentHostUri(diff.modifiedURI).path,
+					added: diff.added,
+					removed: diff.removed,
+				})),
+				subscriptions: conn.getSubscriptionCount(advertisedTurnUri),
+			}, {
+				files: [{ path: '/repo/hello-world.html', added: 36, removed: 0 }],
+				subscriptions: 1,
+			});
+		});
 	}
 
 	function fileEdit(path: string, added = 1, onRead?: () => void): ISessionFileDiff {
