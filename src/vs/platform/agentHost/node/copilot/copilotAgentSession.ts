@@ -4691,9 +4691,12 @@ export class CopilotAgentSession extends Disposable {
 		let enabled = this._configurationService.getSessionSandboxEnabled(owner) ?? true;
 		let resolved = false;
 		try {
-			await this._sandboxConfigSequencer.queue(async () => {
+			const alreadyDisabled = await this._sandboxConfigSequencer.queue(async () => {
 				if (token.isCancellationRequested || !requestId || this._sandboxBypassRequests.get(toolCallId) !== requestId) {
 					throw new Error('Sandbox bypass permission request is no longer pending');
+				}
+				if (this._configurationService.getSessionSandboxEnabled(owner) === false) {
+					return true;
 				}
 				const result = await this._wrapper.session.rpc.sandbox.disableForSession({ requestId });
 				resolved = result.success;
@@ -4705,8 +4708,9 @@ export class CopilotAgentSession extends Disposable {
 				this._configurationService.setSessionSandboxEnabled(owner, result.enabled);
 				await this._sandboxDiagnostics.update({ enabled: false });
 				this._configurationService.updateSessionConfig(owner, { [SessionConfigKey.SandboxEnabled]: 'off' });
+				return false;
 			});
-			return { kind: 'no-result' };
+			return { kind: alreadyDisabled ? 'approve-once' : 'no-result' };
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to disable sandboxing from a permission request`);
 			this._configurationService.setSessionSandboxEnabled(owner, enabled, context.origin && { ...context.origin, message: getErrorMessage(error) });
