@@ -10,6 +10,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { GitHubCredentialService, IGitHubCredentials } from './githubCredentialService.js';
 import { GitHubHostCapabilitiesService, IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { GitHubQueryService, IGitHubQuery } from './githubQueryServiceImpl.js';
+import { GitHubRequestMetadata } from './githubRequestMetadata.js';
 import { GitHubRequestTelemetry } from './githubRequestTelemetry.js';
 import { systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubTransport, IGitHubTransport } from './githubTransport.js';
@@ -53,7 +54,9 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this._logService.debug('[GitHubService] Initializing reusable GitHub service');
 		this.endpoint = options.endpoint;
 		const telemetry = this._register(new GitHubRequestTelemetry(options.telemetrySource ?? 'other', systemGitHubScheduler, telemetryService, this._logService));
-		this.transport = this._register(new GitHubTransport(options.fetch, undefined, false, this._logService, undefined, telemetry));
+		this.transport = this._register(new GitHubTransport(options.fetch, undefined, false, this._logService, {
+			requestMetadata: options.clientMetadata ? new GitHubRequestMetadata(options.clientMetadata, options.endpoint) : undefined,
+		}, telemetry));
 		this.credentials = this._register(new GitHubCredentialService(undefined, undefined, this.transport, options.tokenProvider, options.endpoint, this._logService));
 		this.capabilities = this._register(new GitHubHostCapabilitiesService(undefined, undefined, this.transport, options.endpoint, this._logService));
 

@@ -106,6 +106,39 @@ suite('GitHubService', () => {
 		}, { source: 'agentHost', requests: 1, attempts: 1, containsPrivateData: false });
 	});
 
+	test('preserves binding-supplied client identification during identity bootstrap', async () => {
+		const requests: Headers[] = [];
+		const service = disposables.add(new GitHubService({
+			endpoint: {
+				onDidChange: Event.None,
+				getApiBaseUri: () => 'https://api.github.com',
+				getGraphQlUri: () => 'https://api.github.com/graphql',
+			},
+			tokenProvider: { getToken: () => 'token' },
+			clientMetadata: {
+				application: 'vscode-insiders/1.141.0',
+				source: 'github.vscode-pull-request-github/0.123.0',
+				egress: 'node',
+			},
+			fetch: async (_url, init) => {
+				requests.push(new Headers(init?.headers));
+				return new Response('{"id":101}');
+			},
+		}, new NullLogService(), NullTelemetryService));
+		await service.credentials.getCredential(new AbortController().signal);
+		assert.deepStrictEqual(requests.map(headers => ({
+			application: headers.get('X-Client-Application'),
+			source: headers.get('X-Client-Source'),
+			feature: headers.get('X-Client-Feature'),
+			isRetry: headers.get('X-Is-Retry'),
+		})), [{
+			application: 'vscode-insiders/1.141.0',
+			source: 'github.vscode-pull-request-github/0.123.0',
+			feature: 'github.credentials',
+			isRetry: 'false',
+		}]);
+	});
+
 	test('logs service, credential, transport, and resource lifecycle without sensitive payloads', async () => {
 		await withServer(async server => {
 			server.enqueue(

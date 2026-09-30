@@ -96,9 +96,18 @@ export interface IGitHubTokenProvider {
 	invalidateToken?(token: string): void;
 }
 
+/** Trusted identification supplied by the service binding, not request-provided headers. */
+export interface GitHubClientMetadata {
+	readonly application: string;
+	readonly source: string;
+	/** Describes the fetch implementation, including browser fetch in a desktop renderer. */
+	readonly egress: 'browser' | 'node';
+}
+
 export interface GitHubServiceOptions {
 	readonly endpoint: IGitHubEndpointProvider;
 	readonly tokenProvider: IGitHubTokenProvider;
 	readonly fetch?: GitHubFetch;
 	readonly telemetrySource?: GitHubTelemetrySource;
+	readonly clientMetadata?: GitHubClientMetadata;
 }

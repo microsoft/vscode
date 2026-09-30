@@ -10,6 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTransport.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../authentication/common/authentication.js';
 import { WorkbenchGitHubService, WorkbenchGitHubTokenProvider } from '../../browser/githubService.js';
@@ -34,6 +35,10 @@ suite('Workbench GitHub service', () => {
 			}(),
 			new NullLogService(),
 			NullTelemetryService,
+			new class extends mock<IProductService>() {
+				override readonly applicationName = 'code-insiders';
+				override readonly version = '1.141.0';
+			}(),
 		));
 		const endpoints = [service.endpoint.getApiBaseUri(), service.endpoint.getGraphQlUri()];
 		baseUrl = undefined;

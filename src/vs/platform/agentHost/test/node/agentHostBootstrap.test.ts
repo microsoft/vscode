@@ -122,6 +122,21 @@ suite('agentHostBootstrap', () => {
 		assert.strictEqual(foundation.proxyResolver.getConfigurationValue(AgentHostProxyConfigKey.Proxy), 'http://proxy.example:8080');
 	});
 
+	test('supplies product and component identification for Node GitHub egress', () => {
+		const foundation = createAgentServiceFoundation({
+			services: new StrictServiceCollection(),
+			owned: disposables.add(new DisposableStore()),
+			logService: new NullLogService(),
+			productService: { _serviceBrand: undefined, ...product, applicationName: 'code-insiders', version: '1.141.0' },
+			transientProxyConfiguration: false,
+		});
+		assert.deepStrictEqual(foundation.gitHubServiceOptions.clientMetadata, {
+			application: 'vscode-insiders/1.141.0',
+			source: 'vscode-insiders-agent-host/1.141.0',
+			egress: 'node',
+		});
+	});
+
 	test('clears local proxy configuration before resolver construction and persistence', async () => {
 		const testDisposables = disposables.add(new DisposableStore());
 		const directory = mkdtempSync(join(tmpdir(), 'agent-host-foundation-'));

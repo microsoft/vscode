@@ -7,10 +7,11 @@ import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { IGitHubScheduler } from './githubScheduler.js';
+import { getGitHubRequestFeature, GitHubRequestFeature } from './githubRequestMetadata.js';
 import { GitHubRequestContext, GitHubRequestError, GitHubTelemetrySource } from './githubTypes.js';
 
 export type GitHubRequestOutcome = 'success' | 'cancelled' | 'authentication' | 'authorization' | 'notFound' | 'validation' | 'schema' | 'rateLimit' | 'network' | 'server' | 'overloaded' | 'timeout' | 'responseTooLarge' | 'malformedResponse' | 'other';
-type Caller = 'credentials' | 'capabilities' | 'query' | 'pullRequestQuery' | 'mutations' | 'other';
+type Caller = GitHubRequestFeature;
 type Rejection = 'engine' | 'account' | 'caller' | 'waiter';
 
 interface RequestCounters {
@@ -234,7 +235,7 @@ export class GitHubRequestTelemetry extends Disposable {
 			return undefined;
 		}
 		const metadata = {
-			caller: classifyCaller(context.caller),
+			caller: getGitHubRequestFeature(context.caller),
 			kind: context.kind === 'rest' || context.kind === 'graphql' || context.kind === 'download' ? context.kind : 'other',
 			priority: classifyPriority(context.priority),
 			resource: context.resource === 'core' || context.resource === 'search' || context.resource === 'graphql' ? context.resource : 'other',
@@ -366,17 +367,6 @@ export function gitHubRequestOutcome(error: unknown, cancelled: boolean): GitHub
 		}
 	}
 	return cancelled ? 'cancelled' : 'other';
-}
-
-function classifyCaller(caller: string): Caller {
-	switch (caller) {
-		case 'github.credentials': return 'credentials';
-		case 'github.capabilities': return 'capabilities';
-		case 'github.query': return 'query';
-		case 'github.pullRequestQuery': return 'pullRequestQuery';
-		case 'github.mutations': return 'mutations';
-		default: return 'other';
-	}
 }
 
 function classifyPriority(priority: string): TimingSample['priority'] {

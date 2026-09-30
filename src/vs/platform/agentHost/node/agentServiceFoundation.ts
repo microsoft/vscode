@@ -5,6 +5,7 @@
 
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { createGitHubClientMetadata } from '../../github/common/githubRequestMetadata.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
@@ -144,6 +145,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 		gitHubServiceOptions: {
 			endpoint: gitHubEndpointService,
 			telemetrySource: 'agentHost',
+			clientMetadata: createGitHubClientMetadata(options.productService, 'agent-host', 'node'),
 			tokenProvider: {
 				getToken: () => {
 					const resource = gitHubEndpointService.getRepoResource();

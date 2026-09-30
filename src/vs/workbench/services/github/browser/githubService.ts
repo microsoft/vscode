@@ -8,11 +8,13 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { deriveGitHubEndpoints } from '../../../../platform/agentHost/common/githubEndpoints.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { createGitHubClientMetadata } from '../../../../platform/github/common/githubRequestMetadata.js';
 import { GitHubService, IGitHubService } from '../../../../platform/github/common/githubService.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTransport.js';
 import { IGitHubEndpointProvider, IGitHubTokenProvider } from '../../../../platform/github/common/githubTypes.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../authentication/common/authentication.js';
 
@@ -102,11 +104,13 @@ export class WorkbenchGitHubService extends GitHubService {
 		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 		@ILogService logService: ILogService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IProductService productService: IProductService,
 	) {
 		super({
 			endpoint: new WorkbenchGitHubEndpointProvider(defaultAccountService),
 			tokenProvider: new WorkbenchGitHubTokenProvider(authenticationService, defaultAccountService, logService),
 			telemetrySource: isWeb ? 'web' : 'workbench',
+			clientMetadata: createGitHubClientMetadata(productService, 'workbench', 'browser'),
 		}, logService, telemetryService);
 	}
 }

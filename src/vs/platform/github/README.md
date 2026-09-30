@@ -19,8 +19,6 @@ Reusable GitHub engine and cross-target architecture.
 
 These instances do not currently share application-wide request state.
 
-The [client inventory](client-inventory.md) maps runtime callers and consolidation boundaries.
-
 ### Request execution
 
 Internal requests carry caller attribution and a deadline. Current transport defaults, not public API guarantees:
@@ -31,6 +29,14 @@ Internal requests carry caller attribution and a deadline. Current transport def
 - Equivalent reads share a request with at most 64 waiters and independent cancellation/deadlines. Credential invalidation clears affected work and caches without clearing resolved-account cooldowns.
 - Reads receive at most one transient-failure retry when not rate-limited. Writes are not automatically retried by the transport; mutation services retain their operation-specific reconciliation.
 - Server cooldowns also gate repeated identity lookups and authenticated download redirects. Download error classification inspects at most an 8 KiB diagnostic prefix, without exposing it in errors or telemetry.
+
+### Request identification
+
+Bindings supply trusted product/channel/version and originating component/version metadata. Configured GitHub endpoints receive `X-Client-Application`, `X-Client-Source`, an allowlisted `X-Client-Feature`, and `X-Is-Retry` on Node egress. Shared reads retain the initiating caller's attribution; arbitrary caller strings are never sent.
+
+`X-Is-Retry` is `"true"` only for an engine-controlled retry and `"false"` for an initial attempt. New polls, pages, refreshes, and redirect hops are not retries. Higher-layer authentication or feature retries are not currently labeled, and these headers do not introduce retries or mutation replay.
+
+Browser fetch, including desktop renderers, sends only `X-Client-Application` to `https://api.github.com`. The other headers are not in GitHub.com's CORS allowlist. Enterprise browser endpoints receive no identification headers until their allowlists are established; CAPI requires its own endpoint policy. This is an explicit egress policy, not a fallback after failed requests. Cross-origin download storage hops receive no identification or retry headers.
 
 ### Telemetry
 
