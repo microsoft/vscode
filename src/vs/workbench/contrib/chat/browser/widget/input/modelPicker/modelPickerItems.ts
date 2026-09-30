@@ -15,7 +15,7 @@ import { MANAGE_CHAT_COMMAND_ID } from '../../../../common/constants.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, IModelsControlManifest } from '../../../../common/languageModels.js';
 import { buildFlatModelItems, buildGroupedModelItems, buildUnavailableStateItems, RESTRICTED_MODE_TRUST_ACTION_ID, SETUP_REQUIRED_SIGN_IN_ACTION_ID } from './modelPickerItemSections.js';
 import type { IBuildModelPickerItemsOptions } from './modelPickerItemTypes.js';
-import { filterModelPickerModelsForEntitlement } from './modelPickerPresentation.js';
+import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement } from './modelPickerPresentation.js';
 
 export type { IBuildModelPickerItemsOptions } from './modelPickerItemTypes.js';
 export { ModelPickerSection } from './modelPickerItemSections.js';
@@ -83,6 +83,7 @@ export function buildModelPickerItems(options: IBuildModelPickerItemsOptions): I
 	const pickerOptions = {
 		...options,
 		models: filterModelPickerModelsForEntitlement(options.models, options.chatEntitlementService.entitlement, options.languageModelsService),
+		controlModels: filterModelPickerControlModelsForEntitlement(options.controlModels, options.models, options.chatEntitlementService.entitlement, options.languageModelsService),
 	};
 	const unavailableItems = buildUnavailableStateItems(pickerOptions);
 	if (unavailableItems) {

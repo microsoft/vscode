@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../nls.js';
+import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel, isUserProvidedModel } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isAutoLanguageModel, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatEntitlement } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
 export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
@@ -23,6 +24,32 @@ export function filterModelPickerModelsForEntitlement(models: readonly ILanguage
 	return entitlement === ChatEntitlement.Free
 		? models.filter(model => !isHydraFusionModel(model) || isUserProvidedModel(model, languageModelsService))
 		: models;
+}
+
+export function filterModelPickerControlModelsForEntitlement(
+	controlModels: IStringDictionary<IModelControlEntry>,
+	models: readonly ILanguageModelChatMetadataAndIdentifier[],
+	entitlement: ChatEntitlement,
+	languageModelsService: ILanguageModelsService,
+): IStringDictionary<IModelControlEntry> {
+	if (entitlement !== ChatEntitlement.Free) {
+		return controlModels;
+	}
+	const hydraFusion = controlModels[COPILOT_HYDRA_FUSION_MODEL_ID];
+	const liveHydraFusion = models.find(model => isHydraFusionModel(model) && !isUserProvidedModel(model, languageModelsService));
+	if (!hydraFusion && !liveHydraFusion) {
+		return controlModels;
+	}
+	return {
+		...controlModels,
+		[COPILOT_HYDRA_FUSION_MODEL_ID]: {
+			...hydraFusion,
+			label: hydraFusion?.label ?? liveHydraFusion!.metadata.name,
+			featured: true,
+			exists: false,
+			minVSCodeVersion: undefined,
+		},
+	};
 }
 
 export function isMultiplierPricing(model: ILanguageModelChatMetadataAndIdentifier): boolean {

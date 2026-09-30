@@ -648,10 +648,8 @@ suite('TabbedModelPicker', () => {
 			models: [auto, hydra, ...models],
 			selectedModelId: auto.identifier,
 			entitlement: ChatEntitlement.Free,
-			showUnavailable: true,
-			controlModels: {
-				hydrafusion: { label: 'HydraFusion', exists: false, featured: true },
-			},
+			showUnavailable: false,
+			controlModels: {},
 		});
 		result.picker.refresh([auto, hydra, ...models]);
 		const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
@@ -681,7 +679,7 @@ suite('TabbedModelPicker', () => {
 				hydrafusion: { label: 'HydraFusion', exists: true, featured: true },
 			},
 			controlManifest: {
-				free: { hydrafusion: { label: 'HydraFusion', exists: false, featured: true } },
+				free: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
 				paid: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
 			},
 		});
@@ -715,7 +713,7 @@ suite('TabbedModelPicker', () => {
 				hydrafusion: { label: 'HydraFusion', exists: true, featured: true },
 			},
 			controlManifest: {
-				free: { hydrafusion: { label: 'HydraFusion', exists: false, featured: true } },
+				free: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
 				paid: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
 			},
 		});

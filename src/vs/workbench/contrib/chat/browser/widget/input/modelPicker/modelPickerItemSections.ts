@@ -11,6 +11,7 @@ import { isDefined } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { ChatEntitlement } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { buildModelToProviderGroupMap, createModelAction, createModelItem, createPinAction, createUnavailableModelItem, getProviderGroupForModel, getProviderGroupKey, getUnavailableReason, isVersionAtLeast, ProviderGroupKey, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
@@ -141,6 +142,17 @@ export function buildFlatModelItems(options: IBuildModelPickerItemsOptions): IAc
 	for (const model of leadingModels) {
 		const { action, ariaDescription } = createModelAction(model, options.selectedModelId, options.actions.onSelect);
 		items.push(createModelItem(action, model, options.openerService, undefined, options.presentation.isUBB, ariaDescription));
+	}
+	const unavailableHydraFusion = options.controlModels[COPILOT_HYDRA_FUSION_MODEL_ID];
+	if (options.chatEntitlementService.entitlement === ChatEntitlement.Free && unavailableHydraFusion && !unavailableHydraFusion.exists) {
+		items.push(createUnavailableModelItem(
+			COPILOT_HYDRA_FUSION_MODEL_ID,
+			unavailableHydraFusion,
+			'upgrade',
+			options.manageSettingsUrl,
+			options.updateStateType,
+			options.chatEntitlementService,
+		));
 	}
 	const sortedModels = options.models
 		.filter(model => !leadingModels.includes(model))
@@ -292,9 +304,11 @@ function appendPromotedModels(context: IGroupedContext, autoModel: ILanguageMode
 				continue;
 			}
 			const model = context.resolveModel(entryId);
+			const showUnavailable = options.presentation.showUnavailableFeatured ||
+				(options.chatEntitlementService.entitlement === ChatEntitlement.Free && entryId === COPILOT_HYDRA_FUSION_MODEL_ID);
 			if (model && !context.placed.has(model.identifier)) {
 				if (entry.minVSCodeVersion && !isVersionAtLeast(options.currentVSCodeVersion, entry.minVSCodeVersion)) {
-					if (options.presentation.showUnavailableFeatured) {
+					if (showUnavailable) {
 						context.markPlaced(model.identifier);
 						promoted.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
 					}
@@ -302,7 +316,7 @@ function appendPromotedModels(context: IGroupedContext, autoModel: ILanguageMode
 					context.markPlaced(model.identifier);
 					promoted.push({ kind: 'available', model });
 				}
-			} else if (!model && !entry.exists && options.presentation.showUnavailableFeatured) {
+			} else if (!model && !entry.exists && showUnavailable) {
 				context.markPlaced(entryId);
 				promoted.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry, options.chatEntitlementService, options.currentVSCodeVersion) });
 			}
