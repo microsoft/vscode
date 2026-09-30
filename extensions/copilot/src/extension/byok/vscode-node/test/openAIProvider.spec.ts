@@ -6,7 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import { IChatModelInformation } from '../../../../platform/endpoint/common/endpointProvider';
 import { TokenizerType } from '../../../../util/common/tokenizer';
-import { applyOpenAIProviderConfig, GPT_LIVE_MODEL_ID, withOpenAIVoiceModels } from '../openAIProvider';
+import { GPT_LIVE_MODEL_ID } from '../gptLiveSession';
+import { applyOpenAIProviderConfig, withOpenAIVoiceModels } from '../openAIProvider';
 
 function createModelInfo(zeroDataRetentionEnabled: boolean | undefined): IChatModelInformation {
 	return {

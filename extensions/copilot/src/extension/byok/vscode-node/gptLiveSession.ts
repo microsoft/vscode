@@ -7,8 +7,10 @@ import { l10n } from 'vscode';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 
 const GPT_LIVE_SESSIONS_URL = 'https://api.openai.com/v1/live/sessions';
+const OPENAI_MODELS_URL = 'https://api.openai.com/v1/models';
 
 export const GPT_LIVE_SESSION_PROVIDER_ID = 'github.copilot.gptLive';
+export const GPT_LIVE_MODEL_ID = 'gpt-live-1';
 
 export interface GptLiveSession {
 	readonly sessionId: string;
@@ -30,6 +32,32 @@ interface GptLiveSessionResponse {
 	};
 }
 
+interface OpenAIModelsResponse {
+	readonly data?: readonly {
+		readonly id?: unknown;
+	}[];
+}
+
+export async function isGptLiveModelAvailable(fetcherService: IFetcherService, apiKey: string): Promise<boolean> {
+	const response = await fetcherService.fetch(OPENAI_MODELS_URL, {
+		callSite: 'openai-gpt-live-model-availability',
+		method: 'GET',
+		headers: {
+			Authorization: `Bearer ${apiKey}`,
+		},
+		expectJSON: true,
+	});
+	if (!response.ok) {
+		return false;
+	}
+
+	const result = await response.json() as OpenAIModelsResponse;
+	if (!Array.isArray(result.data)) {
+		throw new Error(l10n.t('OpenAI returned an invalid model list while checking GPT-Live availability.'));
+	}
+	return result.data.some(model => model.id === GPT_LIVE_MODEL_ID);
+}
+
 export async function createGptLiveSession(fetcherService: IFetcherService, apiKey: string, sdp: string): Promise<GptLiveSession> {
 	const offer = sdp.trim();
 	if (!offer) {
@@ -44,7 +72,7 @@ export async function createGptLiveSession(fetcherService: IFetcherService, apiK
 		},
 		json: {
 			session: {
-				model: 'gpt-live-1',
+				model: GPT_LIVE_MODEL_ID,
 				instructions: 'You are the voice interface for a coding agent. Be concise. Delegate coding tasks to the client and clearly communicate its progress and results.',
 				delegation: {
 					type: 'client',

@@ -8,13 +8,46 @@ import { Event } from '../../../../util/vs/base/common/event';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { FetchOptions, IFetcherService, Response } from '../../../../platform/networking/common/fetcherService';
 import { createFakeResponse } from '../../../../platform/test/node/fetcher';
-import { createGptLiveSession } from '../gptLiveSession';
+import { createGptLiveSession, isGptLiveModelAvailable } from '../gptLiveSession';
 
 class TestFetcherService extends mock<IFetcherService>() {
 	override readonly onDidFetch = Event.None;
 	override readonly onDidCompleteFetch = Event.None;
 	override readonly fetch = vi.fn<(url: string, options: FetchOptions) => Promise<Response>>();
 }
+
+describe('isGptLiveModelAvailable', () => {
+	it('detects GPT-Live access without exposing the API key', async () => {
+		const fetcher = new TestFetcherService();
+		fetcher.fetch.mockResolvedValue(createFakeResponse(200, {
+			data: [{ id: 'gpt-4.1' }, { id: 'gpt-live-1' }],
+		}));
+
+		const available = await isGptLiveModelAvailable(fetcher, 'secret-key');
+
+		expect({
+			available,
+			url: fetcher.fetch.mock.calls[0][0],
+			options: fetcher.fetch.mock.calls[0][1],
+		}).toMatchObject({
+			available: true,
+			url: 'https://api.openai.com/v1/models',
+			options: {
+				callSite: 'openai-gpt-live-model-availability',
+				method: 'GET',
+			},
+		});
+	});
+
+	it('reports unavailable when the key cannot access GPT-Live', async () => {
+		const fetcher = new TestFetcherService();
+		fetcher.fetch.mockResolvedValue(createFakeResponse(200, {
+			data: [{ id: 'gpt-4.1' }],
+		}));
+
+		await expect(isGptLiveModelAvailable(fetcher, 'secret-key')).resolves.toBe(false);
+	});
+});
 
 describe('createGptLiveSession', () => {
 	it('creates a client-delegation GPT-Live session without returning the API key', async () => {

@@ -12,12 +12,11 @@ import { BYOKKnownModels, BYOKModelCapabilities } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
+import { GPT_LIVE_MODEL_ID } from './gptLiveSession';
 
 export interface OpenAIProviderConfig extends LanguageModelChatConfiguration {
 	readonly zeroDataRetentionEnabled?: boolean;
 }
-
-export const GPT_LIVE_MODEL_ID = 'gpt-live-1';
 
 const GPT_LIVE_MODEL_CAPABILITIES: BYOKModelCapabilities = {
 	name: 'GPT Live 1',

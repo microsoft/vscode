@@ -18,7 +18,7 @@ import { BYOKStorageService, IBYOKStorageService } from './byokStorageService';
 import { CustomEndpointBYOKModelProvider } from './customEndpointProvider';
 import { CustomOAIBYOKModelProvider } from './customOAIProvider';
 import { GeminiNativeBYOKLMProvider } from './geminiNativeProvider';
-import { createGptLiveSession, GPT_LIVE_SESSION_PROVIDER_ID, GptLiveSessionResult } from './gptLiveSession';
+import { createGptLiveSession, GPT_LIVE_SESSION_PROVIDER_ID, GptLiveSessionResult, isGptLiveModelAvailable } from './gptLiveSession';
 import { OllamaLMProvider } from './ollamaProvider';
 import { OAIBYOKLMProvider } from './openAIProvider';
 import { OpenRouterLMProvider } from './openRouterProvider';
@@ -58,7 +58,14 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 			return { status: 'unavailable' };
 		}
 		if (sdp === undefined) {
-			return { status: 'available' };
+			try {
+				return await isGptLiveModelAvailable(this._fetcherService, apiKey)
+					? { status: 'available' }
+					: { status: 'unavailable' };
+			} catch (error) {
+				this._logService.warn(`BYOK: failed to check GPT-Live model availability: ${error instanceof Error ? error.message : String(error)}`);
+				return { status: 'unavailable' };
+			}
 		}
 		return {
 			status: 'ready',

@@ -163,6 +163,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _gptLiveOutputStarted = false;
 	private _gptLiveOutputTimer: ReturnType<typeof setTimeout> | undefined;
 	private _usingGptLive = false;
+	private _gptLiveAvailability: GptLiveSessionCommandResult | undefined;
 	private _connectionAttempt = 0;
 	private _intentionalDisconnect = false;
 	private _reconnectAttempts = 0;
@@ -404,6 +405,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	async hasGptLiveByok(): Promise<boolean> {
 		const availability = await this._executeGptLiveSessionCommand();
+		this._gptLiveAvailability = availability;
 		return availability?.status === 'available' || availability?.status === 'ready';
 	}
 
@@ -412,9 +414,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	private async _connectGptLive(window: Window & typeof globalThis, connectionAttempt: number): Promise<boolean> {
-		let availability: GptLiveSessionCommandResult | undefined;
+		let availability = this._gptLiveAvailability;
+		this._gptLiveAvailability = undefined;
 		try {
-			availability = await this._executeGptLiveSessionCommand();
+			availability ??= await this._executeGptLiveSessionCommand();
 		} catch (error) {
 			if (!this._isActiveConnectionAttempt(connectionAttempt)) {
 				return true;
