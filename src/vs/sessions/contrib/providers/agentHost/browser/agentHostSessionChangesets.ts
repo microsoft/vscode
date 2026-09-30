@@ -218,7 +218,11 @@ export function createChatChangesets(
 			...changeset,
 			uriTemplate: resolveChangesetUriTemplate((owner === 'session' ? sessionUri : chatUri).toString(), changeset.uriTemplate),
 			changes: changeset.changeKind === ChangesetKind.Turn ? currentTurnChanges : undefined,
-			streamingChanges: changeset.changeKind === ChangesetKind.Session ? currentTurnChanges : undefined,
+			streamingChanges: changeset.changeKind === ChangesetKind.Branch
+				|| changeset.changeKind === ChangesetKind.Uncommitted
+				|| changeset.changeKind === ChangesetKind.Session
+				? currentTurnChanges
+				: undefined,
 		})), chatUri);
 		return lastChangesets;
 	});
@@ -391,11 +395,8 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				return false;
 			}
 
-			// For static changesets, that are persisted to the database, the
-			// cached state will be sent over the wire while the changeset is
-			// being computed.
-			return changesetState.status === ChangesetStatus.Computing ||
-				changesetState.status === ChangesetStatus.Recomputing;
+			// There is no cached file list, so we are doing the initial computation
+			return changesetState.status === ChangesetStatus.Computing;
 		});
 
 		const mapDiffUri = this._options.mapDiffUri;

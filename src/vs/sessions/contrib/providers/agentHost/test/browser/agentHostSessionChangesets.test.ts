@@ -220,7 +220,34 @@ suite('AgentHostSessionChangesets', () => {
 
 			assert.deepStrictEqual({ computing, recomputing, ready: harness.snapshot() }, {
 				computing: { changes: [], loading: false, acquired: 1, released: 0 },
-				recomputing: { changes: [{ insertions: 57, deletions: 45 }], loading: true, acquired: 1, released: 0 },
+				recomputing: { changes: [{ insertions: 57, deletions: 45 }], loading: false, acquired: 1, released: 0 },
+				ready: { changes: [{ insertions: 57, deletions: 45 }], loading: false, acquired: 1, released: 0 },
+			});
+		});
+
+		test('uses active turn edits while Branch Changes computes, then switches to the authoritative snapshot', () => {
+			const streamingChanges = observableValue<readonly ISessionTurnFileChange[] | undefined>('streamingChanges', undefined);
+			const harness = createHarness(ChangesetKind.Branch, streamingChanges);
+			harness.isActiveSession.set(true, undefined);
+			harness.subscription.set({ status: ChangesetStatus.Computing, files: [] });
+			const computing = harness.snapshot();
+			streamingChanges.set([{
+				uri: URI.file('/repo/live.ts'),
+				originalUri: URI.parse('readonly-content:/before/live.ts'),
+				modifiedUri: URI.file('/repo/live.ts'),
+				insertions: 2,
+				deletions: 1,
+				isOutsideWorkspace: false,
+			}], undefined);
+			const streaming = harness.snapshot();
+			streamingChanges.set(undefined, undefined);
+			const retained = harness.snapshot();
+			harness.subscription.set({ status: ChangesetStatus.Ready, files: cachedFiles });
+
+			assert.deepStrictEqual({ computing, streaming, retained, ready: harness.snapshot() }, {
+				computing: { changes: [], loading: true, acquired: 1, released: 0 },
+				streaming: { changes: [{ insertions: 2, deletions: 1 }], loading: false, acquired: 1, released: 0 },
+				retained: { changes: [{ insertions: 2, deletions: 1 }], loading: false, acquired: 1, released: 0 },
 				ready: { changes: [{ insertions: 57, deletions: 45 }], loading: false, acquired: 1, released: 0 },
 			});
 		});
@@ -684,7 +711,7 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
-	test('projects current turn changes into Session Changes while the turn is active', () => {
+	test('projects current turn changes into cumulative changesets while the turn is active', () => {
 		const sessionUri = URI.parse('ahp-session:/session');
 		const chatUri = URI.parse(buildDefaultChatUri(sessionUri.toString()));
 		const chatSubscription = createMutableSubscription({
@@ -694,7 +721,15 @@ suite('AgentHostSessionChangesets', () => {
 				status: SessionStatus.InProgress,
 				modifiedAt: new Date(0).toISOString(),
 			}),
-			changesets: [],
+			changesets: [{
+				label: 'Branch Changes',
+				changeKind: ChangesetKind.Branch,
+				uriTemplate: 'changeset/branch',
+			}, {
+				label: 'Uncommitted Changes',
+				changeKind: ChangesetKind.Uncommitted,
+				uriTemplate: 'changeset/uncommitted',
+			}],
 		});
 		const sessionSubscription = createMutableSubscription({
 			changesets: [{
@@ -704,7 +739,7 @@ suite('AgentHostSessionChangesets', () => {
 			}],
 		} as SessionState);
 		const changesetSubscription = createMutableSubscription<ChangesetState>({
-			status: ChangesetStatus.Ready,
+			status: ChangesetStatus.Computing,
 			files: [],
 		});
 		const connection = new class extends mock<IAgentConnection>() {
@@ -736,20 +771,56 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		}, constObservable(true), currentTurnChanges);
-		let changes: readonly ISessionFileChange[] | undefined;
+		let changes: Readonly<Record<string, {
+			readonly loading: boolean;
+			readonly files: readonly ISessionFileChange[];
+		}>> | undefined;
 		disposables.add(autorun(reader => {
-			changes = projected.read(reader)?.find(changeset => changeset.id === SESSION_CHANGES_CHANGESET_ID)?.changes.read(reader);
+			changes = Object.fromEntries(projected.read(reader)?.map(changeset => [
+				changeset.id,
+				{
+					loading: changeset.isLoadingChanges.read(reader),
+					files: changeset.changes.read(reader),
+				},
+			]) ?? []);
 		}));
 
-		assert.deepStrictEqual(changes?.map(change => ({
-			uri: isIChatSessionFileChange2(change) ? change.uri.toString() : undefined,
-			original: change.originalUri?.toString(),
-			modified: change.modifiedUri?.toString(),
-		})), [{
-			uri: 'file:///repo/live.ts',
-			original: 'readonly-content:/before/live.ts',
-			modified: 'readonly-content:/after/live.ts',
-		}]);
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(changes ?? {}).map(([id, value]) => [
+			id,
+			{
+				loading: value.loading,
+				files: value.files.map(change => ({
+					uri: isIChatSessionFileChange2(change) ? change.uri.toString() : undefined,
+					original: change.originalUri?.toString(),
+					modified: change.modifiedUri?.toString(),
+				})),
+			},
+		])), {
+			branch: {
+				loading: false,
+				files: [{
+					uri: 'file:///repo/live.ts',
+					original: 'readonly-content:/before/live.ts',
+					modified: 'readonly-content:/after/live.ts',
+				}],
+			},
+			uncommitted: {
+				loading: false,
+				files: [{
+					uri: 'file:///repo/live.ts',
+					original: 'readonly-content:/before/live.ts',
+					modified: 'readonly-content:/after/live.ts',
+				}],
+			},
+			session: {
+				loading: false,
+				files: [{
+					uri: 'file:///repo/live.ts',
+					original: 'readonly-content:/before/live.ts',
+					modified: 'readonly-content:/after/live.ts',
+				}],
+			},
+		});
 	});
 
 	test('projects legacy Session and turn changes into every chat', () => {

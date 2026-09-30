@@ -495,7 +495,8 @@ export interface ISessionChangeset {
 	 */
 	readonly isDefault: IObservable<boolean>;
 	/**
-	 * Whether this changeset is currently loading its file changes.
+	 * Whether this changeset has not yet published a usable file list.
+	 * This is false while a cached file list is available during recomputation.
 	 */
 	readonly isLoadingChanges: IObservable<boolean>;
 	/** Observable for the file changes in this changeset. */
