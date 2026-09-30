@@ -157,7 +157,7 @@ export class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	}
 
 	private _mirrorGenericSocket(localSocket: net.Socket, remoteSocket: ISocket) {
-		remoteSocket.onClose(() => localSocket.destroy());
+		remoteSocket.onClose(() => localSocket.end());
 		remoteSocket.onEnd(() => localSocket.end());
 		remoteSocket.onData(d => localSocket.write(d.buffer));
 		localSocket.on('data', d => remoteSocket.write(VSBuffer.wrap(d)));
