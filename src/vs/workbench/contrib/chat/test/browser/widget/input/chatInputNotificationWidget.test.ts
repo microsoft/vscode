@@ -434,11 +434,13 @@ suite('ChatInputNotificationWidget', () => {
 		link.focus();
 		const focused = document.activeElement === link;
 		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const titleStyle = dom.getWindow(title).getComputedStyle(title);
+		const descriptionStyle = dom.getWindow(description).getComputedStyle(description);
 		assert.deepStrictEqual({
 			text: description.textContent?.replace(/\u00a0/g, ' '),
 			links: description.querySelectorAll('a').length,
-			titleSelection: dom.getWindow(title).getComputedStyle(title).userSelect,
-			descriptionSelection: dom.getWindow(description).getComputedStyle(description).userSelect,
+			titleSelection: titleStyle.userSelect || titleStyle.getPropertyValue('-webkit-user-select'),
+			descriptionSelection: descriptionStyle.userSelect || descriptionStyle.getPropertyValue('-webkit-user-select'),
 			focused,
 			opened,
 		}, {
