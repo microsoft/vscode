@@ -1054,7 +1054,6 @@ export function renderForm(
 		useCustomDrawn: !hasNativeContextMenu(configurationService),
 		anchorPosition: AnchorPosition.ABOVE,
 		maxVisibleOptions: 6,
-		layoutContainer: form.closest<HTMLElement>('.monaco-dialog-box') ?? form,
 	};
 
 	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));

@@ -143,27 +143,24 @@ suite('SelectBoxList', () => {
 		});
 	});
 
-	for (const { name, top, height, count, expectedHeight, expectedPosition } of [
-		{ name: 'caps long lists at six options', top: 180, height: 280, count: 96, expectedHeight: 132, expectedPosition: AnchorPosition.ABOVE },
-		{ name: 'falls back within the container', top: 10, height: 280, count: 96, expectedHeight: 132, expectedPosition: AnchorPosition.BELOW },
-		{ name: 'shrinks to the available container space', top: 80, height: 130, count: 96, expectedHeight: 66, expectedPosition: AnchorPosition.ABOVE },
-		{ name: 'does not pad short lists to the cap', top: 180, height: 280, count: 4, expectedHeight: 88, expectedPosition: AnchorPosition.ABOVE },
+	for (const { name, top, anchorPosition, count, expectedHeight, expectedPosition } of [
+		{ name: 'caps upward lists at six options', top: '50%', anchorPosition: AnchorPosition.ABOVE, count: 96, expectedHeight: 132, expectedPosition: AnchorPosition.ABOVE },
+		{ name: 'caps downward lists at six options', top: '50%', anchorPosition: AnchorPosition.BELOW, count: 96, expectedHeight: 132, expectedPosition: AnchorPosition.BELOW },
+		{ name: 'keeps the cap when falling back within the viewport', top: '30px', anchorPosition: AnchorPosition.ABOVE, count: 96, expectedHeight: 132, expectedPosition: AnchorPosition.BELOW },
+		{ name: 'does not pad short lists to the cap', top: '50%', anchorPosition: AnchorPosition.ABOVE, count: 4, expectedHeight: 88, expectedPosition: AnchorPosition.ABOVE },
 	]) {
 		test(name, () => {
 			const contextViewProvider = disposables.add(new TestContextViewProvider());
-			const bounds = document.createElement('div');
-			bounds.style.cssText = `position: fixed; top: 100px; height: ${height}px; width: 200px;`;
-			document.body.appendChild(bounds);
-			disposables.add(toDisposable(() => bounds.remove()));
 			const container = document.createElement('div');
-			container.style.cssText = `position: absolute; top: ${top}px; width: 150px;`;
-			bounds.appendChild(container);
+			container.style.cssText = `position: fixed; top: ${top}; width: 150px;`;
+			document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
 			const selectBox = disposables.add(new SelectBoxList(
 				Array.from({ length: count }, (_, index) => ({ text: `Option ${index}` })),
 				0,
 				contextViewProvider,
 				unthemedSelectBoxStyles,
-				{ anchorPosition: AnchorPosition.ABOVE, maxVisibleOptions: 6, layoutContainer: bounds },
+				{ anchorPosition, maxVisibleOptions: 6 },
 			));
 			selectBox.render(container);
 			const select = container.querySelector('select')!;
