@@ -232,8 +232,8 @@ const AGENT_PLUGIN_FORMAT: IPluginFormatConfig = {
 	},
 	manifestExtensionNamespace: AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE,
 	requiresManifest: true,
-	pluginRootTokens: [PLUGIN_ROOT.token],
-	pluginRootEnvVars: [PLUGIN_ROOT.envVar],
+	pluginRootTokens: [],
+	pluginRootEnvVars: [],
 	hookPluginRoot: PLUGIN_ROOT,
 	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
 		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, PLUGIN_ROOT);
@@ -659,6 +659,38 @@ export function interpolateMcpPluginRoot(
 	}
 
 	return { ...def, configuration: interpolated };
+}
+
+function interpolateAgentPluginMcpRoot(def: IMcpServerDefinition, pluginRoot: URI): IMcpServerDefinition | undefined {
+	const config = def.configuration;
+	if (config.type !== McpServerType.LOCAL) {
+		return def;
+	}
+
+	const replace = (value: string) => value.replaceAll(PLUGIN_ROOT.token, pluginRoot.fsPath);
+	const local: Mutable<IMcpStdioServerConfiguration> = { ...config };
+	if (local.command.startsWith('./')) {
+		const commandUri = normalizePath(joinPath(pluginRoot, local.command));
+		if (!isEqualOrParent(commandUri, pluginRoot)) {
+			return undefined;
+		}
+		local.command = commandUri.fsPath;
+	}
+	if (local.args) {
+		local.args = local.args.map(replace);
+	}
+	if (local.cwd) {
+		local.cwd = replace(local.cwd);
+	}
+	local.env = { ...local.env };
+	for (const [key, value] of Object.entries(local.env)) {
+		if (typeof value === 'string') {
+			local.env[key] = replace(value);
+		}
+	}
+	local.env[PLUGIN_ROOT.envVar] = pluginRoot.fsPath;
+
+	return { ...def, configuration: local };
 }
 
 /**
@@ -1334,12 +1366,18 @@ export function parseMcpServerDefinitionMap(
 		let def: IMcpServerDefinition = {
 			name,
 			configuration,
-			...(formatConfig.format !== PluginFormat.AgentPlugin && { defaultCwd: pluginRoot }),
+			defaultCwd: pluginRoot,
 			uri: definitionURI,
 			customization: makeMcpServerCustomization(definitionURI, name),
 		};
-		def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
-		if (formatConfig.format !== PluginFormat.AgentPlugin) {
+		if (formatConfig.format === PluginFormat.AgentPlugin) {
+			const interpolated = interpolateAgentPluginMcpRoot(def, pluginRoot);
+			if (!interpolated) {
+				continue;
+			}
+			def = interpolated;
+		} else {
+			def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
 			def = convertBareEnvVarsToVsCodeSyntax(def);
 		}
 		definitions.push(def);

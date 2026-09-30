@@ -745,7 +745,7 @@ suite('pluginParsers', () => {
 				]);
 			});
 
-			test('expands PLUGIN_ROOT in MCP fields and leaves other harness placeholders unresolved', async () => {
+			test('applies Agent Plugin MCP runtime path semantics', async () => {
 				const pluginFsPath = URI.from({ scheme: Schemas.inMemory, path: '/plugins/example' }).fsPath;
 				await write('/plugins/example/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'example' }));
 				await write('/plugins/example/mcp.json', JSON.stringify({
@@ -753,21 +753,32 @@ suite('pluginParsers', () => {
 					mcpServers: {
 						stdio: {
 							type: 'stdio',
-							command: '${PLUGIN_ROOT}/bin/server',
+							command: './bin/server',
 							args: ['${PLUGIN_ROOT}/data', '${PLUGIN_DATA}', '${UNKNOWN}'],
 							env: { ROOT: '${PLUGIN_ROOT}', DATA: '${PLUGIN_DATA}' },
 							cwd: '${PLUGIN_ROOT}/work',
 						},
+						literalCommand: { type: 'stdio', command: '${PLUGIN_ROOT}/bin/literal' },
+						escapedCommand: { type: 'stdio', command: './../outside' },
 						implicit: { type: 'stdio', command: 'implicit-server' },
-						http: { type: 'streamable-http', url: 'https://example.com/mcp' },
+						http: {
+							type: 'streamable-http',
+							url: 'https://example.com/${PLUGIN_ROOT}',
+							headers: { ROOT: '${PLUGIN_ROOT}' },
+						},
 						sse: { type: 'sse', url: 'http://127.0.0.2:3000/sse' },
 					},
 				}));
 
 				const parsed = await parse();
 				const servers = new Map(parsed.mcpServers.map(server => [server.name, server]));
-				assert.deepStrictEqual([...servers.keys()], ['http', 'implicit', 'sse', 'stdio']);
-				assert.strictEqual(servers.get('http')?.configuration.type, McpServerType.REMOTE);
+				assert.deepStrictEqual([...servers.keys()], ['http', 'implicit', 'literalCommand', 'sse', 'stdio']);
+				assert.deepStrictEqual(servers.get('http')?.configuration, {
+					type: McpServerType.REMOTE,
+					url: 'https://example.com/${PLUGIN_ROOT}',
+					headers: { ROOT: '${PLUGIN_ROOT}' },
+					dev: undefined,
+				});
 				assert.strictEqual(servers.get('sse')?.configuration.type, McpServerType.REMOTE);
 				const stdio = servers.get('stdio')?.configuration;
 				assert.ok(stdio?.type === McpServerType.LOCAL);
@@ -786,7 +797,10 @@ suite('pluginParsers', () => {
 				assert.ok(implicit);
 				assert.strictEqual(implicit?.configuration.type, McpServerType.LOCAL);
 				assert.strictEqual(implicit.configuration.type === McpServerType.LOCAL ? implicit.configuration.cwd : undefined, undefined);
-				assert.strictEqual(implicit.defaultCwd, undefined);
+				assert.strictEqual(implicit.defaultCwd?.fsPath, pluginFsPath);
+				const literalCommand = servers.get('literalCommand')?.configuration;
+				assert.ok(literalCommand?.type === McpServerType.LOCAL);
+				assert.strictEqual(literalCommand.command, '${PLUGIN_ROOT}/bin/literal');
 			});
 
 			test('rejects filesystem-resolved component escapes', async () => {
