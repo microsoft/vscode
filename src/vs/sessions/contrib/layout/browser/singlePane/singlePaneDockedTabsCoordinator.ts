@@ -569,12 +569,21 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 	// --- Editor-area collapse ----------------------------------------------
 
 	private _queueCollapseIfDetailsOnly(): void {
-		if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+		if (this._isDetailsOnly()) {
 			this._queue(() => this._collapseNonManagedTabs());
 		}
 	}
 
+	private _isDetailsOnly(): boolean {
+		return !this._ctx.togglingSidePane
+			&& !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)
+			&& this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+	}
+
 	private async _collapseNonManagedTabs(): Promise<void> {
+		if (!this._isDetailsOnly()) {
+			return;
+		}
 		const group = this._editorGroupsService.mainPart.activeGroup;
 		const captured: { editor: IUntypedEditorInput; index: number }[] = [...(this._collapsedEditors ?? [])];
 		const toClose: EditorInput[] = [];

@@ -3856,6 +3856,40 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
+	test('[single-pane] ignores a stale detail-only collapse queued during a whole-side-pane toggle', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+
+		const fileResource = URI.file('/repo/a.ts');
+		harness.activeGroupEditors.splice(1, 0, store.add(new TestStubEditorInput(fileResource)));
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.closedEditors = [];
+
+		harness.onWillToggleSidePane.fire();
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
+		harness.onDidEditorsChange.fire();
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+		harness.onDidToggleSidePane.fire({
+			before: { editor: true, auxiliaryBar: true },
+			after: { editor: false, auxiliaryBar: false },
+		});
+		await settle();
+
+		assert.deepStrictEqual({
+			anyEditorClosed: harness.closedEditors.length > 0,
+			fileStillPresent: harness.activeGroupEditors.some(editor => editor.resource && isEqual(editor.resource, fileResource)),
+		}, {
+			anyEditorClosed: false,
+			fileStillPresent: true,
+		});
+	});
+
 	test('[managed tabs / lifecycle removal] does not re-open a missing managed tab while the group stays non-empty', async () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
