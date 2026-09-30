@@ -15,7 +15,7 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestOperationContribution } from '../../node/agentHostPullRequestOperationProvider.js';
 import { AgentHostPullRequestLifecycleOperationHandler } from '../../node/agentHostPullRequestLifecycleOperationHandler.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
-import { buildChatUri, SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { buildFolderChangesetOwnerUri, ChangesetKind } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -194,12 +194,14 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			persisted: persistedArtifacts.map(({ id: _id, ...artifact }) => artifact),
 		}, {
 			live: [{
+				chat: buildDefaultChatUri('agent:/session'),
 				type: SessionArtifactType.PullRequest,
 				label: 'Improve archive nudges',
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/123',
 				isGitHub: true,
 			}, {
+				chat: buildDefaultChatUri('agent:/session'),
 				type: SessionArtifactType.PullRequest,
 				label: '',
 				isArtifact: true,
@@ -207,12 +209,14 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				isGitHub: true,
 			}],
 			persisted: [{
+				chat: buildDefaultChatUri('agent:/session'),
 				type: SessionArtifactType.PullRequest,
 				label: 'Improve archive nudges',
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/123',
 				isGitHub: true,
 			}, {
+				chat: buildDefaultChatUri('agent:/session'),
 				type: SessionArtifactType.PullRequest,
 				label: '',
 				isArtifact: true,
@@ -280,7 +284,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			defaultScopeOperations: operationsFor(defaultScopeOwner),
 			peerScopeOperations: operationsFor(peerScopeOwner),
 		}, {
-			artifacts: [{ type: SessionArtifactType.PullRequest, label: 'Tools change', isArtifact: true, link: 'https://github.com/contoso/tools/pull/7', isGitHub: true }],
+			artifacts: [{ chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Tools change', isArtifact: true, link: 'https://github.com/contoso/tools/pull/7', isGitHub: true }],
 			recordedGitHubStates: [[peerScopeOwner, { pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], associatedPullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'feature/tools' }]],
 			defaultScopeOperations: ['pr-mark-ready'],
 			peerScopeOperations: ['pr-merge'],

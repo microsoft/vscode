@@ -77,7 +77,7 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.RemoveArtifactOrReference,
 		title: 'Remove Artifact or Reference',
-		description: 'Remove an artifact or reference from this session by id.',
+		description: 'Remove an artifact or reference recorded in this chat by id.',
 		inputSchema: removeArtifactInputSchema,
 		annotations: { readOnlyHint: false, destructiveHint: true },
 		deferLoading: true,
@@ -85,7 +85,7 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.ListArtifactsAndReferences,
 		title: 'List Artifacts and References',
-		description: 'List the artifacts and references recorded on this session, with their ids.',
+		description: 'List the artifacts and references recorded in this chat, with their ids.',
 		inputSchema: listArtifactsInputSchema,
 		annotations: { readOnlyHint: true },
 		deferLoading: true,
@@ -96,13 +96,13 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 export interface IArtifactServerToolAccessor {
 	/** Whether the artifact tools are advertised and executable. */
 	readonly isEnabled: () => boolean;
-	/** Persists a session's artifacts and references so they survive a host restart. */
+	/** Persists one chat's artifacts and references so they survive a host restart. */
 	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>;
 	/** Verifies a PR against the invoking chat's folder and associates it when its head branch matches. */
 	readonly associatePullRequest?: (chat: string, pullRequestUrl: string) => Promise<boolean>;
 	/** Verifies a batch in one GitHub request and persists candidates that need retrying. */
 	readonly associatePullRequests?: (chat: string, urls: readonly string[]) => Promise<IRecordedPullRequestAssociationResult>;
-	readonly removePendingPullRequest?: (session: string, url: string) => Promise<void>;
+	readonly removePendingPullRequest?: (session: string, chat: string, url: string) => Promise<void>;
 	readonly reportAssociationError?: (error: unknown) => void;
 }
 
@@ -188,7 +188,7 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 				throw new Error(`${toolName} is unavailable in this host.`);
 			}
 
-			const artifacts = new SessionArtifacts(stateManager, parseRequiredSessionUriFromChatUri(context.chatUri), accessor.persist);
+			const artifacts = new SessionArtifacts(stateManager, parseRequiredSessionUriFromChatUri(context.chatUri), context.chatUri, accessor.persist);
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
 					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference);
@@ -248,7 +248,7 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					const result = await artifacts.mutate(collection => collection.remove(id), async result => {
 						if (result.removed?.type === SessionArtifactType.PullRequest && result.removed.link && accessor.removePendingPullRequest) {
 							try {
-								await accessor.removePendingPullRequest(context.sessionUri, result.removed.link);
+								await accessor.removePendingPullRequest(context.sessionUri, result.removed.chat ?? context.chatUri, result.removed.link);
 							} catch (error) {
 								accessor.reportAssociationError?.(error);
 							}
@@ -263,7 +263,7 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 				case ArtifactServerToolName.ListArtifactsAndReferences: {
 					const current = artifacts.read().artifacts;
 					return current.length === 0
-						? 'No artifacts or references recorded for this session.'
+						? 'No artifacts or references recorded for this chat.'
 						: current.map(describeArtifact).join('\n');
 				}
 				default:
@@ -272,5 +272,3 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 		},
 	};
 }
-
-
