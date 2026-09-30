@@ -839,7 +839,15 @@ export class AgentService extends Disposable implements IAgentService {
 				const provider = this._providerService.resolveProvider(template.provider);
 				return provider !== undefined && provider.isReadyForAutomation?.(template.model, reader) !== false;
 			},
-			createSession: (template, run) => this._createSession({
+			createSessionResource: template => {
+				const provider = this._providerService.resolveProvider(template.provider);
+				if (provider === undefined) {
+					throw new Error(`Automation provider is unavailable: ${template.provider}`);
+				}
+				return this._mintSessionUri(provider);
+			},
+			createSession: (template, run, session) => this._createSession({
+				session,
 				provider: template.provider,
 				model: template.model,
 				agent: template.agent,
@@ -850,6 +858,27 @@ export class AgentService extends Disposable implements IAgentService {
 				automation: run.automation,
 				run: run.resource,
 			}),
+			hasSession: async (session, run) => {
+				if (await this._sessionRegistry.get(session) === undefined || (await this._sessionRegistry.listProvisional()).has(session.toString())) {
+					return false;
+				}
+				const database = await this._sessionDataService.tryOpenDatabase(session);
+				if (database === undefined) {
+					return false;
+				}
+				try {
+					const origin = readPersistedSessionOrigin(await database.object.getMetadata(SESSION_ORIGIN_KEY));
+					return origin?.kind === SessionOriginKind.Automation && origin.automation === run.automation && origin.run === run.resource;
+				} finally {
+					database.dispose();
+				}
+			},
+			deleteSession: async session => {
+				if (this._providerService.getProviderForSession(session) === undefined) {
+					throw new Error(`Automation session provider is unavailable: ${session}`);
+				}
+				await this.disposeSession(session);
+			},
 			startSession: (session, message) => this._startAutomationMessage(session, message),
 			cancelSession: session => this._cancelAutomationSession(session),
 		}));

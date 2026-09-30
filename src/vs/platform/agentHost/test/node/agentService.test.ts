@@ -5300,6 +5300,34 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('reserves the Automation session identity durably before session publication', async () => {
+			const directory = mkdtempSync(join(tmpdir(), 'automation-session-intent-'));
+			disposables.add(toDisposable(() => rmSync(directory, { recursive: true, force: true })));
+			const storage = URI.file(join(directory, 'storage.json'));
+			const host = createHost(createPerSessionDataService().service, new TestAgentHostOrchestratorDatabase(), storage);
+			await createAutomation(host);
+			const reservations: { resource: string; intents: readonly { run: string; session: string }[] | undefined }[] = [];
+			disposables.add(getStateManager(host).onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					const stored = JSON.parse(readFileSync(storage.fsPath, 'utf8')) as { automations: { sessionCreations?: { run: string; session: string }[] } };
+					reservations.push({ resource: notification.summary.resource, intents: stored.automations.sessionCreations });
+				}
+			}));
+			const sent = Event.toPromise(copilotAgent.onDidSendMessage, disposables);
+			const run = await host.runAutomation({ channel: 'ahp-automations://', automation, requestId: 'session-intent' });
+			const { session } = await sent;
+			const stored = JSON.parse(readFileSync(storage.fsPath, 'utf8')) as { automations: { sessionCreations?: { run: string; session: string }[] } };
+			assert.deepStrictEqual({
+				reservations,
+				intentsAfterSend: stored.automations.sessionCreations,
+				linked: getStateManager(host).getAutomationRunState(run.resource)?.primarySession,
+			}, {
+				reservations: [{ resource: session.toString(), intents: [{ run: run.resource, session: session.toString() }] }],
+				intentsAfterSend: undefined,
+				linked: session.toString(),
+			});
+		});
+
 		test('rolls back an Automation session when origin cannot be persisted', async () => {
 			class FailingOriginDatabase extends TestSessionDatabase {
 				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {

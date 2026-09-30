@@ -116,6 +116,8 @@ Automation-created sessions carry host-owned `SessionOrigin` identifying their A
 
 At most one non-terminal run occupies an Automation's active-run slot. `pending` and `running` are non-terminal; `completed` and `failed` are terminal in the Sessions projection. AHP cancellation projects as failed with its cancellation reason. A run exposes its session resource only once the host links that session.
 
+Before creating a run session, the host persists its allocated identity with the run claim. The initial prompt is sent only after session membership is persisted. Recovery links an existing, registered, non-provisional session or cleans up incomplete creation before clearing that intent; it never replays an interrupted prompt. Failed recovery remains retryable when the provider becomes available.
+
 Run Now submits a manual request to this authority and observes dispatch and completion. An existing active run is reported without creating another session. Pre-dispatch cancellation prevents the request; supported in-flight cancellation is forwarded to the host. Observation failure or window closure cannot synthesize a terminal run or move execution elsewhere.
 
 Disabling scheduled execution on a definition preserves manual Run Now. Disabling the Automations feature removes new-run authority without deleting definitions or automatically terminating sessions already running. On restart or re-enablement, the host applies its existing recovery and misfire rules without requiring an Agents Window.
