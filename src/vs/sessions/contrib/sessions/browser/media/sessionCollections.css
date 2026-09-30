@@ -55,18 +55,6 @@
 	border-color: var(--vscode-contrastActiveBorder, transparent);
 }
 
-.session-collections-strip-button.active::after,
-.session-collections-tab.active::after {
-	content: '';
-	position: absolute;
-	left: 25%;
-	right: 25%;
-	bottom: var(--vscode-spacing-size20);
-	height: var(--vscode-spacing-size20);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: var(--session-collection-accent);
-}
-
 .session-collections-strip-button:focus-visible,
 .session-collections-tab:focus-visible,
 .session-collections-title-button:focus-visible {
@@ -179,6 +167,11 @@
 
 .session-collections-title-icon {
 	color: var(--session-collection-accent);
+}
+
+/* The button pulls itself left to align its icon with the header text; don't clip its hover and focus box. The name ellipsizes inside the button. */
+.agent-sessions-viewpane .agent-sessions-header-label.session-collections-title-host {
+	overflow: visible;
 }
 
 .session-collections-title-chevron {

@@ -1351,6 +1351,11 @@
 		padding-left: var(--vscode-spacing-size80);
 	}
 
+	/* Keep the parent's hierarchy guide on the nested chats' guides. */
+	.session-item.session-in-colored-group::after {
+		left: var(--vscode-spacing-size120);
+	}
+
 	.monaco-list-row:has(.session-item.session-in-colored-group) .session-chat-twistie {
 		left: var(--vscode-spacing-size80);
 	}

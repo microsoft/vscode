@@ -327,6 +327,7 @@ export class SessionCollectionTitleButton extends Disposable {
 		const collections = this.options.shouldShow(reader) ? this.collectionsService.collections.read(reader) : [];
 		const activeCollectionId = this.collectionsService.activeCollectionId.read(reader);
 		const collection = collections.find(collection => collection.id === activeCollectionId);
+		this.container.classList.toggle('session-collections-title-host', !!collection);
 		if (!collection) {
 			this.container.textContent = localize('sessionsHeader', "Sessions");
 			return;

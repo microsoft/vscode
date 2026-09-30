@@ -685,6 +685,15 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['A hovered, expanded session in its workspace section has two nested chat rows. Its twistie replaces the status icon, and rounded hierarchy connectors run continuously from the parent and stop before each child status icon.'],
 	}),
+	SessionsList_NestedChats_Colored: defineSessionsListFixture({
+		sessions: [NESTED_CHAT_SESSION],
+		colors: { sections: { 'vscode-tools': { color: SessionPaletteColor.Blue } } },
+		view: { width: 340 },
+		interaction: { hovered: { session: 'a', chat: 'task-a' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['In a blue workspace, an expanded session has two nested chat rows beside the rail. The Task A row highlight starts right of the rail, and the hierarchy connectors run continuously from the parent\'s twistie and stop before each child status icon.'],
+	}),
 	SessionsList_NestedChats_PinnedView: defineSessionsListFixture({
 		sessions: [{ ...NESTED_CHAT_SESSION, sticky: true }],
 		view: { width: 340 },
