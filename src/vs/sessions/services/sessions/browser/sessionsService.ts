@@ -5,11 +5,11 @@
 
 import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IObservable, autorun, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, autorun, derived, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -26,16 +26,21 @@ import { ClosedItemHistory } from './closedItemHistory.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSessions } from './visibleSessions.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ISessionsPartService, SessionGridRequest } from './sessionsPartService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ISessionsPartService, MAIN_SESSIONS_PART, SessionGridRequest } from './sessionsPartService.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
-import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
-import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
+import { ISessionGridState, ISessionWindowState, ISessionWindowsState, isSessionGridState, isSessionWindowsState, joinSessionGrids, projectSessionGrid } from './sessionGridState.js';
+import { IAuxiliaryWindowOpenOptions } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import Severity from '../../../../base/common/severity.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 const SESSION_GRID_STATE_KEY = 'agentSessions.gridState';
@@ -115,6 +120,7 @@ export interface ICloseChatOptions {
 }
 
 export interface IOpenSessionOptions {
+	readonly partId?: string;
 	readonly preserveFocus?: boolean;
 	readonly source?: SessionOpenSource;
 	readonly restoreOnlySideOrToolChat?: boolean;
@@ -193,6 +199,11 @@ export interface ISessionsService {
 	 * non-sticky entries get replaced when new sessions are opened.
 	 */
 	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
+	readonly mainVisibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
+	getSessionPartId(session: ISession | undefined): string;
+	moveSessionsToNewWindow(sessions: readonly ISession[], options?: IAuxiliaryWindowOpenOptions): Promise<void>;
+	moveSessionsToWindow(sessions: readonly ISession[], partId: string): Promise<void>;
+	returnSessionsToMainWindow(partId: string): void;
 
 	/** Whether the initial persisted visible-session restore has settled. */
 	readonly initialRestoreComplete: IObservable<boolean>;
@@ -379,6 +390,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private readonly _visibility: VisibleSessions;
 	private readonly _gridRequest = observableValue<SessionGridRequest | undefined>(this, undefined);
 	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
+	readonly mainVisibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
 
 	/** Remembers the single most recently closed chat or session for {@link reopenLastClosedItem}. */
 	private readonly _closedItems: ClosedItemHistory;
@@ -390,10 +402,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private readonly _navigationRequest = observableValue<ISessionNavigationRequest | undefined>(this, undefined);
 	readonly navigationRequest: IObservable<ISessionNavigationRequest | undefined> = this._navigationRequest;
 
-	private readonly _isNewChatSessionContext: IContextKey<boolean>;
-
 	/** Cancelled on every navigation action so in-flight async opens bail out. */
-	private readonly _openSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _openSessionCts = this._register(new DisposableMap<string, CancellationTokenSource>());
 	/**
 	 * Cancellation for the in-flight {@link restoreVisibleSessions}. Kept
 	 * separate from {@link _openSessionCts} so that additive new-session
@@ -403,6 +413,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 */
 	private readonly _restoreCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _restoringGridState: ISessionGridState | undefined;
+	private readonly _restoringWindows = new Map<string, ISessionWindowState>();
+	private readonly _auxiliaryRestoreCts = this._register(new DisposableMap<string, CancellationTokenSource>());
+	private readonly _sessionMoves = new Map<string, symbol>();
+	private readonly _openingWindows = new Set<string>();
 
 	private readonly _sessionStates: ResourceMap<ISessionState>;
 	private readonly _pendingRestoredChatResources = new ResourceMap<URI>();
@@ -419,7 +433,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private _focusedActiveSession: IActiveSession | undefined;
 
 	/** The in-flight foreground send's "keep newest chat active" follow. */
-	private readonly _sendFollow = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _sendFollow = this._register(new DisposableMap<ISession, { count: number; sessionId: string; dispose(): void }>());
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -435,6 +449,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 
@@ -448,21 +463,27 @@ export class SessionsService extends Disposable implements ISessionsService {
 			session => this._restoreInitialChat(session),
 			session => this._restoreClosedChats(session),
 			session => this._restoreShownRelatedChats(session),
-			(replaced, index, sticky, replacedBySessionId) => this._closedItems.recordReplacedSlot(replaced, index, sticky, replacedBySessionId),
+			(replaced, index, sticky, replacedBySessionId, partId) => this._closedItems.recordReplacedSlot(replaced, index, sticky, replacedBySessionId, partId),
 		));
 		this.visibleSessions = this._visibility.visibleSessions;
+		this.mainVisibleSessions = derived(this, reader => this.visibleSessions.read(reader).filter(session => this.getSessionPartId(session) === MAIN_SESSIONS_PART));
 		this.activeSession = this._visibility.activeSession;
+		this.sessionsPartService.setAuxiliaryWindowCloseHandler(partId => this.returnClosingSessionsToMainWindow(partId));
+		this.sessionsPartService.setSessionDragHandlers({
+			drop: (sessions, target) => this.openSessionsAt(sessions, target.referenceSessionId, target.direction, { partId: target.partId }),
+			openWindow: (sessions, bounds) => this.moveSessionsToNewWindow(sessions, { bounds }),
+		});
+		this._register(this.sessionsPartService.onDidCloseAuxiliaryPart(event => {
+			if (!event.shutdown) {
+				this._saveSessionStates();
+			}
+		}));
 
 		this._closedItems = this._register(this.instantiationService.createInstance(
 			ClosedItemHistory,
 			this._visibility,
 			(session, chatResource) => this.openChat(session, chatResource),
 		));
-
-		// Bind active-session context keys. These reflect the visible active
-		// slot (the view's `activeSession`); `isNewChatSession` also consults
-		// the model's in-progress draft (`newSession`).
-		this._isNewChatSessionContext = IsNewChatSessionContext.bindTo(this.contextKeyService);
 
 		// Save on shutdown
 		this._register(this.storageService.onWillSaveState(() => this._saveSessionStates()));
@@ -486,18 +507,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => this._navigation.onDidRemoveSessions(e)));
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => this._recencyHistory.remove(entry => entry.sessionResource.toString() === session.resource.toString())));
 
-		// Keep the active-session context keys in sync with the visible active
-		// slot and the model's in-progress draft. The helper reads the session's
-		// observable properties via `reader`, so this autorun re-applies the keys
-		// whenever any of them change.
+		// Global session keys follow explicit activation, not a background window's local selection.
 		this._register(autorun(reader => {
 			const activeSession = this.activeSession.read(reader);
-			const newSession = this.sessionsManagementService.newSession.read(reader);
-			// `isNewChatSession` is true when no active session exists, OR when the
-			// active session is still the in-progress new session (created but not yet
-			// sent for the first time). Scoping to the active session avoids flipping
-			// into "new chat" mode while viewing a different established session.
-			this._isNewChatSessionContext.set(activeSession === undefined || activeSession.sessionId === newSession?.sessionId);
 			setActiveSessionContextKeys(activeSession, this.contextKeyService, reader, this.changesStatsCache);
 		}));
 
@@ -542,7 +554,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
 		this._register(this.sessionsManagementService.onWillSendRequest(session => this._startSendFollow(session)));
-		this._register(this.sessionsManagementService.onDidSendRequest(() => this._sendFollow.clear()));
+		this._register(this.sessionsManagementService.onDidFinishSendRequest(session => {
+			const follow = this._sendFollow.get(session);
+			if (follow && --follow.count === 0) {
+				this._sendFollow.deleteAndDispose(session);
+			}
+		}));
 
 		// Drive the part: reconcile the grid and move focus into the active
 		// session whenever the visible sessions or the active session change.
@@ -551,7 +568,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const active = this._visibility.activeSession.read(reader);
 			const preserveFocus = this._visibility.activePreserveFocus.read(reader);
 			const request = this._gridRequest.read(reader);
-			this.sessionsPartService.updateVisibleSessions(visible, active, this._visibility.getGridSlots(), request);
+			const partIds = new Set([MAIN_SESSIONS_PART, ...this.sessionsPartService.getParts().map(part => part.partId)]);
+			for (const partId of partIds) {
+				const local = visible.filter(session => this.getSessionPartId(session) === partId);
+				const selected = this._visibility.getSelectedSession(partId);
+				this.sessionsPartService.updateVisibleSessions(local, selected, this._visibility.getGridSlots(partId), (request?.partId ?? MAIN_SESSIONS_PART) === partId ? request : undefined, partId);
+			}
 
 			if (active !== this._focusedActiveSession) {
 				this._focusedActiveSession = active;
@@ -569,13 +591,263 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.setActive(session);
 			}
 		}));
-		this._register(this.sessionsPartService.onDidInteractWithGrid(() => {
-			this._cancelRestore();
-			this._startOpenSession();
+		this._register(this.sessionsPartService.onDidInteractWithGrid(partId => {
+			this._cancelRestore(partId);
+			this._startOpenSession(partId);
+			this._recordNavigation();
 		}));
 	}
 
+	getSessionPartId(session: ISession | undefined): string {
+		return this._visibility.getPartId(session?.sessionId);
+	}
+
+	private getTargetPartId(session?: ISession, partId?: string): string {
+		if (session && this._visibility.getSlot(session.sessionId)) {
+			return this.getSessionPartId(session);
+		}
+		return partId ?? this.sessionsPartService.getPartForWindow(getActiveWindow())?.partId ?? MAIN_SESSIONS_PART;
+	}
+
+	private async withSessionMove(sessions: readonly ISession[], task: (isCurrent: () => boolean) => Promise<void>): Promise<void> {
+		const request = Symbol();
+		const sources = sessions.map(session => ({
+			id: session.sessionId,
+			visible: !!this._visibility.getSlot(session.sessionId),
+			partId: this.getSessionPartId(session),
+			view: this.sessionsPartService.getSessionView(session.sessionId),
+			binding: this._visibility.getSession(session.sessionId),
+		}));
+		for (const source of sources) {
+			this._sessionMoves.set(source.id, request);
+		}
+		try {
+			await task(() => {
+				const current = sources.every(source => this._sessionMoves.get(source.id) === request
+					&& (!source.visible || (!!this._visibility.getSlot(source.id) && this._visibility.getPartId(source.id) === source.partId
+						&& this.sessionsPartService.getSessionView(source.id) === source.view && this._visibility.getSession(source.id) === source.binding)));
+				if (!current) {
+					this.logService.trace('[SessionsView] Cancelled a superseded session movement');
+				}
+				return current;
+			});
+		} finally {
+			for (const source of sources) {
+				if (this._sessionMoves.get(source.id) === request) {
+					this._sessionMoves.delete(source.id);
+				}
+			}
+		}
+	}
+
+	async moveSessionsToNewWindow(sessions: readonly ISession[], options?: IAuxiliaryWindowOpenOptions): Promise<void> {
+		this.ensureMovableSessions(sessions);
+		this._recordNavigation();
+		const navigation = this.navigationRequest.get();
+		return this.withSessionMove(sessions, async isCurrent => {
+			const partId = generateUuid();
+			this._openingWindows.add(partId);
+			try {
+				await this.sessionsPartService.createAuxiliaryPart(options, partId);
+				if (isCurrent()) {
+					await this.doMoveSessionsToWindow(sessions, partId, isCurrent, () => this.navigationRequest.get() === navigation);
+				}
+			} finally {
+				this._openingWindows.delete(partId);
+				if (!this._visibility.getVisibleSessions(partId).length) {
+					this.sessionsPartService.closeAuxiliaryPart(partId);
+				}
+			}
+		});
+	}
+
+	async moveSessionsToWindow(sessions: readonly ISession[], partId: string): Promise<void> {
+		this.ensureMovableSessions(sessions);
+		this._recordNavigation();
+		const navigation = this.navigationRequest.get();
+		return this.withSessionMove(sessions, isCurrent => this.doMoveSessionsToWindow(sessions, partId, isCurrent, () => this.navigationRequest.get() === navigation));
+	}
+
+	private async doMoveSessionsToWindow(sessions: readonly ISession[], partId: string, isCurrent: () => boolean, shouldActivate: () => boolean): Promise<void> {
+		if (!this.sessionsPartService.getPart(partId)) {
+			throw new Error(`Sessions part '${partId}' is not available`);
+		}
+		const token = this._startOpenSession(partId);
+		const prepared = await this.prepareGridSessions(sessions, token);
+		if (!prepared || token.isCancellationRequested || !isCurrent() || !this.areGridSessionsCurrent(prepared)) {
+			return;
+		}
+		this.ensureMovableSessions(prepared);
+		if (!this.sessionsPartService.getPart(partId)) {
+			throw new Error(localize('sessions.targetWindowClosed', "The destination window was closed before the session could be moved."));
+		}
+		const visible = this.visibleSessions.get();
+		const moving = prepared.flatMap(session => {
+			const wrapper = visible.find(candidate => candidate?.sessionId === session.sessionId);
+			return wrapper ? [wrapper] : [];
+		});
+		this.sessionsPartService.transferSessions(moving, partId, () => transaction(() => {
+			for (const id of new Set([partId, ...moving.map(session => this.getSessionPartId(session))])) {
+				this._cancelRestore(id);
+			}
+			for (const session of prepared) {
+				if (!this._visibility.getSlot(session.sessionId)) {
+					this._visibility.appendToPart(session, partId);
+				}
+			}
+			this._visibility.moveToPart(prepared.map(session => session.sessionId), partId);
+			if (prepared[0]) {
+				this._activate(prepared[0], false, partId, shouldActivate());
+			}
+		}));
+		this.closeEmptyAuxiliaryParts();
+		if (shouldActivate()) {
+			if (partId === MAIN_SESSIONS_PART) {
+				this.customViewService.hideCustomView();
+			}
+			this.sessionsPartService.focusSession(this.activeSession.get());
+			status(localize('sessions.movedToWindow', "Moved sessions to the destination window."));
+		}
+	}
+
+	private ensureMovableSessions(sessions: readonly ISession[]): void {
+		if (!sessions.length) {
+			throw new Error(localize('sessions.moveNoSession', "Select a session to move to another window."));
+		}
+		if (sessions.some(session => session.status.get() === SessionStatus.Untitled)) {
+			throw new Error(localize('sessions.moveDraftWindow', "Finish creating the session before moving it to another window."));
+		}
+		for (const session of sessions) {
+			const veto = this.sessionsPartService.getSessionView(session.sessionId)?.getTransferVeto();
+			if (veto) {
+				throw new Error(veto);
+			}
+		}
+	}
+
+	returnSessionsToMainWindow(partId: string): void {
+		if (partId === MAIN_SESSIONS_PART) {
+			return;
+		}
+		this._openSessionCts.get(partId)?.cancel();
+		this._openSessionCts.deleteAndDispose(partId);
+		const pendingSource = this._restoringWindows.get(partId)?.layout;
+		const pendingMain = this._restoringGridState;
+		const mainState = pendingMain ?? this.snapshotGrid(MAIN_SESSIONS_PART);
+		const sourceState = pendingSource ?? this.snapshotGrid(partId);
+		const active = this.activeSession.get();
+		const activePart = this.getSessionPartId(active);
+		this._cancelRestore(partId);
+		const sessions = this._visibility.getVisibleSessions(partId).filter((session): session is IActiveSession => !!session);
+		if (!sessions.length && !pendingSource) {
+			this._visibility.forgetPart(partId);
+			return;
+		}
+		this._recordNavigation();
+		for (const session of sessions) {
+			this._sessionMoves.delete(session.sessionId);
+		}
+		const grid = sourceState ? mainState ? joinSessionGrids(mainState.grid, sourceState.grid) : sourceState.grid : mainState?.grid;
+		this._cancelRestore(MAIN_SESSIONS_PART);
+		this.sessionsPartService.transferSessions(sessions, MAIN_SESSIONS_PART, () => transaction(tx => {
+			this._visibility.moveToPart(sessions.map(session => session.sessionId), MAIN_SESSIONS_PART, false);
+			if (active && activePart === partId) {
+				this._visibility.setActive(active, true, MAIN_SESSIONS_PART);
+			}
+			if (grid) {
+				this._gridRequest.set({ type: 'restore', grid }, tx);
+			}
+		}));
+		this._visibility.forgetPart(partId);
+		if ((pendingSource || pendingMain) && sourceState && grid) {
+			const state: ISessionGridState = {
+				version: 1, grid,
+				sessions: [...mainState?.sessions ?? [], ...sourceState.sessions],
+				active: activePart === partId ? sourceState.active : mainState?.active ?? sourceState.active,
+			};
+			this.resumeMainRestore(state, activePart === partId || activePart === MAIN_SESSIONS_PART);
+		}
+		if (sessions.some(session => session === this.activeSession.get())) {
+			this.customViewService.hideCustomView();
+			this.sessionsPartService.focusSession(this.activeSession.get());
+		}
+		status(localize('sessions.returnedToMain', "Returned sessions to the main window."));
+	}
+
+	private returnClosingSessionsToMainWindow(partId: string): void {
+		const layout = this._restoringWindows.get(partId)?.layout ?? this.snapshotGrid(partId);
+		const window = this.sessionsPartService.getAuxiliaryWindowState(partId);
+		const pendingMain = this._restoringGridState;
+		this._saveSessionStates();
+		try {
+			this.returnSessionsToMainWindow(partId);
+		} catch (error) {
+			this.logService.error('[SessionsView] Failed to return sessions from a closing window', error);
+			this._restoringGridState = pendingMain;
+			const state: ISessionWindowState | undefined = layout ? { id: partId, layout, window } : undefined;
+			if (state) {
+				this._restoringWindows.set(partId, state);
+			}
+			const sessions = this._visibility.getVisibleSessions(partId);
+			this._visibility.removeMany(sessions.map(session => session?.sessionId));
+			this._visibility.forgetPart(partId);
+			if (!state) {
+				this.notificationService.error(error);
+				return;
+			}
+			this.notificationService.prompt(Severity.Error, localize('sessions.returnWindowFailed', "The window closed, but its sessions could not be returned to the main window. Their saved layout and drafts have been kept. Retry to reopen them."), [{
+				label: localize('sessions.retryWindow', "Retry"),
+				run: () => this.restoreAuxiliaryPart(state, true),
+			}]);
+		}
+	}
+
+	private resumeMainRestore(state: ISessionGridState, activate: boolean, preserveSelection = false): void {
+		const cts = new CancellationTokenSource();
+		this._restoreCts.value = cts;
+		this._restoringGridState = state;
+		void this._restoreVisibleSessions(cts.token, state, MAIN_SESSIONS_PART, activate, preserveSelection).then(complete => {
+			if (this._restoreCts.value === cts) {
+				if (complete) {
+					this._restoringGridState = undefined;
+					this._restoringWindows.delete(MAIN_SESSIONS_PART);
+				}
+				this._restoreCts.clear();
+			}
+		}, error => {
+			if (this._restoreCts.value === cts) {
+				this._restoreCts.clear();
+			}
+			this.logService.error('[SessionsView] Failed to restore returned sessions', error);
+			this.notificationService.error(error);
+		});
+	}
+
+	private retryUnresolvedRestores(): void {
+		if (this._restoringGridState && !this._restoreCts.value) {
+			this.resumeMainRestore(this._restoringGridState, false, true);
+		}
+		for (const [id, state] of this._restoringWindows) {
+			if (id !== MAIN_SESSIONS_PART && !this._auxiliaryRestoreCts.has(id) && this.sessionsPartService.getPart(id)) {
+				void this.restoreAuxiliaryPart(state, false, true);
+			}
+		}
+	}
+
+	private closeEmptyAuxiliaryParts(): void {
+		for (const part of this.sessionsPartService.getParts()) {
+			if (!part.isMain && !this._openingWindows.has(part.partId) && !this._restoringWindows.has(part.partId) && !this._visibility.getVisibleSessions(part.partId).length) {
+				this.sessionsPartService.closeAuxiliaryPart(part.partId);
+			}
+		}
+	}
+
 	private _onDidReplaceSession(from: ISession, to: ISession): void {
+		for (const follow of this._sendFollow.values()) {
+			if (follow.sessionId === from.sessionId) {
+				follow.sessionId = to.sessionId;
+			}
+		}
 		const sessionView = this.sessionsPartService.getSessionView(from.sessionId);
 		const preserveFocus = !sessionView || this.sessionsPartService.getFocusedSessionView() !== sessionView;
 		this._visibility.updateSession(from, to, preserveFocus);
@@ -605,7 +877,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		disposables.add(autorun(reader => {
 			const isArchived = activeSession.isArchived.read(reader);
 			if (isArchived && !wasArchived) {
-				if (activeSession.isQuickChat?.read(undefined)) {
+				if (this.getSessionPartId(activeSession) !== MAIN_SESSIONS_PART) {
+					this.closeSession(activeSession);
+				} else if (activeSession.isQuickChat?.read(undefined)) {
 					this._openQuickChat(undefined, 'automatic');
 				} else {
 					const folderUri = activeSession.workspace.read(undefined)?.folders[0]?.root;
@@ -679,6 +953,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _onDidChangeSessions(e: ISessionsChangeEvent): void {
 		const currentActive = this._visibility.activeSession.get();
+		if (e.added.length) {
+			this.retryUnresolvedRestores();
+		}
 
 		// Clean removed sessions out of the visibility model (drops their grid
 		// slot and disposes their wrapper). If the active session is among the
@@ -690,6 +967,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this._sessionStates.delete(session.resource);
 			}
 			this._visibility.removeMany(e.removed.map(r => r.sessionId));
+			this.closeEmptyAuxiliaryParts();
 		}
 
 		if (!currentActive) {
@@ -707,18 +985,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private _startSendFollow(session: ISession): void {
+		const existing = this._sendFollow.get(session);
+		if (existing) {
+			existing.count++;
+			return;
+		}
 		const store = new DisposableStore();
-		let followId = session.sessionId;
-		// A foreground send can replace the session id (draft graduating into a
-		// committed session); keep following the new id.
-		store.add(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
-			if (from.sessionId === followId) {
-				followId = to.sessionId;
-			}
-		}));
+		const follow = { count: 1, sessionId: session.sessionId, dispose: () => store.dispose() };
+		this._sendFollow.set(session, follow);
 		store.add(autorun(reader => {
-			const active = this._visibility.activeSession.read(reader);
-			if (active && active.sessionId === followId) {
+			this.activeSession.read(reader);
+			const active = this.visibleSessions.read(reader).find(candidate => candidate?.sessionId === follow.sessionId);
+			if (active && this._visibility.getSelectedSession(this.getSessionPartId(active)) === active) {
 				const chats = active.visibleChatTabs.read(reader);
 				const lastChat = chats[chats.length - 1];
 				if (lastChat) {
@@ -726,7 +1004,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 				}
 			}
 		}));
-		this._sendFollow.value = store;
 	}
 
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions {
@@ -763,19 +1040,21 @@ export class SessionsService extends Disposable implements ISessionsService {
 	/**
 	 * Cancel any in-flight open-session/restore and return a fresh cancellation token.
 	 */
-	private _startOpenSession(): CancellationToken {
-		this._openSessionCts.value?.cancel();
+	private _startOpenSession(partId = this.getTargetPartId()): CancellationToken {
+		this._openSessionCts.get(partId)?.cancel();
 		const cts = new CancellationTokenSource();
-		this._openSessionCts.value = cts;
+		this._openSessionCts.set(partId, cts);
 		return cts.token;
 	}
 
-	private _beginNavigation(intent: SessionNavigationIntent, token: CancellationToken = CancellationToken.None, preserveNavigation = false): void {
+	private _beginNavigation(intent: SessionNavigationIntent, partId = this.getTargetPartId(), token: CancellationToken = CancellationToken.None, preserveNavigation = false): void {
 		if (intent === 'explicit') {
 			if (!preserveNavigation) {
 				this._recordNavigation(token);
 			}
-			this.customViewService.hideCustomView();
+			if (partId === MAIN_SESSIONS_PART) {
+				this.customViewService.hideCustomView();
+			}
 		}
 	}
 
@@ -788,7 +1067,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * explicitly navigates to a session, including a new-session handoff that
 	 * sets `cancelRestore`, so restore stops fighting the user's choice.
 	 */
-	private _cancelRestore(): void {
+	private _cancelRestore(partId = this.getTargetPartId()): void {
+		this._restoringWindows.delete(partId);
+		if (partId !== MAIN_SESSIONS_PART) {
+			this._auxiliaryRestoreCts.get(partId)?.cancel();
+			this._auxiliaryRestoreCts.deleteAndDispose(partId);
+			return;
+		}
 		// `cancel()` (not just `clear()`/dispose) so the in-flight restore's
 		// token actually fires cancellation and bails out; `MutableDisposable`
 		// disposes the source without cancelling it.
@@ -803,8 +1088,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * with the active session by the visibility model, and the model's
 	 * canonical active session is updated reactively by the mirror autorun.
 	 */
-	private _activate(session: ISession | undefined, preserveFocus?: boolean): IActiveSession | undefined {
-		return this._visibility.setActive(session, preserveFocus);
+	private _activate(session: ISession | undefined, preserveFocus?: boolean, partId?: string, activatePart = true): IActiveSession | undefined {
+		const target = !session || session.status.get() === SessionStatus.Untitled ? MAIN_SESSIONS_PART : this.getTargetPartId(session, partId);
+		if (target !== MAIN_SESSIONS_PART && !this.sessionsPartService.getPart(target)) {
+			throw new Error(localize('sessions.targetWindowClosed', "The destination window was closed before the session could be moved."));
+		}
+		return this._visibility.setActive(session, preserveFocus, target, activatePart);
 	}
 
 	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void> {
@@ -812,10 +1101,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _openChatSession(session: ISession, chatUri: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
+		options = { ...options, partId: this.getTargetPartId(session, options?.partId) };
 		const t0 = Date.now();
-		this._cancelRestore();
-		this._beginNavigation(intent);
-		const token = this._startOpenSession();
+		this._cancelRestore(options.partId);
+		this._beginNavigation(intent, options.partId);
+		const navigation = this.navigationRequest.get();
+		const token = this._startOpenSession(options.partId);
 		// Redirect a superseded resource (e.g. a legacy session adopted into another
 		// provider) before activating, the same way `openSession` does for a URI, so
 		// opening by object migrates rather than activating the old facade as-is.
@@ -834,19 +1125,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 					this.activeSession.get()?.sessionId === session.sessionId,
 					session.loading.get(),
 				);
-				await this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt);
+				await this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt, options.partId, this.navigationRequest.get() === navigation);
 			});
 			return;
 		}
-		await this._openChat(session, chatUri, options?.preserveFocus, token, t0);
+		await this._openChat(session, chatUri, options?.preserveFocus, token, t0, undefined, options.partId, this.navigationRequest.get() === navigation);
 	}
 
-	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt): Promise<void> {
+	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt, partId?: string, activatePart = true): Promise<void> {
 		if (telemetryAttempt) {
 			this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
 		}
 		this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
-		this._activate(session, preserveFocus);
+		this._activate(session, preserveFocus, partId, activatePart);
 		if (!await this._waitForSessionToLoad(session, token)) {
 			this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 			return;
@@ -854,7 +1145,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// Find the chat and update active chat
 		let chat: IChat | undefined;
-		const activeSession = this._visibility.activeSession.get();
+		const activeSession = this.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId);
 		if (activeSession) {
 			chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
 			if (chat) {
@@ -951,13 +1242,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _openSession(sessionResource: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
+		options = { ...options, partId: this.getTargetPartId(this.sessionsManagementService.getSession(sessionResource), options?.partId) };
 		this.logService.trace(`[SessionsView] openSession requested uri=${sessionResource.toString()}`);
 		// Claim the open before resolving: resolution can take seconds for a legacy
 		// Copilot CLI resource, and a newer open must win regardless of which
 		// resolution finishes first.
-		this._cancelRestore();
-		this._beginNavigation(intent);
-		const token = this._startOpenSession();
+		this._cancelRestore(options.partId);
+		this._beginNavigation(intent, options.partId);
+		const navigation = this.navigationRequest.get();
+		const token = this._startOpenSession(options.partId);
 		await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async telemetryAttempt => {
 			// Redirect a superseded resource (legacy session adopted into another
 			// provider) before lookup, so an open by URI migrates rather than reaching
@@ -980,16 +1273,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.activeSession.get()?.sessionId === sessionData.sessionId,
 				sessionData.loading.get(),
 			);
-			this._showSession(sessionData, options);
+			this._showSession(sessionData, options, this.navigationRequest.get() === navigation);
 			await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
 		});
 	}
 
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
-		this._cancelRestore();
-		this._beginNavigation('explicit');
-		this._startOpenSession();
-		this._showSession(this._getSession(sessionResource), options);
+		const session = this._getSession(sessionResource);
+		const partId = this.getTargetPartId(session);
+		this._cancelRestore(partId);
+		this._beginNavigation('explicit', partId);
+		this._startOpenSession(partId);
+		this._showSession(session, { ...options, partId });
 	}
 
 	async canOpenSession(session: ISession): Promise<boolean> {
@@ -1035,11 +1330,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return true;
 	}
 
-	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI; referenceSessionId?: string }): Promise<void> {
+	openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI; referenceSessionId?: string }): Promise<void> {
+		return this.withSessionMove([session], isCurrent => this.doOpenSessionToSide(session, options, isCurrent));
+	}
+
+	private async doOpenSessionToSide(session: ISession, options: (IOpenSessionOptions & { chatResource?: URI; referenceSessionId?: string }) | undefined, isCurrent: () => boolean): Promise<void> {
+		const partId = options?.referenceSessionId !== undefined ? this._visibility.getPartId(options.referenceSessionId) : options?.partId ?? this.getTargetPartId();
 		const referenceWasVisible = options?.referenceSessionId !== undefined && !!this._visibility.getSlot(options.referenceSessionId);
-		this._cancelRestore();
-		this._beginNavigation('explicit');
-		const token = this._startOpenSession();
+		this._cancelRestore(partId);
+		this._beginNavigation('explicit', partId);
+		const navigation = this.navigationRequest.get();
+		const token = this._startOpenSession(partId);
 		session = this.sessionsManagementService.getSession(session.resource) ?? session;
 		// Redirect a superseded resource before inserting a slot, so the side-by-side
 		// view/terminal never briefly binds to the old facade.
@@ -1055,14 +1356,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return;
 		}
 		await this.sessionsProvidersService.getProvider(session.providerId)?.prepareSessionForOpen?.(session, 'open');
-		if (token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
+		if (token.isCancellationRequested || !isCurrent() || !this.areGridSessionsCurrent([session])) {
 			return;
 		}
-		const visible = this.visibleSessions.get();
+		const visible = this._visibility.getVisibleSessions(partId);
 		if (referenceWasVisible && !this._visibility.getSlot(options?.referenceSessionId)) {
 			return;
 		}
-		if (options?.forceMainChat && !options.chatResource && visible.some(candidate => candidate?.sessionId === session.sessionId)) {
+		if (options?.forceMainChat && !options.chatResource && this._visibility.getSlot(session.sessionId)) {
 			await this.openChatToSide(session, session.mainChat.get().resource, { preserveFocus: options.preserveFocus });
 			return;
 		}
@@ -1072,15 +1373,35 @@ export class SessionsService extends Disposable implements ISessionsService {
 				return;
 			}
 			this.sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this.activeSession.get()?.sessionId === session.sessionId, session.loading.get());
-			transaction(() => {
+			const existing = this.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId);
+			const commit = () => transaction(() => {
+				if (existing) {
+					this._cancelRestore(this.getSessionPartId(existing));
+				}
 				if (reference && reference.sessionId !== session.sessionId) {
 					this._visibility.insertAt(session, reference.sessionId, 'right', false);
+				} else if (!reference && partId !== MAIN_SESSIONS_PART) {
+					if (!this._visibility.getSlot(session.sessionId)) {
+						this._visibility.appendToPart(session, partId);
+					}
+					this._visibility.moveToPart([session.sessionId], partId);
+				} else if (!reference && existing && this.getSessionPartId(existing) !== partId) {
+					this._visibility.insertAt(session, undefined, 'right', false);
 				}
 				this._applyActiveChatSelection(session, options);
-				this._showSession(session, options);
+				this._showSession(session, { ...options, partId }, this.navigationRequest.get() === navigation);
 			});
+			if (existing && this.getSessionPartId(existing) !== partId) {
+				this.sessionsPartService.transferSessions([existing], partId, commit);
+			} else {
+				commit();
+			}
+			this.closeEmptyAuxiliaryParts();
+			if (!options?.preserveFocus && this.navigationRequest.get() === navigation) {
+				this.sessionsPartService.focusSession(this.activeSession.get());
+			}
 			if (options?.chatResource) {
-				await this._openChat(session, options.chatResource, options.preserveFocus, token, Date.now(), attempt);
+				await this._openChat(session, options.chatResource, options.preserveFocus, token, Date.now(), attempt, partId, this.navigationRequest.get() === navigation);
 			} else {
 				await this._waitForOpenSessionToLoad(session, token, attempt);
 			}
@@ -1122,13 +1443,32 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return true;
 	}
 
-	async openSessionsAt(sessions: readonly ISession[], referenceSessionId: string | undefined, direction: SessionGridDirection, options?: IOpenSessionsOptions): Promise<void> {
-		this._cancelRestore();
-		this._beginNavigation('explicit');
-		const token = this._startOpenSession();
+	openSessionsAt(sessions: readonly ISession[], referenceSessionId: string | undefined, direction: SessionGridDirection, options?: IOpenSessionsOptions): Promise<void> {
+		return this.withSessionMove(sessions, isCurrent => this.doOpenSessionsAt(sessions, referenceSessionId, direction, options, isCurrent));
+	}
+
+	private async doOpenSessionsAt(sessions: readonly ISession[], referenceSessionId: string | undefined, direction: SessionGridDirection, options: IOpenSessionsOptions | undefined, isCurrent: () => boolean): Promise<void> {
+		const partId = referenceSessionId !== undefined ? this._visibility.getPartId(referenceSessionId) : options?.partId ?? MAIN_SESSIONS_PART;
+		const emptyTarget = referenceSessionId === undefined && partId !== MAIN_SESSIONS_PART && this._visibility.getVisibleSessions(partId).length === 0;
+		const referenceView = this.sessionsPartService.getSessionView(referenceSessionId);
+		const referenceIsCurrent = () => emptyTarget
+			? this._visibility.getVisibleSessions(partId).length === 0
+			: !!this._visibility.getSlot(referenceSessionId)
+			&& this._visibility.getPartId(referenceSessionId) === partId
+			&& this.sessionsPartService.getSessionView(referenceSessionId) === referenceView;
+		this._cancelRestore(partId);
+		this._beginNavigation('explicit', partId);
+		const navigation = this.navigationRequest.get();
+		const token = this._startOpenSession(partId);
 		const prepared = await this.prepareGridSessions(sessions, token);
-		if (!prepared || token.isCancellationRequested || !this._visibility.getSlot(referenceSessionId) || !this.areGridSessionsCurrent(prepared)) {
+		if (!prepared || token.isCancellationRequested || !isCurrent() || !referenceIsCurrent() || !this.areGridSessionsCurrent(prepared)) {
 			return;
+		}
+		if (partId !== MAIN_SESSIONS_PART && !this.sessionsPartService.getPart(partId)) {
+			throw new Error(localize('sessions.targetWindowClosed', "The destination window was closed before the session could be moved."));
+		}
+		if (partId !== MAIN_SESSIONS_PART) {
+			this.ensureMovableSessions(prepared);
 		}
 		const primary = options?.activate === 'last' ? prepared.at(-1) : prepared[0];
 		if (!primary) {
@@ -1137,31 +1477,50 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const splitMainChat = options?.activate !== false && options?.forceMainChat && !!this._visibility.getSlot(primary.sessionId);
 		const entries = prepared.filter(session => session.sessionId !== referenceSessionId && (!splitMainChat || session !== primary));
 		const open = async (attempt?: ISessionOpenTelemetryAttempt): Promise<void> => {
-			if (token.isCancellationRequested || !this.areGridSessionsCurrent(prepared)) {
+			if (token.isCancellationRequested || !isCurrent() || !referenceIsCurrent() || !this.areGridSessionsCurrent(prepared)) {
 				return;
 			}
 			if (attempt) {
 				this.sessionOpenTelemetryService.sessionResolved(attempt, primary.resource, primary.providerId, this.activeSession.get()?.sessionId === primary.sessionId, primary.loading.get());
 			}
-			transaction(() => {
-				const ordered = direction === 'right' || direction === 'down' ? [...entries].reverse() : entries;
+			const moving = this.visibleSessions.get().filter((session): session is IActiveSession => !!session && entries.some(entry => entry.sessionId === session.sessionId) && this.getSessionPartId(session) !== partId);
+			const commit = () => transaction(() => {
+				for (const session of moving) {
+					this._cancelRestore(this.getSessionPartId(session));
+				}
+				const ordered = !emptyTarget && (direction === 'right' || direction === 'down') ? [...entries].reverse() : entries;
 				for (const session of ordered) {
-					this._visibility.insertAt(session, referenceSessionId, direction, false);
+					if (emptyTarget) {
+						if (!this._visibility.getSlot(session.sessionId)) {
+							this._visibility.appendToPart(session, partId);
+						}
+					} else {
+						this._visibility.insertAt(session, referenceSessionId, direction, false);
+					}
+				}
+				if (emptyTarget) {
+					this._visibility.moveToPart(entries.map(session => session.sessionId), partId);
 				}
 				if (options?.activate !== false) {
 					if (!splitMainChat) {
 						this._applyActiveChatSelection(primary, options);
 					}
-					this._showSession(primary, options);
+					this._showSession(primary, { ...options, partId }, this.navigationRequest.get() === navigation);
 				}
 			});
+			if (moving.length) {
+				this.sessionsPartService.transferSessions(moving, partId, commit);
+			} else {
+				commit();
+			}
+			this.closeEmptyAuxiliaryParts();
 			if (splitMainChat) {
-				await this._showChatToSide(primary, primary.mainChat.get().resource, options);
+				await this._showChatToSide(primary, primary.mainChat.get().resource, options, token, () => this.navigationRequest.get() === navigation);
 				if (token.isCancellationRequested) {
 					return;
 				}
 			}
-			if (options?.activate !== false && !options?.preserveFocus) {
+			if (options?.activate !== false && !options?.preserveFocus && this.navigationRequest.get() === navigation) {
 				this.sessionsPartService.focusSession(this.activeSession.get());
 			}
 			if (attempt) {
@@ -1175,31 +1534,55 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
-	async openSessionsInGrid(sessions: readonly ISession[]): Promise<void> {
-		this._cancelRestore();
-		this._beginNavigation('explicit');
-		const token = this._startOpenSession();
+	openSessionsInGrid(sessions: readonly ISession[]): Promise<void> {
+		return this.withSessionMove(sessions, isCurrent => this.doOpenSessionsInGrid(sessions, isCurrent));
+	}
+
+	private async doOpenSessionsInGrid(sessions: readonly ISession[], isCurrent: () => boolean): Promise<void> {
+		const partId = this.getTargetPartId();
+		this._cancelRestore(partId);
+		this._beginNavigation('explicit', partId);
+		const navigation = this.navigationRequest.get();
+		const token = this._startOpenSession(partId);
 		const prepared = await this.prepareGridSessions(sessions, token);
-		if (!prepared || token.isCancellationRequested || !prepared.length || !this.areGridSessionsCurrent(prepared)) {
+		if (!prepared || token.isCancellationRequested || !isCurrent() || !prepared.length || !this.areGridSessionsCurrent(prepared)) {
 			return;
+		}
+		if (partId !== MAIN_SESSIONS_PART) {
+			this.ensureMovableSessions(prepared);
 		}
 		const active = this.activeSession.get();
 		const slots = prepared.map(session => ({ session, sticky: this._visibility.getSlot(session.sessionId)?.sticky ?? false }));
-		transaction(tx => {
-			this._visibility.restoreGrid(slots, Math.max(0, prepared.findIndex(session => session.sessionId === active?.sessionId)));
-			this._gridRequest.set({ type: 'arrange' }, tx);
+		const moving = this.visibleSessions.get().filter((session): session is IActiveSession => !!session && prepared.some(candidate => candidate.sessionId === session.sessionId) && this.getSessionPartId(session) !== partId);
+		const commit = () => transaction(tx => {
+			if (moving.length) {
+				for (const session of moving) {
+					this._cancelRestore(this.getSessionPartId(session));
+				}
+				this._visibility.moveToPart(moving.map(session => session.sessionId), partId);
+			}
+			this._visibility.restoreGrid(slots, Math.max(0, prepared.findIndex(session => session.sessionId === active?.sessionId)), partId, this.navigationRequest.get() === navigation);
+			this._gridRequest.set({ type: 'arrange', partId }, tx);
 		});
+		if (moving.length) {
+			this.sessionsPartService.transferSessions(moving, partId, commit);
+		} else {
+			commit();
+		}
+		this.closeEmptyAuxiliaryParts();
 	}
 
 	arrangeSessions(): void {
-		this._cancelRestore();
-		this._startOpenSession();
-		this._gridRequest.set({ type: 'arrange' }, undefined);
+		const partId = this.getTargetPartId();
+		this._cancelRestore(partId);
+		this._startOpenSession(partId);
+		this._gridRequest.set({ type: 'arrange', partId }, undefined);
 	}
 
 	focusSessionInDirection(session: IActiveSession | undefined, direction: Direction): void {
-		this._cancelRestore();
-		this._startOpenSession();
+		const partId = this.getSessionPartId(session);
+		this._cancelRestore(partId);
+		this._startOpenSession(partId);
 		const neighbor = this.sessionsPartService.getNeighborSession(session?.sessionId, direction);
 		if (neighbor !== undefined) {
 			this.setActive(neighbor ?? undefined);
@@ -1208,8 +1591,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	moveSessionInDirection(session: IActiveSession | undefined, direction: Direction): void {
-		this._cancelRestore();
-		this._startOpenSession();
+		const partId = this.getSessionPartId(session);
+		this._cancelRestore(partId);
+		this._startOpenSession(partId);
 		const neighbor = this.sessionsPartService.getNeighborSession(session?.sessionId, direction);
 		if (neighbor !== undefined) {
 			this.insertAt(session, neighbor?.sessionId, toSessionGridDirection(direction));
@@ -1217,8 +1601,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	resizeSession(session: IActiveSession | undefined, direction: Direction): void {
-		this._cancelRestore();
-		this._startOpenSession();
+		const partId = this.getSessionPartId(session);
+		this._cancelRestore(partId);
+		this._startOpenSession(partId);
 		this.sessionsPartService.resizeSession(session?.sessionId, direction, 40);
 	}
 
@@ -1229,24 +1614,30 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * `resolveSessionResource` hook, not a scheme check.
 	 */
 	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
-		this._beginNavigation('explicit');
-		const token = this._startOpenSession();
+		const partId = this.getTargetPartId(session);
+		this._beginNavigation('explicit', partId);
+		const navigation = this.navigationRequest.get();
+		const token = this._startOpenSession(partId);
 		const resolved = await this._resolveSessionForOpen(session, chatResource);
 		if (token.isCancellationRequested) {
 			return;
 		}
 		session = resolved.session;
 		chatResource = resolved.chatUri ?? chatResource;
-		await this._showChatToSide(session, chatResource, options);
+		await this._showChatToSide(session, chatResource, options, token, () => this.navigationRequest.get() === navigation);
 	}
 
-	private async _showChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
-		this._showSession(this._getSession(session.resource), options);
+	private async _showChatToSide(session: ISession, chatResource: URI, options: { preserveFocus?: boolean; referenceChatResource?: URI } | undefined, token: CancellationToken, shouldActivate: () => boolean): Promise<void> {
+		this._showSession(this._getSession(session.resource), options, shouldActivate());
 		const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
 		if (!sessionView) {
 			throw new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`);
 		}
-		await sessionView.openChatToSide(chatResource, options?.referenceChatResource);
+		await sessionView.openChatToSide(chatResource, options?.referenceChatResource, async () => {
+			if (!token.isCancellationRequested) {
+				await this._openChat(session, chatResource, options?.preserveFocus || !shouldActivate(), token, Date.now(), undefined, this.getSessionPartId(session), shouldActivate());
+			}
+		}, options?.preserveFocus || !shouldActivate());
 	}
 
 	/**
@@ -1277,11 +1668,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return sessionData;
 	}
 
-	private _showSession(sessionData: ISession, options?: { preserveFocus?: boolean }): void {
+	private _showSession(sessionData: ISession, options?: IOpenSessionOptions, activatePart = true): void {
 		const t0 = Date.now();
 		this.logService.trace(`[SessionsView] openSession start uri=${sessionData.resource.toString()} provider=${sessionData.providerId}`);
 
-		this._activate(sessionData, options?.preserveFocus);
+		const alreadyActive = this.activeSession.get()?.sessionId === sessionData.sessionId;
+		this._activate(sessionData, options?.preserveFocus, options?.partId, activatePart);
+		if (activatePart && alreadyActive && !options?.preserveFocus) {
+			this.sessionsPartService.focusSession(this.activeSession.get());
+		}
 		this.logService.trace(`[SessionsView] showSession done total=${Date.now() - t0}ms uri=${sessionData.resource.toString()}`);
 	}
 
@@ -1311,8 +1706,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {
+		const activatePart = !options?.preserveNavigation || this.getSessionPartId(this.activeSession.get()) === MAIN_SESSIONS_PART;
 		if (options?.cancelRestore) {
-			this._cancelRestore();
+			this._cancelRestore(MAIN_SESSIONS_PART);
 		}
 		const folderUri = options?.folderUri;
 		if (folderUri) {
@@ -1340,8 +1736,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (token.isCancellationRequested) {
 				return { session: undefined, trustDeclined: false };
 			}
-			this._beginNavigation(intent, token, options?.preserveNavigation);
-			this._startOpenSession();
+			this._beginNavigation(intent, MAIN_SESSIONS_PART, token, options?.preserveNavigation);
+			this._startOpenSession(MAIN_SESSIONS_PART);
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
 				if (options?.requireDevContainer) {
@@ -1357,7 +1753,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 						throw error;
 					}
 				}
-				this._activateOrInsert(session, options?.toSide);
+				this._activateOrInsert(session, options?.toSide, activatePart);
 				return { session, trustDeclined: false };
 			} catch (e) {
 				// When the folder cannot be resolved (e.g. the active session's
@@ -1371,13 +1767,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// the new-session composer view.
 		// No-op when the empty new-session placeholder is active, unless opening to the side.
 		if (!folderUri) {
-			this._beginNavigation(intent, token, options?.preserveNavigation);
+			this._beginNavigation(intent, MAIN_SESSIONS_PART, token, options?.preserveNavigation);
 		}
 		if (this._visibility.activeSession.get() === undefined && !options?.toSide) {
 			return { session: undefined, trustDeclined: false };
 		}
 		if (!folderUri) {
-			this._startOpenSession();
+			this._startOpenSession(MAIN_SESSIONS_PART);
 		}
 
 		// Restore the in-progress new session if one exists, so pickers re-derive
@@ -1385,20 +1781,20 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// active session (first time / after send).
 		const newSession = this.sessionsManagementService.newSession.get();
 
-		const activeSession = this._visibility.activeSession.get();
+		const activeSession = this._visibility.getSelectedSession(MAIN_SESSIONS_PART);
 		const targetSession = options?.toSide && newSession?.sessionId === activeSession?.sessionId
 			? undefined
 			: newSession;
-		this._activateOrInsert(targetSession, options?.toSide);
+		this._activateOrInsert(targetSession, options?.toSide, activatePart);
 		return { session: targetSession, trustDeclined: false };
 	}
 
 	/** Open or move beside the active session when requested, keeping a single empty slot. */
-	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined): void {
-		const activeSessionId = this._visibility.activeSession.get()?.sessionId;
+	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined, activatePart = true): void {
+		const activeSessionId = this._visibility.getSelectedSession(MAIN_SESSIONS_PART)?.sessionId;
 		const sessionId = session?.sessionId;
 		if (toSide && activeSessionId !== sessionId) {
-			const visible = this.visibleSessions.get();
+			const visible = this.mainVisibleSessions.get();
 			// An empty active slot has no id; fall back to the rightmost session.
 			const anchorId = activeSessionId ?? visible[visible.length - 1]?.sessionId;
 			if (anchorId && anchorId !== sessionId) {
@@ -1406,7 +1802,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				return;
 			}
 		}
-		this._activate(session);
+		this._activate(session, !activatePart, MAIN_SESSIONS_PART, activatePart);
 	}
 
 	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false): IActiveSession | undefined {
@@ -1414,11 +1810,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent): IActiveSession | undefined {
-		this._beginNavigation(intent);
-		this._startOpenSession();
+		const activatePart = intent === 'explicit' || this.getSessionPartId(this.activeSession.get()) === MAIN_SESSIONS_PART;
+		this._beginNavigation(intent, MAIN_SESSIONS_PART);
+		this._startOpenSession(MAIN_SESSIONS_PART);
 		try {
 			const session = this.sessionsManagementService.createQuickChat(options);
-			return this._activate(session);
+			return this._activate(session, !activatePart, MAIN_SESSIONS_PART, activatePart);
 		} catch (e) {
 			// No provider supports quick chats: leave whatever was visible as-is
 			// rather than activating an unrelated workspace-bound draft.
@@ -1428,11 +1825,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async openNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<void> {
-		this._cancelRestore();
-		this._beginNavigation('explicit');
-		this._startOpenSession();
+		const partId = this.getTargetPartId(session);
+		this._cancelRestore(partId);
+		this._beginNavigation('explicit', partId);
+		const token = this._startOpenSession(partId);
 		const chat = await this.sessionsManagementService.createNewChatInSession(session, options);
-		if (!chat) {
+		if (!chat || token.isCancellationRequested) {
 			return;
 		}
 
@@ -1444,8 +1842,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	setActive(session: IActiveSession | undefined): void {
 		if (session?.sessionId !== this.activeSession.get()?.sessionId) {
-			this._cancelRestore();
-			this._startOpenSession();
+			const partId = this.getSessionPartId(session);
+			this._cancelRestore(partId);
+			this._startOpenSession(partId);
 			this._recordNavigation();
 		}
 		this._activate(session);
@@ -1471,21 +1870,37 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	toggleSessionStickiness(session: ISession): void {
-		this._cancelRestore();
-		this._startOpenSession();
+		const partId = this.getSessionPartId(session);
+		this._cancelRestore(partId);
+		this._startOpenSession(partId);
 		const sticky = this._visibility.toggleStickiness(session);
 		this._onDidToggleSessionStickiness.fire({ session, sticky });
 	}
 
 	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: SessionGridDirection, activate: boolean = true): void {
-		this._cancelRestore();
-		this._startOpenSession();
-		this._visibility.insertAt(session, targetSessionId, side, activate);
+		if (session) {
+			this._sessionMoves.delete(session.sessionId);
+		}
+		const partId = this._visibility.getPartId(targetSessionId);
+		this._cancelRestore(partId);
+		this._startOpenSession(partId);
+		const wrapper = this.visibleSessions.get().find(candidate => candidate?.sessionId === session?.sessionId);
+		const commit = () => this._visibility.insertAt(session, targetSessionId, side, activate);
+		if (wrapper && this.getSessionPartId(wrapper) !== partId) {
+			this.sessionsPartService.transferSessions([wrapper], partId, commit);
+		} else {
+			commit();
+		}
+		this.closeEmptyAuxiliaryParts();
 	}
 
 	closeSession(session: ISession | undefined): void {
-		this._cancelRestore();
-		this._startOpenSession();
+		if (session) {
+			this._sessionMoves.delete(session.sessionId);
+		}
+		const partId = this.getSessionPartId(session);
+		this._cancelRestore(partId);
+		this._startOpenSession(partId);
 		const sessionId = session?.sessionId;
 		const visible = this._visibility.visibleSessions.get();
 		if (!visible.some(s => s?.sessionId === sessionId)) {
@@ -1510,6 +1925,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this.sessionsManagementService.discardNewSession(session);
 
 		this._visibility.removeMany([sessionId]);
+		this.closeEmptyAuxiliaryParts();
 
 		if (!wasActive) {
 			return;
@@ -1524,21 +1940,28 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	closeAllSessions(): void {
-		this._cancelRestore();
-		this._startOpenSession();
-		const ids = this._visibility.visibleSessions.get()
+		const partId = this.getTargetPartId();
+		this._cancelRestore(partId);
+		this._startOpenSession(partId);
+		const ids = this._visibility.getVisibleSessions(partId)
 			.filter((s): s is IActiveSession => !!s)
 			.map(s => s.sessionId);
 		if (ids.length === 0) {
 			return;
 		}
 
-		this.sessionsManagementService.discardNewSession();
+		if (partId === MAIN_SESSIONS_PART) {
+			this.sessionsManagementService.discardNewSession();
+		}
 
 		// Remove every visible session in a single pass; the visibility model
 		// clears the active session, which drives the grid back to the
 		// new-session view via the reconcile autorun.
 		this._visibility.removeMany(ids);
+		for (const id of ids) {
+			this._sessionMoves.delete(id);
+		}
+		this.closeEmptyAuxiliaryParts();
 	}
 
 	private _restoreInitialChat(session: ISession): IChat {
@@ -1623,6 +2046,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private _saveSessionStates(): void {
+		this.sessionsPartService.flushState();
 		const entries = this._snapshotVisibleSessionStates();
 
 		// Also persist the per-session state (closed chats, last active chat) of
@@ -1647,16 +2071,29 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 
 		this.storageService.store(ACTIVE_SESSION_STATES_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		if (this._restoringGridState) {
-			// The rendered grid is only a projection until pending providers resolve.
-			this.storageService.store(SESSION_GRID_STATE_KEY, JSON.stringify(this._restoringGridState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			return;
+		const snapshots = new Map(this._restoringWindows);
+		const partIds = new Set([MAIN_SESSIONS_PART, ...this.sessionsPartService.getParts().map(part => part.partId)]);
+		for (const id of partIds) {
+			const layout = id === MAIN_SESSIONS_PART && this._restoringGridState ? this._restoringGridState : snapshots.get(id)?.layout ?? this.snapshotGrid(id);
+			if (layout) {
+				snapshots.set(id, { id, layout, window: this.sessionsPartService.getAuxiliaryWindowState(id) });
+			}
 		}
-		const grid = this.sessionsPartService.getGridLayout();
+		if (snapshots.size === 1 && snapshots.has(MAIN_SESSIONS_PART)) {
+			this.storageService.store(SESSION_GRID_STATE_KEY, JSON.stringify(snapshots.get(MAIN_SESSIONS_PART)!.layout), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		} else if (snapshots.size) {
+			const activePart = this.getSessionPartId(this.activeSession.get());
+			const state: ISessionWindowsState = { version: 2, parts: [...snapshots.values()], activePart: snapshots.has(activePart) ? activePart : MAIN_SESSIONS_PART };
+			this.storageService.store(SESSION_GRID_STATE_KEY, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+	}
+
+	private snapshotGrid(partId: string): ISessionGridState | undefined {
+		const grid = this.sessionsPartService.getGridLayout(partId);
 		if (grid) {
-			const visible = this.visibleSessions.get();
-			const slots = this._visibility.getGridSlots();
-			const activeId = this.activeSession.get()?.sessionId;
+			const visible = this._visibility.getVisibleSessions(partId);
+			const slots = this._visibility.getGridSlots(partId);
+			const activeId = this._visibility.getSelectedSession(partId)?.sessionId;
 			const activeIndex = Math.max(0, visible.findIndex(session => session?.sessionId === activeId));
 			const composerIndex = !visible[activeIndex]?.isCreated.get() ? activeIndex : visible.findIndex(session => !session?.isCreated.get());
 			const bindings: ISessionGridState['sessions'][number][] = [];
@@ -1671,9 +2108,23 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const projected = projectSessionGrid(grid, id => bindings.some(binding => binding.id === id) ? id : undefined);
 			const active = slots[activeIndex].id;
 			if (projected) {
-				const state: ISessionGridState = { version: 1, grid: projected, sessions: bindings, active: bindings.some(binding => binding.id === active) ? active : bindings[0].id };
-				this.storageService.store(SESSION_GRID_STATE_KEY, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				return { version: 1, grid: projected, sessions: bindings, active: bindings.some(binding => binding.id === active) ? active : bindings[0].id };
 			}
+		}
+		return undefined;
+	}
+
+	private loadWindowsState(): ISessionWindowsState | undefined {
+		const raw = this.storageService.get(SESSION_GRID_STATE_KEY, StorageScope.WORKSPACE);
+		if (!raw) {
+			return undefined;
+		}
+		try {
+			const value: unknown = JSON.parse(raw);
+			return isSessionWindowsState(value) ? value : undefined;
+		} catch (error) {
+			this.logService.warn('[SessionsView] Failed to read session window state', error);
+			return undefined;
 		}
 	}
 
@@ -1800,21 +2251,79 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async restoreVisibleSessions(): Promise<void> {
-		this._cancelRestore();
+		this._cancelRestore(MAIN_SESSIONS_PART);
 		const cts = new CancellationTokenSource();
 		this._restoreCts.value = cts;
+		let mainComplete = false;
 		try {
-			await this._restoreVisibleSessions(cts.token);
+			const windows = this.loadWindowsState();
+			if (windows) {
+				for (const part of windows.parts) {
+					this._restoringWindows.set(part.id, part);
+				}
+				await Promise.all(windows.parts.map(async part => {
+					if (part.id === MAIN_SESSIONS_PART) {
+						mainComplete = await this._restoreVisibleSessions(cts.token, part.layout, part.id, windows.activePart === part.id);
+						if (mainComplete) {
+							this._restoringWindows.delete(part.id);
+						}
+					} else {
+						await this.restoreAuxiliaryPart(part, windows.activePart === part.id);
+					}
+				}));
+			} else {
+				mainComplete = await this._restoreVisibleSessions(cts.token, this.loadGridState());
+			}
 		} finally {
 			if (this._restoreCts.value === cts) {
-				this._restoringGridState = undefined;
+				if (mainComplete) {
+					this._restoringGridState = undefined;
+				}
 				this._restoreCts.clear();
 			}
 			this._initialRestoreComplete.set(true, undefined);
 		}
 	}
 
-	private async _restoreVisibleSessions(token: CancellationToken): Promise<void> {
+	private async restoreAuxiliaryPart(state: ISessionWindowState, activate: boolean, preserveSelection = false): Promise<void> {
+		const cts = new CancellationTokenSource();
+		this._auxiliaryRestoreCts.get(state.id)?.cancel();
+		this._auxiliaryRestoreCts.set(state.id, cts);
+		try {
+			const options = state.window;
+			await (this.sessionsPartService.getPart(state.id) ?? this.sessionsPartService.createAuxiliaryPart(options && {
+				bounds: options.bounds,
+				mode: options.mode,
+				zoomLevel: options.zoomLevel,
+				alwaysOnTop: options.alwaysOnTop,
+			}, state.id));
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+			const complete = await this._restoreVisibleSessions(cts.token, state.layout, state.id, activate, preserveSelection);
+			if (complete) {
+				this._restoringWindows.delete(state.id);
+			} else if (!cts.token.isCancellationRequested) {
+				this.logService.warn('[SessionsView] Keeping unresolved auxiliary session bindings for provider recovery');
+			}
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.logService.error('[SessionsView] Failed to restore auxiliary session window', error);
+				this.notificationService.prompt(Severity.Warning, localize('sessions.restoreWindowFailed', "A Sessions window could not be restored. Its saved sessions and layout have been kept."), [{
+					label: localize('sessions.retryWindow', "Retry"),
+					run: () => this.restoreAuxiliaryPart(state, true),
+				}]);
+			}
+		} finally {
+			if (this._auxiliaryRestoreCts.get(state.id) === cts) {
+				this._auxiliaryRestoreCts.deleteAndDispose(state.id);
+			}
+			this.closeEmptyAuxiliaryParts();
+		}
+	}
+
+	private async _restoreVisibleSessions(token: CancellationToken, gridState: ISessionGridState | undefined, partId = MAIN_SESSIONS_PART, activate = true, preserveSelection = false): Promise<boolean> {
+		const navigation = this.navigationRequest.get();
 		// Ordered list of slots to restore: real sessions plus, optionally, the
 		// empty (new-session) slot when it was active.
 		interface IRestoreTarget {
@@ -1825,8 +2334,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 			readonly gridId?: string;
 		}
 
-		const gridState = this.loadGridState();
-		this._restoringGridState = gridState;
+		if (partId === MAIN_SESSIONS_PART) {
+			this._restoringGridState = gridState;
+		}
 		const persisted = this._getVisibleSessionStates();
 		const unresolved: IRestoreTarget[] = gridState ? gridState.sessions.map((binding, index) => ({
 			resource: binding.resource ? URI.parse(binding.resource) : undefined,
@@ -1865,7 +2375,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 
 		if (token.isCancellationRequested) {
-			return;
+			return false;
 		}
 
 		if (targets.length === 0) {
@@ -1875,6 +2385,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		targets.sort((a, b) => a.order - b.order);
 
 		let activeIdx = targets.findIndex(t => t.isActive);
+		if (preserveSelection) {
+			const selected = this._visibility.getSelectedSession(partId)?.resource;
+			const current = selected ? targets.findIndex(target => this.uriIdentityService.extUri.isEqual(target.resource, selected)) : -1;
+			activeIdx = current >= 0 ? current : targets.findIndex(target => target.resource && this.sessionsManagementService.getSession(target.resource));
+		}
 		if (activeIdx < 0) {
 			activeIdx = 0;
 		}
@@ -1886,7 +2401,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const restoreResolved = (preserveActive: boolean): void => {
 			const slots: { session: ISession | undefined; sticky: boolean; gridId?: string }[] = [];
 			let activeIndex = -1;
-			const activeId = this.activeSession.get()?.sessionId;
+			const activeId = this._visibility.getSelectedSession(partId)?.sessionId;
 			for (let index = 0; index < targets.length; index++) {
 				const session = resolved[index];
 				if (session === undefined) {
@@ -1898,7 +2413,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				slots.push({ session: session ?? undefined, sticky: targets[index].isSticky, gridId: targets[index].gridId });
 			}
 			transaction(tx => {
-				this._visibility.restoreGrid(slots, Math.max(0, activeIndex));
+				this._visibility.restoreGrid(slots, Math.max(0, activeIndex), partId, activate && this.navigationRequest.get() === navigation && (!preserveActive || this.getSessionPartId(this.activeSession.get()) === partId));
 				if (gridState) {
 					const ids = new Set(slots.map(slot => slot.gridId));
 					const grid = projectSessionGrid(gridState.grid, id => {
@@ -1906,7 +2421,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 						return ids.has(mapped) ? mapped : undefined;
 					});
 					if (grid) {
-						this._gridRequest.set({ type: 'restore', grid }, tx);
+						this._gridRequest.set({ type: 'restore', grid, partId }, tx);
 					}
 				} else if (persisted.some(state => state.gridLayout === 'grid')) {
 					this._gridRequest.set({ type: 'arrange' }, tx);
@@ -1967,7 +2482,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const activeSession = await activeSessionPromise;
 
 		if (token.isCancellationRequested) {
-			return;
+			return false;
 		}
 		if (activeSession) {
 			const provider = this.sessionsProvidersService.getProvider(activeSession.providerId);
@@ -1994,10 +2509,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 			resolved[idx] = session;
 		}
-		restoreResolved(false);
+		restoreResolved(preserveSelection);
 
 		if (token.isCancellationRequested) {
-			return;
+			return false;
 		}
 
 		// Focus is moved into the restored active session by the reconcile
@@ -2015,6 +2530,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 			place(idx, session);
 		}));
+		if (token.isCancellationRequested) {
+			return false;
+		}
+		for (let index = 0; index < targets.length; index++) {
+			const resource = targets[index].resource;
+			if (resource && resolved[index] === undefined) {
+				const session = this.sessionsManagementService.getSession(resource);
+				if (session) {
+					place(index, session);
+				}
+			}
+		}
+		return resolved.every(session => session !== undefined);
 	}
 
 	// -- Session Navigation --
@@ -2025,6 +2553,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	async openNextSession(): Promise<void> {
 		await this._navigation.goForward();
+	}
+
+	override dispose(): void {
+		this._restoreCts.value?.cancel();
+		for (const source of this._auxiliaryRestoreCts.values()) {
+			source.cancel();
+		}
+		for (const source of this._openSessionCts.values()) {
+			source.cancel();
+		}
+		this._sessionMoves.clear();
+		super.dispose();
 	}
 }
 

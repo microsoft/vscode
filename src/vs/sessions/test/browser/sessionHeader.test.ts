@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -21,6 +20,7 @@ import { ISessionsListModelService } from '../../services/sessions/browser/sessi
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }, mainChatStatus = SessionStatus.Completed) {
 	const store = disposables.add(new DisposableStore());
@@ -40,6 +40,12 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly onDidChangeSessions = Event.None;
 	}());
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+	const dragged: IActiveSession[] = [];
+	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+		override startSessionDrag(_event: PointerEvent, _element: HTMLElement, session: IActiveSession): void {
+			dragged.push(session);
+		}
+	}());
 
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('test-chat://main');
@@ -79,40 +85,26 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	const container = mainWindow.document.createElement('div');
 	container.appendChild(header.element);
 
-	return { store, instantiationService, header, session, activeChat, mainChat, secondChat };
+	return { store, instantiationService, header, session, activeChat, mainChat, secondChat, dragged };
 }
 
 suite('Sessions - Headers', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	// A native drag always fires dragstart with `target` set to the draggable
-	// container itself (not the descendant the gesture began on), so a real
-	// mousedown must precede it for the header's exclusion logic to see it.
-	function simulateDragFrom(header: SessionHeader, gestureOrigin: HTMLElement): DragEvent {
-		gestureOrigin.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, cancelable: true }));
-
-		const dragEvent = new DragEvent(EventType.DRAG_START, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
-		header.element.dispatchEvent(dragEvent);
-		return dragEvent;
-	}
-
 	test('a small pointer move over the title actions toolbar does not start a session drag', () => {
-		const { header } = createHarness(disposables);
+		const { header, dragged } = createHarness(disposables);
 
 		const titleActions = header.element.querySelector<HTMLElement>('.chat-composite-bar-title-actions');
 		assert.ok(titleActions, 'title actions should be rendered');
 
-		const dragEvent = simulateDragFrom(header, titleActions);
-
-		assert.strictEqual(dragEvent.defaultPrevented, true);
+		titleActions.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse', isPrimary: true }));
+		assert.deepStrictEqual(dragged, []);
 	});
 
 	test('a drag starting elsewhere in the header still initiates a session drag', () => {
-		const { header } = createHarness(disposables);
-
-		const dragEvent = simulateDragFrom(header, header.element);
-
-		assert.strictEqual(dragEvent.defaultPrevented, false);
+		const { header, dragged, session } = createHarness(disposables);
+		header.element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse', isPrimary: true }));
+		assert.deepStrictEqual(dragged, [session]);
 	});
 
 	test('activates its chat group before a header action can run', () => {
@@ -126,7 +118,7 @@ suite('Sessions - Headers', () => {
 		});
 
 		header.element.querySelector<HTMLElement>('.chat-composite-bar-title-actions')
-			?.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, cancelable: true }));
+			?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse', isPrimary: true }));
 
 		assert.strictEqual(activationCalls, 1);
 	});

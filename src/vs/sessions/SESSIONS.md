@@ -55,6 +55,8 @@ The model-orchestration service:
 
 It does not own active or visible session state, focus, or layout.
 
+Sending to an existing chat does not discard the pending new-session draft. Every `onWillSendRequest` notification has a matching `onDidFinishSendRequest`, including failed or canceled attempts; successful sends additionally emit `onDidSendRequest`. Presentation followers use the attempt lifetime rather than letting a send in another session clear their state.
+
 ### `ISessionsService`
 
 The view service:
@@ -66,11 +68,15 @@ The view service:
 
 It delegates model lifecycle operations to `ISessionsManagementService`.
 
-Visible-session slots have stable identities independent of list position. The view service coordinates membership, activation, directional placement, cancellation, and persisted leaf bindings; the Sessions Part owns rendering and split geometry. Explicit batch opening resolves and prepares its sessions before committing a visibility change. Geometry and layout operations remain independent of providers and comparison membership. See [LAYOUT.md](LAYOUT.md#sessions-part) for the grid and restoration contract.
+Visible-session slots have stable identities independent of list position and window. One visibility model owns their wrappers and partitions membership, local selection, and replacement candidates by Sessions part. `activeSession` is workbench-wide; `visibleSessions` spans all parts, while `mainVisibleSessions` scopes main-window layout policy. Navigation cancellation is part-scoped, and a later movement of the same session supersedes an earlier in-flight move. Explicit batch opening resolves and prepares its sessions before committing a visibility change. Geometry and layout operations remain independent of providers and comparison membership. See [LAYOUT.md](LAYOUT.md#sessions-part) for rendering, transfer, and restoration ownership.
 
 ### Scoped session context
 
-Surfaces that can represent a session other than the window-global active session use `ISessionContext`. Commands and menus resolve their target through that scope rather than assuming the active session.
+Surfaces that can represent a session other than the workbench-global active session use `ISessionContext`. Commands and menus resolve their target through that scope rather than assuming the active session. Peer-chat composers additionally bind their exact chat, including model selection and persisted draft state, rather than borrowing another group's active chat.
+
+The shared draft-state module owns workspace storage for new-session and per-chat composers. Empty drafts are removed; permanent chat or session deletion clears the corresponding peer drafts after presentation teardown, including saved drafts whose chat catalogue has not loaded.
+
+Session context keys follow the same ownership: the global projection describes the explicitly activated session for shared tools, while each Sessions part, session view, and chat group overrides it with its own selection. Grid context keys (visibility, focus, multiple panes, maximization, and picker availability) are local to each part and mirrored globally from the focused window for Command Palette consumers. Auxiliary-window identity remains locally scoped; a separate focused-window key enables global window commands without exposing auxiliary actions in the main window.
 
 ## Domain model
 

@@ -6,12 +6,94 @@
 import { ISerializedGrid, ISerializedLeafNode, ISerializedNode } from '../../../../base/browser/ui/grid/grid.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IAuxiliaryWindowOpenOptions } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { MAIN_SESSIONS_PART } from './sessionsPartService.js';
 
 export interface ISessionGridState {
 	readonly version: 1;
 	readonly grid: ISerializedGrid;
 	readonly sessions: readonly { readonly id: string; readonly resource?: string; readonly sticky: boolean }[];
 	readonly active: string;
+}
+
+export interface ISessionWindowState {
+	readonly id: string;
+	readonly layout: ISessionGridState;
+	readonly window?: IAuxiliaryWindowOpenOptions;
+}
+
+export interface ISessionWindowsState {
+	readonly version: 2;
+	readonly parts: readonly ISessionWindowState[];
+	readonly activePart: string;
+}
+
+export function isSessionWindowsState(value: unknown): value is ISessionWindowsState {
+	if (!value || typeof value !== 'object' || !('version' in value) || value.version !== 2
+		|| !('parts' in value) || !Array.isArray(value.parts) || !value.parts.length || value.parts.length > 256
+		|| !('activePart' in value) || typeof value.activePart !== 'string') {
+		return false;
+	}
+	const parts = new Set<string>();
+	const slots = new Set<string>();
+	const resources = new Set<string>();
+	for (const part of value.parts) {
+		if (!part || typeof part !== 'object' || typeof part.id !== 'string' || !part.id || parts.has(part.id) || !isSessionGridState(part.layout)) {
+			return false;
+		}
+		parts.add(part.id);
+		if (part.window !== undefined) {
+			const window = part.window;
+			if (!window || typeof window !== 'object' || part.id === MAIN_SESSIONS_PART) {
+				return false;
+			}
+			if (window.bounds !== undefined && (!window.bounds || typeof window.bounds !== 'object'
+				|| ['x', 'y', 'width', 'height'].some(key => typeof window.bounds[key] !== 'number' || !Number.isFinite(window.bounds[key]))
+				|| window.bounds.width <= 0 || window.bounds.height <= 0)) {
+				return false;
+			}
+			if ((window.zoomLevel !== undefined && (typeof window.zoomLevel !== 'number' || !Number.isFinite(window.zoomLevel)))
+				|| (window.mode !== undefined && ![0, 1, 2].includes(window.mode))
+				|| (window.alwaysOnTop !== undefined && typeof window.alwaysOnTop !== 'boolean')) {
+				return false;
+			}
+		}
+		for (const slot of part.layout.sessions) {
+			if (slots.has(slot.id) || (slot.resource ? resources.has(slot.resource) : part.id !== MAIN_SESSIONS_PART)) {
+				return false;
+			}
+			slots.add(slot.id);
+			if (slot.resource) {
+				resources.add(slot.resource);
+			}
+		}
+	}
+	return slots.size <= 256 && parts.has(MAIN_SESSIONS_PART) && parts.has(value.activePart);
+}
+
+/** Join independent grids horizontally without changing either subtree's internal proportions. */
+export function joinSessionGrids(left: ISerializedGrid, right: ISerializedGrid): ISerializedGrid {
+	const subtree = (grid: ISerializedGrid): ISerializedNode => {
+		const projected = projectSessionGrid(grid, id => id)!;
+		const clearMaximized = (node: ISerializedNode): void => {
+			if (node.type === 'branch') {
+				node.data.forEach(clearMaximized);
+			} else {
+				delete node.maximized;
+			}
+		};
+		clearMaximized(projected.root);
+		return grid.orientation === Orientation.VERTICAL
+			? { ...projected.root, size: Math.max(1, grid.width) }
+			: { type: 'branch', size: Math.max(1, grid.width), data: [{ ...projected.root, size: Math.max(1, grid.height) }] };
+	};
+	const height = Math.max(1, left.height, right.height);
+	return {
+		orientation: Orientation.HORIZONTAL,
+		width: Math.max(1, left.width) + Math.max(1, right.width),
+		height,
+		root: { type: 'branch', size: height, data: [subtree(left), subtree(right)] },
+	};
 }
 
 export function isSessionGridLeafData(data: unknown): data is { readonly id: string } {
@@ -107,5 +189,29 @@ export function projectSessionGrid(grid: ISerializedGrid, map: (id: string) => s
 		return data.length ? branch : undefined;
 	};
 	const root = project(grid.root);
-	return root ? { ...grid, root } : undefined;
+	if (!root) {
+		return undefined;
+	}
+	const normalize = (node: ISerializedNode): ISerializedNode => {
+		if (node.type === 'leaf') {
+			return node;
+		}
+		const data: ISerializedNode[] = [];
+		for (const child of node.data.map(normalize)) {
+			// GridView cannot remove the last child of a non-root branch.
+			if (child.type === 'branch' && child.data.length === 1) {
+				const only = child.data[0];
+				if (only.type === 'branch') {
+					const total = only.data.reduce((sum, node) => sum + node.size, 0);
+					data.push(...only.data.map(node => ({ ...node, size: total ? node.size * child.size / total : child.size / only.data.length })));
+				} else {
+					data.push({ ...only, size: child.size });
+				}
+			} else {
+				data.push(child);
+			}
+		}
+		return { ...node, data };
+	};
+	return { ...grid, root: normalize(root) };
 }

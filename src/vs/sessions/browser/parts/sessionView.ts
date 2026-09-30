@@ -20,7 +20,7 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../services/sessions/common/session.js';
 import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
-import { ChatGroupsView } from './chatGroupsView.js';
+import { ChatGroupsView, IChatGroupsTransferState } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
 import { autorun, derived, disposableObservableValue, observableValue } from '../../../base/common/observable.js';
@@ -36,7 +36,9 @@ import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '.
  * Options passed to {@link SessionView.openSession}. Extends the chat view
  * options so they can be forwarded to the new-chat views the host creates.
  */
-export interface ISessionViewOptions extends IChatViewOptions { }
+export interface ISessionViewOptions extends IChatViewOptions {
+	readonly transferState?: IChatGroupsTransferState;
+}
 
 /**
  * A stable single-slot grid leaf for the Sessions Part. `SessionsPart`
@@ -100,6 +102,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		: noSessionPickerVisibility);
 
 	constructor(
+		parent: HTMLElement,
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -107,6 +110,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		@ISessionChangesStatsCache private readonly _changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super();
+		parent.appendChild(this.element);
 
 		this.element.setAttribute('role', 'region');
 		this._register(autorun(reader => {
@@ -189,6 +193,10 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._currentSession = session;
 		this._sessionObs.set(session, undefined);
 		this._openSessionDisposables.clear();
+		if (options.transferState) {
+			this._openSessionDisposables.add(options.transferState);
+			options = { ...options, transferStates: options.transferState.views };
+		}
 
 		this._openSessionDisposables.add(this._handleContextKeys(session));
 
@@ -197,7 +205,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			this._groupsView.setSession(undefined, options);
 			let view = this._standaloneView.get();
 			if (!view || view.kind !== 'newSession') {
-				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
+				view = this._chatViewFactory.createNewChatView(this._contentContainer, false, options, this._scopedInstantiationService);
 				this._standaloneView.set(view, undefined);
 			}
 			if (view.element.parentElement !== this._contentContainer) {
@@ -221,7 +229,7 @@ export class SessionView extends Disposable implements ISerializableView {
 						restoreComposerFocus = !!this._preparationView && isAncestorOfActiveElement(this._preparationView.element);
 						this._preparationView = undefined;
 					}));
-					const preparationView = reader.store.add(this._chatViewFactory.createChatView(this._scopedInstantiationService));
+					const preparationView = reader.store.add(this._chatViewFactory.createChatView(this._contentContainer, this._scopedInstantiationService));
 					this._preparationView = preparationView;
 					preparationView.setChat(session.mainChat.read(reader), session.sessionId, session);
 					preparationView.setActive(this._isActive);
@@ -248,7 +256,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			this._showSessionGroups(session, options);
 		} else {
 			this._groupsView.setSession(undefined, options);
-			const view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
+			const view = this._chatViewFactory.createNewChatView(this._contentContainer, false, options, this._scopedInstantiationService);
 			this._standaloneView.set(view, undefined);
 			this._contentContainer.replaceChildren(view.element);
 			view.setActive(this._isActive);
@@ -261,7 +269,7 @@ export class SessionView extends Disposable implements ISerializableView {
 	private _showSessionGroups(session: IActiveSession, options: ISessionViewOptions): void {
 		this._standaloneView.set(undefined, undefined);
 		this._contentContainer.replaceChildren(this._groupsView.element);
-		this._groupsView.setSession(session, options);
+		this._groupsView.setSession(session, options, options.transferState?.layout);
 		this._layoutChildren();
 	}
 
@@ -371,6 +379,26 @@ export class SessionView extends Disposable implements ISerializableView {
 		return this._currentSession;
 	}
 
+	captureTransferState(): IChatGroupsTransferState {
+		if (!this._currentSession?.isCreated.get()) {
+			throw new Error('Only created sessions can be transferred to another window');
+		}
+		const veto = this.getTransferVeto();
+		if (veto) {
+			throw new Error(veto);
+		}
+		return this._groupsView.captureTransferState();
+	}
+
+	getTransferVeto(): string | undefined {
+		return this._groupsView.getTransferVeto() ?? this._visibleStandaloneView?.getTransferVeto();
+	}
+
+	saveState(): void {
+		this._groupsView.saveState();
+		this._standaloneView.get()?.saveState();
+	}
+
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
 		const standaloneView = this._visibleStandaloneView;
 		return standaloneView ? standaloneView.selectWorkspace(folderUri, options) : this._groupsView.selectWorkspace(folderUri, options);
@@ -386,8 +414,8 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	/** Opens the given chat beside a reference chat, or the active group ("open to the side"). */
-	openChatToSide(resource: URI, referenceChatResource?: URI): Promise<void> {
-		return this._groupsView.openChatInNewGroup(resource, referenceChatResource);
+	openChatToSide(resource: URI, referenceChatResource?: URI, openChat?: () => Promise<void>, preserveFocus?: boolean): Promise<void> {
+		return this._groupsView.openChatInNewGroup(resource, referenceChatResource, openChat, preserveFocus);
 	}
 
 	/** Places a freshly created chat (e.g. a side chat) into its own group beside the current one. */

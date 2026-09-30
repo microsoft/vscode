@@ -9,7 +9,7 @@ import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, RefCountedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -32,10 +32,11 @@ import { IVoiceSessionController } from '../../../../workbench/contrib/chat/brow
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { chatPersistentContentVisibleClass, ChatWidget, SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
-import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatInputEditorState } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputEditorState.js';
 import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ChatModel, IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatModel, IChatModel, IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatRequestTextPart } from '../../../../workbench/contrib/chat/common/requestParser/chatParserTypes.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
@@ -45,7 +46,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewTransferState, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
 import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
@@ -69,10 +70,49 @@ import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../se
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { INewChatInputTransferState } from './newChatInput.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 // 14px icon + 6px padding + 4px gap + the 4em (44px) expanded percentage label + breathing room.
 export const EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE = 72;
+
+class ChatViewTransferState extends Disposable implements IChatViewTransferState {
+	readonly kind = 'chat';
+	private readonly ownership: RefCountedDisposable;
+
+	constructor(
+		readonly model: IChatModelReference | undefined,
+		readonly input: ChatInputEditorState,
+		readonly viewState: IChatWidgetViewState,
+		readonly pendingInput: IChatModelInputState | undefined,
+		ownership: RefCountedDisposable,
+	) {
+		super();
+		this.ownership = ownership;
+		this._register(toDisposable(() => this.ownership.release()));
+	}
+
+	acquire(): IChatViewTransferState {
+		this._store.assertNotDisposed();
+		return new ChatViewTransferState(this.model, this.input, this.viewState, this.pendingInput, this.ownership.acquire());
+	}
+}
+
+class NewChatViewTransferState extends Disposable implements IChatViewTransferState {
+	readonly kind = 'newChatInSession';
+	private readonly ownership: RefCountedDisposable;
+
+	constructor(readonly input: INewChatInputTransferState, ownership?: RefCountedDisposable) {
+		super();
+		this.ownership = ownership ?? new RefCountedDisposable(input);
+		this._register(toDisposable(() => this.ownership.release()));
+	}
+
+	acquire(): IChatViewTransferState {
+		this._store.assertNotDisposed();
+		return new NewChatViewTransferState(this.input, this.ownership.acquire());
+	}
+}
 
 /**
  * Returns the total horizontal space the renderer must reserve for Sessions chat items.
@@ -105,6 +145,7 @@ export function isFocusChatPillsKeyDown(event: Pick<IKeyboardEvent, 'keyCode' | 
  */
 export interface INewChatViewOptions extends IChatViewOptions {
 	readonly initialAttachments?: readonly IChatRequestVariableEntry[];
+	readonly inputState?: INewChatInputTransferState;
 }
 
 export class NewChatView extends AbstractChatView {
@@ -118,11 +159,12 @@ export class NewChatView extends AbstractChatView {
 	private readonly _isVisibleObs = observableValue(this, true);
 
 	constructor(
+		parent: HTMLElement,
 		isNewChatInSession: boolean,
 		options: INewChatViewOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super();
+		super(parent);
 
 		this.element.classList.add('chat-view-new');
 		this.kind = isNewChatInSession ? 'newChatInSession' : 'newSession';
@@ -144,6 +186,14 @@ export class NewChatView extends AbstractChatView {
 
 	override focus(): void {
 		this._widget.focusInput();
+	}
+
+	override captureTransferState(): IChatViewTransferState | undefined {
+		return this._widget instanceof NewChatInSessionWidget ? new NewChatViewTransferState(this._widget.captureTransferState()) : undefined;
+	}
+
+	override saveState(): void {
+		this._widget.saveState();
 	}
 
 	override focusWorkspacePicker(): void {
@@ -264,8 +314,13 @@ export class ChatView extends AbstractChatView {
 	 * Keeps post-connect voice controls anchored to the active session view.
 	 */
 	private readonly _voiceInitiatedHereKey: IContextKey<boolean>;
+	private readonly _transferModel = this._register(new MutableDisposable<IChatModelReference>());
+	private _transferViewState: IChatWidgetViewState | undefined;
+	private _transferInput: IChatModelInputState | undefined;
 
 	constructor(
+		parent: HTMLElement,
+		state: ChatViewTransferState | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
@@ -287,7 +342,14 @@ export class ChatView extends AbstractChatView {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
-		super();
+		super(parent);
+		if (state) {
+			this._transferViewState = state.viewState;
+			this._transferInput = state.pendingInput;
+			if (state.model) {
+				this._transferModel.value = this.chatService.acquireExistingSession(state.model.object.sessionResource, 'ChatView transfer');
+			}
+		}
 		this._register(toDisposable(() => this._reportModelUnbound()));
 		this._chatItemHorizontalPadding = getSessionChatItemHorizontalPadding(!!this.chatBackgroundService.getBackground());
 
@@ -320,6 +382,7 @@ export class ChatView extends AbstractChatView {
 				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
 				inputEditorMinLines: 2,
+				inputEditorState: state?.input,
 				isSessionsWindow: true,
 				transcriptTabIndex: -1,
 				enableFind: true,
@@ -342,6 +405,9 @@ export class ChatView extends AbstractChatView {
 				updateExperimentalComposerLayout();
 			}
 		}));
+		if (this._transferInput) {
+			this._widget.attachmentModel.clearAndSetContext(...this._transferInput.attachments);
+		}
 		this._register(this._widget.onDidChangeStickyScrollDomNode(() => this._layoutStickyScrollBackground()));
 		this._register(this.chatBackgroundService.onDidChangeBackground(() => this._updateChatBackground()));
 		this._externalSessionBanner = this._register(scopedInstantiationService.createInstance(
@@ -519,7 +585,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	override dispose(): void {
-		this._saveCurrentViewState();
+		this.saveState();
 		this._loadCts.value?.cancel();
 		super.dispose();
 	}
@@ -538,6 +604,48 @@ export class ChatView extends AbstractChatView {
 	/** The underlying chat widget. */
 	get widget(): ChatWidget {
 		return this._widget;
+	}
+
+	override getTransferVeto(): string | undefined {
+		return this._widget.viewModel?.editing
+			? localize('sessions.finishRequestEdit', "Finish or cancel editing the message before moving this session or closing its window.")
+			: undefined;
+	}
+
+	override captureTransferState(): IChatViewTransferState {
+		const store = new DisposableStore();
+		try {
+			const input = store.add(this._widget.inputPart.captureInputEditorState());
+			const resource = this._currentChatResource;
+			const model = resource ? this.chatService.acquireExistingSession(resource, 'Sessions window handoff') : undefined;
+			if (model) {
+				store.add(model);
+			} else if (resource) {
+				const cts = new CancellationTokenSource();
+				store.add(toDisposable(() => cts.dispose(true)));
+				const token = cts.token;
+				const logService = this.logService;
+				void this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'Sessions loading handoff').then(ref => {
+					if (ref) {
+						store.add(ref);
+					}
+				}, error => {
+					if (!token.isCancellationRequested) {
+						logService.error('[ChatView] Failed to retain a loading session', error);
+					}
+				});
+			}
+			const pendingInput = !this._widget.viewModel || !isEqual(this._widget.viewModel.sessionResource, resource) ? this._widget.inputPart.getCurrentInputState() : undefined;
+			return new ChatViewTransferState(model, input, this._widget.getViewState(), pendingInput, new RefCountedDisposable(store));
+		} catch (error) {
+			store.dispose();
+			throw error;
+		}
+	}
+
+	override saveState(): void {
+		this._widget.inputPart.flushInputStateToModel();
+		this._saveCurrentViewState();
 	}
 
 	override setChat(chat: IChat, historyKey?: string, session?: ISession): void {
@@ -660,9 +768,19 @@ export class ChatView extends AbstractChatView {
 			}
 			this.logService.trace(`[ChatView] setChat model loaded uri=${resource.toString()}`);
 			this._modelRef.value = ref;
+			this._transferModel.clear();
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
+			if (this._transferInput) {
+				const current = this._widget.inputPart.getCurrentInputState();
+				const saved = ref.object.inputModel.state.get();
+				if ((current.inputText || current.attachments.length) && !saved?.inputText && !saved?.attachments.length) {
+					ref.object.inputModel.setState({ ...this._transferInput, inputText: current.inputText, selections: current.selections, attachments: current.attachments });
+				}
+				this._transferInput = undefined;
+			}
 			setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
-			const widgetViewState = this.viewStateService.get(resource);
+			const widgetViewState = this._transferViewState ?? this.viewStateService.get(resource);
+			this._transferViewState = undefined;
 			if (widgetViewState) {
 				this._widget.restoreViewState(widgetViewState);
 			}
@@ -958,11 +1076,17 @@ export class ChatViewFactory implements IChatViewFactory {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService = this.instantiationService): AbstractChatView {
-		return instantiationService.createInstance(NewChatView, isNewChatInSession, options);
+	createNewChatView(parent: HTMLElement, isNewChatInSession: boolean, options: IChatViewOptions, instantiationService = this.instantiationService, state?: IChatViewTransferState): AbstractChatView {
+		if (state && !(state instanceof NewChatViewTransferState)) {
+			throw new Error('Cannot restore incompatible composer view state');
+		}
+		return instantiationService.createInstance(NewChatView, parent, isNewChatInSession, { ...options, inputState: state?.input });
 	}
 
-	createChatView(instantiationService = this.instantiationService): AbstractChatView {
-		return instantiationService.createInstance(ChatView);
+	createChatView(parent: HTMLElement, instantiationService = this.instantiationService, state?: IChatViewTransferState): AbstractChatView {
+		if (state && !(state instanceof ChatViewTransferState)) {
+			throw new Error('Cannot restore incompatible chat view state');
+		}
+		return instantiationService.createInstance(ChatView, parent, state);
 	}
 }

@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationError, errorHandler } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -79,6 +79,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 		let query = 'test request';
 		const sourceOwner = disposables.add(new MutableDisposable());
 		const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
+			_store: disposables.add(new DisposableStore()),
 			_editorContainer: h.element,
 			_editor: { getModel: () => ({ getValue: () => query, setValue: (value: string) => { query = value; } }), updateOptions: () => { } },
 			_sending: false,
@@ -104,6 +105,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 		const owner = {
 			send: Reflect.get(newSession ? NewChatWidget.prototype : NewChatInSessionWidget.prototype, '_send') as Send,
 			_session: constObservable(h.session),
+			_chat: h.activeChat,
 			_feedbackItems: constObservable([]),
 			_isQuickChatComposer: constObservable(false),
 			_workspacePicker: { clearAttachedContext: () => { }, showPicker: () => { } },

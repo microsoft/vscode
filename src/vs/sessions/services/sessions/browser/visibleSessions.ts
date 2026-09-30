@@ -11,7 +11,7 @@ import { IActiveSession } from '../common/sessionsManagement.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
-import { ISessionGridSlot } from './sessionsPartService.js';
+import { ISessionGridSlot, MAIN_SESSIONS_PART } from './sessionsPartService.js';
 
 /**
  * Wraps an {@link ISession} with an active chat observable to form an
@@ -345,9 +345,11 @@ const NO_RECENT = Symbol('no-recent');
 export class VisibleSessions extends Disposable {
 
 	private readonly _gridSlots = new Map<string | undefined, ISessionGridSlot>([[undefined, { id: 'initial' }]]);
+	private readonly _selectedSessions = new Map<string, string | undefined>();
 
-	getGridSlots(): readonly ISessionGridSlot[] {
-		return (this._visibleList.length ? this._visibleList : [undefined]).map(id => {
+	getGridSlots(partId?: string): readonly ISessionGridSlot[] {
+		const ids = partId === undefined ? this._visibleList : this._visibleList.filter(id => this.getPartId(id) === partId);
+		return (ids.length || (partId !== undefined && partId !== MAIN_SESSIONS_PART) ? ids : [undefined]).map(id => {
 			let slot = this._gridSlots.get(id);
 			if (!slot) {
 				slot = { id: generateUuid() };
@@ -357,11 +359,58 @@ export class VisibleSessions extends Disposable {
 		});
 	}
 
+	getPartId(sessionId: string | undefined): string {
+		return this._gridSlots.get(sessionId)?.partId ?? MAIN_SESSIONS_PART;
+	}
+
+	getVisibleSessions(partId: string): readonly (IActiveSession | undefined)[] {
+		return this._visibleSessions.get().filter(session => this.getPartId(session?.sessionId) === partId);
+	}
+
+	getSelectedSession(partId: string): IActiveSession | undefined {
+		const id = this._selectedSessions.get(partId);
+		return id === undefined ? undefined : this._wrappers.get(id);
+	}
+
+	moveToPart(sessionIds: readonly string[], partId: string, select = true): void {
+		if (sessionIds.some(id => !this._visibleList.includes(id))) {
+			throw new Error('Cannot move a session that is not visible');
+		}
+		const moving = [...sessionIds];
+		this._visibleList = [...this._visibleList.filter(id => id === undefined || !moving.includes(id)), ...moving];
+		for (const id of moving) {
+			const slot = this._gridSlots.get(id)!;
+			this._gridSlots.set(id, { id: slot.id, partId });
+		}
+		if (sessionIds.length && (select || !this._selectedSessions.has(partId))) {
+			this._selectedSessions.set(partId, sessionIds[0]);
+		}
+		this._refresh(undefined);
+	}
+
+	appendToPart(session: ISession, partId: string): void {
+		if (this._visibleList.includes(session.sessionId)) {
+			throw new Error('Cannot append a session that is already visible');
+		}
+		this._getOrCreateVisibleSession(session);
+		this._gridSlots.set(session.sessionId, { id: generateUuid(), partId });
+		this._visibleList.push(session.sessionId);
+		this._mostRecentNonStickySlots.set(partId, session.sessionId);
+		if (!this._selectedSessions.has(partId)) {
+			this._selectedSessions.set(partId, session.sessionId);
+		}
+		this._refresh(undefined);
+	}
+
 	private transferGridSlot(from: string | undefined, to: string | undefined): void {
 		const slot = this._gridSlots.get(from);
 		this._gridSlots.delete(from);
 		if (slot) {
 			this._gridSlots.set(to, slot);
+			const partId = slot.partId ?? MAIN_SESSIONS_PART;
+			if (this._selectedSessions.get(partId) === from) {
+				this._selectedSessions.set(partId, to);
+			}
 		}
 	}
 
@@ -398,7 +447,7 @@ export class VisibleSessions extends Disposable {
 	 * - `undefined` refers to the empty slot.
 	 * - A string refers to that session id.
 	 */
-	private _mostRecentNonStickySlot: string | undefined | typeof NO_RECENT = NO_RECENT;
+	private readonly _mostRecentNonStickySlots = new Map<string, string | undefined | typeof NO_RECENT>();
 
 	/**
 	 * @param _onSlotReplaced Reports a session that left the grid because a
@@ -409,7 +458,7 @@ export class VisibleSessions extends Disposable {
 		private readonly _resolveInitialChat: (session: ISession) => IChat,
 		private readonly _resolveInitialClosedChats: (session: ISession) => Iterable<string>,
 		private readonly _resolveInitialShownRelatedChats: (session: ISession) => Iterable<string>,
-		private readonly _onSlotReplaced: (replaced: ISession, index: number, sticky: boolean, replacedBySessionId: string | undefined) => void,
+		private readonly _onSlotReplaced: (replaced: ISession, index: number, sticky: boolean, replacedBySessionId: string | undefined, partId: string) => void,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
@@ -422,6 +471,7 @@ export class VisibleSessions extends Disposable {
 	 * never goes stale (callers that do not preserve focus pass `false`).
 	 */
 	private _setActiveSession(session: IActiveSession | undefined, preserveFocus: boolean, tsx: ITransaction): void {
+		this._selectedSessions.set(this.getPartId(session?.sessionId), session?.sessionId);
 		this._activeSession.set(session, tsx);
 		this._activePreserveFocus.set(preserveFocus, tsx);
 	}
@@ -443,50 +493,65 @@ export class VisibleSessions extends Disposable {
 	 * Returns the wrapper for the active session, or `undefined` when the
 	 * active slot is the empty slot.
 	 */
-	setActive(session: ISession | undefined, preserveFocus: boolean = false): VisibleSession | undefined {
+	setActive(session: ISession | undefined, preserveFocus: boolean = false, partId = this.getPartId(this._activeSession.get()?.sessionId), activatePart = true): VisibleSession | undefined {
 		const targetId: string | undefined = session?.sessionId;
 		const targetHasVisibleSlot = this._visibleList.includes(targetId);
+		if (!session) {
+			partId = MAIN_SESSIONS_PART;
+		}
 
 		if (!targetHasVisibleSlot) {
-			const activeSlot = this._currentActiveSlot();
+			const selected = this._selectedSessions.get(partId);
+			const activeSlot = this._visibleList.includes(selected) && this.getPartId(selected) === partId ? selected : NO_RECENT;
 			const activeIsNonSticky = activeSlot !== NO_RECENT && !this._isStickySlot(activeSlot);
+			const recent = this._mostRecentNonStickySlots.has(partId) ? this._mostRecentNonStickySlots.get(partId) : NO_RECENT;
 
 			let replaceSlot: string | undefined | typeof NO_RECENT;
 			if (activeIsNonSticky) {
 				replaceSlot = activeSlot;
-			} else if (this._mostRecentNonStickySlot !== NO_RECENT
-				&& this._visibleList.includes(this._mostRecentNonStickySlot)
-				&& !this._isStickySlot(this._mostRecentNonStickySlot)) {
-				replaceSlot = this._mostRecentNonStickySlot;
+			} else if (recent !== NO_RECENT
+				&& this._visibleList.includes(recent)
+				&& this.getPartId(recent) === partId
+				&& !this._isStickySlot(recent)) {
+				replaceSlot = recent;
 			} else {
-				replaceSlot = this._findLastNonSticky();
+				replaceSlot = this._findLastNonSticky(partId);
 			}
 
 			if (replaceSlot !== NO_RECENT) {
 				this.transferGridSlot(replaceSlot, targetId);
 				const idx = this._visibleList.indexOf(replaceSlot);
+				const localIndex = this._visibleList.slice(0, idx).filter(id => this.getPartId(id) === partId).length;
 				this._visibleList.splice(idx, 1, targetId);
 				if (replaceSlot !== undefined) {
 					const replaced = this._wrappers.get(replaceSlot)?.session;
 					const sticky = this._stickyIds.has(replaceSlot);
 					this._wrappers.deleteAndDispose(replaceSlot);
 					if (replaced) {
-						this._onSlotReplaced(replaced, idx, sticky, targetId);
+						this._onSlotReplaced(replaced, localIndex, sticky, targetId, partId);
 					}
 				}
 			} else {
-				if (!this._visibleList.length) {
+				if (partId === MAIN_SESSIONS_PART && !this._visibleList.some(id => this.getPartId(id) === partId)) {
 					this.transferGridSlot(undefined, targetId);
 				}
 				this._visibleList.push(targetId);
 			}
-			this._mostRecentNonStickySlot = targetId;
+			const slot = this._gridSlots.get(targetId);
+			this._gridSlots.set(targetId, { id: slot?.id ?? generateUuid(), partId });
+			this._mostRecentNonStickySlots.set(partId, targetId);
 		}
 
 		const visibleSession = session ? this._getOrCreateVisibleSession(session) : undefined;
 		transaction((tsx) => {
-			this._setActiveSession(visibleSession, preserveFocus, tsx);
-			if (!targetHasVisibleSlot) {
+			const owner = this.getPartId(targetId);
+			const selectionChanged = !this._selectedSessions.has(owner) || this._selectedSessions.get(owner) !== targetId;
+			const activeChanged = this._activeSession.get() !== visibleSession;
+			this._selectedSessions.set(owner, targetId);
+			if (activatePart) {
+				this._setActiveSession(visibleSession, preserveFocus, tsx);
+			}
+			if (!targetHasVisibleSlot || (selectionChanged && (!activatePart || !activeChanged))) {
 				this._refresh(tsx);
 			}
 		});
@@ -512,7 +577,7 @@ export class VisibleSessions extends Disposable {
 	 * (new-session) slot. No-op if the target slot is not currently visible.
 	 */
 	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: 'left' | 'right' | 'up' | 'down', activate: boolean = true): void {
-		if (!this._visibleList.length && targetSessionId === undefined) {
+		if (!this._visibleList.some(id => this.getPartId(id) === MAIN_SESSIONS_PART) && targetSessionId === undefined) {
 			this._visibleList.push(undefined);
 		}
 		const id: string | undefined = session?.sessionId;
@@ -525,9 +590,11 @@ export class VisibleSessions extends Disposable {
 			return;
 		}
 		const reference = this.getGridSlots()[targetIdx].id;
+		const partId = this.getPartId(targetSessionId);
 		const previous = this._gridSlots.get(id);
 		this._gridSlots.set(id, {
 			id: previous?.id ?? generateUuid(),
+			partId,
 			placement: { reference, direction: side === 'left' ? Direction.Left : side === 'right' ? Direction.Right : side === 'up' ? Direction.Up : Direction.Down }
 		});
 		let destIdx = side === 'left' || side === 'up' ? targetIdx : targetIdx + 1;
@@ -545,14 +612,14 @@ export class VisibleSessions extends Disposable {
 				this._visibleList.splice(destIdx, 0, id);
 			}
 			if (!this._isStickySlot(id)) {
-				this._mostRecentNonStickySlot = id;
+				this._mostRecentNonStickySlots.set(partId, id);
 			}
 		} else {
 			if (session) {
 				this._getOrCreateVisibleSession(session);
 			}
 			this._visibleList.splice(destIdx, 0, id);
-			this._mostRecentNonStickySlot = id;
+			this._mostRecentNonStickySlots.set(partId, id);
 		}
 
 		transaction((tsx) => {
@@ -579,9 +646,13 @@ export class VisibleSessions extends Disposable {
 	 * @param activeIndex Index into `slots` of the slot that should be active,
 	 * or `-1` for none.
 	 */
-	restoreGrid(slots: ReadonlyArray<{ readonly session: ISession | undefined; readonly sticky: boolean; readonly gridId?: string }>, activeIndex: number): void {
-		this._visibleList = [];
-		this._stickyIds.clear();
+	restoreGrid(slots: ReadonlyArray<{ readonly session: ISession | undefined; readonly sticky: boolean; readonly gridId?: string }>, activeIndex: number, partId = MAIN_SESSIONS_PART, activate = true): void {
+		for (const id of this._visibleList) {
+			if (id !== undefined && this.getPartId(id) === partId) {
+				this._stickyIds.delete(id);
+			}
+		}
+		this._visibleList = this._visibleList.filter(id => this.getPartId(id) !== partId);
 
 		let activeWrapper: VisibleSession | undefined;
 		let lastNonStickySlot: string | undefined | typeof NO_RECENT = NO_RECENT;
@@ -591,9 +662,7 @@ export class VisibleSessions extends Disposable {
 			if (this._visibleList.includes(id)) {
 				continue;
 			}
-			if (slots[i].gridId) {
-				this._gridSlots.set(id, { id: slots[i].gridId! });
-			}
+			this._gridSlots.set(id, { id: slots[i].gridId ?? this._gridSlots.get(id)?.id ?? generateUuid(), partId });
 			this._visibleList.push(id);
 			if (session) {
 				const wrapper = this._getOrCreateVisibleSession(session);
@@ -621,12 +690,15 @@ export class VisibleSessions extends Disposable {
 		// Mirror the slot-replacement bookkeeping used elsewhere: prefer the
 		// active slot when it is non-sticky, otherwise the last non-sticky slot.
 		const activeId = activeWrapper?.sessionId;
-		this._mostRecentNonStickySlot = (activeId !== undefined && !this._isStickySlot(activeId))
+		this._mostRecentNonStickySlots.set(partId, (activeId !== undefined && !this._isStickySlot(activeId))
 			? activeId
-			: lastNonStickySlot;
+			: lastNonStickySlot);
 
 		transaction(tsx => {
-			this._setActiveSession(activeWrapper, false, tsx);
+			this._selectedSessions.set(partId, activeWrapper?.sessionId);
+			if (activate) {
+				this._setActiveSession(activeWrapper, false, tsx);
+			}
 			this._refresh(tsx);
 		});
 	}
@@ -636,10 +708,10 @@ export class VisibleSessions extends Disposable {
 	 * when `sessionId` is `undefined`), or `undefined` when it is not visible.
 	 */
 	getSlot(sessionId: string | undefined): { readonly index: number; readonly sticky: boolean } | undefined {
-		if (!this._visibleList.length && sessionId === undefined) {
+		if (!this._visibleList.some(id => this.getPartId(id) === MAIN_SESSIONS_PART) && sessionId === undefined) {
 			return { index: 0, sticky: false };
 		}
-		const index = this._visibleList.indexOf(sessionId);
+		const index = this._visibleList.filter(id => this.getPartId(id) === this.getPartId(sessionId)).indexOf(sessionId);
 		return index < 0 ? undefined : { index, sticky: this._isStickySlot(sessionId) };
 	}
 
@@ -654,7 +726,7 @@ export class VisibleSessions extends Disposable {
 	 * current grid size, so a stale index appends instead of failing. No-op
 	 * when the session is already visible.
 	 */
-	insertAtIndex(session: ISession, index: number, sticky: boolean): VisibleSession | undefined {
+	insertAtIndex(session: ISession, index: number, sticky: boolean, partId = MAIN_SESSIONS_PART): VisibleSession | undefined {
 		const id = session.sessionId;
 		if (this._visibleList.includes(id)) {
 			const existing = this._wrappers.get(id);
@@ -662,13 +734,17 @@ export class VisibleSessions extends Disposable {
 			return existing;
 		}
 
-		const destIdx = Math.max(0, Math.min(index, this._visibleList.length));
+		const local = this._visibleList.filter(id => this.getPartId(id) === partId);
+		const localIndex = Math.max(0, Math.min(index, local.length));
+		const destIdx = localIndex < local.length ? this._visibleList.indexOf(local[localIndex])
+			: local.length ? this._visibleList.indexOf(local[local.length - 1]) + 1 : this._visibleList.length;
 		const wrapper = this._getOrCreateVisibleSession(session);
+		this._gridSlots.set(id, { id: this._gridSlots.get(id)?.id ?? generateUuid(), partId });
 		this._visibleList.splice(destIdx, 0, id);
 		if (sticky) {
 			this._stickyIds.add(id);
 		} else {
-			this._mostRecentNonStickySlot = id;
+			this._mostRecentNonStickySlots.set(this.getPartId(id), id);
 		}
 
 		transaction((tsx) => {
@@ -701,8 +777,9 @@ export class VisibleSessions extends Disposable {
 		if (sticky) {
 			this._stickyIds.add(id);
 		}
-		if (this._mostRecentNonStickySlot === slotId) {
-			this._mostRecentNonStickySlot = sticky ? this._findLastNonSticky() : id;
+		const partId = this.getPartId(id);
+		if (this._mostRecentNonStickySlots.get(partId) === slotId) {
+			this._mostRecentNonStickySlots.set(partId, sticky ? this._findLastNonSticky(partId) : id);
 		}
 
 		const wrapper = this._getOrCreateVisibleSession(session);
@@ -729,11 +806,12 @@ export class VisibleSessions extends Disposable {
 			this._visibleList.push(id);
 		} else if (this._stickyIds.has(id)) {
 			this._stickyIds.delete(id);
-			this._mostRecentNonStickySlot = id;
+			this._mostRecentNonStickySlots.set(this.getPartId(id), id);
 		} else {
 			this._stickyIds.add(id);
-			if (this._mostRecentNonStickySlot === id) {
-				this._mostRecentNonStickySlot = this._findLastNonSticky();
+			const partId = this.getPartId(id);
+			if (this._mostRecentNonStickySlots.get(partId) === id) {
+				this._mostRecentNonStickySlots.set(partId, this._findLastNonSticky(partId));
 			}
 		}
 		this._refresh(undefined);
@@ -753,12 +831,14 @@ export class VisibleSessions extends Disposable {
 		transaction((tsx) => {
 			let changed = false;
 			const activeId = this._activeSession.get()?.sessionId;
+			const activePartId = this.getPartId(activeId);
+			const localIds = this._visibleList.filter(id => this.getPartId(id) === activePartId);
 			// activeSession.get() is undefined both when the empty slot is active
 			// and when no slot is active; disambiguate via the visible list.
 			const emptySlotIsActive = activeId === undefined && this._visibleList.includes(undefined);
 			const activeSlotId = emptySlotIsActive ? undefined : activeId;
 			const activeIdx = activeId !== undefined || emptySlotIsActive
-				? this._visibleList.indexOf(activeSlotId)
+				? localIds.indexOf(activeSlotId)
 				: -1;
 			let activeRemoved = false;
 			for (const id of sessionIds) {
@@ -770,11 +850,12 @@ export class VisibleSessions extends Disposable {
 				}
 			}
 			if (activeRemoved) {
-				if (this._visibleList.length === 0) {
-					this._setActiveSession(undefined, false, tsx);
+				const remaining = this._visibleList.filter(id => this.getPartId(id) === activePartId);
+				if (remaining.length === 0) {
+					this._setActiveSession(activePartId === MAIN_SESSIONS_PART ? undefined : this.getSelectedSession(MAIN_SESSIONS_PART), false, tsx);
 				} else {
-					const fallbackIdx = Math.max(0, Math.min(activeIdx - 1, this._visibleList.length - 1));
-					const fallbackId = this._visibleList[fallbackIdx];
+					const fallbackIdx = Math.max(0, Math.min(activeIdx - 1, remaining.length - 1));
+					const fallbackId = remaining[fallbackIdx];
 					const fallbackWrapper = fallbackId !== undefined ? this._wrappers.get(fallbackId) : undefined;
 					this._setActiveSession(fallbackWrapper, false, tsx);
 				}
@@ -873,8 +954,9 @@ export class VisibleSessions extends Disposable {
 		if (this._stickyIds.delete(fromId)) {
 			this._stickyIds.add(toId);
 		}
-		if (this._mostRecentNonStickySlot === fromId) {
-			this._mostRecentNonStickySlot = toId;
+		const partId = this.getPartId(toId);
+		if (this._mostRecentNonStickySlots.get(partId) === fromId) {
+			this._mostRecentNonStickySlots.set(partId, toId);
 		}
 		if (this._wrappers.has(fromId)) {
 			this._wrappers.deleteAndDispose(fromId);
@@ -886,10 +968,18 @@ export class VisibleSessions extends Disposable {
 		this._refresh(undefined);
 	}
 
-	private _findLastNonSticky(): string | undefined | typeof NO_RECENT {
+	forgetPart(partId: string): void {
+		if (partId === MAIN_SESSIONS_PART || this.getVisibleSessions(partId).length) {
+			throw new Error('Only an empty auxiliary Sessions part can be removed');
+		}
+		this._selectedSessions.delete(partId);
+		this._mostRecentNonStickySlots.delete(partId);
+	}
+
+	private _findLastNonSticky(partId?: string): string | undefined | typeof NO_RECENT {
 		for (let i = this._visibleList.length - 1; i >= 0; i--) {
 			const sid = this._visibleList[i];
-			if (!this._isStickySlot(sid)) {
+			if (!this._isStickySlot(sid) && (partId === undefined || this.getPartId(sid) === partId)) {
 				return sid;
 			}
 		}
@@ -899,18 +989,6 @@ export class VisibleSessions extends Disposable {
 	/** True if the given slot id refers to a sticky session. The empty slot is never sticky. */
 	private _isStickySlot(id: string | undefined): boolean {
 		return id !== undefined && this._stickyIds.has(id);
-	}
-
-	/**
-	 * Returns the slot id of the currently active entry in the grid, or
-	 * {@link NO_RECENT} if no entry in the grid is active.
-	 */
-	private _currentActiveSlot(): string | undefined | typeof NO_RECENT {
-		const activeId = this._activeSession.get()?.sessionId;
-		if (activeId !== undefined) {
-			return this._visibleList.includes(activeId) ? activeId : NO_RECENT;
-		}
-		return this._visibleList.includes(undefined) ? undefined : NO_RECENT;
 	}
 
 	private _removeFromModel(sessionId: string | undefined): boolean {
@@ -923,8 +1001,9 @@ export class VisibleSessions extends Disposable {
 		if (sessionId !== undefined && this._stickyIds.delete(sessionId)) {
 			changed = true;
 		}
-		if (this._mostRecentNonStickySlot === sessionId) {
-			this._mostRecentNonStickySlot = this._findLastNonSticky();
+		const partId = this.getPartId(sessionId);
+		if (this._mostRecentNonStickySlots.get(partId) === sessionId) {
+			this._mostRecentNonStickySlots.set(partId, this._findLastNonSticky(partId));
 			changed = true;
 		}
 		if (sessionId !== undefined && this._wrappers.has(sessionId)) {
@@ -935,7 +1014,7 @@ export class VisibleSessions extends Disposable {
 	}
 
 	private _refresh(tsx: ITransaction | undefined): void {
-		const ids = this._visibleList.length ? this._visibleList : [undefined];
+		const ids = this._visibleList.some(id => this.getPartId(id) === MAIN_SESSIONS_PART) ? this._visibleList : [...this._visibleList, undefined];
 		for (const id of this._gridSlots.keys()) {
 			if (!ids.includes(id)) {
 				this._gridSlots.delete(id);
@@ -952,6 +1031,12 @@ export class VisibleSessions extends Disposable {
 			if (visibleSession) {
 				visibleSession.setSticky(this._stickyIds.has(id));
 				wrappers.push(visibleSession);
+			}
+		}
+		for (const [partId, selected] of this._selectedSessions) {
+			if (!this._visibleList.includes(selected) || this.getPartId(selected) !== partId) {
+				const fallback = this._visibleList.findLast(id => this.getPartId(id) === partId);
+				this._selectedSessions.set(partId, fallback);
 			}
 		}
 		this._visibleSessions.set(wrappers, tsx);

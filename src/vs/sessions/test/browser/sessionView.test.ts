@@ -192,7 +192,7 @@ suite('Sessions - Session View', () => {
 					preparationViews.push(created);
 					return created;
 				},
-				createNewChatView: (_isNewChatInSession: boolean, options: IChatViewOptions, instantiationService?: IInstantiationService) => {
+				createNewChatView: (_parent: HTMLElement, _isNewChatInSession: boolean, options: IChatViewOptions, instantiationService?: IInstantiationService) => {
 					forwardedOptions.push(options);
 					forwardedInstantiationServices.push(instantiationService);
 					const created = new TestNewSessionView();
@@ -268,7 +268,7 @@ suite('Sessions - Session View', () => {
 		const { instantiationService, configurationService } = createSessionViewTestServices(store);
 		const session = createTestActiveSession('session');
 
-		const view = store.add(instantiationService.createInstance(SessionView));
+		const view = store.add(instantiationService.createInstance(SessionView, mainWindow.document.body));
 		mainWindow.document.body.appendChild(view.element);
 		store.add({ dispose: () => view.element.remove() });
 		view.openSession(session, {});

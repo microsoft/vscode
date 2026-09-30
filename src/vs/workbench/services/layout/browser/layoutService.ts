@@ -474,11 +474,12 @@ export function partOpensMaximizedFromString(str: string): PartOpensMaximizedOpt
 	return partOpensMaximizedByString[str];
 }
 
-export type MULTI_WINDOW_PARTS = Parts.EDITOR_PART | Parts.STATUSBAR_PART | Parts.TITLEBAR_PART;
+export type MULTI_WINDOW_PARTS = Parts.EDITOR_PART | Parts.STATUSBAR_PART | Parts.TITLEBAR_PART | Parts.SESSIONS_PART;
 export type SINGLE_WINDOW_PARTS = Exclude<Parts, MULTI_WINDOW_PARTS>;
 
 export function isMultiWindowPart(part: Parts): part is MULTI_WINDOW_PARTS {
 	return part === Parts.EDITOR_PART ||
+		part === Parts.SESSIONS_PART ||
 		part === Parts.STATUSBAR_PART ||
 		part === Parts.TITLEBAR_PART;
 }
@@ -576,7 +577,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Focuses the part in the target window. If the part is not visible this is a noop.
 	 */
-	focusPart(part: SINGLE_WINDOW_PARTS): void;
+	focusPart(part: SINGLE_WINDOW_PARTS | Parts.SESSIONS_PART): void;
 	focusPart(part: MULTI_WINDOW_PARTS, targetWindow: Window): void;
 	focusPart(part: Parts, targetWindow: Window): void;
 
@@ -589,7 +590,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Returns if the part is visible in the target window.
 	 */
-	isVisible(part: SINGLE_WINDOW_PARTS): boolean;
+	isVisible(part: SINGLE_WINDOW_PARTS | Parts.SESSIONS_PART): boolean;
 	isVisible(part: MULTI_WINDOW_PARTS, targetWindow: Window): boolean;
 	isVisible(part: Parts, targetWindow: Window): boolean;
 

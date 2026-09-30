@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { derived, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, derived, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -1018,6 +1018,34 @@ suite('SessionModelSelection', () => {
 			backOnChatOne: first.identifier,
 			chatTwoModel: second.identifier,
 			writes: [],
+		});
+	});
+
+	test('a visible peer composer stays bound to its chat while another group is active', () => {
+		const active = createChat('chat:/provider/active', first.identifier);
+		const peer = createChat('chat:/provider/peer', second.identifier);
+		const testSession = createSession('provider', SessionStatus.Completed);
+		testSession.activeChat.set(active, undefined);
+		const provider = disposables.add(createProvider('provider'));
+		const writes: { chat: string; model: string }[] = [];
+		provider.setModel = (_sessionId, resource, modelId, source) => {
+			writes.push({ chat: resource.toString(), model: modelId });
+			peer.modelId.set(modelId, undefined);
+			peer.modelSource.set(source, undefined);
+		};
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			{ chat: constObservable(peer) },
+			createProvidersService([provider]),
+			disposables.add(new InMemoryStorageService()),
+			createConfigurationService(),
+			disposables.add(new NullLogService()),
+		));
+		const initial = selection.state.get().currentModel?.identifier;
+		selection.selectModel(first.identifier);
+		assert.deepStrictEqual({ initial, active: active.modelId.get(), peer: peer.modelId.get(), writes }, {
+			initial: second.identifier, active: first.identifier, peer: first.identifier,
+			writes: [{ chat: peer.resource.toString(), model: first.identifier }],
 		});
 	});
 

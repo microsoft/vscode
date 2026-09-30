@@ -345,6 +345,8 @@ export interface ISessionsManagementService {
 	 * to prewarm caches whose result is consumed by {@link onDidSendRequest}.
 	 */
 	readonly onWillSendRequest: Event<ISession>;
+	/** Ends a send attempt, including failures, with the same session reported by onWillSendRequest. */
+	readonly onDidFinishSendRequest: Event<ISession>;
 
 	/**
 	 * Fires after a chat request was successfully sent from this window via

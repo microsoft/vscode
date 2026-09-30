@@ -21,7 +21,6 @@ import { IsWindowAlwaysOnTopContext } from '../../../workbench/common/contextkey
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
-import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
@@ -254,7 +253,7 @@ export class NativeTitleService extends TitleService {
 		return this.instantiationService.createInstance(MainNativeTitlebarPart);
 	}
 
-	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {
+	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {
 		return instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, this.mainPart);
 	}
 }

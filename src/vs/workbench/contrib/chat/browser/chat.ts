@@ -30,6 +30,7 @@ import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType } from '..
 import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
 import { ChatInputPart } from './widget/input/chatInputPart.js';
+import { ChatInputEditorState } from './widget/input/chatInputEditorState.js';
 import { IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
@@ -274,6 +275,7 @@ export interface IChatListItemRendererOptions {
 }
 
 export interface IChatWidgetViewOptions {
+	readonly inputEditorState?: ChatInputEditorState;
 	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;
 	/** Show the read-only status banner above the transcript instead of beside the composer. */

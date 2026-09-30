@@ -43,6 +43,7 @@ export enum AuxiliaryWindowMode {
 }
 
 export interface IAuxiliaryWindowOpenOptions {
+	readonly containerClasses?: { readonly add: readonly string[]; readonly remove: readonly string[] };
 	readonly bounds?: Partial<IRectangle>;
 	readonly compact?: boolean;
 
@@ -419,7 +420,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 		this.applyMeta(auxiliaryWindow);
 		const { stylesLoaded } = this.applyCSS(auxiliaryWindow, disposables);
-		const container = this.applyHTML(auxiliaryWindow, disposables);
+		const container = this.applyHTML(auxiliaryWindow, disposables, options?.containerClasses);
 
 		return { stylesLoaded, container };
 	}
@@ -546,7 +547,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return { stylesLoaded };
 	}
 
-	private applyHTML(auxiliaryWindow: CodeWindow, disposables: DisposableStore): HTMLElement {
+	private applyHTML(auxiliaryWindow: CodeWindow, disposables: DisposableStore, classes?: IAuxiliaryWindowOpenOptions['containerClasses']): HTMLElement {
 		mark('code/auxiliaryWindow/willApplyHTML');
 
 		// Create workbench container and apply classes
@@ -560,7 +561,16 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		// Track attributes
 		disposables.add(trackAttributes(mainWindow.document.documentElement, auxiliaryWindow.document.documentElement));
 		disposables.add(trackAttributes(mainWindow.document.body, auxiliaryWindow.document.body));
-		disposables.add(trackAttributes(this.layoutService.mainContainer, container, ['class'])); // only class attribute
+		if (classes) {
+			const updateClasses = () => {
+				container.className = [...this.layoutService.mainContainer.classList].filter(name => !classes.remove.includes(name)).join(' ');
+				container.classList.add(...classes.add);
+			};
+			updateClasses();
+			disposables.add(sharedMutationObserver.observe(this.layoutService.mainContainer, disposables, { attributes: true, attributeFilter: ['class'] })(updateClasses));
+		} else {
+			disposables.add(trackAttributes(this.layoutService.mainContainer, container, ['class']));
+		}
 
 		mark('code/auxiliaryWindow/didApplyHTML');
 

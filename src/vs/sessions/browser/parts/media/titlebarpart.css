@@ -229,3 +229,10 @@
 .agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container {
 	padding-top: env(safe-area-inset-top);
 }
+.agent-sessions-workbench .auxiliary-sessions-window-title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--vscode-fontSize-label1);
+}

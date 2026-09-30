@@ -29,3 +29,15 @@
 .monaco-workbench.monaco-enable-motion #monaco-workbench-session-drop-overlay > .session-drop-overlay-indicator.overlay-move-transition {
 	transition: top 70ms ease-out, left 70ms ease-out, width 70ms ease-out, height 70ms ease-out, opacity 150ms ease-out;
 }
+.sessionspart .session-pointer-drop-overlay {
+	position: absolute;
+	z-index: 10000;
+	pointer-events: none;
+	background-color: var(--vscode-editorGroup-dropBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder, transparent);
+	outline-offset: -1px;
+}
+
+.session-header-bar.session-header-dragging {
+	cursor: grabbing;
+}

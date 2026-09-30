@@ -9,6 +9,25 @@ import { IActiveSession } from '../common/sessionsManagement.js';
 import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
 import { Event } from '../../../../base/common/event.js';
 import { Direction, ISerializedGrid } from '../../../../base/browser/ui/grid/grid.js';
+import type { SessionsPart } from '../../../browser/parts/sessionsPart.js';
+import { IAuxiliaryWindowOpenOptions } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import type { SessionGridDirection } from './sessionsService.js';
+
+export interface ISessionDragTarget {
+	readonly partId: string;
+	readonly referenceSessionId: string | undefined;
+	readonly direction: SessionGridDirection;
+}
+
+export interface ISessionDragHandlers {
+	drop(sessions: readonly IActiveSession[], target: ISessionDragTarget): Promise<void>;
+	openWindow(sessions: readonly IActiveSession[], bounds: { readonly x: number; readonly y: number }): Promise<void>;
+}
+
+export interface ISessionPartCloseEvent {
+	readonly partId: string;
+	readonly shutdown: boolean;
+}
 
 export interface ISessionGridPlacement {
 	readonly reference: string;
@@ -17,10 +36,13 @@ export interface ISessionGridPlacement {
 
 export interface ISessionGridSlot {
 	readonly id: string;
+	readonly partId?: string;
 	readonly placement?: ISessionGridPlacement;
 }
 
-export type SessionGridRequest = { readonly type: 'arrange' } | { readonly type: 'restore'; readonly grid: ISerializedGrid };
+export const MAIN_SESSIONS_PART = 'main';
+
+export type SessionGridRequest = ({ readonly type: 'arrange' } | { readonly type: 'restore'; readonly grid: ISerializedGrid }) & { readonly partId?: string };
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
 
@@ -36,20 +58,33 @@ export interface IToggleMaximizeSessionEvent {
 export interface ISessionsPartService {
 	readonly _serviceBrand: undefined;
 
+	getParts(): readonly SessionsPart[];
+	getPart(partId: string): SessionsPart | undefined;
+	getPartForWindow(targetWindow: Window): SessionsPart | undefined;
+	createAuxiliaryPart(options?: IAuxiliaryWindowOpenOptions, partId?: string): Promise<SessionsPart>;
+	getAuxiliaryWindowState(partId: string): IAuxiliaryWindowOpenOptions | undefined;
+	closeAuxiliaryPart(partId: string): void;
+	setAuxiliaryWindowCloseHandler(handler: (partId: string) => void): void;
+	readonly onDidCloseAuxiliaryPart: Event<ISessionPartCloseEvent>;
+	transferSessions(sessions: readonly IActiveSession[], targetPartId: string, commit: () => void): void;
+	setSessionDragHandlers(handlers: ISessionDragHandlers): void;
+	startSessionDrag(event: PointerEvent, element: HTMLElement, session: IActiveSession): void;
+	flushState(): void;
+
 	/**
 	 * Reconciles the part's grid so it renders exactly the given visible
 	 * sessions (and active session). Called by the view service whenever the
 	 * visible sessions or active session change. The part is a passive renderer:
 	 * it does not observe the model itself.
 	 */
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void;
+	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest, partId?: string): void;
 
-	getGridLayout(): ISerializedGrid | undefined;
+	getGridLayout(partId?: string): ISerializedGrid | undefined;
 	/** `null` identifies the empty composer; `undefined` means there is no neighbor. */
 	getNeighborSession(sessionId: string | undefined, direction: Direction): IActiveSession | null | undefined;
 	getSessionPlacement(sessionId: string): { readonly sessionId: string | undefined; readonly direction: Direction } | undefined;
 	resizeSession(sessionId: string | undefined, direction: Direction, amount: number): void;
-	readonly onDidInteractWithGrid: Event<void>;
+	readonly onDidInteractWithGrid: Event<string>;
 
 	/**
 	 * Controls whether mounted session views may render independently of the part's grid visibility.

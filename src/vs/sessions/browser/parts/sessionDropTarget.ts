@@ -34,7 +34,8 @@ export function getSessionDropDirection(x: number, y: number, width: number, hei
  * it belongs to (if any). Returns the session id and the view's root element.
  */
 export interface ISessionDropTargetDelegate {
-	findTargetView(child: HTMLElement): { readonly sessionId: string; readonly element: HTMLElement } | undefined;
+	readonly partId: string;
+	findTargetView(child: HTMLElement): { readonly sessionId: string | undefined; readonly element: HTMLElement } | undefined;
 }
 
 class SessionDropOverlay extends Themable {
@@ -54,7 +55,8 @@ class SessionDropOverlay extends Themable {
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
 	constructor(
-		readonly targetSessionId: string,
+		private readonly targetPartId: string,
+		readonly targetSessionId: string | undefined,
 		private readonly _targetElement: HTMLElement,
 		@IThemeService themeService: IThemeService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -162,7 +164,7 @@ class SessionDropOverlay extends Themable {
 			return;
 		}
 
-		void this._sessionsService.openSessionsAt(sessions, this.targetSessionId, side).catch(onUnexpectedError);
+		void this._sessionsService.openSessionsAt(sessions, this.targetSessionId, side, { partId: this.targetPartId }).catch(onUnexpectedError);
 	}
 
 	private _positionOverlay(clientX: number, clientY: number): void {
@@ -295,6 +297,7 @@ export class SessionDropTarget extends Themable {
 
 		this._overlay = this._instantiationService.createInstance(
 			SessionDropOverlay,
+			this._delegate.partId,
 			targetView.sessionId,
 			targetView.element,
 		);

@@ -20,6 +20,8 @@ import { IActiveSession, ISessionsManagementService } from '../../../../../sessi
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ISessionContext, SessionContext } from '../../../../../sessions/services/sessions/browser/sessionContext.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentHostFilterService } from '../../../../../sessions/services/agentHostFilter/common/agentHostFilter.js';
@@ -134,6 +136,7 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(ISessionContext, new SessionContext(constObservable(state.activeSession)));
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(state.activeSession);
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
