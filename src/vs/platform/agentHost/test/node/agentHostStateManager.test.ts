@@ -1444,7 +1444,7 @@ suite('AgentHostStateManager', () => {
 				action: {
 					type: ActionType.SessionChatUpdated,
 					chat: peerChat,
-					changes: { status: SessionStatus.Idle | SessionStatus.IsArchived },
+					changes: { status: SessionStatus.Idle | SessionStatus.IsArchived, activity: undefined },
 				},
 			});
 		});
@@ -1633,7 +1633,7 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
-		test('a running peer chat forwards its own progress to the session catalog', () => {
+		test('a running peer chat forwards its own status to the session catalog so its tab can show progress', () => {
 			manager.createSession(makeSessionSummary());
 			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
 
@@ -1641,6 +1641,7 @@ suite('AgentHostStateManager', () => {
 			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			const peerCatalogStatus = () => manager.getSessionState(sessionUri)?.chats.find(c => c.resource === peerChat)?.status ?? SessionStatus.Idle;
+			const chatUpdatesForPeer = () => envelopes.filter(e => e.action.type === ActionType.SessionChatUpdated && (e.action as { chat: string }).chat === peerChat).length;
 
 			const idleCatalog = peerCatalogStatus();
 
@@ -1651,13 +1652,7 @@ suite('AgentHostStateManager', () => {
 				message: { text: 'b', origin: { kind: MessageKind.User } },
 			});
 			const runningCatalog = peerCatalogStatus();
-			const updatesAfterStart = envelopes.filter(e => e.action.type === ActionType.SessionChatUpdated && e.action.chat === peerChat);
-
-			manager.dispatchServerAction(peerChat, {
-				type: ActionType.ChatActivityChanged,
-				activity: 'Running tests',
-			});
-			const updatesAfterActivity = envelopes.filter(e => e.action.type === ActionType.SessionChatUpdated && e.action.chat === peerChat);
+			const updatesAfterStart = chatUpdatesForPeer();
 
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnComplete,
@@ -1670,28 +1665,13 @@ suite('AgentHostStateManager', () => {
 					idleCatalogInProgress: (idleCatalog & SessionStatus.InProgress) === SessionStatus.InProgress,
 					runningCatalogInProgress: (runningCatalog & SessionStatus.InProgress) === SessionStatus.InProgress,
 					finalCatalogInProgress: (peerCatalogStatus() & SessionStatus.InProgress) === SessionStatus.InProgress,
-					startUpdate: updatesAfterStart.at(-1)?.action,
-					activityUpdate: updatesAfterActivity.at(-1)?.action,
+					emittedChatUpdateOnStart: updatesAfterStart >= 1,
 				},
 				{
 					idleCatalogInProgress: false,
 					runningCatalogInProgress: true,
 					finalCatalogInProgress: false,
-					startUpdate: {
-						type: ActionType.SessionChatUpdated,
-						chat: peerChat,
-						changes: {
-							status: SessionStatus.InProgress,
-							modifiedAt: '2025-01-01T00:00:00.000Z',
-						},
-					},
-					activityUpdate: {
-						type: ActionType.SessionChatUpdated,
-						chat: peerChat,
-						changes: {
-							activity: 'Running tests',
-						},
-					},
+					emittedChatUpdateOnStart: true,
 				},
 			);
 		});

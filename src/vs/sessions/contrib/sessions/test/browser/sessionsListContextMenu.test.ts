@@ -268,8 +268,14 @@ suite('Sessions list context menus', () => {
 		sessionList.contextMenuService.delegate!.onHide?.(false);
 		const sessionInput = sessionList.container.querySelector<HTMLInputElement>('.session-title-input input')?.value;
 
-		const { session: baseChatSession } = createSession('Session with chat');
-		const mainChat = baseChatSession.mainChat.get();
+		const mainChat = upcastPartial<IChat>({
+			resource: URI.parse('test-chat:/main'),
+			status: constObservable(SessionStatus.Completed),
+			interactivity: constObservable(ChatInteractivity.Full),
+			isArchived: constObservable(false),
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		});
 		const peerChat = upcastPartial<IChat>({
 			resource: URI.parse('test-chat:/peer'),
 			workspace: constObservable(undefined),
@@ -278,14 +284,12 @@ suite('Sessions list context menus', () => {
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
 			isArchived: constObservable(false),
-			isRead: constObservable(true),
-			description: constObservable(undefined),
 			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
 			changes: constObservable([]),
 			changesets: constObservable([]),
 		});
 		const chatSession: ISession = {
-			...baseChatSession,
+			...createSession('Session with chat').session,
 			chats: constObservable([mainChat, peerChat]),
 			mainChat: constObservable(mainChat),
 		};
@@ -472,8 +476,6 @@ suite('Sessions list context menus', () => {
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
 			isArchived: constObservable(false),
-			isRead: constObservable(true),
-			description: constObservable(undefined),
 			capabilities: constObservable({ canRename, canArchive: true, canDelete }),
 			changes: constObservable([]),
 			changesets: constObservable([]),

@@ -2068,10 +2068,9 @@ export class AgentHostStateManager extends Disposable {
 	 *    keyed by the owning session URI;
 	 *  - mirror the chat's denormalized `status`/`activity`/`modifiedAt`
 	 *    onto the session summary so the session list reflects progress;
-	 *  - forward the chat's own `status`, `activity`, and `modifiedAt` to the
-	 *    session `chats` catalog (via a {@link ActionType.SessionChatUpdated})
-	 *    so per-chat tabs reflect that chat's progress, not just the aggregated
-	 *    session summary; and
+	 *  - forward the chat's own `status` to the session `chats` catalog (via a
+	 *    {@link ActionType.SessionChatUpdated}) so per-chat tabs reflect that
+	 *    chat's progress, not just the aggregated session summary; and
 	 *  - keep the session's `chats` catalog entry in sync.
 	 */
 	private _onChatStateChanged(sessionKey: string, chatUri: string, prev: ChatState, next: ChatState): void {
@@ -2121,20 +2120,15 @@ export class AgentHostStateManager extends Disposable {
 		const prevEntry = sessionState.chats.find(c => c.resource === chatUri);
 		const chats = sessionState.chats.map(c => c.resource === chatUri ? nextEntry : c);
 
-		// Forward chat-local status, activity, and modification time to SessionState
-		// subscribers, not just to the aggregated session summary.
-		const chatStatusChanged = prevEntry?.status !== nextEntry.status;
-		const chatActivityChanged = prevEntry?.activity !== nextEntry.activity;
-		const chatModifiedAtChanged = prevEntry?.modifiedAt !== nextEntry.modifiedAt;
-		if (chatStatusChanged || chatActivityChanged || chatModifiedAtChanged) {
+		// Forward the chat's own status to the session catalog so full
+		// SessionState subscribers (the per-chat tabs) reflect this chat's
+		// progress — not just the aggregated session summary. Status changes
+		// at most a couple of times per turn, so this won't flood the channel.
+		if (prevEntry?.status !== nextEntry.status) {
 			this.dispatchServerAction(sessionKey, {
 				type: ActionType.SessionChatUpdated,
 				chat: chatUri,
-				changes: {
-					...(chatStatusChanged ? { status: nextEntry.status } : undefined),
-					...(chatActivityChanged ? { activity: nextEntry.activity } : undefined),
-					...(chatModifiedAtChanged ? { modifiedAt: nextEntry.modifiedAt } : undefined),
-				},
+				changes: { status: nextEntry.status, activity: nextEntry.activity },
 			});
 		}
 
