@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../../../../base/common/policy.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IRequestContext } from '../../../../../../../base/parts/request/common/request.js';
@@ -301,7 +302,7 @@ suite('ChatInputPart mode validation', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IExtensionService, {});
 		instantiationService.stub(ILogService, logService);
-		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
+		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: isWeb ? 'test-remote' : undefined, isSessionsWindow: false });
 		instantiationService.stub(IProductService, TestProductService);
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
